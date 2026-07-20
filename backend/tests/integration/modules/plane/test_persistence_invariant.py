@@ -85,12 +85,12 @@ async def test_listing_plane_with_emissions_does_not_pollute_data(
     db_session.add(factor)
     await db_session.flush()
 
-    # The exact shape the user reported in the bug write-up: GVA→ZRH first
+    # The exact shape the user reported in the bug write-up: GVA→ZRH business
     # class, no precomputed kg_co2eq.
     original_data = {
         "origin_iata": "GVA",
         "destination_iata": "ZRH",
-        "cabin_class": "first",
+        "cabin_class": "business",
         "user_institutional_id": "150322",
         "number_of_trips": 1,
         "departure_date": "2025/01/09",

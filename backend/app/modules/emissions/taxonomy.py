@@ -70,7 +70,6 @@ class EmissionType(int, Enum):
     professional_travel__train__class_1 = 50101
     professional_travel__train__class_2 = 50102
     professional_travel__plane = 50200
-    professional_travel__plane__first = 50201
     professional_travel__plane__business = 50202
     professional_travel__plane__eco = 50203
 

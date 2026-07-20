@@ -87,6 +87,7 @@ async def test_fire_and_forget_logs_unhandled_exception(caplog):
     try:
         await task
     except RuntimeError:
+        # The raise is the point — we assert on the logged error below
         pass
     await asyncio.sleep(0)
 

@@ -10,10 +10,16 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.models.carbon_report import CarbonReportModule
-from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.data_entry import (
+    BULK_PER_YEAR_SOURCES,
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryTypeEnum,
+)
 from app.models.data_ingestion import EntityType, IngestionResult
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
+from app.repositories.data_entry_repo import DataEntryRepository
 from app.services.data_ingestion.base_csv_provider import (
     REUPLOAD_HINT,
     BaseCSVProvider,
@@ -202,7 +208,7 @@ async def test_validate_csv_headers_empty_file():
 
 
 @pytest.mark.asyncio
-async def test_process_csv_with_blank_rows_does_not_raise_value_error():
+async def test_process_csv_with_blank_rows_does_not_raise_value_error(monkeypatch):
     """Regression test: Verifies that intermittent and trailing structural
     blank rows (like ',,') are skipped by the loop guard and do not cause
     the batch processor to raise a 'Data entry is None without error message'
@@ -217,6 +223,11 @@ async def test_process_csv_with_blank_rows_does_not_raise_value_error():
     # Mock out the batch-saving step completely to avoid database repository
     # dependencies
     provider._process_batch = AsyncMock(return_value=2)
+    # The unconditional duplicate-set prefetch hits the repo; the mocked
+    # session can't answer SQL, so stub it to an empty seed.
+    monkeypatch.setattr(
+        DataEntryRepository, "get_member_role_keys", AsyncMock(return_value=set())
+    )
 
     # 2. Mock the async files_store layer
     mock_files_store = MagicMock()
@@ -282,6 +293,9 @@ def _drive_member_csv(
     ``db_session``. ``_process_batch`` is stubbed to skip factor/emission
     computation, which is irrelevant to the uniqueness check.
     """
+    # Deliberately NO module_type_id: the duplicate-set seeding must be
+    # unconditional — a raw-API dispatch can omit it, and gating the seed
+    # on it silently dropped DB-level dedup (code-review finding).
     config = {
         "file_path": "tmp/test.csv",
         "carbon_report_module_id": module_id,
@@ -356,6 +370,40 @@ async def test_csv_batch_rejects_true_duplicate_member_role(db_session: AsyncSes
     rows_data = [
         {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
         {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+    ]
+    provider = _drive_member_csv(db_session, module.id, rows_data)
+
+    result = await provider.process_csv_in_batches()
+
+    assert result["stats"]["row_errors_count"] == 1
+    assert result["stats"]["row_errors"][0]["reason"] == "DUPLICATE_INSTITUTIONAL_ID"
+    assert result["stats"]["rows_processed"] == 1
+
+
+@pytest.mark.asyncio
+async def test_csv_batch_rejects_role_already_persisted(db_session: AsyncSession):
+    """A (user_institutional_id, sius_code) already in the DB for the module
+    (e.g. a manual entry surviving the bulk replace) rejects the CSV row via
+    the pre-seeded set — ONE bulk prefetch instead of a per-row SELECT
+    (stage 2026-07-17: the per-row check ran at 14 rows/s)."""
+    module = CarbonReportModule(
+        carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    db_session.add(
+        DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=module.id,
+            data={"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+        )
+    )
+    await db_session.flush()
+
+    rows_data = [
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "54"},
     ]
     provider = _drive_member_csv(db_session, module.id, rows_data)
 
@@ -942,7 +990,7 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
             data={
                 "origin_iata": "GVA",
                 "destination_iata": "ZRH",
-                "cabin_class": "first",
+                "cabin_class": "business",
             }
         )
 
@@ -972,7 +1020,7 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
     row = {
         "origin_iata": "GVA",
         "destination_iata": "ZRH",
-        "cabin_class": "first",
+        "cabin_class": "business",
         "user_institutional_id": "150322",
         "number_of_trips": "1",
         "kg_co2eq": "152.685",
@@ -1780,7 +1828,15 @@ async def test_delete_scoped_to_specific_data_entry_type():
     assert call_kwargs["data_entry_type_ids"] == [
         DataEntryTypeEnum.research_facilities.value
     ]
-    assert call_kwargs["source"] == DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value
+    # Cross-source replace: a per-year CSV upload also replaces prior API
+    # syncs — otherwise their surviving rows mass-skip the upload as
+    # DUPLICATE_INSTITUTIONAL_ID (stage incident, 2026-07-17).
+    assert call_kwargs["sources"] == [s.value for s in BULK_PER_YEAR_SOURCES]
+    assert DataEntrySourceEnum.EXTERNAL_INTEGRATION.value in call_kwargs["sources"]
+    assert DataEntrySourceEnum.USER_MANUAL.value not in call_kwargs["sources"]
+    assert (
+        DataEntrySourceEnum.CSV_MODULE_UNIT_SPECIFIC.value not in call_kwargs["sources"]
+    )
 
 
 @pytest.mark.asyncio

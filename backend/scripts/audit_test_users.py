@@ -2,6 +2,7 @@
 """Audit script to detect test users with non-TEST- prefixed institutional_ids."""
 
 import asyncio
+import sys
 
 from dotenv import load_dotenv
 from sqlalchemy import text
@@ -52,4 +53,4 @@ async def audit_test_users():
 
 if __name__ == "__main__":
     result = asyncio.run(audit_test_users())
-    exit(0 if result else 1)
+    sys.exit(0 if result else 1)

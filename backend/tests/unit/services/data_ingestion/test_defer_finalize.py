@@ -35,6 +35,7 @@ from app.models.data_ingestion import (
     IngestionResult,
     IngestionState,
 )
+from app.services.data_ingestion import base_provider as bp_mod
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 
 
@@ -76,8 +77,6 @@ def _make_provider_with_mocked_session(
     # ``_update_job`` constructs ``DataIngestionRepository(self.job_session)``
     # internally — patch the constructor on the module so we capture the
     # repo instance and its calls.
-    import app.services.data_ingestion.base_provider as bp_mod
-
     repo_mock = MagicMock()
     repo_mock.update_ingestion_job = AsyncMock(return_value=None)
     job_stub = MagicMock()

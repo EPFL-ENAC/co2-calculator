@@ -2886,6 +2886,11 @@ export interface components {
              */
             locked_at?: string | null;
             /**
+             * Created At
+             * @description Timestamp the job row was created.  created_at → started_at is queue wait (chain/lock/poller latency); started_at → finished_at is execution — the ops console shows both.
+             */
+            created_at?: string | null;
+            /**
              * Started At
              * @description Timestamp of the FIRST successful claim — stays put across retries (unlike locked_at, which updates every claim).  Combined with finished_at gives true total wall-clock duration.
              */
@@ -3071,6 +3076,8 @@ export interface components {
             config: {
                 [key: string]: unknown;
             };
+            /** Min Configurable Year */
+            min_configurable_year: number;
         };
         /**
          * IngestionMethod
@@ -3283,12 +3290,8 @@ export interface components {
             /** Data */
             data: components["schemas"]["UnitReportingData"][];
             pagination: components["schemas"]["app__schemas__backoffice__PaginationMeta"];
-            /** Emission Breakdown */
-            emission_breakdown?: {
-                [key: string]: unknown;
-            } | null;
-            /** It Breakdown */
-            it_breakdown?: {
+            /** Stats */
+            stats?: {
                 [key: string]: unknown;
             } | null;
             /**
@@ -3349,12 +3352,21 @@ export interface components {
             data_entry_type_label?: string | null;
             /** Year */
             year?: number | null;
+            /** Created At */
+            created_at?: string | null;
             /** Started At */
             started_at?: string | null;
             /** Finished At */
             finished_at?: string | null;
             /** Attempts */
             attempts?: number | null;
+            /** Worker */
+            worker?: string | null;
+            /**
+             * Is Stale
+             * @default false
+             */
+            is_stale: boolean;
             /**
              * Meta
              * @default {}
@@ -4843,7 +4855,7 @@ export interface operations {
                 level?: number | null;
                 parent_id?: string | null;
                 unit_type_labels?: string[] | null;
-                parent_unit_type_label?: string | null;
+                parent_unit_type_label?: string[] | null;
                 /** @description Filter by unit name (partial match) */
                 name?: string | null;
                 page?: number;

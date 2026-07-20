@@ -41,6 +41,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.v1.carbon_report_module_stats import build_validated_totals
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.policy import require_unit_access
 from app.models.carbon_report import CarbonReportModule
@@ -51,6 +52,7 @@ from app.services.carbon_report_service import CarbonReportService
 
 logger = get_logger(__name__)
 router = APIRouter()
+settings = get_settings()
 
 
 class HomeYearConfiguration(BaseModel):
@@ -69,6 +71,10 @@ class HomeYearConfiguration(BaseModel):
 
     year: int
     config: Dict[str, Any]
+    # The frontend's yearConfig store hard-errors on any year-config payload
+    # missing this bound (#1204 follow-up), and the workspace guard feeds this
+    # slim shape straight into it — so the aggregate must carry it too.
+    min_configurable_year: int
 
 
 async def build_home_year_configuration(
@@ -91,7 +97,11 @@ async def build_home_year_configuration(
     if not result:
         return None
 
-    return HomeYearConfiguration(year=result.year, config=result.config)
+    return HomeYearConfiguration(
+        year=result.year,
+        config=result.config,
+        min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
+    )
 
 
 class WorkspaceHomeResponse(BaseModel):

@@ -10,6 +10,7 @@ from sqlite3 import IntegrityError
 from typing import Any, Dict, List, Optional
 
 from fastapi import BackgroundTasks
+from fastapi.encoders import jsonable_encoder
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -206,6 +207,14 @@ class AuditDocumentService:
         Returns:
             The newly created AuditDocument
         """
+        # JSON-safety at the boundary, not in N callers: the snapshot and
+        # payload land in JSON columns serialized by the plain json.dumps
+        # in app.db (no default=) — a datetime/UUID/Decimal from any caller
+        # would 500 the flush (stage incident 2026-07-17, job created_at).
+        data_snapshot = jsonable_encoder(data_snapshot)
+        if route_payload is not None:
+            route_payload = jsonable_encoder(route_payload)
+
         # Get current version to compute diff and hash chain
         current = await self.get_current_version(entity_type, entity_id)
 

@@ -69,7 +69,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 # Ensure every model class is registered with SQLModel.metadata before
 # create_all runs.  Top-level tests/conftest.py imports many of these for
 # the SQLite suite; we re-import here to be self-contained.
-from app.models import data_ingestion  # noqa: F401
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import (
     CarbonReport,
@@ -113,6 +112,7 @@ def postgres_container(docker_client):
             old = docker_client.containers.get(PG_CONTAINER_NAME)
             old.remove(force=True)
         except docker.errors.NotFound:
+            # No stale container to clean up
             pass
 
         try:
@@ -160,6 +160,7 @@ def postgres_container(docker_client):
             c = docker_client.containers.get(PG_CONTAINER_NAME)
             c.stop(timeout=10)
         except docker.errors.NotFound:
+            # Container already gone — nothing to stop
             pass
         except Exception as e:
             print(f"Error stopping postgres container: {e}")

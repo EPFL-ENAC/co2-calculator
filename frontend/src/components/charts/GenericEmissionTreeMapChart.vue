@@ -87,7 +87,6 @@ const LABEL_KEY_MAP: Record<string, string> = {
   // professional travel ZZ items
   class_1: 'charts-class-1-subcategory',
   class_2: 'charts-class-2-subcategory',
-  first: 'charts-first-class-subcategory',
   business: 'charts-business-class-subcategory',
   eco: 'charts-eco-class-subcategory',
 };
