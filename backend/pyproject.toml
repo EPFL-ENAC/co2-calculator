@@ -72,7 +72,7 @@ filterwarnings = ["ignore::DeprecationWarning"]
 [tool.ruff]
 line-length = 88
 indent-width = 4
-target-version = "py312"
+target-version = "py314"
 fix = true
 lint.select = ["E", "F", "I"] # errors, flake8, imports
 exclude = ["migrations"]
@@ -128,7 +128,7 @@ prepend_sys_path = ["."]
 package = true
 
 [tool.uv.sources]
-enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files", tag = "1.0.0" }
+enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files", tag = "1.1.0" }
 
 # timezone to use when rendering the date within the migration file
 # as well as the filename.

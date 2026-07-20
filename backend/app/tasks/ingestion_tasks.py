@@ -548,7 +548,7 @@ async def _chain_emission_recalc_for_data_ingest(
     if raw_module_id is not None:
         try:
             child_config = {"carbon_report_module_ids": [int(raw_module_id)]}
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             logger.warning(
                 f"data ingest job {job.id}: non-int carbon_report_module_id="
                 f"{raw_module_id!r} in config — chaining unscoped recalc"

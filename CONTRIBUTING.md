@@ -19,7 +19,7 @@ New contributors follow this workflow:
 
 ## Development Setup
 
-**Prerequisites:** [Node.js 24+](https://nodejs.org/), [Python 3.12+](https://www.python.org/), [Docker](https://www.docker.com/), [GNU Make](https://www.gnu.org/software/make/)
+**Prerequisites:** [Node.js 24+](https://nodejs.org/), [Python 3.14+](https://www.python.org/), [Docker](https://www.docker.com/), [GNU Make](https://www.gnu.org/software/make/)
 
 Install dependencies and start coding:
 

@@ -845,7 +845,7 @@ const getUncertainty = (
             <q-toggle
               v-model="viewUncertainties"
               :label="$t('results_view_uncertainties')"
-              color="accent"
+              color="info"
               keep-color
               size="lg"
               class="text-weight-medium"

@@ -83,7 +83,7 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
                 continue
             try:
                 fte = float(raw_fte)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 continue
             transformed.append(
                 {

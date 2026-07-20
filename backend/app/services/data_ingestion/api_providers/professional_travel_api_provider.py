@@ -87,7 +87,7 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
                 raw_trips = record.get("Number of trips")
                 try:
                     number_of_trips = int(raw_trips) if raw_trips is not None else 1
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     number_of_trips = 1
                 number_of_trips = max(1, number_of_trips)
                 logger.info(record.get("ROUND_TRIP"))
@@ -190,7 +190,7 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
             if kg_co2eq is not None:
                 try:
                     override = float(kg_co2eq)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     # Surface unparseable overrides at WARNING so operators see
                     # the silent fallback to formula-based emissions in the log.
                     logger.warning(
@@ -204,6 +204,8 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
             if override is not None:
                 data_payload[KG_CO2EQ_OVERRIDE_KEY] = override
 
+            # year/unit_id are stamped centrally by
+            # DataEntryService.fill_denormalized_scope in bulk_create.
             entry = DataEntry(
                 carbon_report_module_id=carbon_report_module_id,
                 data_entry_type_id=DataEntryTypeEnum.plane.value,

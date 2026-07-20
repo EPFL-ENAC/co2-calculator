@@ -980,6 +980,10 @@ class CarbonReportModuleRepository:
               associated with the data entry.
             - All fields from the underlying data-entry payload, flattened into
               the top-level dictionary.
+
+        Only per-entry facts are returned: the unit-year CO2 rollups this used
+        to stamp on every row (``validated_categories_co2`` and friends) were
+        internal state that leaked into the backoffice CSV export (#589).
         """
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
             path_affiliation=path_affiliation,
@@ -990,52 +994,6 @@ class CarbonReportModuleRepository:
         # If hierarchy filters were provided but matched no units, return no results.
         if hierarchy_unit_ids is not None and not hierarchy_unit_ids:
             return []
-
-        # Pre-aggregate CO2 by (unit_id, year, module_status) across all modules
-        # so each data-entry row can carry per-status totals for its unit-year.
-        status_co2_cols: List[Any] = [
-            col(CarbonReport.unit_id).label("s_unit_id"),
-            col(CarbonReport.year).label("s_year"),
-            col(CarbonReportModule.status).label("module_status"),
-            func.coalesce(func.sum(col(DataEntryEmission.kg_co2eq)), 0).label(
-                "total_co2"
-            ),
-        ]
-        status_stmt = (
-            select(*status_co2_cols)
-            .select_from(DataEntry)
-            .join(
-                CarbonReportModule,
-                CarbonReportModule.id == DataEntry.carbon_report_module_id,
-            )
-            .join(
-                CarbonReport,
-                CarbonReport.id == CarbonReportModule.carbon_report_id,
-            )
-            .outerjoin(
-                DataEntryEmission,
-                DataEntryEmission.data_entry_id == DataEntry.id,
-            )
-            .group_by(
-                col(CarbonReport.unit_id),
-                col(CarbonReport.year),
-                col(CarbonReportModule.status),
-            )
-        )
-        if years:
-            status_stmt = status_stmt.where(col(CarbonReport.year).in_(years))
-        if hierarchy_unit_ids is not None:
-            status_stmt = status_stmt.where(
-                col(CarbonReport.unit_id).in_(hierarchy_unit_ids)
-            )
-
-        status_rows = (await self.session.exec(status_stmt)).all()
-        status_co2_lookup: dict[tuple, dict[int, float]] = {}
-        for sr in status_rows:
-            key = (sr.s_unit_id, sr.s_year)
-            if key not in status_co2_lookup:
-                status_co2_lookup[key] = {}
-            status_co2_lookup[key][sr.module_status] = float(sr.total_co2)
 
         report: list[dict] = []
 
@@ -1147,8 +1105,6 @@ class CarbonReportModuleRepository:
                         row.module_last_updated, tz=timezone.utc
                     ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-                status_breakdown = status_co2_lookup.get((row.unit_id, row.year), {})
-
                 report.append(
                     {
                         "unit_id": row.unit_id,
@@ -1162,15 +1118,6 @@ class CarbonReportModuleRepository:
                         "last_update": last_update_iso,
                         "data_entry_id": row.data_entry_id,
                         **data,
-                        "validated_categories_co2": round(
-                            status_breakdown.get(ModuleStatus.VALIDATED, 0), 1
-                        ),
-                        "in_progress_categories_co2": round(
-                            status_breakdown.get(ModuleStatus.IN_PROGRESS, 0), 1
-                        ),
-                        "not_started_categories_co2": round(
-                            status_breakdown.get(ModuleStatus.NOT_STARTED, 0), 1
-                        ),
                         "kg_co2eq": row.kg_co2eq,
                     }
                 )

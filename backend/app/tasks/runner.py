@@ -254,7 +254,7 @@ async def run_job(job_id: int) -> None:
                         handler_task.cancel()
                         try:
                             await handler_task
-                        except (asyncio.CancelledError, Exception):
+                        except asyncio.CancelledError, Exception:
                             # Swallow both cancellation and any exception the
                             # handler raised on the way out: we're already in
                             # the abort path and won't write its result.
@@ -393,7 +393,7 @@ async def _heartbeat_loop(job_id: int, abort_event: asyncio.Event) -> None:
     """Refresh ``locked_at`` on the active job until cancelled.
 
     Wake every ``STALE_JOB_TIMEOUT_MINUTES / 4`` (default: every
-    15 min for a 60 min timeout) and call ``repo.heartbeat``.  If
+    75s for a 5 min timeout) and call ``repo.heartbeat``.  If
     the heartbeat returns 0 rows updated, our lock has been preempted
     — exit the loop so the runner's preemption check can take over
     on its next pass.
@@ -429,8 +429,14 @@ async def _heartbeat_loop(job_id: int, abort_event: asyncio.Event) -> None:
                     logger.warning(
                         f"_heartbeat_loop: lost lock on job {job_id} "
                         "(preempted or state moved out of RUNNING) — "
-                        "stopping heartbeat"
+                        "aborting handler"
                     )
+                    # Arm the abort, don't just stop heartbeating: the
+                    # row is owned elsewhere now, and letting the handler
+                    # run to completion commits its data_session writes
+                    # and chains children BEFORE the finish CAS can drop
+                    # them — duplicate work the new owner also performs.
+                    abort_event.set()
                     return
             consecutive_failures = 0
         except asyncio.CancelledError:
