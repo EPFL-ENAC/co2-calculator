@@ -10,6 +10,8 @@ import { usePipelineStream } from 'src/composables/usePipelineStream';
 import { usePipelineStreamStore } from 'src/stores/pipelineStream';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import { usePipelineJobRecovery } from 'src/composables/usePipelineJobRecovery';
+import { fmtDuration, fmtQueued, fmtWhen } from 'src/utils/pipelineFormat';
 import {
   usePipelineOperationsConsole,
   type PipelineListItem,
@@ -84,6 +86,8 @@ async function confirmAbort(): Promise<void> {
     aborting.value = false;
   }
 }
+
+const { recovering, recoverJob } = usePipelineJobRecovery(() => store.fetch());
 
 // Processed-CSV download — surfaces ``meta.processed_file_path``
 // straight from the pipeline row so an operator triaging a stalled
@@ -239,28 +243,6 @@ function pipelineMessage(p: PipelineListItem): string | null {
     return `${t('pipeops_phase_prefix')} ${p.progress.phase}/${p.progress.phases_total} · ${label}`;
   }
   return null;
-}
-
-function fmtDuration(a: string | null, b: string | null): string {
-  if (!a) return '—';
-  const start = new Date(a).getTime();
-  const end = b ? new Date(b).getTime() : Date.now();
-  const ms = Math.max(0, end - start);
-  // Sub-second jobs render "<1s" instead of "0s" — common for the
-  // trailing aggregation after 4A.3 scoped the write set down to just
-  // the affected modules.  "0s" read as "didn't run"; "<1s" says
-  // "ran, was just fast".
-  if (ms < 1000) return ms === 0 && !b ? '—' : '<1s';
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m${String(s % 60).padStart(2, '0')}s`;
-  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m`;
-}
-
-function fmtWhen(s: string | null): string {
-  if (!s) return '—';
-  return new Date(s).toLocaleString();
 }
 
 // Scope label for the "Type" column.  Backend sends the entity_type
@@ -807,6 +789,26 @@ onUnmounted(() => {
                           {{ j.state ?? '?'
                           }}{{ j.result ? ' · ' + j.result : '' }}
                         </q-badge>
+                        <q-badge
+                          v-if="j.is_stale"
+                          color="deep-orange"
+                          text-color="white"
+                          class="q-mr-sm"
+                        >
+                          {{ $t('pipeops_stale') }}
+                        </q-badge>
+                        <q-btn
+                          v-if="j.is_stale"
+                          dense
+                          flat
+                          size="sm"
+                          icon="restart_alt"
+                          color="deep-orange"
+                          class="q-mr-sm"
+                          :loading="recovering.has(j.job_id)"
+                          :title="$t('pipeops_recover')"
+                          @click.stop="recoverJob(j)"
+                        />
                         <span class="text-weight-medium q-mr-sm">
                           #{{ j.job_id }} {{ j.job_type ?? '—' }}
                         </span>
@@ -818,6 +820,22 @@ onUnmounted(() => {
                               : '—')
                           }}
                           · {{ fmtDuration(j.started_at, j.finished_at) }}
+                          <template
+                            v-if="fmtQueued(j.created_at, j.started_at)"
+                          >
+                            ·
+                            {{
+                              $t('pipeops_queued', {
+                                d: fmtQueued(j.created_at, j.started_at),
+                              })
+                            }}
+                          </template>
+                          <template v-if="j.worker">
+                            ·
+                            <span :title="$t('pipeops_worker_hint')">
+                              ⚙ {{ j.worker }}
+                            </span>
+                          </template>
                         </span>
                         <span
                           v-if="j.status_message"

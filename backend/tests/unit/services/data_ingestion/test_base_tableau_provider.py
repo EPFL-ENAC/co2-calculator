@@ -24,7 +24,7 @@ from app.models.connector import (
     ConnectorDatasource,
     ConnectorType,
 )
-from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.data_entry import BULK_PER_YEAR_SOURCES, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
     BaseTableauApiProvider,
@@ -205,8 +205,10 @@ async def test_delete_existing_api_entries_replaces_same_year_and_type(session):
         deleted = await provider._delete_existing_api_entries()
 
     assert deleted == 7
+    # Cross-source replace: an API sync also replaces prior per-year CSV
+    # uploads, so the two bulk mechanisms never collide on duplicates.
     delete.assert_awaited_once_with(
         year=2024,
         data_entry_type_ids=[DataEntryTypeEnum.plane.value],
-        source=DataEntrySourceEnum.EXTERNAL_INTEGRATION.value,
+        sources=[s.value for s in BULK_PER_YEAR_SOURCES],
     )

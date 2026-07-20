@@ -190,22 +190,23 @@ class DataEntryRepository:
         self,
         year: int,
         data_entry_type_ids: list[int],
-        source: int,  # DataEntrySourceEnum value
+        sources: list[int],  # DataEntrySourceEnum values
     ) -> int:
         """Full-year replace delete for MODULE_PER_YEAR ingest.
 
-        Per-year CSVs are complete exports: a new upload replaces ALL
-        prior rows of that (year, type, source) regardless of unit, so
-        the delete keys on the denormalized ``data_entries.year`` column
-        — no module-tree resolution, one indexed statement.  Returns
-        the number of rows deleted.
+        Per-year feeds (CSV or API) are complete exports: a new ingest
+        replaces ALL prior rows of that (year, type) across the given
+        sources regardless of unit, so the delete keys on the
+        denormalized ``data_entries.year`` column — no module-tree
+        resolution, one indexed statement.  Returns the number of rows
+        deleted.
         """
-        if not data_entry_type_ids:
+        if not data_entry_type_ids or not sources:
             return 0
         statement = delete(DataEntry).where(
             col(DataEntry.year) == year,
             col(DataEntry.data_entry_type_id).in_(data_entry_type_ids),
-            col(DataEntry.source) == source,
+            col(DataEntry.source).in_(sources),
         )
         result = await self.session.execute(statement)
         await self.session.flush()
@@ -247,6 +248,42 @@ class DataEntryRepository:
 
         await self.session.flush()
         return bool(deleted)
+
+    async def get_member_role_keys(
+        self, carbon_report_module_ids: list[int]
+    ) -> set[tuple[int, str, str]]:
+        """Bulk-fetch existing member (module, uid, sius_code) role keys.
+
+        Seeds the CSV ingest's in-memory duplicate set in ONE query so the
+        row loop never round-trips per row — the per-row
+        ``check_member_role_unique`` SELECT at stage latencies turned an
+        8.5k-row parse into ~10 minutes (14 rows/s, 2026-07-17), the same
+        N+1 shape the COPY batching already removed on the write side.
+
+        Snapshot semantics: concurrent bulk writers are serialized by the
+        per-(module_type, year) advisory lock at dispatch, but that lock is
+        transaction-scoped and drops at each batch commit, so a writer
+        committing mid-file is invisible to an already-taken snapshot. The
+        airtight guard is the DB-enforced partial unique index deferred in
+        the 1564 incident plan; until then this is no weaker than the old
+        per-row check-then-COPY, just a wider read-to-write window.
+        """
+        if not carbon_report_module_ids:
+            return set()
+        stmt = select(
+            col(DataEntry.carbon_report_module_id),
+            DataEntry.data["user_institutional_id"].as_string(),
+            DataEntry.data["sius_code"].as_string(),
+        ).where(
+            col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids),
+            col(DataEntry.data_entry_type_id) == DataEntryTypeEnum.member.value,
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return {
+            (module_id, uid, sius)
+            for module_id, uid, sius in rows
+            if uid is not None and sius is not None
+        }
 
     async def check_json_field_unique(
         self,

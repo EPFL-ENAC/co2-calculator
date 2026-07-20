@@ -5,11 +5,13 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import BackgroundTasks
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.audit import AuditChangeTypeEnum
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 
 # from app.repositories.headcount_repo import HeadCountRepository
@@ -109,6 +111,50 @@ class DataEntryService:
             exclude_id=exclude_id,
         )
 
+    async def fill_denormalized_scope(self, data_entries: list[DataEntry]) -> None:
+        """Stamp denormalized ``year``/``unit_id`` from each entry's carbon report.
+
+        Central guarantee, not per-provider convention: the per-year
+        cross-source replace DELETE keys on ``data_entries.year`` and the
+        factor join keys on it too, so a NULL-year row silently escapes
+        both (stage incident 2026-07-17: API-synced rows without the stamp
+        survived every replace). One query per call over the distinct
+        module ids still missing a value; already-stamped entries cost
+        nothing. Unknown module ids are left for the FK to reject loudly.
+        """
+        module_ids = {
+            e.carbon_report_module_id
+            for e in data_entries
+            if (e.year is None or e.unit_id is None)
+            and e.carbon_report_module_id is not None
+        }
+        if not module_ids:
+            return
+        stmt = (
+            select(
+                col(CarbonReportModule.id),
+                col(CarbonReport.year),
+                col(CarbonReport.unit_id),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReport.id) == col(CarbonReportModule.carbon_report_id),
+            )
+            .where(col(CarbonReportModule.id).in_(module_ids))
+        )
+        scope = {
+            module_id: (year, unit_id)
+            for module_id, year, unit_id in (await self.session.execute(stmt)).all()
+        }
+        for entry in data_entries:
+            resolved = scope.get(entry.carbon_report_module_id)
+            if resolved is None:
+                continue
+            if entry.year is None:
+                entry.year = resolved[0]
+            if entry.unit_id is None:
+                entry.unit_id = resolved[1]
+
     async def create(
         self,
         carbon_report_module_id: int,
@@ -137,6 +183,7 @@ class DataEntryService:
         if created_by_id is not None:
             entry.created_by_id = created_by_id
 
+        await self.fill_denormalized_scope([entry])
         created_entry = await self.repo.create(entry)
 
         # 3. replace by flush; commit should happen in 'orchestrator' or 'route'
@@ -208,6 +255,7 @@ class DataEntryService:
                 if created_by_id is not None:
                     entry.created_by_id = created_by_id
 
+        await self.fill_denormalized_scope(data_entries)
         db_objs = await self.repo.bulk_create(data_entries)
         await self.session.flush()  # Ensure data_entry IDs are populated
 
@@ -281,6 +329,7 @@ class DataEntryService:
                 entry.source = source
             if created_by_id is not None:
                 entry.created_by_id = created_by_id
+        await self.fill_denormalized_scope(data_entries)
         count = await self.repo.bulk_copy(data_entries)
         logger.info(f"COPY-inserted {count} data entries (job {sanitize(job_id)})")
         return count

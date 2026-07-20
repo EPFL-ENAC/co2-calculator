@@ -522,7 +522,7 @@ async def report_detailed(
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
 
-        for module_type, data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items():
+        for data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.values():
             for data_entry_type in data_entry_types:
                 if scoped_caller_no_affiliations:
                     continue
@@ -545,9 +545,7 @@ async def report_detailed(
                 if data is None or len(data) == 0:
                     continue
 
-                file_path = (
-                    tmp_path / f"{module_type.name}_{data_entry_type.name}.{format}"
-                )
+                file_path = tmp_path / f"{data_entry_type.name}.{format}"
                 if format == "json":
                     file_path.write_text(
                         json.dumps(data, indent=2, default=str), encoding="utf-8"

@@ -121,9 +121,12 @@ async def test_year_delete_replaces_only_matching_source_and_year(
     psycopg_session, make_unit, make_carbon_report, make_carbon_report_module
 ):
     """Full-year replace contract: ``bulk_delete_by_source_year`` removes
-    rows matching (year, type, source) via the denormalized ``year``
-    column, leaving other sources and other years untouched."""
-    from app.models.data_entry import DataEntrySourceEnum
+    rows matching (year, type) across ALL machine-owned bulk sources —
+    CSV per-year AND API sync (stage incident 2026-07-17: surviving API
+    rows mass-skipped a CSV re-upload as DUPLICATE_INSTITUTIONAL_ID) —
+    via the denormalized ``year`` column, leaving manual entries and
+    other years untouched."""
+    from app.models.data_entry import BULK_PER_YEAR_SOURCES, DataEntrySourceEnum
 
     module = await _seed_module(
         psycopg_session, make_unit, make_carbon_report, make_carbon_report_module
@@ -143,6 +146,7 @@ async def test_year_delete_replaces_only_matching_source_and_year(
     await repo.bulk_copy(
         [
             _entry(2026, DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value),
+            _entry(2026, DataEntrySourceEnum.EXTERNAL_INTEGRATION.value),
             _entry(2026, DataEntrySourceEnum.USER_MANUAL.value),
             _entry(2025, DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value),
         ]
@@ -152,12 +156,12 @@ async def test_year_delete_replaces_only_matching_source_and_year(
     deleted = await repo.bulk_delete_by_source_year(
         year=2026,
         data_entry_type_ids=[DataEntryTypeEnum.member.value],
-        source=DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value,
+        sources=[s.value for s in BULK_PER_YEAR_SOURCES],
     )
     await psycopg_session.commit()
     psycopg_session.expire_all()
 
-    assert deleted == 1
+    assert deleted == 2
     rows = (
         (
             await psycopg_session.execute(

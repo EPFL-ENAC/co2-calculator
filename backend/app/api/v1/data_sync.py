@@ -42,13 +42,19 @@ from app.models.pod import Pod
 from app.models.unit import Unit
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
-from app.repositories.data_ingestion import DataIngestionRepository, WhyStaleLiteral
+from app.repositories.data_ingestion import (
+    DataIngestionRepository,
+    WhyStaleLiteral,
+    is_job_stale,
+    stale_job_cutoff,
+)
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.services.pipeline_progress import PhaseLabel, compute_pipeline_progress
 from app.tasks._background import fire_and_forget
 from app.tasks.runner import run_job
 from app.tasks.unit_sync_tasks import SyncUnitRequest
+from app.utils.datetime_utc import as_utc
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.utils.scoping import (
     can_view_module_flow,
@@ -611,9 +617,25 @@ class PipelineJobListEntry(BaseModel):
     # the table shows names, not integers, with no frontend drift).
     data_entry_type_label: Optional[str] = None
     year: Optional[int] = None
+    # created_at → started_at is queue wait (chain/lock/poller latency);
+    # started_at → finished_at is execution. The console shows both so a
+    # sub-second aggregation that waited 20s behind its recalc sibling
+    # doesn't read as "<1s total".
+    created_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     attempts: Optional[int] = None
+    # Pod that claimed this job (``locked_by``). With a shared DB, a local
+    # dev process and cluster pods compete for the same NOT_STARTED rows —
+    # showing the owner makes mixed-ownership chains diagnosable at a
+    # glance (the local+dev-DB scenario, 2026-07-17).
+    worker: Optional[str] = None
+    # Derived server-side (backend owns the staleness rule): RUNNING with a
+    # lock heartbeat older than STALE_JOB_TIMEOUT_MINUTES — the owning pod
+    # died mid-job. The console renders a badge + the manual Recover button
+    # (POST /jobs/{id}/recover only accepts stale rows, so gating the button
+    # on this flag mirrors the endpoint's own 409 rule).
+    is_stale: bool = False
     meta: dict = {}
 
     @field_serializer("state")
@@ -1191,7 +1213,7 @@ async def list_workers(
     # of an in-Python filter so a schema-drift dev DB (``pods``
     # column still ``TIMESTAMP`` without TZ from before the model
     # moved to ``DateTime(timezone=True)``) doesn't explode the
-    # comparison — see ``_as_utc`` below.  Production never serves
+    # comparison — see ``as_utc``.  Production never serves
     # naive rows; this is purely defensive for long-lived dev DBs.
     pods_all = (
         (await db.execute(select(Pod).order_by(col(Pod.last_heartbeat_at).desc())))
@@ -1199,21 +1221,7 @@ async def list_workers(
         .all()
     )
 
-    def _as_utc(dt: datetime) -> datetime:
-        """Coerce tz-naive datetimes to UTC.
-
-        Defends against the schema-drift case where ``pods`` was
-        created with plain ``TIMESTAMP`` (no TZ) before the model
-        moved to ``DateTime(timezone=True)`` — ``SQLModel.metadata.
-        create_all`` doesn't ALTER existing tables, so a long-lived
-        dev DB still serves naive values.  Treating naive rows as
-        UTC matches what the heartbeat writer was always producing
-        (``datetime.now(timezone.utc)``) and keeps the subtraction
-        below from blowing up.
-        """
-        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
-
-    pods = [p for p in pods_all if _as_utc(p.last_heartbeat_at) >= cutoff]
+    pods = [p for p in pods_all if as_utc(p.last_heartbeat_at) >= cutoff]
     if not pods:
         return []
 
@@ -1241,10 +1249,10 @@ async def list_workers(
             pod_id=p.pod_id,
             git_sha=p.git_sha,
             app_version=p.app_version,
-            started_at=_as_utc(p.started_at),
-            last_heartbeat_at=_as_utc(p.last_heartbeat_at),
+            started_at=as_utc(p.started_at),
+            last_heartbeat_at=as_utc(p.last_heartbeat_at),
             heartbeat_age_seconds=int(
-                (now - _as_utc(p.last_heartbeat_at)).total_seconds()
+                (now - as_utc(p.last_heartbeat_at)).total_seconds()
             ),
             claimed_job_count=claimed_by_pod.get(p.pod_id, 0),
         )
@@ -1559,6 +1567,7 @@ async def list_pipelines(
                 crm_ids.add(crm)
     inst_by_crm = await _institutional_ids_for_crms(db, list(crm_ids))
 
+    stale_cutoff = stale_job_cutoff(get_settings().STALE_JOB_TIMEOUT_MINUTES)
     items: list[PipelineListItem] = []
     for group in groups:
         jobs = group["jobs"]
@@ -1619,9 +1628,12 @@ async def list_pipelines(
                         data_entry_type_id=j.data_entry_type_id,
                         data_entry_type_label=_det_label(j.data_entry_type_id),
                         year=j.year,
+                        created_at=j.created_at,
                         started_at=j.started_at,
                         finished_at=j.finished_at,
                         attempts=j.attempts,
+                        worker=j.locked_by,
+                        is_stale=is_job_stale(j, stale_cutoff),
                         meta=_project_pipeline_meta(
                             j.meta,
                             include_factor_errors=j.target_type == TargetType.FACTORS,
@@ -2081,8 +2093,9 @@ async def recover_job(
     Recover a job stuck in RUNNING after a pod crash.
 
     Resets the job to NOT_STARTED and clears the lock. Only allowed
-    when ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` (default 30 min).
-
+    when ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` —
+    the same window the auto-recovery sweep and the console's stale
+    badge use, so the button only appears when this call will succeed.
     """
     settings = get_settings()
     repo = DataIngestionRepository(db)
