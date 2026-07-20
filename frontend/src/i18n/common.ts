@@ -347,6 +347,14 @@ export default {
     en: 'Edit',
     fr: 'Modifier',
   },
+  common_comment: {
+    en: 'Comment',
+    fr: 'Commenter',
+  },
+  common_duplicate: {
+    en: 'Duplicate',
+    fr: 'Dupliquer',
+  },
   common_view_only: {
     en: 'View Only',
     fr: 'Lecture seule',

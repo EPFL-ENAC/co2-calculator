@@ -87,7 +87,8 @@ const roomFields: ModuleField[] = [
     disableUntilField: 'room_name',
     icon: 'o_image_aspect_ratio',
     tooltip: 'module-buildings-submodule-building-table-room_allocation_ratio',
-    columnSize: 'md',
+    columnSize: 'xs',
+    maxColumnWidth: 100,
   },
   {
     id: 'heating_kwh_per_square_meter',
@@ -151,6 +152,7 @@ const roomFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     readOnly: true,
@@ -212,6 +214,7 @@ const energyCombustionFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     readOnly: true,

@@ -135,43 +135,46 @@ const planRows = [
               class="q-pa-xs"
             >
               <template v-if="col.name === 'action'">
-                <div class="row no-wrap justify-end q-gutter-xs">
+                <div class="row no-wrap justify-end">
                   <q-btn
                     icon="o_content_copy"
-                    color="grey-4"
-                    text-color="primary"
+                    color="black"
                     unelevated
                     no-caps
                     dense
-                    outline
-                    square
-                    size="xs"
-                    class="square-button"
-                  />
+                    flat
+                    class="action-btn"
+                  >
+                    <q-tooltip class="action-tooltip" :offset="[0, 8]">
+                      {{ $t('common_duplicate') }}
+                    </q-tooltip>
+                  </q-btn>
                   <q-btn
                     icon="o_edit"
-                    color="grey-4"
-                    text-color="primary"
+                    color="black"
                     unelevated
                     no-caps
                     dense
-                    outline
-                    square
-                    size="xs"
-                    class="square-button"
-                  />
+                    flat
+                    class="action-btn"
+                  >
+                    <q-tooltip class="action-tooltip" :offset="[0, 8]">
+                      {{ $t('common_edit') }}
+                    </q-tooltip>
+                  </q-btn>
                   <q-btn
                     icon="o_delete"
-                    color="grey-4"
-                    text-color="primary"
+                    color="black"
                     unelevated
                     no-caps
                     dense
-                    outline
-                    square
-                    size="xs"
-                    class="square-button"
-                  />
+                    flat
+                    class="action-btn action-btn--delete"
+                  >
+                    <q-tooltip class="action-tooltip" :offset="[0, 8]">
+                      {{ $t('common_delete') }}
+                    </q-tooltip>
+                  </q-btn>
                 </div>
               </template>
               <template v-else>{{ props.row[col.field] }}</template>
