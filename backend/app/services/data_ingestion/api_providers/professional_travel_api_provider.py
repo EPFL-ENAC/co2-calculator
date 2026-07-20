@@ -250,13 +250,12 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
         return datetime.strptime(date_str, "%Y%m%d")
 
     def _normalize_class(self, class_str: str) -> str:
-        # Canonical cabin_class vocabulary ("economy"/"business"/"first") —
+        # Canonical cabin_class vocabulary ("economy"/"business") —
         # the value resolve_emission_types and factor classification key on.
         # Must NOT emit "eco": the resolver rejects it (the old wrong value),
         # so economy flights would resolve to no emission type.
         mapping = {
             "AIR ECONOMY CLASS": "economy",
             "AIR BUSINESS CLASS": "business",
-            "AIR FIRST CLASS": "first",
         }
         return mapping.get(class_str, "economy")

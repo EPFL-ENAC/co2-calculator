@@ -607,10 +607,6 @@ export default {
     en: '2nd class',
     fr: '2ème classe',
   },
-  'charts-first-class-subcategory': {
-    en: 'First',
-    fr: 'Première',
-  },
   'charts-business-class-subcategory': {
     en: 'Business',
     fr: 'Affaires',

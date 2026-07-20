@@ -10,7 +10,6 @@ STAT_BUCKETS: tuple[StatBucket, ...] = (
 )
 
 _PLANE_CABIN_MAP: dict[str, EmissionType] = {
-    "first": EmissionType.professional_travel__plane__first,
     "business": EmissionType.professional_travel__plane__business,
     "economy": EmissionType.professional_travel__plane__eco,
 }
