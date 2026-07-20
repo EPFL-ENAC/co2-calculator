@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from psycopg.types.json import Json
 from pydantic import BaseModel
-from sqlalchemy import Select, asc, desc, func, or_
+from sqlalchemy import Select, and_, asc, desc, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import aliased
@@ -36,6 +36,14 @@ logger = get_logger(__name__)
 
 # Default filter map when handler doesn't provide one
 DEFAULT_FILTER_MAP = {"name": DataEntry.data["name"].as_string()}
+
+# data_entry_type ids that make up the Equipment module (issue #259 "new vs
+# previous year" detection applies only to these).
+EQUIPMENT_DATA_ENTRY_TYPE_IDS = {
+    DataEntryTypeEnum.scientific.value,
+    DataEntryTypeEnum.it.value,
+    DataEntryTypeEnum.other.value,
+}
 
 # COPY target for ``bulk_copy`` — every non-defaulted data_entries column.
 # ``id`` is omitted so the sequence assigns it server-side.
@@ -574,6 +582,97 @@ class DataEntryRepository:
         else:
             return statement.order_by(desc(sort_expr))
 
+    async def get_prior_year_equipment_ids(
+        self, unit_id: int, current_year: int
+    ) -> set[str]:
+        """Return the set of ``equipment_id`` present in the unit's most recent
+        prior year (issue #259).
+
+        "Previous year" is the greatest year strictly before ``current_year``
+        that still has equipment entries for the unit — robust to skipped
+        years. Returns an empty set when the unit has no earlier equipment data
+        (e.g. its first campaign year), in which case nothing is flagged new.
+        """
+        type_ids = list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+        prior_year = (
+            await self.session.execute(
+                select(func.max(DataEntry.year)).where(
+                    col(DataEntry.unit_id) == unit_id,
+                    col(DataEntry.year) < current_year,
+                    col(DataEntry.data_entry_type_id).in_(type_ids),
+                )
+            )
+        ).scalar_one_or_none()
+        if prior_year is None:
+            return set()
+        rows = (
+            (
+                await self.session.execute(
+                    select(DataEntry.data["equipment_id"].as_string())
+                    .where(
+                        col(DataEntry.unit_id) == unit_id,
+                        col(DataEntry.year) == prior_year,
+                        col(DataEntry.data_entry_type_id).in_(type_ids),
+                    )
+                    .distinct()
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return {r for r in rows if r is not None}
+
+    async def _equipment_module_scope(
+        self, carbon_report_module_id: int
+    ) -> Optional[tuple[int, int]]:
+        """Return ``(unit_id, year)`` for an Equipment module, or ``None`` when
+        the module has no equipment entries to derive them from."""
+        meta = (
+            await self.session.execute(
+                select(DataEntry.unit_id, DataEntry.year)
+                .where(
+                    col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                    col(DataEntry.data_entry_type_id).in_(
+                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                    ),
+                )
+                .limit(1)
+            )
+        ).first()
+        if meta is None or meta[0] is None or meta[1] is None:
+            return None
+        return int(meta[0]), int(meta[1])
+
+    async def count_incomplete_new_equipment(self, carbon_report_module_id: int) -> int:
+        """Count equipment that is new vs the previous year (issue #259) yet is
+        still missing usage data (active or standby hours). Returns ``0`` for
+        non-equipment modules and for units with no prior-year equipment data,
+        so it is safe to call unconditionally on any module."""
+        scope = await self._equipment_module_scope(carbon_report_module_id)
+        if scope is None:
+            return 0
+        unit_id, current_year = scope
+        prev_ids = await self.get_prior_year_equipment_ids(unit_id, current_year)
+        if not prev_ids:
+            return 0
+        active = DataEntry.data["active_usage_hours_per_week"].as_string()
+        standby = DataEntry.data["standby_usage_hours_per_week"].as_string()
+        count = (
+            await self.session.execute(
+                select(func.count())
+                .select_from(DataEntry)
+                .where(
+                    col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                    col(DataEntry.data_entry_type_id).in_(
+                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                    ),
+                    DataEntry.data["equipment_id"].as_string().notin_(list(prev_ids)),
+                    or_(active.is_(None), standby.is_(None)),
+                )
+            )
+        ).scalar_one()
+        return int(count)
+
     async def get_submodule_data(
         self,
         carbon_report_module_id: int,
@@ -599,6 +698,8 @@ class DataEntryRepository:
             DataEntryTypeEnum.member.value,
             DataEntryTypeEnum.student.value,
         )
+        is_equipment_entry = data_entry_type_id in EQUIPMENT_DATA_ENTRY_TYPE_IDS
+        prev_equipment_ids: set[str] = set()
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
 
         # Classification-resolved factor in SQL (plan 1661-sql-factor-resolution):
@@ -890,6 +991,28 @@ class DataEntryRepository:
         if (is_train_entry or is_plane_entry) and OriginLocation is not None:
             sort_map["origin_name"] = OriginLocation.name
             sort_map["destination_name"] = DestLocation.name
+
+        if is_equipment_entry:
+            scope = await self._equipment_module_scope(carbon_report_module_id)
+            if scope is not None:
+                prev_equipment_ids = await self.get_prior_year_equipment_ids(*scope)
+            if prev_equipment_ids:
+                is_new_expr = (
+                    DataEntry.data["equipment_id"]
+                    .as_string()
+                    .notin_(list(prev_equipment_ids))
+                )
+
+                missing_usage_expr = or_(
+                    DataEntry.data["active_usage_hours_per_week"].as_string().is_(None),
+                    DataEntry.data["standby_usage_hours_per_week"]
+                    .as_string()
+                    .is_(None),
+                )
+                statement = statement.order_by(
+                    desc(and_(is_new_expr, missing_usage_expr))
+                )
+
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
         statement = statement.offset(offset).limit(limit)
@@ -995,6 +1118,11 @@ class DataEntryRepository:
                     **primary_factor_classification,
                 },
             }
+
+            if is_equipment_entry:
+                enriched_data["is_new"] = bool(prev_equipment_ids) and (
+                    data_entry.data.get("equipment_id") not in prev_equipment_ids
+                )
 
             if is_travel_entry:
                 distance_km = (

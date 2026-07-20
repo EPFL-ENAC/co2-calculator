@@ -266,6 +266,7 @@ export interface ModuleResponse {
   retrieved_at: string;
   submodules: Record<string, Submodule>;
   totals: Totals;
+  incomplete_new_equipment_count?: number;
 }
 
 // TODO refactor: delete this vibe coded code and use your brain

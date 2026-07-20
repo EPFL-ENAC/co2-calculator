@@ -69,6 +69,8 @@ class EquipmentHandlerResponse(DataEntryResponseGen):
     active_power_w: Optional[int] = None
     standby_power_w: Optional[int] = None
 
+    is_new: bool = False
+
 
 class EquipmentHandlerCreate(_EquipmentUsageHoursValidationMixin, DataEntryCreate):
     equipment_id: str

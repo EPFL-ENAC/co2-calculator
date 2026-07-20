@@ -55,6 +55,23 @@
       </template>
     </q-input>
   </div>
+  <!-- #259: new equipment (vs previous year) still missing usage data must be
+       filled before the module can be validated. Sits below the CSV toolbar. -->
+  <q-banner
+    v-if="newEquipmentIncompleteCount > 0"
+    dense
+    rounded
+    class="equipment-new-banner q-mb-md"
+  >
+    <template #avatar>
+      <q-icon name="o_warning" class="equipment-new-banner__icon" />
+    </template>
+    {{
+      $t('equipment_new_usage_required_banner', {
+        count: newEquipmentIncompleteCount,
+      })
+    }}
+  </q-banner>
   <q-table
     v-model:pagination="moduleStore.state.paginationSubmodule[submoduleType]"
     class="co2-table border"
@@ -179,7 +196,18 @@
               :max="col.max"
               :step="col.step"
               :rules="getColumnRules(col)"
-              class="inline-input"
+              :placeholder="
+                isRequiredEmptyUsageCell(slotProps.row, col) ? '—' : undefined
+              "
+              :class="[
+                'inline-input',
+                {
+                  'inline-input--required-empty': isRequiredEmptyUsageCell(
+                    slotProps.row,
+                    col,
+                  ),
+                },
+              ]"
               :dropdown-icon="col.type === 'select' ? 'expand_more' : undefined"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
@@ -269,9 +297,8 @@
             <div class="cell-content">
               <span>{{ renderCell(slotProps.row, col) }}</span>
               <q-badge
-                v-if="col.name === 'name' && isNew(slotProps.row)"
-                color="accent"
-                class="q-ml-xs"
+                v-if="col.name === 'name' && isNewIncomplete(slotProps.row)"
+                class="q-ml-md badge-new"
                 rounded
                 outline
                 dense
@@ -817,6 +844,14 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
 const yearConfigStore = useYearConfigStore();
+
+// #259: only the Equipment module reports new-vs-previous-year equipment still
+// missing usage data; the banner warns the user before they try to validate.
+const newEquipmentIncompleteCount = computed(() =>
+  isEquipmentModule.value
+    ? (moduleStore.state.data?.incomplete_new_equipment_count ?? 0)
+    : 0,
+);
 
 const isInputDeactivated = computed(() => {
   const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
@@ -1447,7 +1482,7 @@ async function commitInline(
 
 function rowClasses(row: ModuleRow) {
   return {
-    'row-new': isNew(row),
+    'row-new': isNewIncomplete(row),
     'row-incomplete': !isComplete(row),
   };
 }
@@ -1496,6 +1531,36 @@ function getColumnClasses(row: ModuleRow, col: TableViewColumn) {
 
 function isNew(row: ModuleRow) {
   return Boolean(row.is_new);
+}
+
+// Usage fields a new equipment (#259) must fill before the module can validate.
+const EQUIPMENT_REQUIRED_USAGE_FIELDS = [
+  'active_usage_hours_per_week',
+  'standby_usage_hours_per_week',
+];
+
+// Highlight (orange contour + em-dash placeholder) an empty active/standby
+// usage cell of a new equipment row, so the user knows it needs filling.
+function isRequiredEmptyUsageCell(
+  row: ModuleRow,
+  col: { field: string },
+): boolean {
+  return (
+    props.moduleType === MODULES.Equipment &&
+    isNew(row) &&
+    EQUIPMENT_REQUIRED_USAGE_FIELDS.includes(col.field) &&
+    !hasValue(row[col.field])
+  );
+}
+
+// A new equipment only needs the "new" emphasis (badge, row highlight, float to
+// top) until its usage is entered; once active + standby are filled it behaves
+// like a normal row (#259).
+function isNewIncomplete(row: ModuleRow): boolean {
+  return (
+    isNew(row) &&
+    EQUIPMENT_REQUIRED_USAGE_FIELDS.some((field) => !hasValue(row[field]))
+  );
 }
 
 function hasValue(value: unknown): boolean {
@@ -1922,12 +1987,43 @@ onUnmounted(() => {
   min-width: 240px;
 }
 
-.row-new {
-  border-left: 4px solid #f2c037;
+/* New / incomplete equipment rows (#259) are tinted with the banner colour.
+   The :deep + .q-tr selector must out-specify the striped-row rule below,
+   which otherwise repaints every even row. */
+.co2-table :deep(tbody tr.q-tr.row-new),
+.co2-table :deep(tbody tr.q-tr.row-incomplete) {
+  background: #fff4e5;
 }
 
-.row-incomplete {
+.co2-table :deep(tbody tr.q-tr.row-new) {
+  border-left: 4px solid #ffa503;
+}
+
+/* NEW badge next to a new equipment's name (#259). Outline badge follows
+   currentColor for both text and border. */
+.badge-new {
+  color: #ffa503;
+}
+
+/* Banner reminding the user to fill new equipment usage (#259): no border,
+   orange info icon. */
+.equipment-new-banner {
   background: #fff4e5;
+}
+
+.equipment-new-banner__icon {
+  color: #ffa503;
+}
+
+/* Empty required usage cell on a new equipment row (#259): orange contour so
+   the user immediately sees what must be filled before validating. */
+.inline-input--required-empty :deep(.q-field__control) {
+  border: 1px solid #ffa503;
+  border-radius: 4px;
+}
+
+.inline-input--required-empty :deep(.q-field__control):hover {
+  border-color: #e09400;
 }
 
 .cell-content {
@@ -2061,6 +2157,16 @@ onUnmounted(() => {
   td .inline-input .q-field__append,
   td .inline-select-wrapper .q-field__append {
     padding-left: tokens.$spacing-xs;
+  }
+
+  td .inline-input--required-empty {
+    width: 100%;
+  }
+
+  td .inline-input--required-empty .q-field__native,
+  td .inline-input--required-empty .q-field__input {
+    field-sizing: auto;
+    width: 100%;
   }
 
   .inline-edit-icon {

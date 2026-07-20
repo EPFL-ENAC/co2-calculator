@@ -138,6 +138,14 @@ class EquipmentModuleHandler(BaseModuleHandler):
     ) -> EquipmentHandlerResponse:
         data = enriched_data if enriched_data is not None else data_entry.data
         primary_factor = data.get("primary_factor", {})
+        is_new = bool(data.get("is_new", False))
+
+        def _displayed_usage(field: str) -> Optional[float]:
+            entered = data.get(field)
+            if entered is not None or is_new:
+                return entered
+            return primary_factor.get(field)
+
         new_entry = {
             "id": data_entry.id,
             "data_entry_type_id": data_entry.data_entry_type_id,
@@ -145,15 +153,11 @@ class EquipmentModuleHandler(BaseModuleHandler):
             **data,
             "active_power_w": primary_factor.get("active_power_w", None),
             "standby_power_w": primary_factor.get("standby_power_w", None),
-            "active_usage_hours_per_week": (
-                data.get("active_usage_hours_per_week")
-                if data.get("active_usage_hours_per_week") is not None
-                else primary_factor.get("active_usage_hours_per_week")
+            "active_usage_hours_per_week": _displayed_usage(
+                "active_usage_hours_per_week"
             ),
-            "standby_usage_hours_per_week": (
-                data.get("standby_usage_hours_per_week")
-                if data.get("standby_usage_hours_per_week") is not None
-                else primary_factor.get("standby_usage_hours_per_week")
+            "standby_usage_hours_per_week": _displayed_usage(
+                "standby_usage_hours_per_week"
             ),
             "equipment_class": primary_factor.get("class")
             or data.get("equipment_class"),
