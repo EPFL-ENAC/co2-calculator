@@ -102,3 +102,19 @@ async def test_stats_always_present_with_validated_total(monkeypatch):
     # Per-module states ride alongside (no separate list_modules call).
     assert result.module_states == [{"module_type_id": 1, "status": 2}]
     wh_module.build_validated_totals.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_home_year_config_carries_min_configurable_year():
+    # Regression: the workspace guard fans this slim payload into the frontend
+    # yearConfig store, which hard-errors on any year-config response missing
+    # ``min_configurable_year`` (#1204 follow-up).
+    db = MagicMock()
+    result = MagicMock()
+    result.first.return_value = SimpleNamespace(year=2025, config={"modules": {}})
+    db.exec = AsyncMock(return_value=result)
+
+    config = await wh_module.build_home_year_configuration(db, 2025, MagicMock())
+
+    assert config is not None
+    assert config.min_configurable_year == wh_module.settings.MIN_CONFIGURABLE_YEAR

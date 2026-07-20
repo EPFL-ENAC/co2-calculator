@@ -20,9 +20,19 @@ from app.services.factor_resolver import FactorResolver
 
 logger = get_logger(__name__)
 
-# Emit a progress log line (and invoke the caller's progress callback)
-# every N computed entries.
+# Flush the batched emission writes every N computed entries (write-batching
+# concern only — progress reporting is time-based, below).
 PROGRESS_INTERVAL = 5000
+
+# Yield the event loop whenever this much wall time passed in pure-CPU
+# per-entry compute. Stage incident 2026-07-17: the previous every-1000-entries
+# yield left multi-second stretches where /healthz couldn't get a slot, k8s
+# liveness (2s timeout, 3×20s) killed the pod exactly 60s into the recalc.
+YIELD_INTERVAL_S = 0.05
+
+# Emit a progress log line + job status update this often (mirrors
+# ingestion's PROGRESS_REPORT_INTERVAL_S).
+PROGRESS_REPORT_INTERVAL_S = 2.0
 
 
 class EmissionRecalculationWorkflow:
@@ -127,6 +137,8 @@ class EmissionRecalculationWorkflow:
         total_written = 0
         total_replaced = 0
         slice_started = time.perf_counter()
+        last_yield = slice_started
+        last_report = slice_started
         # Per-segment wall time for a recalc profile line (diagnostic, the
         # analog of ingestion's row-loop profile): localises where per-entry
         # time goes so a slow slice is measured, not guessed.
@@ -199,10 +211,13 @@ class EmissionRecalculationWorkflow:
 
             processed = recalculated + errors
             # With cached factors/year, per-entry compute can be pure
-            # CPU — yield regularly so the event loop (API, SSE,
-            # heartbeats) never starves during a 50k-entry slice.
-            if processed % 1000 == 0:
+            # CPU — yield on wall time, not entry count, so the event
+            # loop (API, /healthz probes, SSE, heartbeats) never starves
+            # regardless of per-entry cost.
+            now = time.perf_counter()
+            if now - last_yield > YIELD_INTERVAL_S:
                 await asyncio.sleep(0)
+                last_yield = time.perf_counter()
             if processed % PROGRESS_INTERVAL == 0:
                 # Flush this chunk's writes (one DELETE + one COPY) so
                 # neither the emission buffer nor a single statement
@@ -215,6 +230,8 @@ class EmissionRecalculationWorkflow:
                 total_replaced += len(processed_entry_ids)
                 processed_entry_ids = []
                 prepared_emissions = []
+            if now - last_report > PROGRESS_REPORT_INTERVAL_S:
+                last_report = time.perf_counter()
                 logger.info(
                     f"Recalc {data_entry_type_id.name}/{year}: "
                     f"{processed}/{len(entries)} entries computed "
@@ -228,6 +245,11 @@ class EmissionRecalculationWorkflow:
             processed_entry_ids, prepared_emissions
         )
         total_replaced += len(processed_entry_ids)
+        # Terminal progress update — with time-based reporting a short
+        # slice may never cross the report interval, and the operator
+        # should always see N/N before the runner's own finish message.
+        if progress_callback is not None:
+            await progress_callback(recalculated + errors, len(entries))
         slice_elapsed = time.perf_counter() - slice_started
         logger.info(
             f"Recalc {data_entry_type_id.name}/{year}: replaced emissions for "

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models.data_entry import DataEntrySourceEnum
+from app.models.data_entry import BULK_PER_YEAR_SOURCES, DataEntrySourceEnum
 from app.services.data_ingestion.csv_providers.module_per_year import (
     ModulePerYearCSVProvider,
 )
@@ -106,13 +106,13 @@ class TestModulePerYearBehavior:
             mock_data_entry_service,
         )
 
-        # Verify the single set-based delete targets CSV_MODULE_PER_YEAR
-        # for the job's year — human (USER_MANUAL) and unit-specific
-        # sources are untouched by construction of the source filter.
+        # Verify the single set-based delete targets every machine-owned
+        # bulk source for the job's year — human (USER_MANUAL) and
+        # unit-specific sources are untouched by construction of the filter.
         calls = mock_data_entry_service.repo.bulk_delete_by_source_year.call_args_list
         assert len(calls) == 1
         kwargs = calls[0].kwargs
-        assert kwargs["source"] == DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value
+        assert kwargs["sources"] == [s.value for s in BULK_PER_YEAR_SOURCES]
         assert kwargs["year"] == 2025
 
 
@@ -149,10 +149,10 @@ class TestHumanDataProtection:
 
     @pytest.mark.asyncio
     async def test_delete_method_uses_correct_source_filter(self):
-        """Verify deletion only targets CSV_MODULE_PER_YEAR entries.
+        """Verify deletion only targets machine-owned bulk per-year sources.
 
         This test verifies the filtering logic that protects human entries:
-        - Only entries with source=CSV_MODULE_PER_YEAR are deleted
+        - Entries with bulk sources (CSV per-year, API sync) ARE deleted
         - Entries with source=USER_MANUAL are NOT deleted
         - Entries with source=CSV_MODULE_UNIT_SPECIFIC are NOT deleted
         """
@@ -196,14 +196,16 @@ class TestHumanDataProtection:
             mock_data_entry_service,
         )
 
-        # Verify the call uses the CSV_MODULE_PER_YEAR source filter —
-        # this is what protects human entries (USER_MANUAL source) and
-        # unit-specific uploads (CSV_MODULE_UNIT_SPECIFIC source).
+        # Verify the call uses the bulk-source filter — this is what
+        # protects human entries (USER_MANUAL source) and unit-specific
+        # uploads (CSV_MODULE_UNIT_SPECIFIC source) while replacing prior
+        # CSV uploads AND API syncs (cross-source replace).
         calls = mock_data_entry_service.repo.bulk_delete_by_source_year.call_args_list
         assert len(calls) == 1, "Expected exactly one set-based deletion call"
         kwargs = calls[0].kwargs
-        assert kwargs["source"] == DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value, (
-            f"Expected CSV_MODULE_PER_YEAR source, got {kwargs['source']}"
+        assert kwargs["sources"] == [s.value for s in BULK_PER_YEAR_SOURCES]
+        assert DataEntrySourceEnum.EXTERNAL_INTEGRATION.value in kwargs["sources"]
+        assert DataEntrySourceEnum.USER_MANUAL.value not in kwargs["sources"]
+        assert (
+            DataEntrySourceEnum.CSV_MODULE_UNIT_SPECIFIC.value not in kwargs["sources"]
         )
-        assert kwargs["source"] != DataEntrySourceEnum.USER_MANUAL.value
-        assert kwargs["source"] != DataEntrySourceEnum.CSV_MODULE_UNIT_SPECIFIC.value

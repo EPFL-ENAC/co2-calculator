@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 from uuid import UUID
@@ -266,6 +266,18 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
     )
 
     # Observability (Plan 310C)
+    created_at: Optional[datetime] = Field(
+        # Python-side stamp (repo convention) so the ORM never sends an
+        # explicit NULL past the server_default; the server_default remains
+        # for the migration backfill of pre-existing rows.
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SADateTime(timezone=True), server_default=text("now()")),
+        description=(
+            "Timestamp the job row was created.  created_at → started_at is "
+            "queue wait (chain/lock/poller latency); started_at → finished_at "
+            "is execution — the ops console shows both."
+        ),
+    )
     started_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(SADateTime(timezone=True)),
