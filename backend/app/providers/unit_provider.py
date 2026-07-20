@@ -375,10 +375,4 @@ def get_unit_provider(
             logger.info("Using TestUnitProvider (for testing)")
             return TestUnitProvider()
         case _:
-            logger.error(
-                "Unknown unit provider type, falling back to database",
-                extra={"provider_type": provider_type},
-            )
-            if not db_session:
-                raise ValueError("DatabaseUnitProvider requires a database session")
-            return DatabaseUnitProvider(db_session)
+            raise ValueError(f"Unknown unit provider type: {provider_type!r}")

@@ -403,14 +403,11 @@ class TestGetUnitProvider:
         provider = get_unit_provider(UserProvider.TEST)
         assert isinstance(provider, TestUnitProvider)
 
-    def test_unknown_falls_back_to_database(self):
-        mock_db = MagicMock()
-        provider = get_unit_provider(999, db_session=mock_db)
-        assert isinstance(provider, DatabaseUnitProvider)
-
-    def test_unknown_without_session_raises(self):
-        with pytest.raises(ValueError):
-            get_unit_provider(999, db_session=None)
+    def test_unknown_provider_type_raises(self):
+        # No silent fallback: an unknown type is a config error, even
+        # with a usable session at hand.
+        with pytest.raises(ValueError, match="Unknown unit provider type"):
+            get_unit_provider(999, db_session=MagicMock())
 
     def test_none_uses_settings_database(self):
         with patch("app.providers.unit_provider.settings") as mock_settings:
