@@ -224,8 +224,8 @@ export const useAuthStore = defineStore('auth', () => {
     const path = getModulePermissionPath(module);
     if (!path) return true; // Unprotected module, accessible to all users
     return (
-      hasUserAnyScopePermission(path, PermissionAction.VIEW) ||
-      hasUserAnyScopePermission(path, PermissionAction.EDIT)
+      hasUserPermission(path, PermissionAction.VIEW) ||
+      hasUserPermission(path, PermissionAction.EDIT)
     );
   }
 

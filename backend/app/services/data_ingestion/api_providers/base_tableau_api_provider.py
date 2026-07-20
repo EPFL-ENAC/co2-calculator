@@ -26,7 +26,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.url_safety import validate_external_url
 from app.models.connector import ConnectorConnection, ConnectorType
-from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.data_entry import BULK_PER_YEAR_SOURCES, DataEntryTypeEnum
 from app.models.data_ingestion import IngestionResult, IngestionState
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.unit_repo import UnitRepository
@@ -785,13 +785,14 @@ class BaseTableauApiProvider(DataIngestionProvider):
         raise ValueError(error_msg)
 
     async def _delete_existing_api_entries(self) -> int:
-        """Replace this provider's prior API import for the target year.
+        """Replace prior bulk per-year ingests for the target year.
 
-        API feeds are complete yearly exports. Delete only rows created by an
-        external integration for this provider's data-entry type, preserving
-        manual entries and CSV uploads. This is called only after at least one
-        valid replacement row has survived transformation and module
-        resolution.
+        API feeds are complete yearly exports. Delete every machine-owned
+        bulk source (prior API syncs AND per-year CSV uploads — see
+        ``BULK_PER_YEAR_SOURCES``) for this provider's data-entry type,
+        preserving manual entries and unit-specific uploads. This is called
+        only after at least one valid replacement row has survived
+        transformation and module resolution.
         """
         year = self.config.get("year")
         if year is None:
@@ -801,10 +802,10 @@ class BaseTableauApiProvider(DataIngestionProvider):
         deleted_rows = await service.repo.bulk_delete_by_source_year(
             year=int(year),
             data_entry_type_ids=[self.DATA_ENTRY_TYPE.value],
-            source=DataEntrySourceEnum.EXTERNAL_INTEGRATION.value,
+            sources=[s.value for s in BULK_PER_YEAR_SOURCES],
         )
         logger.info(
-            "Deleted %s data entries from the previous %s API import "
+            "Deleted %s data entries from the previous %s bulk ingest "
             "(year=%s, data_entry_type_id=%s)",
             deleted_rows,
             self.INGEST_NOUN,

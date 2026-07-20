@@ -90,7 +90,7 @@ class PlaneCabinClassValidationMixin:
     @field_validator("cabin_class", mode="after")
     @classmethod
     def validate_cabin_class(cls, v: Optional[str]) -> Optional[str]:
-        valid_classes = ["first", "business", "economy"]
+        valid_classes = ["business", "economy"]
         if v is not None and v.lower() not in valid_classes:
             raise ValueError(
                 f"Invalid cabin class '{v}', must be one of {valid_classes}"
@@ -662,7 +662,6 @@ class _TravelPlaneBaseValidationMixin:
         valid_cabin_classes = [
             "economy",
             "business",
-            "first",
         ]
         if not v:
             raise ValueError("Cabin class is required")

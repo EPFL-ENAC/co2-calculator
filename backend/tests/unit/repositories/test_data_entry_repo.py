@@ -1014,7 +1014,7 @@ async def test_get_submodule_data_does_not_persist_computed_fields(
     original_data = {
         "origin_iata": "GVA",
         "destination_iata": "ZRH",
-        "cabin_class": "first",
+        "cabin_class": "business",
         "user_institutional_id": "150322",
         "number_of_trips": 1,
         "primary_factor_id": None,

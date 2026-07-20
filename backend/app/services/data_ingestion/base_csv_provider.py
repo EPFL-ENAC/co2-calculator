@@ -15,9 +15,9 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import (
+    BULK_PER_YEAR_SOURCES,
     DataEntry,
     DataEntrySourceEnum,
-    DataEntryStatusEnum,
     DataEntryTypeEnum,
 )
 from app.models.data_ingestion import (
@@ -48,6 +48,7 @@ from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
+from app.utils.progress import format_progress
 
 logger = get_logger(__name__)
 
@@ -218,9 +219,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self._missing_unit_codes: set[str] = set()
         # Track which missing units we've already warned about (deduplication)
         self._missing_units_logged: set[str] = set()
-        # module_id → unit_id, filled by _resolve_carbon_report_modules;
-        # used to stamp the denormalized DataEntry.unit_id at row build.
-        self._module_to_unit_id: Dict[int, int] = {}
         # Cache for carbon_report_module_id -> year mapping (avoid per-row DB queries)
         self._year_cache: Dict[int, int] = {}
         # Progress reporting: current phase label + throttle/rate bookkeeping.
@@ -613,7 +611,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if institutional_id is None:
                 continue
             full_map[institutional_id] = module_id
-            self._module_to_unit_id[module_id] = unit_db_id
         logger.info(
             f"Bulk-resolved {len(full_map)} existing "
             f"carbon_report_modules for year={self.year}, "
@@ -709,7 +706,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         f"module_type_id={module_type_id}"
                     )
                 code_to_module_map[unit_institutional_id] = carbon_report_module.id
-                self._module_to_unit_id[carbon_report_module.id] = unit_id
 
         logger.info(
             f"Resolved carbon_report_module_ids: "
@@ -758,11 +754,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         data_entry_service: DataEntryService,
     ) -> None:
         """
-        Delete existing entries from previous CSV_MODULE_PER_YEAR uploads.
+        Delete existing entries from previous bulk per-year ingests.
 
-        This ensures that MODULE_PER_YEAR uploads replace only the data
-        that was uploaded through the same mechanism, preserving manual
-        entries and unit-specific uploads.
+        A per-year upload is a complete yearly export, so it replaces every
+        machine-owned bulk source (prior CSV uploads AND API syncs — see
+        ``BULK_PER_YEAR_SOURCES``), preserving manual entries and
+        unit-specific uploads. Without the cross-source delete, uploading a
+        CSV after an API sync mass-skips rows as DUPLICATE_INSTITUTIONAL_ID
+        against the surviving API copies.
 
         Note: MODULE_UNIT_SPECIFIC uses append-only strategy (no deletion).
 
@@ -791,17 +790,17 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Full-year replace: per-year CSVs are complete exports, so ONE
         # indexed DELETE on the denormalized ``data_entries.year`` column
-        # replaces every prior row of (year, types, source) — no module
+        # replaces every prior row of (year, types, bulk sources) — no module
         # resolution, no audit trail (the bulk path skips audit on insert
         # too; the job row is the operator-facing record).
         deleted_rows = await data_entry_service.repo.bulk_delete_by_source_year(
             year=self.year,
             data_entry_type_ids=[t.value for t in valid_entry_types],
-            source=DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value,
+            sources=[s.value for s in BULK_PER_YEAR_SOURCES],
         )
 
         logger.info(
-            f"Deleted {deleted_rows} data entries from previous CSV uploads "
+            f"Deleted {deleted_rows} data entries from previous bulk ingests "
             f"(year={self.year}, {len(valid_entry_types)} types, full replace)"
         )
 
@@ -849,17 +848,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             parse_elapsed - row_t,
         )
 
-    @staticmethod
-    def _format_progress(
-        phase: str, processed: int | None, total: int | None, elapsed: float
-    ) -> str:
-        """Human-readable progress line with throughput + rough ETA."""
-        if not processed or not total:
-            return phase
-        rate = processed / max(elapsed, 1e-3)
-        eta = (total - processed) / rate if rate > 0 else 0.0
-        return f"{phase}: {processed}/{total} rows ({rate:.0f}/s, ~{eta:.0f}s left)"
-
     async def _report(
         self,
         phase: str,
@@ -879,9 +867,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             return
         self._last_report_at = now
 
-        msg = self._format_progress(
-            phase, processed, total, now - self._phase_started_at
-        )
+        msg = format_progress(phase, processed, total, now - self._phase_started_at)
         meta: Dict[str, Any] = dict(stats) if stats else {}
         meta["progress"] = {"phase": phase, "processed": processed, "total": total}
         logger.info(msg)
@@ -955,22 +941,42 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
             batch_kg_co2eq_overrides: List[float | None] = []
             # Track seen (user_institutional_id, sius_code) pairs per module to
-            # catch intra-CSV duplicates. A person can legitimately hold two
-            # roles (different sius_code) in the same unit.
+            # catch duplicates. A person can legitimately hold two roles
+            # (different sius_code) in the same unit. Seeded with the DB's
+            # surviving member rows (post-delete: manual/unit-specific ones)
+            # in ONE bulk query — a per-row uniqueness SELECT at stage
+            # latencies turned an 8.5k-row parse into ~10 min (2026-07-17).
             seen_institutional_ids: Dict[int, set[tuple[str, str]]] = {}
+            # Unconditional on purpose: the query is one indexed round trip
+            # that returns nothing for non-member modules, and gating it on
+            # a resolvable module_type_id would silently skip DB-level
+            # dedup for member uploads that omit it (raw-API dispatch).
+            member_module_ids: list[int] = []
+            if unit_to_module_map:
+                member_module_ids = list(unit_to_module_map.values())
+            elif self.carbon_report_module_id:
+                member_module_ids = [self.carbon_report_module_id]
+            existing_keys = await data_entry_service.repo.get_member_role_keys(
+                member_module_ids
+            )
+            for mod_id, uid, sius in existing_keys:
+                seen_institutional_ids.setdefault(mod_id, set()).add((uid, sius))
             csv_reader = csv.DictReader(
                 io.StringIO(setup_result["csv_text"], newline="")
             )
 
+            last_yield = time.perf_counter()
             for row_idx, row in enumerate(csv_reader, start=1):
                 # Row processing is mostly CPU (parse/validate, cached
                 # lookups) — with 50k-row COPY batches nothing else
                 # would run on the event loop for the whole file.
-                # Yield every 100 rows so /healthz & /ready stay under the
-                # liveness/readiness probe timeout even on a CPU-tight pod;
-                # a 1000-row stretch could exceed 2s and trigger a restart.
-                if row_idx % 100 == 0:
+                # Yield on wall time so /healthz & /ready stay under the
+                # k8s probe timeout (2s on stage) regardless of per-row
+                # cost — a fixed row count stretches with a slow DB.
+                if time.perf_counter() - last_yield > 0.05:
                     await asyncio.sleep(0)
+                    last_yield = time.perf_counter()
+                if row_idx % 100 == 0:
                     # Throttled internally to PROGRESS_REPORT_INTERVAL_S, so the
                     # long parse/validate phase shows live throughput + ETA
                     # instead of going silent for tens of seconds.
@@ -1017,9 +1023,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     raise ValueError("Data entry is None without error message")
 
                 # Check (user_institutional_id, sius_code) role uniqueness for
-                # member entries.
-                # TODO: refactor, should not be done in base_csv_provider but elsewhere
-                # process or task or sql
+                # member entries — pure set lookup: intra-CSV dupes and
+                # pre-existing DB rows are both in the seeded set above.
                 if (
                     data_entry.data_entry_type_id == DataEntryTypeEnum.member
                     and data_entry.data
@@ -1031,17 +1036,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     module_seen = seen_institutional_ids.setdefault(module_id, set())
                     role_key = (uid, sius_code)
                     if role_key in module_seen:
-                        error_msg = "DUPLICATE_INSTITUTIONAL_ID"
-                        self._record_row_error(
-                            stats, row_idx, error_msg, max_row_errors
-                        )
-                        continue
-                    is_unique = await data_entry_service.check_member_role_unique(
-                        carbon_report_module_id=module_id,
-                        uid=uid,
-                        sius_code=sius_code,
-                    )
-                    if not is_unique:
                         error_msg = "DUPLICATE_INSTITUTIONAL_ID"
                         self._record_row_error(
                             stats, row_idx, error_msg, max_row_errors
@@ -1311,7 +1305,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             payload: Dict[str, str | int | None] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
             payload["carbon_report_module_id"] = carbon_report_module_id
-            payload["status"] = DataEntryStatusEnum.VALIDATED.value
 
             try:
                 with self._timed("validate"):
@@ -1348,14 +1341,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if kg_co2eq_override is not None:
                 data[KG_CO2EQ_OVERRIDE_KEY] = kg_co2eq_override
 
+            # Denormalized scope columns (year/unit_id) are stamped
+            # centrally by DataEntryService.fill_denormalized_scope on
+            # every write path — no per-provider stamping to forget.
             data_entry = DataEntry(
                 data_entry_type_id=data_entry_type,
                 carbon_report_module_id=carbon_report_module_id,
                 data=data,
-                # Denormalized scope columns — back the per-year
-                # full-replace delete without module resolution.
-                year=self.year,
-                unit_id=self._module_to_unit_id.get(carbon_report_module_id),
             )
 
             return data_entry, None, None, kg_co2eq_override

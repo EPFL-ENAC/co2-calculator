@@ -385,11 +385,14 @@ async def test_recalculate_reports_affected_module_ids_for_chain():
 
 
 @pytest.mark.asyncio
-async def test_recalculate_reports_progress_at_interval(monkeypatch):
-    """Every PROGRESS_INTERVAL computed entries, the workflow logs and
-    invokes the caller's progress callback (the handlers stamp it onto
-    the job row so SSE/UI can track long recalcs)."""
-    monkeypatch.setattr("app.workflows.emission_recalculation.PROGRESS_INTERVAL", 1)
+async def test_recalculate_reports_progress_time_based(monkeypatch):
+    """Progress reporting is wall-time-throttled (stage incident
+    2026-07-17: the old every-5000-entries gate gave an 8488-entry slice
+    a single update). With the throttle forced open, every entry reports,
+    plus the terminal N/N update after the loop."""
+    import app.workflows.emission_recalculation as wf_mod
+
+    monkeypatch.setattr(wf_mod, "PROGRESS_REPORT_INTERVAL_S", -1.0)
     mock_session = MagicMock()
     svc = EmissionRecalculationWorkflow(mock_session)
 
@@ -428,7 +431,53 @@ async def test_recalculate_reports_progress_at_interval(monkeypatch):
             DataEntryTypeEnum.plane, 2025, progress_callback=_progress
         )
 
-    assert progress_calls == [(1, 2), (2, 2)]
+    assert progress_calls == [(1, 2), (2, 2), (2, 2)]
+
+
+@pytest.mark.asyncio
+async def test_recalculate_always_reports_terminal_progress():
+    """A slice too fast to cross the report interval still gets the
+    terminal N/N update — the operator never sees a job finish while the
+    status line reads an intermediate count."""
+    mock_session = MagicMock()
+    svc = EmissionRecalculationWorkflow(mock_session)
+
+    entries = [_make_mock_entry(1, 10), _make_mock_entry(2, 10)]
+    progress_calls: list[tuple[int, int]] = []
+
+    async def _progress(done: int, total: int) -> None:
+        progress_calls.append((done, total))
+
+    with (
+        patch(
+            "app.workflows.emission_recalculation.DataEntryRepository"
+        ) as mock_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.FactorResolver"
+        ) as mock_resolver_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryEmissionService"
+        ) as mock_emission_cls,
+        patch("app.workflows.emission_recalculation.DataEntryResponse"),
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+    ):
+        mock_handler_cls.get_by_type.return_value = _make_mock_handler()
+        mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
+            return_value=entries
+        )
+        _patch_resolver_empty(mock_resolver_cls)
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
+
+        await svc.recalculate_for_data_entry_type(
+            DataEntryTypeEnum.plane, 2025, progress_callback=_progress
+        )
+
+    assert progress_calls == [(2, 2)]
 
 
 # ======================================================================
