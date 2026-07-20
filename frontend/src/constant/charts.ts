@@ -473,8 +473,8 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
     },
     research_facilities: {
       facilities: colors.value.paleYellowGreen.darker,
-      it_facilities: colors.value.paleYellowGreen.default,
-      animal: colors.value.paleYellowGreen.dark,
+      it_facilities: colors.value.paleYellowGreen.dark,
+      animal: colors.value.paleYellowGreen.default,
     },
     purchases: (() => {
       const keys = [

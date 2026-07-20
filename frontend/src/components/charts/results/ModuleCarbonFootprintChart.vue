@@ -45,6 +45,7 @@ use([
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
 import type { TooltipRow } from 'src/types/chartTooltip';
 import { formatTonnesForChart } from 'src/utils/number';
+import { stackShade } from 'src/utils/chart-shades';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
 
@@ -1067,13 +1068,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         animation: true,
         encode: { x: 'category', y: `equip_rank${i + 1}` },
-        itemStyle: {
-          color: getSubcategoryColor(
-            'equipment',
-            item.key,
-            colors.value.plum.default,
-          ),
-        },
+        itemStyle: { color: stackShade(colors.value.plum, i) },
         label: { show: false },
       }));
     })(),
@@ -1095,13 +1090,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         animation: true,
         encode: { x: 'category', y: `purch_rank${i + 1}` },
-        itemStyle: {
-          color: getSubcategoryColor(
-            'purchases',
-            item.key,
-            colors.value.lightGreen.default,
-          ),
-        },
+        itemStyle: { color: stackShade(colors.value.lightGreen, i) },
         label: { show: false },
       }));
       const restSeries = {

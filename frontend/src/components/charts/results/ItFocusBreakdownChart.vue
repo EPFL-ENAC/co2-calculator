@@ -24,7 +24,6 @@ import { useEchartsTooltip } from 'src/components/charts/results/useEchartsToolt
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
-  colors,
 } from 'src/constant/charts';
 import { IT_FOCUS_CATEGORY_TO_MODULE } from 'src/constant/itFocus';
 import { useColorblindStore } from 'src/stores/colorblind';
@@ -141,8 +140,8 @@ const IT_FOCUS_CATEGORY_ORDER = [
 ] as const;
 
 const categoryColor = computed(() => ({
-  equipment_it: colors.value.plum.dark,
-  purchases_it: colors.value.lightGreen.dark,
+  equipment_it: CHART_CATEGORY_COLOR_SCHEMES.value.equipment,
+  purchases_it: CHART_CATEGORY_COLOR_SCHEMES.value.purchases,
   external_cloud_and_ai:
     CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
   research_facilities_it:
