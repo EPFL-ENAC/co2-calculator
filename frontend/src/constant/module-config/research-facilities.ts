@@ -44,6 +44,7 @@ const researchFacilitiesFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
@@ -91,6 +92,7 @@ const animalFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },

@@ -5,7 +5,11 @@ from functools import lru_cache
 from typing import Optional
 
 from pydantic import Field, computed_field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 
 class RoleProviderType(str, Enum):
@@ -352,6 +356,20 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
     )
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # .env wins over real env vars: a stray shell `export DB_URL=...`
+        # left over from testing shouldn't silently outrank a fixed .env.
+        # Stage/prod ship no .env file, so real env vars (helm/k8s) still apply there.
+        return (init_settings, dotenv_settings, env_settings, file_secret_settings)
+
     # NOTE: Elastic SEARCH OPDO/27001/27701 compatiblity
 
     ELASTICSEARCH_HOSTS: str = Field(
@@ -400,17 +418,20 @@ class Settings(BaseSettings):
 
     # Background job safety (Plan 310A + auto-recovery sweep, PR #998)
     STALE_JOB_TIMEOUT_MINUTES: int = Field(
-        default=60,
+        default=5,
         description=(
             "Minutes before a RUNNING job is considered stale.  Doubles as "
             "the auto-recovery sweep's threshold: jobs whose ``locked_at`` "
             "is older than this are reset to NOT_STARTED (or marked "
-            "FINISHED+ERROR if attempts >= max_attempts).  Until the worker "
-            "heartbeats ``locked_at`` (planned in 310C), set this *above* "
-            "the longest plausible job runtime — otherwise the sweep will "
-            "preempt a still-working pod and trigger duplicate processing.  "
-            "60 min gives ample headroom for current ingest/recalc loads; "
-            "raise if a specific job type is expected to run longer."
+            "FINISHED+ERROR if attempts >= max_attempts).  The 310-C runner "
+            "heartbeats ``locked_at`` every quarter of this window, so the "
+            "value bounds *crash recovery latency*, not job runtime — a "
+            "healthy long-running job is never falsely recovered.  Keep it "
+            "high enough that transient DB outages shorter than the window "
+            "don't make a live runner self-abort (see ``_heartbeat_loop``); "
+            "5 min = 75s heartbeats and ~5-6 min worst-case recovery after "
+            "a pod dies mid-job (stage incident 2026-07-17: the old 60 min "
+            "default left a killed aggregation invisible for an hour)."
         ),
     )
     # #1723 — bounds every run_job dispatch path (poller sweep, chain_job

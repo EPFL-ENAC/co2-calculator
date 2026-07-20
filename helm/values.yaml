@@ -48,7 +48,7 @@ backend:
     RUN_BACKGROUND_POLLER: "true"
     POLLER_INTERVAL_SECONDS: "2" # Seconds between poller sweeps
     POLLER_BATCH_LIMIT: "100" # Max NOT_STARTED jobs dispatched per sweep
-    STALE_JOB_TIMEOUT_MINUTES: "60" # RUNNING jobs older than this are auto-recovered
+    STALE_JOB_TIMEOUT_MINUTES: "5" # RUNNING jobs whose heartbeat is older than this are auto-recovered
     INGEST_COPY_BATCH_SIZE: "50000" # Rows per COPY batch for bulk CSV data_entries ingest
     ELASTICSEARCH_TIMEOUT: "30" # Key in the existing secret for Elasticsearch timeout
     ELASTICSEARCH_MAX_RETRIES: "3" # Key in the existing secret for Elasticsearch max retries

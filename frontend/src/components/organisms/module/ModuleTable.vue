@@ -180,10 +180,20 @@
               :step="col.step"
               :rules="getColumnRules(col)"
               class="inline-input"
+              :dropdown-icon="col.type === 'select' ? 'expand_more' : undefined"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
               @blur="commitInline(slotProps.row, col)"
-            ></component>
+            >
+              <template v-if="col.type !== 'select'" #append>
+                <q-icon
+                  v-if="hasValue(slotProps.row[col.field])"
+                  name="o_edit"
+                  size="14px"
+                  class="inline-edit-icon"
+                />
+              </template>
+            </component>
           </template>
           <template v-else-if="col.name === 'action' && showTableActions">
             <q-btn
@@ -191,40 +201,42 @@
               :icon="noteButtonIcon(slotProps.row.note)"
               :color="noteButtonColor(slotProps.row.note)"
               :style="noteButtonStyle(slotProps.row.note)"
-              :text-color="noteButtonTextColor(slotProps.row.note)"
               :disable="isNoteDisabled"
               unelevated
               no-caps
               dense
-              round
-              :outline="!slotProps.row.note"
-              class="q-mr-sm"
+              :flat="!slotProps.row.note"
+              class="action-btn"
               @click="openNoteDialog(slotProps.row)"
             >
               <q-tooltip v-if="slotProps.row.note" class="tooltip">
                 {{ slotProps.row.note }}
               </q-tooltip>
+              <q-tooltip v-else class="tooltip action-tooltip" :offset="[0, 8]">
+                {{ $t('common_comment') }}
+              </q-tooltip>
             </q-btn>
             <q-btn
               v-if="showTableRowActions && canEdit && hasModuleUpload"
               icon="o_delete"
-              color="grey-4"
-              text-color="primary"
+              color="black"
               :disable="isDisabled"
               unelevated
               no-caps
               dense
-              outline
-              square
-              size="xs"
-              class="square-button"
+              flat
+              class="action-btn action-btn--delete"
               @click="
                 ItemName = getItemName(slotProps.row);
                 deleteItemName = getItemName(slotProps.row);
                 deleteRowId = getRowId(slotProps.row);
                 confirmDelete = true;
               "
-            />
+            >
+              <q-tooltip class="tooltip action-tooltip" :offset="[0, 8]">
+                {{ $t('common_delete') }}
+              </q-tooltip>
+            </q-btn>
           </template>
           <template v-else-if="col.name === 'percentage_of_reference_year'">
             <div
@@ -838,7 +850,7 @@ function noteButtonIcon(note: unknown): string {
 }
 
 function noteButtonColor(note: unknown): string | undefined {
-  if (!note) return 'grey-4';
+  if (!note) return 'black';
   return props.moduleColor ? undefined : 'accent';
 }
 
@@ -850,10 +862,6 @@ function noteButtonStyle(note: unknown) {
         border: `1px solid ${moduleColors.value.buttonTextColor}`,
       }
     : undefined;
-}
-
-function noteButtonTextColor(note: unknown): string | undefined {
-  return note ? undefined : 'primary';
 }
 
 const noteDialogMode = computed<'add' | 'edit'>(() =>
@@ -1983,6 +1991,11 @@ onUnmounted(() => {
     border: none;
   }
 
+  th,
+  td {
+    padding: tokens.$spacing-xs tokens.$spacing-md;
+  }
+
   tbody .q-tr:nth-child(even) {
     background-color: tokens.$table-bg-even;
   }
@@ -2014,8 +2027,94 @@ onUnmounted(() => {
     }
   }
 
-  .square-button {
-    padding: tokens.$spacing-sm tokens.$spacing-sm;
+  td
+    .q-field--outlined:not(.q-field--focused):not(.q-field--error)
+    .q-field__control::before {
+    border-color: transparent;
   }
+
+  td
+    .q-field--outlined:not(.q-field--focused):not(.q-field--error):not(
+      .q-field--disabled
+    ):hover
+    .q-field__control {
+    background: tokens.$table-field-hover-bg;
+  }
+
+  td .inline-input,
+  td .inline-select-wrapper .q-select {
+    display: inline-flex;
+    width: auto;
+    max-width: 100%;
+    vertical-align: middle;
+  }
+
+  td .inline-input .q-field__native,
+  td .inline-input .q-field__input,
+  td .inline-select-wrapper .q-field__native,
+  td .inline-select-wrapper .q-field__input {
+    field-sizing: content;
+    min-width: 1ch;
+    font-size: tokens.$text-size-sm;
+  }
+
+  td .inline-input .q-field__append,
+  td .inline-select-wrapper .q-field__append {
+    padding-left: tokens.$spacing-xs;
+  }
+
+  .inline-edit-icon {
+    color: tokens.$table-inline-icon-color;
+  }
+
+  .q-field--focused .inline-edit-icon,
+  .q-field--disabled .inline-edit-icon {
+    display: none;
+  }
+
+  td .q-select__dropdown-icon {
+    font-size: 18px;
+    color: tokens.$table-inline-icon-color;
+  }
+
+  td .q-select:not(.q-field--disabled),
+  td .q-select:not(.q-field--disabled) * {
+    cursor: pointer;
+  }
+
+  .action-btn {
+    width: 32px;
+    height: 32px;
+    min-height: 0;
+    padding: 0;
+    border-radius: tokens.$radius-default;
+  }
+
+  .action-btn .q-icon {
+    font-size: 18px;
+  }
+
+  .action-btn + .action-btn {
+    margin-left: tokens.$spacing-xs;
+  }
+
+  .action-btn:not(.disabled):hover {
+    background: tokens.$table-action-hover-bg;
+  }
+
+  .action-btn--delete:not(.disabled):hover {
+    background: tokens.$table-action-delete-hover-bg;
+  }
+
+  .action-btn--delete:not(.disabled):hover .q-icon {
+    color: tokens.$icon-color-white;
+  }
+}
+
+/* Teleported to <body>, so it must be styled outside .co2-table and unscoped. */
+.q-tooltip.action-tooltip {
+  padding: tokens.$spacing-lg tokens.$spacing-xl;
+  font-size: tokens.$text-size-sm;
+  line-height: normal;
 }
 </style>

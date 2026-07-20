@@ -218,7 +218,7 @@ def test_plane_create_dto_accepts_user_institutional_id_from_dropdown():
 
 
 def test_plane_create_dto_rejects_invalid_cabin_class():
-    """Cabin class must be one of economy / business / first."""
+    """Cabin class must be one of economy / business."""
     with pytest.raises(ValidationError):
         ProfessionalTravelPlaneHandlerCreate(
             data_entry_type_id=DataEntryTypeEnum.plane.value,

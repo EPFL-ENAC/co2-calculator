@@ -89,6 +89,7 @@ def postgres_container() -> Iterator[dict]:
             old = client.containers.get(_PG_CONTAINER_NAME)
             old.remove(force=True)
         except docker.errors.NotFound:
+            # No stale container to clean up
             pass
 
         try:
@@ -133,6 +134,7 @@ def postgres_container() -> Iterator[dict]:
             c = client.containers.get(_PG_CONTAINER_NAME)
             c.stop(timeout=10)
         except docker.errors.NotFound:
+            # Container already gone — nothing to stop
             pass
         except Exception as e:  # pragma: no cover - cleanup best-effort
             print(f"Error stopping postgres container: {e}")

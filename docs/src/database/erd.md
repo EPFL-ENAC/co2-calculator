@@ -115,6 +115,7 @@ erDiagram
   }
   data_ingestion_jobs {
     INTEGER attempts
+    DATETIME created_at
     INTEGER data_entry_type_id "indexed"
     INTEGER entity_id
     VARCHAR entity_type

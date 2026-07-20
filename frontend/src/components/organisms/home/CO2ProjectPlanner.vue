@@ -179,11 +179,10 @@ onMounted(refresh);
               class="q-pa-xs"
             >
               <template v-if="col.name === 'action'">
-                <div class="row no-wrap justify-end q-gutter-xs">
+                <div class="row no-wrap justify-end">
                   <q-btn
                     icon="o_content_copy"
-                    color="grey-4"
-                    text-color="primary"
+                    color="black"
                     unelevated
                     no-caps
                     dense
@@ -195,8 +194,7 @@ onMounted(refresh);
                   />
                   <q-btn
                     icon="o_edit"
-                    color="grey-4"
-                    text-color="primary"
+                    color="black"
                     unelevated
                     no-caps
                     dense
@@ -208,8 +206,7 @@ onMounted(refresh);
                   />
                   <q-btn
                     icon="o_delete"
-                    color="grey-4"
-                    text-color="primary"
+                    color="black"
                     unelevated
                     no-caps
                     dense

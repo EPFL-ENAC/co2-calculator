@@ -44,7 +44,7 @@ async def _enac_subtree(db_session, make_unit):
 
 class TestBuildScopeSubtreePredicate:
     async def test_matches_anchor_and_descendants_only(self, db_session, make_unit):
-        anchor, child, leaf, outside = await _enac_subtree(db_session, make_unit)
+        await _enac_subtree(db_session, make_unit)
         stmt = select(Unit).where(build_scope_subtree_predicate({"13030"}))
         rows = (await db_session.exec(stmt)).all()
         names = {u.name for u in rows}

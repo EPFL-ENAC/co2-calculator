@@ -104,7 +104,6 @@ async def create_factors(session: AsyncSession):
     cabin_classes_type = [
         EmissionType.professional_travel__plane__eco,
         EmissionType.professional_travel__plane__business,
-        EmissionType.professional_travel__plane__first,
     ]
     distance_bands = [
         ("Short-haul", 0, 1000),

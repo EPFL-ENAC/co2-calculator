@@ -29,7 +29,7 @@ import {
 // 1 = Simulator Explore, 2 = Simulator Plan). Drives how unit/year
 // resolve to a carbon report id in resolveCarbonReportId.
 const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
-  'simulation-explore': 1,
+  'simulation-explore-print': 1,
   'project-planner': 2,
 };
 

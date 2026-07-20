@@ -81,6 +81,18 @@ class DataEntrySourceEnum(int, Enum):
     PLANNER_SNAPSHOT = 6  # Simulator Plan prefill copy of a reference-year entry
 
 
+# Machine-owned bulk per-year sources. A per-year ingest (CSV upload or API
+# sync) is a complete yearly export, so it replaces ALL of these — a CSV
+# upload after an API sync (or vice versa) must not collide with the other
+# mechanism's rows. Manual entries (USER_MANUAL) and unit-specific uploads
+# (*_UNIT_SPECIFIC) are operator-owned and always preserved.
+BULK_PER_YEAR_SOURCES: tuple[DataEntrySourceEnum, ...] = (
+    DataEntrySourceEnum.CSV_MODULE_PER_YEAR,
+    DataEntrySourceEnum.API_MODULE_PER_YEAR,
+    DataEntrySourceEnum.EXTERNAL_INTEGRATION,
+)
+
+
 ## Will be renamed to data_entries later
 class DataEntryBase(SQLModel):
     """Base module model with shared fields."""

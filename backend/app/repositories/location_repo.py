@@ -137,6 +137,8 @@ class LocationRepository:
 
         extended = extended.limit(limit)
 
+        # Strip newlines so a crafted query can't forge extra log lines
+        safe_query = query.replace("\r", "").replace("\n", "")
         try:
             compiled = extended.compile(compile_kwargs={"literal_binds": False})
             logger.debug(f"Location search SQL: {compiled}")
@@ -145,11 +147,11 @@ class LocationRepository:
             # Since we added a relevance column, extract just the Location objects
             locations = [row[0] for row in result.fetchall()]
 
-            logger.debug(f"Found {len(locations)} locations for query '{query}'")
+            logger.debug(f"Found {len(locations)} locations for query '{safe_query}'")
             return locations
         except Exception as e:
             logger.error(
-                f"Error executing location search query for '{query}'. Error: {e}",
+                f"Error executing location search query for '{safe_query}'. Error: {e}",
                 exc_info=True,
             )
             raise

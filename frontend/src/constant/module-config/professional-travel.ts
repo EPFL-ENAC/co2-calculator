@@ -106,6 +106,7 @@ const commonTravelFields: ModuleField[] = [
     unit: 'km',
     sortable: true,
     ratio: '1/1',
+
     editableInline: false,
     readOnly: true,
     disable: true,
@@ -115,6 +116,7 @@ const commonTravelFields: ModuleField[] = [
 // Emissions column, kept separate so the class column can be placed just before it.
 const emissionsField: ModuleField = {
   id: 'kg_co2eq',
+  align: 'right',
   labelKey: `${MODULES.ProfessionalTravel}-field-emissions`,
   type: 'number',
   unit: 'kg CO₂-eq',
@@ -137,17 +139,21 @@ const planeCabinClassField: ModuleField = {
   editableInline: true,
   optionLabelsAreKeys: true,
   options: [
-    { value: 'first', label: 'charts-first-class-subcategory' },
     { value: 'business', label: 'charts-business-class-subcategory' },
     { value: 'economy', label: 'charts-eco-class-subcategory' },
   ],
 };
 
 const planeFields: ModuleField[] = buildTravelFields(
-  { id: 'origin_name', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
+  {
+    id: 'origin_name',
+    labelKey: `${MODULES.ProfessionalTravel}-field-from`,
+    columnSize: 'lg',
+  },
   {
     id: 'destination_name',
     labelKey: `${MODULES.ProfessionalTravel}-field-to`,
+    columnSize: 'lg',
   },
   planeCabinClassField,
 );
@@ -174,11 +180,13 @@ const trainFields: ModuleField[] = buildTravelFields(
     id: 'origin_name',
     labelKey: `${MODULES.ProfessionalTravel}-field-from`,
     tooltip: trainLocationTooltip,
+    columnSize: 'lg',
   },
   {
     id: 'destination_name',
     labelKey: `${MODULES.ProfessionalTravel}-field-to`,
     tooltip: trainLocationTooltip,
+    columnSize: 'lg',
   },
   trainCabinClassField,
   { directionInputTooltip: trainLocationTooltip },
@@ -260,11 +268,13 @@ function buildTravelFields(
     id: string;
     labelKey: string;
     tooltip?: string;
+    columnSize?: ModuleField['columnSize'];
   },
   destination: {
     id: string;
     labelKey: string;
     tooltip?: string;
+    columnSize?: ModuleField['columnSize'];
   },
   classField: ModuleField,
   options?: { directionInputTooltip?: string },
@@ -294,6 +304,7 @@ function buildTravelFields(
       editableInline: false,
       hideIn: { form: true },
       tooltip: origin.tooltip,
+      columnSize: origin.columnSize,
     },
     {
       id: destination.id,
@@ -305,6 +316,7 @@ function buildTravelFields(
       editableInline: false,
       hideIn: { form: true },
       tooltip: destination.tooltip,
+      columnSize: destination.columnSize,
     },
     ...commonTravelFields.slice(3),
     classField,

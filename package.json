@@ -13,7 +13,7 @@
     "@commitlint/cli": "=17.8.1",
     "@commitlint/config-conventional": "=17.8.1",
     "@evilmartians/lefthook": "=1.13.6",
-    "prettier": "=3.9.4"
+    "prettier": "=3.9.5"
   },
-  "version": "1.1.0"
+  "version": "1.1.1"
 }

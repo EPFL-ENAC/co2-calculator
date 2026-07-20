@@ -141,17 +141,11 @@ import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
-import { MODULES_CONFIG } from 'src/constant/module-config';
-import type { ModuleConfig } from 'src/constant/moduleConfig';
-import {
-  MODULES,
-  MODULES_THRESHOLD_TYPES,
-  type Threshold,
-} from 'src/constant/modules';
-import { MODULES_ORDER } from 'src/constant/timelineItems';
+import { MODULES_THRESHOLD_TYPES, type Threshold } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import { getExploreModules } from 'src/utils/exploreModules';
 import { formatTonnesCO2 } from 'src/utils/number';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
@@ -194,29 +188,7 @@ const defaultThreshold: Threshold = {
 const mountPrimaryCharts = ref(false);
 const simulatorReady = ref(false);
 
-const modules = computed(() => {
-  return MODULES_ORDER.filter((type) => type !== MODULES.ResearchFacilities)
-    .map((type) => {
-      const config = MODULES_CONFIG[type] as ModuleConfig | undefined;
-      if (!config?.submodules?.length) return null;
-
-      const unifiedConfig = yearConfigStore.getModule(type);
-      const visibleSubmodules = unifiedConfig
-        ? config.submodules.filter(
-            (sub) => unifiedConfig.submodules[sub.id]?.enabled ?? true,
-          )
-        : config.submodules;
-
-      if (!visibleSubmodules.length) return null;
-
-      return {
-        type,
-        config,
-        submodules: visibleSubmodules,
-      };
-    })
-    .filter((m): m is NonNullable<typeof m> => m !== null);
-});
+const modules = computed(() => getExploreModules(yearConfigStore.getModule));
 
 const expandedModules = reactive<Record<string, boolean>>({});
 
