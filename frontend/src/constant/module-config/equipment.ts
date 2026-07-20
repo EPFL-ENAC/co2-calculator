@@ -18,6 +18,7 @@ const nameField: ModuleField = {
   align: 'left',
   readOnly: false,
   ratio: '1/1',
+  columnSize: 'xl',
 };
 
 const equipmentIdField: ModuleField = {
@@ -78,7 +79,8 @@ const baseModuleFields: ModuleField[] = [
     readOnly: false,
     ratio: '1/2',
     icon: 'o_category',
-    columnSize: 'lg',
+    columnSize: 'sm',
+    maxColumnWidth: 160,
   },
   {
     id: 'active_usage_hours_per_week',

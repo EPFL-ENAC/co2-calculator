@@ -25,6 +25,7 @@
       <q-btn
         v-if="canValidate"
         :icon="toggleIcon"
+        :disable="validateBlockedByNewEquipment"
         unelevated
         no-caps
         size="xs"
@@ -89,21 +90,27 @@
       </div>
 
       <!-- action button -->
-      <q-btn
-        v-if="canValidate"
-        :icon="toggleIcon"
-        :label="validationShortActionLabel"
-        unelevated
-        no-caps
-        class="mtr-sidebar__btn text-weight-medium full-width"
-        size="md"
-        :style="{
-          background: moduleColors.bgColorLighter,
-          color: moduleColors.buttonTextColor,
-          border: `1px solid ${moduleColors.buttonTextColor}`,
-        }"
-        @click="toggleValidation"
-      />
+      <div v-if="canValidate" class="mtr-sidebar__btn-wrap full-width">
+        <q-btn
+          :icon="toggleIcon"
+          :label="validationShortActionLabel"
+          :disable="validateBlockedByNewEquipment"
+          unelevated
+          no-caps
+          class="mtr-sidebar__btn text-weight-medium full-width"
+          size="md"
+          :style="{
+            background: moduleColors.bgColorLighter,
+            color: moduleColors.buttonTextColor,
+            border: `1px solid ${moduleColors.buttonTextColor}`,
+          }"
+          @click="toggleValidation"
+        />
+        <!-- Tooltip on the wrapper: a disabled q-btn cannot receive hover. -->
+        <q-tooltip v-if="validateBlockedByNewEquipment">
+          {{ $t('equipment_validate_blocked_tooltip') }}
+        </q-tooltip>
+      </div>
       <q-btn
         v-else-if="showContactHead && isValidated"
         icon="o_mail"
@@ -165,6 +172,7 @@
         <q-btn
           :outline="isValidated"
           :label="validationLabel"
+          :disable="validateBlockedByNewEquipment"
           unelevated
           no-caps
           size="md"
@@ -172,6 +180,16 @@
           :style="validationBtnStyle"
           @click="toggleValidation"
         />
+        <!-- Tooltip on the wrapper, not the button: a disabled q-btn has
+             pointer-events:none, so a tooltip on it would never fire (#259). -->
+        <q-tooltip
+          v-if="validateBlockedByNewEquipment"
+          anchor="top middle"
+          self="bottom middle"
+          :offset="[0, 8]"
+        >
+          {{ $t('equipment_validate_blocked_tooltip') }}
+        </q-tooltip>
       </div>
       <div
         v-else-if="showContactHead && isValidated"
@@ -200,10 +218,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useTimelineStore } from 'src/stores/modules';
+import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
 import { useWorkspaceStore } from 'src/stores/workspace';
-import { Module } from 'src/constant/modules';
+import { Module, MODULES } from 'src/constant/modules';
 import { ModuleConfig } from 'src/constant/moduleConfig';
 import {
   MODULE_STATES,
@@ -220,9 +238,17 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const timelineStore = useTimelineStore();
+const moduleStore = useModuleStore();
 const authStore = useAuthStore();
 const workspaceStore = useWorkspaceStore();
 const moduleColors = computed(() => getModuleIconColors(props.type));
+
+const validateBlockedByNewEquipment = computed(
+  () =>
+    props.type === MODULES.Equipment &&
+    !isValidated.value &&
+    (moduleStore.state.data?.incomplete_new_equipment_count ?? 0) > 0,
+);
 
 // Validating a module's status is a unit-level action: hide the button from
 // standard (own-scope) users, who never hold the `module.status` permission.
@@ -460,6 +486,10 @@ function toggleValidation() {
 
   &__btn {
     border-radius: tokens.$mtr-sidebar-btn-border-radius;
+  }
+
+  &__btn-wrap {
+    display: block;
   }
 }
 
