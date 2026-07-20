@@ -132,6 +132,11 @@ class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
         source_totals: Dict[str, float] = {src: 0.0 for src in SOURCE_EMISSION_MAP}
         for emission_type_id, kg in breakdown:
             for source, valid_ids in SOURCE_EMISSION_MAP.items():
+                # Compute only sources that have 0 or missing factor.values
+                existing = factor.values.get(f"kg_co2eq_sum_{source}")
+                if existing is not None and existing != 0:
+                    source_totals[source] = float(existing)
+                    continue
                 if emission_type_id in valid_ids:
                     source_share = factor.values.get(f"{source}_share", 0)
                     source_totals[source] += kg * source_share
