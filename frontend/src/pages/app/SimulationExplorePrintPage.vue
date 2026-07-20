@@ -3,6 +3,7 @@ import { onMounted } from 'vue';
 import ReportPage from 'src/components/organisms/ReportPage.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
+import SimulationExplorePrintModulePage from 'src/components/organisms/print/SimulationExplorePrintModulePage.vue';
 import { useSimulationExplorePrintData } from 'src/composables/print/useSimulationExplorePrintData';
 import { formatTonnesCO2 } from 'src/utils/number';
 
@@ -11,6 +12,9 @@ const {
   loading,
   totalTonnesCo2eq,
   filteredBreakdown,
+  exploreModules,
+  submoduleRows,
+  headcountMembers,
   initWorkspaceFromRoute,
   fetchAllData,
 } = useSimulationExplorePrintData();
@@ -66,6 +70,16 @@ onMounted(async () => {
           <ModuleCarbonFootprintChart :breakdown-data="filteredBreakdown" />
         </section>
       </ReportPage>
+
+      <SimulationExplorePrintModulePage
+        v-for="(m, idx) in exploreModules"
+        :key="m.type"
+        :module="m"
+        :page-number="idx + 2"
+        :current-year="currentYear"
+        :submodule-rows="submoduleRows"
+        :headcount-members="headcountMembers"
+      />
     </div>
   </div>
 </template>

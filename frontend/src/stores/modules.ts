@@ -28,6 +28,7 @@ import {
 // Maps route names to their carbon_project_type integer (0 = Calculator, 1 = Simulator Explore)
 const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
   'simulation-explore': 1,
+  'simulation-explore-print': 1,
 };
 
 /**
