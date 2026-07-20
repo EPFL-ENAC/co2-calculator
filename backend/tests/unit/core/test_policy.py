@@ -1,6 +1,6 @@
 """Unit tests for core policy module - authorization policy evaluation."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -9,9 +9,12 @@ from app.core.policy import (
     _get_module_permission_path,
     check_module_permission,
     is_module_permitted,
+    plan_is_visible_to,
     query_policy,
+    require_plan_access,
+    require_plan_scope_for_report,
 )
-from app.models.user import Role, RoleName, UnitScope
+from app.models.user import GlobalScope, Role, RoleName, UnitScope
 
 
 class TestGetModulePermissionPath:
@@ -582,3 +585,104 @@ class TestQueryPolicyLegacy:
 
         assert result["allow"] is True
         assert result["filters"] == {}
+
+
+class TestRequirePlanAccess:
+    """Simulator Plan scoping: creator-only writes, shared plans read-only."""
+
+    @staticmethod
+    def _user(user_id: int, *, is_global: bool = False):
+        user = MagicMock()
+        user.id = user_id
+        role = MagicMock()
+        role.on = GlobalScope() if is_global else MagicMock()
+        user.roles = [role] if is_global else []
+        return user
+
+    @staticmethod
+    def _plan(created_by: int, *, shared: bool = False):
+        plan = MagicMock()
+        plan.created_by = created_by
+        plan.is_viewable_by_unit_members = shared
+        return plan
+
+    def test_creator_can_view_and_edit(self):
+        user = self._user(1)
+        plan = self._plan(created_by=1)
+        require_plan_access(user, plan, "view")
+        require_plan_access(user, plan, "edit")
+
+    def test_unshared_plan_is_invisible_to_other_members(self):
+        user = self._user(2)
+        plan = self._plan(created_by=1, shared=False)
+        with pytest.raises(HTTPException) as exc:
+            require_plan_access(user, plan, "view")
+        assert exc.value.status_code == 404
+
+    def test_shared_plan_is_read_only_for_other_members(self):
+        user = self._user(2)
+        plan = self._plan(created_by=1, shared=True)
+        require_plan_access(user, plan, "view")
+        with pytest.raises(HTTPException) as exc:
+            require_plan_access(user, plan, "edit")
+        assert exc.value.status_code == 403
+
+    def test_global_scope_bypasses_plan_scoping(self):
+        user = self._user(99, is_global=True)
+        plan = self._plan(created_by=1, shared=False)
+        require_plan_access(user, plan, "view")
+        require_plan_access(user, plan, "edit")
+
+    def test_plan_is_visible_to_matches_view_rule(self):
+        assert plan_is_visible_to(self._user(1), self._plan(created_by=1))
+        assert not plan_is_visible_to(self._user(2), self._plan(created_by=1))
+        assert plan_is_visible_to(self._user(2), self._plan(created_by=1, shared=True))
+
+
+class TestRequirePlanScopeForReport:
+    """The report-level plan-scope enforcer used by every report-addressed write."""
+
+    @staticmethod
+    def _report(project_id):
+        report = MagicMock()
+        report.carbon_project_id = project_id
+        return report
+
+    @pytest.mark.asyncio
+    async def test_noop_when_report_has_no_project(self):
+        db = MagicMock()
+        db.get = AsyncMock()
+        await require_plan_scope_for_report(db, MagicMock(), self._report(None), "edit")
+        db.get.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_noop_for_calculator_report(self):
+        from app.models.carbon_report import CarbonReportType
+
+        project = MagicMock()
+        project.carbon_report_type = CarbonReportType.CALCULATOR
+        db = MagicMock()
+        db.get = AsyncMock(return_value=project)
+        # Would raise if plan scoping ran; a Calculator report must pass through.
+        await require_plan_scope_for_report(db, MagicMock(), self._report(5), "edit")
+
+    @pytest.mark.asyncio
+    async def test_enforces_plan_access_for_plan_report(self):
+        from fastapi import HTTPException
+
+        from app.models.carbon_report import CarbonReportType
+
+        project = MagicMock()
+        project.carbon_report_type = CarbonReportType.SIMULATOR_PLAN
+        project.created_by = 1
+        project.is_viewable_by_unit_members = True  # shared → read-only
+        db = MagicMock()
+        db.get = AsyncMock(return_value=project)
+        non_creator = MagicMock()
+        non_creator.id = 2
+        non_creator.roles = []
+        with pytest.raises(HTTPException) as exc:
+            await require_plan_scope_for_report(
+                db, non_creator, self._report(5), "edit"
+            )
+        assert exc.value.status_code == 403

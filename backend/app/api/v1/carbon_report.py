@@ -8,12 +8,17 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.logging import get_logger
-from app.core.policy import require_module_unit_scope, require_unit_access
+from app.core.policy import (
+    require_module_unit_scope,
+    require_plan_scope_for_report,
+    require_unit_access,
+)
 from app.db import SessionLocal
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import (
     CarbonReportCreate,
+    CarbonReportModuleActiveUpdate,
     CarbonReportModuleRead,
     CarbonReportModuleUpdate,
     CarbonReportRead,
@@ -249,6 +254,53 @@ async def update_carbon_report_module_status(
             detail=(
                 f"""Module type {module_type_id} not found for
                 carbon report {carbon_report_id}"""
+            ),
+        )
+
+    await report_service.recompute_report_stats(carbon_report_id)
+    await report_service.recompute_report_progress(carbon_report_id)
+    await db.commit()
+    return result
+
+
+@router.patch(
+    "/{carbon_report_id}/modules/{module_type_id}/active",
+    response_model=CarbonReportModuleRead,
+)
+async def update_carbon_report_module_active(
+    carbon_report_id: int,
+    module_type_id: int,
+    update: CarbonReportModuleActiveUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle a module's Active flag (Simulator Plan checkbox).
+
+    Inactive modules are excluded from the report's sums, stats and
+    completion progress; the report stats are recomputed immediately.
+    """
+    report_service = CarbonReportService(db)
+    report = await report_service.get(carbon_report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Carbon report not found")
+
+    unit = await db.get(Unit, report.unit_id)
+    require_unit_access(current_user, unit)
+    # Plan modules are creator/global-only to edit; shared plans are
+    # read-only for other unit members (same scoping as every other plan
+    # write path).
+    await require_plan_scope_for_report(db, current_user, report, "edit")
+
+    module_service = CarbonReportModuleService(db)
+    result = await module_service.update_is_active(
+        carbon_report_id, module_type_id, update.is_active
+    )
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Module type {module_type_id} not found for "
+                f"carbon report {carbon_report_id}"
             ),
         )
 

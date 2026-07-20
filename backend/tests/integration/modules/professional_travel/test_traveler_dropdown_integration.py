@@ -24,7 +24,7 @@ from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
-from app.modules.professional_travel.schemas import (
+from app.modules.professional_travel import (
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelPlaneModuleHandler,
     ProfessionalTravelTrainHandlerCreate,

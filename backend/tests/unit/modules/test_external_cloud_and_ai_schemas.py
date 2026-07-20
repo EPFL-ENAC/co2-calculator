@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.modules.external_cloud_and_ai.schemas import ExternalAIHandlerCreate
+from app.modules.external_cloud_and_ai import ExternalAIHandlerCreate
 
 _META = {
     "data_entry_type_id": DataEntryTypeEnum.external_ai.value,

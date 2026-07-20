@@ -49,6 +49,20 @@ class DataEntryTypeEnum(int, Enum):
     research_facilities = 70
     mice_and_fish_animal_facilities = 71
 
+    # Simulator Plan (planner) kinds — 80+ range. Planner modules whose
+    # entry shape differs from the Calculator get their own types here;
+    # their handlers live in app/modules_planner.
+    planner_headcount = 80
+    # Purchases: manual CHF total per submodule XOR one global budget
+    # (mutually exclusive — enforced at entry creation).
+    planner_purchase = 81
+    planner_purchase_budget = 82
+
+    @property
+    def is_planner_kind(self) -> bool:
+        """Whether this type belongs to the Simulator Plan (80+ range)."""
+        return self.value >= 80
+
 
 class DataEntrySourceEnum(int, Enum):
     """
@@ -64,6 +78,7 @@ class DataEntrySourceEnum(int, Enum):
     API_MODULE_PER_YEAR = 3  # API upload for module per year
     API_MODULE_UNIT_SPECIFIC = 4  # API upload for unit specific module
     EXTERNAL_INTEGRATION = 5  # Third-party integration or import
+    PLANNER_SNAPSHOT = 6  # Simulator Plan prefill copy of a reference-year entry
 
 
 # Machine-owned bulk per-year sources. A per-year ingest (CSV upload or API

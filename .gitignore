@@ -15,3 +15,7 @@ storybook-static
 app_dump*
 .agents
 .codex
+
+# Playwright MCP scratch artifacts
+.playwright-mcp/
+planner-*.png

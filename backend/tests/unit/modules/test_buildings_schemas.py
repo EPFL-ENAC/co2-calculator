@@ -13,7 +13,7 @@ conversion_factor is always 1.0.
 
 import pytest
 
-from app.modules.buildings.schemas import BuildingRoomModuleHandler
+from app.modules.buildings import BuildingRoomModuleHandler
 from app.modules.emissions import EmissionType
 
 _HANDLER = BuildingRoomModuleHandler()

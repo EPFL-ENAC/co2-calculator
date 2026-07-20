@@ -238,6 +238,33 @@
               </q-tooltip>
             </q-btn>
           </template>
+          <template v-else-if="col.name === 'percentage_of_reference_year'">
+            <div
+              v-if="slotProps.row.reference_kg_co2eq != null"
+              class="row items-center no-wrap q-gutter-sm reference-slider"
+            >
+              <q-slider
+                :model-value="
+                  (slotProps.row.percentage_of_reference_year as number) ?? 100
+                "
+                :min="0"
+                :max="200"
+                :step="5"
+                :disable="isDisabled"
+                color="negative"
+                class="col"
+                @change="
+                  (val: number) => onPercentageChange(slotProps.row, val)
+                "
+              />
+              <span class="reference-slider__value">
+                {{
+                  (slotProps.row.percentage_of_reference_year as number) ?? 100
+                }}%
+              </span>
+            </div>
+            <span v-else>-</span>
+          </template>
           <template v-else>
             <div class="cell-content">
               <span>{{ renderCell(slotProps.row, col) }}</span>
@@ -543,6 +570,7 @@ async function saveNote(note: string) {
       String(props.year),
       noteDialogRowId.value,
       { note },
+      props.carbonReportId,
     );
   } catch {
     $q.notify({
@@ -565,6 +593,7 @@ async function deleteNote() {
       String(props.year),
       noteDialogRowId.value,
       { note: null },
+      props.carbonReportId,
     );
   } catch {
     $q.notify({
@@ -634,11 +663,13 @@ const onFilesUploaded = async (filePaths: string[]) => {
           moduleType: props.moduleType,
           unit: props.unitId,
           year: String(props.year),
+          carbonReportId: props.carbonReportId,
         });
         moduleStore.getModuleData(
           props.moduleType as Module,
           props.unitId,
           String(props.year),
+          props.carbonReportId,
         );
 
         const errorCaption = formatRowErrors(payload);
@@ -756,6 +787,14 @@ type CommonProps = {
   moduleFields: ModuleField[] | null;
   unitId: number;
   year: string | number;
+  /** Plan-year report id; when set, module calls address it directly. */
+  carbonReportId?: number;
+  /**
+   * Planner prefilled context: add the reference-year kgCO₂eq column and the
+   * 0–200% "% of reference year" slider (snapshot rows only). Off for the
+   * Calculator and non-prefilled planner modules.
+   */
+  showReferenceColumns?: boolean;
   threshold: Threshold;
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
@@ -770,6 +809,8 @@ type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
+  carbonReportId: undefined,
+  showReferenceColumns: false,
   moduleColor: undefined,
   moduleColorLighter: undefined,
 });
@@ -862,13 +903,17 @@ const canEdit = computed(() => {
 });
 
 // Disable all table editing/deleting interactions when input is disabled in backoffice configuration.
-const isDisabled = computed(
-  () =>
-    !props.isSimulator &&
-    (props.disable ||
-      timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
-      !canEdit.value),
-);
+const isDisabled = computed(() => {
+  if (props.isSimulator) return false;
+  if (props.disable || !canEdit.value) return true;
+  // Planner year-report tables are governed by their own Active toggle
+  // (props.disable) and plan access — NOT the global timeline's validated
+  // state. That store tracks a single report and can't represent the planner's
+  // many year-reports, so a Validated state leaking from the Calculator context
+  // would spuriously lock editing (and the % slider) here.
+  if (props.carbonReportId != null) return false;
+  return timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated;
+});
 
 const showTableRowActions = computed(
   () => props.submoduleConfig?.hasTableAction !== false,
@@ -1027,6 +1072,40 @@ const qCols = computed<TableViewColumn[]>(() => {
       }
     });
 
+  // Planner prefilled tables gain a reference-year kgCO₂eq column (before the
+  // current kgCO₂eq) and a "% of reference year" slider (after it). Snapshot
+  // rows carry the values; other rows render blank/no slider.
+  if (props.showReferenceColumns) {
+    const kgIdx = baseCols.findIndex((c) => c.name === 'kg_co2eq');
+    const referenceCol: TableViewColumn = {
+      name: 'reference_kg_co2eq',
+      label: $t('planner_reference_kg_col'),
+      field: 'reference_kg_co2eq',
+      sortable: false,
+      align: 'right',
+      inputComponent: QInput,
+      editableInline: false,
+      type: 'number',
+    };
+    const sliderCol: TableViewColumn = {
+      name: 'percentage_of_reference_year',
+      label: $t('planner_percentage_col'),
+      field: 'percentage_of_reference_year',
+      sortable: false,
+      align: 'left',
+      inputComponent: QInput,
+      editableInline: false,
+      type: 'number',
+      minColumnWidth: 180,
+    };
+    if (kgIdx >= 0) {
+      baseCols.splice(kgIdx, 0, referenceCol);
+      baseCols.splice(kgIdx + 2, 0, sliderCol);
+    } else {
+      baseCols.push(referenceCol, sliderCol);
+    }
+  }
+
   if (showTableActions.value) {
     baseCols.push({
       name: 'action',
@@ -1135,7 +1214,11 @@ function renderCell(
   }
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
-  if (col.name === 'kg_co2eq' || col.name === 't_co2eq') {
+  if (
+    col.name === 'kg_co2eq' ||
+    col.name === 't_co2eq' ||
+    col.name === 'reference_kg_co2eq'
+  ) {
     return nOrDash(val as number, {
       options: {
         minimumFractionDigits: 0,
@@ -1179,6 +1262,30 @@ function getItemName(row: ModuleRow): string {
 function getRowId(row: ModuleRow): number | null {
   const n = Number(row.id);
   return Number.isFinite(n) ? n : null;
+}
+
+// Planner slider: PATCH the snapshot row's percentage; the backend recomputes
+// kg_co2eq = reference × %, and patchItem refetches so the kg cell updates.
+async function onPercentageChange(row: ModuleRow, value: number) {
+  const id = getRowId(row);
+  if (id == null) return;
+  try {
+    await moduleStore.patchItem(
+      props.moduleType as Module,
+      props.submoduleType,
+      props.unitId,
+      String(props.year),
+      id,
+      { percentage_of_reference_year: value },
+      props.carbonReportId,
+    );
+  } catch {
+    $q.notify({
+      color: 'negative',
+      message: $t('common_save_error'),
+      position: 'top',
+    });
+  }
 }
 
 const inlineErrors = ref<Record<string, string>>({});
@@ -1322,6 +1429,7 @@ async function commitInline(
       {
         [col.field]: valueToSave,
       },
+      props.carbonReportId,
     );
   } catch (err) {
     let msg = err instanceof Error ? err.message : $t('validation_save_failed');
@@ -1587,6 +1695,7 @@ function onFormSubmit(
           year,
           equipmentId,
           basePayload,
+          props.carbonReportId,
         )
       : store.postItem(
           moduleType,
@@ -1594,6 +1703,8 @@ function onFormSubmit(
           year,
           props.submoduleType,
           basePayload,
+          undefined,
+          props.carbonReportId,
         );
 
     await p.finally(() => {
@@ -1641,7 +1752,14 @@ function onConfirmDelete() {
   const unit = props.unitId;
   const year = String(props.year);
   store
-    .deleteItem(moduleType, submoduleType, unit, year, deleteRowId.value)
+    .deleteItem(
+      moduleType,
+      submoduleType,
+      unit,
+      year,
+      deleteRowId.value,
+      props.carbonReportId,
+    )
     .finally(() => {
       confirmDelete.value = false;
       deleteRowId.value = null;
@@ -1680,6 +1798,7 @@ async function onRequest(request: {
       moduleType: props.moduleType,
       unit: props.unitId,
       year: String(props.year),
+      carbonReportId: props.carbonReportId,
     });
   } else {
     // Only change page if sort didn't change
@@ -1688,6 +1807,7 @@ async function onRequest(request: {
       moduleType: props.moduleType,
       unit: props.unitId,
       year: String(props.year),
+      carbonReportId: props.carbonReportId,
     });
   }
 }
@@ -1711,6 +1831,7 @@ watch(
           moduleType: props.moduleType,
           unit: props.unitId,
           year: String(props.year),
+          carbonReportId: props.carbonReportId,
         });
         moduleStore.getSubmoduleTaxonomy(
           props.moduleType,
@@ -1739,6 +1860,7 @@ onMounted(async () => {
       moduleType: props.moduleType,
       unit: props.unitId,
       year: String(props.year),
+      carbonReportId: props.carbonReportId,
     });
     moduleStore.getSubmoduleTaxonomy(
       props.moduleType,
@@ -1755,9 +1877,7 @@ onMounted(async () => {
   ) {
     try {
       const members: HeadcountMemberDropdownItem[] = await getHeadcountMembers(
-        props.unitId,
-        props.year,
-        moduleStore.carbonProjectType,
+        await moduleStore.resolveCarbonReportId(props.unitId, props.year),
       );
       headcountMembersMap.value = new Map(
         members.map((m) => [m.institutional_id, m.name]),
@@ -1813,6 +1933,16 @@ onUnmounted(() => {
 .cell-content {
   display: inline-flex;
   align-items: center;
+}
+
+.reference-slider {
+  min-width: 160px;
+}
+
+.reference-slider__value {
+  min-width: 3rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .tooltip {

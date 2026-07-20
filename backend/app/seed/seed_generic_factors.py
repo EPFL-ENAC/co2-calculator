@@ -4,21 +4,13 @@ from pathlib import Path
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import app.modules  # noqa: F401  # registers all module + factor handlers
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import TargetType
 from app.models.module_type import get_module_type_for_data_entry_type
-from app.modules.external_cloud_and_ai import schemas as schemas
-from app.modules.process_emissions import schemas as _pe_schemas  # noqa: F401
-from app.modules.purchase import schemas as _purchase_schemas  # noqa: F401
-from app.modules.research_facilities import (
-    animals_schemas as _rf_animals_schemas,  # noqa: F401
-)
-from app.modules.research_facilities import (
-    common_schemas as _rf_common_schemas,  # noqa: F401
-)
 from app.schemas.factor import BaseFactorHandler
 from app.seed._stub_jobs import create_seed_stub_job
 from app.services.data_ingestion.csv_providers.local_seed import LocalFactorCSVProvider
@@ -47,15 +39,16 @@ class FactorSeedConfig:
 
 # building_energycombustions_factors.csv
 # building_rooms_factors.csv
+# buildings_construction_renovation_factors.csv
 # commuting_factors.csv
-# equipments_factors.csv
+# equipment_factors.csv
 # external_ai_factors.csv
 # external_clouds_factors.csv
 # food_factors.csv
 # headcount_member_factors.csv
 # headcount_students_factors.csv
 # processemissions_factors.csv
-# purchases_additional_factors.csv
+# purchases_centralized_factors.csv
 # purchases_common_factors.csv
 # researchfacilities_animals_factors.csv
 # researchfacilities_common_factors.csv
@@ -76,7 +69,7 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
         ],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "buildings_greyenergy_factors.csv",
+        path=BACKEND_FOLDER / "buildings_construction_renovation_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.building_embodied_energy,
         ],
@@ -86,7 +79,7 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
     # ),
     # Multi data_entry_type CSV — column differentiates (other, it, scientific)
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "equipments_factors.csv",
+        path=BACKEND_FOLDER / "equipment_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.scientific,
             DataEntryTypeEnum.it,
@@ -120,7 +113,7 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
         data_entry_types=[DataEntryTypeEnum.process_emissions],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "purchases_additional_factors.csv",
+        path=BACKEND_FOLDER / "purchases_centralized_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.purchases_centralized,
         ],

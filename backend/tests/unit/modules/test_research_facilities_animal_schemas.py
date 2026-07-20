@@ -20,7 +20,7 @@ reached the same way callers reach it: via ``resolve_computations(...)
 import pytest
 
 from app.modules.emissions import EmissionType
-from app.modules.research_facilities.animals_schemas import (
+from app.modules.research_facilities import (
     ResearchFacilitiesAnimalModuleHandler,
 )
 

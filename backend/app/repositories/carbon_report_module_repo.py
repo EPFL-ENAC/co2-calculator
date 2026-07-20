@@ -206,6 +206,24 @@ class CarbonReportModuleRepository:
         await self.session.refresh(db_obj)
         return db_obj
 
+    async def update_is_active(
+        self, carbon_report_id: int, module_type_id: int, is_active: bool
+    ) -> Optional[CarbonReportModule]:
+        """Toggle the Active flag of a carbon report module."""
+        statement = select(CarbonReportModule).where(
+            col(CarbonReportModule.carbon_report_id) == carbon_report_id,
+            col(CarbonReportModule.module_type_id) == module_type_id,
+        )
+        result = await self.session.execute(statement)
+        db_obj = result.scalar_one_or_none()
+        if not db_obj:
+            return None
+        db_obj.is_active = is_active
+        self.session.add(db_obj)
+        await self.session.flush()
+        await self.session.refresh(db_obj)
+        return db_obj
+
     async def delete(self, carbon_report_module_id: int) -> bool:
         """Delete a carbon report module by ID."""
         statement = select(CarbonReportModule).where(

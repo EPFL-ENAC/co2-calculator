@@ -36,6 +36,8 @@
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
+          :carbon-report-id="carbonReportId"
+          :show-reference-columns="showReferenceColumns"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -117,6 +119,8 @@
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
+          :carbon-report-id="carbonReportId"
+          :show-reference-columns="showReferenceColumns"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -228,6 +232,10 @@ type CommonProps = {
   data?: ModuleResponse | null;
   unitId: number;
   year: string | number;
+  /** Plan-year report id; when set, module calls address it directly. */
+  carbonReportId?: number;
+  /** Planner prefilled: show the reference-kg column + % slider. */
+  showReferenceColumns?: boolean;
   threshold: Threshold;
   disable: boolean;
   isSimulator?: boolean;
@@ -248,6 +256,8 @@ const props = withDefaults(
     error: null,
     data: null,
     submoduleType: undefined,
+    carbonReportId: undefined,
+    showReferenceColumns: undefined,
   },
 );
 const authStore = useAuthStore();
@@ -279,8 +289,10 @@ const backendThreshold = computed<Threshold | null>(() => {
   const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
   if (!unifiedConfig) return null;
 
+  // `== null` covers a missing subConfig too — planner submodules
+  // (planner_headcount, ...) have no unified year-config entry.
   const subConfig = unifiedConfig.submodules[submoduleKey.value];
-  if (subConfig?.threshold === null || subConfig.threshold === undefined) {
+  if (subConfig?.threshold == null) {
     return null;
   }
 
@@ -370,6 +382,7 @@ async function submitForm(payload: Record<string, FieldValue>) {
       String(props.year),
       item.value.id,
       payload,
+      props.carbonReportId,
     );
   } else {
     await submitCreateItem(
@@ -381,6 +394,7 @@ async function submitForm(payload: Record<string, FieldValue>) {
           props.submoduleType,
           payload,
           onCreated,
+          props.carbonReportId,
         ),
       {
         onCreated: () => {

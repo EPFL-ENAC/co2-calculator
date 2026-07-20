@@ -108,8 +108,12 @@ def test_dotenv_db_url_overrides_stray_shell_env_var(monkeypatch, tmp_path):
     # Regression: a leftover `export DB_URL=...` in a dev's shell must not
     # silently outrank a `.env` the dev just fixed. .env wins locally;
     # stage/prod ship no .env file so real env vars still apply there.
+    # conftest.py disables dotenv sourcing suite-wide (tests must not depend
+    # on a developer's real .env); re-enable it here since this test's whole
+    # point is the dotenv-vs-shell-env precedence itself.
     monkeypatch.setenv("DB_URL", "postgresql://from-shell-env/db")
     (tmp_path / ".env").write_text("DB_URL=postgresql://from-dotenv/db\n")
+    monkeypatch.setitem(Settings.model_config, "env_file", tmp_path / ".env")
 
     settings = Settings(
         ROLE_PROVIDER_TYPE=RoleProviderType.JWT,

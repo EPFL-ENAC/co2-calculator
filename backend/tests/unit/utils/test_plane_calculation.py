@@ -11,7 +11,7 @@ import pytest
 
 from app.models.data_entry_emission import EmissionComputation
 from app.modules.emissions import EmissionType
-from app.modules.professional_travel.schemas import ProfessionalTravelPlaneModuleHandler
+from app.modules.professional_travel import ProfessionalTravelPlaneModuleHandler
 from app.services.data_entry_emission_service import DataEntryEmissionService
 
 # ---------------------------------------------------------------------------

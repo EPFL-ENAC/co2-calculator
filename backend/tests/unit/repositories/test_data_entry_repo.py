@@ -1060,6 +1060,105 @@ async def test_get_submodule_data_does_not_persist_computed_fields(
         )
 
 
+@pytest.mark.asyncio
+async def test_get_submodule_data_populates_reference_kg_for_snapshot_rows(
+    db_session: AsyncSession,
+):
+    """Planner snapshot rows expose the source (reference-year) entry's summed
+    emissions as ``reference_kg_co2eq`` — the 100% baseline the % slider scales
+    from. Ordinary rows (no ``source_data_entry_id``) get ``None``."""
+    repo = DataEntryRepository(db_session)
+
+    # Reference-year Calculator entry with two emission leaves summing to 1000.
+    ref_report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(ref_report)
+    await db_session.flush()
+    ref_module = CarbonReportModule(
+        carbon_report_id=ref_report.id,
+        module_type_id=ModuleTypeEnum.process_emissions.value,
+        status="in_progress",
+    )
+    db_session.add(ref_module)
+    await db_session.flush()
+    source_entry = DataEntry(
+        carbon_report_module_id=ref_module.id,
+        data_entry_type_id=DataEntryTypeEnum.process_emissions,
+        status=DataEntryStatusEnum.PENDING,
+        data={"category": "Refrigerant", "subcategory": "NF3", "quantity": 50},
+        year=2025,
+    )
+    db_session.add(source_entry)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            DataEntryEmission(
+                data_entry_id=source_entry.id,
+                emission_type_id=EmissionType.process_emissions__co2.value,
+                kg_co2eq=600.0,
+            ),
+            DataEntryEmission(
+                data_entry_id=source_entry.id,
+                emission_type_id=EmissionType.process_emissions__n2o.value,
+                kg_co2eq=400.0,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    # Plan-year module with a snapshot row pointing at the source, plus a
+    # normal (non-snapshot) row that must stay ``None``.
+    plan_report = CarbonReport(
+        year=2027, reference_year=2025, unit_id=1, overall_status=0
+    )
+    db_session.add(plan_report)
+    await db_session.flush()
+    plan_module = CarbonReportModule(
+        carbon_report_id=plan_report.id,
+        module_type_id=ModuleTypeEnum.process_emissions.value,
+        status="in_progress",
+    )
+    db_session.add(plan_module)
+    await db_session.flush()
+    snapshot_entry = DataEntry(
+        carbon_report_module_id=plan_module.id,
+        data_entry_type_id=DataEntryTypeEnum.process_emissions,
+        status=DataEntryStatusEnum.PENDING,
+        data={
+            "category": "Refrigerant",
+            "subcategory": "NF3",
+            "quantity": 50,
+            "source_data_entry_id": source_entry.id,
+            "percentage_of_reference_year": 40,
+        },
+        year=2027,
+    )
+    plain_entry = DataEntry(
+        carbon_report_module_id=plan_module.id,
+        data_entry_type_id=DataEntryTypeEnum.process_emissions,
+        status=DataEntryStatusEnum.PENDING,
+        data={"category": "CH4", "quantity": 65},
+        year=2027,
+    )
+    db_session.add_all([snapshot_entry, plain_entry])
+    await db_session.commit()
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=plan_module.id,
+        data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    by_id = {item.id: item for item in response.items}
+    assert by_id[snapshot_entry.id].reference_kg_co2eq == 1000.0
+    assert by_id[plain_entry.id].reference_kg_co2eq is None
+    # The stored slider value is surfaced so the table reflects it on refetch.
+    assert by_id[snapshot_entry.id].percentage_of_reference_year == 40
+    assert by_id[plain_entry.id].percentage_of_reference_year is None
+
+
 # ======================================================================
 # Enrichment fallback: FactorResolver replaces the stored-id dereference
 # (plan 1661) — the entry's classification is the source of truth, not a

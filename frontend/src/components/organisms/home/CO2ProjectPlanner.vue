@@ -1,9 +1,34 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 
-const { t } = useI18n();
+import {
+  useSimulatorPlansStore,
+  type SimulatorPlan,
+} from 'src/stores/simulatorPlans';
+import { useWorkspaceStore } from 'src/stores/workspace';
+import { parseUtcDate } from 'src/utils/date';
+
+const { t, locale } = useI18n();
+const route = useRoute();
+const router = useRouter();
+const workspaceStore = useWorkspaceStore();
+const plansStore = useSimulatorPlansStore();
+
+// workspaceGuard ensures selectedUnit is always set before the home page
+// renders (same invariant as SimulationExplorePage).
+const unitId = computed(() => workspaceStore.selectedUnit!.id);
+
+const creating = ref(false);
+const confirmDelete = ref(false);
+const planToDelete = ref<SimulatorPlan | null>(null);
+
+function formatPlanDate(dateString: string | null): string {
+  if (!dateString) return '';
+  return parseUtcDate(dateString).toLocaleDateString(locale.value);
+}
 
 const planColumns = computed<QTableColumn[]>(() => [
   {
@@ -16,23 +41,23 @@ const planColumns = computed<QTableColumn[]>(() => [
   {
     name: 'date',
     label: t('planner_table_date'),
-    field: 'date',
+    field: 'created_at',
     align: 'left',
     sortable: true,
+    format: (val) => formatPlanDate(val as string | null),
   },
   {
     name: 'creator',
     label: t('planner_table_creator'),
-    field: 'creator',
+    field: 'creator_name',
     align: 'left',
     sortable: true,
   },
   {
     name: 'tco2eq',
     label: t('tco2eq'),
-    field: 'tco2eq',
+    field: () => '',
     align: 'right',
-    sortable: true,
   },
   {
     name: 'action',
@@ -42,33 +67,50 @@ const planColumns = computed<QTableColumn[]>(() => [
   },
 ]);
 
-// PLACEHOLDER: TO BE DELETED WHEN PLAN ROWS ARE POPULATED
-const planRows = [
-  {
-    name: 'Scientific Grant H',
-    date: '21-03-2026',
-    creator: 'Charlie Weil',
-    tco2eq: "2'543",
-  },
-  {
-    name: 'Big Buying year',
-    date: '15-04-2026',
-    creator: 'Benjamin Botros',
-    tco2eq: "3'301",
-  },
-  {
-    name: 'Unit reorganisation',
-    date: '04-05-2026',
-    creator: 'Pierre Guilbart',
-    tco2eq: "1'201",
-  },
-  {
-    name: 'Change of leadership 2027',
-    date: '04-06-2026',
-    creator: 'Andrina Beuggert',
-    tco2eq: "5'500",
-  },
-];
+async function refresh() {
+  await plansStore.fetchPlans(unitId.value);
+}
+
+async function onStartProject() {
+  if (creating.value) return;
+  creating.value = true;
+  try {
+    const plan = await plansStore.createPlan(unitId.value);
+    await router.push({
+      name: 'project-planner',
+      params: { ...route.params, name: plan.name },
+    });
+  } finally {
+    creating.value = false;
+  }
+}
+
+async function onDuplicate(row: SimulatorPlan) {
+  await plansStore.duplicatePlan(row.id);
+  await refresh();
+}
+
+function onEdit(row: SimulatorPlan) {
+  void router.push({
+    name: 'project-planner',
+    params: { ...route.params, name: row.name },
+  });
+}
+
+function onAskDelete(row: SimulatorPlan) {
+  planToDelete.value = row;
+  confirmDelete.value = true;
+}
+
+async function onConfirmDelete() {
+  if (!planToDelete.value) return;
+  await plansStore.deletePlan(planToDelete.value.id);
+  confirmDelete.value = false;
+  planToDelete.value = null;
+  await refresh();
+}
+
+onMounted(refresh);
 </script>
 
 <template>
@@ -81,7 +123,7 @@ const planRows = [
             {{ $t('co2_project_planner_title') }}
           </h2>
           <q-badge color="info" class="text-weight-bold planner-count">
-            {{ planRows.length }}
+            {{ plansStore.plans.length }}
           </q-badge>
         </div>
         <q-btn
@@ -92,7 +134,8 @@ const planRows = [
           no-caps
           size="md"
           class="text-weight-medium"
-          :to="{ name: 'project-planner' }"
+          :loading="creating"
+          @click="onStartProject"
         />
       </div>
 
@@ -105,8 +148,9 @@ const planRows = [
         dense
         class="co2-table"
         :columns="planColumns"
-        :rows="planRows"
-        row-key="name"
+        :rows="plansStore.plans"
+        :loading="plansStore.loading"
+        row-key="id"
         hide-pagination
         :rows-per-page-options="[0]"
         :no-data-label="$t('common_no_items')"
@@ -142,48 +186,106 @@ const planRows = [
                     unelevated
                     no-caps
                     dense
-                    flat
-                    class="action-btn"
-                  >
-                    <q-tooltip class="action-tooltip" :offset="[0, 8]">
-                      {{ $t('common_duplicate') }}
-                    </q-tooltip>
-                  </q-btn>
+                    outline
+                    square
+                    size="xs"
+                    class="square-button"
+                    @click="onDuplicate(props.row)"
+                  />
                   <q-btn
                     icon="o_edit"
                     color="black"
                     unelevated
                     no-caps
                     dense
-                    flat
-                    class="action-btn"
-                  >
-                    <q-tooltip class="action-tooltip" :offset="[0, 8]">
-                      {{ $t('common_edit') }}
-                    </q-tooltip>
-                  </q-btn>
+                    outline
+                    square
+                    size="xs"
+                    class="square-button"
+                    @click="onEdit(props.row)"
+                  />
                   <q-btn
                     icon="o_delete"
                     color="black"
                     unelevated
                     no-caps
                     dense
-                    flat
-                    class="action-btn action-btn--delete"
-                  >
-                    <q-tooltip class="action-tooltip" :offset="[0, 8]">
-                      {{ $t('common_delete') }}
-                    </q-tooltip>
-                  </q-btn>
+                    outline
+                    square
+                    size="xs"
+                    class="square-button"
+                    @click="onAskDelete(props.row)"
+                  />
                 </div>
               </template>
-              <template v-else>{{ props.row[col.field] }}</template>
+              <template v-else>{{ col.value }}</template>
             </q-td>
           </q-tr>
         </template>
       </q-table>
     </div>
   </section>
+
+  <q-dialog v-model="confirmDelete" class="modal modal--md" persistent>
+    <q-card class="column">
+      <q-card-section class="flex justify-between items-center">
+        <div class="text-h4 text-weight-medium">
+          {{
+            $t('common_delete_dialog_title', {
+              item: planToDelete?.name ?? '',
+            })
+          }}
+        </div>
+        <q-btn
+          v-close-popup
+          flat
+          size="md"
+          icon="o_close"
+          color="grey-6"
+          class="text-weight-medium"
+        />
+      </q-card-section>
+      <q-separator />
+      <!-- q-form so Enter submits the dialog (autofocus on the submit button
+           gives the native form an Enter target — there are no text inputs). -->
+      <q-form @submit.prevent="onConfirmDelete">
+        <q-card-section class="q-py-lg q-px-md">
+          <span class="text-body1">
+            {{
+              $t('common_delete_dialog_description', {
+                item: planToDelete?.name ?? '',
+              })
+            }}
+          </span>
+        </q-card-section>
+        <q-separator />
+        <q-card-actions class="q-py-lg q-px-md row q-gutter-sm">
+          <q-btn
+            type="button"
+            color="grey-4"
+            text-color="primary"
+            :label="$t('common_cancel')"
+            unelevated
+            no-caps
+            outline
+            size="md"
+            class="text-weight-medium col"
+            @click="confirmDelete = false"
+          />
+          <q-btn
+            type="submit"
+            autofocus
+            color="info"
+            :label="$t('common_delete')"
+            unelevated
+            no-caps
+            size="md"
+            class="text-weight-medium col"
+          />
+        </q-card-actions>
+      </q-form>
+    </q-card>
+  </q-dialog>
 </template>
 
 <style scoped lang="scss">

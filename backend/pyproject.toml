@@ -64,6 +64,13 @@ env = [
     # on LOCAL_ENVIRONMENT; keep it true in CI (no backend/.env there) so the
     # suite never trips on unset CREDENTIALS_ENCRYPTION_*/CONNECTOR_ALLOWED_HOST_SUFFIXES.
     "LOCAL_ENVIRONMENT=true",
+    # Baseline values so tests that round-trip encryption or validate an
+    # allowlisted URL pass regardless of a developer's local .env (which
+    # tests never read from — see conftest.py's pytest_configure). Tests
+    # that need the fail-closed path monkeypatch these back to "".
+    "CREDENTIALS_ENCRYPTION_KEY=test-key-material-please-change",
+    "CREDENTIALS_ENCRYPTION_SALT=test-salt-please-change",
+    "CONNECTOR_ALLOWED_HOST_SUFFIXES=epfl.ch",
 
 ]
 

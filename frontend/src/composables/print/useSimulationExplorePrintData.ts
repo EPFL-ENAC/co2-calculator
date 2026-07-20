@@ -101,13 +101,11 @@ export function useSimulationExplorePrintData() {
   async function fetchSubmoduleRows(
     moduleType: Module,
     submoduleId: string,
-    unitId: number,
-    year: number,
+    carbonReportId: number,
   ): Promise<PrintRow[]> {
     const basePath = `${buildModulePath(
       moduleType,
-      unitId,
-      year,
+      carbonReportId,
     )}/${encodeURIComponent(submoduleId)}`;
 
     const rows: PrintRow[] = [];
@@ -147,7 +145,7 @@ export function useSimulationExplorePrintData() {
       for (const m of exploreModules.value) {
         for (const sub of m.submodules) {
           tasks.push(
-            fetchSubmoduleRows(m.type, sub.id, unitId, year).then((rows) => {
+            fetchSubmoduleRows(m.type, sub.id, carbonReportId).then((rows) => {
               submoduleRows.value[sub.id] = rows;
             }),
           );
@@ -162,14 +160,16 @@ export function useSimulationExplorePrintData() {
       if (
         exploreModules.value.some((m) => m.type === MODULES.ProfessionalTravel)
       ) {
+        const carbonReportId = await moduleStore.resolveCarbonReportId(
+          unitId,
+          year,
+        );
         tasks.push(
-          getHeadcountMembers(unitId, year, moduleStore.carbonProjectType).then(
-            (members) => {
-              headcountMembers.value = new Map(
-                members.map((member) => [member.institutional_id, member.name]),
-              );
-            },
-          ),
+          getHeadcountMembers(carbonReportId).then((members) => {
+            headcountMembers.value = new Map(
+              members.map((member) => [member.institutional_id, member.name]),
+            );
+          }),
         );
       }
 

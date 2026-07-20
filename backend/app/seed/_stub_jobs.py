@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from sqlmodel import col, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_ingestion import (
@@ -79,6 +80,26 @@ async def create_seed_stub_job(
     No commit — the caller batches commits per seed config.
     Returns the new ``job_id`` so the caller can log it.
     """
+    # Demote the previous current job for the same combo (mirrors
+    # ``claim_job`` Step 1) — the partial unique index
+    # ``ix_data_ingestion_jobs_is_current_unique`` otherwise rejects
+    # the insert on any re-seed over an existing database.
+    det_match = col(DataIngestionJob.data_entry_type_id).is_(None)
+    if data_entry_type_id is not None:
+        det_match = col(DataIngestionJob.data_entry_type_id) == data_entry_type_id
+    await session.execute(
+        update(DataIngestionJob)
+        .where(
+            col(DataIngestionJob.is_current),
+            col(DataIngestionJob.module_type_id) == module_type_id,
+            det_match,
+            col(DataIngestionJob.target_type) == target_type,
+            col(DataIngestionJob.ingestion_method) == IngestionMethod.csv,
+            col(DataIngestionJob.year) == year,
+        )
+        .values(is_current=False)
+    )
+
     now = datetime.now(timezone.utc)
     filename = file_path.name
     job = DataIngestionJob(

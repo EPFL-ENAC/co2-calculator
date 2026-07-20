@@ -16,6 +16,9 @@ _ALL_DATA_ENTRY_TYPES = [
     (module_type, data_entry_type)
     for module_type, data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items()
     for data_entry_type in data_entry_types
+    # Planner kinds (Simulator Plan) are never randomly seeded — mirror the
+    # generator's pick filter.
+    if not data_entry_type.is_planner_kind
 ]
 
 

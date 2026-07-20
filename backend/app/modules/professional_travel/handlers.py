@@ -1,7 +1,5 @@
-from datetime import date, datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, ValidationInfo, field_validator
 from sqlalchemy.orm import aliased
 from sqlmodel import col, select
 
@@ -14,18 +12,19 @@ from app.models.data_entry_emission import (
     FactorQuery,
 )
 from app.models.module_type import ModuleTypeEnum
-from app.modules.emissions import EmissionType
+from app.modules.professional_travel.data_entries import (
+    ProfessionalTravelPlaneHandlerCreate,
+    ProfessionalTravelPlaneHandlerResponse,
+    ProfessionalTravelPlaneHandlerUpdate,
+    ProfessionalTravelTrainHandlerCreate,
+    ProfessionalTravelTrainHandlerResponse,
+    ProfessionalTravelTrainHandlerUpdate,
+)
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryCreate,
     DataEntryResponseGen,
     DataEntryUpdate,
-)
-from app.schemas.factor import (
-    BaseFactorHandler,
-    FactorCreate,
-    FactorResponseGen,
-    FactorUpdate,
 )
 from app.services.factor_service import FactorService
 from app.services.location_service import LocationService
@@ -61,168 +60,9 @@ async def _get_report_year_for_module(
     if row is None:
         return None
     year, reference_year = row
-    return year if year is not None else reference_year
-
-
-def _validate_non_negative_float(
-    v: Optional[float], field_name: str
-) -> Optional[float]:
-    if v is None:
-        return v
-    if v < 0:
-        raise ValueError(f"{field_name} must be non-negative")
-    return v
-
-
-class TrainCabinClassValidationMixin:
-    @field_validator("cabin_class", mode="after")
-    @classmethod
-    def validate_cabin_class(cls, v: Optional[str]) -> Optional[str]:
-        valid_classes = ["first", "second"]
-        if v is not None and v.lower() not in valid_classes:
-            raise ValueError(
-                f"Invalid cabin class '{v}', must be one of {valid_classes}"
-            )
-        return v.lower() if v else None
-
-
-class PlaneCabinClassValidationMixin:
-    @field_validator("cabin_class", mode="after")
-    @classmethod
-    def validate_cabin_class(cls, v: Optional[str]) -> Optional[str]:
-        valid_classes = ["business", "economy"]
-        if v is not None and v.lower() not in valid_classes:
-            raise ValueError(
-                f"Invalid cabin class '{v}', must be one of {valid_classes}"
-            )
-        return v.lower() if v else None
-
-
-class DepartureDateMixin(BaseModel):
-    """Mixin for parsing departure_date from various formats."""
-
-    @field_validator("departure_date", mode="before", check_fields=False)
-    @classmethod
-    def parse_departure_date(cls, v: Any) -> Optional[date]:
-        if v is None:
-            return None
-        if isinstance(v, date) and not isinstance(v, datetime):
-            return v
-        if isinstance(v, datetime):
-            return v.date()
-        if isinstance(v, str):
-            if not v.strip():
-                return None
-            normalized = v.replace("/", "-")
-            try:
-                return datetime.fromisoformat(normalized.replace("Z", "+00:00")).date()
-            except ValueError:
-                return date.fromisoformat(normalized)
-        return v
-
-
-class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
-    user_institutional_id: str
-    origin_iata: str
-    destination_iata: str
-    cabin_class: Optional[str] = None
-    departure_date: Optional[date] = None
-    number_of_trips: int = 1
-    origin: Optional[str] = None
-    destination: Optional[str] = None
-    origin_name: Optional[str] = None
-    destination_name: Optional[str] = None
-    distance_km: Optional[float] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
-
-
-class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
-    user_institutional_id: str
-    origin_name: str
-    destination_name: str
-    cabin_class: Optional[str] = None
-    departure_date: Optional[date] = None
-    number_of_trips: int = 1
-    origin: Optional[str] = None
-    destination: Optional[str] = None
-    distance_km: Optional[float] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
-
-
-class ProfessionalTravelPlaneHandlerCreate(
-    PlaneCabinClassValidationMixin, DepartureDateMixin, DataEntryCreate
-):
-    origin_iata: str  ## IATA code
-    destination_iata: str  ## IATA code
-    user_institutional_id: str
-    departure_date: Optional[date] = None
-    number_of_trips: int = 1
-    cabin_class: str
-    note: Optional[str] = None
-    # __kg_co2eq_override__ for kg_co2eq
-
-    @field_validator("number_of_trips", mode="after")
-    @classmethod
-    def validate_number_of_trips(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("number_of_trips must be at least 1")
-        return v
-
-
-class ProfessionalTravelTrainHandlerCreate(
-    TrainCabinClassValidationMixin, DepartureDateMixin, DataEntryCreate
-):
-    user_institutional_id: str
-    origin_name: str
-    destination_name: str
-    # check if necessary after migration to new reference location for train
-    origin_natural_key: Optional[str] = None
-    destination_natural_key: Optional[str] = None
-    # Required for CSV rows lacking a precomputed ``*_natural_key``: the
-    # ingest-time resolver uses them to scope same-name stations to one
-    # country (e.g. Bern, CH vs Berne, DE). Optional at the schema level
-    # because UI/API rows resolve via ``*_natural_key`` instead; the CSV
-    # resolver (``enrich_csv_row``) rejects rows that supply neither.
-    origin_country_code: str
-    destination_country_code: str
-    departure_date: Optional[date] = None
-    number_of_trips: int = 1
-    cabin_class: str
-    note: Optional[str] = None
-    # __kg_co2eq_override__ for kg_co2eq
-
-    @field_validator("number_of_trips", mode="after")
-    @classmethod
-    def validate_number_of_trips(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("number_of_trips must be at least 1")
-        return v
-
-
-class ProfessionalTravelPlaneHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
-    # traveler_name: Optional[str] = None
-    # traveler_id: Optional[int] = None
-    origin_iata: Optional[str] = None
-    destination_iata: Optional[str] = None
-    cabin_class: Optional[str] = None
-    departure_date: Optional[date] = None
-    number_of_trips: Optional[int] = None
-    note: Optional[str] = None
-
-
-class ProfessionalTravelTrainHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
-    # traveler_name: Optional[str] = None
-    # traveler_id: Optional[int] = None
-    origin_name: Optional[str] = None
-    destination_name: Optional[str] = None
-    origin_natural_key: Optional[str] = None
-    destination_natural_key: Optional[str] = None
-    cabin_class: Optional[str] = None
-    departure_date: Optional[date] = None
-    number_of_trips: Optional[int] = None
-    note: Optional[str] = None
+    # reference_year wins: Simulator Plan reports source factors from their
+    # baseline year (see DataEntryEmissionService._get_year_from_data_entry).
+    return reference_year if reference_year is not None else year
 
 
 class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
@@ -631,146 +471,3 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
                 quantity_key="distance_km",
             )
         ]
-
-
-class TravelPlaneBase:
-    category: str
-    cabin_class: str
-    ef_kg_co2eq_per_km: float
-    rfi_adjustment: float
-    min_distance: float
-    max_distance: float
-
-
-class _TravelPlaneBaseValidationMixin:
-    @field_validator(
-        "ef_kg_co2eq_per_km",
-        "rfi_adjustment",
-        "min_distance",
-        "max_distance",
-        mode="after",
-    )
-    @classmethod
-    def validate_factor_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
-        return _validate_non_negative_float(v, info.field_name or "")
-
-    @field_validator("cabin_class", mode="after")
-    @classmethod
-    def validate_cabin_class(cls, v: str) -> str:
-        valid_cabin_classes = [
-            "economy",
-            "business",
-        ]
-        if not v:
-            raise ValueError("Cabin class is required")
-        if v not in valid_cabin_classes:
-            raise ValueError("Invalid cabin class")
-        return v
-
-    @field_validator("category", mode="after")
-    @classmethod
-    def validate_category(cls, v: str) -> str:
-        if not v:
-            raise ValueError("Category is required")
-        return v
-
-
-class TravelPlaneFactorResponse(
-    FactorResponseGen, TravelPlaneBase, _TravelPlaneBaseValidationMixin
-):
-    pass
-
-
-class TravelPlaneFactorCreate(
-    FactorCreate, TravelPlaneBase, _TravelPlaneBaseValidationMixin
-):
-    pass
-
-
-class TravelPlaneFactorUpdate(
-    FactorUpdate, TravelPlaneBase, _TravelPlaneBaseValidationMixin
-):
-    pass
-
-
-class TravelPlaneFactorHandler(BaseFactorHandler):
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.plane
-    registration_keys = [DataEntryTypeEnum.plane]
-    emission_type: EmissionType = EmissionType.professional_travel__plane
-
-    classification_fields: list[str] = ["category", "cabin_class"]
-    value_fields: list[str] = [
-        "ef_kg_co2eq_per_km",
-        "rfi_adjustment",
-        "min_distance",
-        "max_distance",
-    ]
-
-    create_dto = TravelPlaneFactorCreate
-    update_dto = TravelPlaneFactorUpdate
-    response_dto = TravelPlaneFactorResponse
-
-
-class TravelTrainBase:
-    country_code: str
-    ef_kg_co2eq_per_km: float
-
-
-class _TravelTrainBaseValidationMixin:
-    @field_validator(
-        "ef_kg_co2eq_per_km",
-        mode="after",
-    )
-    @classmethod
-    def validate_factor_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
-        return _validate_non_negative_float(v, info.field_name or "")
-
-    @field_validator("country_code", mode="after")
-    @classmethod
-    def validate_country_code(cls, v: str) -> str:
-        # in ISO 3166-1 alpha-2 format or use RoW for rest of the world
-        # for now we check two letter format but we don't validate against
-        # a list of actual country codes
-        if not v:
-            raise ValueError("Country code is required")
-        if v != "RoW" and (len(v) != 2 or not v.isalpha()):
-            raise ValueError(
-                "Invalid country code, must be ISO 3166-1 alpha-2 or 'RoW'"
-            )
-        return v
-
-
-class TravelTrainFactorResponse(
-    FactorResponseGen, TravelTrainBase, _TravelTrainBaseValidationMixin
-):
-    pass
-
-
-class TravelTrainFactorCreate(
-    FactorCreate, TravelTrainBase, _TravelTrainBaseValidationMixin
-):
-    pass
-
-
-class TravelTrainFactorUpdate(
-    FactorUpdate, TravelTrainBase, _TravelTrainBaseValidationMixin
-):
-    pass
-
-
-class TravelTrainFactorHandler(BaseFactorHandler):
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.train
-    emission_type: EmissionType = EmissionType.professional_travel__train
-
-    registration_keys = [DataEntryTypeEnum.train]
-
-    classification_fields: list[str] = ["country_code"]
-    value_fields: list[str] = ["ef_kg_co2eq_per_km"]
-
-    create_dto = TravelTrainFactorCreate
-    update_dto = TravelTrainFactorUpdate
-    response_dto = TravelTrainFactorResponse

@@ -159,9 +159,19 @@ class CarbonReportRepository:
         Retrieves the aggregated reporting data using a Deferred Join strategy.
         First paginates the Units, then calculates footprints ONLY for those 50 units.
         """
-        statement = select(CarbonReport).where(
-            (col(CarbonReport.year).in_(years)) if years else True
+        # Reporting is Calculator-only: never surface Simulator Explore/Plan
+        # reports (they are carbon_reports rows too, under non-Calculator
+        # projects) in the backoffice reporting overview.
+        statement = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR)
         )
+        if years:
+            statement = statement.where(col(CarbonReport.year).in_(years))
 
         statement = statement.offset((page - 1) * page_size).limit(page_size)
         result = await self.session.execute(statement)
