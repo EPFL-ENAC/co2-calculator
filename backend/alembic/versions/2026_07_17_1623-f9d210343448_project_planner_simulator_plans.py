@@ -9,7 +9,7 @@ Note: the downgrade cannot recreate uq_carbon_projects_unit_type if a unit
 already has more than one Simulator_Plan project.
 
 Revision ID: f9d210343448
-Revises: 89c3079e388d
+Revises: 8eeff0a9fa26
 Create Date: 2026-07-14 16:23:00.000000
 
 """
@@ -30,7 +30,7 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "f9d210343448"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = "3f1c7a94be2e"  # noqa: F841
+down_revision: Union[str, Sequence[str], None] = "8eeff0a9fa26"  # noqa: F841
 branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
 depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
 

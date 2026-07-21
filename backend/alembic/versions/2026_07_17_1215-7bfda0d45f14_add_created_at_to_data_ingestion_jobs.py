@@ -2,7 +2,7 @@
 """add created_at to data_ingestion_jobs
 
 Revision ID: 7bfda0d45f14
-Revises: ca72e51fd409
+Revises: 3f1c7a94be2e
 Create Date: 2026-07-17 12:15:49.510720
 
 """
@@ -23,7 +23,7 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "7bfda0d45f14"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = "ca72e51fd409"  # noqa: F841
+down_revision: Union[str, Sequence[str], None] = "3f1c7a94be2e"  # noqa: F841
 branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
 depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
 
