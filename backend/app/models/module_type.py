@@ -92,7 +92,7 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
     ],
     ModuleTypeEnum.research_facilities: [
         DataEntryTypeEnum.research_facilities,
-        DataEntryTypeEnum.mice_and_fish_animal_facilities,
+        DataEntryTypeEnum.animal_facilities,
     ],
     # Add more if needed for other modules
 }

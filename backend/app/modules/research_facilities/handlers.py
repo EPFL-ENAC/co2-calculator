@@ -111,13 +111,13 @@ class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
 
 class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
     """Handler for research facilities data entries related
-    to mice and fish animal facilities.
+    to rodent and fish animal facilities.
     """
 
     module_type: ModuleTypeEnum = ModuleTypeEnum.research_facilities
     data_entry_type: DataEntryTypeEnum | None = None
     registration_keys = [
-        DataEntryTypeEnum.mice_and_fish_animal_facilities,
+        DataEntryTypeEnum.animal_facilities,
     ]
 
     create_dto = ResearchFacilitiesAnimalHandlerCreate

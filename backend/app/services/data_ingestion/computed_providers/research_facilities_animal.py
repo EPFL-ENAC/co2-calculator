@@ -1,4 +1,4 @@
-"""Factor update provider for research facilities animal (mice & fish) factors.
+"""Factor update provider for research facilities animal (rodent & fish) factors.
 
 Recomputes the kg_co2eq_sum_* fields on each factor by aggregating
 DataEntryEmission totals from the corresponding Unit's CarbonReport.
@@ -44,7 +44,7 @@ SOURCE_EMISSION_MAP: Dict[str, frozenset[int]] = {
 
 
 class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
-    """Recomputes kg_co2eq_sum_* factor values for mice & fish animal facilities.
+    """Recomputes kg_co2eq_sum_* factor values for rodent & fish animal facilities.
 
     For each factor, uses ``classification.researchfacility_id`` to resolve
     the corresponding Unit, then aggregates DataEntryEmission totals across

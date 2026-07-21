@@ -287,7 +287,7 @@ async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
     """``research_facilities`` rolls two leaf-level emissions under one root.
 
     Seeds ``research_facilities__facilities`` (100.0) and the actual leaf
-    ``research_facilities__animal__mice`` (40.0) — the mice type was added as a
+    ``research_facilities__animal__rodent`` (40.0) — the rodent type was added as a
     child of ``research_facilities__animal`` in the subcategory correction commit,
     making the bare ``research_facilities__animal`` an intermediate rollup node.
     The leaf path is the production-correct flow from ``_resolve_animal_facilities``.
@@ -315,8 +315,8 @@ async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
         await _seed_emission(
             s,
             crm_id=crm.id,
-            data_entry_type=DataEntryTypeEnum.mice_and_fish_animal_facilities,
-            emission_type=EmissionType.research_facilities__animal__mice,
+            data_entry_type=DataEntryTypeEnum.animal_facilities,
+            emission_type=EmissionType.research_facilities__animal__rodent,
             kg_co2eq=40.0,
         )
         await s.commit()
@@ -345,10 +345,10 @@ async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
 
         by_et = stats["by_emission_type"]
         assert by_et[str(int(EmissionType.research_facilities__facilities))] == 100.0
-        assert by_et[str(int(EmissionType.research_facilities__animal__mice))] == 40.0
-        # Intermediate rollup: mice leaf rolls up to animal (40.0)
+        assert by_et[str(int(EmissionType.research_facilities__animal__rodent))] == 40.0
+        # Intermediate rollup: rodent leaf rolls up to animal (40.0)
         assert by_et[str(int(EmissionType.research_facilities__animal))] == 40.0
-        # Root rollup: facilities (100) + mice via animal (40) = 140
+        # Root rollup: facilities (100) + rodent via animal (40) = 140
         assert by_et[str(int(EmissionType.research_facilities))] == 140.0
 
 

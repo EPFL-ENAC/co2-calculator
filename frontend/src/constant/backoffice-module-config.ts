@@ -193,7 +193,7 @@ export const MODULE_SUBMODULES: Partial<
       forceInputsDeactivated: true,
     },
     {
-      key: 'mice_and_fish_animal_facilities',
+      key: 'animal_facilities',
       labelKey: 'data_management_submodule_animal_facilities',
       moduleTypeId: 6,
       dataEntryTypeId: 71,

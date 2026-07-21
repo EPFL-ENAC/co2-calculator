@@ -134,7 +134,7 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
     FactorSeedConfig(
         path=BACKEND_FOLDER / "researchfacilities_animals_factors.csv",
         data_entry_types=[
-            DataEntryTypeEnum.mice_and_fish_animal_facilities,
+            DataEntryTypeEnum.animal_facilities,
         ],
     ),
     FactorSeedConfig(

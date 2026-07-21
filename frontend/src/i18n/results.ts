@@ -683,9 +683,9 @@ export default {
     en: 'IT facilities',
     fr: 'Infrastructures IT',
   },
-  'charts-animal-mice-subcategory': {
-    en: 'Mice',
-    fr: 'Souris',
+  'charts-animal-rodent-subcategory': {
+    en: 'Rodents',
+    fr: 'Rongeurs',
   },
   'charts-animal-fish-subcategory': {
     en: 'Fish',

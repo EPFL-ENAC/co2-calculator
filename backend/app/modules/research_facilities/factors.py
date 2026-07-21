@@ -90,7 +90,7 @@ class ResearchFacilitiesCommonFactorHandler(BaseFactorHandler):
 
 ## RESEARCH FACILITIES FACTOR HANDLERS
 
-# --- Animal (mice_and_fish_animal_facilities) ---
+# --- Animal (animal_facilities) ---
 
 research_facilities_animal_classification_fields: list[str] = [
     "researchfacility_id",
@@ -235,7 +235,7 @@ class ResearchFacilitiesAnimalFactorResponse(FactorResponseGen):
 
 class ResearchFacilitiesAnimalFactorHandler(BaseFactorHandler):
     data_entry_type: DataEntryTypeEnum | None = None
-    registration_keys = [DataEntryTypeEnum.mice_and_fish_animal_facilities]
+    registration_keys = [DataEntryTypeEnum.animal_facilities]
     emission_type = EmissionType.research_facilities__animal
 
     create_dto = ResearchFacilitiesAnimalFactorCreate
