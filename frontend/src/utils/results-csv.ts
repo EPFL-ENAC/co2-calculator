@@ -79,8 +79,14 @@ export function buildCarbonFootprintCsvRows(
  * Purchases name their catch-all bucket `other`, which is also equipment's
  * scientific/it/`other` key. Mirrors `normalizeCategoryRowKeys` in
  * `ModuleCarbonFootprintChart.vue` so both surfaces name it the same way.
+ *
+ * Research facilities name their catch-all bucket `facilities`, too bare to
+ * read on its own next to `it_facilities` and `animal`.
  */
 function normalizeEmissionKey(categoryKey: string, key: string): string {
   if (categoryKey === 'purchases' && key === 'other') return 'other_purchases';
+  if (categoryKey === 'research_facilities' && key === 'facilities') {
+    return 'research_facilities';
+  }
   return key;
 }
