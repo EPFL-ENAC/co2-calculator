@@ -906,6 +906,14 @@ export default {
     en: 'Recycling',
     fr: 'Recyclage',
   },
+  'charts-domestic-waste-subcategory': {
+    en: 'Domestic waste',
+    fr: 'Déchets ménagers',
+  },
+  'charts-organic-waste-lawn-subcategory': {
+    en: 'Organic waste / lawn',
+    fr: 'Déchets organiques / gazon',
+  },
   'charts-organic-waste-food-leftovers-subcategory': {
     en: 'Organic waste / food leftovers',
     fr: 'Déchets organiques / restes alimentaires',

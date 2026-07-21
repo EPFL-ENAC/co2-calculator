@@ -32,7 +32,9 @@ class EmissionType(int, Enum):
     food__non_vegetarian = 10002
     waste = 20000
     waste__incineration = 20001
+    waste__incineration__domestic_waste = 2000101
     waste__composting = 20002
+    waste__composting__organic_waste_lawn = 2000201
     waste__biogas = 20003
     waste__biogas__organic_waste_food_leftovers = 2000301
     waste__biogas__cooking_vegetable_oil = 2000302

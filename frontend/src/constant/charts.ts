@@ -517,7 +517,9 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
     },
     waste: {
       incineration: colors.value.periwinkle.darker,
+      domestic_waste: colors.value.periwinkle.darker,
       composting: colors.value.periwinkle.dark,
+      organic_waste_lawn: colors.value.periwinkle.dark,
       biogas: colors.value.periwinkle.default,
       recycling: colors.value.periwinkle.light,
       cardboard: colors.value.skyBlue.dark,
