@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { api } from 'src/api/http';
+import type { ReportStats } from 'src/utils/emissionStatsAdapter';
 
 /**
  * Hand-typed DTOs mirroring backend/app/schemas/simulator_plan.py; re-run
@@ -51,6 +52,14 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
   // Per-year reports of the currently open plan (Project Planner page).
   const planYears = ref<SimulatorPlanYear[]>([]);
   const planYearsLoading = ref(false);
+
+  // Whole-plan stats aggregate behind the planner results card. `activePlanId`
+  // is set while the Project Planner page is mounted and drives
+  // `refreshAggregateIfActive`, the hook the module store calls after entry
+  // mutations.
+  const activePlanId = ref<number | null>(null);
+  const aggregateStats = ref<ReportStats | null>(null);
+  const aggregateLoading = ref(false);
 
   async function fetchPlans(unitId: number): Promise<void> {
     loading.value = true;
@@ -122,6 +131,28 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     }
   }
 
+  async function fetchAggregateStats(planId: number): Promise<void> {
+    activePlanId.value = planId;
+    aggregateLoading.value = true;
+    try {
+      aggregateStats.value = await api
+        .get(`project-plans/${planId}/aggregate-stats`)
+        .json<ReportStats>();
+    } finally {
+      aggregateLoading.value = false;
+    }
+  }
+
+  async function refreshAggregateIfActive(): Promise<void> {
+    if (activePlanId.value === null) return;
+    await fetchAggregateStats(activePlanId.value);
+  }
+
+  function clearAggregate(): void {
+    activePlanId.value = null;
+    aggregateStats.value = null;
+  }
+
   /** Set the reference (baseline) year of one plan-year report. */
   async function setReferenceYear(
     planId: number,
@@ -136,6 +167,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     planYears.value = planYears.value.map((y) =>
       y.year === updated.year ? updated : y,
     );
+    await refreshAggregateIfActive();
     return updated;
   }
 
@@ -169,6 +201,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
       )
       .json<SimulatorPlanModule>();
     replaceModuleInYear(carbonReportId, updated);
+    await refreshAggregateIfActive();
     return updated;
   }
 
@@ -185,12 +218,18 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     loading,
     planYears,
     planYearsLoading,
+    activePlanId,
+    aggregateStats,
+    aggregateLoading,
     fetchPlans,
     createPlan,
     getPlanByName,
     updatePlan,
     renamePlan,
     fetchPlanYears,
+    fetchAggregateStats,
+    refreshAggregateIfActive,
+    clearAggregate,
     setReferenceYear,
     setModuleActive,
     duplicatePlan,

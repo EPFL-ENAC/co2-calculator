@@ -56,6 +56,52 @@
           :expanded-key="expandedKey"
           @update:expanded-key="expandedKey = $event"
         />
+
+        <!-- Whole-plan results: every year of the range summed together -->
+        <q-card flat bordered>
+          <div class="q-pt-lg q-px-lg">
+            <h2 class="text-h3 text-weight-medium">
+              {{ $t('planner_results_title') }}
+            </h2>
+          </div>
+
+          <q-separator class="q-mt-xl" />
+
+          <div class="grid-1-col q-mt-lg q-mb-lg">
+            <BigNumber
+              :title="$t('planner_results_total_tonnes_co2eq')"
+              :number="formatTonnesCO2(totalTonnesCo2eq)"
+              comparison=""
+              color="info"
+              :bordered="false"
+            />
+
+            <q-separator />
+
+            <ModuleCarbonFootprintChart
+              :breakdown-data="breakdown"
+              :title="$t('planner_results_chart_title', { name: plan.name })"
+              :bordered="false"
+            />
+
+            <q-separator />
+
+            <div class="column items-center justify-center q-pa-xl q-gutter-lg">
+              <h3 class="text-h4 text-weight-medium">
+                {{ $t('planner_results_download_title') }}
+              </h3>
+              <q-btn
+                unelevated
+                no-caps
+                icon="o_download"
+                :label="$t('planner_results_download_button')"
+                size="md"
+                color="accent"
+                class="text-weight-medium"
+              />
+            </div>
+          </div>
+        </q-card>
       </template>
       <q-card v-else flat bordered class="q-pa-lg">
         <p class="text-body1 q-mb-none text-grey-8">
@@ -67,9 +113,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
+import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
+import BigNumber from 'src/components/molecules/BigNumber.vue';
 import PlannerProjectInfo from 'src/components/organisms/planner/PlannerProjectInfo.vue';
 import PlannerYearSection from 'src/components/organisms/planner/PlannerYearSection.vue';
 import {
@@ -78,6 +126,8 @@ import {
 } from 'src/stores/simulatorPlans';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import { toEmissionBreakdown } from 'src/utils/emissionStatsAdapter';
+import { formatTonnesCO2 } from 'src/utils/number';
 
 const route = useRoute();
 const router = useRouter();
@@ -94,6 +144,25 @@ const notFound = ref(false);
 // `${year}-${module}` of the single expanded module across all year
 // sections — the module store holds one module's data at a time.
 const expandedKey = ref<string | null>(null);
+
+const breakdown = computed(() =>
+  plansStore.aggregateStats
+    ? toEmissionBreakdown(plansStore.aggregateStats)
+    : null,
+);
+
+const totalTonnesCo2eq = computed(() => {
+  if (!breakdown.value) return 0;
+  // Summed off the same rows the chart draws, so headline and bars agree.
+  const moduleTotal = breakdown.value.module_breakdown.reduce((sum, row) => {
+    const rowTotal = (row.emissions ?? []).reduce(
+      (rowSum, e) => rowSum + (typeof e.value === 'number' ? e.value : 0),
+      0,
+    );
+    return sum + rowTotal;
+  }, 0);
+  return moduleTotal || breakdown.value.total_tonnes_co2eq || 0;
+});
 
 // Reference years are constrained to years open in the Calculator.
 const referenceYearOptions = computed(() =>
@@ -114,6 +183,7 @@ async function onPlanUpdated(updated: SimulatorPlan) {
   // per-year sections reflect the new range without a page reload.
   if (rangeChanged) {
     await plansStore.fetchPlanYears(updated.id);
+    await plansStore.fetchAggregateStats(updated.id);
   }
   if (renamed) {
     // Param-only replace keeps this component instance mounted.
@@ -136,7 +206,12 @@ onMounted(async () => {
   }
   await Promise.all([
     plansStore.fetchPlanYears(plan.value.id),
+    plansStore.fetchAggregateStats(plan.value.id),
     yearConfigStore.fetchConfiguredYears(),
   ]);
+});
+
+onUnmounted(() => {
+  plansStore.clearAggregate();
 });
 </script>

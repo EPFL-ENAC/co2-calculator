@@ -80,7 +80,7 @@ def _build_report_stats(modules, is_simulator: bool = False) -> dict:
 
     Pure function shared by the single-report and batched recompute paths;
     ``modules`` only needs ``.stats``, ``.status`` and ``.module_type_id``
-    attributes. Simulator Explore reports have no validation step, so every
+    attributes. Neither simulator report type has a validation step, so every
     module counts as validated there.
     """
     merged = _merge_module_stats(modules)
@@ -402,7 +402,10 @@ class CarbonReportService:
             report.stats = _build_report_stats(
                 active_modules,
                 is_simulator=report_types.get(report.id)
-                == CarbonReportType.SIMULATOR_EXPLORE,
+                in (
+                    CarbonReportType.SIMULATOR_EXPLORE,
+                    CarbonReportType.SIMULATOR_PLAN,
+                ),
             )
             progress, status = _build_report_progress(active_modules)
             report.completion_progress = progress

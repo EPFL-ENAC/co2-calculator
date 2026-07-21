@@ -131,6 +131,26 @@ export default {
     en: 'Active',
     fr: 'Actif',
   },
+  planner_results_title: {
+    en: 'Project results',
+    fr: 'Résultats du projet',
+  },
+  planner_results_total_tonnes_co2eq: {
+    en: 'Total project carbon footprint',
+    fr: 'Empreinte carbone totale du projet',
+  },
+  planner_results_chart_title: {
+    en: '{name} carbon footprint',
+    fr: 'Empreinte carbone de {name}',
+  },
+  planner_results_download_title: {
+    en: 'Your Project Report',
+    fr: 'Votre rapport de projet',
+  },
+  planner_results_download_button: {
+    en: 'Download Report',
+    fr: 'Télécharger le rapport',
+  },
   project_planner_name_label: {
     en: 'Project name',
     fr: 'Nom du projet',
