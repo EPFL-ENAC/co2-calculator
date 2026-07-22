@@ -61,7 +61,7 @@ type PurchaseProps = {
 
 export const SUBMODULE_RESEARCH_FACILITIES_TYPES = {
   ResearchFacilities: 'research-facilities',
-  AnimalFacilities: 'mice_and_fish_animal_facilities',
+  AnimalFacilities: 'animal_facilities',
 } as const;
 
 export type ResearchFacilitiesSubType =

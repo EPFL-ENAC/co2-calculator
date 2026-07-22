@@ -1855,7 +1855,7 @@ async def test_delete_sibling_submodule_not_wiped():
     assert data_entry_service.repo.bulk_delete_by_source_year.call_count == 1
     call_kwargs = data_entry_service.repo.bulk_delete_by_source_year.call_args.kwargs
     assert call_kwargs["data_entry_type_ids"] == [
-        DataEntryTypeEnum.mice_and_fish_animal_facilities.value
+        DataEntryTypeEnum.animal_facilities.value
     ]
 
 
@@ -1878,4 +1878,4 @@ async def test_delete_all_types_when_no_data_entry_type_id():
     call_kwargs = data_entry_service.repo.bulk_delete_by_source_year.call_args.kwargs
     deleted_types = set(call_kwargs["data_entry_type_ids"])
     assert DataEntryTypeEnum.research_facilities.value in deleted_types
-    assert DataEntryTypeEnum.mice_and_fish_animal_facilities.value in deleted_types
+    assert DataEntryTypeEnum.animal_facilities.value in deleted_types

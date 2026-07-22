@@ -78,8 +78,8 @@ const LABEL_KEY_MAP: Record<string, string> = {
   facilities: 'charts-research-facilities-subcategory',
   it_facilities: 'charts-research-it-facilities-subcategory',
   animal: 'charts-research-animal-subcategory',
-  mice_and_fish_animal_facilities: 'charts-research-animal-subcategory',
-  mice: 'charts-animal-mice-subcategory',
+  animal_facilities: 'charts-research-animal-subcategory',
+  rodent: 'charts-animal-rodent-subcategory',
   fish: 'charts-animal-fish-subcategory',
   // professional travel
   plane: 'charts-plane-subcategory',

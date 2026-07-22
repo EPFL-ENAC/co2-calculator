@@ -139,8 +139,12 @@ export function legendItems(
 }
 
 export const WASTE_DISPLAY_CATEGORY: Record<string, string> = {
+  // `incineration`/`composting` are the pre-taxonomy leaf keys: reports computed
+  // before their subclasses existed still report at the class level.
   incineration: 'domestic',
+  domestic_waste: 'domestic',
   composting: 'organic',
+  organic_waste_lawn: 'organic',
   organic_waste_food_leftovers: 'organic',
   cooking_vegetable_oil: 'organic',
   paper: 'paper',

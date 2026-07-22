@@ -386,12 +386,12 @@ _MODULE_TOP_CLASS_LABEL_FIELD: dict[ModuleTypeEnum, str] = {
 }
 
 # Per data-entry-type overrides of the group field. Animal facility bars
-# segment by facility type (mice / fish) rather than by facility name.
+# segment by facility type (rodent / fish) rather than by facility name.
 _MODULE_TOP_CLASS_GROUP_FIELD_OVERRIDES: dict[
     ModuleTypeEnum, dict[DataEntryTypeEnum, str]
 ] = {
     ModuleTypeEnum.research_facilities: {
-        DataEntryTypeEnum.mice_and_fish_animal_facilities: "researchfacility_type",
+        DataEntryTypeEnum.animal_facilities: "researchfacility_type",
     },
 }
 
@@ -474,7 +474,7 @@ async def get_top_class_breakdown(
     data_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
     # Partition data entry types by their effective group field so types with
-    # an override (e.g. animal facilities grouped by mice/fish type) are
+    # an override (e.g. animal facilities grouped by rodent/fish type) are
     # aggregated separately, preserving the configured bar order.
     overrides = _MODULE_TOP_CLASS_GROUP_FIELD_OVERRIDES.get(module_type, {})
     field_groups: dict[str, List[DataEntryTypeEnum]] = {}

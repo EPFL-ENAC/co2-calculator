@@ -47,7 +47,7 @@ class DataEntryTypeEnum(int, Enum):
     # Research facilities: Was internal services
     # Implementation of the module "Research facilities" and its sub-modules:
     research_facilities = 70
-    mice_and_fish_animal_facilities = 71
+    animal_facilities = 71
 
     # Simulator Plan (planner) kinds — 80+ range. Planner modules whose
     # entry shape differs from the Calculator get their own types here;

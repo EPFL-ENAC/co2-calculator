@@ -118,7 +118,7 @@ class ProviderFactory:
     ] = {
         (
             ModuleTypeEnum.research_facilities,
-            DataEntryTypeEnum.mice_and_fish_animal_facilities,
+            DataEntryTypeEnum.animal_facilities,
             IngestionMethod.computed,
             TargetType.FACTORS,
             EntityType.MODULE_PER_YEAR,

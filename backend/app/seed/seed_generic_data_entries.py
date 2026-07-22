@@ -141,7 +141,7 @@ DATA_ENTRY_SEEDS: list[DataEntrySeedConfig] = [
     ),
     DataEntrySeedConfig(
         path=SEED_FOLDER / "researchfacilities_animals_data.csv",
-        data_entry_types=[DataEntryTypeEnum.mice_and_fish_animal_facilities],
+        data_entry_types=[DataEntryTypeEnum.animal_facilities],
         module_type=ModuleTypeEnum.research_facilities,
     ),
 ]

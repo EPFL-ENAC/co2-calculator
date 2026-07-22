@@ -683,9 +683,9 @@ export default {
     en: 'IT facilities',
     fr: 'Infrastructures IT',
   },
-  'charts-animal-mice-subcategory': {
-    en: 'Mice',
-    fr: 'Souris',
+  'charts-animal-rodent-subcategory': {
+    en: 'Rodents',
+    fr: 'Rongeurs',
   },
   'charts-animal-fish-subcategory': {
     en: 'Fish',
@@ -905,6 +905,14 @@ export default {
   'charts-recycling-subcategory': {
     en: 'Recycling',
     fr: 'Recyclage',
+  },
+  'charts-domestic-waste-subcategory': {
+    en: 'Domestic waste',
+    fr: 'Déchets ménagers',
+  },
+  'charts-organic-waste-lawn-subcategory': {
+    en: 'Organic waste / lawn',
+    fr: 'Déchets organiques / gazon',
   },
   'charts-organic-waste-food-leftovers-subcategory': {
     en: 'Organic waste / food leftovers',
