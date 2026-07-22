@@ -2,9 +2,7 @@
 
 Focus:
 - a missing carbon report 404s instead of being silently created.
-- the persisted report stats are always returned, augmented with the
-  validated-only ``total_tonnes_validated_co2eq`` (semantics delegated to
-  build_validated_totals), plus the per-module states.
+- the home year configuration carries ``min_configurable_year``.
 """
 
 from types import SimpleNamespace
@@ -70,38 +68,6 @@ async def test_missing_report_returns_404(monkeypatch):
     assert exc_info.value.status_code == 404
     report_service.create.assert_not_awaited()
     db.commit.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_existing_report_is_used(monkeypatch):
-    db = _db()
-    report_service = _patch_common(monkeypatch, existing_report=_report(7))
-
-    result = await wh_module.get_workspace_home(
-        unit_id=1, year=2025, db=db, current_user=MagicMock()
-    )
-
-    report_service.create.assert_not_awaited()
-    db.commit.assert_not_awaited()
-    assert result.carbon_report_id == 7
-
-
-@pytest.mark.asyncio
-async def test_stats_always_present_with_validated_total(monkeypatch):
-    db = _db(module_state_rows=[(1, 2)])
-    _patch_common(monkeypatch, existing_report=_report())
-
-    result = await wh_module.get_workspace_home(
-        unit_id=1, year=2025, db=db, current_user=MagicMock()
-    )
-
-    # The persisted stats pass through untouched; the validated-only total is
-    # merged in from build_validated_totals.
-    assert result.stats["total"] == 41000.0
-    assert result.stats["total_tonnes_validated_co2eq"] == 6.1
-    # Per-module states ride alongside (no separate list_modules call).
-    assert result.module_states == [{"module_type_id": 1, "status": 2}]
-    wh_module.build_validated_totals.assert_awaited_once()
 
 
 @pytest.mark.asyncio

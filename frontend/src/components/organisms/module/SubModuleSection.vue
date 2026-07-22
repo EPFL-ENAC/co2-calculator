@@ -36,6 +36,7 @@
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
+          :factor-year="factorYear"
           :carbon-report-id="carbonReportId"
           :show-reference-columns="showReferenceColumns"
           :threshold="effectiveThreshold"
@@ -75,6 +76,7 @@
             :add-button-label-key="submodule.addButtonLabelKey"
             :unit-id="unitId"
             :year="year"
+            :factor-year="factorYear"
             :form-defaults="formDefaults"
             :module-color="submoduleColor"
             @submit="submitForm"
@@ -119,6 +121,7 @@
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
+          :factor-year="factorYear"
           :carbon-report-id="carbonReportId"
           :show-reference-columns="showReferenceColumns"
           :threshold="effectiveThreshold"
@@ -144,6 +147,7 @@
           :add-button-label-key="submodule.addButtonLabelKey"
           :unit-id="unitId"
           :year="year"
+          :factor-year="factorYear"
           :form-defaults="formDefaults"
           @submit="submitForm"
         />
@@ -232,6 +236,8 @@ type CommonProps = {
   data?: ModuleResponse | null;
   unitId: number;
   year: string | number;
+  /** Year whose factors the class/subclass options resolve against — see ModuleForm. */
+  factorYear?: number | null;
   /** Plan-year report id; when set, module calls address it directly. */
   carbonReportId?: number;
   /** Planner prefilled: show the reference-kg column + % slider. */
@@ -257,6 +263,7 @@ const props = withDefaults(
     data: null,
     submoduleType: undefined,
     carbonReportId: undefined,
+    factorYear: undefined,
     showReferenceColumns: undefined,
   },
 );

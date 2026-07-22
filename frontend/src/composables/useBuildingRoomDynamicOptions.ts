@@ -14,7 +14,7 @@ export function useBuildingRoomDynamicOptions(
   form: FormLike,
   moduleType: Ref<Module | string>,
   submoduleType: Ref<AllSubmoduleTypes>,
-  year?: Ref<string | number | undefined>,
+  year?: Ref<string | number | null | undefined>,
 ) {
   const buildingRoomStore = useBuildingRoomStore();
 

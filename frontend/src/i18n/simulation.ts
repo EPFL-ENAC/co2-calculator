@@ -208,8 +208,8 @@ export default {
     fr: 'Année de référence',
   },
   planner_reference_year_hint: {
-    en: 'Select a reference year: all factors and prefilled data for this simulation year come from it.',
-    fr: 'Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année de simulation en proviennent.',
+    en: 'Select a reference year: all factors and prefilled data for this simulation year come from it. The modules below stay locked until you do.',
+    fr: "Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année de simulation en proviennent. Les modules ci-dessous restent verrouillés tant qu'elle n'est pas définie.",
   },
   planner_reference_year_error: {
     en: 'Could not set the reference year',

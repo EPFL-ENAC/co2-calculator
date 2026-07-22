@@ -23,6 +23,7 @@ import VirtualSelectField from 'src/components/molecules/VirtualSelectField.vue'
 import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { sortByOrder } from 'src/utils/options';
+import { resolveFactorYear } from 'src/utils/factor-year';
 
 const moduleStore = useModuleStore();
 
@@ -51,6 +52,12 @@ type CommonProps = {
   cols: TableViewColumnSubset[];
   unitId: number;
   year: string | number;
+  /**
+   * Year whose factors the class/subclass options come from. See ModuleForm —
+   * the Simulator Plan passes its reference year, `null` when unset. `year`
+   * stays the row's own year: it addresses the entry for the PATCH.
+   */
+  factorYear?: number | null;
   disable?: boolean;
 };
 
@@ -58,6 +65,9 @@ type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
 const { t, te } = useI18n();
+const factorYear = computed(() =>
+  resolveFactorYear(props.factorYear, props.year),
+);
 const isClass = computed(() => props.optionsId === 'kind');
 const isSubClass = computed(() => props.optionsId === 'subkind');
 
@@ -79,7 +89,7 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
       classFieldId: kindFieldId.value,
       subClassFieldId: subkindFieldId.value,
     },
-    toRef(props, 'year'),
+    factorYear,
   );
 
 const classOptions = computed(() => {
