@@ -10,6 +10,7 @@ import {
 } from 'src/stores/simulatorPlans';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { parseUtcDate } from 'src/utils/date';
+import { formatTonnesCO2 } from 'src/utils/number';
 
 const { t, locale } = useI18n();
 const route = useRoute();
@@ -56,8 +57,10 @@ const planColumns = computed<QTableColumn[]>(() => [
   {
     name: 'tco2eq',
     label: t('tco2eq'),
-    field: () => '',
+    field: 'total_tonnes_co2eq',
     align: 'right',
+    sortable: true,
+    format: (val) => formatTonnesCO2(val as number | null),
   },
   {
     name: 'action',
@@ -110,7 +113,9 @@ async function onConfirmDelete() {
   await refresh();
 }
 
-onMounted(refresh);
+onMounted(() => {
+  if (plansStore.plansStale) void refresh();
+});
 </script>
 
 <template>

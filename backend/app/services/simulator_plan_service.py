@@ -32,6 +32,7 @@ from app.schemas.simulator_plan import (
 )
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.utils.report_stats import merge_report_stats
 
 logger = get_logger(__name__)
 
@@ -53,7 +54,11 @@ def _next_suffixed_name(base: str, existing: set[str]) -> str:
     return f"{base}-{counter}"
 
 
-def _to_read(project: CarbonProject, creator_name: Optional[str]) -> SimulatorPlanRead:
+def _to_read(
+    project: CarbonProject,
+    creator_name: Optional[str],
+    total_tonnes_co2eq: Optional[float] = None,
+) -> SimulatorPlanRead:
     if project.id is None:
         raise ValueError("project must be persisted before use")
     return SimulatorPlanRead(
@@ -66,6 +71,7 @@ def _to_read(project: CarbonProject, creator_name: Optional[str]) -> SimulatorPl
         created_by=project.created_by,
         created_at=project.created_at,
         creator_name=creator_name,
+        total_tonnes_co2eq=total_tonnes_co2eq,
     )
 
 
@@ -82,9 +88,31 @@ class SimulatorPlanService:
         self.report_service = CarbonReportService(session)
 
     async def list_plans(self, unit_id: int) -> list[SimulatorPlanRead]:
-        """List all plans for a unit, newest first."""
+        """List all plans for a unit, newest first, each with its total."""
         rows = await self.repo.list_plans_by_unit(unit_id)
-        return [_to_read(project, creator_name) for project, creator_name in rows]
+        totals = await self._totals_by_plan(
+            [project.id for project, _ in rows if project.id is not None]
+        )
+        return [
+            _to_read(project, creator_name, totals.get(project.id or -1))
+            for project, creator_name in rows
+        ]
+
+    async def _totals_by_plan(self, plan_ids: list[int]) -> dict[int, float]:
+        """Sum each plan's year reports into tonnes CO2-eq, in one query.
+
+        Goes through ``merge_report_stats`` — the same aggregation the plan
+        page's ``/aggregate-stats`` headline uses — so the table and the plan
+        cannot drift. Inactive modules are already excluded upstream by the
+        report rollup.
+        """
+        by_plan: dict[int, list[dict]] = {plan_id: [] for plan_id in plan_ids}
+        for plan_id, stats in await self.repo.list_report_stats_by_project(plan_ids):
+            by_plan[plan_id].append(dict(stats or {}))
+        return {
+            plan_id: merge_report_stats(stats_list)["total"] / 1000.0
+            for plan_id, stats_list in by_plan.items()
+        }
 
     async def get_plan_by_name(
         self, unit_id: int, name: str

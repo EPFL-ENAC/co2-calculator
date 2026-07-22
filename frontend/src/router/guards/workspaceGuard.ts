@@ -8,6 +8,7 @@ import {
   toEmissionBreakdown,
   type ReportStats,
 } from 'src/utils/emissionStatsAdapter';
+import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import {
   useYearConfigStore,
@@ -104,6 +105,7 @@ export async function loadWorkspaceFromRoute(to: RouteLocationNormalized) {
           moduleStates,
         ),
       );
+      useSimulatorPlansStore().setPlans(data.project_plans ?? []);
     }
   }
   // then we can retrieve modules

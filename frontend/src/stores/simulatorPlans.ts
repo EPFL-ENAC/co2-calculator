@@ -18,6 +18,7 @@ export interface SimulatorPlan {
   created_by: number | null;
   created_at: string | null;
   creator_name: string | null;
+  total_tonnes_co2eq: number | null;
 }
 
 export interface SimulatorPlanModule {
@@ -61,26 +62,41 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
   const aggregateStats = ref<ReportStats | null>(null);
   const aggregateLoading = ref(false);
 
+  const plansStale = ref(false);
+
   async function fetchPlans(unitId: number): Promise<void> {
     loading.value = true;
     try {
       plans.value = await api
         .get(`project-plans/unit/${unitId}/`)
         .json<SimulatorPlan[]>();
+      plansStale.value = false;
     } finally {
       loading.value = false;
     }
+  }
+
+  function setPlans(rows: SimulatorPlan[]): void {
+    plans.value = rows;
+    plansStale.value = false;
+  }
+
+  function markPlansStale(): void {
+    plansStale.value = true;
   }
 
   async function createPlan(
     unitId: number,
     name?: string,
   ): Promise<SimulatorPlan> {
-    return api
+    const plan = await api
       .post(`project-plans/unit/${unitId}/`, {
         json: { name: name ?? null },
       })
       .json<SimulatorPlan>();
+
+    markPlansStale();
+    return plan;
   }
 
   async function getPlanByName(
@@ -106,6 +122,8 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     const plan = await api
       .patch(`project-plans/${planId}`, { json: payload })
       .json<SimulatorPlan>();
+
+    markPlansStale();
     if (payload.start_year !== undefined || payload.end_year !== undefined) {
       await fetchPlanYears(planId);
     }
@@ -145,6 +163,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
 
   async function refreshAggregateIfActive(): Promise<void> {
     if (activePlanId.value === null) return;
+    markPlansStale();
     await fetchAggregateStats(activePlanId.value);
   }
 
@@ -206,11 +225,16 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
   }
 
   async function duplicatePlan(planId: number): Promise<SimulatorPlan> {
-    return api.post(`project-plans/${planId}/duplicate`).json<SimulatorPlan>();
+    const plan = await api
+      .post(`project-plans/${planId}/duplicate`)
+      .json<SimulatorPlan>();
+    markPlansStale();
+    return plan;
   }
 
   async function deletePlan(planId: number): Promise<void> {
     await api.delete(`project-plans/${planId}`);
+    markPlansStale();
   }
 
   return {
@@ -221,7 +245,10 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     activePlanId,
     aggregateStats,
     aggregateLoading,
+    plansStale,
     fetchPlans,
+    setPlans,
+    markPlansStale,
     createPlan,
     getPlanByName,
     updatePlan,
