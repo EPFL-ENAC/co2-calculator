@@ -23,12 +23,12 @@ export default {
     },
   [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}`]:
     {
-      en: 'Mice and fish animal facilities',
+      en: 'Rodent and fish animal facilities',
       fr: 'Animaleries rongeurs et poissons',
     },
   [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}-table-title`]:
     {
-      en: 'Mice and fish animal facilities ({count})',
+      en: 'Rodent and fish animal facilities ({count})',
       fr: 'Animaleries rongeurs et poissons ({count})',
     },
   [`${MODULES.ResearchFacilities}.inputs.name`]: {
@@ -55,12 +55,12 @@ export default {
     en: "For EPFL's rodent and fish animal facilities, only the animal housing component is considered. The Phenotyping Unit (UDP) and the Transgenesis Platform (TCF) are not included.",
     fr: "Pour l'utilisation des animaleries rongeurs et poissons à l'EPFL, nous ne considérons que la partie hébergement des animaux et pas ce qui concerne l'unité de phénotypage (UDP) et la plateforme de transgénèse (TCF).",
   },
-  fish: {
+  [`${MODULES.ResearchFacilities}.type.fish`]: {
     en: 'Fish',
     fr: 'Poissons',
   },
-  mice: {
-    en: 'Mice',
+  [`${MODULES.ResearchFacilities}.type.rodent`]: {
+    en: 'Rodents',
     fr: 'Rongeurs',
   },
   [`${MODULES.ResearchFacilities}-title-tooltip-subtext`]: {

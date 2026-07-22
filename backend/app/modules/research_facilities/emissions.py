@@ -11,6 +11,11 @@ STAT_BUCKETS: tuple[StatBucket, ...] = (
 
 _IT_RESEARCH_FACILITY_NAMES: frozenset[str] = frozenset({"scitas", "rcp"})
 
+_ANIMAL_TYPE_EMISSIONS: dict[str, EmissionType] = {
+    "rodent": EmissionType.research_facilities__animal__rodent,
+    "fish": EmissionType.research_facilities__animal__fish,
+}
+
 
 def resolve_research_facilities(data: dict) -> list[EmissionType]:
     name = (data.get("researchfacility_name") or "").strip().lower()
@@ -21,8 +26,10 @@ def resolve_research_facilities(data: dict) -> list[EmissionType]:
 
 def resolve_animal_facilities(data: dict) -> list[EmissionType]:
     facility_type = (data.get("researchfacility_type") or "").strip().lower()
-    if facility_type == "mice":
-        return [EmissionType.research_facilities__animal__mice]
-    if facility_type == "fish":
-        return [EmissionType.research_facilities__animal__fish]
-    return [EmissionType.research_facilities__animal]
+    emission_type = _ANIMAL_TYPE_EMISSIONS.get(facility_type)
+    if emission_type is None:
+        raise ValueError(
+            f"Unknown animal facility type {facility_type!r} — "
+            f"expected one of {sorted(_ANIMAL_TYPE_EMISSIONS)}"
+        )
+    return [emission_type]

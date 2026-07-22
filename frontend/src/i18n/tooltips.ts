@@ -172,8 +172,8 @@ export default {
     en: 'Emissions from research facilities allocated to the units are calculated based on Process emission, Energy combustion, Building, Equipment, and Purchases emissions, using billing or the number of hours used by your unit as the allocation key. If one or several research facilities are missing in the tool, do not hesitate to contact us so that we can provide you with more details.',
     fr: "Les émissions des infrastructures de recherche attribuées aux unités sont calculées sur la base des émissions des Émissions de procédés, Combustion d'énergie, Bâtiments, Équipements et Achats en considérant comme clé de répartition les facturations ou le nombre d'heures d'utilisation de votre unité. Si une ou plusieurs infrastructures de recherche manquent dans l'outil, n'hésitez pas à nous contacter afin que nous puissions vous fournir plus de détails.",
   },
-  'module-research-facilities-submodule-mice_and_fish_animal_facilities': {
-    en: 'Emissions from the mice and fish facilities are allocated to individual units based on their use of housing units (e.g., cages and aquariums) throughout the year. These emissions are calculated based on the Process emissions, Buildings, Equipment, and Purchases, with the annual number of housing units serving as the allocation key.',
+  'module-research-facilities-submodule-animal_facilities': {
+    en: 'Emissions from the rodent and fish facilities are allocated to individual units based on their use of housing units (e.g., cages and aquariums) throughout the year. These emissions are calculated based on the Process emissions, Buildings, Equipment, and Purchases, with the annual number of housing units serving as the allocation key.',
     fr: 'Les émissions des animaleries rongeurs et poissons attribuées aux unités sont calculées sur la base des émissions des Émissions de procédés, Bâtiments, Équipements et Achats en considérant comme clé de répartition le nombre d’hébergements (cages, aquariums) par année.',
   },
 
@@ -260,7 +260,7 @@ export default {
     en: '',
     fr: '',
   },
-  'module-research-facilities-submodule-mice_and_fish_animal_facilities-form': {
+  'module-research-facilities-submodule-animal_facilities-form': {
     en: '',
     fr: '',
   },
@@ -457,23 +457,24 @@ export default {
   },
 
   // ── Research Facilities — animal facilities table ───────────────────────────
-  'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-researchfacility_name':
+  'module-research-facilities-submodule-animal_facilities-table-researchfacility_name':
     {
       en: '',
       fr: '',
     },
-  'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-researchfacility_type':
+  'module-research-facilities-submodule-animal_facilities-table-researchfacility_type':
     {
       en: '',
       fr: '',
     },
-  'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-use':
-    {
-      en: "For EPFL's rodent and fish animal facilities, only the animal housing component is considered. The Phenotyping Unit (UDP) and the Transgenesis Platform (TCF) are not included.",
-      fr: "Pour l'utilisation des animaleries rongeurs et poissons à l'EPFL, nous ne considérons que la partie hébergement des animaux et pas ce qui concerne l'unité de phénotypage (UDP) et la plateforme de transgénèse (TCF).",
-    },
-  'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-kg_co2eq':
-    { en: '', fr: '' },
+  'module-research-facilities-submodule-animal_facilities-table-use': {
+    en: "For EPFL's rodent and fish animal facilities, only the animal housing component is considered. The Phenotyping Unit (UDP) and the Transgenesis Platform (TCF) are not included.",
+    fr: "Pour l'utilisation des animaleries rongeurs et poissons à l'EPFL, nous ne considérons que la partie hébergement des animaux et pas ce qui concerne l'unité de phénotypage (UDP) et la plateforme de transgénèse (TCF).",
+  },
+  'module-research-facilities-submodule-animal_facilities-table-kg_co2eq': {
+    en: '',
+    fr: '',
+  },
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MODULE CHART TOOLTIPS

@@ -195,7 +195,7 @@ _RUNTIME_RESOLVERS = {
     DataEntryTypeEnum.member: resolve_headcount_factor,
     DataEntryTypeEnum.student: resolve_headcount_factor,
     DataEntryTypeEnum.research_facilities: resolve_research_facilities,
-    DataEntryTypeEnum.mice_and_fish_animal_facilities: resolve_animal_facilities,
+    DataEntryTypeEnum.animal_facilities: resolve_animal_facilities,
     DataEntryTypeEnum.planner_purchase: resolve_planner_purchase,
 }
 

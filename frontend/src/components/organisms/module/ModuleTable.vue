@@ -1301,7 +1301,7 @@ function renderCell(
   if (col.optionLabelPrefix && typeof val === 'string') {
     return $t(val.toLowerCase(), val);
   }
-  // Translate stored values that are i18n keys (e.g. researchfacility_type: fish, mice)
+  // Translate stored values that are i18n keys (e.g. researchfacility_type: fish, rodent)
   if (col.optionLabelKey && typeof val === 'string') {
     const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
     return $te(key) ? $t(key) : val;

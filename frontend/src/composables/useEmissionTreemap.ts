@@ -91,7 +91,7 @@ const YY_LEVEL_CATEGORIES = new Set([
   // on the flat row; AI providers aggregate under the `ai` parent sum.
   // Both are read via flat key lookup rather than the emissions list.
   'external_cloud_and_ai',
-  // Mice/fish ZZ leaves aggregate under the `animal` parent sum; the treemap
+  // Rodent/fish ZZ leaves aggregate under the `animal` parent sum; the treemap
   // shows facilities / it_facilities / animal tiles.
   'research_facilities',
 ]);

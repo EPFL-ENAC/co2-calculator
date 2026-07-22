@@ -49,7 +49,7 @@ _IT_TOP_CLASS_SPECS: dict[ModuleTypeEnum, tuple[str, list[DataEntryTypeEnum], st
         "research_facilities_it",
         [
             DataEntryTypeEnum.research_facilities,
-            DataEntryTypeEnum.mice_and_fish_animal_facilities,
+            DataEntryTypeEnum.animal_facilities,
         ],
         "researchfacility_name",
     ),

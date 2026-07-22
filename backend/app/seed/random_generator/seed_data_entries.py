@@ -205,9 +205,7 @@ DATA_ENTRY_TYPE_TO_DTO: dict[DataEntryTypeEnum, type] = {
     DataEntryTypeEnum.purchases_centralized: PurchaseCentralizedHandlerCreate,
     # research facilities
     DataEntryTypeEnum.research_facilities: ResearchFacilitiesCommonHandlerCreate,
-    DataEntryTypeEnum.mice_and_fish_animal_facilities: (
-        ResearchFacilitiesAnimalHandlerCreate
-    ),
+    DataEntryTypeEnum.animal_facilities: (ResearchFacilitiesAnimalHandlerCreate),
 }
 
 
@@ -422,7 +420,7 @@ def build_research_facility_common() -> dict:
 def build_research_facility_animal() -> dict:
     payload = build_research_facility_common()
     payload["researchfacility_type"] = random.choice(  # nosec B311
-        ["mice", "fish", "rat"]
+        ["rodent", "fish"]
     )
     return payload
 
@@ -512,7 +510,7 @@ _SEED_EMISSION_ROOTS: dict[DataEntryTypeEnum, EmissionType] = {
     DataEntryTypeEnum.external_clouds: EmissionType.external__clouds,
     DataEntryTypeEnum.process_emissions: EmissionType.process_emissions,
     DataEntryTypeEnum.research_facilities: EmissionType.research_facilities,
-    DataEntryTypeEnum.mice_and_fish_animal_facilities: EmissionType.research_facilities,
+    DataEntryTypeEnum.animal_facilities: (EmissionType.research_facilities),
     DataEntryTypeEnum.purchases_centralized: EmissionType.purchases,
 }
 

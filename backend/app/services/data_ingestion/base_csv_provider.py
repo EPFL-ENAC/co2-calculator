@@ -13,7 +13,8 @@ from sqlmodel import col, select
 from app.api.v1.files import make_files_store
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import (
     BULK_PER_YEAR_SOURCES,
     DataEntry,
@@ -592,14 +593,22 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # instead of 2 queries per unit.  ~2.5k units → one round-trip;
         # the per-unit path below only runs for units that still need a
         # carbon_report created for this year.
+        # A unit holds one report per carbon project per year, so without the
+        # Calculator predicate the join returns several candidates per unit and
+        # the ingest writes into whichever simulator project came back last.
         map_stmt = (
             select(Unit.institutional_id, CarbonReportModule.id, Unit.id)
             .join(CarbonReport, col(CarbonReport.unit_id) == col(Unit.id))
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
             .join(
                 CarbonReportModule,
                 col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
             )
             .where(
+                col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR,
                 col(CarbonReport.year) == self.year,
                 col(CarbonReportModule.module_type_id) == module_type_id,
             )
@@ -779,7 +788,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # If the job targets a specific data_entry_type_id, only delete
         # entries for that type. Deleting all types for the module would
         # wipe sibling submodules (e.g. uploading research_facilities
-        # data would erase mice_and_fish_animal_facilities entries).
+        # data would erase animal_facilities entries).
         if self.job.data_entry_type_id is not None:
             valid_entry_types = [DataEntryTypeEnum(self.job.data_entry_type_id)]
         else:
