@@ -18,6 +18,7 @@ import type {
 } from 'src/constant/modules';
 import { useRoute } from 'vue-router';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
 import { buildModulePath, hasValidModuleParams } from 'src/utils/modulePath';
 import {
   toEmissionBreakdown,
@@ -1139,6 +1140,10 @@ export const useModuleStore = defineStore('modules', () => {
   }
 
   async function refreshEmissionBreakdownIfNeeded(): Promise<void> {
+    // The planner edits plan-year reports, not the workspace report, so its
+    // whole-plan aggregate is refreshed before the early return below.
+    await useSimulatorPlansStore().refreshAggregateIfActive();
+
     const carbonReportId = workspaceStore.selectedCarbonReport?.id;
     if (!carbonReportId) return;
 

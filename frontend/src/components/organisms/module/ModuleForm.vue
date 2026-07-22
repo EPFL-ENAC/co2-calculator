@@ -335,6 +335,7 @@ import HeadcountMemberSelect from 'src/components/organisms/module/HeadcountMemb
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
+import { resolveFactorYear } from 'src/utils/factor-year';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import {
   MODULES,
@@ -373,6 +374,15 @@ const props = withDefaults(
     addButtonLabelKey?: string;
     unitId?: number;
     year?: string | number;
+    /**
+     * Year whose factors this form resolves against. The Simulator Plan sets
+     * it to the plan year's reference year — the backend computes emissions
+     * from that year's factors, so the options and seeded values must come
+     * from it too. `null` means a plan year with no reference year picked
+     * yet: nothing is fetched. Omitted in the Calculator, where `year` is the
+     * factor year.
+     */
+    factorYear?: number | null;
     formDefaults?: Record<string, unknown>;
     moduleColor?: string;
   }>(),
@@ -384,9 +394,14 @@ const props = withDefaults(
     addButtonLabelKey: 'common_add_button',
     unitId: undefined,
     year: undefined,
+    factorYear: undefined,
     formDefaults: undefined,
     moduleColor: undefined,
   },
+);
+
+const factorYear = computed(() =>
+  resolveFactorYear(props.factorYear, props.year),
 );
 
 const formTooltipText = computed(() =>
@@ -679,7 +694,7 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
       valueFieldIds: factorValueFieldIds,
       defaultValueFieldIds: factorDefaultFieldIds,
     },
-    toRef(props, 'year'),
+    factorYear,
   );
 
 const { dynamicOptions: buildingRoomDynamicOptions, loadingRooms } =
@@ -687,7 +702,7 @@ const { dynamicOptions: buildingRoomDynamicOptions, loadingRooms } =
     form,
     toRef(props, 'moduleType'),
     toRef(props, 'submoduleType'),
-    toRef(props, 'year'),
+    factorYear,
   );
 
 const isSubkindLoading = computed(() => {

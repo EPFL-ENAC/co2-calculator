@@ -3,6 +3,7 @@ import { HTTPError } from 'ky';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
 import { api } from 'src/api/http';
+import type { SimulatorPlan } from 'src/stores/simulatorPlans';
 
 export interface Unit {
   id: number;
@@ -70,6 +71,8 @@ export interface WorkspaceHomePayload {
   stats: Record<string, unknown>;
   /** Per-module status map, fanned out to the timeline store by the guard. */
   module_states: { module_type_id: number; status: number }[];
+  /** The unit's visible Simulator Plans with their totals, for the home table. */
+  project_plans: SimulatorPlan[];
 }
 
 export const useWorkspaceStore = defineStore(

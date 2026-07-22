@@ -103,6 +103,22 @@ class CarbonProjectRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
+    async def list_report_stats_by_project(
+        self, project_ids: list[int]
+    ) -> list[tuple[int, Optional[dict]]]:
+        """Return ``(project_id, report.stats)`` for many projects in one query.
+
+        Backs the plan totals shown in the home-page planner table: one query
+        for the whole unit instead of one per plan.
+        """
+        if not project_ids:
+            return []
+        statement = select(
+            col(CarbonReport.carbon_project_id), col(CarbonReport.stats)
+        ).where(col(CarbonReport.carbon_project_id).in_(project_ids))
+        result = await self.session.execute(statement)
+        return [(project_id, stats) for project_id, stats in result.all()]
+
     async def list_reports_for_project(self, project_id: int) -> list[CarbonReport]:
         """Return the carbon reports of a project, ordered by year."""
         statement = (

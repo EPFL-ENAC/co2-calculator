@@ -22,6 +22,7 @@ from app.schemas.simulator_plan import (
     SimulatorPlanYearRead,
 )
 from app.services.simulator_plan_service import SimulatorPlanService
+from app.utils.report_stats import merge_report_stats
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -143,6 +144,25 @@ async def list_simulator_plan_years(
     if result is None:
         raise HTTPException(status_code=404, detail="Plan not found")
     return result
+
+
+@router.get("/{plan_id}/aggregate-stats", response_model=dict)
+async def get_simulator_plan_aggregate_stats(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Sum the plan's per-year report stats into one payload.
+
+    Same shape as ``/modules-stats/{carbon_report_id}/report-stats``, so the
+    planner results chart derives from it through the same frontend adapter.
+    Per-year stats already exclude modules whose Active checkbox is off.
+    """
+    service = await _require_plan_unit_access(db, current_user, plan_id, "view")
+    years = await service.list_plan_years(plan_id)
+    if years is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return merge_report_stats([dict(year.stats or {}) for year in years])
 
 
 @router.patch("/{plan_id}/years/{year}", response_model=SimulatorPlanYearRead)

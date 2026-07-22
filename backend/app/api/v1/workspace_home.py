@@ -26,6 +26,11 @@ consume — nothing more:
   from the all-modules ``total``).
 - ``module_states`` (per-module ``{module_type_id, status}``) which the frontend
   fans out to the sidebar timeline + validation gates.
+- ``project_plans`` — the unit's Simulator Plans visible to the caller, each with
+  its whole-range ``total_tonnes_co2eq``, backing the home-page planner table.
+  Plans are per-unit and year-independent, so this block ignores ``year``; the
+  table refetches ``GET /project-plans/unit/{unit_id}/`` (same shape) after
+  create/duplicate/delete.
 
 It is deliberately *not* per-module permission-gated (only unit access is
 enforced, like ``results-summary``) so limited users can load their home page
@@ -43,12 +48,14 @@ from app.api.deps import get_current_user, get_db
 from app.api.v1.carbon_report_module_stats import build_validated_totals
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.core.policy import require_unit_access
+from app.core.policy import plan_is_visible_to, require_unit_access
 from app.models.carbon_report import CarbonReportModule
 from app.models.unit import Unit
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
+from app.schemas.simulator_plan import SimulatorPlanRead
 from app.services.carbon_report_service import CarbonReportService
+from app.services.simulator_plan_service import SimulatorPlanService
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -111,6 +118,7 @@ class WorkspaceHomeResponse(BaseModel):
     year_config: Optional[HomeYearConfiguration] = None
     stats: dict
     module_states: list[dict]
+    project_plans: list[SimulatorPlanRead] = []
 
 
 @router.get("/{unit_id}/{year}/home", response_model=WorkspaceHomeResponse)
@@ -157,9 +165,12 @@ async def get_workspace_home(
         for module_type_id, module_status in module_state_rows
     ]
 
+    plans = await SimulatorPlanService(db).list_plans(unit_id)
+
     return WorkspaceHomeResponse(
         carbon_report_id=report.id,
         year_config=year_config,
         stats=stats,
         module_states=module_states,
+        project_plans=[p for p in plans if plan_is_visible_to(current_user, p)],
     )

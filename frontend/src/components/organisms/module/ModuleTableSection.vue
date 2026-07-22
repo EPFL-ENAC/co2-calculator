@@ -13,6 +13,7 @@
           :error="error"
           :unit-id="unitId"
           :year="year"
+          :factor-year="factorYear"
           :carbon-report-id="carbonReportId"
           :show-reference-columns="showReferenceColumns"
           :threshold="currentModuleConfig.threshold || defaultThreshold"
@@ -41,6 +42,8 @@ const props = defineProps<{
   error: string | null;
   unitId: number;
   year: string | number;
+  /** Year whose factors the class/subclass options resolve against — see ModuleForm. */
+  factorYear?: number | null;
   disable: boolean;
   /**
    * Plan-year report id. When set (Simulator Plan), module calls address this

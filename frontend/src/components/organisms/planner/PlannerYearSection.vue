@@ -46,6 +46,7 @@
         >
           <q-expansion-item
             :model-value="expandedKey === expansionKey(entry.config.module)"
+            :disable="!hasReferenceYear"
             @update:model-value="
               (open: boolean) => onToggle(entry.config.module, open)
             "
@@ -92,6 +93,7 @@
               />
               <module-table-section
                 v-else
+                :key="factorScopedKey(entry.config.module)"
                 :type="entry.config.module"
                 :config-override="getPlannerModuleConfig(entry.config.module)"
                 :data="moduleStore.state.data"
@@ -99,6 +101,7 @@
                 :error="moduleStore.state.error"
                 :unit-id="unitId"
                 :year="yearData.year"
+                :factor-year="yearData.reference_year"
                 :carbon-report-id="yearData.id"
                 :show-reference-columns="entry.config.behavior === 'prefilled'"
                 :disable="entry.module?.is_active === false"
@@ -127,6 +130,7 @@ import { getPlannerModuleConfig } from 'src/constant/planner-module-config/modul
 import { getModuleTypeId } from 'src/constant/moduleStates';
 import { MODULES, type Module } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
+import { factorMountKey } from 'src/utils/factor-year';
 import {
   useSimulatorPlansStore,
   type SimulatorPlanModule,
@@ -157,6 +161,10 @@ const yearOpen = ref(true);
 const settingReferenceYear = ref(false);
 const togglingModuleId = ref<number | null>(null);
 
+// Every module resolves its factors from the reference year; without one there
+// is nothing to enter data against, so the drawers stay shut.
+const hasReferenceYear = computed(() => props.yearData.reference_year !== null);
+
 const moduleEntries = computed<ModuleEntry[]>(() =>
   PLANNER_MODULES.map((config) => ({
     config,
@@ -168,6 +176,10 @@ const moduleEntries = computed<ModuleEntry[]>(() =>
 
 function expansionKey(module: Module): string {
   return `${props.yearData.year}-${module}`;
+}
+
+function factorScopedKey(module: Module): string {
+  return factorMountKey(module, props.yearData.reference_year);
 }
 
 async function refreshExpandedModule(module: Module) {

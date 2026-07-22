@@ -177,6 +177,7 @@
               :hint="col.hint"
               :unit-id="unitId"
               :year="year"
+              :factor-year="factorYear"
               :disable="isDisabled"
             />
             <component
@@ -269,27 +270,46 @@
           <template v-else-if="col.name === 'percentage_of_reference_year'">
             <div
               v-if="slotProps.row.reference_kg_co2eq != null"
-              class="row items-center no-wrap q-gutter-sm reference-slider"
+              class="row items-center no-wrap reference-slider"
             >
               <q-slider
-                :model-value="
-                  (slotProps.row.percentage_of_reference_year as number) ?? 100
-                "
-                :min="0"
-                :max="200"
+                :model-value="percentageOf(slotProps.row)"
+                :min="REFERENCE_PERCENTAGE_MIN"
+                :max="REFERENCE_PERCENTAGE_MAX"
                 :step="5"
                 :disable="isDisabled"
                 color="negative"
                 class="col"
+                @update:model-value="
+                  (val: number | null) => onPercentageDrag(slotProps.row, val)
+                "
                 @change="
                   (val: number) => onPercentageChange(slotProps.row, val)
                 "
               />
-              <span class="reference-slider__value">
-                {{
-                  (slotProps.row.percentage_of_reference_year as number) ?? 100
-                }}%
-              </span>
+              <div class="reference-slider__value">
+                <q-input
+                  :key="percentageInputKey(slotProps.row)"
+                  :model-value="percentageOf(slotProps.row)"
+                  type="number"
+                  :min="REFERENCE_PERCENTAGE_MIN"
+                  :max="REFERENCE_PERCENTAGE_MAX"
+                  :disable="isDisabled"
+                  :aria-label="$t('planner_percentage_col')"
+                  :style="percentageFieldWidth(slotProps.row)"
+                  dense
+                  borderless
+                  hide-bottom-space
+                  class="reference-slider__field"
+                  @update:model-value="
+                    (val: string | number | null) =>
+                      onPercentageTyped(slotProps.row, val)
+                  "
+                  @blur="() => commitPercentage(slotProps.row)"
+                  @keyup.enter="() => commitPercentage(slotProps.row)"
+                />
+                <span class="reference-slider__unit" aria-hidden="true">%</span>
+              </div>
             </div>
             <span v-else>-</span>
           </template>
@@ -499,6 +519,11 @@ import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import { formatRowErrorLines } from 'src/utils/rowErrors';
+import {
+  clampReferencePercentage,
+  REFERENCE_PERCENTAGE_MAX,
+  REFERENCE_PERCENTAGE_MIN,
+} from 'src/utils/reference-percentage';
 
 function getNumericRules(col: TableViewColumn) {
   const rules = [];
@@ -814,11 +839,13 @@ type CommonProps = {
   moduleFields: ModuleField[] | null;
   unitId: number;
   year: string | number;
+  /** Year whose factors the class/subclass options resolve against — see ModuleForm. */
+  factorYear?: number | null;
   /** Plan-year report id; when set, module calls address it directly. */
   carbonReportId?: number;
   /**
    * Planner prefilled context: add the reference-year kgCO₂eq column and the
-   * 0–200% "% of reference year" slider (snapshot rows only). Off for the
+   * 0–100% "% of reference year" slider (snapshot rows only). Off for the
    * Calculator and non-prefilled planner modules.
    */
   showReferenceColumns?: boolean;
@@ -837,6 +864,7 @@ type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
   carbonReportId: undefined,
+  factorYear: undefined,
   showReferenceColumns: false,
   moduleColor: undefined,
   moduleColorLighter: undefined,
@@ -1299,6 +1327,68 @@ function getRowId(row: ModuleRow): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// Uncommitted percentage per row: what the slider shows mid-drag and what the
+// typed field shows mid-edit. Both controls read it, so the number tracks the
+// slider handle live instead of jumping only once the drag ends.
+const percentageDrafts = ref<Record<string, number>>({});
+
+function percentageStored(row: ModuleRow): number {
+  return (row.percentage_of_reference_year as number) ?? 100;
+}
+
+function percentageOf(row: ModuleRow): number {
+  const id = String(getRowId(row));
+  return percentageDrafts.value[id] ?? percentageStored(row);
+}
+
+// The field hugs its digits so the trailing "%" always sits one space after the
+// last one, rather than at the far side of a box sized for three digits. The
+// surrounding block keeps a fixed width, so the slider does not resize with it.
+function percentageFieldWidth(row: ModuleRow): Record<string, string> {
+  return { width: `${String(percentageOf(row)).length}ch` };
+}
+
+// Remount key for the typed field. Clearing the field leaves the model
+// untouched, so Vue has nothing to re-render against and the box would stay
+// blank over a row that still has a value; bumping the key on commit rebuilds
+// it from the row.
+const percentageInputRevisions = ref<Record<string, number>>({});
+
+function percentageInputKey(row: ModuleRow): string {
+  const id = String(getRowId(row));
+  return `${id}-${percentageInputRevisions.value[id] ?? 0}`;
+}
+
+// Dragging: move the number with the handle. No PATCH until the drag ends,
+// which QSlider signals with @change.
+function onPercentageDrag(row: ModuleRow, value: number | null) {
+  if (value === null) return;
+  percentageDrafts.value[String(getRowId(row))] = value;
+}
+
+// Typing: drive the slider live, capped, so the two never disagree. An empty
+// or unparseable box holds the last value rather than guessing one.
+function onPercentageTyped(row: ModuleRow, raw: string | number | null) {
+  const value = clampReferencePercentage(raw);
+  if (value === null) return;
+  percentageDrafts.value[String(getRowId(row))] = value;
+}
+
+// Blur/Enter commits the typed value; the draft is dropped either way so the
+// row's stored percentage takes back over.
+async function commitPercentage(row: ModuleRow) {
+  const id = getRowId(row);
+  if (id == null) return;
+  const key = String(id);
+  const draft = percentageDrafts.value[key];
+  if (draft !== undefined && draft !== percentageStored(row)) {
+    await onPercentageChange(row, draft);
+  }
+  delete percentageDrafts.value[key];
+  percentageInputRevisions.value[key] =
+    (percentageInputRevisions.value[key] ?? 0) + 1;
+}
+
 // Planner slider: PATCH the snapshot row's percentage; the backend recomputes
 // kg_co2eq = reference × %, and patchItem refetches so the kg cell updates.
 async function onPercentageChange(row: ModuleRow, value: number) {
@@ -1320,6 +1410,10 @@ async function onPercentageChange(row: ModuleRow, value: number) {
       message: $t('common_save_error'),
       position: 'top',
     });
+  } finally {
+    // The refetched row is authoritative from here; a surviving draft would
+    // shadow it, and on a failed PATCH it would show a value never stored.
+    delete percentageDrafts.value[String(id)];
   }
 }
 
@@ -2033,12 +2127,61 @@ onUnmounted(() => {
 
 .reference-slider {
   min-width: 160px;
+
+  // Clears the slider's thumb, which overhangs the end of its track.
+  gap: 1rem;
 }
 
 .reference-slider__value {
-  min-width: 3rem;
-  text-align: right;
+  display: flex;
+  align-items: center;
+
+  // Fixed here rather than on the field, so the slider keeps its width while
+  // the field inside grows with its digits.
+  width: 3.25rem;
+
+  // Digits of equal width, so the "%" does not shift as the value changes.
   font-variant-numeric: tabular-nums;
+}
+
+.reference-slider__field {
+  // It is a table value that happens to be editable, so it takes the cell's
+  // type. `font` (not `font-size`) because the q-field root itself carries
+  // Quasar's $input-font-size — inheriting only in the children would inherit
+  // that, not the cell's.
+  font: inherit;
+
+  :deep(.q-field__control),
+  :deep(.q-field__native) {
+    font: inherit;
+    color: inherit;
+    min-height: 0;
+    padding: 0;
+  }
+
+  :deep(input) {
+    text-align: left;
+
+    // Spinners would halve the usable width of a 3-digit field.
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      appearance: none;
+      margin: 0;
+    }
+  }
+
+  :deep(input[type='number']) {
+    appearance: textfield;
+  }
+}
+
+// Trailing unit: it labels the field, it is not part of it. The field carries
+// the accessible name, so this is decorative and inert.
+.reference-slider__unit {
+  // One space after the last digit — no more.
+  padding-left: 0.25em;
+  user-select: none;
+  pointer-events: none;
 }
 
 .tooltip {
