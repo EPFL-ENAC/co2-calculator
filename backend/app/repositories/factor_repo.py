@@ -137,10 +137,17 @@ class FactorRepository:
         unique index expression — so the input must be split by year-presence
         and one ON CONFLICT inference issued per partition.
 
-        Preserves ``factor.id`` for existing rows so downstream references —
-        including the ``DataEntryEmission.primary_factor_id`` FK — stay valid
-        across reuploads.  Stamps ``last_seen_job_id`` so callers can later
-        detect rows not present in the current batch.
+        Upsert-in-place (rather than delete-all + reinsert) is an
+        operability choice, not a correctness constraint (#1491): a
+        partial (WARNING) upload writes what parsed and can never destroy
+        factors, and unchanged rows — plus the emission rows referencing
+        them — stay untouched, so a reupload's blast radius is exactly
+        the rows it carries.  Preserving ``factor.id`` also keeps the
+        derived ``DataEntryEmission.primary_factor_id`` FK valid until
+        the chained recalc rebuilds it, but emissions are derived state —
+        the FK is no longer the load-bearing reason.  Stamps
+        ``last_seen_job_id`` so callers can later detect rows not present
+        in the current batch.
 
         Postgres-only: relies on ``INSERT ... ON CONFLICT DO UPDATE``.
 
@@ -446,12 +453,17 @@ class FactorRepository:
         self,
         data_entry_type_id: DataEntryTypeEnum,
         year: Optional[int] = None,
+        *,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
     ) -> List[Factor]:
         """List all factors for a data entry type.
 
         Args:
             data_entry_type_id: Data entry type filter
             year: Optional year filter for year-scoped factors
+            limit / offset: Optional pagination window (backoffice factor
+                viewer, #1491).  Ordered by id for a stable page sequence.
         """
         conditions = [col(Factor.data_entry_type_id) == data_entry_type_id]
 
@@ -460,6 +472,12 @@ class FactorRepository:
             conditions.append(col(Factor.year) == year)
 
         stmt = select(Factor).where(*conditions)
+        if limit is not None or offset is not None:
+            stmt = stmt.order_by(col(Factor.id).asc())
+            if offset is not None:
+                stmt = stmt.offset(offset)
+            if limit is not None:
+                stmt = stmt.limit(limit)
 
         result = await self.session.exec(stmt)
         return list(result.all())

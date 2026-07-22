@@ -582,3 +582,178 @@ async def test_upsert_batch_falls_back_to_batch_size_when_rowcount_negative():
     reported = await provider._upsert_batch(batch, factor_repo)
 
     assert reported == 3, "negative rowcount should fall back to len(batch)"
+
+
+# ---------------------------------------------------------------------------
+# #1491 ask 2 — null required identity field guard
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_process_row_null_required_identity_field_is_row_error(monkeypatch):
+    """A NULL in a DTO-required classification field must be a per-row
+    error naming the field — before emission-type resolution and before
+    the None can enter the upsert identity key."""
+    handler = MagicMock()
+    handler.classification_fields = ["kind", "subkind"]
+    handler.value_fields = ["value"]
+    handler.required_columns = {"kind", "value"}
+
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    emission_resolver = MagicMock()
+    monkeypatch.setattr(
+        base_factor_csv_provider, "get_factor_emission_type_id", emission_resolver
+    )
+
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "data_entry_type_id": 1, "year": 2024},
+        data_session=MagicMock(),
+    )
+    stats = _build_stats()
+    factor_service = MagicMock()
+    factor_service.prepare_create = AsyncMock()
+
+    factor, error_msg = await provider._process_row(
+        row={"kind": "  ", "subkind": "x", "value": "1.0"},
+        row_idx=4,
+        setup_result={"handlers": [handler], "valid_entry_types": []},
+        stats=stats,
+        max_row_errors=5,
+        factor_service=factor_service,
+    )
+
+    assert factor is None
+    assert "kind" in error_msg
+    assert "Missing required classification field" in error_msg
+    assert stats["rows_skipped"] == 1
+    assert stats["row_errors"][0]["reason"] == error_msg
+    # Guard fires BEFORE emission-type resolution and before any write.
+    emission_resolver.assert_not_called()
+    factor_service.prepare_create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_process_row_null_optional_classification_field_passes(monkeypatch):
+    """Handlers with legitimately nullable classification fields (not in
+    the DTO's required set) are unaffected by the null-identity guard."""
+    handler = MagicMock()
+    handler.classification_fields = ["kind", "subkind"]
+    handler.value_fields = ["value"]
+    handler.required_columns = {"kind", "value"}
+
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "data_entry_type_id": 1, "year": 2024},
+        data_session=MagicMock(),
+    )
+    stats = _build_stats()
+    factor_service = MagicMock()
+    factor_service.prepare_create = AsyncMock(return_value=SimpleNamespace(id=9))
+
+    factor, error_msg = await provider._process_row(
+        row={"kind": "plane", "subkind": "", "value": "1.0"},
+        row_idx=5,
+        setup_result={"handlers": [handler], "valid_entry_types": []},
+        stats=stats,
+        max_row_errors=5,
+        factor_service=factor_service,
+    )
+
+    assert error_msg is None
+    assert factor.id == 9
+    assert stats["rows_skipped"] == 0
+
+
+@pytest.mark.asyncio
+async def test_null_identity_row_yields_warning_and_no_sweep(monkeypatch):
+    """Regression (#1491): a CSV with one null-required-identity row
+    finishes WARNING, writes only the good rows, and never sweeps —
+    so a bad upload cannot delete factors it failed to re-assert."""
+    from app.models.data_ingestion import IngestionResult
+
+    handler = MagicMock()
+    handler.classification_fields = ["kind"]
+    handler.value_fields = ["value"]
+    handler.required_columns = {"kind"}
+    handler.validate_create.return_value = None
+
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
+    provider = ConcreteFactorProvider(
+        {
+            "file_path": "tmp/test.csv",
+            "data_entry_type_id": 1,
+            "year": 2024,
+            "job_id": 7,
+        },
+        data_session=MagicMock(),
+    )
+    provider.data_session.flush = AsyncMock()
+    provider.data_session.rollback = AsyncMock()
+    provider._update_job = AsyncMock()
+
+    csv_text = "kind,value\nplane,1.5\n,2.0\n"
+
+    async def fake_setup():
+        return {
+            "csv_text": csv_text,
+            "handlers": [handler],
+            "expected_columns": {"kind", "value"},
+            "required_columns": {"kind"},
+            "processing_path": "processing/x.csv",
+            "filename": "x.csv",
+            "valid_entry_types": [DataEntryTypeEnum.member],
+        }
+
+    monkeypatch.setattr(provider, "_setup_and_validate", fake_setup)
+    monkeypatch.setattr(
+        provider, "_move_to_processed", AsyncMock(return_value="processed/x.csv")
+    )
+
+    fake_repo = MagicMock()
+    fake_repo.upsert_factors = AsyncMock(return_value=1)
+    fake_repo.delete_stale_for_year = AsyncMock(return_value=0)
+    monkeypatch.setattr(
+        base_factor_csv_provider, "FactorRepository", MagicMock(return_value=fake_repo)
+    )
+    fake_service = MagicMock()
+    fake_service.prepare_create = AsyncMock(
+        return_value=SimpleNamespace(id=1, data_entry_type_id=1)
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider, "FactorService", MagicMock(return_value=fake_service)
+    )
+
+    result = await provider.process_csv_in_batches()
+
+    assert result["result"] == IngestionResult.WARNING
+    assert result["stats"]["rows_processed"] == 1
+    assert result["stats"]["rows_skipped"] == 1
+    assert result["stats"]["factors_deleted"] == 0
+    # Only the good row was written; the null-identity row wrote nothing.
+    fake_service.prepare_create.assert_awaited_once()
+    # WARNING ⇒ no stale sweep.
+    fake_repo.delete_stale_for_year.assert_not_awaited()

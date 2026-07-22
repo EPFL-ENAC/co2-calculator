@@ -9,9 +9,11 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator, List, NamedTuple, Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import func
 from sqlmodel import col, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -42,24 +44,47 @@ from app.core.constants import (
     ModuleStatus,
 )
 from app.core.logging import get_logger
-from app.core.security import get_current_active_user
+from app.core.security import get_current_active_user, require_permission
 from app.models.carbon_report import (
     CarbonReport,
+    CarbonReportModule,
+)
+from app.models.data_entry import (
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryTypeEnum,
+)
+from app.models.data_ingestion import (
+    DataIngestionJob,
+    EntityType,
+    IngestionMethod,
+    IngestionState,
+    TargetType,
 )
 from app.models.module_type import (
     DEFAULT_COMPLETION_PROGRESS,
     MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+    get_module_type_for_data_entry_type,
 )
 from app.models.unit import Unit
 from app.models.user import User
 from app.repositories.carbon_report_module_repo import (
     CarbonReportModuleRepository,
 )
+from app.repositories.data_ingestion import DataIngestionRepository
+from app.repositories.factor_repo import FactorRepository
 from app.schemas.backoffice import (
+    BulkDeleteResponse,
+    PaginatedBackofficeFactors,
     PaginatedUnitReportingData,
     PaginationMeta,
     UnitReportingData,
 )
+from app.schemas.factor import BaseFactorHandler
+from app.schemas.user import UserRead
+from app.services.data_entry_service import DataEntryService
+from app.tasks._background import fire_and_forget
+from app.tasks.runner import run_job
 from app.utils.scoping import (
     build_scope_subtree_predicate,
     gate_backoffice,
@@ -657,3 +682,281 @@ async def report_results(
                 ),
             },
         )
+
+
+# ---------------------------------------------------------------------------
+# Factor & data-entry management (#1491)
+# ---------------------------------------------------------------------------
+
+
+def _parse_data_entry_type(data_entry_type_id: int) -> DataEntryTypeEnum:
+    try:
+        return DataEntryTypeEnum(data_entry_type_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown data_entry_type_id: {data_entry_type_id}",
+        )
+
+
+async def _dispatch_emission_recalc(
+    db: AsyncSession,
+    *,
+    data_entry_type: DataEntryTypeEnum,
+    year: int,
+    user: User,
+    carbon_report_module_id: Optional[int] = None,
+) -> tuple[Optional[int], Optional[str]]:
+    """Dispatch a root ``emission_recalc`` job for the deleted scope.
+
+    A bulk delete changes operator-owned state (factors / data entries);
+    emissions and the stat buckets (``carbon_report_module.stats``) are
+    derived from it.  The ``emission_recalc`` handler rebuilds the
+    ``(data_entry_type, year)`` emission slice and chains the trailing
+    ``aggregation`` that rewrites the stat buckets — the same path every
+    ingest uses, so the system converges to the state a re-upload would
+    produce.  The admin ``recompute-stats`` trigger is NOT sufficient
+    here: it re-aggregates existing emission rows without rebuilding
+    them (and is designed for unchanged data — it skips the module
+    status bump), so emission rows left behind by a factor delete would
+    keep feeding stale numbers into the stats.
+
+    Mirrors ``recalculate_emissions_for_type`` in ``data_sync.py``.
+    Returns ``(job_id, pipeline_id)``.
+    """
+    module_type = get_module_type_for_data_entry_type(data_entry_type)
+    if module_type is None:
+        # Without a module type the recalc's advisory lock and the
+        # chained aggregation have no scope — surface loudly instead of
+        # leaving stats silently stale.
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"No module type mapped for data_entry_type "
+                f"{data_entry_type.name}; cannot chain recalculation"
+            ),
+        )
+
+    config: dict[str, Any] = {
+        "year": year,
+        "data_entry_type_id": data_entry_type.value,
+    }
+    if carbon_report_module_id is not None:
+        # Module-scoped delete → module-scoped recalc (same pinning the
+        # unit-specific ingest does), so a small delete doesn't recompute
+        # the whole (det, year) slice.
+        config["carbon_report_module_ids"] = [carbon_report_module_id]
+
+    pipeline_id = uuid4()
+    job = DataIngestionJob(
+        job_type="emission_recalc",
+        module_type_id=module_type.value,
+        data_entry_type_id=data_entry_type.value,
+        year=year,
+        ingestion_method=IngestionMethod.computed,
+        target_type=TargetType.DATA_ENTRIES,
+        entity_type=EntityType.MODULE_PER_YEAR,
+        state=IngestionState.NOT_STARTED,
+        provider=user.provider,
+        pipeline_id=pipeline_id,
+        meta={"config": config},
+    )
+    repo = DataIngestionRepository(db)
+    await repo.ensure_pipeline_exists(
+        pipeline_id,
+        kind="emission_recalc",
+        entity_type=EntityType.MODULE_PER_YEAR.value,
+        ingestion_method=IngestionMethod.computed.value,
+        module_type_id=module_type.value,
+        year=year,
+    )
+    created_job = await repo.create_ingestion_job(job)
+    await db.commit()
+    if created_job.id is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create recalculation job",
+        )
+    fire_and_forget(run_job(created_job.id), name=f"run_job-{created_job.id}")
+    return created_job.id, str(pipeline_id)
+
+
+@router.get("/factors", response_model=PaginatedBackofficeFactors)
+async def list_backoffice_factors(
+    data_entry_type_id: int = Query(..., description="DataEntryTypeEnum value"),
+    year: int = Query(..., description="Factor year scope"),
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.configuration", "view")
+    ),
+) -> PaginatedBackofficeFactors:
+    """Paginated factor viewer for one ``(data_entry_type, year)`` scope.
+
+    Rows are serialized through the type's factor handler and carry
+    ``last_seen_job_id`` so an operator can spot rows the latest upload
+    did not assert (#1491).
+    """
+    det = _parse_data_entry_type(data_entry_type_id)
+    try:
+        handler = BaseFactorHandler.get_by_type(det)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    repo = FactorRepository(db)
+    total = await repo.count_by_data_entry_type_and_year(det.value, year)
+    factors = await repo.list_by_data_entry_type(
+        det, year, limit=page_size, offset=(page - 1) * page_size
+    )
+    data = [
+        {
+            **handler.to_response(factor).model_dump(),
+            "year": factor.year,
+            "last_seen_job_id": factor.last_seen_job_id,
+        }
+        for factor in factors
+    ]
+    return PaginatedBackofficeFactors(
+        data=data,
+        pagination=PaginationMeta(
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=-(-total // page_size) if total else 0,
+        ),
+    )
+
+
+@router.delete("/factors", response_model=BulkDeleteResponse)
+async def bulk_delete_backoffice_factors(
+    data_entry_type_id: int = Query(..., description="DataEntryTypeEnum value"),
+    year: int = Query(..., description="Factor year scope"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.configuration", "edit")
+    ),
+) -> BulkDeleteResponse:
+    """Bulk delete every factor of one ``(data_entry_type, year)`` scope.
+
+    Emission rows referencing the factors go via FK CASCADE; an
+    ``emission_recalc`` is dispatched so surviving entries are rebuilt
+    against what remains and the stat buckets are re-aggregated (#1491).
+    """
+    det = _parse_data_entry_type(data_entry_type_id)
+    repo = FactorRepository(db)
+    factor_ids = await repo.list_id_by_data_entry_type_and_year(det, year)
+    if not factor_ids:
+        return BulkDeleteResponse(deleted=0)
+
+    await repo.bulk_delete(factor_ids)
+    await db.commit()
+    logger.info(
+        f"backoffice: deleted {len(factor_ids)} factors for "
+        f"det={det.name}/year={year} (user {current_user.id})"
+    )
+    job_id, pipeline_id = await _dispatch_emission_recalc(
+        db, data_entry_type=det, year=year, user=current_user
+    )
+    return BulkDeleteResponse(
+        deleted=len(factor_ids),
+        recalc_job_id=job_id,
+        recalc_pipeline_id=pipeline_id,
+    )
+
+
+@router.delete("/data-entries", response_model=BulkDeleteResponse)
+async def bulk_delete_backoffice_data_entries(
+    data_entry_type_id: int = Query(..., description="DataEntryTypeEnum value"),
+    source: int = Query(..., description="DataEntrySourceEnum value"),
+    year: int = Query(..., description="Report year"),
+    carbon_report_module_id: Optional[int] = Query(
+        None,
+        description="Restrict to one carbon report module; omit for the whole year",
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.configuration", "edit")
+    ),
+) -> BulkDeleteResponse:
+    """Bulk delete data entries by type + source, year- or module-scoped.
+
+    Deleted entries' emission rows go via FK CASCADE; an
+    ``emission_recalc`` (module-scoped when the delete was) is dispatched
+    so the stat buckets are re-aggregated (#1491).
+    """
+    det = _parse_data_entry_type(data_entry_type_id)
+    try:
+        source_enum = DataEntrySourceEnum(source)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown source: {source}")
+
+    service = DataEntryService(db)
+    if carbon_report_module_id is not None:
+        # The module pins the year — reject a mismatched year param so the
+        # chained recalc can't target the wrong slice.
+        module_year_stmt = (
+            select(CarbonReport.year)
+            .join(
+                CarbonReportModule,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(col(CarbonReportModule.id) == carbon_report_module_id)
+        )
+        module_year = (await db.execute(module_year_stmt)).scalar_one_or_none()
+        if module_year is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Carbon report module {carbon_report_module_id} not found",
+            )
+        if module_year != year:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Module {carbon_report_module_id} belongs to year "
+                    f"{module_year}, not {year}"
+                ),
+            )
+        count_stmt = (
+            select(func.count())
+            .select_from(DataEntry)
+            .where(
+                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id) == det.value,
+                col(DataEntry.source) == source_enum.value,
+            )
+        )
+        deleted = (await db.execute(count_stmt)).scalar_one()
+        if deleted:
+            await service.bulk_delete_by_source(
+                carbon_report_module_id,
+                det,
+                source_enum.value,
+                user=UserRead.model_validate(current_user, from_attributes=True),
+            )
+    else:
+        deleted = await service.repo.bulk_delete_by_source_year(
+            year, [det.value], source_enum.value
+        )
+
+    if not deleted:
+        return BulkDeleteResponse(deleted=0)
+
+    await db.commit()
+    logger.info(
+        f"backoffice: deleted {deleted} data entries for det={det.name}/"
+        f"source={source_enum.name}/year={year}"
+        f"/module={carbon_report_module_id} (user {current_user.id})"
+    )
+    job_id, pipeline_id = await _dispatch_emission_recalc(
+        db,
+        data_entry_type=det,
+        year=year,
+        user=current_user,
+        carbon_report_module_id=carbon_report_module_id,
+    )
+    return BulkDeleteResponse(
+        deleted=deleted,
+        recalc_job_id=job_id,
+        recalc_pipeline_id=pipeline_id,
+    )

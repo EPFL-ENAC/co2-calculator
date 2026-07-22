@@ -17,6 +17,45 @@ export async function getSubclassMap(
 
 export type ValueFactorResponse = Record<string, number | string | null> | null;
 
+// ── Backoffice factor viewer (#1491) ──────────────────────────────────
+
+export interface FactorsPaginationMeta {
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}
+
+// Handler response DTO dump plus year / last_seen_job_id — the concrete
+// columns vary per data entry type, hence the open record.
+export type BackofficeFactorRow = Record<string, unknown> & {
+  id: number;
+  year: number | null;
+  last_seen_job_id: number | null;
+};
+
+export interface BackofficeFactorsResponse {
+  data: BackofficeFactorRow[];
+  pagination: FactorsPaginationMeta;
+}
+
+export async function listBackofficeFactors(params: {
+  dataEntryTypeId: number;
+  year: number;
+  page: number;
+  pageSize: number;
+}): Promise<BackofficeFactorsResponse> {
+  const searchParams = new URLSearchParams({
+    data_entry_type_id: String(params.dataEntryTypeId),
+    year: String(params.year),
+    page: String(params.page),
+    page_size: String(params.pageSize),
+  });
+  return await api
+    .get('backoffice/factors', { searchParams })
+    .json<BackofficeFactorsResponse>();
+}
+
 export async function getFactorValues(
   submodule: AllSubmoduleTypes,
   equipmentClass: string,
