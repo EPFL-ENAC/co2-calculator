@@ -215,6 +215,26 @@ export default {
     en: 'Could not set the reference year',
     fr: "Impossible de définir l'année de référence",
   },
+  planner_reference_year_set_button: {
+    en: 'Choose a reference year',
+    fr: 'Choisir une année de référence',
+  },
+  planner_reference_year_change_link: {
+    en: 'Change',
+    fr: 'Modifier',
+  },
+  planner_reference_year_rebuild_hint: {
+    en: 'Prefilled modules are rebuilt from this year.',
+    fr: 'Les modules préremplis sont reconstruits à partir de cette année.',
+  },
+  planner_reference_year_dialog_title: {
+    en: 'Reference year for {year}',
+    fr: 'Année de référence pour {year}',
+  },
+  planner_reference_year_dialog_consequences: {
+    en: 'Every prefilled module is rebuilt from the year you pick, and its factors come from it. The rows of your current reference year are kept: come back to it and your percentages, edits and deletions are as you left them.',
+    fr: "Chaque module prérempli est reconstruit à partir de l'année choisie, et ses facteurs en proviennent. Les lignes de votre année de référence actuelle sont conservées : en y revenant, vos pourcentages, modifications et suppressions seront intacts.",
+  },
   planner_module_active_tooltip: {
     en: 'Inactive modules are excluded from sums, graphs and results.',
     fr: 'Les modules inactifs sont exclus des sommes, graphiques et résultats.',

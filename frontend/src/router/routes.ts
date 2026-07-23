@@ -1,5 +1,6 @@
 import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
+import { CARBON_PROJECT } from 'src/constant/carbon-project';
 import { resolveLanguage } from 'src/utils/language';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import redirectToDefaultRoute from './guards/redirectToDefaultRoute';
@@ -73,6 +74,7 @@ const routes: RouteRecordRaw[] = [
           requiresAuth: true,
           note: 'Simulation Explore – Print/PDF preview (no chrome)',
           breadcrumb: false,
+          carbonProject: CARBON_PROJECT.explorer,
         },
       },
     ],
@@ -222,6 +224,7 @@ const routes: RouteRecordRaw[] = [
                   requiresAuth: true,
                   note: 'Project Planner - plan a project simulation',
                   breadcrumb: true,
+                  carbonProject: CARBON_PROJECT.planner,
                 },
               },
               {
@@ -232,6 +235,7 @@ const routes: RouteRecordRaw[] = [
                   requiresAuth: true,
                   note: 'Simulation - Explore a simulation',
                   breadcrumb: true,
+                  carbonProject: CARBON_PROJECT.explorer,
                 },
               },
 

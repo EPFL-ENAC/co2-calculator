@@ -13,28 +13,65 @@
         <div class="text-weight-bold q-mb-sm">
           {{ $t('planner_reference_year_label') }}
         </div>
-        <q-select
-          :model-value="yearData.reference_year"
-          :options="referenceYearOptions"
-          outlined
-          dense
-          emit-value
-          map-options
-          class="planner-reference-year"
-          :loading="settingReferenceYear"
-          @update:model-value="onReferenceYearChange"
-        >
-          <template #prepend>
-            <q-icon name="o_calendar_month" color="negative" />
-          </template>
-        </q-select>
+        <!-- Set: the value reads first, the action stays quiet beside it.
+             Unset: nothing to read yet, so the action carries the label. -->
         <div
-          v-if="!yearData.reference_year"
-          class="text-body2 text-grey-7 q-mt-sm"
+          v-if="yearData.reference_year"
+          class="reference-year-row row items-center no-wrap"
         >
-          {{ $t('planner_reference_year_hint') }}
+          <q-icon
+            name="o_calendar_month"
+            color="info"
+            class="reference-year-row__icon"
+          />
+          <span class="reference-year-row__value text-weight-bold">
+            {{ yearData.reference_year }}
+          </span>
+          <q-separator vertical class="reference-year-row__divider" />
+          <q-btn
+            :label="$t('planner_reference_year_change_link')"
+            color="info"
+            flat
+            dense
+            no-caps
+            padding="none"
+            class="reference-year-row__action text-weight-medium"
+            :loading="settingReferenceYear"
+            @click="referenceYearDialogOpen = true"
+          />
+        </div>
+        <q-btn
+          v-else
+          color="info"
+          flat
+          no-caps
+          align="left"
+          class="reference-year-empty text-weight-medium"
+          :loading="settingReferenceYear"
+          @click="referenceYearDialogOpen = true"
+        >
+          <q-icon name="o_calendar_month" class="reference-year-row__icon" />
+          <span>{{ $t('planner_reference_year_set_button') }}</span>
+        </q-btn>
+        <div class="text-body2 text-grey-7 q-mt-xs">
+          {{
+            yearData.reference_year
+              ? $t('planner_reference_year_rebuild_hint')
+              : $t('planner_reference_year_hint')
+          }}
         </div>
       </q-card-section>
+
+      <planner-reference-year-dialog
+        v-if="referenceYearDialogOpen"
+        :key="`ref-year-${yearData.reference_year}`"
+        v-model="referenceYearDialogOpen"
+        :year="yearData.year"
+        :reference-year="yearData.reference_year"
+        :options="referenceYearOptions"
+        :loading="settingReferenceYear"
+        @confirm="onReferenceYearChange"
+      />
 
       <!-- One bordered card per module, in Calculator order -->
       <q-card-section class="q-gutter-md">
@@ -122,6 +159,7 @@ import { useI18n } from 'vue-i18n';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
 import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
+import PlannerReferenceYearDialog from 'src/components/organisms/planner/PlannerReferenceYearDialog.vue';
 import {
   PLANNER_MODULES,
   type PlannerModuleConfig,
@@ -159,6 +197,7 @@ const plansStore = useSimulatorPlansStore();
 
 const yearOpen = ref(true);
 const settingReferenceYear = ref(false);
+const referenceYearDialogOpen = ref(false);
 const togglingModuleId = ref<number | null>(null);
 
 // Every module resolves its factors from the reference year; without one there
@@ -204,8 +243,9 @@ async function onReferenceYearChange(referenceYear: number) {
       props.yearData.year,
       referenceYear,
     );
-    // Setting the reference year auto-prefills every prefilled module; refresh
-    // the open module so its snapshot rows appear without a manual reload.
+    referenceYearDialogOpen.value = false;
+    // The new baseline's rows are prefilled (or restored); refresh the open
+    // module so they appear without a manual reload.
     const expanded = props.expandedKey?.startsWith(`${props.yearData.year}-`);
     const module = props.expandedKey?.split('-').slice(1).join('-') as
       Module | undefined;
@@ -233,7 +273,51 @@ async function onToggleActive(entry: ModuleEntry, active: boolean) {
 </script>
 
 <style scoped lang="scss">
-.planner-reference-year {
-  max-width: 320px;
+@use 'src/css/02-tokens' as tokens;
+
+// Setting row: the current value reads as the content, the action sits quietly
+// beside it — changing the baseline is deliberate, not a stray click.
+.reference-year-row {
+  display: inline-flex;
+  gap: tokens.$reference-year-row-gap;
+  padding: tokens.$reference-year-row-padding-y
+    tokens.$reference-year-row-padding-x;
+  border: tokens.$reference-year-row-border-weight solid
+    tokens.$reference-year-row-border-color;
+  border-radius: tokens.$reference-year-row-border-radius;
+
+  &__icon {
+    font-size: tokens.$reference-year-row-icon-size;
+  }
+
+  &__value {
+    font-size: tokens.$reference-year-row-value-font-size;
+    line-height: 1;
+  }
+
+  &__divider {
+    height: tokens.$reference-year-row-divider-height;
+    align-self: center;
+  }
+
+  &__action {
+    font-size: tokens.$reference-year-row-action-font-size;
+  }
+}
+
+// The same slot before it holds anything: dashed, so it reads as waiting to be
+// filled rather than as a call to action competing with the module list.
+.reference-year-empty {
+  padding: tokens.$reference-year-row-padding-y
+    tokens.$reference-year-row-padding-x;
+  border: tokens.$reference-year-row-border-weight
+    tokens.$reference-year-row-empty-border-style
+    tokens.$reference-year-row-empty-border-color;
+  border-radius: tokens.$reference-year-row-border-radius;
+  font-size: tokens.$reference-year-row-value-font-size;
+
+  :deep(.q-btn__content) {
+    gap: tokens.$reference-year-row-gap;
+  }
 }
 </style>

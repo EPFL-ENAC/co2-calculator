@@ -340,3 +340,21 @@ $mtr-sidebar-value-letter-spacing: opt.$tokens-typography-letter-spacing-tight !
 $mtr-sidebar-unit-font-size: opt.$tokens-mtr-sidebar-unit-font-size !default;
 $mtr-sidebar-unit-margin-top: opt.$tokens-mtr-sidebar-unit-margin-top !default;
 $mtr-sidebar-btn-border-radius: opt.$tokens-module-icon-box-border-radius !default;
+
+// Planner reference-year setting row: bordered value + quiet "Change" action.
+// Sized to sit under its label without competing with it — the year reads at
+// body size, not as a heading.
+$reference-year-row-gap: opt.$tokens-spacing-8 !default;
+$reference-year-row-padding-x: opt.$tokens-spacing-12 !default;
+$reference-year-row-padding-y: opt.$tokens-spacing-4 !default;
+$reference-year-row-border-weight: opt.$tokens-spacing-1 !default;
+$reference-year-row-border-color: opt.$tokens-colors-grey-scale-grey-300 !default;
+$reference-year-row-border-radius: opt.$tokens-border-radius-lg-border-radius !default;
+$reference-year-row-value-font-size: opt.$tokens-typography-font-size-md !default;
+$reference-year-row-icon-size: opt.$tokens-spacing-16 !default;
+$reference-year-row-divider-height: opt.$tokens-spacing-16 !default;
+$reference-year-row-action-font-size: opt.$tokens-typography-font-size-sm !default;
+
+// Empty state: the same slot, drawn as waiting to be filled.
+$reference-year-row-empty-border-style: dashed !default;
+$reference-year-row-empty-border-color: opt.$tokens-colors-grey-scale-grey-400 !default;

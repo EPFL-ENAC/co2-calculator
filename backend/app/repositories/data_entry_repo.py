@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from psycopg.types.json import Json
 from pydantic import BaseModel
-from sqlalchemy import Select, and_, asc, desc, func, or_
+from sqlalchemy import Select, and_, asc, case, desc, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import aliased
@@ -53,6 +53,41 @@ COPY data_entries (
     source, created_by_id, created_at, updated_at, year, unit_id
 ) FROM STDIN
 """
+
+
+def reference_year_filter(reference_year: Optional[int]) -> Any:
+    """Keep only the rows of the live baseline.
+
+    A Simulator Plan year holds the prefilled rows of every reference year it
+    has used, so switching the baseline back and forth never loses the user's
+    sliders or edits. ``data['reference_year']`` says which baseline a row was
+    copied from; rows without it — every Calculator and Explore row, and any
+    row a planner user adds by hand — always count.
+
+    Callers pass the report's current ``reference_year``; the read stays
+    unfiltered when there is none.
+    """
+    stamped = DataEntry.data["reference_year"].as_integer()
+    return or_(stamped.is_(None), stamped == reference_year)
+
+
+def reference_year_filter_by_module(
+    reference_year_by_module: Dict[int, int],
+) -> Any:
+    """``reference_year_filter`` for a batch of modules, one baseline each.
+
+    Modules absent from the map — every Calculator one — are unconstrained, so
+    a batch without plan modules adds no condition at all.
+    """
+    stamped = DataEntry.data["reference_year"].as_integer()
+    expected = case(
+        *(
+            (col(DataEntry.carbon_report_module_id) == module_id, year)
+            for module_id, year in reference_year_by_module.items()
+        ),
+        else_=None,
+    )
+    return or_(stamped.is_(None), stamped == expected)
 
 
 class DataEntryRepository:
@@ -435,6 +470,7 @@ class DataEntryRepository:
         self,
         carbon_report_module_id: int,
         travel_institutional_id_filter: Optional[str] = None,
+        reference_year: Optional[int] = None,
     ) -> Dict[int, int]:
         """
         Docstring for get_total_count_by_submodule
@@ -473,6 +509,8 @@ class DataEntryRepository:
             .where(DataEntry.carbon_report_module_id == carbon_report_module_id)
             .group_by(col(DataEntry.data_entry_type_id))
         )
+        if reference_year is not None:
+            query = query.where(reference_year_filter(reference_year))
         if travel_institutional_id_filter is not None:
             travel_type_ids = (
                 DataEntryTypeEnum.plane.value,
@@ -683,6 +721,7 @@ class DataEntryRepository:
         sort_order: str,
         filter: Optional[str] = None,
         institutional_id_filter: Optional[str] = None,
+        reference_year: Optional[int] = None,
     ) -> SubmoduleResponse:
         is_travel_entry = data_entry_type_id in (
             DataEntryTypeEnum.plane.value,
@@ -949,6 +988,8 @@ class DataEntryRepository:
             col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
             col(DataEntry.data_entry_type_id) == data_entry_type_id,
         )
+        if reference_year is not None:
+            statement = statement.where(reference_year_filter(reference_year))
 
         if institutional_id_filter is not None and is_travel_entry:
             statement = statement.where(
@@ -1023,6 +1064,8 @@ class DataEntryRepository:
             DataEntry.carbon_report_module_id == carbon_report_module_id,
             DataEntry.data_entry_type_id == data_entry_type_id,
         )
+        if reference_year is not None:
+            count_stmt = count_stmt.where(reference_year_filter(reference_year))
         if institutional_id_filter is not None and is_travel_entry:
             count_stmt = count_stmt.where(
                 DataEntry.data["user_institutional_id"].as_string()

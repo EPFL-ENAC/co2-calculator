@@ -15,11 +15,7 @@ from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum
-from app.models.module_type import (
-    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
-    PLANNER_PREFILLED_MODULE_TYPES,
-    ModuleTypeEnum,
-)
+from app.models.module_type import PLANNER_PREFILLED_MODULE_TYPES
 from app.models.user import User
 from app.repositories.carbon_project_repo import CarbonProjectRepository
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -233,8 +229,15 @@ class SimulatorPlanService:
     ) -> Optional[SimulatorPlanYearRead]:
         """Set the baseline year of one plan-year report; None if missing.
 
-        Existing entries of the report get their emissions recomputed, since
-        factor lookup follows the reference year.
+        Nothing is deleted: the prefilled rows of every baseline the plan-year
+        has used stay in the module, each stamped with ``data['reference_year']``,
+        and readers keep only the live one (``DataEntryRepository.
+        reference_year_filter``). Coming back to a year therefore finds its
+        sliders and edits as they were left, and a baseline seen for the first
+        time is prefilled at 100%.
+
+        The live baseline's entries get their emissions recomputed, since factor
+        lookup follows the reference year; dormant rows keep theirs.
         """
         reports = await self.repo.list_reports_for_project(plan_id)
         report = next((r for r in reports if r.year == year), None)
@@ -249,13 +252,13 @@ class SimulatorPlanService:
         return await self._year_read(report)
 
     async def _prefill_reference_modules(self, report: CarbonReport) -> None:
-        """Auto-prefill every prefilled-behavior module from the reference year.
+        """Prefill every prefilled-behavior module from the reference year.
 
-        Runs on reference-year set/change (there is no manual prefill trigger):
-        each prefilled module gets its PLANNER_SNAPSHOT rows wiped and re-copied
-        at 100% from the reference year's Calculator data; user-added rows
-        survive. No-op when the reference year has no Calculator report for the
-        unit — there is simply nothing to copy.
+        Runs on reference-year set/change (there is no manual prefill trigger).
+        Only baselines this plan-year has never used are copied — a baseline it
+        already holds rows for is left exactly as the user left it. No-op when
+        the reference year has no Calculator report for the unit: there is
+        nothing to copy.
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
@@ -293,10 +296,16 @@ class SimulatorPlanService:
     ) -> int:
         """Snapshot-copy the reference-year Calculator entries into a plan module.
 
-        Idempotent: previous snapshot rows (source=PLANNER_SNAPSHOT) are wiped
-        and re-copied at ``percentage_of_reference_year = 100``; user-added rows
-        survive. Each copy keeps ``source_data_entry_id`` so the % slider
-        computes against the live reference entry. Returns the copied count.
+        Copies at ``percentage_of_reference_year = 100``, stamping each row with
+        the baseline it came from (``reference_year``) so the module can hold
+        several baselines at once and show only the active one. Each copy keeps
+        ``source_data_entry_id`` so the % slider computes against the live
+        reference entry. Returns the copied count.
+
+        Idempotent by baseline: a module that already holds rows for this
+        reference year is left untouched (0 copied) — re-copying would discard
+        the sliders, edits and deletions the user made under it. Nothing is
+        ever deleted here.
 
         Raises ValueError when the report has no reference year or the
         reference year has no Calculator report/module for the unit.
@@ -321,12 +330,12 @@ class SimulatorPlanService:
             raise ValueError(f"Module {module_type_id} not found on the reference year")
 
         entry_repo = DataEntryRepository(self.session)
-        for det in MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
-            ModuleTypeEnum(module_type_id), []
+        existing = await entry_repo.list_by_module(plan_module.id)
+        if any(
+            entry.data.get("reference_year") == report.reference_year
+            for entry in existing
         ):
-            await entry_repo.bulk_delete_by_source(
-                plan_module.id, det, DataEntrySourceEnum.PLANNER_SNAPSHOT.value
-            )
+            return 0
 
         emission_svc = DataEntryEmissionService(self.session)
         copied = 0
@@ -341,6 +350,7 @@ class SimulatorPlanService:
                     **src.data,
                     "percentage_of_reference_year": 100,
                     "source_data_entry_id": src.id,
+                    "reference_year": report.reference_year,
                 },
             )
             self.session.add(copy)
@@ -354,7 +364,12 @@ class SimulatorPlanService:
         return copied
 
     async def _recalculate_report_emissions(self, report: CarbonReport) -> None:
-        """Recompute emissions of every entry in a report + refresh stats."""
+        """Recompute emissions of the report's live entries + refresh stats.
+
+        Rows stamped with another baseline are dormant: nothing reads them until
+        that baseline is live again, and they keep the emissions they were
+        computed with.
+        """
         if report.id is None:
             raise ValueError("report must be persisted before use")
         entries = await DataEntryRepository(self.session).list_by_carbon_report(
@@ -363,6 +378,9 @@ class SimulatorPlanService:
         emission_svc = DataEntryEmissionService(self.session)
         module_ids: set[int] = set()
         for entry in entries:
+            stamped = entry.data.get("reference_year")
+            if stamped is not None and stamped != report.reference_year:
+                continue
             await emission_svc.upsert_by_data_entry(
                 DataEntryResponse.model_validate(entry)
             )
