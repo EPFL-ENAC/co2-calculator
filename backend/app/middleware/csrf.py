@@ -28,6 +28,12 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         if not settings.CSRF_ORIGIN_CHECK_ENABLED:
             return await call_next(request)
 
+        if not settings.CSRF_TRUSTED_ORIGIN:
+            return JSONResponse(
+                content={"detail": "CSRF_TRUSTED_ORIGIN not configured"},
+                status_code=500,
+            )
+
         # Only protect state-changing methods
         if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
             return await call_next(request)
@@ -37,10 +43,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Skip OAuth endpoints (they set cookies via redirect)
-        if (
-            request.url.path.startswith("/api/v1/auth/callback")
-            or request.url.path.startswith("/api/v1/auth/login")
-        ):
+        if request.url.path.startswith(
+            "/api/v1/auth/callback"
+        ) or request.url.path.startswith("/api/v1/auth/login"):
             return await call_next(request)
 
         # Require Origin or Referer header
@@ -59,10 +64,15 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         # Extract scheme + host from Referer if it's a full URL
         if not origin and referer:
             parsed = urlparse(referer)
+            if not parsed.scheme or not parsed.netloc:
+                return JSONResponse(
+                    content={"detail": "invalid Referer header"},
+                    status_code=403,
+                )
             request_origin = f"{parsed.scheme}://{parsed.netloc}"
 
         # Validate origin matches trusted origin exactly
-        if request_origin != settings.CSRF_TRUSTED_ORIGIN:
+        if request_origin.lower() != settings.CSRF_TRUSTED_ORIGIN.lower():
             return JSONResponse(
                 content={"detail": "origin not trusted"},
                 status_code=403,
