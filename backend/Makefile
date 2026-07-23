@@ -138,6 +138,13 @@ seed-units: ## Seed units from accred
 seed-generic-data: ## Seed data entries from seed_data CSVs
 	$(UV) run -m app.seed.seed_generic_data_entries
 
+# Years provisioned by `bootstrap-years`; override on the command line.
+YEARS ?= 2025 2026
+
+.PHONY: bootstrap-years
+bootstrap-years: ## Provision years from INPUT_DATA: config + unit sync + factors + references + reduction objectives, no data entries (usage: make bootstrap-years YEARS="2025 2026")
+	$(UV) run -m app.seed.bootstrap_years --years $(YEARS)
+
 .PHONY: exchange-rates
 exchange-rates: ## Fetch exchange rates from ECB API and store in database
 	$(UV) run exchange-rates
