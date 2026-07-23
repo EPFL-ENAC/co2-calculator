@@ -524,6 +524,11 @@ import {
   REFERENCE_PERCENTAGE_MAX,
   REFERENCE_PERCENTAGE_MIN,
 } from 'src/utils/reference-percentage';
+import {
+  isModuleNoteDisabled,
+  isModuleTableDisabled,
+  type ModuleTableAccess,
+} from 'src/utils/module-table-access';
 
 function getNumericRules(col: TableViewColumn) {
   const rules = [];
@@ -854,7 +859,8 @@ type CommonProps = {
   moduleConfig: ModuleConfig;
   submoduleConfig: Submodule;
   disable: boolean;
-  isSimulator?: boolean;
+  /** Simulator Explorer page — see `utils/module-table-access`. */
+  isExplorer?: boolean;
   moduleColor?: string;
   moduleColorLighter?: string;
 };
@@ -965,18 +971,17 @@ const canEdit = computed(() => {
   );
 });
 
-// Disable all table editing/deleting interactions when input is disabled in backoffice configuration.
-const isDisabled = computed(() => {
-  if (props.isSimulator) return false;
-  if (props.disable || !canEdit.value) return true;
-  // Planner year-report tables are governed by their own Active toggle
-  // (props.disable) and plan access — NOT the global timeline's validated
-  // state. That store tracks a single report and can't represent the planner's
-  // many year-reports, so a Validated state leaking from the Calculator context
-  // would spuriously lock editing (and the % slider) here.
-  if (props.carbonReportId != null) return false;
-  return timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated;
-});
+// Planner tables address a plan-year report by id; the Calculator never does.
+const tableAccess = computed<ModuleTableAccess>(() => ({
+  isExplorer: props.isExplorer === true,
+  isPlanner: props.carbonReportId != null,
+  canEdit: canEdit.value,
+  disable: props.disable === true,
+  isValidated:
+    timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated,
+}));
+
+const isDisabled = computed(() => isModuleTableDisabled(tableAccess.value));
 
 const showTableRowActions = computed(
   () => props.submoduleConfig?.hasTableAction !== false,
@@ -989,13 +994,7 @@ const showTableNote = computed(
 
 const showTableActions = computed(() => showTableNote.value);
 
-// Notes stay available on read-only tables; only permission and validation block them.
-const isNoteDisabled = computed(
-  () =>
-    !props.isSimulator &&
-    (timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
-      !canEdit.value),
-);
+const isNoteDisabled = computed(() => isModuleNoteDisabled(tableAccess.value));
 
 const filterTerm = ref('');
 const confirmDelete = ref(false);

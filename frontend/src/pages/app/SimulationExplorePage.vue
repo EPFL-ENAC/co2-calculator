@@ -49,7 +49,7 @@
                   :module-config="m.config"
                   :module-type="m.type"
                   :disable="false"
-                  :is-simulator="true"
+                  :is-explorer="true"
                   :submodule-type="sub.type"
                   :data="null"
                   :loading="false"

@@ -1,9 +1,9 @@
 ---
 status: in-progress
 issue: 1557
-last_updated: 2026-07-22
+last_updated: 2026-07-23
 title: "Simulator Plan — frontend follow-ups"
-summary: "Three planner-frontend pieces: the type-2 prefilled slider table (delivered; ModuleTable decomposition deferred to its own plan), the wrong-plan report resolution fix (delivered; overlapping-plans regression test outstanding), and dropdowns resolving factors from the plan year instead of the reference year (delivered)."
+summary: "Four planner-frontend pieces: the type-2 prefilled slider table (delivered; ModuleTable decomposition deferred to its own plan), the wrong-plan report resolution fix (delivered; overlapping-plans regression test outstanding), dropdowns resolving factors from the plan year instead of the reference year (delivered), and the Comment button disabled by the Calculator's validated state (delivered)."
 ---
 
 # Simulator Plan — frontend follow-ups
@@ -182,3 +182,36 @@ row for PATCH and bounds the date pickers). The two components share
       pinned in `tests/unit/factor-year.spec.ts`).
 - [x] Disable the module drawers until a reference year is set; extend the
       hint copy.
+
+## D. The Comment button was disabled in the Planner
+
+**Defect:** the per-row Comment button was greyed out on Planner tables while
+every other control in the same table (inline edits, delete, the % slider)
+stayed live. `ModuleTable.vue` held two twin computeds: `isDisabled` already
+carved the Planner out of the Calculator's validated lock
+(`props.carbonReportId != null` — see A), `isNoteDisabled` did not and still
+read `timelineStore.itemStates[moduleType] === Validated`. The workspace guard
+(`router/guards/workspaceGuard.ts`) fills that store with the **Calculator**
+module statuses of the selected workspace year on every workspace route, so a
+module validated in the Calculator disabled comments on every plan year of every
+plan — plan reports are never validated and have no lock of their own.
+
+**Fix (2026-07-23):** both rules moved to `utils/module-table-access.ts`
+(`isModuleTableDisabled` / `isModuleNoteDisabled`), which names the three
+contexts a table renders in — Calculator, Explorer, Planner. Notes are blocked
+by the validated lock in the Calculator only; in the Explorer and the Planner
+they need `canEdit` alone. `canEdit` stays a condition everywhere: the backend
+gates the underlying PATCH with `check_module_permission_for_unit("edit")`, and
+`api/http.ts` turns that 403 into a whole-page `/unauthorized` redirect.
+
+The ambiguous `isSimulator` prop (set only by `SimulationExplorePage`) is
+renamed `isExplorer` through `SubModuleSection → ModuleTable`; the Planner is
+identified by `carbonReportId`, which the Calculator never passes.
+
+**Steps**
+
+- [x] Extract `isModuleTableDisabled` / `isModuleNoteDisabled` into
+      `utils/module-table-access.ts`; both `ModuleTable` computeds delegate.
+- [x] Regression: `tests/unit/module-table-access.spec.ts` pins the Planner +
+      validated-Calculator-module case, plus the Calculator and permission cases.
+- [x] Rename `isSimulator` → `isExplorer`.

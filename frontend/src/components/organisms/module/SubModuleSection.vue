@@ -46,14 +46,14 @@
           :module-config="moduleConfig"
           :submodule-config="submodule"
           :disable="isTableDisabled"
-          :is-simulator="isSimulator"
+          :is-explorer="isExplorer"
           :module-color="submoduleColor"
           :module-color-lighter="submoduleLighterColor"
         />
       </div>
       <q-separator />
       <div
-        v-if="isInputDeactivated && !isSimulator"
+        v-if="isInputDeactivated && !isExplorer"
         class="q-mx-lg q-my-md inputs-deactivated-notice"
       >
         <div class="inputs-deactivated-notice__content">
@@ -131,7 +131,7 @@
           :module-config="moduleConfig"
           :submodule-config="submodule"
           :disable="disable"
-          :is-simulator="isSimulator"
+          :is-explorer="isExplorer"
         />
       </div>
       <q-separator />
@@ -244,7 +244,7 @@ type CommonProps = {
   showReferenceColumns?: boolean;
   threshold: Threshold;
   disable: boolean;
-  isSimulator?: boolean;
+  isExplorer?: boolean;
 };
 
 type ModuleTypeProps = {
@@ -289,7 +289,7 @@ const isInputDeactivated = computed(() => {
 });
 
 const isTableDisabled = computed(
-  () => !props.isSimulator && (props.disable || isInputDeactivated.value),
+  () => !props.isExplorer && (props.disable || isInputDeactivated.value),
 );
 
 const backendThreshold = computed<Threshold | null>(() => {
