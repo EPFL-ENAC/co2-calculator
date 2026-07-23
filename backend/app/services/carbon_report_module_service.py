@@ -23,7 +23,10 @@ from app.modules.emissions.buckets import BucketNodes
 from app.modules.emissions.registry import MODULE_STAT_BUCKETS
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
-from app.repositories.data_entry_repo import DataEntryRepository
+from app.repositories.data_entry_repo import (
+    DataEntryRepository,
+    reference_year_filter_by_module,
+)
 from app.schemas.carbon_report import (
     CarbonReportModuleCreate,
     CarbonReportModuleRead,
@@ -400,8 +403,12 @@ class CarbonReportModuleService:
             .all()
         )
 
+        reference_year_by_module = await self._reference_years_by_module(modules)
+
         emission_repo = DataEntryEmissionRepository(self.session)
-        pairs = await emission_repo.get_stats_pair_many(carbon_report_module_ids)
+        pairs = await emission_repo.get_stats_pair_many(
+            carbon_report_module_ids, reference_year_by_module
+        )
 
         count_rows = (
             await self.session.execute(
@@ -410,7 +417,14 @@ class CarbonReportModuleService:
                     func.count(),
                 )
                 .where(
-                    col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids)
+                    col(DataEntry.carbon_report_module_id).in_(
+                        carbon_report_module_ids
+                    ),
+                    *(
+                        [reference_year_filter_by_module(reference_year_by_module)]
+                        if reference_year_by_module
+                        else []
+                    ),
                 )
                 .group_by(col(DataEntry.carbon_report_module_id))
             )
@@ -498,6 +512,32 @@ class CarbonReportModuleService:
             )
         ).all()
         return {module_id: float(total or 0.0) for module_id, total in rows}
+
+    async def _reference_years_by_module(
+        self, modules: Sequence[CarbonReportModule]
+    ) -> dict[int, int]:
+        """Live baseline of each module whose report has one (plan years only).
+
+        Modules of a Calculator or Explore report are left out, so the batch
+        the aggregation pipeline recomputes carries no condition at all.
+        """
+        report_ids = {m.carbon_report_id for m in modules}
+        if not report_ids:
+            return {}
+        rows = (
+            await self.session.execute(
+                select(col(CarbonReport.id), col(CarbonReport.reference_year)).where(
+                    col(CarbonReport.id).in_(report_ids),
+                    col(CarbonReport.reference_year).isnot(None),
+                )
+            )
+        ).all()
+        reference_year_by_report = {report_id: year for report_id, year in rows}
+        return {
+            m.id: reference_year_by_report[m.carbon_report_id]
+            for m in modules
+            if m.id is not None and m.carbon_report_id in reference_year_by_report
+        }
 
     async def _years_by_report(
         self, modules: Sequence[CarbonReportModule]

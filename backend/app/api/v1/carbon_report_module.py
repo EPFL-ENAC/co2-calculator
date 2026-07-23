@@ -287,6 +287,7 @@ async def get_module(
     module_data = await DataEntryService(db).get_module_data(
         carbon_report_module_id=carbon_report_module_id,
         travel_institutional_id_filter=travel_institutional_id_filter,
+        reference_year=report.reference_year,
     )
 
     # if headcount compute FTE here
@@ -728,6 +729,7 @@ async def get_submodule(
         current_user=UserRead.model_validate(current_user),
         request_context=await get_request_context(request),
         background_tasks=background_tasks,
+        reference_year=report.reference_year,
     )
 
     if not submodule_data:

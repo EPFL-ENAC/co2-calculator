@@ -21,6 +21,10 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
 from app.modules.emissions.registry import ROLLUP_EMISSION_TYPE_IDS
+from app.repositories.data_entry_repo import (
+    reference_year_filter,
+    reference_year_filter_by_module,
+)
 
 # COPY target for ``bulk_copy`` — every non-defaulted column;
 # ``id`` is omitted so the sequence assigns it server-side.
@@ -218,12 +222,20 @@ class DataEntryEmissionRepository:
     async def get_stats_pair_many(
         self,
         carbon_report_module_ids: list[int],
+        reference_year_by_module: Optional[Dict[int, int]] = None,
     ) -> Dict[int, tuple[Dict[str, float | None], Dict[str, float | None]]]:
         """``get_stats_pair`` for a whole module set in ONE grouped query.
 
         Returns {module_id: (by_emission_type kg_co2eq, additional_value)}.
         Modules with no emissions are absent from the result — callers
         treat a miss as empty stats.
+
+        ``reference_year_by_module`` carries the live baseline of the Simulator
+        Plan modules in the set (Calculator modules have none, so a plain
+        recompute passes nothing and pays nothing). A plan module keeps the
+        prefilled rows of every baseline it has used; only the live one counts
+        toward its stats — and therefore toward the report rollup, the plan
+        total and the chart.
         """
         if not carbon_report_module_ids:
             return {}
@@ -243,6 +255,10 @@ class DataEntryEmissionRepository:
                 col(DataEntryEmission.emission_type_id),
             )
         )
+        if reference_year_by_module:
+            query = query.where(
+                reference_year_filter_by_module(reference_year_by_module),
+            )
         rows = (await self.session.execute(query)).all()
         result: Dict[int, tuple[Dict[str, float | None], Dict[str, float | None]]] = {}
         for module_id, emission_type_id, primary_total, secondary_total in rows:
@@ -262,6 +278,7 @@ class DataEntryEmissionRepository:
         aggregate_by: str = "emission_type_id",
         primary_field: str = "kg_co2eq",
         secondary_field: str = "additional_value",
+        reference_year: Optional[int] = None,
     ) -> tuple[Dict[str, float | None], Dict[str, float | None]]:
         """Aggregate DataEntryEmission data by a field and sum two numeric columns.
 
@@ -282,6 +299,8 @@ class DataEntryEmissionRepository:
             .where(DataEntry.carbon_report_module_id == carbon_report_module_id)
             .group_by(group_field)
         )
+        if reference_year is not None:
+            query = query.where(reference_year_filter(reference_year))
 
         result = await self.session.execute(query)
         rows = result.all()

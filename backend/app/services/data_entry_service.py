@@ -641,10 +641,12 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
         travel_institutional_id_filter: Optional[str] = None,
+        reference_year: Optional[int] = None,
     ) -> ModuleResponse:
         data_entry_types_total_items = await self.repo.get_total_count_by_submodule(
             carbon_report_module_id=carbon_report_module_id,
             travel_institutional_id_filter=travel_institutional_id_filter,
+            reference_year=reference_year,
         )
 
         incomplete_new_equipment_count = await self.repo.count_incomplete_new_equipment(
@@ -683,8 +685,14 @@ class DataEntryService:
         current_user: Optional[UserRead] = None,
         request_context: Optional[dict] = None,
         background_tasks: Optional[BackgroundTasks] = None,
+        reference_year: Optional[int] = None,
     ) -> SubmoduleResponse:
-        """Get module data for a unit and year."""
+        """Get module data for a unit and year.
+
+        ``reference_year`` is the plan-year report's live baseline: a Simulator
+        Plan module keeps the prefilled rows of every baseline it has used, and
+        only the matching ones belong in the table.
+        """
         response = await self.repo.get_submodule_data(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
@@ -694,6 +702,7 @@ class DataEntryService:
             sort_order=sort_order,
             filter=filter,
             institutional_id_filter=institutional_id_filter,
+            reference_year=reference_year,
         )
 
         if (
