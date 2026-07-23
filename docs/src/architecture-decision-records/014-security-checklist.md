@@ -227,6 +227,65 @@
 
 ---
 
+## 5. Cross-Site Request Forgery (CSRF) Protection
+
+### Objective
+
+Protect cookie-based authentication against CSRF attacks on state-changing API requests.
+
+### Mitigation Measures
+
+- Set `SameSite=Lax` on session cookies to block cross-site POST requests in modern browsers.
+- Validate the `Origin` (or `Referer`) header on all state-changing requests under `/api/v1/**`.
+- Enforce an exact match against a configured `CSRF_TRUSTED_ORIGIN`.
+- Fails closed: missing or mismatched headers return `403 Forbidden`.
+- Skip safe methods (`GET`, `HEAD`, `OPTIONS`) and OAuth redirect endpoints.
+
+### Actions
+
+#### Development Phase
+
+- [x] Implement `CSRFProtectionMiddleware` in `backend/app/middleware/csrf.py`.
+- [x] Add unit tests covering enabled/disabled states, allowed/blocked methods, and bypass paths.
+- [x] Document configuration variables (`CSRF_ORIGIN_CHECK_ENABLED`, `CSRF_TRUSTED_ORIGIN`) in `.env.example`.
+- [ ] Update production deployment secrets with the correct `CSRF_TRUSTED_ORIGIN` value.
+
+#### Exploitation Phase
+
+- [ ] Verify `CSRF_TRUSTED_ORIGIN` matches the deployed frontend URL after every environment change.
+- [ ] Review CSRF-related test failures as blocking issues.
+- [ ] Keep the middleware registration order stable: registered immediately after `SessionMiddleware` in `app/main.py`.
+
+### Responsibility
+
+- **Development Phase:** lead dev
+- **Exploitation Phase:** code reviewer / infrastructure lead
+
+### Frequency
+
+- **Development Phase:** One-time implementation
+- **Exploitation Phase:**
+  - Config review: on every environment or domain change
+  - Logic review: on every change to authentication/session middleware
+  - Test review: on every PR touching cookies, auth, or CSRF middleware
+
+### Validation
+
+- Unit tests in `backend/tests/unit/middleware/test_csrf.py` must pass.
+- Integration tests confirm state-changing API requests without a valid `Origin` header are rejected.
+- Production configuration sets `CSRF_ORIGIN_CHECK_ENABLED=true` and a non-empty `CSRF_TRUSTED_ORIGIN`.
+
+### Failure Handling
+
+- If legitimate requests are blocked:
+  - Verify the frontend sends the correct `Origin` header.
+  - Confirm `CSRF_TRUSTED_ORIGIN` exactly matches the frontend origin (scheme + host, no trailing slash).
+- If CSRF bypass is suspected:
+  - Treat as high priority.
+  - Add a regression test and fix immediately.
+
+---
+
 ## 5. Periodic Manual Security Review
 
 ### Mitigation Measures

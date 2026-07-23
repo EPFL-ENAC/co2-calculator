@@ -72,7 +72,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             request_origin = f"{parsed.scheme}://{parsed.netloc}"
 
         # Validate origin matches trusted origin exactly
-        if request_origin.lower() != settings.CSRF_TRUSTED_ORIGIN.lower():
+        if request_origin != settings.CSRF_TRUSTED_ORIGIN:
             return JSONResponse(
                 content={"detail": "origin not trusted"},
                 status_code=403,

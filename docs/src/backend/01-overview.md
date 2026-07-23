@@ -181,8 +181,8 @@ and apply role + scope filters before reaching the repository. See
 - **Rate Limiting**: Configurable per endpoint
 - **Authentication Required**: All endpoints except `/health`
   and `/docs`
-
-CSRF protection is not needed (stateless JWT, no cookies).
+- **CSRF Protection**: Origin/Referer validation on state-changing
+  requests under `/api/v1/**` (see [Auth Flow](../architecture/04-auth-flow.md))
 
 ## Troubleshooting
 

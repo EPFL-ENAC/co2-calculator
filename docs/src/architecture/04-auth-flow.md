@@ -200,7 +200,31 @@ See [ADR-012](../architecture-decision-records/012-jwt-authentication-strategy.m
 Bearer tokens in JS-readable storage are the OWASP cheat-sheet
 anti-pattern for SPAs: any XSS sink lifts the token. `httpOnly` cookies
 are out of reach of JavaScript and ride CSRF mitigations via `SameSite`
-and the standard `Origin`/`Referer` checks already in place.
+and the `Origin`/`Referer` checks enforced by `CSRFProtectionMiddleware`.
+
+### CSRF protection (`CSRFProtectionMiddleware`)
+
+State-changing requests to `/api/v1/**` are validated by
+`app.middleware.csrf.CSRFProtectionMiddleware`:
+
+- Checked methods: `POST`, `PUT`, `PATCH`, `DELETE`.
+- The request must carry an `Origin` or `Referer` header that exactly
+  matches `CSRF_TRUSTED_ORIGIN`.
+- Missing or mismatched headers return `403 Forbidden`.
+- OAuth endpoints (`/api/v1/auth/login`, `/api/v1/auth/callback`) and
+  non-API paths are skipped.
+- `GET`, `HEAD`, and `OPTIONS` are never blocked.
+
+Configuration:
+
+```env
+CSRF_ORIGIN_CHECK_ENABLED=true
+CSRF_TRUSTED_ORIGIN=https://co2-calculator.epfl.ch
+```
+
+`SameSite=Lax` on the session cookies is the baseline CSRF defense;
+Origin validation is defense-in-depth. The middleware is registered in
+`app/main.py` immediately after `SessionMiddleware`.
 
 ## 10. Future work
 
