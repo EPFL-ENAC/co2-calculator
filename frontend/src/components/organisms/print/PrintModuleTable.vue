@@ -15,10 +15,16 @@ interface Props {
   submodule: Submodule;
   moduleConfig: ModuleConfig;
   rows: PrintRow[];
-  headcountMembers: Map<string, string>;
+  /** Institutional id → name. Absent in the planner, which has no roster. */
+  headcountMembers?: Map<string, string>;
+  /** Planner prefilled modules: add the reference kgCO₂eq and % columns. */
+  showReferenceColumns?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  headcountMembers: () => new Map(),
+  showReferenceColumns: false,
+});
 
 const { t, te } = useI18n();
 const moduleStore = useModuleStore();
@@ -27,7 +33,11 @@ const translate = (key: string, params?: Record<string, unknown>) =>
   t(key, params ?? {});
 
 const columns = computed(() =>
-  buildPrintColumns(props.submodule.moduleFields, translate),
+  buildPrintColumns(
+    props.submodule.moduleFields,
+    translate,
+    props.showReferenceColumns,
+  ),
 );
 
 const taxonomyKindLabels = computed<Record<string, string>>(() => {

@@ -79,6 +79,24 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  // Project planner print preview — own layout, no header/sidebar
+  {
+    path: `/:language(${LANGUAGE_PATTERN})/:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})/simulation/project-planner/:name(${SIMULATION_ID_PATTERN})/print`,
+    component: () => import('layouts/PrintLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'project-planner-print',
+        component: () => import('pages/app/ProjectPlannerPrintPage.vue'),
+        meta: {
+          requiresAuth: true,
+          note: 'Project Planner – Print/PDF preview (no chrome)',
+          breadcrumb: false,
+          carbonProject: CARBON_PROJECT.planner,
+        },
+      },
+    ],
+  },
   // Backoffice reporting print previews — own layout, no header/sidebar
   {
     path: `/:language(${LANGUAGE_PATTERN})/back-office/reporting/print`,

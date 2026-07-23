@@ -279,4 +279,68 @@ export default {
     en: 'Internal EPFL',
     fr: 'Interne EPFL',
   },
+  planner_print_title: {
+    en: 'Project report',
+    fr: 'Rapport de projet',
+  },
+  planner_print_created_by: {
+    en: 'Created by',
+    fr: 'Créé par',
+  },
+  planner_print_created_on: {
+    en: 'Created on',
+    fr: 'Créé le',
+  },
+  planner_print_total_over_years: {
+    en: 'Summed over {count} planned year(s)',
+    fr: 'Somme sur {count} année(s) planifiée(s)',
+  },
+  planner_print_methodology_note: {
+    en: 'Planned figures are estimates: each year draws its emission factors from its reference year. Inactive modules are excluded from every total and chart.',
+    fr: "Les chiffres planifiés sont des estimations : chaque année tire ses facteurs d'émission de son année de référence. Les modules inactifs sont exclus de tous les totaux et graphiques.",
+  },
+  planner_print_incomplete_note: {
+    en: 'Some tables could not be loaded and are missing from this report: {modules}.',
+    fr: 'Certains tableaux n’ont pas pu être chargés et manquent dans ce rapport : {modules}.',
+  },
+  planner_print_year_subtitle: {
+    en: 'Planned carbon footprint — {name}',
+    fr: 'Empreinte carbone planifiée — {name}',
+  },
+  planner_print_year_total: {
+    en: 'Carbon footprint for this year',
+    fr: 'Empreinte carbone de cette année',
+  },
+  planner_print_year_chart_title: {
+    en: '{year} carbon footprint',
+    fr: 'Empreinte carbone {year}',
+  },
+  planner_print_no_reference_year: {
+    en: 'Not set',
+    fr: 'Non définie',
+  },
+  planner_print_excluded_modules: {
+    en: 'Excluded modules',
+    fr: 'Modules exclus',
+  },
+  planner_print_module_subtitle: {
+    en: 'Planned data {year}',
+    fr: 'Données planifiées {year}',
+  },
+  planner_headcount_table_title: {
+    en: 'Planned FTE per category',
+    fr: 'EPT planifiés par catégorie',
+  },
+  planner_headcount_category_col: {
+    en: 'Category',
+    fr: 'Catégorie',
+  },
+  planner_headcount_fte_col: {
+    en: 'FTE',
+    fr: 'EPT',
+  },
+  planner_headcount_total_fte: {
+    en: 'Total FTE',
+    fr: 'Total EPT',
+  },
 };

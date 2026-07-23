@@ -9,6 +9,7 @@ import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonF
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 import AdditionalCategoriesSection from 'src/components/organisms/AdditionalCategoriesSection.vue';
 import ItFocusSection from 'src/components/organisms/ItFocusSection.vue';
+import PrintReportShell from 'src/components/organisms/print/PrintReportShell.vue';
 import ResultsPrintModulePage from 'src/components/organisms/print/ResultsPrintModulePage.vue';
 import { useResultsPrintData } from 'src/composables/print/useResultsPrintData';
 import { useModuleStore } from 'src/stores/modules';
@@ -117,10 +118,6 @@ function formatPercentChange(value: number | null | undefined): string {
   return percentChangeFormatter.format(value / 100);
 }
 
-function printReport() {
-  window.print();
-}
-
 onMounted(async () => {
   const carbonReportId = await initWorkspaceFromRoute();
   if (!carbonReportId) return;
@@ -137,23 +134,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="bg-grey-2 print-report">
-    <q-toolbar class="bg-ac text-primary q-py-sm print-toolbar print-hide">
-      <q-space />
-      <q-btn
-        color="accent"
-        icon="o_print"
-        size="md"
-        class="text-weight-medium"
-        :label="$t('results_print')"
-        @click="printReport"
-      />
-    </q-toolbar>
-
-    <div
-      v-if="resultsSummary && !resultsSummaryLoading"
-      class="report-container"
-    >
+  <PrintReportShell :loading="resultsSummaryLoading || !resultsSummary">
+    <template v-if="resultsSummary">
       <ReportPage
         :title="$t('results_print_title')"
         :scope="scopeLabel"
@@ -327,27 +309,12 @@ onMounted(async () => {
           />
         </q-card>
       </ReportPage>
-    </div>
-  </div>
+    </template>
+  </PrintReportShell>
 </template>
 
 <style scoped lang="scss">
 @use 'src/css/02-tokens' as tokens;
-
-.report-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: tokens.$print-report-container-padding;
-  color: tokens.$color-text !important;
-}
-
-.toolbar {
-  position: sticky;
-  top: 0;
-  border-bottom: 1px solid var(--half-muted-color);
-  z-index: tokens.$print-toolbar-z-index;
-}
 
 .module-page-header {
   margin-bottom: 0px;
@@ -437,47 +404,6 @@ onMounted(async () => {
   :deep(a) {
     color: var(--title-color) !important;
     text-decoration: underline !important;
-  }
-}
-</style>
-
-<!-- Not scoped: print rules hide layout chrome (.q-header/.q-footer/.q-drawer)
-     that lives outside this page's template, and reach into rendered .q-card. -->
-<style lang="scss">
-@use 'src/css/02-tokens' as tokens;
-
-.report-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: tokens.$print-report-container-padding;
-  color: tokens.$color-text;
-}
-
-.print-toolbar {
-  position: sticky;
-  top: 0;
-  border-bottom: 1px solid var(--half-muted-color);
-  z-index: tokens.$print-toolbar-z-index;
-}
-
-@media print {
-  .print-hide,
-  .q-header,
-  .q-footer,
-  .q-drawer {
-    display: none;
-  }
-
-  .report-container {
-    display: block;
-    width: 100%;
-    padding: 0;
-  }
-
-  .print-report .q-card,
-  .print-report .q-card-section {
-    box-shadow: none;
   }
 }
 </style>
