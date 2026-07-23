@@ -25,14 +25,10 @@ import {
   toItBreakdown,
   type ReportStats,
 } from 'src/utils/emissionStatsAdapter';
-
-// Maps route names to their carbon project type (0 = Calculator,
-// 1 = Simulator Explore, 2 = Simulator Plan). Drives how unit/year
-// resolve to a carbon report id in resolveCarbonReportId.
-const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
-  'simulation-explore-print': 1,
-  'project-planner': 2,
-};
+import {
+  carbonReportLookupPath,
+  resolveCarbonProject,
+} from 'src/constant/carbon-project';
 
 /**
  * API response for validated totals endpoint.
@@ -351,12 +347,8 @@ export const useTimelineStore = defineStore('timeline', () => {
 export const useModuleStore = defineStore('modules', () => {
   const workspaceStore = useWorkspaceStore();
   const $route = useRoute();
-  const carbonProjectType = computed(() => {
-    const name = $route.name;
-    return typeof name === 'string'
-      ? (SIMULATION_ROUTE_CARBON_PROJECT_TYPE[name] ?? 0)
-      : 0;
-  });
+  // Declared by the page's route; see `constant/carbon-project`.
+  const carbonProject = computed(() => resolveCarbonProject($route.meta));
 
   const state = reactive<{
     loading: boolean;
@@ -448,13 +440,10 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number | string,
     year: number | string,
   ): Promise<number> {
-    const key = `${unit}|${year}|${carbonProjectType.value}`;
+    const key = `${unit}|${year}|${carbonProject.value}`;
     const cached = reportIdCache[key];
     if (cached) return cached;
-    const path =
-      carbonProjectType.value === 1
-        ? `carbon-reports/simulator/explore/unit/${encodeURIComponent(unit)}/reference-year/${encodeURIComponent(year)}/`
-        : `carbon-reports/unit/${encodeURIComponent(unit)}/year/${encodeURIComponent(year)}/`;
+    const path = carbonReportLookupPath(carbonProject.value, unit, year);
     const report = await api.get(path).json<{ id: number }>();
     reportIdCache[key] = report.id;
     return report.id;
@@ -469,11 +458,8 @@ export const useModuleStore = defineStore('modules', () => {
     if (carbonReportId != null) {
       return buildModulePath(moduleType, carbonReportId);
     }
-    // No silent fallback to the Calculator report when a planner call forgot
-    // to pass its report id — fail loud instead of writing to the wrong report.
-    if (carbonProjectType.value === 2) {
-      throw new Error('Planner module calls must pass a carbonReportId');
-    }
+    // A planner call that forgot its report id throws in carbonReportLookupPath
+    // rather than silently writing to the Calculator report.
     return buildModulePath(moduleType, await resolveCarbonReportId(unit, year));
   }
 
@@ -993,7 +979,7 @@ export const useModuleStore = defineStore('modules', () => {
     year: string,
     force = false,
   ) {
-    const cacheKey = `${unit}|${year}|${carbonProjectType.value}`;
+    const cacheKey = `${unit}|${year}|${carbonProject.value}`;
     if (
       !force &&
       tripsMapCacheKey.value === cacheKey &&
@@ -1324,7 +1310,7 @@ export const useModuleStore = defineStore('modules', () => {
     getItBreakdown,
     prefetchAllModuleCounts,
     validatedTotalsCarbonReportId,
-    carbonProjectType,
+    carbonProject,
     resolveCarbonReportId,
     state,
   };

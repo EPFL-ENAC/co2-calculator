@@ -144,9 +144,11 @@ async def create_simulator_explore_carbon_report(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new Simulator Explore carbon report seeded from the Calculator report.
+    """Create a new, empty Simulator Explore carbon report.
 
-    The explore report is seeded from the unit's Calculator report.
+    The report is created with its modules and no entries — Simulator Explore is
+    never seeded from the Calculator. Only the Simulator Plan prefills, and only
+    from the reference year its user picks.
     """
     unit = await db.get(Unit, unit_id)
     require_unit_access(current_user, unit)

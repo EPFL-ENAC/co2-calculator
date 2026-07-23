@@ -114,7 +114,6 @@ export function useSimulationExplorePrintData() {
       const queryParams = new URLSearchParams({
         page: String(page),
         limit: '1000',
-        carbon_project_type: String(moduleStore.carbonProjectType),
       });
       const response = (await api
         .get(`${basePath}?${queryParams.toString()}`)
