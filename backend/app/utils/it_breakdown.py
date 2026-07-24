@@ -51,11 +51,7 @@ _IT_CLOUD_AI_TYPES: frozenset[EmissionType] = frozenset(
 
 _IT_RESEARCH_TYPES: frozenset[EmissionType] = frozenset(
     [
-        EmissionType.research_facilities,
         EmissionType.research_facilities__facilities,
-        EmissionType.research_facilities__animal,
-        EmissionType.research_facilities__animal__rodent,
-        EmissionType.research_facilities__animal__fish,
         EmissionType.research_facilities__it_facilities,
     ]
 )
