@@ -263,21 +263,93 @@ export default {
     en: 'Prefilled from reference year',
     fr: "Prérempli depuis l'année de référence",
   },
-  planner_purchase_totals_table_title: {
-    en: 'CHF total per purchase submodule',
-    fr: "Total CHF par sous-module d'achats",
-  },
-  planner_purchase_budget_table_title: {
-    en: 'Global budget (mutually exclusive with submodule totals)',
-    fr: 'Budget global (exclusif avec les totaux par sous-module)',
-  },
-  planner_purchase_category_label: {
-    en: 'Purchase submodule',
-    fr: "Sous-module d'achats",
-  },
   planner_purchase_amount_label: {
     en: 'Amount (CHF)',
     fr: 'Montant (CHF)',
+  },
+  planner_purchase_mode_global: {
+    en: 'Global budget',
+    fr: 'Budget global',
+  },
+  planner_purchase_mode_per_category: {
+    en: 'Per category',
+    fr: 'Par catégorie',
+  },
+  planner_purchase_mode_hint: {
+    en: 'Fill in one global budget or an amount per category — the two cannot be used together.',
+    fr: 'Renseignez un budget global ou un montant par catégorie — les deux ne peuvent pas coexister.',
+  },
+  planner_purchase_global_budget_label: {
+    en: 'Global budget',
+    fr: 'Budget global',
+  },
+  planner_purchase_kg_unit: {
+    en: 'kgCO₂eq',
+    fr: 'kgCO₂eq',
+  },
+  planner_purchase_missing_factor_tooltip: {
+    en: 'No emission factor available yet for this category: the amount is saved, its emissions will appear once the factors are loaded.',
+    fr: "Aucun facteur d'émission disponible pour cette catégorie : le montant est enregistré, ses émissions apparaîtront une fois les facteurs chargés.",
+  },
+  planner_purchase_switch_dialog_title: {
+    en: 'Switch entry mode',
+    fr: 'Changer de mode de saisie',
+  },
+  planner_purchase_switch_from_global_message: {
+    en: 'The global budget you entered will be deleted so the amounts per category can be used instead.',
+    fr: 'Le budget global saisi sera supprimé afin de pouvoir utiliser les montants par catégorie.',
+  },
+  planner_purchase_switch_from_categories_message: {
+    en: 'The amounts you entered per category will be deleted so a global budget can be used instead.',
+    fr: 'Les montants saisis par catégorie seront supprimés afin de pouvoir utiliser un budget global.',
+  },
+  planner_purchase_save_error: {
+    en: 'The purchase amount could not be saved.',
+    fr: "Le montant d'achat n'a pas pu être enregistré.",
+  },
+  planner_purchase_error_global_budget_set: {
+    en: 'A global budget is already set for this year: delete it to enter amounts per category.',
+    fr: 'Un budget global est déjà défini pour cette année : supprimez-le pour saisir des montants par catégorie.',
+  },
+  planner_purchase_error_totals_set: {
+    en: 'Amounts per category are already set for this year: delete them to enter a global budget.',
+    fr: 'Des montants par catégorie sont déjà définis pour cette année : supprimez-les pour saisir un budget global.',
+  },
+  planner_purchase_error_budget_exists: {
+    en: 'A global budget already exists for this year.',
+    fr: 'Un budget global existe déjà pour cette année.',
+  },
+  planner_purchase_error_duplicate_category: {
+    en: 'An amount already exists for this category.',
+    fr: 'Un montant existe déjà pour cette catégorie.',
+  },
+  'planner_purchase_category.scientific_equipment': {
+    en: 'Scientific equipment',
+    fr: 'Équipements scientifiques',
+  },
+  'planner_purchase_category.it_equipment': {
+    en: 'IT equipment',
+    fr: 'Équipements informatiques',
+  },
+  'planner_purchase_category.consumable_accessories': {
+    en: 'Consumables & accessories',
+    fr: 'Consommables et accessoires',
+  },
+  'planner_purchase_category.biological_chemical_gaseous_product': {
+    en: 'Biological, chemical & gaseous products',
+    fr: 'Produits biologiques, chimiques et gazeux',
+  },
+  'planner_purchase_category.services': {
+    en: 'Services',
+    fr: 'Services',
+  },
+  'planner_purchase_category.vehicles': {
+    en: 'Vehicles',
+    fr: 'Véhicules',
+  },
+  'planner_purchase_category.other_purchases': {
+    en: 'Other purchases',
+    fr: 'Autres achats',
   },
   'planner_traveler_category.internal': {
     en: 'Internal',
