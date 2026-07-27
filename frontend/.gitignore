@@ -33,6 +33,7 @@ yarn-error.log*
 *.njsproj
 *.sln
 .zed
+.claude
 
 # local .env files
 .env.local*
