@@ -23,22 +23,29 @@
 
     <template v-else-if="plan">
       <!-- Title box -->
-      <q-card flat bordered class="container q-pa-lg">
-        <q-icon name="o_tune" color="negative" size="32px" class="q-mb-md" />
-        <h1 class="text-h3 q-mt-none q-mb-xs">
-          {{ $t('planner_page_title') }}
-        </h1>
-        <p class="text-subtitle1 text-weight-medium q-mb-md">
-          {{ $t('planner_page_subtitle') }}
-        </p>
-        <p class="text-body1 q-mb-none text-grey-8">
-          {{ $t('planner_page_intro') }}
-          <q-icon name="o_info" size="18px" class="q-ml-xs cursor-pointer">
-            <q-tooltip max-width="360px">
+      <q-card flat class="container">
+        <div class="row justify-between items-start no-wrap">
+          <div class="col">
+            <q-icon name="o_tune" color="info" size="32px" class="q-mb-md" />
+            <h1 class="text-h2 q-mb-md">{{ $t('planner_page_title') }}</h1>
+            <p class="text-body1 q-mb-sm">
+              {{ $t('planner_page_subtitle') }}
+            </p>
+            <p class="text-body1 q-mb-none">
+              {{ $t('planner_page_intro') }}
+            </p>
+          </div>
+          <q-icon
+            name="o_info"
+            size="sm"
+            class="cursor-pointer"
+            :aria-label="$t('module-info-label')"
+          >
+            <q-tooltip anchor="center right" self="top right" class="u-tooltip">
               {{ $t('planner_methodology_tooltip') }}
             </q-tooltip>
           </q-icon>
-        </p>
+        </div>
       </q-card>
 
       <!-- Project information box -->

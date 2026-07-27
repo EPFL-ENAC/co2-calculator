@@ -108,8 +108,8 @@ export default {
     fr: "Planifiez l'empreinte carbone d'un projet à venir. Donnez un nom à votre projet ; son contenu apparaîtra ici.",
   },
   planner_page_title: {
-    en: 'Simulator',
-    fr: 'Simulateur',
+    en: 'CO₂ Project Planner',
+    fr: 'Planificateur de projet CO₂',
   },
   planner_page_subtitle: {
     en: 'Estimating the carbon footprint of a project or category of emissions.',
