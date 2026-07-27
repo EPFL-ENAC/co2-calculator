@@ -15,7 +15,7 @@ from app.schemas.factor import (
 
 class PlannerPurchaseFactorCreate(FactorCreate):
     purchase_category: str
-    ef_kg_co2eq_per_chf: float = Field(ge=0)
+    ef_kg_co2eq_per_eur: float = Field(ge=0)
 
     @field_validator("purchase_category", mode="after")
     @classmethod
@@ -25,16 +25,16 @@ class PlannerPurchaseFactorCreate(FactorCreate):
 
 class PlannerPurchaseFactorUpdate(FactorUpdate):
     purchase_category: Optional[str] = None
-    ef_kg_co2eq_per_chf: Optional[float] = Field(default=None, ge=0)
+    ef_kg_co2eq_per_eur: Optional[float] = Field(default=None, ge=0)
 
 
 class PlannerPurchaseFactorResponse(FactorResponseGen):
     purchase_category: str
-    ef_kg_co2eq_per_chf: float
+    ef_kg_co2eq_per_eur: float
 
 
 class PlannerPurchaseFactorHandler(BaseFactorHandler):
-    """Average EF (kg CO2e per CHF) per purchase submodule."""
+    """Average EF (kg CO2e per EUR) per purchase submodule."""
 
     data_entry_type: DataEntryTypeEnum | None = None
     registration_keys = [DataEntryTypeEnum.planner_purchase]
@@ -45,23 +45,23 @@ class PlannerPurchaseFactorHandler(BaseFactorHandler):
     response_dto = PlannerPurchaseFactorResponse
 
     classification_fields: list[str] = ["purchase_category"]
-    value_fields: list[str] = ["ef_kg_co2eq_per_chf"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_eur"]
 
 
 class PlannerPurchaseBudgetFactorCreate(FactorCreate):
-    ef_kg_co2eq_per_chf: float = Field(ge=0)
+    ef_kg_co2eq_per_eur: float = Field(ge=0)
 
 
 class PlannerPurchaseBudgetFactorUpdate(FactorUpdate):
-    ef_kg_co2eq_per_chf: Optional[float] = Field(default=None, ge=0)
+    ef_kg_co2eq_per_eur: Optional[float] = Field(default=None, ge=0)
 
 
 class PlannerPurchaseBudgetFactorResponse(FactorResponseGen):
-    ef_kg_co2eq_per_chf: float
+    ef_kg_co2eq_per_eur: float
 
 
 class PlannerPurchaseBudgetFactorHandler(BaseFactorHandler):
-    """Average EF (kg CO2e per CHF) for a global research budget."""
+    """Average EF (kg CO2e per EUR) for a global research budget."""
 
     data_entry_type: DataEntryTypeEnum | None = None
     registration_keys = [DataEntryTypeEnum.planner_purchase_budget]
@@ -72,4 +72,4 @@ class PlannerPurchaseBudgetFactorHandler(BaseFactorHandler):
     response_dto = PlannerPurchaseBudgetFactorResponse
 
     classification_fields: list[str] = []
-    value_fields: list[str] = ["ef_kg_co2eq_per_chf"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_eur"]

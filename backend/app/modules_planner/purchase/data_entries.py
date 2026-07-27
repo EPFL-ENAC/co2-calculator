@@ -21,14 +21,14 @@ def _validate_category(v: str) -> str:
 
 class PlannerPurchaseResponse(DataEntryResponseGen):
     purchase_category: str
-    amount_chf: float
+    amount_eur: float
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
 class PlannerPurchaseCreate(DataEntryCreate):
     purchase_category: str
-    amount_chf: float = Field(ge=0)
+    amount_eur: float = Field(ge=0)
     note: Optional[str] = None
 
     @field_validator("purchase_category", mode="after")
@@ -39,7 +39,7 @@ class PlannerPurchaseCreate(DataEntryCreate):
 
 class PlannerPurchaseUpdate(DataEntryUpdate):
     purchase_category: Optional[str] = None
-    amount_chf: Optional[float] = Field(default=None, ge=0)
+    amount_eur: Optional[float] = Field(default=None, ge=0)
     note: Optional[str] = None
 
     @field_validator("purchase_category", mode="after")
@@ -51,16 +51,16 @@ class PlannerPurchaseUpdate(DataEntryUpdate):
 
 
 class PlannerPurchaseBudgetResponse(DataEntryResponseGen):
-    amount_chf: float
+    amount_eur: float
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
 class PlannerPurchaseBudgetCreate(DataEntryCreate):
-    amount_chf: float = Field(ge=0)
+    amount_eur: float = Field(ge=0)
     note: Optional[str] = None
 
 
 class PlannerPurchaseBudgetUpdate(DataEntryUpdate):
-    amount_chf: Optional[float] = Field(default=None, ge=0)
+    amount_eur: Optional[float] = Field(default=None, ge=0)
     note: Optional[str] = None

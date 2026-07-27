@@ -121,10 +121,16 @@
               v-if="expandedKey === expansionKey(entry.config.module)"
               class="q-pa-md"
             >
-              <!-- Headcount is a fixed SIUS-category grid, not an add-row
-                   table (design). Other modules reuse the Calculator tables. -->
+              <!-- Headcount is a fixed SIUS-category grid and Purchases a
+                   global-budget XOR per-category grid, not add-row tables
+                   (design). Other modules reuse the Calculator tables. -->
               <planner-headcount-rows
                 v-if="entry.config.module === MODULES.Headcount"
+                :carbon-report-id="yearData.id"
+                :disable="entry.module?.is_active === false"
+              />
+              <planner-purchase-rows
+                v-else-if="entry.config.module === MODULES.Purchase"
                 :carbon-report-id="yearData.id"
                 :disable="entry.module?.is_active === false"
               />
@@ -159,6 +165,7 @@ import { useI18n } from 'vue-i18n';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
 import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
+import PlannerPurchaseRows from 'src/components/organisms/planner/PlannerPurchaseRows.vue';
 import PlannerReferenceYearDialog from 'src/components/organisms/planner/PlannerReferenceYearDialog.vue';
 import {
   PLANNER_MODULES,

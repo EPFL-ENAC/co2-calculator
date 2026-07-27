@@ -74,6 +74,7 @@ export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
     'vehicles',
     'other_purchases',
     'centralized',
+    'goods_and_services',
   ],
   research_facilities: ['facilities', 'it_facilities', 'animal'],
   professional_travel: ['plane', 'train'],

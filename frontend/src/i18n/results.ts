@@ -575,6 +575,10 @@ export default {
     en: 'Centralized purchases',
     fr: 'Achats centralisés',
   },
+  'charts-global-budget-subcategory': {
+    en: 'Global budget',
+    fr: 'Budget global',
+  },
   'charts-other-equipment-subcategory': {
     en: 'Other equipment',
     fr: 'Autres équipements',

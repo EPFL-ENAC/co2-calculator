@@ -16,7 +16,7 @@ def test_planner_purchase_create_validates_category():
         data_entry_type_id=DataEntryTypeEnum.planner_purchase.value,
         carbon_report_module_id=1,
         purchase_category="services",
-        amount_chf=1500.0,
+        amount_eur=1500.0,
     )
     assert dto.data["purchase_category"] == "services"
 
@@ -25,7 +25,7 @@ def test_planner_purchase_create_validates_category():
             data_entry_type_id=DataEntryTypeEnum.planner_purchase.value,
             carbon_report_module_id=1,
             purchase_category="not-a-category",
-            amount_chf=1500.0,
+            amount_eur=1500.0,
         )
 
 
@@ -34,7 +34,7 @@ def test_planner_purchase_rejects_negative_amount():
         PlannerPurchaseBudgetCreate(
             data_entry_type_id=DataEntryTypeEnum.planner_purchase_budget.value,
             carbon_report_module_id=1,
-            amount_chf=-1.0,
+            amount_eur=-1.0,
         )
 
 
@@ -53,6 +53,6 @@ def test_submodule_total_resolves_matching_purchases_emission():
 
 def test_global_budget_resolves_generic_purchases_node():
     resolved = resolve_emission_types(
-        DataEntryTypeEnum.planner_purchase_budget, {"amount_chf": 1000.0}
+        DataEntryTypeEnum.planner_purchase_budget, {"amount_eur": 1000.0}
     )
     assert resolved == [EmissionType.purchases__goods_and_services]

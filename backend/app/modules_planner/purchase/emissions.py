@@ -1,4 +1,4 @@
-"""Emission resolution for planner purchases (manual CHF totals)."""
+"""Emission resolution for planner purchases (manual EUR totals)."""
 
 from app.modules.emissions.taxonomy import EmissionType
 
