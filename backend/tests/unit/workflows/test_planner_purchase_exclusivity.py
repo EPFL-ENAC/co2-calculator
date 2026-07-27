@@ -1,6 +1,6 @@
 """Planner purchases XOR rule (PRD #1555, #1556).
 
-A plan's Purchases module holds EITHER per-submodule CHF totals OR one
+A plan's Purchases module holds EITHER per-submodule EUR totals OR one
 global budget — never both, and no duplicate submodule category.
 """
 
@@ -48,7 +48,7 @@ async def test_first_submodule_total_is_allowed():
 @pytest.mark.asyncio
 async def test_submodule_total_rejected_when_budget_exists():
     workflow = _workflow_with_rows(
-        [_row(DataEntryTypeEnum.planner_purchase_budget, {"amount_chf": 1000.0})]
+        [_row(DataEntryTypeEnum.planner_purchase_budget, {"amount_eur": 1000.0})]
     )
     with pytest.raises(HTTPException) as exc:
         await workflow._check_planner_purchase_exclusivity(
@@ -63,7 +63,7 @@ async def test_duplicate_submodule_category_rejected():
         [
             _row(
                 DataEntryTypeEnum.planner_purchase,
-                {"purchase_category": "services", "amount_chf": 5.0},
+                {"purchase_category": "services", "amount_eur": 5.0},
             )
         ]
     )
@@ -80,13 +80,13 @@ async def test_budget_rejected_when_totals_exist():
         [
             _row(
                 DataEntryTypeEnum.planner_purchase,
-                {"purchase_category": "vehicles", "amount_chf": 5.0},
+                {"purchase_category": "vehicles", "amount_eur": 5.0},
             )
         ]
     )
     with pytest.raises(HTTPException) as exc:
         await workflow._check_planner_purchase_exclusivity(
-            1, DataEntryTypeEnum.planner_purchase_budget, {"amount_chf": 1000.0}
+            1, DataEntryTypeEnum.planner_purchase_budget, {"amount_eur": 1000.0}
         )
     assert exc.value.detail == "PURCHASES_SUBMODULE_TOTALS_SET"
 
@@ -94,11 +94,11 @@ async def test_budget_rejected_when_totals_exist():
 @pytest.mark.asyncio
 async def test_second_budget_rejected():
     workflow = _workflow_with_rows(
-        [_row(DataEntryTypeEnum.planner_purchase_budget, {"amount_chf": 1000.0})]
+        [_row(DataEntryTypeEnum.planner_purchase_budget, {"amount_eur": 1000.0})]
     )
     with pytest.raises(HTTPException) as exc:
         await workflow._check_planner_purchase_exclusivity(
-            1, DataEntryTypeEnum.planner_purchase_budget, {"amount_chf": 2000.0}
+            1, DataEntryTypeEnum.planner_purchase_budget, {"amount_eur": 2000.0}
         )
     assert exc.value.detail == "PURCHASES_GLOBAL_BUDGET_EXISTS"
 
@@ -110,7 +110,7 @@ async def test_update_excludes_edited_row_from_duplicate_scan():
         [
             _row(
                 DataEntryTypeEnum.planner_purchase,
-                {"purchase_category": "services", "amount_chf": 5.0},
+                {"purchase_category": "services", "amount_eur": 5.0},
                 row_id=7,
             )
         ]
@@ -131,12 +131,12 @@ async def test_update_rejects_change_to_existing_category():
         [
             _row(
                 DataEntryTypeEnum.planner_purchase,
-                {"purchase_category": "services", "amount_chf": 5.0},
+                {"purchase_category": "services", "amount_eur": 5.0},
                 row_id=7,
             ),
             _row(
                 DataEntryTypeEnum.planner_purchase,
-                {"purchase_category": "vehicles", "amount_chf": 9.0},
+                {"purchase_category": "vehicles", "amount_eur": 9.0},
                 row_id=8,
             ),
         ]

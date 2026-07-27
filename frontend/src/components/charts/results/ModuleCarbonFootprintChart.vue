@@ -742,6 +742,9 @@ const PURCHASES_SUBKEYS = [
   'vehicles',
   'other_purchases',
   'centralized',
+  // A planner global budget prices all purchases as one figure, so it lands
+  // on the parent node rather than any of the categories above it.
+  'goods_and_services',
 ] as const;
 
 const equipPurchRankings = computed(() => {
@@ -1083,6 +1086,7 @@ const chartOption = computed((): EChartsOption => {
         vehicles: t('charts-vehicles-subcategory'),
         other_purchases: t('charts-other-purchases-subcategory'),
         centralized: t('charts-purchases-centralized-subcategory'),
+        goods_and_services: t('charts-global-budget-subcategory'),
       };
       const top3Series = equipPurchRankings.value.purchTop3.map((item, i) => ({
         name: purchSubcatLabels[item.key] ?? item.key,
@@ -1382,6 +1386,7 @@ const chartOption = computed((): EChartsOption => {
         'vehicles',
         'other_purchases',
         'centralized',
+        'goods_and_services',
         'equip_rank1',
         'equip_rank2',
         'equip_rank3',

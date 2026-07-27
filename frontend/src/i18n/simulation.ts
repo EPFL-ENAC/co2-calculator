@@ -264,8 +264,8 @@ export default {
     fr: "Prérempli depuis l'année de référence",
   },
   planner_purchase_amount_label: {
-    en: 'Amount (CHF)',
-    fr: 'Montant (CHF)',
+    en: 'Amount (EUR)',
+    fr: 'Montant (EUR)',
   },
   planner_purchase_mode_global: {
     en: 'Global budget',
@@ -282,14 +282,6 @@ export default {
   planner_purchase_global_budget_label: {
     en: 'Global budget',
     fr: 'Budget global',
-  },
-  planner_purchase_kg_unit: {
-    en: 'kgCO₂eq',
-    fr: 'kgCO₂eq',
-  },
-  planner_purchase_missing_factor_tooltip: {
-    en: 'No emission factor available yet for this category: the amount is saved, its emissions will appear once the factors are loaded.',
-    fr: "Aucun facteur d'émission disponible pour cette catégorie : le montant est enregistré, ses émissions apparaîtront une fois les facteurs chargés.",
   },
   planner_purchase_switch_dialog_title: {
     en: 'Switch entry mode',

@@ -20,6 +20,10 @@ from app.models.data_ingestion import (
 from app.models.factor import Factor
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.user import User
+from app.modules_planner.purchase.derived_factors import (
+    PURCHASE_SOURCE_TYPES,
+    derive_planner_purchase_factors,
+)
 from app.repositories.factor_repo import FactorRepository
 from app.schemas.factor import BaseFactorHandler
 from app.seed.seed_helper import get_factor_emission_type_id
@@ -232,9 +236,11 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                             extra_metadata=dict(stats),
                         )
 
-            return await self._finalize_and_commit(
+            result = await self._finalize_and_commit(
                 batch, factor_service, stats, setup_result, factor_repo
             )
+            await self._derive_dependent_factors(result)
+            return result
         except Exception as e:
             logger.error(f"CSV processing failed: {str(e)}", exc_info=True)
             await self.data_session.rollback()
@@ -588,6 +594,28 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             "skipped": stats["rows_skipped"],
             "stats": stats,
         }
+
+    async def _derive_dependent_factors(self, result: Dict[str, Any]) -> None:
+        """Refresh factors that are averages of the ones this upload carried.
+
+        The planner's purchase factors are one such: they exist so a plan can
+        price a budget, and they are only correct while they match the
+        Calculator factors they average — so they are rebuilt here, in the
+        upload's own transaction, rather than maintained apart.
+
+        Skipped on a partial upload: averaging a set where some rows are the
+        new upload's and some are the previous one's publishes a number that
+        matches neither.
+        """
+        if result["result"] != IngestionResult.SUCCESS or self.year is None:
+            return
+        # What the rows actually carried, not what the module allows: the
+        # centralized-purchases CSV is valid for the same module and prices
+        # none of the categories these averages are taken over.
+        if self._upserted_det_ids & {det.value for det in PURCHASE_SOURCE_TYPES}:
+            await derive_planner_purchase_factors(
+                self.data_session, self.year, self.job_id
+            )
 
     async def _delete_stale_factors(self, factor_repo: FactorRepository) -> int:
         """Delete factors this job's upsert just superseded.

@@ -178,6 +178,10 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
 
         factor_service = FactorService(self.data_session)
         await self._process_batch(batch, factor_service)
+        # Recorded here too: the base class tracks it in the upsert this
+        # override replaces, and post-ingest steps read it to know what
+        # the run actually wrote.
+        self._upserted_det_ids.update(f.data_entry_type_id for f in batch)
         return len(batch)
 
     async def _finalize_and_commit(
@@ -192,7 +196,7 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
     ) -> Dict[str, Any]:
 
         if batch:
-            await self._process_batch(batch, factor_service)
+            await self._upsert_batch(batch, factor_repo)
 
         await self.data_session.flush()
 

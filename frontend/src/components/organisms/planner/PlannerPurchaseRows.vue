@@ -50,13 +50,7 @@
           <div class="row items-center no-wrap q-gutter-md">
             <div class="text-body2 text-grey-7">
               <template v-if="row.kg !== null">
-                {{ formatKgCO2(row.kg) }} {{ $t('planner_purchase_kg_unit') }}
-              </template>
-              <template v-else>
-                <span class="planner-purchase-kg-empty">–</span>
-                <q-tooltip>{{
-                  $t('planner_purchase_missing_factor_tooltip')
-                }}</q-tooltip>
+                {{ formatTonnesCO2(row.kg / 1000) }} {{ $t('tco2eq') }}
               </template>
             </div>
             <q-input
@@ -66,7 +60,7 @@
               dense
               hide-bottom-space
               min="0"
-              suffix="CHF"
+              suffix="EUR"
               style="max-width: 200px"
               :aria-label="$t('planner_purchase_amount_label')"
               :disable="disable || switching || savingKey === row.key"
@@ -126,7 +120,7 @@ import { useI18n } from 'vue-i18n';
 
 import { api } from 'src/api/http';
 import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
-import { formatKgCO2 } from 'src/utils/number';
+import { formatTonnesCO2 } from 'src/utils/number';
 
 // The 7 backend categories (modules_planner/purchase/emissions.py
 // PLANNER_PURCHASE_EMISSIONS), rendered as fixed rows in the design's order.
@@ -173,7 +167,7 @@ interface PurchaseRow {
 interface SubmoduleItem {
   id: number;
   purchase_category?: string;
-  amount_chf?: number | null;
+  amount_eur?: number | null;
   kg_co2eq?: number | null;
 }
 
@@ -242,7 +236,7 @@ async function fetchItems(target: Mode): Promise<SubmoduleItem[]> {
 }
 
 function fillRow(row: PurchaseRow, item: SubmoduleItem | undefined) {
-  row.amount = item?.amount_chf ?? null;
+  row.amount = item?.amount_eur ?? null;
   row.saved = row.amount;
   row.entryId = item?.id ?? null;
   row.kg = item?.kg_co2eq ?? null;
@@ -259,9 +253,7 @@ async function load() {
       .filter((it) => it.purchase_category)
       .map((it) => [it.purchase_category as string, it]),
   );
-  categoryRows.value.forEach((row) =>
-    fillRow(row, byCategory.get(row.key)),
-  );
+  categoryRows.value.forEach((row) => fillRow(row, byCategory.get(row.key)));
   fillRow(budgetRow.value, budgets[0]);
   // The mode the data is already in wins; an untouched module opens on the
   // single-field path.
@@ -282,7 +274,8 @@ async function refreshKg() {
 }
 
 async function errorDetail(error: unknown): Promise<string | null> {
-  if (!error || typeof error !== 'object' || !('response' in error)) return null;
+  if (!error || typeof error !== 'object' || !('response' in error))
+    return null;
   try {
     const body = await (error as { response: Response }).response
       .clone()
@@ -294,7 +287,8 @@ async function errorDetail(error: unknown): Promise<string | null> {
 }
 
 function statusOf(error: unknown): number | null {
-  if (!error || typeof error !== 'object' || !('response' in error)) return null;
+  if (!error || typeof error !== 'object' || !('response' in error))
+    return null;
   return (error as { response: Response }).response.status ?? null;
 }
 
@@ -334,8 +328,8 @@ async function persist(row: PurchaseRow) {
       const created = await api
         .post(pathFor(mode.value), {
           json: row.category
-            ? { purchase_category: row.category, amount_chf: amount }
-            : { amount_chf: amount },
+            ? { purchase_category: row.category, amount_eur: amount }
+            : { amount_eur: amount },
           skipErrorCodes: [422],
         })
         .json<{ id: number }>();
@@ -343,7 +337,7 @@ async function persist(row: PurchaseRow) {
     } else {
       await api
         .patch(`${pathFor(mode.value)}/${row.entryId}`, {
-          json: { amount_chf: amount },
+          json: { amount_eur: amount },
           skipErrorCodes: [422],
         })
         .json();
@@ -430,11 +424,5 @@ onMounted(load);
   &:disabled {
     cursor: default;
   }
-}
-
-// The dash stands for "no factor yet", not for zero — it should not read as a
-// computed result.
-.planner-purchase-kg-empty {
-  cursor: help;
 }
 </style>

@@ -74,6 +74,7 @@ const LABEL_KEY_MAP: Record<string, string> = {
   vehicles: 'charts-vehicles-subcategory',
   other_purchases: 'charts-other-purchases-subcategory',
   centralized: 'charts-purchases-centralized-subcategory',
+  goods_and_services: 'charts-global-budget-subcategory',
   // research facilities
   facilities: 'charts-research-facilities-subcategory',
   it_facilities: 'charts-research-it-facilities-subcategory',

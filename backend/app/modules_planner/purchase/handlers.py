@@ -20,10 +20,10 @@ from app.schemas.data_entry import BaseModuleHandler
 class _PlannerPurchaseBase(BaseModuleHandler):
     """Shared behavior of the two planner purchase kinds.
 
-    Emissions are ``amount_chf × ef_kg_co2eq_per_chf`` from factors keyed
-    on the planner kind itself — the methodology (average EF per CHF)
-    ships as factor data, not code. Entries without a matching factor
-    simply carry no kg_co2eq yet.
+    Emissions are ``amount_eur × ef_kg_co2eq_per_eur`` from factors keyed
+    on the planner kind itself — averages of the Calculator's purchase
+    factors, derived when those are uploaded (see ``derived_factors``).
+    Entries without a matching factor carry no kg_co2eq.
     """
 
     module_type: ModuleTypeEnum = ModuleTypeEnum.purchase
@@ -73,14 +73,14 @@ class _PlannerPurchaseBase(BaseModuleHandler):
                     kind=kind,
                     subkind=None,
                 ),
-                formula_key="ef_kg_co2eq_per_chf",
-                quantity_key="amount_chf",
+                formula_key="ef_kg_co2eq_per_eur",
+                quantity_key="amount_eur",
             )
         ]
 
 
 class PlannerPurchaseModuleHandler(_PlannerPurchaseBase):
-    """Manual CHF total per purchase submodule."""
+    """Manual EUR total per purchase submodule."""
 
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.planner_purchase
     create_dto = PlannerPurchaseCreate
@@ -94,12 +94,12 @@ class PlannerPurchaseModuleHandler(_PlannerPurchaseBase):
     sort_map = {
         "id": DataEntry.id,
         "purchase_category": DataEntry.data["purchase_category"].as_string(),
-        "amount_chf": DataEntry.data["amount_chf"].as_float(),
+        "amount_eur": DataEntry.data["amount_eur"].as_float(),
     }
 
 
 class PlannerPurchaseBudgetModuleHandler(_PlannerPurchaseBase):
-    """Single global CHF budget (mutually exclusive with submodule totals)."""
+    """Single global EUR budget (mutually exclusive with submodule totals)."""
 
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.planner_purchase_budget
     create_dto = PlannerPurchaseBudgetCreate
@@ -110,5 +110,5 @@ class PlannerPurchaseBudgetModuleHandler(_PlannerPurchaseBase):
     filter_map: dict[str, Any] = {}
     sort_map = {
         "id": DataEntry.id,
-        "amount_chf": DataEntry.data["amount_chf"].as_float(),
+        "amount_eur": DataEntry.data["amount_eur"].as_float(),
     }

@@ -42,6 +42,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.api.deps as deps_module
 from app.main import app
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionMethod,
@@ -49,6 +50,7 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
+from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
 from app.models.year_configuration import YearConfiguration
@@ -215,6 +217,50 @@ async def test_factor_csv_upload_dispatches_and_finishes_without_error(
     assert job.job_type == "factor_ingest"
     assert job.target_type == TargetType.FACTORS
     assert job.result == IngestionResult.SUCCESS, job.status_message
+
+    # The planner's per-CHF averages are derived from this upload, in its own
+    # transaction — a plan priced against them can never lag the Calculator.
+    async with factory() as s:
+        derived = (
+            (
+                await s.execute(
+                    select(Factor).where(
+                        col(Factor.data_entry_type_id)
+                        == DataEntryTypeEnum.planner_purchase.value,
+                        col(Factor.year) == YEAR,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert {f.classification["purchase_category"] for f in derived} == {
+        "scientific_equipment",
+        "it_equipment",
+        "consumable_accessories",
+        "biological_chemical_gaseous_product",
+        "services",
+    }, "one derived factor per category the CSV priced"
+    assert all(f.values["ef_kg_co2eq_per_eur"] > 0 for f in derived)
+
+    async with factory() as s:
+        budget = (
+            (
+                await s.execute(
+                    select(Factor).where(
+                        col(Factor.data_entry_type_id)
+                        == DataEntryTypeEnum.planner_purchase_budget.value
+                    )
+                )
+            )
+            .scalars()
+            .one()
+        )
+    # The global budget averages the category means, so it is not pulled by
+    # whichever category the CSV happens to carry the most codes for.
+    assert budget.values["ef_kg_co2eq_per_eur"] == pytest.approx(
+        sum(f.values["ef_kg_co2eq_per_eur"] for f in derived) / len(derived), rel=1e-4
+    )
 
 
 @pytest.mark.asyncio

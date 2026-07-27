@@ -81,7 +81,7 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   vehicles: 'charts-vehicles-subcategory',
   centralized: 'charts-purchases-centralized-subcategory',
   other_purchases: 'charts-other-purchases-subcategory',
-  goods_and_services: 'charts-services-subcategory',
+  goods_and_services: 'charts-global-budget-subcategory',
   plane: 'charts-plane-subcategory',
   train: 'charts-train-subcategory',
   class_1: 'charts-class-1-subcategory',

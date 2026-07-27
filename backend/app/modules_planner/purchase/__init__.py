@@ -1,4 +1,4 @@
-"""Planner purchases: manual CHF totals per submodule XOR one global budget.
+"""Planner purchases: manual EUR totals per submodule XOR one global budget.
 
 Importing this package registers the module and factor handlers
 (metaclass side effect in ``handlers``/``factors``).
