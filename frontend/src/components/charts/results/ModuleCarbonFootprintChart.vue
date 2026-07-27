@@ -1103,7 +1103,11 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         animation: true,
         encode: { x: 'category', y: 'purch_rest' },
-        itemStyle: { color: colors.value.lightGreen.lighter },
+        // Sits directly above the ranked segments, so it continues their ramp
+        // instead of jumping a shade.
+        itemStyle: {
+          color: stackShade(colors.value.lightGreen, top3Series.length),
+        },
         label: { show: false },
       };
       return [...top3Series, restSeries];
@@ -1565,7 +1569,7 @@ const downloadCSV = () => {
           :class="['chart', { 'chart--print': isPrintMode }]"
           autoresize
           :option="chartOption"
-          :update-options="{ replaceMerge: ['dataset'] }"
+          :update-options="{ replaceMerge: ['dataset', 'series'] }"
           @rendered="recalculateScopeRects"
           @vue:mounted="onChartReady"
         />
