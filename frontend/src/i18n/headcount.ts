@@ -14,10 +14,6 @@ export default {
     en: `This module automatically displays the names, functions, SCIPERs, and FTE values of your unit’s members as of the reference year. For student contributions, please manually add their total accumulated FTE over the year. The total number of FTEs is used to generate the indicators for the additional categories (Food, Commuting, and Waste), as well as the total carbon footprint per FTE for your unit.`,
     fr: `Ce module affiche automatiquement les noms, fonctions, SCIPERs et valeurs EPT des membres de votre unité pour l'année de référence. Pour les contributions des étudiant·e·s, veuillez ajouter manuellement leur EPT total sur l'ensemble de l'année. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets), ainsi que l'empreinte carbone totale par EPT pour votre unité.`,
   },
-  [`${MODULES.Headcount}-documentation-title`]: {
-    en: 'For more information',
-    fr: "Pour plus d'information",
-  },
   [`${MODULES.Headcount}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/headcount/',
     fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/headcount/',

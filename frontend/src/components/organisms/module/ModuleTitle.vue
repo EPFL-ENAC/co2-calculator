@@ -73,16 +73,13 @@ const props = withDefaults(
 const { t, te } = useI18n();
 const tooltipText = computed(() => t(`module-${props.type}-title`));
 
-// Per-module documentation link: label + URL live in each module's i18n file.
-// Rendered only when the module defines a non-empty link.
+// Per-module documentation URL lives in each module's i18n file; the label is
+// shared. Rendered only when the module defines a non-empty link.
 const documentationLink = computed(() => {
   const key = `${props.type}-documentation-link`;
   return te(key) ? t(key) : '';
 });
-const documentationTitle = computed(() => {
-  const key = `${props.type}-documentation-title`;
-  return te(key) && t(key) ? t(key) : t('documentation');
-});
+const documentationTitle = computed(() => t('module_documentation_title'));
 </script>
 
 <style scoped lang="scss">

@@ -49,6 +49,10 @@ export default {
     en: 'Documentation',
     fr: 'Documentation',
   },
+  module_documentation_title: {
+    en: 'For more information',
+    fr: "Pour plus d'information",
+  },
   logout: {
     en: 'Logout',
     fr: 'Se déconnecter',
