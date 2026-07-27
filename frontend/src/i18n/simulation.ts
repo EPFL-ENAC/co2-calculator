@@ -208,8 +208,8 @@ export default {
     fr: 'Année de référence',
   },
   planner_reference_year_hint: {
-    en: 'Select a reference year: all factors and prefilled data for this simulation year come from it. The modules below stay locked until you do.',
-    fr: "Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année de simulation en proviennent. Les modules ci-dessous restent verrouillés tant qu'elle n'est pas définie.",
+    en: 'Select a reference year: all factors and prefilled data of this planned year come from it. The modules below stay locked until you do.',
+    fr: "Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année planifiée en proviennent. Les modules ci-dessous restent verrouillés tant qu'elle n'est pas définie.",
   },
   planner_reference_year_error: {
     en: 'Could not set the reference year',
@@ -224,24 +224,28 @@ export default {
     fr: 'Modifier',
   },
   planner_reference_year_rebuild_hint: {
-    en: 'Prefilled modules are rebuilt from this year — changing it deletes their current data.',
-    fr: 'Les modules préremplis sont reconstruits à partir de cette année — la changer supprime leurs données actuelles.',
+    en: 'The prefilled modules of this planned year are rebuilt from the reference year — changing it deletes their current data.',
+    fr: "Les modules préremplis de cette année planifiée sont reconstruits à partir de l'année de référence — la changer supprime leurs données actuelles.",
   },
   planner_reference_year_dialog_title: {
-    en: 'Reference year for {year}',
-    fr: 'Année de référence pour {year}',
+    en: 'Planned year {year}: choose its reference year',
+    fr: 'Année planifiée {year} : choisir son année de référence',
+  },
+  planner_reference_year_dialog_select_label: {
+    en: 'Reference year (source of the data)',
+    fr: 'Année de référence (source des données)',
   },
   planner_reference_year_dialog_consequences: {
-    en: 'Every prefilled module is rebuilt from the year you pick, and its factors come from it.',
-    fr: "Chaque module prérempli est reconstruit à partir de l'année choisie, et ses facteurs en proviennent.",
+    en: 'The prefilled modules of planned year {year} are rebuilt from the reference year you pick, and use its emission factors.',
+    fr: "Les modules préremplis de l'année planifiée {year} sont reconstruits à partir de l'année de référence choisie et utilisent ses facteurs d'émission.",
   },
   planner_reference_year_dialog_wipe_warning: {
-    en: 'Changing the reference year deletes all the data of the prefilled modules for this year: the prefilled rows, your percentages, your edits and the rows you added yourself. This cannot be undone.',
-    fr: "Changer l'année de référence supprime toutes les données des modules préremplis de cette année : les lignes préremplies, vos pourcentages, vos modifications et les lignes que vous avez ajoutées. Cette action est irréversible.",
+    en: 'Changing the reference year deletes everything the prefilled modules of planned year {year} contain: the prefilled rows, your percentages, your edits and the rows you added yourself. The reference year itself keeps its data. This cannot be undone.',
+    fr: "Changer l'année de référence supprime tout ce que contiennent les modules préremplis de l'année planifiée {year} : les lignes préremplies, vos pourcentages, vos modifications et les lignes que vous avez ajoutées. L'année de référence, elle, conserve ses données. Cette action est irréversible.",
   },
   planner_reference_year_dialog_wipe_ack: {
-    en: 'I understand the data of {year} will be deleted',
-    fr: 'Je comprends que les données de {year} seront supprimées',
+    en: 'I understand that my planned data for {year} will be deleted',
+    fr: 'Je comprends que mes données planifiées de {year} seront supprimées',
   },
   planner_module_active_tooltip: {
     en: 'Inactive modules are excluded from sums, graphs and results.',

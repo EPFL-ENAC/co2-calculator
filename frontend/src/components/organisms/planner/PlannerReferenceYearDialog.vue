@@ -24,14 +24,14 @@
         <q-select
           v-model="selected"
           :options="options"
-          :label="$t('planner_reference_year_label')"
+          :label="$t('planner_reference_year_dialog_select_label')"
           outlined
           dense
           emit-value
           map-options
         />
         <div class="text-body2 text-grey-8 q-mt-md">
-          {{ $t('planner_reference_year_dialog_consequences') }}
+          {{ $t('planner_reference_year_dialog_consequences', { year }) }}
         </div>
 
         <template v-if="referenceYear !== null">
@@ -40,7 +40,7 @@
               <q-icon name="o_warning" color="negative" size="sm" />
             </template>
             <div class="text-body2">
-              {{ $t('planner_reference_year_dialog_wipe_warning') }}
+              {{ $t('planner_reference_year_dialog_wipe_warning', { year }) }}
             </div>
           </q-banner>
           <q-checkbox
@@ -48,11 +48,7 @@
             dense
             color="negative"
             class="q-mt-md"
-            :label="
-              $t('planner_reference_year_dialog_wipe_ack', {
-                year: referenceYear,
-              })
-            "
+            :label="$t('planner_reference_year_dialog_wipe_ack', { year })"
           />
         </template>
       </q-card-section>
