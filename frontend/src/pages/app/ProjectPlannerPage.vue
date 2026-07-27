@@ -60,8 +60,8 @@
           :year-data="yearData"
           :unit-id="unitId"
           :reference-year-options="referenceYearOptions"
-          :expanded-key="expandedKey"
-          @update:expanded-key="expandedKey = $event"
+          :expanded-keys="expandedKeys"
+          @toggle-module="onToggleModule"
         />
 
         <!-- Whole-plan results: every year of the range summed together -->
@@ -152,9 +152,25 @@ const unitId = computed(() => workspaceStore.selectedUnit!.id);
 
 const plan = ref<SimulatorPlan | null>(null);
 const notFound = ref(false);
-// `${year}-${module}` of the single expanded module across all year
-// sections — the module store holds one module's data at a time.
-const expandedKey = ref<string | null>(null);
+// `${year}-${module}` of every expanded module. Any number can be open at
+// once, except the same module in two years: the module store keys its
+// submodule rows by submodule id alone, so both would read one another's data.
+const expandedKeys = ref<string[]>([]);
+
+function onToggleModule({
+  key,
+  module,
+  open,
+}: {
+  key: string;
+  module: string;
+  open: boolean;
+}) {
+  const others = expandedKeys.value.filter(
+    (k) => k !== key && !k.endsWith(`-${module}`),
+  );
+  expandedKeys.value = open ? [...others, key] : others;
+}
 
 const breakdown = computed(() =>
   plansStore.aggregateStats

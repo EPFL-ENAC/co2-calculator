@@ -53,7 +53,7 @@
           <q-icon name="o_calendar_month" class="reference-year-row__icon" />
           <span>{{ $t('planner_reference_year_set_button') }}</span>
         </q-btn>
-        <div class="text-body2 text-grey-7 q-mt-xs">
+        <div class="text-body2 text-grey-7 q-mt-sm">
           {{
             yearData.reference_year
               ? $t('planner_reference_year_rebuild_hint')
@@ -82,7 +82,7 @@
       >
         <q-separator v-if="entryIdx > 0" />
         <q-expansion-item
-          :model-value="expandedKey === expansionKey(entry.config.module)"
+          :model-value="isExpanded(entry.config.module)"
           :disable="!hasReferenceYear"
           header-class="q-py-md"
           @update:model-value="
@@ -108,6 +108,8 @@
                   :model-value="entry.module?.is_active ?? true"
                   :label="$t('planner_module_active_label')"
                   color="info"
+                  size="sm"
+                  dense
                   :disable="
                     !entry.module || togglingModuleId === entry.module.id
                   "
@@ -124,9 +126,12 @@
           </template>
 
           <q-separator />
+          <!-- Headcount stripes run edge to edge, so it carries no padding. -->
           <div
-            v-if="expandedKey === expansionKey(entry.config.module)"
-            class="q-pa-md"
+            v-if="isExpanded(entry.config.module)"
+            :class="
+              entry.config.module === MODULES.Headcount ? undefined : 'q-pa-md'
+            "
           >
             <!-- Headcount is a fixed SIUS-category grid, not an add-row
                    table (design). Other modules reuse the Calculator tables. -->
@@ -192,10 +197,12 @@ const props = defineProps<{
   yearData: SimulatorPlanYear;
   unitId: number;
   referenceYearOptions: { label: string; value: number }[];
-  /** `${year}-${module}` of the single expanded module across the page. */
-  expandedKey: string | null;
+  /** `${year}-${module}` of every expanded module across the page. */
+  expandedKeys: string[];
 }>();
-const emit = defineEmits<{ 'update:expandedKey': [key: string | null] }>();
+const emit = defineEmits<{
+  toggleModule: [payload: { key: string; module: Module; open: boolean }];
+}>();
 
 const $q = useQuasar();
 const { t } = useI18n();
@@ -224,6 +231,10 @@ function expansionKey(module: Module): string {
   return `${props.yearData.year}-${module}`;
 }
 
+function isExpanded(module: Module): boolean {
+  return props.expandedKeys.includes(expansionKey(module));
+}
+
 function factorScopedKey(module: Module): string {
   return factorMountKey(module, props.yearData.reference_year);
 }
@@ -238,7 +249,7 @@ async function refreshExpandedModule(module: Module) {
 }
 
 function onToggle(module: Module, open: boolean) {
-  emit('update:expandedKey', open ? expansionKey(module) : null);
+  emit('toggleModule', { key: expansionKey(module), module, open });
   if (open) void refreshExpandedModule(module);
 }
 
@@ -251,12 +262,13 @@ async function onReferenceYearChange(referenceYear: number) {
       referenceYear,
     );
     referenceYearDialogOpen.value = false;
-    // The prefilled modules were rebuilt from the new baseline; refresh the
-    // open module so its rows appear without a manual reload.
-    const expanded = props.expandedKey?.startsWith(`${props.yearData.year}-`);
-    const module = props.expandedKey?.split('-').slice(1).join('-') as
-      Module | undefined;
-    if (expanded && module) await refreshExpandedModule(module);
+    // The prefilled modules were rebuilt from the new baseline; refresh this
+    // year's open modules so their rows appear without a manual reload.
+    const prefix = `${props.yearData.year}-`;
+    for (const key of props.expandedKeys) {
+      if (!key.startsWith(prefix)) continue;
+      await refreshExpandedModule(key.slice(prefix.length) as Module);
+    }
   } catch {
     $q.notify({ type: 'negative', message: t('planner_reference_year_error') });
   } finally {

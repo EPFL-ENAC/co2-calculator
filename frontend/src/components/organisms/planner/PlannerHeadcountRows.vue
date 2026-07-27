@@ -1,21 +1,28 @@
 <template>
-  <div class="q-gutter-y-sm">
+  <!-- Reads as a table: full-width striped rows carry the eye from the
+       category across to its field, the way the Calculator tables do. -->
+  <div class="headcount-table">
     <div
       v-for="row in rows"
       :key="row.sius_code"
-      class="row items-center justify-between q-py-xs"
+      class="headcount-table__row row items-center no-wrap"
     >
       <!-- Canonical SIUS-category labels from i18n/headcount_factor.ts
            (keyed by the bare code) — same source the Calculator uses. -->
-      <div class="text-body1">{{ $t(row.sius_code) }}</div>
+      <label :for="`fte-${row.sius_code}`" class="col text-body2">
+        {{ $t(row.sius_code) }}
+      </label>
       <q-input
+        :id="`fte-${row.sius_code}`"
         v-model.number="row.fte"
+        class="headcount-table__input"
         type="number"
         outlined
         dense
+        hide-bottom-space
         min="0"
         step="0.5"
-        style="max-width: 180px"
+        input-class="text-right"
         :disable="disable || savingCode === row.sius_code"
         :loading="savingCode === row.sius_code"
         @blur="save(row)"
@@ -111,3 +118,29 @@ async function save(row: HeadcountRow) {
 
 onMounted(load);
 </script>
+
+<style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.headcount-table {
+  &__row {
+    gap: tokens.$spacing-lg;
+    padding: tokens.$spacing-xs tokens.$spacing-md;
+    background-color: tokens.$table-bg-odd;
+
+    &:nth-child(even) {
+      background-color: tokens.$table-bg-even;
+    }
+  }
+
+  &__input {
+    width: 7.5rem;
+
+    // The field keeps its own white surface so it stays legible on the
+    // shaded stripes instead of picking up the row behind it.
+    :deep(.q-field__control) {
+      background-color: tokens.$table-bg-odd;
+    }
+  }
+}
+</style>
