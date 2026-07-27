@@ -7,6 +7,8 @@ Covers CRUD operations, static helpers, and reporting queries
 import pytest
 
 from app.core.constants import ModuleStatus
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReportType
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report import CarbonReportModuleCreate
@@ -527,6 +529,43 @@ class TestGetReportingOverview:
         result = await repo.get_reporting_overview(years=[2024])
         assert result["total"] == 0
         assert result["data"] == []
+
+    async def test_excludes_simulator_reports(
+        self, db_session, make_unit, make_carbon_report
+    ):
+        unit = await make_unit(db_session, name="LAB-SIM")
+        await make_carbon_report(
+            db_session,
+            unit_id=unit.id,
+            year=2024,
+            completion_progress="8/8",
+            overall_status=ModuleStatus.VALIDATED,
+            stats={"total": 12000.0},
+        )
+        for report_type in (
+            CarbonReportType.SIMULATOR_PLAN,
+            CarbonReportType.SIMULATOR_EXPLORE,
+        ):
+            project = CarbonProject(unit_id=unit.id, carbon_report_type=report_type)
+            db_session.add(project)
+            await db_session.flush()
+            await make_carbon_report(
+                db_session,
+                unit_id=unit.id,
+                year=2024,
+                carbon_project_id=project.id,
+                completion_progress="0/8",
+                stats={"total": 5000.0},
+            )
+
+        repo = CarbonReportModuleRepository(db_session)
+        result = await repo.get_reporting_overview(years=[2024])
+
+        assert result["total"] == 1
+        assert result["total_units_count"] == 1
+        assert result["validated_units_count"] == 1
+        assert [row["total_carbon_footprint"] for row in result["data"]] == [12.0]
+        assert result["stats"]["total"] == 12000.0
 
     async def test_scoped_overview_clamps_to_subtree(
         self, db_session, make_unit, make_carbon_report
