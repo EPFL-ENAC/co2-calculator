@@ -13,6 +13,10 @@ export default {
     en: 'Review annual purchase data and its carbon footprint.',
     fr: "Vérifiez vos données d'achats annuelles et leur empreinte carbone.",
   },
+  [`${MODULES.Purchase}-documentation-link`]: {
+    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/purchases/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/purchases/',
+  },
   [`${MODULES.Purchase}-title-subtext`]: {
     en: "This module calculates the carbon footprint of your unit’s purchases on an item-by-item basis by using procurement data registered in the EPFL's invoice system. You can review the entries and manually add any missing purchases. By default, emissions are estimated using financial spend-based emission factors. However, for specific centralized purchase categories where you can enter usage data, the system will automatically apply usage-based emission factors. Please note that purchases, such that made through internal shops or via units' credit cards, are not currently included in the automatic sync. We highly encourage you to manually fill in these expenses to receive a complete overview for your unit.",
     fr: "Ce module calcule l'empreinte carbone des achats de votre unité, article par article, en utilisant les données d'approvisionnement enregistrées dans le système EPFL de facturation. Vous pouvez vérifier les entrées et ajouter manuellement les achats manquants. Par défaut, les émissions sont estimées à l'aide de facteurs d'émission basés sur les dépenses financières. Cependant, pour certaines catégories d'achats centralisés où vous pouvez saisir des données d'utilisation, le système appliquera automatiquement des facteurs d'émission basés sur l'utilisation. Veuillez noter qu'actuellement les achats effectués auprès de magasins internes ou via les cartes de crédit des unités, ne remontent pas automatiquement. Nous vous encourageons vivement à renseigner manuellement ces dépenses afin d'obtenir une image de vos achats aussi précise que possible.",

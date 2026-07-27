@@ -44,10 +44,6 @@ Veuillez remplir les colonnes suivantes:
 
 Si la puissance moyenne active ou standby de votre équipement est différente de celle utilisée par défaut, merci de contacter l'administrateur.`,
   },
-  [`${MODULES.Equipment}-documentation-title`]: {
-    en: 'For more information',
-    fr: "Pour plus d'information",
-  },
   [`${MODULES.Equipment}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/equipment/',
     fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/equipment/',
