@@ -2,7 +2,7 @@
   <q-card flat bordered>
     <q-expansion-item
       v-model="yearOpen"
-      header-class="text-h5 text-weight-bold"
+      header-class="text-h5 text-weight-medium"
     >
       <template #header>
         <q-item-section>{{ yearData.year }}</q-item-section>
@@ -10,21 +10,21 @@
 
       <q-separator />
       <q-card-section>
-        <div class="text-weight-bold q-mb-sm">
+        <div class="text-weight-medium q-mb-sm">
           {{ $t('planner_reference_year_label') }}
         </div>
         <!-- Set: the value reads first, the action stays quiet beside it.
              Unset: nothing to read yet, so the action carries the label. -->
         <div
           v-if="yearData.reference_year"
-          class="reference-year-row row items-center no-wrap"
+          class="reference-year-box reference-year-row row items-center no-wrap"
         >
           <q-icon
             name="o_calendar_month"
             color="info"
             class="reference-year-row__icon"
           />
-          <span class="reference-year-row__value text-weight-bold">
+          <span class="reference-year-row__value text-weight-medium">
             {{ yearData.reference_year }}
           </span>
           <q-separator vertical class="reference-year-row__divider" />
@@ -46,7 +46,7 @@
           flat
           no-caps
           align="left"
-          class="reference-year-empty text-weight-medium"
+          class="reference-year-box reference-year-empty text-weight-medium"
           :loading="settingReferenceYear"
           @click="referenceYearDialogOpen = true"
         >
@@ -62,6 +62,8 @@
         </div>
       </q-card-section>
 
+      <q-separator />
+
       <planner-reference-year-dialog
         v-if="referenceYearDialogOpen"
         :key="`ref-year-${yearData.reference_year}`"
@@ -73,86 +75,84 @@
         @confirm="onReferenceYearChange"
       />
 
-      <!-- One bordered card per module, in Calculator order -->
-      <q-card-section class="q-gutter-md">
-        <q-card
-          v-for="entry in moduleEntries"
-          :key="entry.config.module"
-          flat
-          bordered
+      <!-- Flat separator-joined list, in Calculator order — same as the Explorer -->
+      <template
+        v-for="(entry, entryIdx) in moduleEntries"
+        :key="entry.config.module"
+      >
+        <q-separator v-if="entryIdx > 0" />
+        <q-expansion-item
+          :model-value="expandedKey === expansionKey(entry.config.module)"
+          :disable="!hasReferenceYear"
+          header-class="q-py-md"
+          @update:model-value="
+            (open: boolean) => onToggle(entry.config.module, open)
+          "
         >
-          <q-expansion-item
-            :model-value="expandedKey === expansionKey(entry.config.module)"
-            :disable="!hasReferenceYear"
-            @update:model-value="
-              (open: boolean) => onToggle(entry.config.module, open)
-            "
-          >
-            <template #header>
-              <q-item-section avatar>
-                <module-icon-box :name="entry.config.module" size="md" />
-              </q-item-section>
-              <q-item-section class="text-weight-medium">
-                {{ $t(entry.config.module) }}
-              </q-item-section>
-              <q-item-section side @click.stop>
-                <div class="row items-center no-wrap q-gutter-sm">
-                  <q-checkbox
-                    :model-value="entry.module?.is_active ?? true"
-                    :label="$t('planner_module_active_label')"
-                    color="info"
-                    :disable="
-                      !entry.module || togglingModuleId === entry.module.id
-                    "
-                    @update:model-value="
-                      (active: boolean) => onToggleActive(entry, active)
-                    "
-                  >
-                    <q-tooltip>{{
-                      $t('planner_module_active_tooltip')
-                    }}</q-tooltip>
-                  </q-checkbox>
+          <template #header>
+            <q-item-section>
+              <div class="flex items-center">
+                <module-icon-box
+                  :name="entry.config.module"
+                  size="sm"
+                  class="q-mr-sm"
+                />
+                <div class="text-h5 text-weight-medium">
+                  {{ $t(entry.config.module) }}
                 </div>
-              </q-item-section>
-            </template>
+              </div>
+            </q-item-section>
+            <q-item-section side @click.stop>
+              <div class="row items-center no-wrap q-gutter-sm">
+                <q-checkbox
+                  :model-value="entry.module?.is_active ?? true"
+                  :label="$t('planner_module_active_label')"
+                  color="info"
+                  :disable="
+                    !entry.module || togglingModuleId === entry.module.id
+                  "
+                  @update:model-value="
+                    (active: boolean) => onToggleActive(entry, active)
+                  "
+                >
+                  <q-tooltip>{{
+                    $t('planner_module_active_tooltip')
+                  }}</q-tooltip>
+                </q-checkbox>
+              </div>
+            </q-item-section>
+          </template>
 
-            <q-separator />
-            <div
-              v-if="expandedKey === expansionKey(entry.config.module)"
-              class="q-pa-md"
-            >
-              <!-- Headcount is a fixed SIUS-category grid and Purchases a
-                   global-budget XOR per-category grid, not add-row tables
-                   (design). Other modules reuse the Calculator tables. -->
-              <planner-headcount-rows
-                v-if="entry.config.module === MODULES.Headcount"
-                :carbon-report-id="yearData.id"
-                :disable="entry.module?.is_active === false"
-              />
-              <planner-purchase-rows
-                v-else-if="entry.config.module === MODULES.Purchase"
-                :carbon-report-id="yearData.id"
-                :disable="entry.module?.is_active === false"
-              />
-              <module-table-section
-                v-else
-                :key="factorScopedKey(entry.config.module)"
-                :type="entry.config.module"
-                :config-override="getPlannerModuleConfig(entry.config.module)"
-                :data="moduleStore.state.data"
-                :loading="moduleStore.state.loading"
-                :error="moduleStore.state.error"
-                :unit-id="unitId"
-                :year="yearData.year"
-                :factor-year="yearData.reference_year"
-                :carbon-report-id="yearData.id"
-                :show-reference-columns="entry.config.behavior === 'prefilled'"
-                :disable="entry.module?.is_active === false"
-              />
-            </div>
-          </q-expansion-item>
-        </q-card>
-      </q-card-section>
+          <q-separator />
+          <div
+            v-if="expandedKey === expansionKey(entry.config.module)"
+            class="q-pa-md"
+          >
+            <!-- Headcount is a fixed SIUS-category grid, not an add-row
+                   table (design). Other modules reuse the Calculator tables. -->
+            <planner-headcount-rows
+              v-if="entry.config.module === MODULES.Headcount"
+              :carbon-report-id="yearData.id"
+              :disable="entry.module?.is_active === false"
+            />
+            <module-table-section
+              v-else
+              :key="factorScopedKey(entry.config.module)"
+              :type="entry.config.module"
+              :config-override="getPlannerModuleConfig(entry.config.module)"
+              :data="moduleStore.state.data"
+              :loading="moduleStore.state.loading"
+              :error="moduleStore.state.error"
+              :unit-id="unitId"
+              :year="yearData.year"
+              :factor-year="yearData.reference_year"
+              :carbon-report-id="yearData.id"
+              :show-reference-columns="entry.config.behavior === 'prefilled'"
+              :disable="entry.module?.is_active === false"
+            />
+          </div>
+        </q-expansion-item>
+      </template>
     </q-expansion-item>
   </q-card>
 </template>
@@ -282,23 +282,37 @@ async function onToggleActive(entry: ModuleEntry, active: boolean) {
 <style scoped lang="scss">
 @use 'src/css/02-tokens' as tokens;
 
-// Setting row: the current value reads as the content, the action sits quietly
-// beside it — changing the baseline is deliberate, not a stray click.
-.reference-year-row {
+// Both states share one box so the set and unset slots stay the same size.
+// q-btn brings its own min-height / line-height; drop both so the padding
+// tokens alone decide the box, as they already do for the filled row.
+.reference-year-box {
   display: inline-flex;
   gap: tokens.$reference-year-row-gap;
   padding: tokens.$reference-year-row-padding-y
     tokens.$reference-year-row-padding-x;
-  border: tokens.$reference-year-row-border-weight solid
-    tokens.$reference-year-row-border-color;
+  border-width: tokens.$reference-year-row-border-weight;
   border-radius: tokens.$reference-year-row-border-radius;
+  font-size: tokens.$reference-year-row-value-font-size;
+  min-height: 0;
+  line-height: 1;
 
-  &__icon {
+  .reference-year-row__icon {
     font-size: tokens.$reference-year-row-icon-size;
   }
 
+  :deep(.q-btn__content) {
+    gap: tokens.$reference-year-row-gap;
+    line-height: 1;
+  }
+}
+
+// Setting row: the current value reads as the content, the action sits quietly
+// beside it — changing the baseline is deliberate, not a stray click.
+.reference-year-row {
+  border-style: solid;
+  border-color: tokens.$reference-year-row-border-color;
+
   &__value {
-    font-size: tokens.$reference-year-row-value-font-size;
     line-height: 1;
   }
 
@@ -315,16 +329,7 @@ async function onToggleActive(entry: ModuleEntry, active: boolean) {
 // The same slot before it holds anything: dashed, so it reads as waiting to be
 // filled rather than as a call to action competing with the module list.
 .reference-year-empty {
-  padding: tokens.$reference-year-row-padding-y
-    tokens.$reference-year-row-padding-x;
-  border: tokens.$reference-year-row-border-weight
-    tokens.$reference-year-row-empty-border-style
-    tokens.$reference-year-row-empty-border-color;
-  border-radius: tokens.$reference-year-row-border-radius;
-  font-size: tokens.$reference-year-row-value-font-size;
-
-  :deep(.q-btn__content) {
-    gap: tokens.$reference-year-row-gap;
-  }
+  border-style: tokens.$reference-year-row-empty-border-style;
+  border-color: tokens.$reference-year-row-empty-border-color;
 }
 </style>
