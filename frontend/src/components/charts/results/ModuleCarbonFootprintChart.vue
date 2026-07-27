@@ -1655,13 +1655,6 @@ const downloadCSV = () => {
   border: none !important;
 }
 
-/* Borderless: the surrounding layout adds its own gap under the card, so the
-   action row drops its bottom padding — otherwise the space under the buttons
-   reads as twice the space above them. */
-.module-carbon-chart--borderless .module-carbon-chart__actions {
-  padding-bottom: 0;
-}
-
 .module-carbon-chart__body {
   flex: 1;
 }

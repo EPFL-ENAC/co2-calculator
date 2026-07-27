@@ -74,12 +74,17 @@
 
           <q-separator class="q-mt-lg" />
 
-          <div class="grid-1-col">
+          <!-- Gapless grid: each block's own padding is the only spacing, so
+               its top and bottom read alike (a gap would land above every
+               separator but never at the card edges). Still a grid, because
+               BigNumber sizes itself against its row. -->
+          <div class="results-blocks">
             <BigNumber
               :title="$t('planner_results_total_tonnes_co2eq')"
               :number="formatTonnesCO2(totalTonnesCo2eq)"
               comparison=""
               color="info"
+              compact
               :bordered="false"
             />
 
@@ -93,7 +98,7 @@
 
             <q-separator />
 
-            <div class="column items-center justify-center q-pa-lg q-gutter-md">
+            <div class="column items-center justify-center q-pa-xl q-gutter-md">
               <h3 class="text-h4 text-weight-medium">
                 {{ $t('planner_results_download_title') }}
               </h3>
@@ -244,3 +249,10 @@ onUnmounted(() => {
   plansStore.clearAggregate();
 });
 </script>
+
+<style scoped lang="scss">
+.results-blocks {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+</style>

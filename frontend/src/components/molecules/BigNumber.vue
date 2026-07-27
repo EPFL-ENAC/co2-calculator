@@ -9,6 +9,8 @@ const props = withDefaults(
     unit?: string;
     hideUnit?: boolean;
     bordered?: boolean;
+    /** Tightens the gap between the title and the value. */
+    compact?: boolean;
     comparison?: string;
     comparisonHighlight?: string;
     color?: string;
@@ -18,6 +20,7 @@ const props = withDefaults(
   }>(),
   {
     bordered: true,
+    compact: false,
     unit: undefined,
     hideUnit: false,
     comparison: undefined,
@@ -76,10 +79,11 @@ const comparisonParts = computed(() => {
       'container--pa-none',
       'big-number',
       { 'big-number--borderless': !bordered },
+      { 'big-number--compact': compact },
       { 'big-number--print': printMode },
     ]"
   >
-    <q-card-section class="flex items-center q-mb-xs">
+    <q-card-section class="flex items-center" :class="{ 'q-mb-xs': !compact }">
       <span
         class="text-body1 text-weight-medium q-mb-none"
         :class="{
@@ -155,6 +159,19 @@ const comparisonParts = computed(() => {
 
 .big-number--borderless {
   border: none !important;
+}
+
+// Standalone (not in an equal-height row of tiles): the title reads as a
+// caption for the value right under it, so the two sections stop padding
+// against each other.
+.big-number--compact {
+  :deep(.q-card__section:first-child) {
+    padding-bottom: 0;
+  }
+
+  .big-number__content {
+    padding-top: tokens.$spacing-sm;
+  }
 }
 
 .big-number__content {
