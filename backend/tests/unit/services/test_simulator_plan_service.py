@@ -2,16 +2,13 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlmodel import SQLModel, col, select
+from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
-from app.repositories.data_entry_repo import (
-    DataEntryRepository,
-    reference_year_filter,
-)
+from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.simulator_plan import SimulatorPlanUpdate
 from app.services.carbon_report_service import CarbonReportService
@@ -434,7 +431,6 @@ async def test_prefill_copies_reference_entries_at_100_percent(async_session, us
     rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
     assert len(rows) == 2
     assert all(r.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value for r in rows)
-    assert all(r.data["reference_year"] == 2024 for r in rows)
     assert all(r.data["percentage_of_reference_year"] == 100 for r in rows)
     assert {r.data["source_data_entry_id"] for r in rows} == {e.id for e in src_entries}
     # Snapshot keeps the reference quantities.
@@ -442,8 +438,8 @@ async def test_prefill_copies_reference_entries_at_100_percent(async_session, us
 
 
 @pytest.mark.asyncio
-async def test_prefill_leaves_an_already_prefilled_baseline_alone(async_session, user):
-    """Re-copying a baseline would discard the sliders set under it."""
+async def test_prefill_rebuilds_the_module(async_session, user):
+    """A prefill empties the module first, so it never mixes two baselines."""
     service = SimulatorPlanService(async_session)
     await _calculator_report_with_process_entries(service, async_session)
     plan = await service.create_plan(unit_id=1, user=user, name="proj")
@@ -464,17 +460,11 @@ async def test_prefill_leaves_an_already_prefilled_baseline_alone(async_session,
     copied = await service.prefill_module_from_reference(
         report, int(ModuleTypeEnum.process_emissions)
     )
-    assert copied == 0
+    assert copied == 2
 
     rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
-    snapshots = [
-        r for r in rows if r.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value
-    ]
-    manuals = [r for r in rows if r.source == DataEntrySourceEnum.USER_MANUAL.value]
-    assert len(snapshots) == 2  # not duplicated
-    assert len(manuals) == 1  # user rows survive
-    # A hand-added row belongs to the plan, not to a baseline.
-    assert "reference_year" not in manuals[0].data
+    assert len(rows) == 2  # the previous rows are gone, not duplicated
+    assert all(r.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value for r in rows)
 
 
 @pytest.mark.asyncio
@@ -511,26 +501,19 @@ async def _second_calculator_year(service, async_session):
     return entry
 
 
-async def _visible_rows(async_session, plan_module_id, reference_year):
-    """The module's rows as the table, the totals and the chart see them.
-
-    Applies the same filter the repo applies when a caller passes the report's
-    live baseline.
-    """
-    result = await async_session.execute(
-        select(DataEntry).where(
-            col(DataEntry.carbon_report_module_id) == plan_module_id,
-            reference_year_filter(reference_year),
-        )
+async def _plan_module_rows(service, async_session, report):
+    """The process-emissions rows of a plan-year report."""
+    plan_module = await service.report_service.module_service.get_module(
+        report.id, int(ModuleTypeEnum.process_emissions)
     )
-    return list(result.scalars().all())
+    return await DataEntryRepository(async_session).list_by_module(plan_module.id)
 
 
 @pytest.mark.asyncio
-async def test_reference_year_change_keeps_the_previous_baseline_rows(
+async def test_reference_year_change_wipes_the_previous_baseline_rows(
     async_session, user
 ):
-    """Nothing is deleted: the old baseline's rows stay, dormant."""
+    """The module is emptied and rebuilt from the new baseline."""
     service = SimulatorPlanService(async_session)
     await _calculator_report_with_process_entries(service, async_session, year=2024)
     entry_2025 = await _second_calculator_year(service, async_session)
@@ -540,32 +523,22 @@ async def test_reference_year_change_keeps_the_previous_baseline_rows(
 
     await service.set_reference_year(plan.id, 2027, 2025)
 
-    plan_module = await service.report_service.module_service.get_module(
-        report.id, int(ModuleTypeEnum.process_emissions)
-    )
-    stored = await DataEntryRepository(async_session).list_by_module(plan_module.id)
-    assert sorted(r.data["reference_year"] for r in stored) == [2024, 2024, 2025]
-
-    visible = await _visible_rows(async_session, plan_module.id, 2025)
-    assert len(visible) == 1
-    assert visible[0].data["quantity"] == 3.0
-    assert visible[0].data["source_data_entry_id"] == entry_2025.id
+    rows = await _plan_module_rows(service, async_session, report)
+    assert len(rows) == 1
+    assert rows[0].data["quantity"] == 3.0
+    assert rows[0].data["source_data_entry_id"] == entry_2025.id
 
 
 @pytest.mark.asyncio
-async def test_switching_back_restores_the_sliders_of_that_baseline(
-    async_session, user
-):
+async def test_switching_back_reprefills_at_100_percent(async_session, user):
+    """Coming back to a baseline starts over: the earlier edits are gone."""
     service = SimulatorPlanService(async_session)
     await _calculator_report_with_process_entries(service, async_session, year=2024)
     await _second_calculator_year(service, async_session)
 
     plan = await service.create_plan(unit_id=1, user=user, name="proj")
     report = await _plan_year_report(service, plan.id, reference_year=2024)
-    plan_module = await service.report_service.module_service.get_module(
-        report.id, int(ModuleTypeEnum.process_emissions)
-    )
-    rows_2024 = await _visible_rows(async_session, plan_module.id, 2024)
+    rows_2024 = await _plan_module_rows(service, async_session, report)
     rows_2024[0].data = {
         **rows_2024[0].data,
         "percentage_of_reference_year": 40,
@@ -577,15 +550,15 @@ async def test_switching_back_restores_the_sliders_of_that_baseline(
     await service.set_reference_year(plan.id, 2027, 2025)
     await service.set_reference_year(plan.id, 2027, 2024)
 
-    visible = await _visible_rows(async_session, plan_module.id, 2024)
-    assert len(visible) == 2
-    edited = next(r for r in visible if r.id == rows_2024[0].id)
-    assert edited.data["percentage_of_reference_year"] == 40
-    assert edited.data["quantity"] == 99.0
+    rows = await _plan_module_rows(service, async_session, report)
+    assert len(rows) == 2
+    assert all(r.data["percentage_of_reference_year"] == 100 for r in rows)
+    assert {r.data["quantity"] for r in rows} == {5.0, 7.0}
 
 
 @pytest.mark.asyncio
-async def test_hand_added_rows_show_under_every_baseline(async_session, user):
+async def test_hand_added_rows_are_wiped_on_switch(async_session, user):
+    """A prefilled module is rebuilt whole — hand-added rows go too."""
     service = SimulatorPlanService(async_session)
     await _calculator_report_with_process_entries(service, async_session, year=2024)
     await _second_calculator_year(service, async_session)
@@ -607,23 +580,24 @@ async def test_hand_added_rows_show_under_every_baseline(async_session, user):
 
     await service.set_reference_year(plan.id, 2027, 2025)
 
-    visible = await _visible_rows(async_session, plan_module.id, 2025)
-    manual = [r for r in visible if r.source == DataEntrySourceEnum.USER_MANUAL.value]
-    assert len(manual) == 1
-    assert len(visible) == 2  # the manual row + the 2025 snapshot
+    rows = await _plan_module_rows(service, async_session, report)
+    assert [r.source for r in rows] == [DataEntrySourceEnum.PLANNER_SNAPSHOT.value]
 
 
 @pytest.mark.asyncio
-async def test_calculator_rows_are_never_hidden(async_session, user):
-    """Outside the planner the filter is a no-op: no row carries a baseline."""
+async def test_switch_to_a_year_without_calculator_data_empties_the_modules(
+    async_session, user
+):
+    """No baseline to copy is still a wipe: stale rows would misreport the year."""
     service = SimulatorPlanService(async_session)
-    _, calc_module, _ = await _calculator_report_with_process_entries(
-        service, async_session, year=2024
-    )
+    await _calculator_report_with_process_entries(service, async_session, year=2024)
 
-    visible = await _visible_rows(async_session, calc_module.id, None)
+    plan = await service.create_plan(unit_id=1, user=user, name="proj")
+    report = await _plan_year_report(service, plan.id, reference_year=2024)
 
-    assert len(visible) == 2
+    await service.set_reference_year(plan.id, 2027, 2025)
+
+    assert await _plan_module_rows(service, async_session, report) == []
 
 
 @pytest.mark.asyncio

@@ -229,15 +229,13 @@ class SimulatorPlanService:
     ) -> Optional[SimulatorPlanYearRead]:
         """Set the baseline year of one plan-year report; None if missing.
 
-        Nothing is deleted: the prefilled rows of every baseline the plan-year
-        has used stay in the module, each stamped with ``data['reference_year']``,
-        and readers keep only the live one (``DataEntryRepository.
-        reference_year_filter``). Coming back to a year therefore finds its
-        sliders and edits as they were left, and a baseline seen for the first
-        time is prefilled at 100%.
+        Destructive: every prefilled module of the plan-year is emptied and
+        rebuilt from the new baseline at 100%, so the percentages, edits and
+        hand-added rows made under the previous reference year are lost. The
+        dialog warns about it before calling this.
 
-        The live baseline's entries get their emissions recomputed, since factor
-        lookup follows the reference year; dormant rows keep theirs.
+        The rebuilt entries get their emissions recomputed, since factor lookup
+        follows the reference year.
         """
         reports = await self.repo.list_reports_for_project(plan_id)
         report = next((r for r in reports if r.year == year), None)
@@ -252,31 +250,42 @@ class SimulatorPlanService:
         return await self._year_read(report)
 
     async def _prefill_reference_modules(self, report: CarbonReport) -> None:
-        """Prefill every prefilled-behavior module from the reference year.
+        """Rebuild every prefilled-behavior module from the reference year.
 
         Runs on reference-year set/change (there is no manual prefill trigger).
-        Only baselines this plan-year has never used are copied — a baseline it
-        already holds rows for is left exactly as the user left it. No-op when
-        the reference year has no Calculator report for the unit: there is
-        nothing to copy.
+        The modules are emptied first, so a module never mixes two baselines.
+        When the reference year has no Calculator report for the unit there is
+        nothing to copy and they stay empty — showing the previous baseline's
+        rows under a new reference year would be a lie.
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
         if report.reference_year is None:
             return
+        modules = await self.report_service.module_service.list_modules(report.id)
+        prefilled = [
+            m for m in modules if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
+        ]
+        await self._clear_module_entries([m.id for m in prefilled if m.id is not None])
         ref_report = await self.repo.get_calculator_report(
             report.unit_id, report.reference_year
         )
         if ref_report is None:
             return
-        modules = await self.report_service.module_service.list_modules(report.id)
-        prefilled_ids = sorted(
-            m.module_type_id
-            for m in modules
-            if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
-        )
-        for module_type_id in prefilled_ids:
+        for module_type_id in sorted(m.module_type_id for m in prefilled):
             await self.prefill_module_from_reference(report, module_type_id)
+
+    async def _clear_module_entries(self, module_ids: list[int]) -> None:
+        """Delete every data entry of the given modules and refresh their stats.
+
+        Emissions follow through the ``data_entry_id`` cascade.
+        """
+        if not module_ids:
+            return
+        await DataEntryRepository(self.session).bulk_delete_by_modules(module_ids)
+        await self.report_service.module_service.recompute_stats_many(
+            sorted(module_ids)
+        )
 
     async def _year_read(self, report: CarbonReport) -> SimulatorPlanYearRead:
         """Build the per-year DTO (report + its modules)."""
@@ -294,18 +303,12 @@ class SimulatorPlanService:
     async def prefill_module_from_reference(
         self, report: CarbonReport | CarbonReportRead, module_type_id: int
     ) -> int:
-        """Snapshot-copy the reference-year Calculator entries into a plan module.
+        """Rebuild a plan module from the reference-year Calculator entries.
 
-        Copies at ``percentage_of_reference_year = 100``, stamping each row with
-        the baseline it came from (``reference_year``) so the module can hold
-        several baselines at once and show only the active one. Each copy keeps
-        ``source_data_entry_id`` so the % slider computes against the live
-        reference entry. Returns the copied count.
-
-        Idempotent by baseline: a module that already holds rows for this
-        reference year is left untouched (0 copied) — re-copying would discard
-        the sliders, edits and deletions the user made under it. Nothing is
-        ever deleted here.
+        Destructive and idempotent: the module's entries are deleted first, then
+        the reference year's are copied at ``percentage_of_reference_year =
+        100``. Each copy keeps ``source_data_entry_id`` so the % slider computes
+        against the live reference entry. Returns the copied count.
 
         Raises ValueError when the report has no reference year or the
         reference year has no Calculator report/module for the unit.
@@ -330,12 +333,7 @@ class SimulatorPlanService:
             raise ValueError(f"Module {module_type_id} not found on the reference year")
 
         entry_repo = DataEntryRepository(self.session)
-        existing = await entry_repo.list_by_module(plan_module.id)
-        if any(
-            entry.data.get("reference_year") == report.reference_year
-            for entry in existing
-        ):
-            return 0
+        await entry_repo.bulk_delete_by_modules([plan_module.id])
 
         emission_svc = DataEntryEmissionService(self.session)
         copied = 0
@@ -350,7 +348,6 @@ class SimulatorPlanService:
                     **src.data,
                     "percentage_of_reference_year": 100,
                     "source_data_entry_id": src.id,
-                    "reference_year": report.reference_year,
                 },
             )
             self.session.add(copy)
@@ -364,11 +361,10 @@ class SimulatorPlanService:
         return copied
 
     async def _recalculate_report_emissions(self, report: CarbonReport) -> None:
-        """Recompute emissions of the report's live entries + refresh stats.
+        """Recompute emissions of the report's entries + refresh stats.
 
-        Rows stamped with another baseline are dormant: nothing reads them until
-        that baseline is live again, and they keep the emissions they were
-        computed with.
+        Factor lookup follows the reference year, so every entry of the report
+        has to be recomputed when it changes.
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
@@ -378,9 +374,6 @@ class SimulatorPlanService:
         emission_svc = DataEntryEmissionService(self.session)
         module_ids: set[int] = set()
         for entry in entries:
-            stamped = entry.data.get("reference_year")
-            if stamped is not None and stamped != report.reference_year:
-                continue
             await emission_svc.upsert_by_data_entry(
                 DataEntryResponse.model_validate(entry)
             )

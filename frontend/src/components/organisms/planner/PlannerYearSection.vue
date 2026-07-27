@@ -244,8 +244,8 @@ async function onReferenceYearChange(referenceYear: number) {
       referenceYear,
     );
     referenceYearDialogOpen.value = false;
-    // The new baseline's rows are prefilled (or restored); refresh the open
-    // module so they appear without a manual reload.
+    // The prefilled modules were rebuilt from the new baseline; refresh the
+    // open module so its rows appear without a manual reload.
     const expanded = props.expandedKey?.startsWith(`${props.yearData.year}-`);
     const module = props.expandedKey?.split('-').slice(1).join('-') as
       Module | undefined;

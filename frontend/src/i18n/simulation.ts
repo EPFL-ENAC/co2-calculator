@@ -224,16 +224,24 @@ export default {
     fr: 'Modifier',
   },
   planner_reference_year_rebuild_hint: {
-    en: 'Prefilled modules are rebuilt from this year.',
-    fr: 'Les modules préremplis sont reconstruits à partir de cette année.',
+    en: 'Prefilled modules are rebuilt from this year — changing it deletes their current data.',
+    fr: 'Les modules préremplis sont reconstruits à partir de cette année — la changer supprime leurs données actuelles.',
   },
   planner_reference_year_dialog_title: {
     en: 'Reference year for {year}',
     fr: 'Année de référence pour {year}',
   },
   planner_reference_year_dialog_consequences: {
-    en: 'Every prefilled module is rebuilt from the year you pick, and its factors come from it. The rows of your current reference year are kept: come back to it and your percentages, edits and deletions are as you left them.',
-    fr: "Chaque module prérempli est reconstruit à partir de l'année choisie, et ses facteurs en proviennent. Les lignes de votre année de référence actuelle sont conservées : en y revenant, vos pourcentages, modifications et suppressions seront intacts.",
+    en: 'Every prefilled module is rebuilt from the year you pick, and its factors come from it.',
+    fr: "Chaque module prérempli est reconstruit à partir de l'année choisie, et ses facteurs en proviennent.",
+  },
+  planner_reference_year_dialog_wipe_warning: {
+    en: 'Changing the reference year deletes all the data of the prefilled modules for this year: the prefilled rows, your percentages, your edits and the rows you added yourself. This cannot be undone.',
+    fr: "Changer l'année de référence supprime toutes les données des modules préremplis de cette année : les lignes préremplies, vos pourcentages, vos modifications et les lignes que vous avez ajoutées. Cette action est irréversible.",
+  },
+  planner_reference_year_dialog_wipe_ack: {
+    en: 'I understand the data of {year} will be deleted',
+    fr: 'Je comprends que les données de {year} seront supprimées',
   },
   planner_module_active_tooltip: {
     en: 'Inactive modules are excluded from sums, graphs and results.',
