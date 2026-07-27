@@ -184,43 +184,49 @@ onMounted(() => {
               class="q-pa-xs"
             >
               <template v-if="col.name === 'action'">
-                <div class="row no-wrap justify-end">
+                <div class="row no-wrap justify-end items-center">
                   <q-btn
                     icon="o_content_copy"
                     color="black"
                     unelevated
                     no-caps
                     dense
-                    outline
-                    square
-                    size="xs"
-                    class="square-button"
+                    flat
+                    class="action-btn"
                     @click="onDuplicate(props.row)"
-                  />
+                  >
+                    <q-tooltip class="tooltip action-tooltip" :offset="[0, 8]">
+                      {{ $t('common_duplicate') }}
+                    </q-tooltip>
+                  </q-btn>
                   <q-btn
                     icon="o_edit"
                     color="black"
                     unelevated
                     no-caps
                     dense
-                    outline
-                    square
-                    size="xs"
-                    class="square-button"
+                    flat
+                    class="action-btn"
                     @click="onEdit(props.row)"
-                  />
+                  >
+                    <q-tooltip class="tooltip action-tooltip" :offset="[0, 8]">
+                      {{ $t('common_edit') }}
+                    </q-tooltip>
+                  </q-btn>
                   <q-btn
                     icon="o_delete"
                     color="black"
                     unelevated
                     no-caps
                     dense
-                    outline
-                    square
-                    size="xs"
-                    class="square-button"
+                    flat
+                    class="action-btn action-btn--delete"
                     @click="onAskDelete(props.row)"
-                  />
+                  >
+                    <q-tooltip class="tooltip action-tooltip" :offset="[0, 8]">
+                      {{ $t('common_delete') }}
+                    </q-tooltip>
+                  </q-btn>
                 </div>
               </template>
               <template v-else>{{ col.value }}</template>
@@ -313,6 +319,36 @@ onMounted(() => {
 // Intro/description text under a section title is capped at three-quarters width.
 .section-intro {
   max-width: 75%;
+}
+
+// Row actions read the same as the module tables: quiet icon buttons that
+// only take a surface on hover, delete turning red.
+.action-btn {
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border-radius: tokens.$radius-default;
+
+  .q-icon {
+    font-size: 18px;
+  }
+
+  & + .action-btn {
+    margin-left: tokens.$spacing-xs;
+  }
+
+  &:not(.disabled):hover {
+    background: tokens.$table-action-hover-bg;
+  }
+
+  &--delete:not(.disabled):hover {
+    background: tokens.$table-action-delete-hover-bg;
+
+    .q-icon {
+      color: tokens.$icon-color-white;
+    }
+  }
 }
 
 // Perfect-circle count badge next to the title.
