@@ -100,7 +100,7 @@
                   <q-checkbox
                     :model-value="entry.module?.is_active ?? true"
                     :label="$t('planner_module_active_label')"
-                    color="negative"
+                    color="info"
                     :disable="
                       !entry.module || togglingModuleId === entry.module.id
                     "

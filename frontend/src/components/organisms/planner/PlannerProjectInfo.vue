@@ -1,13 +1,15 @@
 <template>
   <q-card flat bordered>
     <q-card-section class="row items-center q-gutter-sm">
-      <q-icon name="o_folder_open" color="negative" size="24px" />
-      <span class="text-h5">{{ $t('planner_project_info_title') }}</span>
+      <q-icon name="o_folder_open" color="info" size="24px" />
+      <span class="text-h5 text-weight-medium">
+        {{ $t('planner_project_info_title') }}
+      </span>
     </q-card-section>
     <q-separator />
 
     <q-card-section>
-      <div class="text-weight-bold q-mb-sm">
+      <div class="text-weight-medium q-mb-sm">
         {{ $t('planner_project_label') }}
       </div>
       <q-input
@@ -15,6 +17,7 @@
         :label="`${$t('project_planner_name_label')} *`"
         outlined
         dense
+        hide-bottom-space
         :error="nameTouched && nameInput.trim().length === 0"
         @blur="saveIfDirty('name')"
         @keyup.enter="saveIfDirty('name')"
@@ -23,7 +26,7 @@
     <q-separator />
 
     <q-card-section>
-      <div class="text-weight-bold q-mb-sm">
+      <div class="text-weight-medium q-mb-sm">
         {{ $t('planner_year_selection_label') }}
       </div>
       <div class="row q-col-gutter-md">
@@ -34,11 +37,12 @@
             :options="startYearOptions"
             outlined
             dense
+            hide-bottom-space
             emit-value
             map-options
           >
             <template #prepend>
-              <q-icon name="o_calendar_month" color="negative" />
+              <q-icon name="o_calendar_month" color="info" />
             </template>
           </q-select>
         </div>
@@ -49,11 +53,12 @@
             :options="endYearOptions"
             outlined
             dense
+            hide-bottom-space
             emit-value
             map-options
           >
             <template #prepend>
-              <q-icon name="o_calendar_month" color="negative" />
+              <q-icon name="o_calendar_month" color="info" />
             </template>
           </q-select>
         </div>
@@ -65,7 +70,9 @@
         <q-btn
           unelevated
           no-caps
-          color="negative"
+          size="sm"
+          color="info"
+          class="text-weight-regular"
           icon="o_playlist_add"
           :label="$t('planner_generate_years_button')"
           :disable="!yearsDirty || !yearsValid"
@@ -83,7 +90,8 @@
       <q-checkbox
         v-model="shareWithLab"
         :label="$t('planner_share_with_lab_label')"
-        color="negative"
+        color="info"
+        size="sm"
         @update:model-value="saveIfDirty('is_viewable_by_unit_members')"
       />
     </q-card-section>
