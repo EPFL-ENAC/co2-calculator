@@ -72,9 +72,9 @@
             </h2>
           </div>
 
-          <q-separator class="q-mt-xl" />
+          <q-separator class="q-mt-lg" />
 
-          <div class="grid-1-col q-mt-lg q-mb-lg">
+          <div class="grid-1-col">
             <BigNumber
               :title="$t('planner_results_total_tonnes_co2eq')"
               :number="formatTonnesCO2(totalTonnesCo2eq)"
@@ -93,7 +93,7 @@
 
             <q-separator />
 
-            <div class="column items-center justify-center q-pa-xl q-gutter-lg">
+            <div class="column items-center justify-center q-pa-lg q-gutter-md">
               <h3 class="text-h4 text-weight-medium">
                 {{ $t('planner_results_download_title') }}
               </h3>
@@ -103,7 +103,7 @@
                 icon="o_download"
                 :label="$t('planner_results_download_button')"
                 size="md"
-                color="accent"
+                color="info"
                 class="text-weight-medium"
                 @click="downloadReport"
               />
