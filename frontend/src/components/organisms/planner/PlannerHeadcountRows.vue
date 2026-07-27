@@ -31,10 +31,10 @@ import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
 import { api } from 'src/api/http';
-
-// The 8 backend SIUS codes (headcount/data_entries.py SIUS_CODE_VALUES),
-// rendered as fixed rows in the order the design shows.
-const SIUS_CODES = ['51', '52', '53', '54', '56', '57', '58', '59'] as const;
+import {
+  PLANNER_HEADCOUNT_SUBMODULE,
+  PLANNER_SIUS_CODES as SIUS_CODES,
+} from 'src/constant/planner-headcount';
 
 interface HeadcountRow {
   sius_code: string;
@@ -62,7 +62,7 @@ const rows = ref<HeadcountRow[]>(
 const savingCode = ref<string | null>(null);
 
 const basePath = () =>
-  `carbon-reports/${props.carbonReportId}/modules/headcount/planner_headcount`;
+  `carbon-reports/${props.carbonReportId}/modules/headcount/${PLANNER_HEADCOUNT_SUBMODULE}`;
 
 async function load() {
   try {

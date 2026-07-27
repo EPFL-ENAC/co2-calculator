@@ -98,6 +98,7 @@
                 size="md"
                 color="accent"
                 class="text-weight-medium"
+                @click="downloadReport"
               />
             </div>
           </div>
@@ -114,6 +115,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
@@ -126,11 +128,13 @@ import {
 } from 'src/stores/simulatorPlans';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import { sumBreakdownTonnes } from 'src/utils/breakdownTotal';
 import { toEmissionBreakdown } from 'src/utils/emissionStatsAdapter';
 import { formatTonnesCO2 } from 'src/utils/number';
 
 const route = useRoute();
 const router = useRouter();
+const { locale } = useI18n();
 const workspaceStore = useWorkspaceStore();
 const plansStore = useSimulatorPlansStore();
 const yearConfigStore = useYearConfigStore();
@@ -151,18 +155,20 @@ const breakdown = computed(() =>
     : null,
 );
 
-const totalTonnesCo2eq = computed(() => {
-  if (!breakdown.value) return 0;
-  // Summed off the same rows the chart draws, so headline and bars agree.
-  const moduleTotal = breakdown.value.module_breakdown.reduce((sum, row) => {
-    const rowTotal = (row.emissions ?? []).reduce(
-      (rowSum, e) => rowSum + (typeof e.value === 'number' ? e.value : 0),
-      0,
-    );
-    return sum + rowTotal;
-  }, 0);
-  return moduleTotal || breakdown.value.total_tonnes_co2eq || 0;
-});
+const totalTonnesCo2eq = computed(() => sumBreakdownTonnes(breakdown.value));
+
+function downloadReport() {
+  const url = router.resolve({
+    name: 'project-planner-print',
+    params: {
+      language: locale.value.split('-')[0],
+      unit: route.params.unit,
+      year: route.params.year,
+      name: route.params.name,
+    },
+  }).href;
+  window.open(url, '_blank');
+}
 
 // Reference years are constrained to years open in the Calculator.
 const referenceYearOptions = computed(() =>

@@ -27,9 +27,44 @@ export interface PrintCellContext {
   numberFormatOptions?: Intl.NumberFormatOptions;
 }
 
+/**
+ * Planner prefilled tables carry the reference-year kgCO₂eq and the "% of
+ * reference year" the row was scaled by — the two values that explain how a
+ * planned figure was derived. Mirrors the column placement ModuleTable uses
+ * on screen: reference before the current kgCO₂eq, percentage after it.
+ */
+function withReferenceColumns(
+  columns: PrintColumn[],
+  t: PrintTranslateFn,
+): PrintColumn[] {
+  const referenceColumn: PrintColumn = {
+    name: 'reference_kg_co2eq',
+    label: t('planner_reference_kg_col'),
+    field: 'reference_kg_co2eq',
+    align: 'right',
+  };
+  const percentageColumn: PrintColumn = {
+    name: 'percentage_of_reference_year',
+    label: t('planner_percentage_col'),
+    field: 'percentage_of_reference_year',
+    align: 'right',
+  };
+
+  const kgIndex = columns.findIndex((column) => column.name === 'kg_co2eq');
+  if (kgIndex < 0) return [...columns, referenceColumn, percentageColumn];
+  return [
+    ...columns.slice(0, kgIndex),
+    referenceColumn,
+    columns[kgIndex] as PrintColumn,
+    percentageColumn,
+    ...columns.slice(kgIndex + 1),
+  ];
+}
+
 export function buildPrintColumns(
   fields: ModuleField[],
   t: PrintTranslateFn,
+  showReferenceColumns = false,
 ): PrintColumn[] {
   const columns: PrintColumn[] = [];
 
@@ -60,7 +95,7 @@ export function buildPrintColumns(
       });
     });
 
-  return columns;
+  return showReferenceColumns ? withReferenceColumns(columns, t) : columns;
 }
 
 export function renderPrintCell(
@@ -81,44 +116,63 @@ export function renderPrintCell(
   if (col.field === 'traveler_name') {
     const userInstitutionalId = row['user_institutional_id'] as
       string | undefined;
-    if (userInstitutionalId != null) {
-      return ctx.headcountMembers.get(userInstitutionalId) ?? '-';
-    }
-    return '-';
+    if (userInstitutionalId == null) return '-';
+    const member = ctx.headcountMembers.get(userInstitutionalId);
+    if (member) return member;
+    // The planner has no per-person roster; its travelers are categories.
+    const categoryKey = `planner_traveler_category.${userInstitutionalId}`;
+    return ctx.te(categoryKey) ? ctx.t(categoryKey) : '-';
   }
 
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
 
-  if (col.name === 'kg_co2eq' || col.name === 't_co2eq') {
+  if (
+    col.name === 'kg_co2eq' ||
+    col.name === 't_co2eq' ||
+    col.name === 'reference_kg_co2eq'
+  ) {
     return ctx.formatNumber(val as number, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     });
   }
 
-  if (col.options && typeof val === 'string') {
-    const option = col.options.find((opt) => opt.value === val);
-    if (option) {
-      return ctx.te(option.label) ? ctx.t(option.label) : option.label;
+  if (col.name === 'percentage_of_reference_year') {
+    return `${ctx.formatNumber(val as number, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })}%`;
+  }
+
+  // Label sources are tried in order and only a translatable one wins: the
+  // planner's option lists carry the raw value as their label and rely on
+  // `optionLabelKey`, so an untranslatable option must not short-circuit.
+  if (typeof val === 'string') {
+    const option = col.options?.find((opt) => opt.value === val);
+    if (option && ctx.te(option.label)) return ctx.t(option.label);
+
+    if (col.optionLabelPrefix) {
+      const key = val.toLowerCase();
+      if (ctx.te(key)) return ctx.t(key);
     }
+
+    if (col.optionLabelKey) {
+      const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
+      // The planner borrows Calculator table titles as category labels, and
+      // those carry a "({count})" suffix that means nothing on a value cell.
+      if (ctx.te(key)) {
+        return ctx.t(key, { count: '' }).replace(/\s*\(\s*\)$/, '');
+      }
+    }
+
+    if (col.optionsId === 'kind') {
+      return ctx.taxonomyKindLabels[val] ?? val;
+    }
+
+    return option?.label ?? val;
   }
 
-  if (col.optionLabelPrefix && typeof val === 'string') {
-    const key = val.toLowerCase();
-    return ctx.te(key) ? ctx.t(key) : val;
-  }
-
-  if (col.optionLabelKey && typeof val === 'string') {
-    const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
-    return ctx.te(key) ? ctx.t(key) : val;
-  }
-
-  if (col.optionsId === 'kind' && typeof val === 'string') {
-    return ctx.taxonomyKindLabels[val] ?? val;
-  }
-
-  if (typeof val === 'string') return val;
   if (typeof val === 'number') {
     return ctx.formatNumber(val, ctx.numberFormatOptions);
   }

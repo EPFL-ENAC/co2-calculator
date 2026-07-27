@@ -208,8 +208,8 @@ export default {
     fr: 'Année de référence',
   },
   planner_reference_year_hint: {
-    en: 'Select a reference year: all factors and prefilled data for this simulation year come from it. The modules below stay locked until you do.',
-    fr: "Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année de simulation en proviennent. Les modules ci-dessous restent verrouillés tant qu'elle n'est pas définie.",
+    en: 'Select a reference year: all factors and prefilled data of this planned year come from it. The modules below stay locked until you do.',
+    fr: "Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année planifiée en proviennent. Les modules ci-dessous restent verrouillés tant qu'elle n'est pas définie.",
   },
   planner_reference_year_error: {
     en: 'Could not set the reference year',
@@ -224,16 +224,28 @@ export default {
     fr: 'Modifier',
   },
   planner_reference_year_rebuild_hint: {
-    en: 'Prefilled modules are rebuilt from this year.',
-    fr: 'Les modules préremplis sont reconstruits à partir de cette année.',
+    en: 'The prefilled modules of this planned year are rebuilt from the reference year — changing it deletes their current data.',
+    fr: "Les modules préremplis de cette année planifiée sont reconstruits à partir de l'année de référence — la changer supprime leurs données actuelles.",
   },
   planner_reference_year_dialog_title: {
-    en: 'Reference year for {year}',
-    fr: 'Année de référence pour {year}',
+    en: 'Planned year {year}: choose its reference year',
+    fr: 'Année planifiée {year} : choisir son année de référence',
+  },
+  planner_reference_year_dialog_select_label: {
+    en: 'Reference year (source of the data)',
+    fr: 'Année de référence (source des données)',
   },
   planner_reference_year_dialog_consequences: {
-    en: 'Every prefilled module is rebuilt from the year you pick, and its factors come from it. The rows of your current reference year are kept: come back to it and your percentages, edits and deletions are as you left them.',
-    fr: "Chaque module prérempli est reconstruit à partir de l'année choisie, et ses facteurs en proviennent. Les lignes de votre année de référence actuelle sont conservées : en y revenant, vos pourcentages, modifications et suppressions seront intacts.",
+    en: 'The prefilled modules of planned year {year} are rebuilt from the reference year you pick, and use its emission factors.',
+    fr: "Les modules préremplis de l'année planifiée {year} sont reconstruits à partir de l'année de référence choisie et utilisent ses facteurs d'émission.",
+  },
+  planner_reference_year_dialog_wipe_warning: {
+    en: 'Changing the reference year deletes everything the prefilled modules of planned year {year} contain: the prefilled rows, your percentages, your edits and the rows you added yourself. The reference year itself keeps its data. This cannot be undone.',
+    fr: "Changer l'année de référence supprime tout ce que contiennent les modules préremplis de l'année planifiée {year} : les lignes préremplies, vos pourcentages, vos modifications et les lignes que vous avez ajoutées. L'année de référence, elle, conserve ses données. Cette action est irréversible.",
+  },
+  planner_reference_year_dialog_wipe_ack: {
+    en: 'I understand that my planned data for {year} will be deleted',
+    fr: 'Je comprends que mes données planifiées de {year} seront supprimées',
   },
   planner_module_active_tooltip: {
     en: 'Inactive modules are excluded from sums, graphs and results.',
@@ -278,5 +290,69 @@ export default {
   'planner_traveler_category.internal_epfl': {
     en: 'Internal EPFL',
     fr: 'Interne EPFL',
+  },
+  planner_print_title: {
+    en: 'Project report',
+    fr: 'Rapport de projet',
+  },
+  planner_print_created_by: {
+    en: 'Created by',
+    fr: 'Créé par',
+  },
+  planner_print_created_on: {
+    en: 'Created on',
+    fr: 'Créé le',
+  },
+  planner_print_total_over_years: {
+    en: 'Summed over {count} planned year(s)',
+    fr: 'Somme sur {count} année(s) planifiée(s)',
+  },
+  planner_print_methodology_note: {
+    en: 'Planned figures are estimates: each year draws its emission factors from its reference year. Inactive modules are excluded from every total and chart.',
+    fr: "Les chiffres planifiés sont des estimations : chaque année tire ses facteurs d'émission de son année de référence. Les modules inactifs sont exclus de tous les totaux et graphiques.",
+  },
+  planner_print_incomplete_note: {
+    en: 'Some tables could not be loaded and are missing from this report: {modules}.',
+    fr: 'Certains tableaux n’ont pas pu être chargés et manquent dans ce rapport : {modules}.',
+  },
+  planner_print_year_subtitle: {
+    en: 'Planned carbon footprint — {name}',
+    fr: 'Empreinte carbone planifiée — {name}',
+  },
+  planner_print_year_total: {
+    en: 'Carbon footprint for this year',
+    fr: 'Empreinte carbone de cette année',
+  },
+  planner_print_year_chart_title: {
+    en: '{year} carbon footprint',
+    fr: 'Empreinte carbone {year}',
+  },
+  planner_print_no_reference_year: {
+    en: 'Not set',
+    fr: 'Non définie',
+  },
+  planner_print_excluded_modules: {
+    en: 'Excluded modules',
+    fr: 'Modules exclus',
+  },
+  planner_print_module_subtitle: {
+    en: 'Planned data {year}',
+    fr: 'Données planifiées {year}',
+  },
+  planner_headcount_table_title: {
+    en: 'Planned FTE per category',
+    fr: 'EPT planifiés par catégorie',
+  },
+  planner_headcount_category_col: {
+    en: 'Category',
+    fr: 'Catégorie',
+  },
+  planner_headcount_fte_col: {
+    en: 'FTE',
+    fr: 'EPT',
+  },
+  planner_headcount_total_fte: {
+    en: 'Total FTE',
+    fr: 'Total EPT',
   },
 };
