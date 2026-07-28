@@ -181,6 +181,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     const updated = await api
       .patch(`project-plans/${planId}/years/${year}`, {
         json: { reference_year: referenceYear },
+        timeout: 300000, // 5 minutes; TODO: backend to make a background task instead!
       })
       .json<SimulatorPlanYear>();
     planYears.value = planYears.value.map((y) =>
