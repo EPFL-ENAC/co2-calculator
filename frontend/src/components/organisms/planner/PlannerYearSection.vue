@@ -126,17 +126,21 @@
           </template>
 
           <q-separator />
-          <!-- Headcount stripes run edge to edge, so it carries no padding. -->
+          <!-- Grid stripes run edge to edge, so they carry no padding. -->
           <div
             v-if="isExpanded(entry.config.module)"
-            :class="
-              entry.config.module === MODULES.Headcount ? undefined : 'q-pa-md'
-            "
+            :class="isGridModule(entry.config.module) ? undefined : 'q-pa-md'"
           >
-            <!-- Headcount is a fixed SIUS-category grid, not an add-row
-                   table (design). Other modules reuse the Calculator tables. -->
+            <!-- Headcount is a fixed SIUS-category grid and Purchases a
+                   global-budget XOR per-category grid, not add-row tables
+                   (design). Other modules reuse the Calculator tables. -->
             <planner-headcount-rows
               v-if="entry.config.module === MODULES.Headcount"
+              :carbon-report-id="yearData.id"
+              :disable="entry.module?.is_active === false"
+            />
+            <planner-purchase-rows
+              v-else-if="entry.config.module === MODULES.Purchase"
               :carbon-report-id="yearData.id"
               :disable="entry.module?.is_active === false"
             />
@@ -217,6 +221,12 @@ const togglingModuleId = ref<number | null>(null);
 // Every module resolves its factors from the reference year; without one there
 // is nothing to enter data against, so the drawers stay shut.
 const hasReferenceYear = computed(() => props.yearData.reference_year !== null);
+
+const GRID_MODULES: Module[] = [MODULES.Headcount, MODULES.Purchase];
+
+function isGridModule(module: Module): boolean {
+  return GRID_MODULES.includes(module);
+}
 
 const moduleEntries = computed<ModuleEntry[]>(() =>
   PLANNER_MODULES.map((config) => ({

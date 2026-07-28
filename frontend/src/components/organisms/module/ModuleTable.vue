@@ -2331,15 +2331,15 @@ onUnmounted(() => {
   }
 
   .action-btn {
-    width: 32px;
-    height: 32px;
+    width: tokens.$table-action-size;
+    height: tokens.$table-action-size;
     min-height: 0;
     padding: 0;
     border-radius: tokens.$radius-default;
   }
 
   .action-btn .q-icon {
-    font-size: 18px;
+    font-size: tokens.$table-action-icon-size;
   }
 
   .action-btn + .action-btn {

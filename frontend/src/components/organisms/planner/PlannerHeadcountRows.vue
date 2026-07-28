@@ -134,7 +134,7 @@ onMounted(load);
   }
 
   &__input {
-    width: 7.5rem;
+    width: tokens.$planner-grid-fte-input-width;
 
     // The field keeps its own white surface so it stays legible on the
     // shaded stripes instead of picking up the row behind it.
