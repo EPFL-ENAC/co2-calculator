@@ -23,6 +23,10 @@ export default {
     en: 'Loading…',
     fr: 'Chargement…',
   },
+  print_report_loading: {
+    en: 'Building the report…',
+    fr: 'Construction du rapport…',
+  },
   results_module_chart_emission_types: {
     en: '{module} — Emission types',
     fr: "{module} — Types d'émissions",
