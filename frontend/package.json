@@ -47,7 +47,7 @@
     "chokidar": "=4.0.3",
     "eslint": "=10.7.0",
     "eslint-config-prettier": "=10.1.8",
-    "eslint-plugin-vue": "=10.9.2",
+    "eslint-plugin-vue": "=10.10.0",
     "globals": "=17.7.0",
     "openapi-typescript": "=7.13.0",
     "postcss-html": "=1.8.1",
