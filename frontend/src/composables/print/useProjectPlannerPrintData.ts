@@ -3,7 +3,12 @@ import { useRoute } from 'vue-router';
 import { api } from 'src/api/http';
 import type { Submodule } from 'src/constant/moduleConfig';
 import { getModuleTypeId } from 'src/constant/moduleStates';
-import { MODULES } from 'src/constant/modules';
+import {
+  MODULES,
+  enumSubmodule,
+  type EnumSubmoduleType,
+  type Module,
+} from 'src/constant/modules';
 import {
   PLANNER_HEADCOUNT_SUBMODULE,
   PLANNER_SIUS_CODES,
@@ -67,6 +72,11 @@ function rowsKey(carbonReportId: number, submoduleId: string): string {
   return `${carbonReportId}:${submoduleId}`;
 }
 
+/** Counts are addressed per plan-year report and module. */
+function countsKey(carbonReportId: number, moduleType: Module): string {
+  return `${carbonReportId}:${moduleType}`;
+}
+
 /**
  * A plan report fans out to years × modules × submodules, so a ten-year plan
  * would open well over a hundred requests at once — past the browser's
@@ -74,10 +84,19 @@ function rowsKey(carbonReportId: number, submoduleId: string): string {
  */
 const FETCH_CONCURRENCY = 6;
 
-async function runPooled(tasks: (() => Promise<unknown>)[]): Promise<void> {
+/**
+ * Count probes read no rows and write no audit records, so they neither trip
+ * the same-module conflict nor cost much per request; they can fan out wider.
+ */
+const PROBE_CONCURRENCY = 12;
+
+async function runPooled(
+  tasks: (() => Promise<unknown>)[],
+  concurrency = FETCH_CONCURRENCY,
+): Promise<void> {
   let cursor = 0;
   const workers = Array.from(
-    { length: Math.min(FETCH_CONCURRENCY, tasks.length) },
+    { length: Math.min(concurrency, tasks.length) },
     async () => {
       for (;;) {
         const task = tasks[cursor++];
@@ -273,29 +292,44 @@ export function useProjectPlannerPrintData() {
   }
 
   /**
+   * How many rows each submodule of one module holds in one plan-year, in a
+   * single request. A planner module owns up to eight submodules and a plan
+   * typically fills two or three, so asking the module once beats asking every
+   * submodule for a page of rows it does not have.
+   */
+  async function fetchSubmoduleCounts(
+    carbonReportId: number,
+    moduleType: Module,
+  ): Promise<Record<number, number>> {
+    const response = await api
+      .get(`${buildModulePath(moduleType, carbonReportId)}?preview_limit=0`)
+      .json<{ data_entry_types_total_items?: Record<number, number> }>();
+    return response.data_entry_types_total_items ?? {};
+  }
+
+  /**
    * Planner factors resolve from each year's reference year, so taxonomy labels
    * are fetched against the first baseline the plan actually uses. The store
    * keys taxonomies by submodule alone; one fetch per submodule is all it holds.
    */
   function taxonomyTasks(
     taxonomyYear: number | null,
+    submodules: { module: PlannerPrintModule; sub: Submodule }[],
   ): (() => Promise<unknown>)[] {
     if (taxonomyYear == null) return [];
-    const tasks: (() => Promise<unknown>)[] = [];
-    for (const module of printModules) {
-      for (const sub of module.submodules) {
-        if (sub.moduleFields.some((field) => field.optionsId === 'kind')) {
-          tasks.push(() =>
+    return submodules
+      .filter(({ sub }) =>
+        sub.moduleFields.some((field) => field.optionsId === 'kind'),
+      )
+      .map(
+        ({ module, sub }) =>
+          () =>
             moduleStore.getSubmoduleTaxonomy(
               module.type,
               sub.id,
               String(taxonomyYear),
             ),
-          );
-        }
-      }
-    }
-    return tasks;
+      );
   }
 
   async function fetchAllData(): Promise<void> {
@@ -329,7 +363,32 @@ export function useProjectPlannerPrintData() {
         years[0]?.year ??
         null;
 
-      const tasks: (() => Promise<unknown>)[] = taxonomyTasks(taxonomyYear);
+      const activePairs = years.flatMap((year) =>
+        printModules
+          .filter((module) => isModuleActive(year, module))
+          .map((module) => ({ year, module })),
+      );
+
+      // Pass 1 — ask each module-year which of its submodules hold anything.
+      const counts: Record<string, Record<number, number>> = {};
+      await runPooled(
+        activePairs.map(({ year, module }) => async () => {
+          try {
+            counts[countsKey(year.id, module.type)] =
+              await fetchSubmoduleCounts(year.id, module.type);
+          } catch {
+            // Leave it unknown: pass 2 then fetches the module's submodules.
+          }
+        }),
+        PROBE_CONCURRENCY,
+      );
+
+      // Pass 2 — fetch only the tables the report will actually draw.
+      const tasks: (() => Promise<unknown>)[] = [];
+      const taxonomySubmodules = new Map<
+        string,
+        { module: PlannerPrintModule; sub: Submodule }
+      >();
 
       for (const year of years) {
         if (isModuleActive(year, MODULES.Headcount)) {
@@ -342,24 +401,40 @@ export function useProjectPlannerPrintData() {
             }
           });
         }
-        for (const module of printModules) {
-          if (!isModuleActive(year, module)) continue;
-          // One task per module, walking its submodules in series: concurrent
-          // reads of the same module on one report make the backend 500.
-          tasks.push(async () => {
-            for (const sub of module.submodules) {
-              try {
-                submoduleRows.value[rowsKey(year.id, sub.id)] =
-                  await fetchAllSubmoduleRows(module.type, sub.id, year.id);
-              } catch {
-                // A report that drops a table without saying so is worse than
-                // one that admits the gap.
-                incompleteModules.value.push(`${module.type} · ${year.year}`);
-              }
-            }
-          });
-        }
       }
+
+      for (const { year, module } of activePairs) {
+        // A failed probe or a submodule the enum does not know reads as "fetch
+        // it": a table dropped on a missing answer is a silently short report.
+        const filled = module.submodules.filter((sub) => {
+          const moduleCounts = counts[countsKey(year.id, module.type)];
+          if (!moduleCounts) return true;
+          const typeId = enumSubmodule[sub.id as EnumSubmoduleType];
+          return typeId == null || (moduleCounts[typeId] ?? 0) > 0;
+        });
+        if (!filled.length) continue;
+        for (const sub of filled) {
+          taxonomySubmodules.set(`${module.type}:${sub.id}`, { module, sub });
+        }
+        // One task per module, walking its submodules in series: concurrent
+        // reads of the same module on one report make the backend 500.
+        tasks.push(async () => {
+          for (const sub of filled) {
+            try {
+              submoduleRows.value[rowsKey(year.id, sub.id)] =
+                await fetchAllSubmoduleRows(module.type, sub.id, year.id);
+            } catch {
+              // A report that drops a table without saying so is worse than
+              // one that admits the gap.
+              incompleteModules.value.push(`${module.type} · ${year.year}`);
+            }
+          }
+        });
+      }
+
+      tasks.push(
+        ...taxonomyTasks(taxonomyYear, [...taxonomySubmodules.values()]),
+      );
 
       await runPooled(tasks);
     } finally {
