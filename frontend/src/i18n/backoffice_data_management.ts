@@ -610,8 +610,8 @@ export default {
     fr: 'Le pourcentage de réduction doit être compris entre 0 et 100',
   },
   year_config_reference_year_error: {
-    en: 'Reference year must be a valid year',
-    fr: "L'année de référence doit être une année valide",
+    en: 'Reference year must be between {min} and {max}',
+    fr: "L'année de référence doit être comprise entre {min} et {max}",
   },
   uploading_file: {
     en: 'Uploading file…',

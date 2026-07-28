@@ -264,6 +264,10 @@ def validate_reduction_objective_csv(
     return validated_rows
 
 
+MIN_REDUCTION_YEAR = 1990
+MAX_REDUCTION_YEAR = 2050
+
+
 class ReductionObjectiveGoal(BaseModel):
     """Institutional reduction goal configuration."""
 
@@ -275,7 +279,10 @@ class ReductionObjectiveGoal(BaseModel):
         description="Reduction percentage as decimal (e.g., 0.4 for 40%)",
     )
     reference_year: int = Field(
-        ..., description="Reference year to calculate reduction from"
+        ...,
+        ge=MIN_REDUCTION_YEAR,
+        le=MAX_REDUCTION_YEAR,
+        description="Reference year to calculate reduction from",
     )
 
 
@@ -550,6 +557,14 @@ class YearConfigurationResponse(BaseModel):
     # its lower bound from the backend instead of hardcoding its own copy.
     min_configurable_year: int = Field(
         description="Earliest year backoffice can create a configuration for."
+    )
+    min_reduction_year: int = Field(
+        default=MIN_REDUCTION_YEAR,
+        description="Earliest year a reduction objective may use as reference.",
+    )
+    max_reduction_year: int = Field(
+        default=MAX_REDUCTION_YEAR,
+        description="Latest year a reduction objective may use as reference.",
     )
 
     class Config:
