@@ -3,76 +3,85 @@
     <!-- The backend accepts a global budget XOR per-category totals (PRD
          #1555), so the two modes are one explicit choice rather than two
          tables the user discovers are incompatible. -->
-    <div class="planner-purchase-mode row items-center no-wrap">
-      <button
-        type="button"
-        class="planner-purchase-mode__label text-body1"
-        :class="mode === 'global' ? 'text-weight-medium' : 'text-grey-6'"
-        :disabled="disable || switching"
-        :aria-pressed="mode === 'global'"
-        @click="onModeRequest('global')"
-      >
-        {{ $t('planner_purchase_mode_global') }}
-      </button>
-      <q-toggle
-        :model-value="mode === 'per_category'"
-        color="info"
-        keep-color
-        size="lg"
-        :disable="disable || switching"
-        @update:model-value="
-          (on: boolean) => onModeRequest(on ? 'per_category' : 'global')
-        "
-      />
-      <button
-        type="button"
-        class="planner-purchase-mode__label text-body1"
-        :class="mode === 'per_category' ? 'text-weight-medium' : 'text-grey-6'"
-        :disabled="disable || switching"
-        :aria-pressed="mode === 'per_category'"
-        @click="onModeRequest('per_category')"
-      >
-        {{ $t('planner_purchase_mode_per_category') }}
-      </button>
-    </div>
-    <div class="text-body2 text-grey-7">
-      {{ $t('planner_purchase_mode_hint') }}
+    <div class="planner-purchase__header">
+      <div class="planner-purchase-mode row items-center no-wrap">
+        <button
+          type="button"
+          class="planner-purchase-mode__label text-body1"
+          :class="mode === 'global' ? 'text-weight-medium' : 'text-grey-6'"
+          :disabled="disable || switching"
+          :aria-pressed="mode === 'global'"
+          @click="onModeRequest('global')"
+        >
+          {{ $t('planner_purchase_mode_global') }}
+        </button>
+        <q-toggle
+          :model-value="mode === 'per_category'"
+          color="info"
+          keep-color
+          size="lg"
+          :disable="disable || switching"
+          @update:model-value="
+            (on: boolean) => onModeRequest(on ? 'per_category' : 'global')
+          "
+        />
+        <button
+          type="button"
+          class="planner-purchase-mode__label text-body1"
+          :class="
+            mode === 'per_category' ? 'text-weight-medium' : 'text-grey-6'
+          "
+          :disabled="disable || switching"
+          :aria-pressed="mode === 'per_category'"
+          @click="onModeRequest('per_category')"
+        >
+          {{ $t('planner_purchase_mode_per_category') }}
+        </button>
+      </div>
+      <div class="text-body2 text-grey-7">
+        {{ $t('planner_purchase_mode_hint') }}
+      </div>
     </div>
 
-    <!-- Full-bleed: the mode choice governs the fields below it, so the rule
-         between them runs to the card edges like the section headers do. -->
-    <q-separator class="planner-purchase-divider q-my-md" />
+    <q-separator />
 
-    <div class="q-gutter-y-sm">
-      <div v-for="row in visibleRows" :key="row.key" class="q-py-xs">
-        <div class="row items-center justify-between">
-          <div class="text-body1">{{ $t(row.labelKey) }}</div>
-          <div class="row items-center no-wrap q-gutter-md">
-            <div class="text-body2 text-grey-7">
-              <template v-if="row.kg !== null">
-                {{ formatTonnesCO2(row.kg / 1000) }} {{ $t('tco2eq') }}
-              </template>
-            </div>
-            <q-input
-              v-model.number="row.amount"
-              type="number"
-              outlined
-              dense
-              hide-bottom-space
-              min="0"
-              suffix="EUR"
-              style="max-width: 200px"
-              :aria-label="$t('planner_purchase_amount_label')"
-              :disable="disable || switching || savingKey === row.key"
-              :loading="savingKey === row.key"
-              :error="row.error !== null"
-              @blur="save(row)"
-              @keyup.enter="save(row)"
-            />
+    <!-- Reads as a table, like the headcount grid: full-width striped rows
+         carry the eye from the category across to its field. -->
+    <div class="planner-purchase-table">
+      <div
+        v-for="row in visibleRows"
+        :key="row.key"
+        class="planner-purchase-table__row"
+      >
+        <div class="row items-center no-wrap">
+          <label :for="`purchase-${row.key}`" class="col text-body2">
+            {{ $t(row.labelKey) }}
+          </label>
+          <div class="planner-purchase-table__kg text-body2 text-grey-7">
+            <template v-if="row.kg !== null">
+              {{ formatTonnesCO2(row.kg / 1000) }} {{ $t('tco2eq') }}
+            </template>
           </div>
+          <q-input
+            :id="`purchase-${row.key}`"
+            v-model.number="row.amount"
+            class="planner-purchase-table__input"
+            type="number"
+            outlined
+            dense
+            hide-bottom-space
+            min="0"
+            suffix="EUR"
+            :aria-label="$t('planner_purchase_amount_label')"
+            :disable="disable || switching || savingKey === row.key"
+            :loading="savingKey === row.key"
+            :error="row.error !== null"
+            @blur="save(row)"
+            @keyup.enter="save(row)"
+          />
         </div>
         <!-- Full width: the rule that was broken needs a sentence, which does
-             not fit under a 200px field. -->
+             not fit under the field. -->
         <div v-if="row.error" class="text-body2 text-negative q-mt-xs">
           {{ row.error }}
         </div>
@@ -405,11 +414,40 @@ onMounted(load);
 <style scoped lang="scss">
 @use 'src/css/02-tokens' as tokens;
 
-// Cancels the q-pa-md the planner wraps this section in, so the rule meets the
-// module card's border instead of stopping short of it.
-.planner-purchase-divider {
-  margin-left: -#{tokens.$spacing-md};
-  margin-right: -#{tokens.$spacing-md};
+// The stripes run edge to edge, so only the mode choice above them is inset.
+.planner-purchase__header {
+  padding: tokens.$spacing-md;
+}
+
+.planner-purchase-table {
+  &__row {
+    padding: tokens.$spacing-xs tokens.$spacing-md;
+    background-color: tokens.$table-bg-odd;
+
+    &:nth-child(even) {
+      background-color: tokens.$table-bg-even;
+    }
+  }
+
+  &__kg {
+    padding-right: tokens.$spacing-lg;
+  }
+
+  &__input {
+    width: tokens.$planner-grid-amount-input-width;
+
+    // The field keeps its own white surface so it stays legible on the
+    // shaded stripes instead of picking up the row behind it.
+    :deep(.q-field__control) {
+      background-color: tokens.$table-bg-odd;
+    }
+
+    // The currency is a unit, not part of the value the user typed.
+    :deep(.q-field__suffix) {
+      font-size: tokens.$text-size-sm;
+      color: tokens.$color-text-muted;
+    }
+  }
 }
 
 // Both modes are named on either side of the switch; the one not in use reads
