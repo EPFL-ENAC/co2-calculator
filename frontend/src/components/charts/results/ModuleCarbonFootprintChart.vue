@@ -1616,7 +1616,7 @@ const downloadCSV = () => {
     <q-separator v-if="!isPrintMode && !props.hideActions" />
     <q-card-section
       v-if="!isPrintMode && !props.hideActions"
-      class="flex justify-start q-gutter-sm"
+      class="module-carbon-chart__actions flex justify-start q-gutter-x-sm"
     >
       <q-btn
         unelevated

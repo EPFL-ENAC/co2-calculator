@@ -23,22 +23,29 @@
 
     <template v-else-if="plan">
       <!-- Title box -->
-      <q-card flat bordered class="container q-pa-lg">
-        <q-icon name="o_tune" color="negative" size="32px" class="q-mb-md" />
-        <h1 class="text-h3 q-mt-none q-mb-xs">
-          {{ $t('planner_page_title') }}
-        </h1>
-        <p class="text-subtitle1 text-weight-medium q-mb-md">
-          {{ $t('planner_page_subtitle') }}
-        </p>
-        <p class="text-body1 q-mb-none text-grey-8">
-          {{ $t('planner_page_intro') }}
-          <q-icon name="o_info" size="18px" class="q-ml-xs cursor-pointer">
-            <q-tooltip max-width="360px">
+      <q-card flat class="container">
+        <div class="row justify-between items-start no-wrap">
+          <div class="col">
+            <q-icon name="o_tune" color="info" size="32px" class="q-mb-md" />
+            <h1 class="text-h2 q-mb-md">{{ $t('planner_page_title') }}</h1>
+            <p class="text-body1 q-mb-sm">
+              {{ $t('planner_page_subtitle') }}
+            </p>
+            <p class="text-body1 q-mb-none">
+              {{ $t('planner_page_intro') }}
+            </p>
+          </div>
+          <q-icon
+            name="o_info"
+            size="sm"
+            class="cursor-pointer"
+            :aria-label="$t('module-info-label')"
+          >
+            <q-tooltip anchor="center right" self="top right" class="u-tooltip">
               {{ $t('planner_methodology_tooltip') }}
             </q-tooltip>
           </q-icon>
-        </p>
+        </div>
       </q-card>
 
       <!-- Project information box -->
@@ -53,8 +60,8 @@
           :year-data="yearData"
           :unit-id="unitId"
           :reference-year-options="referenceYearOptions"
-          :expanded-key="expandedKey"
-          @update:expanded-key="expandedKey = $event"
+          :expanded-keys="expandedKeys"
+          @toggle-module="onToggleModule"
         />
 
         <!-- Whole-plan results: every year of the range summed together -->
@@ -65,14 +72,19 @@
             </h2>
           </div>
 
-          <q-separator class="q-mt-xl" />
+          <q-separator class="q-mt-lg" />
 
-          <div class="grid-1-col q-mt-lg q-mb-lg">
+          <!-- Gapless grid: each block's own padding is the only spacing, so
+               its top and bottom read alike (a gap would land above every
+               separator but never at the card edges). Still a grid, because
+               BigNumber sizes itself against its row. -->
+          <div class="results-blocks">
             <BigNumber
               :title="$t('planner_results_total_tonnes_co2eq')"
               :number="formatTonnesCO2(totalTonnesCo2eq)"
               comparison=""
               color="info"
+              compact
               :bordered="false"
             />
 
@@ -86,7 +98,7 @@
 
             <q-separator />
 
-            <div class="column items-center justify-center q-pa-xl q-gutter-lg">
+            <div class="column items-center justify-center q-pa-xl q-gutter-md">
               <h3 class="text-h4 text-weight-medium">
                 {{ $t('planner_results_download_title') }}
               </h3>
@@ -96,7 +108,7 @@
                 icon="o_download"
                 :label="$t('planner_results_download_button')"
                 size="md"
-                color="accent"
+                color="info"
                 class="text-weight-medium"
                 @click="downloadReport"
               />
@@ -145,9 +157,25 @@ const unitId = computed(() => workspaceStore.selectedUnit!.id);
 
 const plan = ref<SimulatorPlan | null>(null);
 const notFound = ref(false);
-// `${year}-${module}` of the single expanded module across all year
-// sections — the module store holds one module's data at a time.
-const expandedKey = ref<string | null>(null);
+// `${year}-${module}` of every expanded module. Any number can be open at
+// once, except the same module in two years: the module store keys its
+// submodule rows by submodule id alone, so both would read one another's data.
+const expandedKeys = ref<string[]>([]);
+
+function onToggleModule({
+  key,
+  module,
+  open,
+}: {
+  key: string;
+  module: string;
+  open: boolean;
+}) {
+  const others = expandedKeys.value.filter(
+    (k) => k !== key && !k.endsWith(`-${module}`),
+  );
+  expandedKeys.value = open ? [...others, key] : others;
+}
 
 const breakdown = computed(() =>
   plansStore.aggregateStats
@@ -221,3 +249,10 @@ onUnmounted(() => {
   plansStore.clearAggregate();
 });
 </script>
+
+<style scoped lang="scss">
+.results-blocks {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+</style>

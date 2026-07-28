@@ -174,6 +174,8 @@ $table-color-warning: opt.$tokens-colors-status-red !default;
 $table-color-success: opt.$tokens-colors-status-green !default;
 $table-max-height: opt.$tokens-table-max-height !default;
 $table-header-z-index: opt.$tokens-z-index-sticky !default;
+$table-action-size: opt.$tokens-table-action-size !default;
+$table-action-icon-size: opt.$tokens-typography-font-size-lg !default;
 $table-action-hover-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
 $table-action-delete-hover-bg: rgba(
   opt.$tokens-colors-red-red-100,
@@ -358,3 +360,8 @@ $reference-year-row-action-font-size: opt.$tokens-typography-font-size-sm !defau
 // Empty state: the same slot, drawn as waiting to be filled.
 $reference-year-row-empty-border-style: dashed !default;
 $reference-year-row-empty-border-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+
+// Planner fixed-category grids (headcount, purchases): striped rows whose
+// field is sized to its value, not to the row.
+$planner-grid-fte-input-width: opt.$tokens-planner-grid-fte-input-width !default;
+$planner-grid-amount-input-width: opt.$tokens-planner-grid-amount-input-width !default;

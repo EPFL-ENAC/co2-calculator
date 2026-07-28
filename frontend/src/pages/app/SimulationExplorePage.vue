@@ -70,18 +70,24 @@
           </h2>
         </div>
 
-        <q-separator class="q-mt-xl" />
+        <q-separator class="q-mt-lg" />
 
-        <!-- Summary numbers -->
-        <div class="grid-1-col q-mt-lg q-mb-lg">
+        <!-- Summary numbers. Gapless grid: each block's own padding is the
+             only spacing, so its top and bottom read alike (a gap would land
+             above every separator but never at the card edges). Still a grid,
+             because BigNumber sizes itself against its row. -->
+        <div class="results-blocks">
           <BigNumber
             :title="$t('simulation_explore_page_results_total_tonnes_co2eq')"
             :number="`${formatTonnesCO2(totalTonnesCo2eq)}`"
             comparison=""
             color="info"
+            compact
             :bordered="false"
           />
+
           <q-separator />
+
           <ModuleCarbonFootprintChart
             :breakdown-data="filteredBreakdown"
             :bordered="false"
@@ -89,7 +95,7 @@
 
           <q-separator />
 
-          <div class="column items-center justify-center q-pa-xl q-gutter-lg">
+          <div class="column items-center justify-center q-pa-xl q-gutter-md">
             <h3 class="text-h4 text-weight-medium">
               {{ $t('simulation_explore_page_results_download_title') }}
             </h3>
@@ -99,7 +105,7 @@
               icon="o_download"
               :label="$t('simulation_explore_page_results_download_button')"
               size="md"
-              color="accent"
+              color="info"
               class="text-weight-medium"
               @click="downloadReport"
             />
@@ -112,7 +118,7 @@
           class="row no-wrap items-center justify-center q-pa-xl"
           style="gap: 24px"
         >
-          <q-icon name="o_calendar_month" color="accent" size="md" />
+          <q-icon name="o_calendar_month" color="info" size="md" />
           <div class="col">
             <div class="text-h5 text-weight-medium q-mb-xs">
               {{ $t('simulation_explore_page_convert_to_plan_title') }}
@@ -255,5 +261,10 @@ onMounted(async () => {
 <style scoped>
 .chart-wrapper {
   height: 600px;
+}
+
+.results-blocks {
+  display: grid;
+  grid-template-columns: 1fr;
 }
 </style>
