@@ -87,6 +87,13 @@ class DataEntryEmissionService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = DataEntryEmissionRepository(session)
+        # Memoizes _get_report_for_data_entry by carbon_report_module_id for
+        # this instance's lifetime. The module→report relationship is
+        # immutable within a request, so this is always safe, and it turns
+        # repeated lookups (e.g. many entries of the same module, as in a
+        # Simulator Plan prefill or a recalc slice with percentage-of-
+        # reference-year entries) from one query each into a single query.
+        self._report_by_module_id: dict[int, CarbonReport | None] = {}
 
     async def _get_report_for_data_entry(
         self, data_entry: DataEntry | DataEntryResponse
@@ -99,17 +106,17 @@ class DataEntryEmissionService:
             logger.warning("DataEntry missing carbon_report_module_id")
             return None
 
-        stmt = select(CarbonReportModule).where(
-            col(CarbonReportModule.id) == data_entry.carbon_report_module_id
-        )
+        module_id = data_entry.carbon_report_module_id
+        if module_id in self._report_by_module_id:
+            return self._report_by_module_id[module_id]
+
+        stmt = select(CarbonReportModule).where(col(CarbonReportModule.id) == module_id)
         result = await self.session.exec(stmt)
         module = result.one_or_none()
 
         if not module:
-            logger.warning(
-                f"CarbonReportModule not found for id "
-                f"{data_entry.carbon_report_module_id}"
-            )
+            logger.warning(f"CarbonReportModule not found for id {module_id}")
+            self._report_by_module_id[module_id] = None
             return None
 
         stmt_cr = select(CarbonReport).where(
@@ -119,6 +126,7 @@ class DataEntryEmissionService:
         report = result_cr.one_or_none()
         if report is None:
             logger.warning(f"CarbonReport not found for id {module.carbon_report_id}")
+        self._report_by_module_id[module_id] = report
         return report
 
     async def _get_year_from_data_entry(
