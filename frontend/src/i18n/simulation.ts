@@ -343,6 +343,10 @@ export default {
     en: 'Other purchases',
     fr: 'Autres achats',
   },
+  'planner_purchase_category.purchases_centralized': {
+    en: 'Additional purchases',
+    fr: 'Achats supplémentaires',
+  },
   'planner_traveler_category.internal': {
     en: 'Internal',
     fr: 'Interne',

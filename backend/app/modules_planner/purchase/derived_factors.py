@@ -23,15 +23,22 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
-from app.modules_planner.purchase.emissions import PLANNER_PURCHASE_EMISSIONS
+from app.modules_planner.purchase.emissions import (
+    PLANNER_PURCHASE_EMISSIONS,
+    PLANNER_PURCHASE_UNPRICED_CATEGORIES,
+)
 from app.repositories.factor_repo import FactorRepository
 
 logger = get_logger(__name__)
 
 # The planner's category slugs are the Calculator's purchase entry types by
-# the same name — derived, so the two cannot drift.
+# the same name — derived, so the two cannot drift. Categories the Calculator
+# does not price per EUR are left out: their factors carry no
+# ``ef_kg_co2eq_per_currency`` to average.
 SOURCE_TYPE_BY_CATEGORY: dict[str, DataEntryTypeEnum] = {
-    category: DataEntryTypeEnum[category] for category in PLANNER_PURCHASE_EMISSIONS
+    category: DataEntryTypeEnum[category]
+    for category in PLANNER_PURCHASE_EMISSIONS
+    if category not in PLANNER_PURCHASE_UNPRICED_CATEGORIES
 }
 PURCHASE_SOURCE_TYPES: frozenset[DataEntryTypeEnum] = frozenset(
     SOURCE_TYPE_BY_CATEGORY.values()
