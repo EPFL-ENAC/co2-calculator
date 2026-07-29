@@ -646,6 +646,10 @@ class DataEntryService:
             carbon_report_module_id=carbon_report_module_id,
             travel_institutional_id_filter=travel_institutional_id_filter,
         )
+
+        incomplete_new_equipment_count = await self.repo.count_incomplete_new_equipment(
+            carbon_report_module_id
+        )
         # more info in routes carbon_report_module (cf DataEntryEmissionService)
         # we just return empty stats and totals, it's computed in routes
         totals = ModuleTotals(
@@ -662,6 +666,7 @@ class DataEntryService:
             data_entry_types_total_items=data_entry_types_total_items,
             stats=None,
             totals=totals,
+            incomplete_new_equipment_count=incomplete_new_equipment_count,
         )
         return module_response
 

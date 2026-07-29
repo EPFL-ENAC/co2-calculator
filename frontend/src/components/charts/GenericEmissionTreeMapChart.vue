@@ -74,12 +74,13 @@ const LABEL_KEY_MAP: Record<string, string> = {
   vehicles: 'charts-vehicles-subcategory',
   other_purchases: 'charts-other-purchases-subcategory',
   centralized: 'charts-purchases-centralized-subcategory',
+  goods_and_services: 'charts-global-budget-subcategory',
   // research facilities
   facilities: 'charts-research-facilities-subcategory',
   it_facilities: 'charts-research-it-facilities-subcategory',
   animal: 'charts-research-animal-subcategory',
-  mice_and_fish_animal_facilities: 'charts-research-animal-subcategory',
-  mice: 'charts-animal-mice-subcategory',
+  animal_facilities: 'charts-research-animal-subcategory',
+  rodent: 'charts-animal-rodent-subcategory',
   fish: 'charts-animal-fish-subcategory',
   // professional travel
   plane: 'charts-plane-subcategory',
@@ -87,7 +88,6 @@ const LABEL_KEY_MAP: Record<string, string> = {
   // professional travel ZZ items
   class_1: 'charts-class-1-subcategory',
   class_2: 'charts-class-2-subcategory',
-  first: 'charts-first-class-subcategory',
   business: 'charts-business-class-subcategory',
   eco: 'charts-eco-class-subcategory',
 };

@@ -21,7 +21,7 @@ from faker import Faker
 from app.core.config import get_settings
 from app.models.data_entry import DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
-from app.modules.buildings.schemas import (
+from app.modules.buildings import (
     VALID_ROOM_TYPES,
     BuildingEmbodiedEnergyHandlerCreate,
     BuildingRoomHandlerCreate,
@@ -33,30 +33,28 @@ from app.modules.emissions.registry import (
     emission_type_scope,
 )
 from app.modules.emissions.taxonomy import get_subtree_leaves
-from app.modules.equipment.schemas import EquipmentHandlerCreate
-from app.modules.external_cloud_and_ai.schemas import (
+from app.modules.equipment import EquipmentHandlerCreate
+from app.modules.external_cloud_and_ai import (
     REQUESTS_FREQUENCY_OPTIONS,
     ExternalAIHandlerCreate,
     ExternalCloudHandlerCreate,
 )
-from app.modules.headcount.schemas import (
+from app.modules.headcount import (
     SIUS_CODE_VALUES,
     HeadCountCreate,
     HeadCountStudentCreate,
 )
-from app.modules.process_emissions.schemas import ProcessEmissionsHandlerCreate
-from app.modules.professional_travel.schemas import (
+from app.modules.process_emissions import ProcessEmissionsHandlerCreate
+from app.modules.professional_travel import (
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelTrainHandlerCreate,
 )
-from app.modules.purchase.schemas import (
+from app.modules.purchase import (
     PurchaseCentralizedHandlerCreate,
     PurchaseHandlerCreate,
 )
-from app.modules.research_facilities.animals_schemas import (
+from app.modules.research_facilities import (
     ResearchFacilitiesAnimalHandlerCreate,
-)
-from app.modules.research_facilities.common_schemas import (
     ResearchFacilitiesCommonHandlerCreate,
 )
 from app.seed.seed_helper import versionapi
@@ -207,9 +205,7 @@ DATA_ENTRY_TYPE_TO_DTO: dict[DataEntryTypeEnum, type] = {
     DataEntryTypeEnum.purchases_centralized: PurchaseCentralizedHandlerCreate,
     # research facilities
     DataEntryTypeEnum.research_facilities: ResearchFacilitiesCommonHandlerCreate,
-    DataEntryTypeEnum.mice_and_fish_animal_facilities: (
-        ResearchFacilitiesAnimalHandlerCreate
-    ),
+    DataEntryTypeEnum.animal_facilities: (ResearchFacilitiesAnimalHandlerCreate),
 }
 
 
@@ -229,7 +225,7 @@ def build_plane_travel() -> dict:
         "user_institutional_id": _user_institutional_id(),
         "origin_iata": fake.lexify(text="???").upper(),
         "destination_iata": fake.lexify(text="???").upper(),
-        "cabin_class": random.choice(["economy", "business", "first"]),  # nosec B311
+        "cabin_class": random.choice(["economy", "business"]),  # nosec B311
         "departure_date": date.today().isoformat(),
         "number_of_trips": random.randint(1, 10),  # nosec B311
         "note": maybe(fake.sentence(nb_words=6)),
@@ -424,7 +420,7 @@ def build_research_facility_common() -> dict:
 def build_research_facility_animal() -> dict:
     payload = build_research_facility_common()
     payload["researchfacility_type"] = random.choice(  # nosec B311
-        ["mice", "fish", "rat"]
+        ["rodent", "fish"]
     )
     return payload
 
@@ -463,9 +459,14 @@ def generate_data_entries_for_module(module_id, module_type_id):
         ENTRIES_PER_MODULE_MIN, ENTRIES_PER_MODULE_MAX
     )
 
-    matching_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
-        module_type_id, [DataEntryTypeEnum.member]
-    )
+    # Planner kinds never appear in randomly seeded Calculator modules.
+    matching_types = [
+        t
+        for t in MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
+            module_type_id, [DataEntryTypeEnum.member]
+        )
+        if not t.is_planner_kind
+    ]
 
     for _ in range(num_entries):
         data_entry_type = random.choice(matching_types)  # nosec B311
@@ -509,7 +510,7 @@ _SEED_EMISSION_ROOTS: dict[DataEntryTypeEnum, EmissionType] = {
     DataEntryTypeEnum.external_clouds: EmissionType.external__clouds,
     DataEntryTypeEnum.process_emissions: EmissionType.process_emissions,
     DataEntryTypeEnum.research_facilities: EmissionType.research_facilities,
-    DataEntryTypeEnum.mice_and_fish_animal_facilities: EmissionType.research_facilities,
+    DataEntryTypeEnum.animal_facilities: (EmissionType.research_facilities),
     DataEntryTypeEnum.purchases_centralized: EmissionType.purchases,
 }
 

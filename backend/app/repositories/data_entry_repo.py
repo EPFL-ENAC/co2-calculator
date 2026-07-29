@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from psycopg.types.json import Json
 from pydantic import BaseModel
-from sqlalchemy import Select, asc, desc, func, or_
+from sqlalchemy import Select, and_, asc, desc, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import aliased
@@ -24,7 +24,7 @@ from app.modules.emissions.registry import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     ROLLUP_EMISSION_TYPE_IDS,
 )
-from app.modules.professional_travel.schemas import MemberEntry
+from app.modules.professional_travel import MemberEntry
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import (
@@ -36,6 +36,14 @@ logger = get_logger(__name__)
 
 # Default filter map when handler doesn't provide one
 DEFAULT_FILTER_MAP = {"name": DataEntry.data["name"].as_string()}
+
+# data_entry_type ids that make up the Equipment module (issue #259 "new vs
+# previous year" detection applies only to these).
+EQUIPMENT_DATA_ENTRY_TYPE_IDS = {
+    DataEntryTypeEnum.scientific.value,
+    DataEntryTypeEnum.it.value,
+    DataEntryTypeEnum.other.value,
+}
 
 # COPY target for ``bulk_copy`` — every non-defaulted data_entries column.
 # ``id`` is omitted so the sequence assigns it server-side.
@@ -185,6 +193,22 @@ class DataEntryRepository:
         )
         await self.session.execute(statement)
         await self.session.flush()
+
+    async def bulk_delete_by_modules(self, carbon_report_module_ids: list[int]) -> int:
+        """Delete every data entry of the given modules. Returns the row count.
+
+        Used by the Simulator Plan when a plan-year's reference year changes:
+        the prefilled modules are emptied before being rebuilt from the new
+        baseline. Emissions follow through the ``data_entry_id`` cascade.
+        """
+        if not carbon_report_module_ids:
+            return 0
+        statement = delete(DataEntry).where(
+            col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids)
+        )
+        result = await self.session.execute(statement)
+        await self.session.flush()
+        return getattr(result, "rowcount", 0) or 0
 
     async def bulk_delete_by_source_year(
         self,
@@ -346,6 +370,27 @@ class DataEntryRepository:
         else:
             statement = statement.order_by(getattr(DataEntry, sort_by).desc())
         statement = statement.offset(offset).limit(limit)
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
+    async def list_by_carbon_report(self, carbon_report_id: int) -> list[DataEntry]:
+        """Fetch all DataEntries belonging to one carbon report."""
+        statement = (
+            select(DataEntry)
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(col(CarbonReportModule.carbon_report_id) == carbon_report_id)
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
+    async def list_by_module(self, carbon_report_module_id: int) -> list[DataEntry]:
+        """Fetch all DataEntries of one carbon report module."""
+        statement = select(DataEntry).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id
+        )
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
@@ -553,6 +598,97 @@ class DataEntryRepository:
         else:
             return statement.order_by(desc(sort_expr))
 
+    async def get_prior_year_equipment_ids(
+        self, unit_id: int, current_year: int
+    ) -> set[str]:
+        """Return the set of ``equipment_id`` present in the unit's most recent
+        prior year (issue #259).
+
+        "Previous year" is the greatest year strictly before ``current_year``
+        that still has equipment entries for the unit — robust to skipped
+        years. Returns an empty set when the unit has no earlier equipment data
+        (e.g. its first campaign year), in which case nothing is flagged new.
+        """
+        type_ids = list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+        prior_year = (
+            await self.session.execute(
+                select(func.max(DataEntry.year)).where(
+                    col(DataEntry.unit_id) == unit_id,
+                    col(DataEntry.year) < current_year,
+                    col(DataEntry.data_entry_type_id).in_(type_ids),
+                )
+            )
+        ).scalar_one_or_none()
+        if prior_year is None:
+            return set()
+        rows = (
+            (
+                await self.session.execute(
+                    select(DataEntry.data["equipment_id"].as_string())
+                    .where(
+                        col(DataEntry.unit_id) == unit_id,
+                        col(DataEntry.year) == prior_year,
+                        col(DataEntry.data_entry_type_id).in_(type_ids),
+                    )
+                    .distinct()
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return {r for r in rows if r is not None}
+
+    async def _equipment_module_scope(
+        self, carbon_report_module_id: int
+    ) -> Optional[tuple[int, int]]:
+        """Return ``(unit_id, year)`` for an Equipment module, or ``None`` when
+        the module has no equipment entries to derive them from."""
+        meta = (
+            await self.session.execute(
+                select(DataEntry.unit_id, DataEntry.year)
+                .where(
+                    col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                    col(DataEntry.data_entry_type_id).in_(
+                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                    ),
+                )
+                .limit(1)
+            )
+        ).first()
+        if meta is None or meta[0] is None or meta[1] is None:
+            return None
+        return int(meta[0]), int(meta[1])
+
+    async def count_incomplete_new_equipment(self, carbon_report_module_id: int) -> int:
+        """Count equipment that is new vs the previous year (issue #259) yet is
+        still missing usage data (active or standby hours). Returns ``0`` for
+        non-equipment modules and for units with no prior-year equipment data,
+        so it is safe to call unconditionally on any module."""
+        scope = await self._equipment_module_scope(carbon_report_module_id)
+        if scope is None:
+            return 0
+        unit_id, current_year = scope
+        prev_ids = await self.get_prior_year_equipment_ids(unit_id, current_year)
+        if not prev_ids:
+            return 0
+        active = DataEntry.data["active_usage_hours_per_week"].as_string()
+        standby = DataEntry.data["standby_usage_hours_per_week"].as_string()
+        count = (
+            await self.session.execute(
+                select(func.count())
+                .select_from(DataEntry)
+                .where(
+                    col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                    col(DataEntry.data_entry_type_id).in_(
+                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                    ),
+                    DataEntry.data["equipment_id"].as_string().notin_(list(prev_ids)),
+                    or_(active.is_(None), standby.is_(None)),
+                )
+            )
+        ).scalar_one()
+        return int(count)
+
     async def get_submodule_data(
         self,
         carbon_report_module_id: int,
@@ -578,6 +714,8 @@ class DataEntryRepository:
             DataEntryTypeEnum.member.value,
             DataEntryTypeEnum.student.value,
         )
+        is_equipment_entry = data_entry_type_id in EQUIPMENT_DATA_ENTRY_TYPE_IDS
+        prev_equipment_ids: set[str] = set()
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
 
         # Classification-resolved factor in SQL (plan 1661-sql-factor-resolution):
@@ -869,6 +1007,28 @@ class DataEntryRepository:
         if (is_train_entry or is_plane_entry) and OriginLocation is not None:
             sort_map["origin_name"] = OriginLocation.name
             sort_map["destination_name"] = DestLocation.name
+
+        if is_equipment_entry:
+            scope = await self._equipment_module_scope(carbon_report_module_id)
+            if scope is not None:
+                prev_equipment_ids = await self.get_prior_year_equipment_ids(*scope)
+            if prev_equipment_ids:
+                is_new_expr = (
+                    DataEntry.data["equipment_id"]
+                    .as_string()
+                    .notin_(list(prev_equipment_ids))
+                )
+
+                missing_usage_expr = or_(
+                    DataEntry.data["active_usage_hours_per_week"].as_string().is_(None),
+                    DataEntry.data["standby_usage_hours_per_week"]
+                    .as_string()
+                    .is_(None),
+                )
+                statement = statement.order_by(
+                    desc(and_(is_new_expr, missing_usage_expr))
+                )
+
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
         statement = statement.offset(offset).limit(limit)
@@ -909,6 +1069,19 @@ class DataEntryRepository:
         total_items = (await self.session.execute(count_stmt)).scalar_one()
         rows = result.all()
         count = len(rows)
+
+        # Planner snapshot rows carry ``source_data_entry_id`` — the reference-
+        # year entry they were copied from. Expose that source's emissions as
+        # ``reference_kg_co2eq`` (the 100% baseline the "% of reference year"
+        # slider scales from), batched into one grouped query for the page.
+        # Calculator rows have no source id, so this is a no-op there.
+        reference_kg_by_source = await self._reference_kg_by_source_ids(
+            [
+                int(sid)
+                for row in rows
+                if (sid := row[0].data.get("source_data_entry_id")) is not None
+            ]
+        )
 
         items: list[BaseModel] = []
 
@@ -962,6 +1135,11 @@ class DataEntryRepository:
                 },
             }
 
+            if is_equipment_entry:
+                enriched_data["is_new"] = bool(prev_equipment_ids) and (
+                    data_entry.data.get("equipment_id") not in prev_equipment_ids
+                )
+
             if is_travel_entry:
                 distance_km = (
                     float(_emission.additional_value)
@@ -982,6 +1160,12 @@ class DataEntryRepository:
                     building_room.room_surface_square_meter
                 )
 
+            source_entry_id = data_entry.data.get("source_data_entry_id")
+            if source_entry_id is not None:
+                enriched_data["reference_kg_co2eq"] = reference_kg_by_source.get(
+                    int(source_entry_id)
+                )
+
             items.append(handler.to_response(data_entry, enriched_data))
 
         response = SubmoduleResponse(
@@ -997,6 +1181,28 @@ class DataEntryRepository:
             has_more=total_items > offset + count,
         )
         return response
+
+    async def _reference_kg_by_source_ids(
+        self, source_ids: list[int]
+    ) -> dict[int, float]:
+        """Sum persisted kg_co2eq per source data entry (planner snapshots).
+
+        One grouped query for the whole page; empty in → empty out. Mirrors
+        ``DataEntryEmissionService._sum_entry_emissions`` (raw kg over the
+        entry's leaves) so the reference column matches the % override base.
+        """
+        if not source_ids:
+            return {}
+        stmt = (
+            select(
+                DataEntryEmission.data_entry_id,
+                func.sum(DataEntryEmission.kg_co2eq),
+            )
+            .where(col(DataEntryEmission.data_entry_id).in_(source_ids))
+            .group_by(col(DataEntryEmission.data_entry_id))
+        )
+        rows = (await self.session.exec(stmt)).all()
+        return {int(entry_id): float(total or 0.0) for entry_id, total in rows}
 
     async def get_professional_travel_trip_legs(
         self,

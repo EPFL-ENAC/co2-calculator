@@ -36,6 +36,17 @@ ALL_MODULE_TYPE_IDS = [mt for mt in ModuleTypeEnum]
 TOTAL_MODULE_TYPES = len(ModuleTypeEnum)
 DEFAULT_COMPLETION_PROGRESS = f"0/{TOTAL_MODULE_TYPES}"
 
+# Simulator Plan "prefilled" (type-2) modules: snapshot-copied from the
+# reference year. Mirrors the frontend planner-module-config
+# ``behavior === 'prefilled'`` set.
+PLANNER_PREFILLED_MODULE_TYPES: set[ModuleTypeEnum] = {
+    ModuleTypeEnum.process_emissions,
+    ModuleTypeEnum.buildings,
+    ModuleTypeEnum.equipment,
+    ModuleTypeEnum.research_facilities,
+    ModuleTypeEnum.external_cloud_and_ai,
+}
+
 
 # corresponding data_entry_type enum for each module type
 
@@ -43,6 +54,7 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
     ModuleTypeEnum.headcount: [
         DataEntryTypeEnum.member,
         DataEntryTypeEnum.student,
+        DataEntryTypeEnum.planner_headcount,
     ],
     ModuleTypeEnum.equipment: [
         DataEntryTypeEnum.scientific,
@@ -74,10 +86,13 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.vehicles,
         DataEntryTypeEnum.other_purchases,
         DataEntryTypeEnum.purchases_centralized,
+        # Planner kinds last so Calculator submodule ordering is untouched.
+        DataEntryTypeEnum.planner_purchase,
+        DataEntryTypeEnum.planner_purchase_budget,
     ],
     ModuleTypeEnum.research_facilities: [
         DataEntryTypeEnum.research_facilities,
-        DataEntryTypeEnum.mice_and_fish_animal_facilities,
+        DataEntryTypeEnum.animal_facilities,
     ],
     # Add more if needed for other modules
 }

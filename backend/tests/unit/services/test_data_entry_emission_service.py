@@ -15,6 +15,10 @@ from app.modules.emissions.registry import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     ROLLUP_EMISSION_TYPE_IDS,
 )
+from app.modules_planner.headcount import (
+    PlannerHeadCountCreate,
+    PlannerHeadcountModuleHandler,
+)
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 
@@ -305,7 +309,7 @@ class TestMetaExtras:
                 "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
             ) as mock_handler_cls,
         ):
-            from app.modules.headcount.schemas import HeadcountMemberModuleHandler
+            from app.modules.headcount import HeadcountMemberModuleHandler
 
             mock_handler = HeadcountMemberModuleHandler()
             mock_handler.pre_compute = AsyncMock(return_value={})
@@ -360,7 +364,7 @@ class TestMetaExtras:
                 "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
             ) as mock_handler_cls,
         ):
-            from app.modules.headcount.schemas import HeadcountMemberModuleHandler
+            from app.modules.headcount import HeadcountMemberModuleHandler
 
             mock_handler = HeadcountMemberModuleHandler()
             mock_handler.pre_compute = AsyncMock(return_value={})
@@ -1900,3 +1904,216 @@ class TestFetchFactorsStrategyBCache:
 
         # Without the opt-in cache, behaviour is unchanged: one query per call.
         assert get_by_classification.await_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Factor-year resolution — reference_year wins (Simulator Plan)
+# ---------------------------------------------------------------------------
+
+
+class TestFactorYearResolution:
+    """Plan-year reports source factors from their reference year."""
+
+    @staticmethod
+    def _report(year, reference_year):
+        report = MagicMock()
+        report.year = year
+        report.reference_year = reference_year
+        return report
+
+    @pytest.mark.asyncio
+    async def test_plan_report_uses_reference_year(self):
+        service = _make_service()
+        de = _make_data_entry_response({})
+        with patch.object(
+            service,
+            "_get_report_for_data_entry",
+            new=AsyncMock(return_value=self._report(2027, 2024)),
+        ):
+            assert await service._get_year_from_data_entry(de) == 2024
+
+    @pytest.mark.asyncio
+    async def test_calculator_report_uses_year(self):
+        service = _make_service()
+        de = _make_data_entry_response({})
+        with patch.object(
+            service,
+            "_get_report_for_data_entry",
+            new=AsyncMock(return_value=self._report(2025, None)),
+        ):
+            assert await service._get_year_from_data_entry(de) == 2025
+
+
+# ---------------------------------------------------------------------------
+# Planner headcount — full emissions from aggregate FTE via member factors
+# ---------------------------------------------------------------------------
+
+
+class TestPlannerHeadcountEmissions:
+    """Simulator Plan headcount rows compute fte × member factor."""
+
+    @pytest.mark.asyncio
+    async def test_planner_headcount_computes_from_member_factor(self):
+        service = _make_service()
+        factor = MagicMock(spec=Factor)
+        factor.id = 7
+        factor.emission_type_id = EmissionType.food__vegetarian.value
+        factor.values = {
+            "ef_kg_co2eq_per_unit": 2.0,
+            "number_of_unit_per_fte": 100.0,
+            "unit": "kg",
+        }
+        de = DataEntryResponse(
+            id=3,
+            data_entry_type_id=DataEntryTypeEnum.planner_headcount.value,
+            carbon_report_module_id=10,
+            data={"sius_code": "51", "fte": 4.5},
+        )
+
+        with (
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[factor])
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[EmissionType.food],
+            ),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+            ) as mock_handler_cls,
+        ):
+            mock_handler = PlannerHeadcountModuleHandler()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(de)
+
+        assert len(results) == 1
+        # fte (4.5, aggregate > 1 allowed) × ef (2.0) × units/fte (100)
+        assert results[0].kg_co2eq == pytest.approx(900.0)
+
+    def test_planner_headcount_create_allows_aggregate_fte(self):
+        dto = PlannerHeadCountCreate(
+            data_entry_type_id=DataEntryTypeEnum.planner_headcount.value,
+            carbon_report_module_id=1,
+            sius_code="51",
+            fte=12.5,
+        )
+        assert dto.data["fte"] == 12.5
+
+    def test_planner_headcount_create_rejects_unknown_sius_code(self):
+        with pytest.raises(ValueError):
+            PlannerHeadCountCreate(
+                data_entry_type_id=DataEntryTypeEnum.planner_headcount.value,
+                carbon_report_module_id=1,
+                sius_code="99",
+                fte=1.0,
+            )
+
+
+# ---------------------------------------------------------------------------
+# Percentage override — planner snapshot source_data_entry_id matching
+# ---------------------------------------------------------------------------
+
+
+class TestPercentageOverrideSnapshotSource:
+    """Snapshot entries match their exact source entry, not name heuristics."""
+
+    @staticmethod
+    def _report():
+        report = MagicMock()
+        report.year = 2027
+        report.reference_year = 2024
+        report.unit_id = 1
+        return report
+
+    @pytest.mark.asyncio
+    async def test_source_entry_id_scales_source_emissions(self):
+        service = _make_service()
+        de = DataEntryResponse(
+            id=9,
+            data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+            carbon_report_module_id=10,
+            data={
+                "quantity": 5.0,
+                "percentage_of_reference_year": 40,
+                "source_data_entry_id": 123,
+            },
+        )
+        service.session.get = AsyncMock(return_value=MagicMock(id=123))
+        # Source resolves to a report of the same unit (ownership gate passes).
+        with (
+            patch.object(
+                service, "_sum_entry_emissions", new=AsyncMock(return_value=200.0)
+            ),
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                new=AsyncMock(return_value=MagicMock(unit_id=1)),
+            ),
+        ):
+            result = await service._get_percentage_override_kg(
+                de, EmissionType.process_emissions, self._report()
+            )
+        assert result == pytest.approx(80.0)
+        service.session.get.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_deleted_source_falls_back_to_normal_compute(self):
+        service = _make_service()
+        de = DataEntryResponse(
+            id=9,
+            data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+            carbon_report_module_id=10,
+            data={
+                "quantity": 5.0,
+                "percentage_of_reference_year": 40,
+                "source_data_entry_id": 123,
+            },
+        )
+        service.session.get = AsyncMock(return_value=None)
+        result = await service._get_percentage_override_kg(
+            de, EmissionType.process_emissions, self._report()
+        )
+        # None → prepare_create computes from the snapshot data instead.
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_cross_unit_source_is_rejected(self):
+        """A crafted source_data_entry_id pointing at another unit is ignored."""
+        service = _make_service()
+        de = DataEntryResponse(
+            id=9,
+            data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+            carbon_report_module_id=10,
+            data={
+                "quantity": 5.0,
+                "percentage_of_reference_year": 40,
+                "source_data_entry_id": 999,
+            },
+        )
+        service.session.get = AsyncMock(return_value=MagicMock(id=999))
+        with (
+            patch.object(
+                service, "_sum_entry_emissions", new=AsyncMock(return_value=1_000.0)
+            ) as sum_mock,
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                # Source belongs to unit 2, report is unit 1 → rejected.
+                new=AsyncMock(return_value=MagicMock(unit_id=2)),
+            ),
+        ):
+            result = await service._get_percentage_override_kg(
+                de, EmissionType.process_emissions, self._report()
+            )
+        assert result is None
+        sum_mock.assert_not_awaited()

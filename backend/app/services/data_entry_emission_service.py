@@ -87,6 +87,13 @@ class DataEntryEmissionService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = DataEntryEmissionRepository(session)
+        # Memoizes _get_report_for_data_entry by carbon_report_module_id for
+        # this instance's lifetime. The module→report relationship is
+        # immutable within a request, so this is always safe, and it turns
+        # repeated lookups (e.g. many entries of the same module, as in a
+        # Simulator Plan prefill or a recalc slice with percentage-of-
+        # reference-year entries) from one query each into a single query.
+        self._report_by_module_id: dict[int, CarbonReport | None] = {}
 
     async def _get_report_for_data_entry(
         self, data_entry: DataEntry | DataEntryResponse
@@ -99,17 +106,17 @@ class DataEntryEmissionService:
             logger.warning("DataEntry missing carbon_report_module_id")
             return None
 
-        stmt = select(CarbonReportModule).where(
-            col(CarbonReportModule.id) == data_entry.carbon_report_module_id
-        )
+        module_id = data_entry.carbon_report_module_id
+        if module_id in self._report_by_module_id:
+            return self._report_by_module_id[module_id]
+
+        stmt = select(CarbonReportModule).where(col(CarbonReportModule.id) == module_id)
         result = await self.session.exec(stmt)
         module = result.one_or_none()
 
         if not module:
-            logger.warning(
-                f"CarbonReportModule not found for id "
-                f"{data_entry.carbon_report_module_id}"
-            )
+            logger.warning(f"CarbonReportModule not found for id {module_id}")
+            self._report_by_module_id[module_id] = None
             return None
 
         stmt_cr = select(CarbonReport).where(
@@ -119,6 +126,7 @@ class DataEntryEmissionService:
         report = result_cr.one_or_none()
         if report is None:
             logger.warning(f"CarbonReport not found for id {module.carbon_report_id}")
+        self._report_by_module_id[module_id] = report
         return report
 
     async def _get_year_from_data_entry(
@@ -127,7 +135,12 @@ class DataEntryEmissionService:
         report = await self._get_report_for_data_entry(data_entry)
         if report is None:
             return None
-        return report.year if report.year is not None else report.reference_year
+        # reference_year wins: Simulator Plan reports source all factors from
+        # their baseline year (plan years can be in the future, where no
+        # factors exist). reference_year is NULL for Calculator/Explore.
+        if report.reference_year is not None:
+            return report.reference_year
+        return report.year
 
     async def _get_percentage_override_kg(
         self,
@@ -135,19 +148,19 @@ class DataEntryEmissionService:
         emission_type: EmissionType,
         report: CarbonReport,
     ) -> float | None:
-        """If percentage_of_last_year is present, compute kg_co2eq from base year.
+        """If percentage_of_reference_year is present, compute kg_co2eq from base year.
 
         The override matches the previous-year DataEntry within the same module type
         and data_entry_type, using stable identifiers when available.
         """
-        raw = data_entry.data.get("percentage_of_last_year")
+        raw = data_entry.data.get("percentage_of_reference_year")
         if raw is None:
             return None
         try:
             percentage = float(raw)
         except TypeError, ValueError:
             logger.warning(
-                "Invalid percentage_of_last_year=%r for data_entry_id=%r",
+                "Invalid percentage_of_reference_year=%r for data_entry_id=%r",
                 raw,
                 data_entry.id,
             )
@@ -161,6 +174,30 @@ class DataEntryEmissionService:
 
         if report.unit_id is None:
             return None
+
+        # Planner snapshot entries carry the exact source entry id — match it
+        # directly instead of walking the prior-year report tree. A deleted
+        # source falls back to the normal compute path (snapshot data at its
+        # stored quantities), as documented in the #1556 plan.
+        source_entry_id = data_entry.data.get("source_data_entry_id")
+        if source_entry_id is not None:
+            source_entry = await self.session.get(DataEntry, int(source_entry_id))
+            if source_entry is None:
+                return None
+            # Ownership gate: the source must belong to the same unit as this
+            # report. Without it, a crafted source_data_entry_id could scale
+            # another unit's emissions into this report (cross-tenant read).
+            source_report = await self._get_report_for_data_entry(source_entry)
+            if source_report is None or source_report.unit_id != report.unit_id:
+                logger.warning(
+                    "Ignoring cross-unit source_data_entry_id=%r on data_entry_id=%r",
+                    source_entry_id,
+                    data_entry.id,
+                )
+                return None
+            return await self._sum_entry_emissions(source_entry, emission_type) * (
+                percentage / 100.0
+            )
 
         # Resolve current module_type_id so we can match the prior-year module.
         stmt_mod = select(CarbonReportModule).where(
@@ -218,16 +255,19 @@ class DataEntryEmissionService:
         if prev_entry is None:
             return None
 
+        prev_kg = await self._sum_entry_emissions(prev_entry, emission_type)
+        return prev_kg * (percentage / 100.0)
+
+    async def _sum_entry_emissions(
+        self, entry: DataEntry, emission_type: EmissionType
+    ) -> float:
+        """Sum an entry's persisted kg_co2eq over the emission type's leaves."""
         leaf_ids = get_subtree_leaves(emission_type)
-        stmt_prev_em = select(
-            func.coalesce(func.sum(DataEntryEmission.kg_co2eq), 0.0)
-        ).where(
-            col(DataEntryEmission.data_entry_id) == prev_entry.id,
+        stmt = select(func.coalesce(func.sum(DataEntryEmission.kg_co2eq), 0.0)).where(
+            col(DataEntryEmission.data_entry_id) == entry.id,
             col(DataEntryEmission.emission_type_id).in_(leaf_ids),
         )
-        prev_kg = float((await self.session.exec(stmt_prev_em)).one())
-
-        return prev_kg * (percentage / 100.0)
+        return float((await self.session.exec(stmt)).one())
 
     async def prepare_create(
         self,
@@ -307,7 +347,13 @@ class DataEntryEmissionService:
             # production while making unit tests easier to mock.
             report = await self._get_report_for_data_entry(data_entry)
             if report is not None:
-                year = report.year if report.year is not None else report.reference_year
+                # Same precedence as _get_year_from_data_entry: the plan's
+                # reference year drives factor lookup.
+                year = (
+                    report.reference_year
+                    if report.reference_year is not None
+                    else report.year
+                )
         if year is None:
             logger.warning(
                 "Could not determine year for data entry, factors may not match"
@@ -316,7 +362,7 @@ class DataEntryEmissionService:
         # _get_percentage_override_kg needs reference_year and unit_id.
         if (
             report is None
-            and data_entry.data.get("percentage_of_last_year") is not None
+            and data_entry.data.get("percentage_of_reference_year") is not None
         ):
             report = await self._get_report_for_data_entry(data_entry)
 
@@ -411,8 +457,8 @@ class DataEntryEmissionService:
                                 kg_co2eq=float(override_kg),
                                 meta={
                                     "factors_used": [],
-                                    "percentage_of_last_year": data_entry.data.get(
-                                        "percentage_of_last_year"
+                                    "percentage_of_reference_year": data_entry.data.get(
+                                        "percentage_of_reference_year"
                                     ),
                                     "reference_year": report.reference_year,
                                     **ctx,

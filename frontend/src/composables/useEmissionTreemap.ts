@@ -74,6 +74,7 @@ export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
     'vehicles',
     'other_purchases',
     'centralized',
+    'goods_and_services',
   ],
   research_facilities: ['facilities', 'it_facilities', 'animal'],
   professional_travel: ['plane', 'train'],
@@ -91,7 +92,7 @@ const YY_LEVEL_CATEGORIES = new Set([
   // on the flat row; AI providers aggregate under the `ai` parent sum.
   // Both are read via flat key lookup rather than the emissions list.
   'external_cloud_and_ai',
-  // Mice/fish ZZ leaves aggregate under the `animal` parent sum; the treemap
+  // Rodent/fish ZZ leaves aggregate under the `animal` parent sum; the treemap
   // shows facilities / it_facilities / animal tiles.
   'research_facilities',
 ]);

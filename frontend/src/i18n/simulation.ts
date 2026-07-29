@@ -1,4 +1,8 @@
 export default {
+  planner_headcount_save_error: {
+    en: 'Could not save the headcount value',
+    fr: "Impossible d'enregistrer la valeur d'effectif",
+  },
   documentation_editing_rows_simulation_topic: {
     en: 'Simulation',
     fr: 'Simulation',
@@ -94,5 +98,325 @@ export default {
   simulation_explore_print_subtitle: {
     en: 'Simulation carbon footprint {year}',
     fr: 'Empreinte carbone de la simulation {year}',
+  },
+  project_planner_page_title: {
+    en: 'Project planner',
+    fr: 'Planificateur de projet',
+  },
+  project_planner_page_intro: {
+    en: 'Plan the carbon footprint of an upcoming project. Give your project a name; its content will appear here.',
+    fr: "Planifiez l'empreinte carbone d'un projet à venir. Donnez un nom à votre projet ; son contenu apparaîtra ici.",
+  },
+  planner_page_title: {
+    en: 'CO₂ Project Planner',
+    fr: 'Planificateur de projet CO₂',
+  },
+  planner_page_subtitle: {
+    en: 'Estimating the carbon footprint of a project or category of emissions.',
+    fr: "Estimer l'empreinte d'un projet ou d'une catégorie d'émission carbone.",
+  },
+  planner_page_intro: {
+    en: "Do you need to estimate the carbon footprint of a project, for example as part of a grant application, before, during, or after your project? Would you like to estimate the carbon footprint of a trip, a purchase, or the consumption of scientific equipment? This space gives you access to EPFL's carbon footprint simulator.",
+    fr: "Vous avez besoin d'estimer l'empreinte d'un projet par exemple dans le cadre d'une demande de grant, en amont, pendant ou après votre projet ? Vous souhaitez estimer l'empreinte d'un voyage, d'un achat ou de la consommation d'un équipement scientifique ? Cet espace vous permet d'accéder au simulateur d'empreinte carbone de l'EPFL.",
+  },
+  planner_project_label: {
+    en: 'Project',
+    fr: 'Projet',
+  },
+  planner_year_selection_label: {
+    en: 'Year Selection',
+    fr: 'Sélection des années',
+  },
+  planner_module_active_label: {
+    en: 'Active',
+    fr: 'Actif',
+  },
+  planner_results_title: {
+    en: 'Project results',
+    fr: 'Résultats du projet',
+  },
+  planner_results_total_tonnes_co2eq: {
+    en: 'Total project carbon footprint',
+    fr: 'Empreinte carbone totale du projet',
+  },
+  planner_results_chart_title: {
+    en: '{name} carbon footprint',
+    fr: 'Empreinte carbone de {name}',
+  },
+  planner_results_download_title: {
+    en: 'Your Project Report',
+    fr: 'Votre rapport de projet',
+  },
+  planner_results_download_button: {
+    en: 'Download Report',
+    fr: 'Télécharger le rapport',
+  },
+  project_planner_name_label: {
+    en: 'Project name',
+    fr: 'Nom du projet',
+  },
+  project_planner_not_found: {
+    en: 'This project does not exist or has been deleted.',
+    fr: "Ce projet n'existe pas ou a été supprimé.",
+  },
+  project_planner_back_home: {
+    en: 'Back to home',
+    fr: "Retour à l'accueil",
+  },
+  planner_methodology_tooltip: {
+    en: 'The methodology used to calculate the carbon footprint of this space is documented in the Documentation pages (link to the Documentation subpage).',
+    fr: "La méthodologie utilisée pour calculer de l'empreinte carbone de cet espace est documentée dans les pages Documentation (lien vers la sous-page de la Documentation).",
+  },
+  planner_project_info_title: {
+    en: 'Project information',
+    fr: 'Informations du projet',
+  },
+  planner_start_year_label: {
+    en: 'Start year',
+    fr: 'Année de début',
+  },
+  planner_end_year_label: {
+    en: 'End year',
+    fr: 'Année de fin',
+  },
+  planner_share_with_lab_label: {
+    en: 'Visible to all lab members',
+    fr: 'Visible par tous les membres du laboratoire',
+  },
+  planner_generate_years_button: {
+    en: 'Create year sections',
+    fr: 'Créer les sections annuelles',
+  },
+  planner_generate_years_hint: {
+    en: 'Creates one editable section per year between the start and end year.',
+    fr: 'Crée une section modifiable par année entre les années de début et de fin.',
+  },
+  planner_years_generated: {
+    en: 'Year sections updated',
+    fr: 'Sections annuelles mises à jour',
+  },
+  planner_years_generate_error: {
+    en: 'Could not create the year sections',
+    fr: 'Impossible de créer les sections annuelles',
+  },
+  planner_no_years_hint: {
+    en: 'Set a start and end year to plan your project — one section per year will appear here.',
+    fr: 'Définissez une année de début et de fin pour planifier votre projet — une section par année apparaîtra ici.',
+  },
+  planner_reference_year_label: {
+    en: 'Reference year',
+    fr: 'Année de référence',
+  },
+  planner_reference_year_hint: {
+    en: 'Select a reference year: all factors and prefilled data of this planned year come from it. The modules below stay locked until you do.',
+    fr: "Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année planifiée en proviennent. Les modules ci-dessous restent verrouillés tant qu'elle n'est pas définie.",
+  },
+  planner_reference_year_error: {
+    en: 'Could not set the reference year',
+    fr: "Impossible de définir l'année de référence",
+  },
+  planner_reference_year_set_button: {
+    en: 'Choose a reference year',
+    fr: 'Choisir une année de référence',
+  },
+  planner_reference_year_change_link: {
+    en: 'Change',
+    fr: 'Modifier',
+  },
+  planner_reference_year_rebuild_hint: {
+    en: 'The prefilled modules of this planned year are rebuilt from the reference year — changing it deletes their current data.',
+    fr: "Les modules préremplis de cette année planifiée sont reconstruits à partir de l'année de référence — la changer supprime leurs données actuelles.",
+  },
+  planner_reference_year_dialog_title: {
+    en: 'Planned year {year}: choose its reference year',
+    fr: 'Année planifiée {year} : choisir son année de référence',
+  },
+  planner_reference_year_dialog_select_label: {
+    en: 'Reference year (source of the data)',
+    fr: 'Année de référence (source des données)',
+  },
+  planner_reference_year_dialog_consequences: {
+    en: 'The prefilled modules of planned year {year} are rebuilt from the reference year you pick, and use its emission factors.',
+    fr: "Les modules préremplis de l'année planifiée {year} sont reconstruits à partir de l'année de référence choisie et utilisent ses facteurs d'émission.",
+  },
+  planner_reference_year_dialog_wipe_warning: {
+    en: 'Changing the reference year deletes everything the prefilled modules of planned year {year} contain: the prefilled rows, your percentages, your edits and the rows you added yourself. The reference year itself keeps its data. This cannot be undone.',
+    fr: "Changer l'année de référence supprime tout ce que contiennent les modules préremplis de l'année planifiée {year} : les lignes préremplies, vos pourcentages, vos modifications et les lignes que vous avez ajoutées. L'année de référence, elle, conserve ses données. Cette action est irréversible.",
+  },
+  planner_reference_year_dialog_wipe_ack: {
+    en: 'I understand that my planned data for {year} will be deleted',
+    fr: 'Je comprends que mes données planifiées de {year} seront supprimées',
+  },
+  planner_module_active_tooltip: {
+    en: 'Inactive modules are excluded from sums, graphs and results.',
+    fr: 'Les modules inactifs sont exclus des sommes, graphiques et résultats.',
+  },
+  planner_reference_kg_col: {
+    en: 'Reference year kgCO₂eq',
+    fr: 'kgCO₂eq année de référence',
+  },
+  planner_percentage_col: {
+    en: '% of reference year',
+    fr: '% de l’année de référence',
+  },
+  planner_module_prefilled_badge: {
+    en: 'Prefilled from reference year',
+    fr: "Prérempli depuis l'année de référence",
+  },
+  planner_purchase_amount_label: {
+    en: 'Amount (EUR)',
+    fr: 'Montant (EUR)',
+  },
+  planner_purchase_mode_global: {
+    en: 'Global budget',
+    fr: 'Budget global',
+  },
+  planner_purchase_mode_per_category: {
+    en: 'Per category',
+    fr: 'Par catégorie',
+  },
+  planner_purchase_mode_hint: {
+    en: 'Fill in one global budget or an amount per category — the two cannot be used together.',
+    fr: 'Renseignez un budget global ou un montant par catégorie — les deux ne peuvent pas coexister.',
+  },
+  planner_purchase_global_budget_label: {
+    en: 'Global budget',
+    fr: 'Budget global',
+  },
+  planner_purchase_switch_dialog_title: {
+    en: 'Switch entry mode',
+    fr: 'Changer de mode de saisie',
+  },
+  planner_purchase_switch_from_global_message: {
+    en: 'The global budget you entered will be deleted so the amounts per category can be used instead.',
+    fr: 'Le budget global saisi sera supprimé afin de pouvoir utiliser les montants par catégorie.',
+  },
+  planner_purchase_switch_from_categories_message: {
+    en: 'The amounts you entered per category will be deleted so a global budget can be used instead.',
+    fr: 'Les montants saisis par catégorie seront supprimés afin de pouvoir utiliser un budget global.',
+  },
+  planner_purchase_save_error: {
+    en: 'The purchase amount could not be saved.',
+    fr: "Le montant d'achat n'a pas pu être enregistré.",
+  },
+  planner_purchase_error_global_budget_set: {
+    en: 'A global budget is already set for this year: delete it to enter amounts per category.',
+    fr: 'Un budget global est déjà défini pour cette année : supprimez-le pour saisir des montants par catégorie.',
+  },
+  planner_purchase_error_totals_set: {
+    en: 'Amounts per category are already set for this year: delete them to enter a global budget.',
+    fr: 'Des montants par catégorie sont déjà définis pour cette année : supprimez-les pour saisir un budget global.',
+  },
+  planner_purchase_error_budget_exists: {
+    en: 'A global budget already exists for this year.',
+    fr: 'Un budget global existe déjà pour cette année.',
+  },
+  planner_purchase_error_duplicate_category: {
+    en: 'An amount already exists for this category.',
+    fr: 'Un montant existe déjà pour cette catégorie.',
+  },
+  'planner_purchase_category.scientific_equipment': {
+    en: 'Scientific equipment',
+    fr: 'Équipements scientifiques',
+  },
+  'planner_purchase_category.it_equipment': {
+    en: 'IT equipment',
+    fr: 'Équipements informatiques',
+  },
+  'planner_purchase_category.consumable_accessories': {
+    en: 'Consumables & accessories',
+    fr: 'Consommables et accessoires',
+  },
+  'planner_purchase_category.biological_chemical_gaseous_product': {
+    en: 'Biological, chemical & gaseous products',
+    fr: 'Produits biologiques, chimiques et gazeux',
+  },
+  'planner_purchase_category.services': {
+    en: 'Services',
+    fr: 'Services',
+  },
+  'planner_purchase_category.vehicles': {
+    en: 'Vehicles',
+    fr: 'Véhicules',
+  },
+  'planner_purchase_category.other_purchases': {
+    en: 'Other purchases',
+    fr: 'Autres achats',
+  },
+  'planner_traveler_category.internal': {
+    en: 'Internal',
+    fr: 'Interne',
+  },
+  'planner_traveler_category.external_epfl': {
+    en: 'External EPFL',
+    fr: 'Externe EPFL',
+  },
+  'planner_traveler_category.internal_epfl': {
+    en: 'Internal EPFL',
+    fr: 'Interne EPFL',
+  },
+  planner_print_title: {
+    en: 'Project report',
+    fr: 'Rapport de projet',
+  },
+  planner_print_created_by: {
+    en: 'Created by',
+    fr: 'Créé par',
+  },
+  planner_print_created_on: {
+    en: 'Created on',
+    fr: 'Créé le',
+  },
+  planner_print_total_over_years: {
+    en: 'Summed over {count} planned year(s)',
+    fr: 'Somme sur {count} année(s) planifiée(s)',
+  },
+  planner_print_methodology_note: {
+    en: 'Planned figures are estimates: each year draws its emission factors from its reference year. Inactive modules are excluded from every total and chart.',
+    fr: "Les chiffres planifiés sont des estimations : chaque année tire ses facteurs d'émission de son année de référence. Les modules inactifs sont exclus de tous les totaux et graphiques.",
+  },
+  planner_print_incomplete_note: {
+    en: 'Some tables could not be loaded and are missing from this report: {modules}.',
+    fr: 'Certains tableaux n’ont pas pu être chargés et manquent dans ce rapport : {modules}.',
+  },
+  planner_print_year_subtitle: {
+    en: 'Planned carbon footprint — {name}',
+    fr: 'Empreinte carbone planifiée — {name}',
+  },
+  planner_print_year_total: {
+    en: 'Carbon footprint for this year',
+    fr: 'Empreinte carbone de cette année',
+  },
+  planner_print_year_chart_title: {
+    en: '{year} carbon footprint',
+    fr: 'Empreinte carbone {year}',
+  },
+  planner_print_no_reference_year: {
+    en: 'Not set',
+    fr: 'Non définie',
+  },
+  planner_print_excluded_modules: {
+    en: 'Excluded modules',
+    fr: 'Modules exclus',
+  },
+  planner_print_module_subtitle: {
+    en: 'Planned data {year}',
+    fr: 'Données planifiées {year}',
+  },
+  planner_headcount_table_title: {
+    en: 'Planned FTE per category',
+    fr: 'EPT planifiés par catégorie',
+  },
+  planner_headcount_category_col: {
+    en: 'Category',
+    fr: 'Catégorie',
+  },
+  planner_headcount_fte_col: {
+    en: 'FTE',
+    fr: 'EPT',
+  },
+  planner_headcount_total_fte: {
+    en: 'Total FTE',
+    fr: 'Total EPT',
   },
 };

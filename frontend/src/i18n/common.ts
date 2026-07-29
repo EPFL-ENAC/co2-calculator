@@ -49,6 +49,10 @@ export default {
     en: 'Documentation',
     fr: 'Documentation',
   },
+  module_documentation_title: {
+    en: 'For more information',
+    fr: "Pour plus d'information",
+  },
   logout: {
     en: 'Logout',
     fr: 'Se déconnecter',
@@ -346,6 +350,14 @@ export default {
   common_edit: {
     en: 'Edit',
     fr: 'Modifier',
+  },
+  common_comment: {
+    en: 'Comment',
+    fr: 'Commenter',
+  },
+  common_duplicate: {
+    en: 'Duplicate',
+    fr: 'Dupliquer',
   },
   common_view_only: {
     en: 'View Only',

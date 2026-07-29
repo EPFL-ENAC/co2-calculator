@@ -43,8 +43,10 @@ from app.core.constants import (
 )
 from app.core.logging import get_logger
 from app.core.security import get_current_active_user
+from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import (
     CarbonReport,
+    CarbonReportType,
 )
 from app.models.module_type import (
     DEFAULT_COMPLETION_PROGRESS,
@@ -421,7 +423,15 @@ async def get_available_years(
     exist for units inside their scope subtree (#862).
     """
     is_global, affiliations = gate_backoffice(current_user, "view")
-    stmt = select(CarbonReport.year).distinct()
+    stmt = (
+        select(CarbonReport.year)
+        .distinct()
+        .join(
+            CarbonProject,
+            col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+        )
+        .where(col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR)
+    )
     if not is_global:
         if not affiliations:
             return {"years": [], "latest": ""}

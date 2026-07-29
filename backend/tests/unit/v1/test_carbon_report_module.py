@@ -1,7 +1,7 @@
 """Unit tests for carbon_report_module endpoint helpers and list_headcount_members.
 
 Covers:
-- get_carbon_report / get_carbon_report_id helpers
+- resolve_report_module / get_module_id_for_unit_year helpers
 - list_headcount_members: permission gate, data-level scope, role-priority fix
 - pick_role_for_institutional_id (role_priority module)
 """
@@ -53,53 +53,93 @@ def _mock_db(unit_iid=UNIT_IID, unit_found=True):
     return db
 
 
-# ── get_carbon_report ─────────────────────────────────────────────────────────
+def _resolved(module_id=1, unit_id=1, year=2024):
+    """(report, module) pair as resolve_report_module would return them."""
+    report = MagicMock()
+    report.unit_id = unit_id
+    report.year = year
+    module = MagicMock()
+    module.id = module_id
+    return report, module
+
+
+# ── resolve_report_module ─────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_get_carbon_report_returns_module():
+async def test_resolve_report_module_returns_pair():
     db = MagicMock()
+    report = MagicMock()
+    report.carbon_project_id = None
     mock_module = MagicMock()
     mock_module.id = 42
-    service = MagicMock()
-    service.get_carbon_report_by_year_and_unit = AsyncMock(return_value=mock_module)
+    report_service = MagicMock()
+    report_service.get = AsyncMock(return_value=report)
+    module_service = MagicMock()
+    module_service.get_module = AsyncMock(return_value=mock_module)
 
-    with patch.object(crm, "CarbonReportModuleService", return_value=service):
-        result = await crm.get_carbon_report(1, 2024, ModuleTypeEnum.headcount, db)
+    with (
+        patch.object(crm, "CarbonReportService", return_value=report_service),
+        patch.object(crm, "CarbonReportModuleService", return_value=module_service),
+    ):
+        got_report, got_module = await crm.resolve_report_module(
+            1, "headcount", db, _user()
+        )
 
-    assert result.id == 42
+    assert got_report is report
+    assert got_module.id == 42
 
 
 @pytest.mark.asyncio
-async def test_get_carbon_report_raises_404_when_not_found():
+async def test_resolve_report_module_raises_404_when_report_missing():
     db = MagicMock()
-    service = MagicMock()
-    service.get_carbon_report_by_year_and_unit = AsyncMock(return_value=None)
+    report_service = MagicMock()
+    report_service.get = AsyncMock(return_value=None)
 
-    with patch.object(crm, "CarbonReportModuleService", return_value=service):
+    with patch.object(crm, "CarbonReportService", return_value=report_service):
         with pytest.raises(HTTPException) as exc:
-            await crm.get_carbon_report(1, 2024, ModuleTypeEnum.headcount, db)
+            await crm.resolve_report_module(1, "headcount", db, _user())
 
     assert exc.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_get_carbon_report_raises_404_when_id_is_none():
+async def test_resolve_report_module_raises_404_when_module_missing():
     db = MagicMock()
-    mock_module = MagicMock()
-    mock_module.id = None
-    service = MagicMock()
-    service.get_carbon_report_by_year_and_unit = AsyncMock(return_value=mock_module)
+    report = MagicMock()
+    report.carbon_project_id = None
+    report_service = MagicMock()
+    report_service.get = AsyncMock(return_value=report)
+    module_service = MagicMock()
+    module_service.get_module = AsyncMock(return_value=None)
 
-    with patch.object(crm, "CarbonReportModuleService", return_value=service):
+    with (
+        patch.object(crm, "CarbonReportService", return_value=report_service),
+        patch.object(crm, "CarbonReportModuleService", return_value=module_service),
+    ):
         with pytest.raises(HTTPException) as exc:
-            await crm.get_carbon_report(1, 2024, ModuleTypeEnum.headcount, db)
+            await crm.resolve_report_module(1, "headcount", db, _user())
 
     assert exc.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_get_carbon_report_id_returns_int():
+async def test_resolve_report_module_raises_404_for_unknown_module_slug():
+    db = MagicMock()
+    report = MagicMock()
+    report.carbon_project_id = None
+    report_service = MagicMock()
+    report_service.get = AsyncMock(return_value=report)
+
+    with patch.object(crm, "CarbonReportService", return_value=report_service):
+        with pytest.raises(HTTPException) as exc:
+            await crm.resolve_report_module(1, "not-a-module", db, _user())
+
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_module_id_for_unit_year_returns_int():
     db = MagicMock()
     mock_module = MagicMock()
     mock_module.id = 7
@@ -107,9 +147,30 @@ async def test_get_carbon_report_id_returns_int():
     service.get_carbon_report_by_year_and_unit = AsyncMock(return_value=mock_module)
 
     with patch.object(crm, "CarbonReportModuleService", return_value=service):
-        result = await crm.get_carbon_report_id(1, 2024, ModuleTypeEnum.headcount, db)
+        result = await crm.get_module_id_for_unit_year(
+            1, 2024, ModuleTypeEnum.headcount, db
+        )
 
     assert result == 7
+
+
+@pytest.mark.asyncio
+async def test_get_module_id_for_unit_year_maps_valueerror_to_http_404():
+    """The service raises ValueError when no module exists; the combine loop
+    catches only HTTPException, so this helper must translate it (else 500)."""
+    db = MagicMock()
+    service = MagicMock()
+    service.get_carbon_report_by_year_and_unit = AsyncMock(
+        side_effect=ValueError("no module")
+    )
+
+    with patch.object(crm, "CarbonReportModuleService", return_value=service):
+        with pytest.raises(HTTPException) as exc:
+            await crm.get_module_id_for_unit_year(
+                99, 2024, ModuleTypeEnum.headcount, db
+            )
+
+    assert exc.value.status_code == 404
 
 
 # ── list_headcount_members: permission gate ───────────────────────────────────
@@ -123,11 +184,12 @@ async def test_list_headcount_members_403_when_no_permission():
     async def deny_all(u, mod, action, **_kwargs):
         return {"allow": False}
 
-    with patch.object(crm, "get_module_permission_decision", side_effect=deny_all):
+    with (
+        patch.object(crm, "resolve_report_module", AsyncMock(return_value=_resolved())),
+        patch.object(crm, "get_module_permission_decision", side_effect=deny_all),
+    ):
         with pytest.raises(HTTPException) as exc:
-            await crm.list_headcount_members(
-                1, 2024, carbon_project_type=0, db=db, current_user=user
-            )
+            await crm.list_headcount_members(1, db=db, current_user=user)
 
     assert exc.value.status_code == 403
     assert "Permission denied" in exc.value.detail
@@ -155,12 +217,10 @@ async def test_list_headcount_members_principal_for_unit_sees_all():
         patch.object(
             crm, "get_module_permission_decision", side_effect=allow_headcount
         ),
-        patch.object(crm, "get_carbon_report_id", AsyncMock(return_value=1)),
+        patch.object(crm, "resolve_report_module", AsyncMock(return_value=_resolved())),
         patch.object(crm, "DataEntryService", return_value=svc),
     ):
-        result = await crm.list_headcount_members(
-            1, 2024, carbon_project_type=0, db=db, current_user=user
-        )
+        result = await crm.list_headcount_members(1, db=db, current_user=user)
 
     assert len(result) == 2
 
@@ -182,12 +242,10 @@ async def test_list_headcount_members_global_role_sees_all():
 
     with (
         patch.object(crm, "get_module_permission_decision", side_effect=allow_all),
-        patch.object(crm, "get_carbon_report_id", AsyncMock(return_value=1)),
+        patch.object(crm, "resolve_report_module", AsyncMock(return_value=_resolved())),
         patch.object(crm, "DataEntryService", return_value=svc),
     ):
-        result = await crm.list_headcount_members(
-            1, 2024, carbon_project_type=0, db=db, current_user=user
-        )
+        result = await crm.list_headcount_members(1, db=db, current_user=user)
 
     assert len(result) == 2
 
@@ -215,12 +273,10 @@ async def test_list_headcount_members_std_user_sees_only_own():
 
     with (
         patch.object(crm, "get_module_permission_decision", side_effect=allow_travel),
-        patch.object(crm, "get_carbon_report_id", AsyncMock(return_value=1)),
+        patch.object(crm, "resolve_report_module", AsyncMock(return_value=_resolved())),
         patch.object(crm, "DataEntryService", return_value=svc),
     ):
-        result = await crm.list_headcount_members(
-            1, 2024, carbon_project_type=0, db=db, current_user=user
-        )
+        result = await crm.list_headcount_members(1, db=db, current_user=user)
 
     assert len(result) == 1
     assert result[0].institutional_id == "11111"
@@ -250,12 +306,10 @@ async def test_list_headcount_members_principal_other_unit_sees_only_own():
         patch.object(
             crm, "get_module_permission_decision", side_effect=allow_headcount
         ),
-        patch.object(crm, "get_carbon_report_id", AsyncMock(return_value=1)),
+        patch.object(crm, "resolve_report_module", AsyncMock(return_value=_resolved())),
         patch.object(crm, "DataEntryService", return_value=svc),
     ):
-        result = await crm.list_headcount_members(
-            1, 2024, carbon_project_type=0, db=db, current_user=user
-        )
+        result = await crm.list_headcount_members(1, db=db, current_user=user)
 
     assert len(result) == 1
     assert result[0].institutional_id == "11111"
@@ -271,13 +325,14 @@ async def test_list_headcount_members_404_when_unit_missing():
     async def allow_headcount(u, mod, action, **_kwargs):
         return {"allow": mod == "headcount"}
 
-    with patch.object(
-        crm, "get_module_permission_decision", side_effect=allow_headcount
+    with (
+        patch.object(crm, "resolve_report_module", AsyncMock(return_value=_resolved())),
+        patch.object(
+            crm, "get_module_permission_decision", side_effect=allow_headcount
+        ),
     ):
         with pytest.raises(HTTPException) as exc:
-            await crm.list_headcount_members(
-                1, 2024, carbon_project_type=0, db=db, current_user=user
-            )
+            await crm.list_headcount_members(1, db=db, current_user=user)
 
     assert exc.value.status_code == 404
 
@@ -480,15 +535,17 @@ async def test_get_module_headcount_does_not_raise_name_error():
             "check_module_permission_for_unit",
             AsyncMock(return_value=unit),
         ),
-        patch.object(crm, "get_carbon_report_id", AsyncMock(return_value=99)),
+        patch.object(
+            crm,
+            "resolve_report_module",
+            AsyncMock(return_value=_resolved(module_id=99)),
+        ),
         patch.object(crm, "DataEntryService", return_value=data_svc),
     ):
         result = await crm.get_module(
-            unit_id=1,
-            year=2024,
+            carbon_report_id=1,
             module_id="headcount",
             preview_limit=20,
-            carbon_project_type=0,
             db=db,
             current_user=user,
         )

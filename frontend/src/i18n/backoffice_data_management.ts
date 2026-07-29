@@ -586,7 +586,7 @@ export default {
     fr: 'Infrastructures de recherche',
   },
   data_management_submodule_animal_facilities: {
-    en: 'Mice and Fish Animal Facilities',
+    en: 'Rodent and Fish Animal Facilities',
     fr: 'Animaleries rongeurs et poissons',
   },
   data_management_submodule_buildings_construction_renovation: {

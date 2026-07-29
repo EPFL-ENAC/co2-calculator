@@ -31,7 +31,7 @@ from pydantic import ValidationError
 from app.core.config import get_settings
 from app.models.data_entry import DataEntryTypeEnum
 from app.modules.emissions import EmissionType
-from app.modules.equipment.schemas import (
+from app.modules.equipment import (
     EquipmentFactorCreate,
     EquipmentHandlerCreate,
 )

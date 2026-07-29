@@ -16,6 +16,7 @@ from app.api.v1 import (
     factors,
     files,
     locations,
+    simulator_plan,
     taxonomies,
     unit_results,
     units,
@@ -37,9 +38,11 @@ api_router.include_router(
     prefix="/backoffice-reporting",
     tags=["backoffice-reporting"],
 )
-# TODO: rename /modules in the frontend!
+# Module/data-entry operations are identity-addressed under /carbon-reports
+# ("lookup once, then identity" — see docs/src/implementation-plans/
+# 1556-simulation-plan-backend.md).
 api_router.include_router(
-    carbon_report_module.router, prefix="/modules", tags=["modules"]
+    carbon_report_module.router, prefix="/carbon-reports", tags=["modules"]
 )
 api_router.include_router(building_rooms.router, prefix="/modules", tags=["modules"])
 # TODO: rename /modules-stats in the frontend!
@@ -51,6 +54,9 @@ api_router.include_router(factors.router, prefix="/factors", tags=["factors"])
 api_router.include_router(taxonomies.router, prefix="/taxonomies", tags=["taxonomies"])
 api_router.include_router(
     carbon_report.router, prefix="/carbon-reports", tags=["carbon-reports"]
+)
+api_router.include_router(
+    simulator_plan.router, prefix="/project-plans", tags=["project-plans"]
 )
 api_router.include_router(locations.router, prefix="/locations", tags=["locations"])
 api_router.include_router(files.router, prefix="/files", tags=["files"])

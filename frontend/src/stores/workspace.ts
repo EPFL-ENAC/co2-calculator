@@ -3,6 +3,7 @@ import { HTTPError } from 'ky';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
 import { api } from 'src/api/http';
+import type { SimulatorPlan } from 'src/stores/simulatorPlans';
 
 export interface Unit {
   id: number;
@@ -70,6 +71,8 @@ export interface WorkspaceHomePayload {
   stats: Record<string, unknown>;
   /** Per-module status map, fanned out to the timeline store by the guard. */
   module_states: { module_type_id: number; status: number }[];
+  /** The unit's visible Simulator Plans with their totals, for the home table. */
+  project_plans: SimulatorPlan[];
 }
 
 export const useWorkspaceStore = defineStore(
@@ -192,12 +195,13 @@ export const useWorkspaceStore = defineStore(
       const url = `carbon-reports/simulator/explore/unit/${unitId}/reference-year/${referenceYear}/`;
       let inv: CarbonReport;
       try {
-        // 404 is expected here — the catch branch seeds an explore report.
+        // 404 is expected here — the catch branch creates the explore report.
         // Opt out of the global error toast for that status only.
         inv = await api.get(url, { skipErrorCodes: [404] }).json();
       } catch (err) {
         if (err instanceof HTTPError && err.response.status === 404) {
-          // No explore report exists yet — seed one from the Calculator report.
+          // No explore report exists yet. It is created empty — the Explorer is
+          // never seeded from the Calculator; only the Planner prefills.
           inv = await api.post(url).json();
         } else {
           throw err;

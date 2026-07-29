@@ -72,6 +72,14 @@ class ModuleResponse(BaseModel):
         None, description="Module statistics"
     )
     totals: ModuleTotals = Field(..., description="Module totals")
+    incomplete_new_equipment_count: int = Field(
+        0,
+        description=(
+            "Equipment new vs the previous year that is still missing usage "
+            "data (#259). Non-zero only for the Equipment module; blocks "
+            "validation until zero."
+        ),
+    )
 
 
 class TripLeg(BaseModel):

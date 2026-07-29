@@ -98,6 +98,14 @@ class DataEntryResponseGen(DataEntryBase):
 
     id: int
     note: Optional[str] = None
+    # Planner snapshot rows only: the source (reference-year) entry's emissions,
+    # i.e. the 100% baseline the "% of reference year" slider scales from. Null
+    # for ordinary Calculator rows (no source entry).
+    reference_kg_co2eq: Optional[float] = None
+    # The slider value itself, so the table reflects the stored percentage after
+    # a refetch (lives in ``data``; surfaced here for the planner UI). Null for
+    # Calculator rows.
+    percentage_of_reference_year: Optional[float] = None
     data: dict = Field(default_factory=dict, exclude=True)
 
 

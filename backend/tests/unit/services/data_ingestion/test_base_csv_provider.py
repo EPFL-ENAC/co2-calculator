@@ -990,7 +990,7 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
             data={
                 "origin_iata": "GVA",
                 "destination_iata": "ZRH",
-                "cabin_class": "first",
+                "cabin_class": "business",
             }
         )
 
@@ -1020,7 +1020,7 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
     row = {
         "origin_iata": "GVA",
         "destination_iata": "ZRH",
-        "cabin_class": "first",
+        "cabin_class": "business",
         "user_institutional_id": "150322",
         "number_of_trips": "1",
         "kg_co2eq": "152.685",
@@ -1855,7 +1855,7 @@ async def test_delete_sibling_submodule_not_wiped():
     assert data_entry_service.repo.bulk_delete_by_source_year.call_count == 1
     call_kwargs = data_entry_service.repo.bulk_delete_by_source_year.call_args.kwargs
     assert call_kwargs["data_entry_type_ids"] == [
-        DataEntryTypeEnum.mice_and_fish_animal_facilities.value
+        DataEntryTypeEnum.animal_facilities.value
     ]
 
 
@@ -1878,4 +1878,4 @@ async def test_delete_all_types_when_no_data_entry_type_id():
     call_kwargs = data_entry_service.repo.bulk_delete_by_source_year.call_args.kwargs
     deleted_types = set(call_kwargs["data_entry_type_ids"])
     assert DataEntryTypeEnum.research_facilities.value in deleted_types
-    assert DataEntryTypeEnum.mice_and_fish_animal_facilities.value in deleted_types
+    assert DataEntryTypeEnum.animal_facilities.value in deleted_types

@@ -206,6 +206,24 @@ class CarbonReportModuleRepository:
         await self.session.refresh(db_obj)
         return db_obj
 
+    async def update_is_active(
+        self, carbon_report_id: int, module_type_id: int, is_active: bool
+    ) -> Optional[CarbonReportModule]:
+        """Toggle the Active flag of a carbon report module."""
+        statement = select(CarbonReportModule).where(
+            col(CarbonReportModule.carbon_report_id) == carbon_report_id,
+            col(CarbonReportModule.module_type_id) == module_type_id,
+        )
+        result = await self.session.execute(statement)
+        db_obj = result.scalar_one_or_none()
+        if not db_obj:
+            return None
+        db_obj.is_active = is_active
+        self.session.add(db_obj)
+        await self.session.flush()
+        await self.session.refresh(db_obj)
+        return db_obj
+
     async def delete(self, carbon_report_module_id: int) -> bool:
         """Delete a carbon report module by ID."""
         statement = select(CarbonReportModule).where(
@@ -401,6 +419,18 @@ class CarbonReportModuleRepository:
         return stmt
 
     @staticmethod
+    def _calculator_only(stmt: Any) -> Any:
+        """Restrict a CarbonReport-joined statement to Calculator projects.
+
+        Simulator Explore and Simulator Plan reports are ``carbon_reports`` rows
+        as well; backoffice reporting must never mix them into the assessment.
+        """
+        return stmt.join(
+            CarbonProject,
+            col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+        ).where(col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR)
+
+    @staticmethod
     def _get_completion_status_from_progress(
         completion_progress: Optional[str],
     ) -> ModuleStatus:
@@ -491,6 +521,7 @@ class CarbonReportModuleRepository:
                 .where(col(CarbonReport.year).in_(years))
                 .group_by(col(CarbonReport.unit_id))
             )
+            unit_rollup_stmt = self._calculator_only(unit_rollup_stmt)
             if hierarchy_unit_ids is not None:
                 unit_rollup_stmt = unit_rollup_stmt.where(
                     col(CarbonReport.unit_id).in_(hierarchy_unit_ids)
@@ -523,6 +554,7 @@ class CarbonReportModuleRepository:
                 .where(col(CarbonReport.year).in_(years))
                 .group_by(col(CarbonReport.overall_status))
             )
+            status_count_stmt = self._calculator_only(status_count_stmt)
             if hierarchy_unit_ids is not None:
                 status_count_stmt = status_count_stmt.where(
                     col(Unit.id).in_(hierarchy_unit_ids)
@@ -542,6 +574,7 @@ class CarbonReportModuleRepository:
             .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
             .where(col(CarbonReport.year).in_(years))
         )
+        base_count_stmt = self._calculator_only(base_count_stmt)
         if hierarchy_unit_ids is not None:
             base_count_stmt = base_count_stmt.where(
                 col(Unit.id).in_(hierarchy_unit_ids)
@@ -582,9 +615,11 @@ class CarbonReportModuleRepository:
 
             # Correlated subquery: stats from the most recent selected year.
             latest_stats_subq = (
-                select(CarbonReport.stats)
-                .where(CarbonReport.unit_id == Unit.id)
-                .where(col(CarbonReport.year).in_(years))
+                self._calculator_only(
+                    select(CarbonReport.stats)
+                    .where(CarbonReport.unit_id == Unit.id)
+                    .where(col(CarbonReport.year).in_(years))
+                )
                 .order_by(desc(CarbonReport.year))
                 .limit(1)
                 .correlate(Unit)
@@ -612,6 +647,7 @@ class CarbonReportModuleRepository:
                 .where(col(CarbonReport.year).in_(years))
                 .group_by(Unit.id, Unit.name, Unit.path_name, User.display_name)
             )
+            units_stmt = self._calculator_only(units_stmt)
         else:
             # Single year: one row per unit, module-level completion progress.
             units_stmt_columns = [
@@ -634,15 +670,18 @@ class CarbonReportModuleRepository:
                 )
                 .where(col(CarbonReport.year).in_(years))
             )
+            units_stmt = self._calculator_only(units_stmt)
 
         units_stmt = self._apply_report_filters(
             units_stmt, hierarchy_unit_ids, overall_status
         )
 
         filtered_report_ids_stmt = self._apply_report_filters(
-            select(col(CarbonReport.id))
-            .join(Unit, col(CarbonReport.unit_id) == col(Unit.id))
-            .where(col(CarbonReport.year).in_(years)),
+            self._calculator_only(
+                select(col(CarbonReport.id))
+                .join(Unit, col(CarbonReport.unit_id) == col(Unit.id))
+                .where(col(CarbonReport.year).in_(years))
+            ),
             hierarchy_unit_ids,
             overall_status,
         )
@@ -651,9 +690,6 @@ class CarbonReportModuleRepository:
         # to avoid large IN (...) parameter lists for big datasets.
         filtered_report_ids_subq = filtered_report_ids_stmt.subquery()
         filtered_report_ids_in = select(filtered_report_ids_subq.c.id)
-
-        # if unit_ids:
-        #     units_stmt = units_stmt.where(col(Unit.id).in_(unit_ids))
 
         # Build order by clause
         order_col: Any = col(Unit.name)
@@ -870,6 +906,7 @@ class CarbonReportModuleRepository:
             .join(Unit, Unit.id == CarbonReport.unit_id)
             .order_by(CarbonReport.id, CarbonReportModule.module_type_id)
         )
+        statement = self._calculator_only(statement)
         if years:
             statement = statement.where(col(CarbonReport.year).in_(years))
         if overall_status is not None:
@@ -1043,6 +1080,7 @@ class CarbonReportModuleRepository:
                 col(User.display_name),
             )
         )
+        statement = self._calculator_only(statement)
 
         # Additional filters based on provided parameters
         if years:
@@ -1171,6 +1209,7 @@ class CarbonReportModuleRepository:
             .join(Unit, Unit.id == CarbonReport.unit_id)
             .order_by(CarbonReport.id)
         )
+        statement = self._calculator_only(statement)
         if years:
             statement = statement.where(col(CarbonReport.year).in_(years))
         if overall_status is not None:

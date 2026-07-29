@@ -23,6 +23,7 @@ from app.modules.emissions.buckets import BucketNodes
 from app.modules.emissions.registry import MODULE_STAT_BUCKETS
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
+from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import (
     CarbonReportModuleCreate,
     CarbonReportModuleRead,
@@ -46,10 +47,7 @@ _IT_TOP_CLASS_SPECS: dict[ModuleTypeEnum, tuple[str, list[DataEntryTypeEnum], st
     ),
     ModuleTypeEnum.research_facilities: (
         "research_facilities_it",
-        [
-            DataEntryTypeEnum.research_facilities,
-            DataEntryTypeEnum.mice_and_fish_animal_facilities,
-        ],
+        [DataEntryTypeEnum.research_facilities],
         "researchfacility_name",
     ),
 }
@@ -320,12 +318,41 @@ class CarbonReportModuleService:
                 f"{[s.value for s in ModuleStatus]}"
             )
 
+        if (
+            status == ModuleStatus.VALIDATED
+            and module_type_id == ModuleTypeEnum.equipment.value
+        ):
+            module = await self.repo.get_by_report_and_module_type(
+                carbon_report_id, module_type_id
+            )
+            if module is not None and module.id is not None:
+                incomplete = await DataEntryRepository(
+                    self.session
+                ).count_incomplete_new_equipment(module.id)
+                if incomplete > 0:
+                    raise ValueError("NEW_EQUIPMENT_USAGE_REQUIRED")
+
         logger.info(
             f"Updating report {sanitize(carbon_report_id)} module "
             f"status to {sanitize(ModuleStatus(status).name)}"
         )
         carbon_report_module = await self.repo.update_status(
             carbon_report_id, module_type_id, status
+        )
+        if carbon_report_module is None:
+            return None
+        return CarbonReportModuleRead.model_validate(carbon_report_module)
+
+    async def update_is_active(
+        self, carbon_report_id: int, module_type_id: int, is_active: bool
+    ) -> Optional[CarbonReportModuleRead]:
+        """Toggle a module's Active flag (Simulator Plan checkbox)."""
+        logger.info(
+            f"Setting report {sanitize(carbon_report_id)} module "
+            f"{sanitize(module_type_id)} is_active={sanitize(is_active)}"
+        )
+        carbon_report_module = await self.repo.update_is_active(
+            carbon_report_id, module_type_id, is_active
         )
         if carbon_report_module is None:
             return None
@@ -380,7 +407,9 @@ class CarbonReportModuleService:
                     func.count(),
                 )
                 .where(
-                    col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids)
+                    col(DataEntry.carbon_report_module_id).in_(
+                        carbon_report_module_ids
+                    ),
                 )
                 .group_by(col(DataEntry.carbon_report_module_id))
             )

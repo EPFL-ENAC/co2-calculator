@@ -122,6 +122,7 @@ const purchaseFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
@@ -165,6 +166,7 @@ const additionalPurchaseFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },

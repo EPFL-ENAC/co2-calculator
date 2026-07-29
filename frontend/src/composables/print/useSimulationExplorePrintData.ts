@@ -1,12 +1,20 @@
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { getHeadcountMembers } from 'src/api/modules';
+import { MODULES } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useYearConfigStore } from 'src/stores/yearConfig';
+import { sumBreakdownTonnes } from 'src/utils/breakdownTotal';
+import { getExploreModules } from 'src/utils/exploreModules';
+import { fetchAllSubmoduleRows } from 'src/utils/printSubmoduleRows';
+import type { PrintRow } from 'src/utils/printTable';
 
 export function useSimulationExplorePrintData() {
   const route = useRoute();
   const workspaceStore = useWorkspaceStore();
   const moduleStore = useModuleStore();
+  const yearConfigStore = useYearConfigStore();
 
   const unitParam = computed(() => String(route.params.unit ?? ''));
   const yearParam = computed(() =>
@@ -18,20 +26,9 @@ export function useSimulationExplorePrintData() {
 
   const loading = ref(true);
 
-  const totalTonnesCo2eq = computed(() => {
-    const breakdown = moduleStore.state.emissionBreakdown;
-    if (!breakdown) return 0;
-    const moduleTotal = (breakdown.module_breakdown ?? []).reduce(
-      (sum, row) => {
-        const rowTotal = (row.emissions ?? []).reduce((rowSum, e) => {
-          return rowSum + (typeof e.value === 'number' ? e.value : 0);
-        }, 0);
-        return sum + rowTotal;
-      },
-      0,
-    );
-    return moduleTotal || breakdown.total_tonnes_co2eq || 0;
-  });
+  const totalTonnesCo2eq = computed(() =>
+    sumBreakdownTonnes(moduleStore.state.emissionBreakdown),
+  );
 
   const filteredBreakdown = computed(() => {
     const bd = moduleStore.state.emissionBreakdown;
@@ -43,6 +40,13 @@ export function useSimulationExplorePrintData() {
       ),
     };
   });
+
+  const exploreModules = computed(() =>
+    getExploreModules(yearConfigStore.getModule),
+  );
+
+  const submoduleRows = ref<Record<string, PrintRow[]>>({});
+  const headcountMembers = ref<Map<string, string>>(new Map());
 
   async function initWorkspaceFromRoute() {
     workspaceStore.setSelectedParams({
@@ -68,6 +72,8 @@ export function useSimulationExplorePrintData() {
     workspaceStore.setUnit(validUnit);
     workspaceStore.setYear(workspaceStore.selectedParams?.year || null);
 
+    await yearConfigStore.fetchConfig(yearParam.value);
+
     const carbonReport =
       await workspaceStore.selectSimulatorExploreCarbonReport(
         workspaceStore.selectedUnit.id,
@@ -80,7 +86,48 @@ export function useSimulationExplorePrintData() {
   async function fetchAllData(carbonReportId: number) {
     try {
       loading.value = true;
-      await moduleStore.getEmissionBreakdown(carbonReportId, []);
+      const unitId = workspaceStore.selectedUnit?.id;
+      const year = workspaceStore.selectedYear;
+      if (unitId == null || year == null) return;
+
+      const tasks: Promise<unknown>[] = [
+        moduleStore.getEmissionBreakdown(carbonReportId, []),
+      ];
+
+      for (const m of exploreModules.value) {
+        for (const sub of m.submodules) {
+          tasks.push(
+            fetchAllSubmoduleRows(m.type, sub.id, carbonReportId).then(
+              (rows) => {
+                submoduleRows.value[sub.id] = rows;
+              },
+            ),
+          );
+          if (sub.moduleFields.some((f) => f.optionsId === 'kind')) {
+            tasks.push(
+              moduleStore.getSubmoduleTaxonomy(m.type, sub.id, String(year)),
+            );
+          }
+        }
+      }
+
+      if (
+        exploreModules.value.some((m) => m.type === MODULES.ProfessionalTravel)
+      ) {
+        const carbonReportId = await moduleStore.resolveCarbonReportId(
+          unitId,
+          year,
+        );
+        tasks.push(
+          getHeadcountMembers(carbonReportId).then((members) => {
+            headcountMembers.value = new Map(
+              members.map((member) => [member.institutional_id, member.name]),
+            );
+          }),
+        );
+      }
+
+      await Promise.all(tasks);
     } finally {
       loading.value = false;
     }
@@ -91,6 +138,9 @@ export function useSimulationExplorePrintData() {
     loading,
     totalTonnesCo2eq,
     filteredBreakdown,
+    exploreModules,
+    submoduleRows,
+    headcountMembers,
     initWorkspaceFromRoute,
     fetchAllData,
   };

@@ -14,6 +14,16 @@ export default {
     fr: 'Estimez la consommation électrique de vos équipements',
   },
 
+  equipment_new_usage_required_banner: {
+    en: '{count} new equipment needs its active and standby usage entered before this module can be validated. | {count} new equipment need their active and standby usage entered before this module can be validated.',
+    fr: '{count} nouvel équipement nécessite la saisie de son usage actif et standby avant de pouvoir valider ce module. | {count} nouveaux équipements nécessitent la saisie de leur usage actif et standby avant de pouvoir valider ce module.',
+  },
+
+  equipment_validate_blocked_tooltip: {
+    en: 'Enter the active and standby usage of all new equipment before validating this module.',
+    fr: "Saisissez l'usage actif et standby de tous les nouveaux équipements avant de pouvoir valider ce module.",
+  },
+
   [`${MODULES.Equipment}-title-subtext`]: {
     en: `This module allows you to estimate the electrical consumption of your scientific, IT, and other equipment. The equipment list comes from the inventory carried out by your unit for the faculty.
 
@@ -33,10 +43,6 @@ Veuillez remplir les colonnes suivantes:
 - Usage actif et usage standby: veuillez mettre à jour les heures d'utilisation de chaque équipement par semaine. Il est recommandé de faire une estimation conservatrice (qui n'est pas sous-estimée) pour limiter le temps dédié à cette tâche.
 
 Si la puissance moyenne active ou standby de votre équipement est différente de celle utilisée par défaut, merci de contacter l'administrateur.`,
-  },
-  [`${MODULES.Equipment}-documentation-title`]: {
-    en: 'For more information',
-    fr: "Pour plus d'information",
   },
   [`${MODULES.Equipment}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/equipment/',

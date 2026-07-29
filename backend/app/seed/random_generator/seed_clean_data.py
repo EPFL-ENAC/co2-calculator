@@ -8,16 +8,16 @@ from app.db import SessionLocal, engine
 statements = [
     # --- 1. Drop Foreign Keys on data_entries ---
     "ALTER TABLE data_entries DROP CONSTRAINT IF EXISTS "
-    "data_entries_carbon_report_module_id_fkey;",
+    + "data_entries_carbon_report_module_id_fkey;",
     "ALTER TABLE data_entries DROP CONSTRAINT IF EXISTS "
-    "data_entries_data_entry_emission_id_fkey;",
+    + "data_entries_data_entry_emission_id_fkey;",
     "ALTER TABLE data_entries DROP CONSTRAINT IF EXISTS "
-    "data_entries_data_entry_type_id_fkey;",
+    + "data_entries_data_entry_type_id_fkey;",
     # --- 2. Drop Foreign Keys on data_entry_emissions ---
     "ALTER TABLE data_entry_emissions DROP CONSTRAINT IF EXISTS "
-    "data_entry_emissions_data_entry_id_fkey;",
+    + "data_entry_emissions_data_entry_id_fkey;",
     "ALTER TABLE data_entry_emissions DROP CONSTRAINT IF EXISTS "
-    "data_entry_emissions_primary_factor_id_fkey;",
+    + "data_entry_emissions_primary_factor_id_fkey;",
     # --- 3. Drop Secondary Indexes (Keeping the PK index as requested) ---
     "DROP INDEX IF EXISTS ix_data_entries_carbon_report_module_id;",
     "DROP INDEX IF EXISTS ix_data_entries_data_entry_type_id;",

@@ -156,7 +156,7 @@ const additionalSeriesData = computed(() => {
       stack: 'total',
       encode: encodeFor('category', 'food'),
       itemStyle: {
-        color: colors.value.mint.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.food,
       },
       label: {
         show: false,
@@ -168,7 +168,7 @@ const additionalSeriesData = computed(() => {
       stack: 'total',
       encode: encodeFor('category', 'waste'),
       itemStyle: {
-        color: colors.value.periwinkle.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.waste,
       },
       label: {
         show: false,
@@ -265,7 +265,7 @@ const seriesArray = computed(() => {
       stack: 'total',
       encode: encodeFor('category', 'professional_travel'),
       itemStyle: {
-        color: colors.value.babyBlue.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.professional_travel,
       },
       label: {
         show: false,
@@ -277,7 +277,7 @@ const seriesArray = computed(() => {
       stack: 'total',
       encode: encodeFor('category', 'purchases'),
       itemStyle: {
-        color: colors.value.lightGreen.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.purchases,
       },
       label: {
         show: false,
@@ -289,7 +289,7 @@ const seriesArray = computed(() => {
       stack: 'total',
       encode: encodeFor('category', 'research_facilities'),
       itemStyle: {
-        color: colors.value.paleYellowGreen.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.research_facilities,
       },
       label: {
         show: false,

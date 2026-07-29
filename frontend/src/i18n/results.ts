@@ -23,6 +23,10 @@ export default {
     en: 'Loading…',
     fr: 'Chargement…',
   },
+  print_report_loading: {
+    en: 'Building the report…',
+    fr: 'Construction du rapport…',
+  },
   results_module_chart_emission_types: {
     en: '{module} — Emission types',
     fr: "{module} — Types d'émissions",
@@ -575,6 +579,10 @@ export default {
     en: 'Centralized purchases',
     fr: 'Achats centralisés',
   },
+  'charts-global-budget-subcategory': {
+    en: 'Global budget',
+    fr: 'Budget global',
+  },
   'charts-other-equipment-subcategory': {
     en: 'Other equipment',
     fr: 'Autres équipements',
@@ -606,10 +614,6 @@ export default {
   'charts-class-2-subcategory': {
     en: '2nd class',
     fr: '2ème classe',
-  },
-  'charts-first-class-subcategory': {
-    en: 'First',
-    fr: 'Première',
   },
   'charts-business-class-subcategory': {
     en: 'Business',
@@ -687,9 +691,9 @@ export default {
     en: 'IT facilities',
     fr: 'Infrastructures IT',
   },
-  'charts-animal-mice-subcategory': {
-    en: 'Mice',
-    fr: 'Souris',
+  'charts-animal-rodent-subcategory': {
+    en: 'Rodents',
+    fr: 'Rongeurs',
   },
   'charts-animal-fish-subcategory': {
     en: 'Fish',
@@ -909,6 +913,14 @@ export default {
   'charts-recycling-subcategory': {
     en: 'Recycling',
     fr: 'Recyclage',
+  },
+  'charts-domestic-waste-subcategory': {
+    en: 'Domestic waste',
+    fr: 'Déchets ménagers',
+  },
+  'charts-organic-waste-lawn-subcategory': {
+    en: 'Organic waste / lawn',
+    fr: 'Déchets organiques / gazon',
   },
   'charts-organic-waste-food-leftovers-subcategory': {
     en: 'Organic waste / food leftovers',

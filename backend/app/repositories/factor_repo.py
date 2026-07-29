@@ -127,7 +127,7 @@ class FactorRepository:
     async def upsert_factors(
         self,
         factors: List[Factor],
-        current_job_id: int,
+        current_job_id: Optional[int],
     ) -> int:
         """Insert-or-update factors keyed on the identity index.
 
@@ -140,7 +140,8 @@ class FactorRepository:
         Preserves ``factor.id`` for existing rows so downstream references —
         including the ``DataEntryEmission.primary_factor_id`` FK — stay valid
         across reuploads.  Stamps ``last_seen_job_id`` so callers can later
-        detect rows not present in the current batch.
+        detect rows not present in the current batch; seed runs have no job
+        and leave it NULL.
 
         Postgres-only: relies on ``INSERT ... ON CONFLICT DO UPDATE``.
 
@@ -177,7 +178,7 @@ class FactorRepository:
     async def _upsert_via_copy(
         self,
         factors: List[Factor],
-        current_job_id: int,
+        current_job_id: Optional[int],
     ) -> int:
         """COPY → staging → ``INSERT … SELECT … ON CONFLICT`` upsert.
 
@@ -225,7 +226,7 @@ class FactorRepository:
     async def _upsert_subset(
         self,
         factors: List[Factor],
-        current_job_id: int,
+        current_job_id: Optional[int],
         *,
         year_present: bool,
     ) -> int:

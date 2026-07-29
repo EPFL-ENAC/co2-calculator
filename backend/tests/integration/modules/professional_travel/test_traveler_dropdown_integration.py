@@ -24,7 +24,7 @@ from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
-from app.modules.professional_travel.schemas import (
+from app.modules.professional_travel import (
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelPlaneModuleHandler,
     ProfessionalTravelTrainHandlerCreate,
@@ -218,7 +218,7 @@ def test_plane_create_dto_accepts_user_institutional_id_from_dropdown():
 
 
 def test_plane_create_dto_rejects_invalid_cabin_class():
-    """Cabin class must be one of economy / business / first."""
+    """Cabin class must be one of economy / business."""
     with pytest.raises(ValidationError):
         ProfessionalTravelPlaneHandlerCreate(
             data_entry_type_id=DataEntryTypeEnum.plane.value,

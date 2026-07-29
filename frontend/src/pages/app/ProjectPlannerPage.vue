@@ -1,0 +1,258 @@
+<template>
+  <q-page class="page-grid">
+    <q-card v-if="notFound" flat class="container">
+      <q-icon
+        name="o_calendar_month"
+        color="info"
+        size="32px"
+        class="q-mb-md"
+      />
+      <h1 class="text-h2 q-mb-md">{{ $t('project_planner_page_title') }}</h1>
+      <p class="text-body1 q-mb-md">
+        {{ $t('project_planner_not_found') }}
+      </p>
+      <q-btn
+        unelevated
+        no-caps
+        color="info"
+        :label="$t('project_planner_back_home')"
+        class="text-weight-medium"
+        :to="{ name: 'home' }"
+      />
+    </q-card>
+
+    <template v-else-if="plan">
+      <!-- Title box -->
+      <q-card flat class="container">
+        <div class="row justify-between items-start no-wrap">
+          <div class="col">
+            <q-icon name="o_tune" color="info" size="32px" class="q-mb-md" />
+            <h1 class="text-h2 q-mb-md">{{ $t('planner_page_title') }}</h1>
+            <p class="text-body1 q-mb-sm">
+              {{ $t('planner_page_subtitle') }}
+            </p>
+            <p class="text-body1 q-mb-none">
+              {{ $t('planner_page_intro') }}
+            </p>
+          </div>
+          <q-icon
+            name="o_info"
+            size="sm"
+            class="cursor-pointer"
+            :aria-label="$t('module-info-label')"
+          >
+            <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+              {{ $t('planner_methodology_tooltip') }}
+            </q-tooltip>
+          </q-icon>
+        </div>
+      </q-card>
+
+      <!-- Project information box -->
+      <planner-project-info :plan="plan" @updated="onPlanUpdated" />
+
+      <!-- One section per year of the range -->
+      <template v-if="plansStore.planYears.length">
+        <planner-year-section
+          v-for="yearData in plansStore.planYears"
+          :key="yearData.id"
+          :plan-id="plan.id"
+          :year-data="yearData"
+          :unit-id="unitId"
+          :reference-year-options="referenceYearOptions"
+          :expanded-keys="expandedKeys"
+          @toggle-module="onToggleModule"
+        />
+
+        <!-- Whole-plan results: every year of the range summed together -->
+        <q-card flat bordered>
+          <div class="q-pt-lg q-px-lg">
+            <h2 class="text-h3 text-weight-medium">
+              {{ $t('planner_results_title') }}
+            </h2>
+          </div>
+
+          <q-separator class="q-mt-lg" />
+
+          <!-- Gapless grid: each block's own padding is the only spacing, so
+               its top and bottom read alike (a gap would land above every
+               separator but never at the card edges). Still a grid, because
+               BigNumber sizes itself against its row. -->
+          <div class="results-blocks">
+            <BigNumber
+              :title="$t('planner_results_total_tonnes_co2eq')"
+              :number="formatTonnesCO2(totalTonnesCo2eq)"
+              comparison=""
+              color="info"
+              compact
+              :bordered="false"
+            />
+
+            <q-separator />
+
+            <ModuleCarbonFootprintChart
+              :breakdown-data="breakdown"
+              :title="$t('planner_results_chart_title', { name: plan.name })"
+              :bordered="false"
+            />
+
+            <q-separator />
+
+            <div class="column items-center justify-center q-pa-xl q-gutter-md">
+              <h3 class="text-h4 text-weight-medium">
+                {{ $t('planner_results_download_title') }}
+              </h3>
+              <q-btn
+                unelevated
+                no-caps
+                icon="o_download"
+                :label="$t('planner_results_download_button')"
+                size="md"
+                color="info"
+                class="text-weight-medium"
+                @click="downloadReport"
+              />
+            </div>
+          </div>
+        </q-card>
+      </template>
+      <q-card v-else flat bordered class="q-pa-lg">
+        <p class="text-body1 q-mb-none text-grey-8">
+          {{ $t('planner_no_years_hint') }}
+        </p>
+      </q-card>
+    </template>
+  </q-page>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
+
+import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
+import BigNumber from 'src/components/molecules/BigNumber.vue';
+import PlannerProjectInfo from 'src/components/organisms/planner/PlannerProjectInfo.vue';
+import PlannerYearSection from 'src/components/organisms/planner/PlannerYearSection.vue';
+import {
+  useSimulatorPlansStore,
+  type SimulatorPlan,
+} from 'src/stores/simulatorPlans';
+import { useWorkspaceStore } from 'src/stores/workspace';
+import { useYearConfigStore } from 'src/stores/yearConfig';
+import { sumBreakdownTonnes } from 'src/utils/breakdownTotal';
+import { toEmissionBreakdown } from 'src/utils/emissionStatsAdapter';
+import { formatTonnesCO2 } from 'src/utils/number';
+
+const route = useRoute();
+const router = useRouter();
+const { locale } = useI18n();
+const workspaceStore = useWorkspaceStore();
+const plansStore = useSimulatorPlansStore();
+const yearConfigStore = useYearConfigStore();
+
+// workspaceGuard ensures selectedUnit is always set before this route renders
+// (same invariant as SimulationExplorePage).
+const unitId = computed(() => workspaceStore.selectedUnit!.id);
+
+const plan = ref<SimulatorPlan | null>(null);
+const notFound = ref(false);
+// `${year}-${module}` of every expanded module. Any number can be open at
+// once, except the same module in two years: the module store keys its
+// submodule rows by submodule id alone, so both would read one another's data.
+const expandedKeys = ref<string[]>([]);
+
+function onToggleModule({
+  key,
+  module,
+  open,
+}: {
+  key: string;
+  module: string;
+  open: boolean;
+}) {
+  const others = expandedKeys.value.filter(
+    (k) => k !== key && !k.endsWith(`-${module}`),
+  );
+  expandedKeys.value = open ? [...others, key] : others;
+}
+
+const breakdown = computed(() =>
+  plansStore.aggregateStats
+    ? toEmissionBreakdown(plansStore.aggregateStats)
+    : null,
+);
+
+const totalTonnesCo2eq = computed(() => sumBreakdownTonnes(breakdown.value));
+
+function downloadReport() {
+  const url = router.resolve({
+    name: 'project-planner-print',
+    params: {
+      language: locale.value.split('-')[0],
+      unit: route.params.unit,
+      year: route.params.year,
+      name: route.params.name,
+    },
+  }).href;
+  window.open(url, '_blank');
+}
+
+// Reference years are constrained to years open in the Calculator.
+const referenceYearOptions = computed(() =>
+  [...yearConfigStore.startedYears]
+    .sort((a, b) => b - a)
+    .map((year) => ({ label: String(year), value: year })),
+);
+
+async function onPlanUpdated(updated: SimulatorPlan) {
+  const previous = plan.value;
+  const renamed = previous !== null && previous.name !== updated.name;
+  const rangeChanged =
+    previous !== null &&
+    (previous.start_year !== updated.start_year ||
+      previous.end_year !== updated.end_year);
+  plan.value = updated;
+  // The year range drives the backend year-report sync; refetch so the
+  // per-year sections reflect the new range without a page reload.
+  if (rangeChanged) {
+    await plansStore.fetchPlanYears(updated.id);
+    await plansStore.fetchAggregateStats(updated.id);
+  }
+  if (renamed) {
+    // Param-only replace keeps this component instance mounted.
+    await router.replace({
+      name: 'project-planner',
+      params: { ...route.params, name: updated.name },
+    });
+  }
+}
+
+onMounted(async () => {
+  try {
+    plan.value = await plansStore.getPlanByName(
+      unitId.value,
+      String(route.params.name),
+    );
+  } catch {
+    notFound.value = true;
+    return;
+  }
+  await Promise.all([
+    plansStore.fetchPlanYears(plan.value.id),
+    plansStore.fetchAggregateStats(plan.value.id),
+    yearConfigStore.fetchConfiguredYears(),
+  ]);
+});
+
+onUnmounted(() => {
+  plansStore.clearAggregate();
+});
+</script>
+
+<style scoped lang="scss">
+.results-blocks {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+</style>

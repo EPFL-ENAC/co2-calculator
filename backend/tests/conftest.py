@@ -37,6 +37,18 @@ def pytest_configure():
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
+    # Settings.settings_customise_sources makes a local .env file win over
+    # process env vars (dev convenience, #1153). Tests must not depend on
+    # whatever happens to be in a developer's .env, and must be able to
+    # reliably blank a setting via monkeypatch.setenv to exercise
+    # fail-closed paths (e.g. test_fails_closed_without_key). Disabling
+    # dotenv loading for the whole session makes pytest-env's `env = [...]`
+    # values (pyproject.toml) and monkeypatch the only sources, in every
+    # environment, with or without a local .env.
+    from app.core.config import Settings
+
+    Settings.model_config["env_file"] = None
+
 
 @pytest.fixture(autouse=True)
 def disable_poller(monkeypatch):

@@ -78,7 +78,7 @@ DATA_ENTRY_SEEDS: list[DataEntrySeedConfig] = [
         module_type=ModuleTypeEnum.buildings,
     ),
     DataEntrySeedConfig(
-        path=SEED_FOLDER / "equipments_data.csv",
+        path=SEED_FOLDER / "equipment_data.csv",
         data_entry_types=[
             DataEntryTypeEnum.scientific,
             DataEntryTypeEnum.it,
@@ -105,7 +105,7 @@ DATA_ENTRY_SEEDS: list[DataEntrySeedConfig] = [
         module_type=ModuleTypeEnum.purchase,
     ),
     DataEntrySeedConfig(
-        path=SEED_FOLDER / "purchases_additional_data.csv",
+        path=SEED_FOLDER / "purchases_centralized_data.csv",
         data_entry_types=[DataEntryTypeEnum.purchases_centralized],
         module_type=ModuleTypeEnum.purchase,
     ),
@@ -141,7 +141,7 @@ DATA_ENTRY_SEEDS: list[DataEntrySeedConfig] = [
     ),
     DataEntrySeedConfig(
         path=SEED_FOLDER / "researchfacilities_animals_data.csv",
-        data_entry_types=[DataEntryTypeEnum.mice_and_fish_animal_facilities],
+        data_entry_types=[DataEntryTypeEnum.animal_facilities],
         module_type=ModuleTypeEnum.research_facilities,
     ),
 ]

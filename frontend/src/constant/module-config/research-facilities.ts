@@ -44,6 +44,7 @@ const researchFacilitiesFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
@@ -65,18 +66,19 @@ const animalFields: ModuleField[] = [
     ratio: '1/5',
     hideIn: { form: true },
     tooltip:
-      'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-researchfacility_name',
+      'module-research-facilities-submodule-animal_facilities-table-researchfacility_name',
   },
   {
     id: 'researchfacility_type',
     labelKey: `${MODULES.ResearchFacilities}.inputs.type`,
     type: 'text',
+    optionLabelKey: `${MODULES.ResearchFacilities}.type.{value}`,
     editableInline: false,
     ratio: '1/5',
     hideIn: { form: true },
     sortable: true,
     tooltip:
-      'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-researchfacility_type',
+      'module-research-facilities-submodule-animal_facilities-table-researchfacility_type',
   },
   {
     id: 'use',
@@ -86,17 +88,17 @@ const animalFields: ModuleField[] = [
     ratio: '1/5',
     hideIn: { form: true },
     sortable: true,
-    tooltip:
-      'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-use',
+    tooltip: 'module-research-facilities-submodule-animal_facilities-table-use',
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
     sortable: true,
     tooltip:
-      'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-kg_co2eq',
+      'module-research-facilities-submodule-animal_facilities-table-kg_co2eq',
   },
 ];
 

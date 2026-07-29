@@ -39,7 +39,7 @@ export function useEquipmentClassOptions<
   entity: TEntity,
   submoduleType: Ref<AllSubmoduleTypes>,
   config: FieldConfig = {},
-  year?: Ref<string | number | undefined>,
+  year?: Ref<string | number | null | undefined>,
 ) {
   const { t, te } = useI18n();
 

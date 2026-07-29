@@ -49,7 +49,7 @@
                   :module-config="m.config"
                   :module-type="m.type"
                   :disable="false"
-                  :is-simulator="true"
+                  :is-explorer="true"
                   :submodule-type="sub.type"
                   :data="null"
                   :loading="false"
@@ -70,18 +70,24 @@
           </h2>
         </div>
 
-        <q-separator class="q-mt-xl" />
+        <q-separator class="q-mt-lg" />
 
-        <!-- Summary numbers -->
-        <div class="grid-1-col q-mt-lg q-mb-lg">
+        <!-- Summary numbers. Gapless grid: each block's own padding is the
+             only spacing, so its top and bottom read alike (a gap would land
+             above every separator but never at the card edges). Still a grid,
+             because BigNumber sizes itself against its row. -->
+        <div class="results-blocks">
           <BigNumber
             :title="$t('simulation_explore_page_results_total_tonnes_co2eq')"
             :number="`${formatTonnesCO2(totalTonnesCo2eq)}`"
             comparison=""
             color="info"
+            compact
             :bordered="false"
           />
+
           <q-separator />
+
           <ModuleCarbonFootprintChart
             :breakdown-data="filteredBreakdown"
             :bordered="false"
@@ -89,7 +95,7 @@
 
           <q-separator />
 
-          <div class="column items-center justify-center q-pa-xl q-gutter-lg">
+          <div class="column items-center justify-center q-pa-xl q-gutter-md">
             <h3 class="text-h4 text-weight-medium">
               {{ $t('simulation_explore_page_results_download_title') }}
             </h3>
@@ -99,7 +105,7 @@
               icon="o_download"
               :label="$t('simulation_explore_page_results_download_button')"
               size="md"
-              color="accent"
+              color="info"
               class="text-weight-medium"
               @click="downloadReport"
             />
@@ -112,7 +118,7 @@
           class="row no-wrap items-center justify-center q-pa-xl"
           style="gap: 24px"
         >
-          <q-icon name="o_calendar_month" color="accent" size="md" />
+          <q-icon name="o_calendar_month" color="info" size="md" />
           <div class="col">
             <div class="text-h5 text-weight-medium q-mb-xs">
               {{ $t('simulation_explore_page_convert_to_plan_title') }}
@@ -141,17 +147,11 @@ import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
-import { MODULES_CONFIG } from 'src/constant/module-config';
-import type { ModuleConfig } from 'src/constant/moduleConfig';
-import {
-  MODULES,
-  MODULES_THRESHOLD_TYPES,
-  type Threshold,
-} from 'src/constant/modules';
-import { MODULES_ORDER } from 'src/constant/timelineItems';
+import { MODULES_THRESHOLD_TYPES, type Threshold } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import { getExploreModules } from 'src/utils/exploreModules';
 import { formatTonnesCO2 } from 'src/utils/number';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
@@ -194,29 +194,7 @@ const defaultThreshold: Threshold = {
 const mountPrimaryCharts = ref(false);
 const simulatorReady = ref(false);
 
-const modules = computed(() => {
-  return MODULES_ORDER.filter((type) => type !== MODULES.ResearchFacilities)
-    .map((type) => {
-      const config = MODULES_CONFIG[type] as ModuleConfig | undefined;
-      if (!config?.submodules?.length) return null;
-
-      const unifiedConfig = yearConfigStore.getModule(type);
-      const visibleSubmodules = unifiedConfig
-        ? config.submodules.filter(
-            (sub) => unifiedConfig.submodules[sub.id]?.enabled ?? true,
-          )
-        : config.submodules;
-
-      if (!visibleSubmodules.length) return null;
-
-      return {
-        type,
-        config,
-        submodules: visibleSubmodules,
-      };
-    })
-    .filter((m): m is NonNullable<typeof m> => m !== null);
-});
+const modules = computed(() => getExploreModules(yearConfigStore.getModule));
 
 const expandedModules = reactive<Record<string, boolean>>({});
 
@@ -283,5 +261,10 @@ onMounted(async () => {
 <style scoped>
 .chart-wrapper {
   height: 600px;
+}
+
+.results-blocks {
+  display: grid;
+  grid-template-columns: 1fr;
 }
 </style>

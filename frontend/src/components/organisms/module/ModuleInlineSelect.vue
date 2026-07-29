@@ -1,6 +1,6 @@
 <template>
   <div class="inline-select-wrapper">
-    <div v-if="showPlaceholder" class="inline-subclass-placeholder"></div>
+    <div v-if="showPlaceholder" class="inline-subclass-placeholder">-</div>
     <VirtualSelectField
       v-else
       :model-value="model"
@@ -9,6 +9,7 @@
       :disable="props.disable"
       :title="props.hint ? $t(props.hint) : undefined"
       hide-bottom-space
+      dropdown-icon="expand_more"
       @update:model-value="onValueChange"
     />
   </div>
@@ -22,6 +23,7 @@ import VirtualSelectField from 'src/components/molecules/VirtualSelectField.vue'
 import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { sortByOrder } from 'src/utils/options';
+import { resolveFactorYear } from 'src/utils/factor-year';
 
 const moduleStore = useModuleStore();
 
@@ -50,6 +52,12 @@ type CommonProps = {
   cols: TableViewColumnSubset[];
   unitId: number;
   year: string | number;
+  /**
+   * Year whose factors the class/subclass options come from. See ModuleForm —
+   * the Simulator Plan passes its reference year, `null` when unset. `year`
+   * stays the row's own year: it addresses the entry for the PATCH.
+   */
+  factorYear?: number | null;
   disable?: boolean;
 };
 
@@ -57,6 +65,9 @@ type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
 const { t, te } = useI18n();
+const factorYear = computed(() =>
+  resolveFactorYear(props.factorYear, props.year),
+);
 const isClass = computed(() => props.optionsId === 'kind');
 const isSubClass = computed(() => props.optionsId === 'subkind');
 
@@ -78,7 +89,7 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
       classFieldId: kindFieldId.value,
       subClassFieldId: subkindFieldId.value,
     },
-    toRef(props, 'year'),
+    factorYear,
   );
 
 const classOptions = computed(() => {
@@ -191,19 +202,9 @@ async function onValueChange(val: string | number | null) {
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: #999;
-  border-radius: tokens.$field-border-radius;
-  border: 1px solid rgba(0, 0, 0, 0.18);
-  transition: border-color 0.36s cubic-bezier(0.4, 0, 0.2, 1);
   height: 2.5rem;
-  background: linear-gradient(
-    to bottom right,
-    transparent 0%,
-    transparent 49.5%,
-    #e0e0e0 50.5%,
-    #e0e0e0 100%
-  );
-  cursor: not-allowed;
+  padding-left: tokens.$spacing-sm;
+  color: tokens.$table-color-disabled;
+  cursor: default;
 }
 </style>

@@ -36,6 +36,9 @@
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
+          :factor-year="factorYear"
+          :carbon-report-id="carbonReportId"
+          :show-reference-columns="showReferenceColumns"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -43,14 +46,14 @@
           :module-config="moduleConfig"
           :submodule-config="submodule"
           :disable="isTableDisabled"
-          :is-simulator="isSimulator"
+          :is-explorer="isExplorer"
           :module-color="submoduleColor"
           :module-color-lighter="submoduleLighterColor"
         />
       </div>
       <q-separator />
       <div
-        v-if="isInputDeactivated && !isSimulator"
+        v-if="isInputDeactivated && !isExplorer"
         class="q-mx-lg q-my-md inputs-deactivated-notice"
       >
         <div class="inputs-deactivated-notice__content">
@@ -73,6 +76,7 @@
             :add-button-label-key="submodule.addButtonLabelKey"
             :unit-id="unitId"
             :year="year"
+            :factor-year="factorYear"
             :form-defaults="formDefaults"
             :module-color="submoduleColor"
             @submit="submitForm"
@@ -117,6 +121,9 @@
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
+          :factor-year="factorYear"
+          :carbon-report-id="carbonReportId"
+          :show-reference-columns="showReferenceColumns"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -124,7 +131,7 @@
           :module-config="moduleConfig"
           :submodule-config="submodule"
           :disable="disable"
-          :is-simulator="isSimulator"
+          :is-explorer="isExplorer"
         />
       </div>
       <q-separator />
@@ -140,6 +147,7 @@
           :add-button-label-key="submodule.addButtonLabelKey"
           :unit-id="unitId"
           :year="year"
+          :factor-year="factorYear"
           :form-defaults="formDefaults"
           @submit="submitForm"
         />
@@ -228,9 +236,15 @@ type CommonProps = {
   data?: ModuleResponse | null;
   unitId: number;
   year: string | number;
+  /** Year whose factors the class/subclass options resolve against — see ModuleForm. */
+  factorYear?: number | null;
+  /** Plan-year report id; when set, module calls address it directly. */
+  carbonReportId?: number;
+  /** Planner prefilled: show the reference-kg column + % slider. */
+  showReferenceColumns?: boolean;
   threshold: Threshold;
   disable: boolean;
-  isSimulator?: boolean;
+  isExplorer?: boolean;
 };
 
 type ModuleTypeProps = {
@@ -248,6 +262,9 @@ const props = withDefaults(
     error: null,
     data: null,
     submoduleType: undefined,
+    carbonReportId: undefined,
+    factorYear: undefined,
+    showReferenceColumns: undefined,
   },
 );
 const authStore = useAuthStore();
@@ -272,15 +289,17 @@ const isInputDeactivated = computed(() => {
 });
 
 const isTableDisabled = computed(
-  () => !props.isSimulator && (props.disable || isInputDeactivated.value),
+  () => !props.isExplorer && (props.disable || isInputDeactivated.value),
 );
 
 const backendThreshold = computed<Threshold | null>(() => {
   const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
   if (!unifiedConfig) return null;
 
+  // `== null` covers a missing subConfig too — planner submodules
+  // (planner_headcount, ...) have no unified year-config entry.
   const subConfig = unifiedConfig.submodules[submoduleKey.value];
-  if (subConfig?.threshold === null || subConfig.threshold === undefined) {
+  if (subConfig?.threshold == null) {
     return null;
   }
 
@@ -370,6 +389,7 @@ async function submitForm(payload: Record<string, FieldValue>) {
       String(props.year),
       item.value.id,
       payload,
+      props.carbonReportId,
     );
   } else {
     await submitCreateItem(
@@ -381,6 +401,7 @@ async function submitForm(payload: Record<string, FieldValue>) {
           props.submoduleType,
           payload,
           onCreated,
+          props.carbonReportId,
         ),
       {
         onCreated: () => {

@@ -91,7 +91,8 @@ function buildSubmoduleResponse(items: object[]) {
   };
 }
 
-// Traveler-dropdown payload (GET /modules/{unit}/{year}/headcount/members).
+// Traveler-dropdown payload
+// (GET /carbon-reports/{reportId}/modules/headcount/members).
 // Shape differs from the submodule list: a flat array of {institutional_id, name}.
 function buildMembersDropdown(memberPosted: boolean) {
   return memberPosted
@@ -143,6 +144,8 @@ export async function mockSimulatorBackend(page: Page): Promise<{
   // Track whether a member entry has been POSTed so stateful mocks can
   // return the updated counts / breakdown on subsequent GET calls.
   let memberPosted = false;
+  // Track explore report creation so the get-or-create GET flips to 200.
+  let exploreReportCreated = false;
 
   page.on('request', (req) => {
     if (req.url().includes('/api/v1/')) {
@@ -174,8 +177,9 @@ export async function mockSimulatorBackend(page: Page): Promise<{
   });
 
   // All other module preview_limit=0 calls (non-headcount modules).
+  // Identity-addressed by the explore report id (99).
   await page.route(
-    /.*\/api\/v1\/modules\/10\/2024\/[^/?]+\?.*preview_limit/,
+    /.*\/api\/v1\/carbon-reports\/99\/modules\/[^/?]+\?.*preview_limit/,
     (route) => {
       return route.fulfill({
         status: 200,
@@ -198,18 +202,21 @@ export async function mockSimulatorBackend(page: Page): Promise<{
 
   // Headcount module totals (preview_limit=0) — stateful.
   // \? ensures this only matches the module endpoint, NOT /headcount/member.
-  await page.route(/.*\/api\/v1\/modules\/10\/2024\/headcount\?/, (route) => {
-    const totals = memberPosted ? { 1: 1, 2: 0 } : { 1: 0, 2: 0 };
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(buildModuleTotalsResponse('headcount', totals)),
-    });
-  });
+  await page.route(
+    /.*\/api\/v1\/carbon-reports\/99\/modules\/headcount\?/,
+    (route) => {
+      const totals = memberPosted ? { 1: 1, 2: 0 } : { 1: 0, 2: 0 };
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildModuleTotalsResponse('headcount', totals)),
+      });
+    },
+  );
 
   // headcount/member submodule — POST (create entry) + GET (list items).
   await page.route(
-    /.*\/api\/v1\/modules\/10\/2024\/headcount\/member/,
+    /.*\/api\/v1\/carbon-reports\/99\/modules\/headcount\/member/,
     (route) => {
       if (route.request().method() === 'POST') {
         memberPosted = true;
@@ -234,10 +241,10 @@ export async function mockSimulatorBackend(page: Page): Promise<{
   // Traveler dropdown (headcount/members) — stateful. Registered AFTER the
   // headcount/member route so its higher LIFO priority wins for the trailing
   // "s". Returns [] before a member is posted, [Test Member] after. The
-  // assertion side also checks this is called with carbon_project_type=1 so
-  // the simulator reads its own report, not the calculator's.
+  // assertion side also checks this hits the explore report id (99) so the
+  // simulator reads its own report, not the calculator's.
   await page.route(
-    /.*\/api\/v1\/modules\/10\/2024\/headcount\/members/,
+    /.*\/api\/v1\/carbon-reports\/99\/modules\/headcount\/members/,
     (route) => {
       return route.fulfill({
         status: 200,
@@ -247,21 +254,30 @@ export async function mockSimulatorBackend(page: Page): Promise<{
     },
   );
 
-  // Simulator explore carbon report — GET 404, POST creates it.
+  // Simulator explore carbon report — stateful get-or-create. GET 404 until
+  // the page POSTs to create it, then GET returns the report so identity
+  // addressing (resolveCarbonReportId, explore branch) can resolve id=99 for
+  // the module calls that follow.
   await page.route(
     /.*\/api\/v1\/carbon-reports\/simulator\/explore\/unit\/10\/reference-year\/2024\//,
     (route) => {
-      if (route.request().method() === 'GET') {
-        return route.fulfill({ status: 404, body: '' });
-      }
       if (route.request().method() === 'POST') {
+        exploreReportCreated = true;
         return route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify(MOCK_SIMULATOR_REPORT),
         });
       }
-      return route.continue();
+      // GET
+      if (!exploreReportCreated) {
+        return route.fulfill({ status: 404, body: '' });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_SIMULATOR_REPORT),
+      });
     },
   );
 

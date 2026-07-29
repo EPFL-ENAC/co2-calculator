@@ -56,6 +56,7 @@ from app.modules.research_facilities.emissions import (
     resolve_animal_facilities,
     resolve_research_facilities,
 )
+from app.modules_planner.purchase.emissions import resolve_planner_purchase
 
 # Display order of the results charts: headcount precedes buildings so the
 # additional buckets come out as commuting/food/waste then embodied_energy,
@@ -118,6 +119,7 @@ DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION: dict[DataEntryTypeEnum, EmissionType] = {
     DataEntryTypeEnum.building: EmissionType.buildings__rooms,
     DataEntryTypeEnum.member: EmissionType.headcount,
     DataEntryTypeEnum.student: EmissionType.headcount,
+    DataEntryTypeEnum.planner_headcount: EmissionType.headcount,
 }
 
 ROLLUP_EMISSION_TYPE_IDS: frozenset[int] = frozenset(
@@ -140,6 +142,18 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
         EmissionType.food,
         EmissionType.waste,
         EmissionType.commuting,
+    ],
+    # Simulator Plan manual headcount: aggregate FTE per SIUS category,
+    # same emission leaves as Calculator members (factors reused).
+    DataEntryTypeEnum.planner_headcount: [
+        EmissionType.food,
+        EmissionType.waste,
+        EmissionType.commuting,
+    ],
+    # Simulator Plan global purchase budget: generic purchases node
+    # (per-submodule totals resolve dynamically, see _RUNTIME_RESOLVERS).
+    DataEntryTypeEnum.planner_purchase_budget: [
+        EmissionType.purchases__goods_and_services,
     ],
     DataEntryTypeEnum.building_embodied_energy: [
         EmissionType.buildings__construction_and_renovation
@@ -181,7 +195,8 @@ _RUNTIME_RESOLVERS = {
     DataEntryTypeEnum.member: resolve_headcount_factor,
     DataEntryTypeEnum.student: resolve_headcount_factor,
     DataEntryTypeEnum.research_facilities: resolve_research_facilities,
-    DataEntryTypeEnum.mice_and_fish_animal_facilities: resolve_animal_facilities,
+    DataEntryTypeEnum.animal_facilities: resolve_animal_facilities,
+    DataEntryTypeEnum.planner_purchase: resolve_planner_purchase,
 }
 
 

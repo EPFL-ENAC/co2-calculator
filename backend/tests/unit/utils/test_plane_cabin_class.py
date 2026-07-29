@@ -18,8 +18,6 @@ from app.modules.professional_travel.emissions import resolve_plane
         ("ECONOMY", EmissionType.professional_travel__plane__eco),
         ("business", EmissionType.professional_travel__plane__business),
         ("Business", EmissionType.professional_travel__plane__business),
-        ("first", EmissionType.professional_travel__plane__first),
-        ("First", EmissionType.professional_travel__plane__first),
     ],
 )
 def test_resolve_plane_maps_class_to_emission_type(
@@ -35,6 +33,7 @@ def test_resolve_plane_maps_class_to_emission_type(
     "data",
     [
         {"cabin_class": "eco"},  # old wrong frontend value — must NOT match
+        {"cabin_class": "first"},  # removed cabin class (#1567) — must NOT match
         {"cabin_class": "premium"},
         {"cabin_class": ""},
         {},  # missing key

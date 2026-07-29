@@ -55,6 +55,23 @@
       </template>
     </q-input>
   </div>
+  <!-- #259: new equipment (vs previous year) still missing usage data must be
+       filled before the module can be validated. Sits below the CSV toolbar. -->
+  <q-banner
+    v-if="newEquipmentIncompleteCount > 0"
+    dense
+    rounded
+    class="equipment-new-banner q-mb-md"
+  >
+    <template #avatar>
+      <q-icon name="o_warning" class="equipment-new-banner__icon" />
+    </template>
+    {{
+      $t('equipment_new_usage_required_banner', {
+        count: newEquipmentIncompleteCount,
+      })
+    }}
+  </q-banner>
   <q-table
     v-model:pagination="moduleStore.state.paginationSubmodule[submoduleType]"
     class="co2-table border"
@@ -160,6 +177,7 @@
               :hint="col.hint"
               :unit-id="unitId"
               :year="year"
+              :factor-year="factorYear"
               :disable="isDisabled"
             />
             <component
@@ -179,11 +197,32 @@
               :max="col.max"
               :step="col.step"
               :rules="getColumnRules(col)"
-              class="inline-input"
+              :placeholder="
+                isRequiredEmptyUsageCell(slotProps.row, col) ? '—' : undefined
+              "
+              :class="[
+                'inline-input',
+                {
+                  'inline-input--required-empty': isRequiredEmptyUsageCell(
+                    slotProps.row,
+                    col,
+                  ),
+                },
+              ]"
+              :dropdown-icon="col.type === 'select' ? 'expand_more' : undefined"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
               @blur="commitInline(slotProps.row, col)"
-            ></component>
+            >
+              <template v-if="col.type !== 'select'" #append>
+                <q-icon
+                  v-if="hasValue(slotProps.row[col.field])"
+                  name="o_edit"
+                  size="14px"
+                  class="inline-edit-icon"
+                />
+              </template>
+            </component>
           </template>
           <template v-else-if="col.name === 'action' && showTableActions">
             <q-btn
@@ -191,48 +230,95 @@
               :icon="noteButtonIcon(slotProps.row.note)"
               :color="noteButtonColor(slotProps.row.note)"
               :style="noteButtonStyle(slotProps.row.note)"
-              :text-color="noteButtonTextColor(slotProps.row.note)"
               :disable="isNoteDisabled"
               unelevated
               no-caps
               dense
-              round
-              :outline="!slotProps.row.note"
-              class="q-mr-sm"
+              :flat="!slotProps.row.note"
+              class="action-btn"
               @click="openNoteDialog(slotProps.row)"
             >
               <q-tooltip v-if="slotProps.row.note" class="tooltip">
                 {{ slotProps.row.note }}
               </q-tooltip>
+              <q-tooltip v-else class="tooltip action-tooltip" :offset="[0, 8]">
+                {{ $t('common_comment') }}
+              </q-tooltip>
             </q-btn>
             <q-btn
               v-if="showTableRowActions && canEdit && hasModuleUpload"
               icon="o_delete"
-              color="grey-4"
-              text-color="primary"
+              color="black"
               :disable="isDisabled"
               unelevated
               no-caps
               dense
-              outline
-              square
-              size="xs"
-              class="square-button"
+              flat
+              class="action-btn action-btn--delete"
               @click="
                 ItemName = getItemName(slotProps.row);
                 deleteItemName = getItemName(slotProps.row);
                 deleteRowId = getRowId(slotProps.row);
                 confirmDelete = true;
               "
-            />
+            >
+              <q-tooltip class="tooltip action-tooltip" :offset="[0, 8]">
+                {{ $t('common_delete') }}
+              </q-tooltip>
+            </q-btn>
+          </template>
+          <template v-else-if="col.name === 'percentage_of_reference_year'">
+            <div
+              v-if="slotProps.row.reference_kg_co2eq != null"
+              class="row items-center no-wrap reference-slider"
+            >
+              <q-slider
+                :model-value="percentageOf(slotProps.row)"
+                :min="REFERENCE_PERCENTAGE_MIN"
+                :max="REFERENCE_PERCENTAGE_MAX"
+                :step="5"
+                :disable="isDisabled"
+                color="negative"
+                class="col"
+                @update:model-value="
+                  (val: number | null) => onPercentageDrag(slotProps.row, val)
+                "
+                @change="
+                  (val: number) => onPercentageChange(slotProps.row, val)
+                "
+              />
+              <div class="reference-slider__value">
+                <q-input
+                  :key="percentageInputKey(slotProps.row)"
+                  :model-value="percentageOf(slotProps.row)"
+                  type="number"
+                  :min="REFERENCE_PERCENTAGE_MIN"
+                  :max="REFERENCE_PERCENTAGE_MAX"
+                  :disable="isDisabled"
+                  :aria-label="$t('planner_percentage_col')"
+                  :style="percentageFieldWidth(slotProps.row)"
+                  dense
+                  borderless
+                  hide-bottom-space
+                  class="reference-slider__field"
+                  @update:model-value="
+                    (val: string | number | null) =>
+                      onPercentageTyped(slotProps.row, val)
+                  "
+                  @blur="() => commitPercentage(slotProps.row)"
+                  @keyup.enter="() => commitPercentage(slotProps.row)"
+                />
+                <span class="reference-slider__unit" aria-hidden="true">%</span>
+              </div>
+            </div>
+            <span v-else>-</span>
           </template>
           <template v-else>
             <div class="cell-content">
               <span>{{ renderCell(slotProps.row, col) }}</span>
               <q-badge
-                v-if="col.name === 'name' && isNew(slotProps.row)"
-                color="accent"
-                class="q-ml-xs"
+                v-if="col.name === 'name' && isNewIncomplete(slotProps.row)"
+                class="q-ml-md badge-new"
                 rounded
                 outline
                 dense
@@ -433,6 +519,16 @@ import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import { formatRowErrorLines } from 'src/utils/rowErrors';
+import {
+  clampReferencePercentage,
+  REFERENCE_PERCENTAGE_MAX,
+  REFERENCE_PERCENTAGE_MIN,
+} from 'src/utils/reference-percentage';
+import {
+  isModuleNoteDisabled,
+  isModuleTableDisabled,
+  type ModuleTableAccess,
+} from 'src/utils/module-table-access';
 
 function getNumericRules(col: TableViewColumn) {
   const rules = [];
@@ -531,6 +627,7 @@ async function saveNote(note: string) {
       String(props.year),
       noteDialogRowId.value,
       { note },
+      props.carbonReportId,
     );
   } catch {
     $q.notify({
@@ -553,6 +650,7 @@ async function deleteNote() {
       String(props.year),
       noteDialogRowId.value,
       { note: null },
+      props.carbonReportId,
     );
   } catch {
     $q.notify({
@@ -622,11 +720,13 @@ const onFilesUploaded = async (filePaths: string[]) => {
           moduleType: props.moduleType,
           unit: props.unitId,
           year: String(props.year),
+          carbonReportId: props.carbonReportId,
         });
         moduleStore.getModuleData(
           props.moduleType as Module,
           props.unitId,
           String(props.year),
+          props.carbonReportId,
         );
 
         const errorCaption = formatRowErrors(payload);
@@ -744,12 +844,23 @@ type CommonProps = {
   moduleFields: ModuleField[] | null;
   unitId: number;
   year: string | number;
+  /** Year whose factors the class/subclass options resolve against — see ModuleForm. */
+  factorYear?: number | null;
+  /** Plan-year report id; when set, module calls address it directly. */
+  carbonReportId?: number;
+  /**
+   * Planner prefilled context: add the reference-year kgCO₂eq column and the
+   * 0–100% "% of reference year" slider (snapshot rows only). Off for the
+   * Calculator and non-prefilled planner modules.
+   */
+  showReferenceColumns?: boolean;
   threshold: Threshold;
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
   submoduleConfig: Submodule;
   disable: boolean;
-  isSimulator?: boolean;
+  /** Simulator Explorer page — see `utils/module-table-access`. */
+  isExplorer?: boolean;
   moduleColor?: string;
   moduleColorLighter?: string;
 };
@@ -758,12 +869,23 @@ type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
+  carbonReportId: undefined,
+  factorYear: undefined,
+  showReferenceColumns: false,
   moduleColor: undefined,
   moduleColorLighter: undefined,
 });
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
 const yearConfigStore = useYearConfigStore();
+
+// #259: only the Equipment module reports new-vs-previous-year equipment still
+// missing usage data; the banner warns the user before they try to validate.
+const newEquipmentIncompleteCount = computed(() =>
+  isEquipmentModule.value
+    ? (moduleStore.state.data?.incomplete_new_equipment_count ?? 0)
+    : 0,
+);
 
 const isInputDeactivated = computed(() => {
   const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
@@ -797,7 +919,7 @@ function noteButtonIcon(note: unknown): string {
 }
 
 function noteButtonColor(note: unknown): string | undefined {
-  if (!note) return 'grey-4';
+  if (!note) return 'black';
   return props.moduleColor ? undefined : 'accent';
 }
 
@@ -809,10 +931,6 @@ function noteButtonStyle(note: unknown) {
         border: `1px solid ${moduleColors.value.buttonTextColor}`,
       }
     : undefined;
-}
-
-function noteButtonTextColor(note: unknown): string | undefined {
-  return note ? undefined : 'primary';
 }
 
 const noteDialogMode = computed<'add' | 'edit'>(() =>
@@ -853,14 +971,17 @@ const canEdit = computed(() => {
   );
 });
 
-// Disable all table editing/deleting interactions when input is disabled in backoffice configuration.
-const isDisabled = computed(
-  () =>
-    !props.isSimulator &&
-    (props.disable ||
-      timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
-      !canEdit.value),
-);
+// Planner tables address a plan-year report by id; the Calculator never does.
+const tableAccess = computed<ModuleTableAccess>(() => ({
+  isExplorer: props.isExplorer === true,
+  isPlanner: props.carbonReportId != null,
+  canEdit: canEdit.value,
+  disable: props.disable === true,
+  isValidated:
+    timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated,
+}));
+
+const isDisabled = computed(() => isModuleTableDisabled(tableAccess.value));
 
 const showTableRowActions = computed(
   () => props.submoduleConfig?.hasTableAction !== false,
@@ -873,13 +994,7 @@ const showTableNote = computed(
 
 const showTableActions = computed(() => showTableNote.value);
 
-// Notes stay available on read-only tables; only permission and validation block them.
-const isNoteDisabled = computed(
-  () =>
-    !props.isSimulator &&
-    (timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
-      !canEdit.value),
-);
+const isNoteDisabled = computed(() => isModuleNoteDisabled(tableAccess.value));
 
 const filterTerm = ref('');
 const confirmDelete = ref(false);
@@ -1019,6 +1134,40 @@ const qCols = computed<TableViewColumn[]>(() => {
       }
     });
 
+  // Planner prefilled tables gain a reference-year kgCO₂eq column (before the
+  // current kgCO₂eq) and a "% of reference year" slider (after it). Snapshot
+  // rows carry the values; other rows render blank/no slider.
+  if (props.showReferenceColumns) {
+    const kgIdx = baseCols.findIndex((c) => c.name === 'kg_co2eq');
+    const referenceCol: TableViewColumn = {
+      name: 'reference_kg_co2eq',
+      label: $t('planner_reference_kg_col'),
+      field: 'reference_kg_co2eq',
+      sortable: false,
+      align: 'right',
+      inputComponent: QInput,
+      editableInline: false,
+      type: 'number',
+    };
+    const sliderCol: TableViewColumn = {
+      name: 'percentage_of_reference_year',
+      label: $t('planner_percentage_col'),
+      field: 'percentage_of_reference_year',
+      sortable: false,
+      align: 'left',
+      inputComponent: QInput,
+      editableInline: false,
+      type: 'number',
+      minColumnWidth: 180,
+    };
+    if (kgIdx >= 0) {
+      baseCols.splice(kgIdx, 0, referenceCol);
+      baseCols.splice(kgIdx + 2, 0, sliderCol);
+    } else {
+      baseCols.push(referenceCol, sliderCol);
+    }
+  }
+
   if (showTableActions.value) {
     baseCols.push({
       name: 'action',
@@ -1127,7 +1276,11 @@ function renderCell(
   }
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
-  if (col.name === 'kg_co2eq' || col.name === 't_co2eq') {
+  if (
+    col.name === 'kg_co2eq' ||
+    col.name === 't_co2eq' ||
+    col.name === 'reference_kg_co2eq'
+  ) {
     return nOrDash(val as number, {
       options: {
         minimumFractionDigits: 0,
@@ -1147,7 +1300,7 @@ function renderCell(
   if (col.optionLabelPrefix && typeof val === 'string') {
     return $t(val.toLowerCase(), val);
   }
-  // Translate stored values that are i18n keys (e.g. researchfacility_type: fish, mice)
+  // Translate stored values that are i18n keys (e.g. researchfacility_type: fish, rodent)
   if (col.optionLabelKey && typeof val === 'string') {
     const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
     return $te(key) ? $t(key) : val;
@@ -1171,6 +1324,96 @@ function getItemName(row: ModuleRow): string {
 function getRowId(row: ModuleRow): number | null {
   const n = Number(row.id);
   return Number.isFinite(n) ? n : null;
+}
+
+// Uncommitted percentage per row: what the slider shows mid-drag and what the
+// typed field shows mid-edit. Both controls read it, so the number tracks the
+// slider handle live instead of jumping only once the drag ends.
+const percentageDrafts = ref<Record<string, number>>({});
+
+function percentageStored(row: ModuleRow): number {
+  return (row.percentage_of_reference_year as number) ?? 100;
+}
+
+function percentageOf(row: ModuleRow): number {
+  const id = String(getRowId(row));
+  return percentageDrafts.value[id] ?? percentageStored(row);
+}
+
+// The field hugs its digits so the trailing "%" always sits one space after the
+// last one, rather than at the far side of a box sized for three digits. The
+// surrounding block keeps a fixed width, so the slider does not resize with it.
+function percentageFieldWidth(row: ModuleRow): Record<string, string> {
+  return { width: `${String(percentageOf(row)).length}ch` };
+}
+
+// Remount key for the typed field. Clearing the field leaves the model
+// untouched, so Vue has nothing to re-render against and the box would stay
+// blank over a row that still has a value; bumping the key on commit rebuilds
+// it from the row.
+const percentageInputRevisions = ref<Record<string, number>>({});
+
+function percentageInputKey(row: ModuleRow): string {
+  const id = String(getRowId(row));
+  return `${id}-${percentageInputRevisions.value[id] ?? 0}`;
+}
+
+// Dragging: move the number with the handle. No PATCH until the drag ends,
+// which QSlider signals with @change.
+function onPercentageDrag(row: ModuleRow, value: number | null) {
+  if (value === null) return;
+  percentageDrafts.value[String(getRowId(row))] = value;
+}
+
+// Typing: drive the slider live, capped, so the two never disagree. An empty
+// or unparseable box holds the last value rather than guessing one.
+function onPercentageTyped(row: ModuleRow, raw: string | number | null) {
+  const value = clampReferencePercentage(raw);
+  if (value === null) return;
+  percentageDrafts.value[String(getRowId(row))] = value;
+}
+
+// Blur/Enter commits the typed value; the draft is dropped either way so the
+// row's stored percentage takes back over.
+async function commitPercentage(row: ModuleRow) {
+  const id = getRowId(row);
+  if (id == null) return;
+  const key = String(id);
+  const draft = percentageDrafts.value[key];
+  if (draft !== undefined && draft !== percentageStored(row)) {
+    await onPercentageChange(row, draft);
+  }
+  delete percentageDrafts.value[key];
+  percentageInputRevisions.value[key] =
+    (percentageInputRevisions.value[key] ?? 0) + 1;
+}
+
+// Planner slider: PATCH the snapshot row's percentage; the backend recomputes
+// kg_co2eq = reference × %, and patchItem refetches so the kg cell updates.
+async function onPercentageChange(row: ModuleRow, value: number) {
+  const id = getRowId(row);
+  if (id == null) return;
+  try {
+    await moduleStore.patchItem(
+      props.moduleType as Module,
+      props.submoduleType,
+      props.unitId,
+      String(props.year),
+      id,
+      { percentage_of_reference_year: value },
+      props.carbonReportId,
+    );
+  } catch {
+    $q.notify({
+      color: 'negative',
+      message: $t('common_save_error'),
+      position: 'top',
+    });
+  } finally {
+    // The refetched row is authoritative from here; a surviving draft would
+    // shadow it, and on a failed PATCH it would show a value never stored.
+    delete percentageDrafts.value[String(id)];
+  }
 }
 
 const inlineErrors = ref<Record<string, string>>({});
@@ -1314,6 +1557,7 @@ async function commitInline(
       {
         [col.field]: valueToSave,
       },
+      props.carbonReportId,
     );
   } catch (err) {
     let msg = err instanceof Error ? err.message : $t('validation_save_failed');
@@ -1331,7 +1575,7 @@ async function commitInline(
 
 function rowClasses(row: ModuleRow) {
   return {
-    'row-new': isNew(row),
+    'row-new': isNewIncomplete(row),
     'row-incomplete': !isComplete(row),
   };
 }
@@ -1380,6 +1624,36 @@ function getColumnClasses(row: ModuleRow, col: TableViewColumn) {
 
 function isNew(row: ModuleRow) {
   return Boolean(row.is_new);
+}
+
+// Usage fields a new equipment (#259) must fill before the module can validate.
+const EQUIPMENT_REQUIRED_USAGE_FIELDS = [
+  'active_usage_hours_per_week',
+  'standby_usage_hours_per_week',
+];
+
+// Highlight (orange contour + em-dash placeholder) an empty active/standby
+// usage cell of a new equipment row, so the user knows it needs filling.
+function isRequiredEmptyUsageCell(
+  row: ModuleRow,
+  col: { field: string },
+): boolean {
+  return (
+    props.moduleType === MODULES.Equipment &&
+    isNew(row) &&
+    EQUIPMENT_REQUIRED_USAGE_FIELDS.includes(col.field) &&
+    !hasValue(row[col.field])
+  );
+}
+
+// A new equipment only needs the "new" emphasis (badge, row highlight, float to
+// top) until its usage is entered; once active + standby are filled it behaves
+// like a normal row (#259).
+function isNewIncomplete(row: ModuleRow): boolean {
+  return (
+    isNew(row) &&
+    EQUIPMENT_REQUIRED_USAGE_FIELDS.some((field) => !hasValue(row[field]))
+  );
 }
 
 function hasValue(value: unknown): boolean {
@@ -1579,6 +1853,7 @@ function onFormSubmit(
           year,
           equipmentId,
           basePayload,
+          props.carbonReportId,
         )
       : store.postItem(
           moduleType,
@@ -1586,6 +1861,8 @@ function onFormSubmit(
           year,
           props.submoduleType,
           basePayload,
+          undefined,
+          props.carbonReportId,
         );
 
     await p.finally(() => {
@@ -1633,7 +1910,14 @@ function onConfirmDelete() {
   const unit = props.unitId;
   const year = String(props.year);
   store
-    .deleteItem(moduleType, submoduleType, unit, year, deleteRowId.value)
+    .deleteItem(
+      moduleType,
+      submoduleType,
+      unit,
+      year,
+      deleteRowId.value,
+      props.carbonReportId,
+    )
     .finally(() => {
       confirmDelete.value = false;
       deleteRowId.value = null;
@@ -1672,6 +1956,7 @@ async function onRequest(request: {
       moduleType: props.moduleType,
       unit: props.unitId,
       year: String(props.year),
+      carbonReportId: props.carbonReportId,
     });
   } else {
     // Only change page if sort didn't change
@@ -1680,6 +1965,7 @@ async function onRequest(request: {
       moduleType: props.moduleType,
       unit: props.unitId,
       year: String(props.year),
+      carbonReportId: props.carbonReportId,
     });
   }
 }
@@ -1703,6 +1989,7 @@ watch(
           moduleType: props.moduleType,
           unit: props.unitId,
           year: String(props.year),
+          carbonReportId: props.carbonReportId,
         });
         moduleStore.getSubmoduleTaxonomy(
           props.moduleType,
@@ -1731,6 +2018,7 @@ onMounted(async () => {
       moduleType: props.moduleType,
       unit: props.unitId,
       year: String(props.year),
+      carbonReportId: props.carbonReportId,
     });
     moduleStore.getSubmoduleTaxonomy(
       props.moduleType,
@@ -1747,9 +2035,7 @@ onMounted(async () => {
   ) {
     try {
       const members: HeadcountMemberDropdownItem[] = await getHeadcountMembers(
-        props.unitId,
-        props.year,
-        moduleStore.carbonProjectType,
+        await moduleStore.resolveCarbonReportId(props.unitId, props.year),
       );
       headcountMembersMap.value = new Map(
         members.map((m) => [m.institutional_id, m.name]),
@@ -1794,17 +2080,107 @@ onUnmounted(() => {
   min-width: 240px;
 }
 
-.row-new {
-  border-left: 4px solid #f2c037;
+/* New / incomplete equipment rows (#259) are tinted with the banner colour.
+   The :deep + .q-tr selector must out-specify the striped-row rule below,
+   which otherwise repaints every even row. */
+.co2-table :deep(tbody tr.q-tr.row-new),
+.co2-table :deep(tbody tr.q-tr.row-incomplete) {
+  background: #fff4e5;
 }
 
-.row-incomplete {
+.co2-table :deep(tbody tr.q-tr.row-new) {
+  border-left: 4px solid #ffa503;
+}
+
+/* NEW badge next to a new equipment's name (#259). Outline badge follows
+   currentColor for both text and border. */
+.badge-new {
+  color: #ffa503;
+}
+
+/* Banner reminding the user to fill new equipment usage (#259): no border,
+   orange info icon. */
+.equipment-new-banner {
   background: #fff4e5;
+}
+
+.equipment-new-banner__icon {
+  color: #ffa503;
+}
+
+/* Empty required usage cell on a new equipment row (#259): orange contour so
+   the user immediately sees what must be filled before validating. */
+.inline-input--required-empty :deep(.q-field__control) {
+  border: 1px solid #ffa503;
+  border-radius: 4px;
+}
+
+.inline-input--required-empty :deep(.q-field__control):hover {
+  border-color: #e09400;
 }
 
 .cell-content {
   display: inline-flex;
   align-items: center;
+}
+
+.reference-slider {
+  min-width: 160px;
+
+  // Clears the slider's thumb, which overhangs the end of its track.
+  gap: 1rem;
+}
+
+.reference-slider__value {
+  display: flex;
+  align-items: center;
+
+  // Fixed here rather than on the field, so the slider keeps its width while
+  // the field inside grows with its digits.
+  width: 3.25rem;
+
+  // Digits of equal width, so the "%" does not shift as the value changes.
+  font-variant-numeric: tabular-nums;
+}
+
+.reference-slider__field {
+  // It is a table value that happens to be editable, so it takes the cell's
+  // type. `font` (not `font-size`) because the q-field root itself carries
+  // Quasar's $input-font-size — inheriting only in the children would inherit
+  // that, not the cell's.
+  font: inherit;
+
+  :deep(.q-field__control),
+  :deep(.q-field__native) {
+    font: inherit;
+    color: inherit;
+    min-height: 0;
+    padding: 0;
+  }
+
+  :deep(input) {
+    text-align: left;
+
+    // Spinners would halve the usable width of a 3-digit field.
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      appearance: none;
+      margin: 0;
+    }
+  }
+
+  :deep(input[type='number']) {
+    appearance: textfield;
+  }
+}
+
+// Trailing unit: it labels the field, it is not part of it. The field carries
+// the accessible name, so this is decorative and inert.
+.reference-slider__unit {
+  // One space after the last digit — no more.
+  padding-left: 0.25em;
+  user-select: none;
+  pointer-events: none;
 }
 
 .tooltip {
@@ -1853,6 +2229,11 @@ onUnmounted(() => {
     border: none;
   }
 
+  th,
+  td {
+    padding: tokens.$spacing-xs tokens.$spacing-md;
+  }
+
   tbody .q-tr:nth-child(even) {
     background-color: tokens.$table-bg-even;
   }
@@ -1884,8 +2265,104 @@ onUnmounted(() => {
     }
   }
 
-  .square-button {
-    padding: tokens.$spacing-sm tokens.$spacing-sm;
+  td
+    .q-field--outlined:not(.q-field--focused):not(.q-field--error)
+    .q-field__control::before {
+    border-color: transparent;
   }
+
+  td
+    .q-field--outlined:not(.q-field--focused):not(.q-field--error):not(
+      .q-field--disabled
+    ):hover
+    .q-field__control {
+    background: tokens.$table-field-hover-bg;
+  }
+
+  td .inline-input,
+  td .inline-select-wrapper .q-select {
+    display: inline-flex;
+    width: auto;
+    max-width: 100%;
+    vertical-align: middle;
+  }
+
+  td .inline-input .q-field__native,
+  td .inline-input .q-field__input,
+  td .inline-select-wrapper .q-field__native,
+  td .inline-select-wrapper .q-field__input {
+    field-sizing: content;
+    min-width: 1ch;
+    font-size: tokens.$text-size-sm;
+  }
+
+  td .inline-input .q-field__append,
+  td .inline-select-wrapper .q-field__append {
+    padding-left: tokens.$spacing-xs;
+  }
+
+  td .inline-input--required-empty {
+    width: 100%;
+  }
+
+  td .inline-input--required-empty .q-field__native,
+  td .inline-input--required-empty .q-field__input {
+    field-sizing: auto;
+    width: 100%;
+  }
+
+  .inline-edit-icon {
+    color: tokens.$table-inline-icon-color;
+  }
+
+  .q-field--focused .inline-edit-icon,
+  .q-field--disabled .inline-edit-icon {
+    display: none;
+  }
+
+  td .q-select__dropdown-icon {
+    font-size: 18px;
+    color: tokens.$table-inline-icon-color;
+  }
+
+  td .q-select:not(.q-field--disabled),
+  td .q-select:not(.q-field--disabled) * {
+    cursor: pointer;
+  }
+
+  .action-btn {
+    width: tokens.$table-action-size;
+    height: tokens.$table-action-size;
+    min-height: 0;
+    padding: 0;
+    border-radius: tokens.$radius-default;
+  }
+
+  .action-btn .q-icon {
+    font-size: tokens.$table-action-icon-size;
+  }
+
+  .action-btn + .action-btn {
+    margin-left: tokens.$spacing-xs;
+  }
+
+  .action-btn:not(.disabled):hover {
+    background: tokens.$table-action-hover-bg;
+  }
+
+  .action-btn--delete:not(.disabled):hover {
+    background: tokens.$table-action-delete-hover-bg;
+  }
+
+  .action-btn--delete:not(.disabled):hover .q-icon {
+    color: tokens.$icon-color-white;
+  }
+}
+
+/* Teleported to <body>, so it must be styled outside .co2-table and unscoped. */
+.q-tooltip.action-tooltip {
+  padding: tokens.$spacing-lg tokens.$spacing-xl;
+  font-size: tokens.$text-size-sm;
+  line-height: normal;
 }
 </style>

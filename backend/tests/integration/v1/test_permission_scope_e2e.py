@@ -140,13 +140,18 @@ def _wire(monkeypatch, user, unit_iid: str = UNIT_IID) -> None:
     monkeypatch.setattr(
         "app.api.v1.carbon_report_module.DataEntryService", lambda db: mock_service
     )
+    _resolved_report = MagicMock()
+    _resolved_report.unit_id = 1
+    _resolved_report.year = 2024
+    _resolved_module = MagicMock()
+    _resolved_module.id = 1
     monkeypatch.setattr(
-        "app.api.v1.carbon_report_module.get_carbon_report_id",
-        AsyncMock(return_value=1),
+        "app.api.v1.carbon_report_module.resolve_report_module",
+        AsyncMock(return_value=(_resolved_report, _resolved_module)),
     )
 
 
-URL = "/api/v1/modules/1/2024/headcount/members"
+URL = "/api/v1/carbon-reports/1/modules/headcount/members"
 
 
 class TestPermissionScopeEndToEnd:
@@ -517,14 +522,14 @@ class TestActivePipelinesPerYearGate:
         r = client.get(ACTIVE_PIPELINES_URL)
         assert r.status_code == 200, r.text
 
-    # skip until permission change TODO: add back when permission change is implemented
-    # def test_scoped_backoffice_metier_denied(self, client, monkeypatch):
-    #     """Metier holds reporting/users/documentation/ui_texts only — no
-    #     configuration and no module sync — so it cannot read pipeline status."""
-    #     user = _user("11111", [_backoffice_scoped("ENAC-SG")])
-    #     _wire_active_pipelines(monkeypatch, user)
-    #     r = client.get(ACTIVE_PIPELINES_URL)
-    #     assert r.status_code == 403, r.text
+    @pytest.mark.skip(reason="re-enable when the backoffice permission change ships")
+    def test_scoped_backoffice_metier_denied(self, client, monkeypatch):
+        """Metier holds reporting/users/documentation/ui_texts only — no
+        configuration and no module sync — so it cannot read pipeline status."""
+        user = _user("11111", [_backoffice_scoped("ENAC-SG")])
+        _wire_active_pipelines(monkeypatch, user)
+        r = client.get(ACTIVE_PIPELINES_URL)
+        assert r.status_code == 403, r.text
 
     def test_principal_passes(self, client, monkeypatch):
         """A principal can sync modules (modules.<name>.sync) and therefore may

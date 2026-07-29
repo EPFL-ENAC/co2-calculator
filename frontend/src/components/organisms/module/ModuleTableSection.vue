@@ -13,6 +13,9 @@
           :error="error"
           :unit-id="unitId"
           :year="year"
+          :factor-year="factorYear"
+          :carbon-report-id="carbonReportId"
+          :show-reference-columns="showReferenceColumns"
           :threshold="currentModuleConfig.threshold || defaultThreshold"
         />
       </template>
@@ -39,16 +42,34 @@ const props = defineProps<{
   error: string | null;
   unitId: number;
   year: string | number;
+  /** Year whose factors the class/subclass options resolve against — see ModuleForm. */
+  factorYear?: number | null;
   disable: boolean;
+  /**
+   * Plan-year report id. When set (Simulator Plan), module calls address this
+   * report directly instead of resolving unit/year — a unit can hold several
+   * plans with overlapping years, so unit/year cannot identify the report.
+   */
+  carbonReportId?: number;
+  /** Planner prefilled: show the reference-kg column + % slider. */
+  showReferenceColumns?: boolean;
+  /**
+   * Replaces the Calculator MODULES_CONFIG entry — the Simulator Plan
+   * renders planner-specific submodules (see constant/planner-module-config).
+   * When set, the year-configuration submodule filter is skipped: planner
+   * modules are toggled by the plan's own Active checkbox instead.
+   */
+  configOverride?: ModuleConfig;
 }>();
 
 const yearConfigStore = useYearConfigStore();
 
 const currentModuleConfig: Ref<ModuleConfig> = computed(
-  () => MODULES_CONFIG[props.type] as ModuleConfig,
+  () => props.configOverride ?? (MODULES_CONFIG[props.type] as ModuleConfig),
 );
 
 const visibleSubmodules = computed(() => {
+  if (props.configOverride) return currentModuleConfig.value.submodules;
   const unifiedConfig = yearConfigStore.getModule(props.type);
   if (!unifiedConfig) return currentModuleConfig.value.submodules;
 

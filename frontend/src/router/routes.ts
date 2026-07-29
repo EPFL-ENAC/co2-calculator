@@ -1,5 +1,6 @@
 import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
+import { CARBON_PROJECT } from 'src/constant/carbon-project';
 import { resolveLanguage } from 'src/utils/language';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import redirectToDefaultRoute from './guards/redirectToDefaultRoute';
@@ -73,6 +74,25 @@ const routes: RouteRecordRaw[] = [
           requiresAuth: true,
           note: 'Simulation Explore – Print/PDF preview (no chrome)',
           breadcrumb: false,
+          carbonProject: CARBON_PROJECT.explorer,
+        },
+      },
+    ],
+  },
+  // Project planner print preview — own layout, no header/sidebar
+  {
+    path: `/:language(${LANGUAGE_PATTERN})/:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})/simulation/project-planner/:name(${SIMULATION_ID_PATTERN})/print`,
+    component: () => import('layouts/PrintLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'project-planner-print',
+        component: () => import('pages/app/ProjectPlannerPrintPage.vue'),
+        meta: {
+          requiresAuth: true,
+          note: 'Project Planner – Print/PDF preview (no chrome)',
+          breadcrumb: false,
+          carbonProject: CARBON_PROJECT.planner,
         },
       },
     ],
@@ -214,14 +234,15 @@ const routes: RouteRecordRaw[] = [
               },
               {
                 // Reached from the "Start a project" button on the unified
-                // home page (CO2ProjectPlanner).
-                path: 'simulation/add',
+                // home page (CO2ProjectPlanner); :name is the plan name.
+                path: `simulation/project-planner/:name(${SIMULATION_ID_PATTERN})`,
                 name: 'project-planner',
-                component: () => import('pages/app/AddSimulationPage.vue'),
+                component: () => import('pages/app/ProjectPlannerPage.vue'),
                 meta: {
                   requiresAuth: true,
-                  note: 'Project Planner - Add a new project simulation',
+                  note: 'Project Planner - plan a project simulation',
                   breadcrumb: true,
+                  carbonProject: CARBON_PROJECT.planner,
                 },
               },
               {
@@ -232,18 +253,10 @@ const routes: RouteRecordRaw[] = [
                   requiresAuth: true,
                   note: 'Simulation - Explore a simulation',
                   breadcrumb: true,
+                  carbonProject: CARBON_PROJECT.explorer,
                 },
               },
-              {
-                path: `simulation/plan/:plan(${SIMULATION_ID_PATTERN})`,
-                name: 'simulation-plan',
-                component: () => import('pages/app/SimulationPlanPage.vue'),
-                meta: {
-                  requiresAuth: true,
-                  note: 'Simulation - Plan a simulation',
-                  breadcrumb: true,
-                },
-              },
+
               {
                 path: 'documentation',
                 name: 'documentation',

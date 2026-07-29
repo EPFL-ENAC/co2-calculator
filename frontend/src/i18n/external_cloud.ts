@@ -13,10 +13,6 @@ export default {
     en: 'This module calculates the carbon footprint associated with the use of external cloud services and AI. Some cells may or may not be editable depending on the type of service selected. For external cloud services, it is necessary to enter the provider name, used type of service (compute or storage), spending and associated currency. For AI services, it is necessary to enter the provider name, type of use (text, code or image generation), number of users and frequency of use.',
     fr: "Ce module calcule l'empreinte carbone liée à l'utilisation de services de clouds externes et d'intelligence artificielle. Certaines cellules seront ou non éditables en fonction du type de service sélectionné. Pour les services de clouds externes, il est nécessaire de saisir le nom du fournisseur, le type de service utilisé (calcul ou stockage), le montant dépensé et la devise associée. Pour les services d'IAs, il faut fournir le nom du fournisseur, le type d'utilisation (génération de texte, de code ou d'image), le nombre d'utilisateurs et la fréquence d'utilisation.",
   },
-  [`${MODULES.ExternalCloudAndAI}-documentation-title`]: {
-    en: 'For more information',
-    fr: "Pour plus d'information",
-  },
   [`${MODULES.ExternalCloudAndAI}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/external-cloud/',
     fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/external-cloud/',

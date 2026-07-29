@@ -13,6 +13,7 @@ from sqlalchemy import or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import app.modules.process_emissions  # noqa: F401  # registers the handlers
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
@@ -21,9 +22,6 @@ from app.models.data_entry import DataEntryTypeEnum
 # from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
-from app.modules.process_emissions import (
-    schemas as schemas,
-)  # This ensures the handlers are registered
 
 logger = get_logger(__name__)
 settings = get_settings()

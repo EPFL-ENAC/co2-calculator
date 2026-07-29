@@ -473,8 +473,8 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
     },
     research_facilities: {
       facilities: colors.value.paleYellowGreen.darker,
-      it_facilities: colors.value.paleYellowGreen.default,
-      animal: colors.value.paleYellowGreen.dark,
+      it_facilities: colors.value.paleYellowGreen.dark,
+      animal: colors.value.paleYellowGreen.default,
     },
     purchases: (() => {
       const keys = [
@@ -517,7 +517,9 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
     },
     waste: {
       incineration: colors.value.periwinkle.darker,
+      domestic_waste: colors.value.periwinkle.darker,
       composting: colors.value.periwinkle.dark,
+      organic_waste_lawn: colors.value.periwinkle.dark,
       biogas: colors.value.periwinkle.default,
       recycling: colors.value.periwinkle.light,
       cardboard: colors.value.skyBlue.dark,

@@ -1,5 +1,5 @@
 <template>
-  <section class="page" :class="{ 'page--first': isFirst }">
+  <section class="page" :class="{ 'page--first': isFirst, 'page--flow': flow }">
     <header v-if="title || scope || pageNumber != null" class="page__header">
       <div class="page__title">
         <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="75px" />
@@ -26,6 +26,8 @@ interface Props {
   scope?: string;
   pageNumber?: number;
   isFirst?: boolean;
+  /** Let content taller than one sheet grow the on-screen preview instead of clipping it. */
+  flow?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
@@ -33,6 +35,7 @@ withDefaults(defineProps<Props>(), {
   scope: undefined,
   pageNumber: undefined,
   isFirst: false,
+  flow: false,
 });
 </script>
 
@@ -85,6 +88,12 @@ withDefaults(defineProps<Props>(), {
 
 .page--first .page__header {
   margin-bottom: 10mm;
+}
+
+.page--flow {
+  height: auto;
+  min-height: 297mm;
+  overflow: visible;
 }
 
 @media print {

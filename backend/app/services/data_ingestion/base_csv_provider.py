@@ -788,7 +788,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # If the job targets a specific data_entry_type_id, only delete
         # entries for that type. Deleting all types for the module would
         # wipe sibling submodules (e.g. uploading research_facilities
-        # data would erase mice_and_fish_animal_facilities entries).
+        # data would erase animal_facilities entries).
         if self.job.data_entry_type_id is not None:
             valid_entry_types = [DataEntryTypeEnum(self.job.data_entry_type_id)]
         else:
