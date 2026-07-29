@@ -120,10 +120,11 @@ const chartOptions = computed<EChartsOption>(() => {
       type: 'category',
       axisLabel: {
         interval: 0,
-        rotate: 35,
         fontSize: 11,
-        overflow: 'truncate',
         width: 90,
+        overflow: 'break',
+        lineHeight: 14,
+        hideOverlap: false,
       },
     },
     yAxis: { type: 'value', boundaryGap: [0, 0.01] },
