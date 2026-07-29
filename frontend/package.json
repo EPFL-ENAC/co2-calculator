@@ -28,7 +28,7 @@
     "maplibre-gl": "=5.24.0",
     "pinia": "=3.0.4",
     "pinia-plugin-persistedstate": "=4.7.1",
-    "quasar": "=2.21.2",
+    "quasar": "^2.22.0",
     "unwrapped": "=0.1.25",
     "vue": "=3.5.39",
     "vue-echarts": "=8.0.1",
@@ -66,6 +66,7 @@
   "overrides": {
     "esbuild": "=0.28.1",
     "minimatch": "=10.2.4",
+    "brace-expansion": "=5.0.8",
     "serialize-javascript": "=7.0.5",
     "vue-i18n": "$vue-i18n",
     "js-yaml": "=4.3.0"
