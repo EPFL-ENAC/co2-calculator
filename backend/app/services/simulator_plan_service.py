@@ -15,7 +15,7 @@ from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.module_type import PLANNER_PREFILLED_MODULE_TYPES
+from app.models.module_type import PLANNER_PREFILLED_MODULE_TYPES, ModuleTypeEnum
 from app.models.user import User
 from app.repositories.carbon_project_repo import CarbonProjectRepository
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -274,14 +274,15 @@ class SimulatorPlanService:
         )
         if ref_report is None:
             return
-        for module_type_id in sorted(
-            m.module_type_id
-            for m in modules
-            if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
-        ):
-            await self.prefill_module_from_reference(
-                report, module_type_id, ref_report=ref_report
-            )
+        for module_type_id in sorted(m.module_type_id for m in prefilled):
+            if module_type_id == ModuleTypeEnum.headcount:
+                await self.prefill_headcount_from_reference(
+                    report, ref_report=ref_report
+                )
+            else:
+                await self.prefill_module_from_reference(
+                    report, module_type_id, ref_report=ref_report
+                )
 
     async def _clear_module_entries(self, module_ids: list[int]) -> None:
         """Delete every data entry of the given modules and refresh their stats.
@@ -322,11 +323,8 @@ class SimulatorPlanService:
         100``. Each copy keeps ``source_data_entry_id`` so the % slider computes
         against the live reference entry. Returns the copied count.
 
-        The copy + emission-compute loop is batched (one flush for every new
-        row, one shared ``FactorResolver``/factor-query cache, one grouped
-        ``prefetch_slice`` per data_entry_type, one bulk emission insert) so
-        an N-row module costs a small constant number of round trips instead
-        of ``O(N)`` — see plan/perf notes on this function.
+        The copy + emission-compute loop is batched by
+        ``_persist_prefill_entries`` — see plan/perf notes on this function.
 
         Args:
             ref_report: The reference year's Calculator report, when the
@@ -359,15 +357,8 @@ class SimulatorPlanService:
         entry_repo = DataEntryRepository(self.session)
         await entry_repo.bulk_delete_by_modules([plan_module.id])
 
-        src_entries = await entry_repo.list_by_module(ref_module.id)
-        if not src_entries:
-            await self.report_service.module_service.recompute_stats_many(
-                [plan_module.id]
-            )
-            return 0
-
         copies: list[DataEntry] = []
-        for src in src_entries:
+        for src in await entry_repo.list_by_module(ref_module.id):
             copy = DataEntry(
                 data_entry_type_id=src.data_entry_type_id,
                 carbon_report_module_id=plan_module.id,
@@ -382,21 +373,120 @@ class SimulatorPlanService:
             )
             self.session.add(copy)
             copies.append(copy)
+
+        await self._persist_prefill_entries(
+            copies, plan_module.id, year=report.reference_year
+        )
+        return len(copies)
+
+    async def prefill_headcount_from_reference(
+        self,
+        report: CarbonReport | CarbonReportRead,
+        *,
+        ref_report: Optional[CarbonReport] = None,
+    ) -> int:
+        """Rebuild the plan's headcount grid from the reference-year members.
+
+        Not a one-to-one copy like the other prefilled modules: the Calculator
+        holds one row per person, the planner grid one row per SIUS category,
+        so the members' FTE are summed by category (students carry no category
+        and stay out of the grid). Each row starts at the reference year's full
+        FTE, for the user to lower to the project's share; a category nobody
+        staffed gets no row, leaving its input blank. Destructive and
+        idempotent — the grid is emptied first. Returns the rows created.
+        """
+        if report.id is None:
+            raise ValueError("report must be persisted before use")
+        if report.reference_year is None:
+            raise ValueError("Set a reference year before prefilling")
+        module_service = self.report_service.module_service
+        plan_module = await module_service.get_module(
+            report.id, ModuleTypeEnum.headcount
+        )
+        if plan_module is None or plan_module.id is None:
+            raise ValueError("Headcount module not found on the plan year")
+        if ref_report is None:
+            ref_report = await self.repo.get_calculator_report(
+                report.unit_id, report.reference_year
+            )
+        if ref_report is None or ref_report.id is None:
+            raise ValueError(
+                f"No Calculator report for reference year {report.reference_year}"
+            )
+        ref_module = await module_service.get_module(
+            ref_report.id, ModuleTypeEnum.headcount
+        )
+        if ref_module is None or ref_module.id is None:
+            raise ValueError("Headcount module not found on the reference year")
+
+        entry_repo = DataEntryRepository(self.session)
+        await entry_repo.bulk_delete_by_modules([plan_module.id])
+
+        fte_by_code: dict[str, float] = {}
+        for src in await entry_repo.list_by_module(ref_module.id):
+            if src.data_entry_type_id != DataEntryTypeEnum.member:
+                continue
+            code = src.data.get("sius_code")
+            if not code:
+                continue
+            try:
+                fte = float(src.data.get("fte") or 0)
+            except TypeError, ValueError:
+                logger.warning(
+                    "Skipping headcount entry %r with non-numeric fte=%r",
+                    src.id,
+                    src.data.get("fte"),
+                )
+                continue
+            fte_by_code[code] = fte_by_code.get(code, 0.0) + fte
+
+        rows = [
+            DataEntry(
+                data_entry_type_id=DataEntryTypeEnum.planner_headcount,
+                carbon_report_module_id=plan_module.id,
+                unit_id=report.unit_id,
+                year=report.year,
+                source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
+                data={"sius_code": code, "fte": fte},
+            )
+            for code, fte in sorted(fte_by_code.items())
+            if fte > 0
+        ]
+        for row in rows:
+            self.session.add(row)
+
+        await self._persist_prefill_entries(
+            rows, plan_module.id, year=report.reference_year
+        )
+        return len(rows)
+
+    async def _persist_prefill_entries(
+        self, entries: list[DataEntry], module_id: int, *, year: int
+    ) -> None:
+        """Flush new prefill rows, compute their emissions, refresh the stats.
+
+        Batched (one flush for the whole set, one shared
+        ``FactorResolver``/factor-query cache, one grouped ``prefetch_slice``
+        per data_entry_type, one bulk emission insert) so an N-row module costs
+        a small constant number of round trips instead of ``O(N)``.
+        """
+        if not entries:
+            await self.report_service.module_service.recompute_stats_many([module_id])
+            return
         # One round trip for the whole batch (vs. one flush per row) —
-        # needed so every copy gets its id before emissions are computed.
+        # needed so every row gets its id before emissions are computed.
         await self.session.flush()
 
         emission_svc = DataEntryEmissionService(self.session)
         factor_resolver = FactorResolver(self.session)
         factor_query_cache: dict = {}
-        year = report.reference_year
 
         # Group by data_entry_type_id: a module can mix subtypes (e.g.
         # headcount's student/member rows), and prefetch_slice/handler
         # selection are per-type, same as the recalc workflow.
         by_type: dict[int, list[DataEntry]] = {}
-        for copy in copies:
-            by_type.setdefault(copy.data_entry_type_id, []).append(copy)
+        for entry in entries:
+            by_type.setdefault(entry.data_entry_type_id, []).append(entry)
 
         prepared_emissions = []
         for data_entry_type_id, group in by_type.items():
@@ -404,22 +494,21 @@ class SimulatorPlanService:
                 DataEntryTypeEnum(data_entry_type_id)
             )
             slice_cache = await handler.prefetch_slice(group, self.session, year=year)
-            for copy in group:
+            for entry in group:
                 prepared_emissions.extend(
                     await emission_svc.prepare_create(
-                        DataEntryResponse.model_validate(copy),
+                        DataEntryResponse.model_validate(entry),
                         year=year,
                         factor_resolver=factor_resolver,
                         factor_query_cache=factor_query_cache,
                         slice_cache=slice_cache,
                     )
                 )
-        # Single bulk insert: the copies are brand new, so unlike
+        # Single bulk insert: the rows are brand new, so unlike
         # upsert_by_data_entry there is nothing stale to delete first.
         await emission_svc.bulk_create(prepared_emissions)
 
-        await self.report_service.module_service.recompute_stats_many([plan_module.id])
-        return len(copies)
+        await self.report_service.module_service.recompute_stats_many([module_id])
 
     async def _recalculate_report_emissions(self, report: CarbonReport) -> None:
         """Recompute emissions of the report's entries + refresh stats.
