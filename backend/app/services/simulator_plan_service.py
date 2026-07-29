@@ -230,10 +230,11 @@ class SimulatorPlanService:
     ) -> Optional[SimulatorPlanYearRead]:
         """Set the baseline year of one plan-year report; None if missing.
 
-        Destructive: every prefilled module of the plan-year is emptied and
-        rebuilt from the new baseline at 100%, so the percentages, edits and
-        hand-added rows made under the previous reference year are lost. The
-        dialog warns about it before calling this.
+        Destructive: every module of the plan-year is emptied — the prefilled
+        ones rebuilt from the new baseline at 100%, the manually filled ones
+        left blank — so the percentages, edits and hand-entered values made
+        under the previous reference year are lost. The dialog warns about it
+        before calling this.
 
         The rebuilt entries get their emissions recomputed, since factor lookup
         follows the reference year.
@@ -251,10 +252,13 @@ class SimulatorPlanService:
         return await self._year_read(report)
 
     async def _prefill_reference_modules(self, report: CarbonReport) -> None:
-        """Rebuild every prefilled-behavior module from the reference year.
+        """Empty the whole plan-year, then rebuild its prefilled modules.
 
         Runs on reference-year set/change (there is no manual prefill trigger).
-        The modules are emptied first, so a module never mixes two baselines.
+        Every entry of the plan-year is deleted first — all of them hang on the
+        baseline, whether copied from it (prefilled modules) or entered against
+        it and priced with its factors (headcount, purchases, travel) — and only
+        then are the prefilled modules copied from the new reference year.
         When the reference year has no Calculator report for the unit there is
         nothing to copy and they stay empty — showing the previous baseline's
         rows under a new reference year would be a lie.
@@ -264,16 +268,17 @@ class SimulatorPlanService:
         if report.reference_year is None:
             return
         modules = await self.report_service.module_service.list_modules(report.id)
-        prefilled = [
-            m for m in modules if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
-        ]
-        await self._clear_module_entries([m.id for m in prefilled if m.id is not None])
+        await self._clear_module_entries([m.id for m in modules if m.id is not None])
         ref_report = await self.repo.get_calculator_report(
             report.unit_id, report.reference_year
         )
         if ref_report is None:
             return
-        for module_type_id in sorted(m.module_type_id for m in prefilled):
+        for module_type_id in sorted(
+            m.module_type_id
+            for m in modules
+            if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
+        ):
             await self.prefill_module_from_reference(
                 report, module_type_id, ref_report=ref_report
             )
