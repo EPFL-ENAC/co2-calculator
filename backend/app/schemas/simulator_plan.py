@@ -75,6 +75,7 @@ class SimulatorPlanRead(BaseModel):
     created_at: Optional[datetime] = None
     creator_name: Optional[str] = None
     total_tonnes_co2eq: Optional[float] = None
+    can_manage: bool = False
 
     class Config:
         from_attributes = True

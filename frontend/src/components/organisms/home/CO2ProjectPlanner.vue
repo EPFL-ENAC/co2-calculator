@@ -221,10 +221,15 @@ onMounted(() => {
                     dense
                     flat
                     class="action-btn action-btn--delete"
+                    :disable="!props.row.can_manage"
                     @click="onAskDelete(props.row)"
                   >
                     <q-tooltip class="tooltip action-tooltip" :offset="[0, 8]">
-                      {{ $t('common_delete') }}
+                      {{
+                        props.row.can_manage
+                          ? $t('common_delete')
+                          : $t('planner_delete_creator_only')
+                      }}
                     </q-tooltip>
                   </q-btn>
                 </div>

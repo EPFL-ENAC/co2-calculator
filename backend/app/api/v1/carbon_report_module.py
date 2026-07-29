@@ -91,7 +91,7 @@ async def resolve_report_module(
     When the report belongs to a Simulator Plan project, plan scoping is
     enforced on top of the module permission checks the routes perform:
     unshared plans are invisible to non-creators, shared plans are
-    read-only for them.
+    editable by every unit member.
 
     Args:
         carbon_report_id: The addressed carbon report (any project type —

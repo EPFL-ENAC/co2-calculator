@@ -240,4 +240,8 @@ export default {
     en: 'Action',
     fr: 'Action',
   },
+  planner_delete_creator_only: {
+    en: 'Only the project creator can delete this project.',
+    fr: 'Seul le créateur du projet peut supprimer ce projet.',
+  },
 } as const;

@@ -588,7 +588,8 @@ class TestQueryPolicyLegacy:
 
 
 class TestRequirePlanAccess:
-    """Simulator Plan scoping: creator-only writes, shared plans read-only."""
+    """Simulator Plan scoping: shared plans are editable by unit members,
+    deletion stays creator-only."""
 
     @staticmethod
     def _user(user_id: int, *, is_global: bool = False):
@@ -619,12 +620,13 @@ class TestRequirePlanAccess:
             require_plan_access(user, plan, "view")
         assert exc.value.status_code == 404
 
-    def test_shared_plan_is_read_only_for_other_members(self):
+    def test_shared_plan_is_editable_but_not_deletable_by_other_members(self):
         user = self._user(2)
         plan = self._plan(created_by=1, shared=True)
         require_plan_access(user, plan, "view")
+        require_plan_access(user, plan, "edit")
         with pytest.raises(HTTPException) as exc:
-            require_plan_access(user, plan, "edit")
+            require_plan_access(user, plan, "manage")
         assert exc.value.status_code == 403
 
     def test_global_scope_bypasses_plan_scoping(self):
@@ -675,14 +677,17 @@ class TestRequirePlanScopeForReport:
         project = MagicMock()
         project.carbon_report_type = CarbonReportType.SIMULATOR_PLAN
         project.created_by = 1
-        project.is_viewable_by_unit_members = True  # shared → read-only
+        project.is_viewable_by_unit_members = True
         db = MagicMock()
         db.get = AsyncMock(return_value=project)
         non_creator = MagicMock()
         non_creator.id = 2
         non_creator.roles = []
+        await require_plan_scope_for_report(db, non_creator, self._report(5), "edit")
+
+        project.is_viewable_by_unit_members = False
         with pytest.raises(HTTPException) as exc:
             await require_plan_scope_for_report(
                 db, non_creator, self._report(5), "edit"
             )
-        assert exc.value.status_code == 403
+        assert exc.value.status_code == 404
