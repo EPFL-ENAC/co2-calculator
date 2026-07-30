@@ -6,9 +6,8 @@ Aggregates IT-related emissions from four source modules:
 - **Purchases** (``purchases__it_equipment``): IT hardware procurement (Scope 3)
 - **External Cloud & AI** (all ``external__clouds__*`` and ``external__ai__*``):
   cloud computing and AI provider emissions (Scope 3)
-- **Research Facilities** (``research_facilities__facilities``,
-    ``research_facilities__it_facilities``): IT-related research
-     facility emissions (Scope 3); animal facility emissions are excluded
+- **Research Facilities** (``research_facilities__it_facilities``): IT research
+  facility emissions (Scope 3); non-IT and animal facilities are excluded
 """
 
 from app.modules.emissions import EmissionType, get_children, resolve_emission_type
@@ -51,7 +50,6 @@ _IT_CLOUD_AI_TYPES: frozenset[EmissionType] = frozenset(
 
 _IT_RESEARCH_TYPES: frozenset[EmissionType] = frozenset(
     [
-        EmissionType.research_facilities__facilities,
         EmissionType.research_facilities__it_facilities,
     ]
 )
