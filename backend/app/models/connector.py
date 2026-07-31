@@ -1,8 +1,7 @@
 """Connector connection + datasource models (API-connect credentials, #1552)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Optional
 
 from sqlalchemy import Column, DateTime
 from sqlalchemy import Enum as SAEnum
@@ -14,7 +13,7 @@ class ConnectorType(str, Enum):
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ConnectorConnection(SQLModel, table=True):
@@ -26,7 +25,7 @@ class ConnectorConnection(SQLModel, table=True):
 
     __tablename__ = "connector_connections"
 
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: int | None = Field(default=None, primary_key=True, index=True)
     connector: ConnectorType = Field(
         sa_column=Column(
             SAEnum(ConnectorType, name="connector_type_enum", native_enum=True),
@@ -36,7 +35,7 @@ class ConnectorConnection(SQLModel, table=True):
     )
     label: str = Field(nullable=False)
     server_url: str = Field(nullable=False)
-    site_content_url: Optional[str] = Field(default=None, nullable=True)
+    site_content_url: str | None = Field(default=None, nullable=True)
     username: str = Field(nullable=False)
     client_id: str = Field(nullable=False)
     secret_id: str = Field(nullable=False)
@@ -62,12 +61,12 @@ class ConnectorDatasource(SQLModel, table=True):
 
     __tablename__ = "connector_datasources"
 
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: int | None = Field(default=None, primary_key=True, index=True)
     connection_id: int = Field(
         foreign_key="connector_connections.id", nullable=False, index=True
     )
     module_type_id: int = Field(nullable=False, index=True)
-    data_entry_type_id: Optional[int] = Field(default=None, nullable=True)
+    data_entry_type_id: int | None = Field(default=None, nullable=True)
     connector_luid: str = Field(nullable=False)
     label: str = Field(nullable=False)
     is_active: bool = Field(default=True, nullable=False)

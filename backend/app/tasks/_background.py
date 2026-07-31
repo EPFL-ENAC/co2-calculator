@@ -19,7 +19,7 @@ for any background work whose return value the caller doesn't await.
 """
 
 import asyncio
-from typing import Coroutine
+from collections.abc import Coroutine
 
 from app.core.logging import get_logger
 

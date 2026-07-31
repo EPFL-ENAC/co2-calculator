@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import Field, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -24,8 +22,8 @@ class PlannerPurchaseFactorCreate(FactorCreate):
 
 
 class PlannerPurchaseFactorUpdate(FactorUpdate):
-    purchase_category: Optional[str] = None
-    ef_kg_co2eq_per_eur: Optional[float] = Field(default=None, ge=0)
+    purchase_category: str | None = None
+    ef_kg_co2eq_per_eur: float | None = Field(default=None, ge=0)
 
 
 class PlannerPurchaseFactorResponse(FactorResponseGen):
@@ -53,7 +51,7 @@ class PlannerPurchaseBudgetFactorCreate(FactorCreate):
 
 
 class PlannerPurchaseBudgetFactorUpdate(FactorUpdate):
-    ef_kg_co2eq_per_eur: Optional[float] = Field(default=None, ge=0)
+    ef_kg_co2eq_per_eur: float | None = Field(default=None, ge=0)
 
 
 class PlannerPurchaseBudgetFactorResponse(FactorResponseGen):

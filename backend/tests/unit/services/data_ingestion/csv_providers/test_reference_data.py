@@ -104,7 +104,8 @@ async def test_ingest_locations_replaces_same_mode_only(db_session):
     """A train reference upload must ERASE prior train rows and re-insert,
     while leaving plane rows untouched (scoped replace, like building rooms).
     Without this, re-uploading from a new source accumulates stale stations
-    and orphans nothing it should keep."""
+    and orphans nothing it should keep.
+    """
     from sqlalchemy import select
 
     from app.models.location import Location, TransportModeEnum

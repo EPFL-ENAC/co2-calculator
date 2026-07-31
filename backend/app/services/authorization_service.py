@@ -12,8 +12,7 @@ logger = get_logger(__name__)
 
 
 def _build_data_filter_input(user: User, resource_type: str, action: str) -> dict:
-    """
-    Build OPA input for data filtering policy evaluation.
+    """Build OPA input for data filtering policy evaluation.
 
     This helper function constructs the input dictionary needed for
     query_policy("authz/data/list", ...) or query_policy("authz/data/access", ...).
@@ -46,8 +45,7 @@ def _build_data_filter_input(user: User, resource_type: str, action: str) -> dic
 def _build_resource_access_input(
     user: User, resource_type: str, resource: dict
 ) -> dict:
-    """
-    Build OPA input for resource access policy evaluation.
+    """Build OPA input for resource access policy evaluation.
 
     This helper function constructs the input dictionary needed for
     query_policy("authz/data/access", ...) to check if a user can access
@@ -87,8 +85,7 @@ def _build_resource_access_input(
 async def get_data_filters(
     user: User, resource_type: str, action: str = "list"
 ) -> dict:
-    """
-    Get data filters for a user based on their role scope.
+    """Get data filters for a user based on their role scope.
 
     This is a convenience function that builds the input, queries the policy,
     and returns the filters directly.
@@ -146,8 +143,7 @@ async def get_data_filters(
 async def check_resource_access(
     user: User, resource_type: str, resource: dict, action: str = "access"
 ) -> bool:
-    """
-    Check if a user can access/edit/delete a specific resource.
+    """Check if a user can access/edit/delete a specific resource.
 
     This function uses the new "authz/resource/access" policy for resource-level
     access control with business logic rules (e.g., API trips read-only,

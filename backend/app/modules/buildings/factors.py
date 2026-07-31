@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import ValidationInfo, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -13,9 +11,7 @@ from app.schemas.factor import (
 )
 
 
-def _validate_non_negative_float(
-    v: Optional[float], field_name: str
-) -> Optional[float]:
+def _validate_non_negative_float(v: float | None, field_name: str) -> float | None:
     if v is None:
         return v
     if v < 0:
@@ -49,8 +45,8 @@ class _BuildingsFactorValidationMixin:
     )
     @classmethod
     def validate_factor_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
+        cls, v: float | None, info: ValidationInfo
+    ) -> float | None:
         return _validate_non_negative_float(v, info.field_name or "")
 
     @field_validator("room_type", mode="after")
@@ -98,7 +94,7 @@ class BuildingBaseFactor:
     lighting_kwh_per_square_meter: float
     ef_kg_co2eq_per_kwh: float
     energy_type: str
-    conversion_factor: Optional[float] = 1
+    conversion_factor: float | None = 1
 
 
 class BuildingsFactorCreate(
@@ -145,8 +141,8 @@ class _EnergyCombustionFactorValidationMixin:
     @field_validator("ef_kg_co2eq_per_unit", mode="after")
     @classmethod
     def validate_factor_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
+        cls, v: float | None, info: ValidationInfo
+    ) -> float | None:
         return _validate_non_negative_float(v, info.field_name or "")
 
 
@@ -162,9 +158,9 @@ class EnergyCombustionFactorCreate(
 class EnergyCombustionFactorUpdate(
     _EnergyCombustionFactorValidationMixin, FactorUpdate
 ):
-    unit: Optional[str] = None
-    name: Optional[str] = None
-    ef_kg_co2eq_per_unit: Optional[float] = None
+    unit: str | None = None
+    name: str | None = None
+    ef_kg_co2eq_per_unit: float | None = None
 
 
 class EnergyCombustionFactorResponse(FactorResponseGen):
@@ -199,21 +195,21 @@ class BuildingEmbodiedEnergyFactorCreate(FactorCreate):
     @field_validator("ef_kgco2eq_per_m2", mode="after")
     @classmethod
     def validate_ef_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
+        cls, v: float | None, info: ValidationInfo
+    ) -> float | None:
         return _validate_non_negative_float(v, info.field_name or "")
 
 
 class BuildingEmbodiedEnergyFactorUpdate(FactorUpdate):
-    building_name: Optional[str] = None
-    category: Optional[str] = None
-    ef_kgco2eq_per_m2: Optional[float] = None
+    building_name: str | None = None
+    category: str | None = None
+    ef_kgco2eq_per_m2: float | None = None
 
     @field_validator("ef_kgco2eq_per_m2", mode="after")
     @classmethod
     def validate_ef_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
+        cls, v: float | None, info: ValidationInfo
+    ) -> float | None:
         return _validate_non_negative_float(v, info.field_name or "")
 
 

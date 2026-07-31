@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import field_validator
 
 from app.schemas.data_entry import (
@@ -11,17 +9,17 @@ from app.schemas.data_entry import (
 
 class ProcessEmissionsHandlerResponse(DataEntryResponseGen):
     category: str
-    subcategory: Optional[str] = None
+    subcategory: str | None = None
     quantity: float
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
 class ProcessEmissionsHandlerCreate(DataEntryCreate):
     category: str
-    subcategory: Optional[str] = None
+    subcategory: str | None = None
     quantity: float
-    note: Optional[str] = None
+    note: str | None = None
 
     @field_validator("quantity", mode="after")
     @classmethod
@@ -32,14 +30,14 @@ class ProcessEmissionsHandlerCreate(DataEntryCreate):
 
 
 class ProcessEmissionsHandlerUpdate(DataEntryUpdate):
-    category: Optional[str] = None
-    subcategory: Optional[str] = None
-    quantity: Optional[float] = None
-    note: Optional[str] = None
+    category: str | None = None
+    subcategory: str | None = None
+    quantity: float | None = None
+    note: str | None = None
 
     @field_validator("quantity", mode="after")
     @classmethod
-    def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
+    def validate_quantity(cls, v: float | None) -> float | None:
         if v is not None and v < 0:
             raise ValueError("Quantity must be non-negative")
         return v

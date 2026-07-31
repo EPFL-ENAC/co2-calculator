@@ -1,7 +1,6 @@
 """Carbon Report API endpoints."""
 
-from datetime import datetime, timezone
-from typing import List
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -52,7 +51,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/unit/{unit_id}/", response_model=List[CarbonReportRead])
+@router.get("/unit/{unit_id}/", response_model=list[CarbonReportRead])
 async def list_carbon_reports_by_unit(
     unit_id: int,
     db: AsyncSession = Depends(get_db),
@@ -123,7 +122,7 @@ async def get_simulator_explore_carbon_report(
             status_code=404, detail="Simulator Explore report not found"
         )
 
-    now_ts = int(datetime.now(timezone.utc).timestamp())
+    now_ts = int(datetime.now(UTC).timestamp())
     age = now_ts - int(result.last_updated or 0)
     if result.last_updated is None or age > _EXPLORE_TTL_SECONDS:
         background_tasks.add_task(
@@ -183,7 +182,7 @@ async def get_carbon_report(
 # --- CarbonReportModule endpoints ---
 
 
-@router.get("/{carbon_report_id}/modules/", response_model=List[CarbonReportModuleRead])
+@router.get("/{carbon_report_id}/modules/", response_model=list[CarbonReportModuleRead])
 async def list_carbon_report_modules(
     carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
@@ -220,8 +219,7 @@ async def update_carbon_report_module_status(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Update the status of a carbon report module.
+    """Update the status of a carbon report module.
 
     Status values:
     - 0: not_started

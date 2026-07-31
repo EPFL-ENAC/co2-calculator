@@ -1,7 +1,5 @@
 """Carbon report schemas for API request/response validation."""
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 from app.core.constants import ModuleStatus
@@ -11,12 +9,12 @@ class CarbonReportBase(BaseModel):
     """Base carbon report schema."""
 
     year: int
-    reference_year: Optional[int] = None
+    reference_year: int | None = None
     unit_id: int
-    carbon_project_id: Optional[int] = None
     is_grant: bool = False
-    budget: Optional[float] = None
     budget_currency: Optional[str] = None
+    budget: Optional[float] = None
+    carbon_project_id: int | None = None
 
 
 class CarbonReportCreate(CarbonReportBase):
@@ -29,9 +27,9 @@ class CarbonReportRead(CarbonReportBase):
     """Schema for reading a carbon report."""
 
     id: int
-    stats: Optional[dict] = None
-    last_updated: Optional[int] = None
-    completion_progress: Optional[str] = None
+    stats: dict | None = None
+    last_updated: int | None = None
+    completion_progress: str | None = None
     overall_status: int = ModuleStatus.NOT_STARTED
 
     class Config:
@@ -41,10 +39,10 @@ class CarbonReportRead(CarbonReportBase):
 class CarbonReportUpdate(BaseModel):
     """Schema for updating a carbon report."""
 
-    year: Optional[int] = None
-    reference_year: Optional[int] = None
-    unit_id: Optional[int] = None
-    carbon_project_id: Optional[int] = None
+    year: int | None = None
+    reference_year: int | None = None
+    unit_id: int | None = None
+    carbon_project_id: int | None = None
 
 
 # CarbonReportModule schemas
@@ -71,7 +69,7 @@ class CarbonReportModuleRead(BaseModel):
     status: int
     is_active: bool = True
     budgets: Optional[dict[str, float]] = None
-    stats: Optional[dict] = None
+    stats: dict | None = None
 
     class Config:
         from_attributes = True

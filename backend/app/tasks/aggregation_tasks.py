@@ -12,8 +12,6 @@ PR (`emission_recalc_handler` chains here, providers stop calling
 ``recompute_stats`` directly) lands next in the Plan-D Tier-2 sequence.
 """
 
-from typing import Optional
-
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -36,7 +34,7 @@ _AGGREGATION_LOCK_CATEGORY = 1236
 
 async def _collect_affected_module_ids(
     pipeline_id, session: AsyncSession
-) -> Optional[set[int]]:
+) -> set[int] | None:
     """4A.3 — union of ``affected_module_ids`` from FINISHED recalc siblings.
 
     Each ``emission_recalc`` records the precise ``carbon_report_module``
@@ -153,7 +151,7 @@ async def aggregation_handler(
     # weren't passed an explicit scope at chain time.
     own_config = (job.meta or {}).get("config") or {}
     own_scope = own_config.get("affected_module_ids")
-    affected_scope: Optional[set[int]]
+    affected_scope: set[int] | None
     if isinstance(own_scope, list):
         scope_set: set[int] = {int(i) for i in own_scope if isinstance(i, int)}
         logger.debug(

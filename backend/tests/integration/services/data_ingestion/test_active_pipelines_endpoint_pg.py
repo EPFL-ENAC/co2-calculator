@@ -107,7 +107,8 @@ def _make_active_pipeline_job(
     state: IngestionState = IngestionState.RUNNING,
 ) -> DataIngestionJob:
     """Active aggregation row carrying a ``pipeline_id`` — what the
-    repo helper picks as 'currently in flight' for this module/year."""
+    repo helper picks as 'currently in flight' for this module/year.
+    """
     return DataIngestionJob(
         entity_type=EntityType.MODULE_PER_YEAR,
         module_type_id=module_type_id,
@@ -127,7 +128,8 @@ def _make_active_pipeline_job(
 async def test_active_pipelines_returns_mapping_for_requested_modules(pg_app):
     """Two modules each have an active pipeline → endpoint returns a
     ``{module_type_id: pipeline_id}`` dict with both entries as JSON
-    strings (UUIDs serialised through the response model)."""
+    strings (UUIDs serialised through the response model).
+    """
     Sf = pg_app["factory"]
     pipeline_a = uuid4()
     pipeline_b = uuid4()
@@ -162,7 +164,8 @@ async def test_active_pipelines_returns_mapping_for_requested_modules(pg_app):
 async def test_active_pipelines_omits_modules_without_active_pipeline(pg_app):
     """Sparse passthrough: modules without an active pipeline are absent
     from the response.  Frontend uses ``.get(...)`` and treats missing
-    keys as 'no badge'."""
+    keys as 'no badge'.
+    """
     Sf = pg_app["factory"]
 
     async with Sf() as session:
@@ -198,7 +201,8 @@ async def test_active_pipelines_omits_modules_without_active_pipeline(pg_app):
 async def test_active_pipelines_filters_by_year(pg_app):
     """A pipeline running for a different year must NOT appear in the
     requested year's response — guards the badge from cross-year
-    bleed."""
+    bleed.
+    """
     Sf = pg_app["factory"]
 
     async with Sf() as session:
@@ -225,7 +229,8 @@ async def test_active_pipelines_filters_by_year(pg_app):
 async def test_active_pipelines_empty_modules_returns_empty_dict(pg_app):
     """``modules=`` (empty) short-circuits to an empty dict without
     firing the SELECT — defensive against the frontend sending an
-    empty list before any modules are known."""
+    empty list before any modules are known.
+    """
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://test",

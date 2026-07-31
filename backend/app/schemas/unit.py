@@ -1,7 +1,5 @@
 """Resource schemas for API request/response validation."""
 
-from typing import Optional
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.unit import Unit, UnitBase
@@ -18,18 +16,16 @@ class UnitWithUserRole(BaseModel):
     current_user_role: str = Field(
         ..., description="Current user's role within this unit"
     )
-    principal_user_institutional_id: Optional[str] = Field(
+    principal_user_institutional_id: str | None = Field(
         None, description="Principal user provider code"
     )
-    principal_user_name: Optional[str] = Field(
+    principal_user_name: str | None = Field(
         None, description="Principal user full name"
     )
-    principal_user_function: Optional[str] = Field(
+    principal_user_function: str | None = Field(
         None, description="Principal user function/title"
     )
-    principal_user_email: Optional[str] = Field(
-        None, description="Principal user email"
-    )
+    principal_user_email: str | None = Field(None, description="Principal user email")
     affiliations: list[str] = Field(
         default_factory=list, description="List of affiliated units/units"
     )
@@ -56,8 +52,8 @@ class UnitUpdate(BaseModel):
     """Schema for updating resource data."""
 
     id: int
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    principal_user_institutional_id: Optional[str] = Field(
+    name: str | None = Field(None, min_length=1, max_length=255)
+    principal_user_institutional_id: str | None = Field(
         None, description="Principal user provider code"
     )
 

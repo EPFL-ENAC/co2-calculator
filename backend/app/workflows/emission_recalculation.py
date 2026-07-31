@@ -6,7 +6,7 @@ Re-runs emission calculations for all DataEntries of a given
 
 import asyncio
 import time
-from typing import Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy.exc import DBAPIError, InvalidRequestError
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -49,8 +49,8 @@ class EmissionRecalculationWorkflow:
         self,
         data_entry_type_id: DataEntryTypeEnum,
         year: int,
-        progress_callback: Optional[Callable[[int, int], Awaitable[None]]] = None,
-        carbon_report_module_ids: Optional[list[int]] = None,
+        progress_callback: Callable[[int, int], Awaitable[None]] | None = None,
+        carbon_report_module_ids: list[int] | None = None,
     ) -> dict:
         """Recalculate emissions for every DataEntry of the given type and year.
 

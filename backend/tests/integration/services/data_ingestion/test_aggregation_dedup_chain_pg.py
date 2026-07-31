@@ -54,7 +54,8 @@ def _parent_job(module_type_id: int = 5, year: int = 2025) -> DataIngestionJob:
 async def test_dedup_active_creates_single_row_for_concurrent_chains(pg_dsn):
     """Two sequential ``chain_job(aggregation, dedup_active=True)``
     calls for the same (module, year) → only the first creates a row;
-    the second sees the existing pending row and returns ``None``."""
+    the second sees the existing pending row and returns ``None``.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -118,7 +119,8 @@ async def test_dedup_active_allows_new_row_after_first_finishes(pg_dsn):
     index releases the (module, year) slot and a follow-up chain creates
     a new row.  This is the eventual-consistency property: each fan-out
     batch gets one aggregation; subsequent batches are not blocked by
-    historical jobs."""
+    historical jobs.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -176,7 +178,8 @@ async def test_dedup_active_does_not_collide_across_modules_or_years(pg_dsn):
     """The partial index is keyed on ``(module_type_id, year)`` — two
     chains for different modules (or different years) both succeed.
     Without per-scope keying, dedup would freeze parallel module
-    pipelines as a side-effect."""
+    pipelines as a side-effect.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -221,7 +224,8 @@ async def test_dedup_active_does_not_collide_across_modules_or_years(pg_dsn):
 async def test_dedup_active_skips_run_job_dispatch_on_collision(pg_dsn):
     """``fire_and_forget(run_job(...))`` must NOT be called on the
     dedup'd path — the existing pending row will run; a redundant
-    dispatch would race-claim the same row."""
+    dispatch would race-claim the same row.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

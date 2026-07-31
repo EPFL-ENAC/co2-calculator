@@ -50,7 +50,8 @@ def _reset_job_semaphore():
     function its own loop, so a semaphore left over from a previous test
     would raise ``RuntimeError`` ("got Future ... attached to a different
     loop") the moment this test tries to acquire it. Reset before AND
-    after so a failing test doesn't poison the next one either."""
+    after so a failing test doesn't poison the next one either.
+    """
     runner_mod._job_semaphore = None
     try:
         yield
@@ -79,7 +80,8 @@ def _make_job(job_id: int, job_type: str) -> MagicMock:
 
 def _make_multi_job_repo(jobs: dict[int, MagicMock]) -> MagicMock:
     """A ``DataIngestionRepository`` stand-in keyed by job id, so several
-    concurrently-running ``run_job(id)`` calls each see their own row."""
+    concurrently-running ``run_job(id)`` calls each see their own row.
+    """
     repo = MagicMock()
 
     async def _get(job_id: int):
@@ -152,7 +154,8 @@ async def test_run_job_bounds_concurrency_and_leaves_queued_jobs_unclaimed(
     """5 blocking jobs, MAX_CONCURRENT_JOBS=2: at most 2 handlers run at
     once, and the other 3 jobs are never claimed (still NOT_STARTED,
     no locked_by) while they wait — proving the semaphore is acquired
-    BEFORE claim_job, not after."""
+    BEFORE claim_job, not after.
+    """
     max_concurrent = 2
     n_jobs = 5
     _patch_settings(monkeypatch, MAX_CONCURRENT_JOBS=max_concurrent)

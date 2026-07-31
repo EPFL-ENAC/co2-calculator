@@ -48,7 +48,8 @@ def _make_carbon_report(
 async def test_happy_path_sums_all_valid_emissions():
     """Multiple leaf emission rows from different modules
     → kg_co2eq_sum = sum of all emissions of interest. Non-leaf rollup
-    entries and research-facility leaves are excluded."""
+    entries and research-facility leaves are excluded.
+    """
     provider = _make_provider()
     factor = _make_factor("RF-001", None)
     session = MagicMock()

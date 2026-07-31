@@ -13,9 +13,9 @@ request timeout, min API version) stay in settings.
 
 import asyncio
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
-from typing import Any, Dict, List, NoReturn, Optional, Set, TypedDict
+from typing import Any, NoReturn, TypedDict
 
 import httpx
 from joserfc import jwt as JWT
@@ -50,11 +50,10 @@ class StatsDict(TypedDict):
     row_errors_count: int
 
 
-def normalize_vds_payload(payload: Dict[str, Any]) -> tuple[Dict[str, Any], bool]:
-    """
-    Normalize payload to match VDS schema constraints:
-      - Move query.returnFormat to options.returnFormat
-      - Remove query.maxRows
+def normalize_vds_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Normalize payload to match VDS schema constraints:
+    - Move query.returnFormat to options.returnFormat
+    - Remove query.maxRows
     """
     changed = False
     q = payload.get("query")
@@ -237,7 +236,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
             )
             return False
 
-    async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         try:
             await self._ensure_credentials()
             jwt_token = self._generate_jwt()
@@ -298,7 +297,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
             key = OctKey.import_key(self.secret_value)
             header = {"alg": "HS256", "kid": self.secret_id}
 
-            now_utc = datetime.now(timezone.utc)
+            now_utc = datetime.now(UTC)
             exp_utc = now_utc + timedelta(minutes=5)
 
             payload = {
@@ -327,7 +326,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
 
     async def _signin_with_jwt(
         self, session: httpx.Client, jwt_token: str
-    ) -> Optional[str]:
+    ) -> str | None:
         url = f"{self.server_url}/api/{self.min_api_version}/auth/signin"
 
         logger.debug(
@@ -415,7 +414,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
         logger.debug("HTTP session created successfully")
         return session
 
-    async def _vds_read_metadata(self, session: httpx.Client, x_auth: str) -> Dict:
+    async def _vds_read_metadata(self, session: httpx.Client, x_auth: str) -> dict:
         url = f"{self.server_url}/api/v1/vizql-data-service/read-metadata"
         payload = {"datasource": {"datasourceLuid": self.datasource_luid}}
         headers = {
@@ -433,7 +432,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
             f"Failed to read metadata: {response.status_code} {response.text}"
         )
 
-    def _extract_field_captions(self, metadata: Dict) -> List[str]:
+    def _extract_field_captions(self, metadata: dict) -> list[str]:
         # Try multiple possible locations for fields
         candidates = []
 
@@ -451,8 +450,8 @@ class BaseTableauApiProvider(DataIngestionProvider):
             elif isinstance(r.get("fields"), list):
                 candidates = r["fields"]
 
-        out: List[str] = []
-        seen: Set[str] = set()
+        out: list[str] = []
+        seen: set[str] = set()
 
         for f in candidates:
             if not isinstance(f, dict):
@@ -464,13 +463,13 @@ class BaseTableauApiProvider(DataIngestionProvider):
 
         return out
 
-    def _build_payload(self, field_captions: List[str]) -> Dict:
+    def _build_payload(self, field_captions: list[str]) -> dict:
         if not self.datasource_luid:
             raise ValueError("datasource_luid is required")
         if not field_captions:
             raise ValueError("field_captions must contain at least one field")
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "datasource": {"datasourceLuid": self.datasource_luid},
             "query": {
                 "fields": [{"fieldCaption": c} for c in field_captions],
@@ -482,8 +481,8 @@ class BaseTableauApiProvider(DataIngestionProvider):
         return payload
 
     async def _vds_query_datasource(
-        self, session: httpx.Client, x_auth: str, payload: Dict
-    ) -> Dict:
+        self, session: httpx.Client, x_auth: str, payload: dict
+    ) -> dict:
         url = f"{self.server_url}/api/v1/vizql-data-service/query-datasource"
         headers = {
             "Accept": "application/json",
@@ -498,10 +497,9 @@ class BaseTableauApiProvider(DataIngestionProvider):
 
     async def _resolve_carbon_report_modules(
         self,
-        transformed_data: List[Dict[str, Any]],
-    ) -> Dict[str, int]:
-        """
-        Extract unique unit_institutional_ids from the transformed rows
+        transformed_data: list[dict[str, Any]],
+    ) -> dict[str, int]:
+        """Extract unique unit_institutional_ids from the transformed rows
         and resolve carbon_report_module_id.
 
         Uses 'Centre financier' field (with leading character stripped).
@@ -655,8 +653,8 @@ class BaseTableauApiProvider(DataIngestionProvider):
     # ------------------------------------------------------------------
     async def ingest(
         self,
-        filters: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Fetch → transform → resolve modules → inject module ids → load.
 
         Shared across the Tableau-backed providers; subclasses vary only via
@@ -706,8 +704,8 @@ class BaseTableauApiProvider(DataIngestionProvider):
         )
 
     async def _resolve_modules_or_fail(
-        self, transformed_data: List[Dict[str, Any]]
-    ) -> Dict[str, int]:
+        self, transformed_data: list[dict[str, Any]]
+    ) -> dict[str, int]:
         """Resolve modules; on a ValueError mark the job failed then re-raise."""
         try:
             return await self._resolve_carbon_report_modules(transformed_data)
@@ -735,12 +733,13 @@ class BaseTableauApiProvider(DataIngestionProvider):
 
     def _inject_module_ids(
         self,
-        transformed_data: List[Dict[str, Any]],
-        unit_to_module_map: Dict[str, int],
+        transformed_data: list[dict[str, Any]],
+        unit_to_module_map: dict[str, int],
         stats: StatsDict,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Attach carbon_report_module_id to each record; skip unresolvable
-        units. Row errors carry unit codes only — never member/travel fields."""
+        units. Row errors carry unit codes only — never member/travel fields.
+        """
         max_row_errors = int(self.config.get("max_row_errors", 250))
         valid_records = []
         for idx, record in enumerate(transformed_data, start=1):
@@ -815,8 +814,8 @@ class BaseTableauApiProvider(DataIngestionProvider):
         return deleted_rows
 
     async def _finalize_success(
-        self, stats: StatsDict, result: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, stats: StatsDict, result: dict[str, Any]
+    ) -> dict[str, Any]:
         ingestion_result = IngestionResult.SUCCESS
         if stats["rows_skipped"]:
             ingestion_result = IngestionResult.WARNING

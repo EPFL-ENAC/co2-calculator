@@ -5,7 +5,7 @@ totals from the corresponding facility's CarbonReport regardless of module
 type or emission type.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -35,7 +35,7 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
         factor: Factor,
         year: int,
         session: AsyncSession,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Compute updated kg_co2eq_sum from actual emission data.
 
         Args:
@@ -59,7 +59,7 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
             )
             return None
 
-        researchfacility_id: Optional[str] = factor.classification.get(
+        researchfacility_id: str | None = factor.classification.get(
             "researchfacility_id"
         )
         if not researchfacility_id:

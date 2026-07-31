@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import field_validator
 
 from app.modules.headcount import SIUS_CODE_VALUES
@@ -27,15 +25,15 @@ def _validate_fte(v: float) -> float:
 
 class PlannerHeadCountResponse(DataEntryResponseGen):
     sius_code: str
-    fte: Optional[float] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    fte: float | None = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
 class PlannerHeadCountCreate(DataEntryCreate):
     sius_code: str
     fte: float
-    note: Optional[str] = None
+    note: str | None = None
 
     @field_validator("sius_code", mode="after")
     @classmethod
@@ -49,20 +47,20 @@ class PlannerHeadCountCreate(DataEntryCreate):
 
 
 class PlannerHeadCountUpdate(DataEntryUpdate):
-    sius_code: Optional[str] = None
-    fte: Optional[float] = None
-    note: Optional[str] = None
+    sius_code: str | None = None
+    fte: float | None = None
+    note: str | None = None
 
     @field_validator("sius_code", mode="after")
     @classmethod
-    def validate_sius_code(cls, v: Optional[str]) -> Optional[str]:
+    def validate_sius_code(cls, v: str | None) -> str | None:
         if v is None:
             return v
         return _validate_sius_code(v)
 
     @field_validator("fte", mode="after")
     @classmethod
-    def validate_fte(cls, v: Optional[float]) -> Optional[float]:
+    def validate_fte(cls, v: float | None) -> float | None:
         if v is None:
             return v
         return _validate_fte(v)

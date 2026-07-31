@@ -52,8 +52,6 @@ Pragmatic coverage (per the unit's spec)
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
-from typing import Optional
-
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -87,7 +85,7 @@ async def _seed_emission(
     data_entry_type: DataEntryTypeEnum,
     emission_type: EmissionType,
     kg_co2eq: float,
-    additional_value: Optional[float] = None,
+    additional_value: float | None = None,
 ) -> DataEntry:
     """Insert one ``DataEntry`` + one ``DataEntryEmission`` leaf row.
 

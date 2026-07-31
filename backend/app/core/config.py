@@ -2,7 +2,6 @@
 
 from enum import Enum
 from functools import lru_cache
-from typing import Optional
 
 from pydantic import Field, computed_field
 from pydantic_settings import (
@@ -63,7 +62,7 @@ class Settings(BaseSettings):
 
     # Database Configuration
     # Provide full DB_URL directly (takes precedence)
-    DB_URL: Optional[str] = Field(
+    DB_URL: str | None = Field(
         default="sqlite+aiosqlite:///./co2_calculator.db",
         description="""
             Full database URL. If not set, defaults to SQLite.
@@ -200,12 +199,12 @@ class Settings(BaseSettings):
 
     # Loki (optional)
     LOKI_ENABLED: bool = False
-    LOKI_URL: Optional[str] = None  # e.g. http://loki:3100
-    LOKI_TENANT_ID: Optional[str] = None  # X-Scope-OrgID if multi-tenant
+    LOKI_URL: str | None = None  # e.g. http://loki:3100
+    LOKI_TENANT_ID: str | None = None  # X-Scope-OrgID if multi-tenant
     LOKI_TIMEOUT: float = 2.0  # seconds
     # default job label; falls back to APP_NAME
-    LOKI_LABEL_JOB: Optional[str] = None
-    LOKI_LABEL_ENV: Optional[str] = None  # e.g. dev|staging|prod
+    LOKI_LABEL_JOB: str | None = None
+    LOKI_LABEL_ENV: str | None = None  # e.g. dev|staging|prod
 
     # TRAVEL API TABLEAU CONFIGURATION
     # Connection credentials (server_url, site, username, connected-app) are
@@ -263,19 +262,19 @@ class Settings(BaseSettings):
     # built by non-app contexts (alembic migrations) that never call Accred.
     # Shared by both RoleProvider and UnitProvider — Accred is one API
     # serving both concerns, so the config is not role- or unit-specific.
-    ACCRED_API_BASE_URL: Optional[str] = Field(
+    ACCRED_API_BASE_URL: str | None = Field(
         default=None,
         description="EPFL Accred API base URL (e.g., https://api.epfl.ch/v1/accreds)",
     )
-    ACCRED_API_USERNAME: Optional[str] = Field(
+    ACCRED_API_USERNAME: str | None = Field(
         default=None,
         description="EPFL Accred API username for Basic Auth",
     )
-    ACCRED_API_KEY: Optional[str] = Field(
+    ACCRED_API_KEY: str | None = Field(
         default=None,
         description="EPFL Accred API key/password for Basic Auth",
     )
-    ACCRED_AUTHORIZATION_HEALTHCHECK_URL: Optional[str] = Field(
+    ACCRED_AUTHORIZATION_HEALTHCHECK_URL: str | None = Field(
         default=None,
         description=(
             "Accred authorization-readiness check URL for /ready — confirms "
@@ -285,15 +284,15 @@ class Settings(BaseSettings):
     )
 
     # OAuth/OIDC Configuration (supports Keycloak, Entra ID, or other OIDC providers)
-    OAUTH_CLIENT_ID: Optional[str] = Field(
+    OAUTH_CLIENT_ID: str | None = Field(
         default=None,
         description="OAuth2/OIDC Client ID",
     )
-    OAUTH_CLIENT_SECRET: Optional[str] = Field(
+    OAUTH_CLIENT_SECRET: str | None = Field(
         default=None,
         description="OAuth2/OIDC Client Secret",
     )
-    OAUTH_ISSUER_URL: Optional[str] = Field(
+    OAUTH_ISSUER_URL: str | None = Field(
         default=None,
         description=(
             "OAuth2/OIDC Issuer URL (base URL). "
@@ -304,15 +303,15 @@ class Settings(BaseSettings):
         ),
     )
     # not used directly, but can be useful for some providers
-    OAUTH_TENANT_ID: Optional[str] = Field(
+    OAUTH_TENANT_ID: str | None = Field(
         default=None,
         description="OAuth2/OIDC Tenant ID or Realm (if applicable)",
     )
-    OAUTH_SCOPE: Optional[str] = Field(
+    OAUTH_SCOPE: str | None = Field(
         default="openid profile email",
         description="OAuth2/OIDC scopes to request (space-separated)",
     )
-    OAUTH_COOKIE_PATH: Optional[str] = Field(
+    OAUTH_COOKIE_PATH: str | None = Field(
         default="/",
         description="OAuth2/OIDC cookie path",
     )
@@ -539,7 +538,7 @@ class Settings(BaseSettings):
         ),
     )
     # Build provenance — populated by CI on deploy.  Optional in dev.
-    GIT_SHA: Optional[str] = Field(
+    GIT_SHA: str | None = Field(
         default=None,
         description=(
             "Commit SHA the running code was built from.  Surfaced via "
@@ -561,7 +560,7 @@ class Settings(BaseSettings):
     )
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance."""
     # ROLE_PROVIDER_TYPE/UNIT_PROVIDER_TYPE have no default (intentional —

@@ -60,7 +60,6 @@ def _global_role() -> Role:
 
 def _wire(monkeypatch, module, user, decision_fn, unit_institutional_id=UNIT_IID):
     """Wire dependency overrides and service mocks for a test."""
-
     # Use FastAPI's dependency override mechanism for get_current_user
     app.dependency_overrides[deps_module.get_current_user] = lambda: user
     monkeypatch.setattr(
@@ -176,7 +175,8 @@ def test_std_for_this_unit_sees_only_own_record(client, monkeypatch):
 
 def test_principal_for_other_unit_sees_only_own_record(client, monkeypatch):
     """Principal of unit A accessing unit B sees only their own record
-    (role priority fix)."""
+    (role priority fix).
+    """
     import app.api.v1.carbon_report_module as module
 
     # User is principal for OTHER_UNIT, only STD for UNIT_IID

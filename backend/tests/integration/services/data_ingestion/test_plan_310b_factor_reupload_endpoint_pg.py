@@ -32,7 +32,7 @@ Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -178,7 +178,8 @@ async def _wait_for_job(
     """Plain ``while ... await asyncio.sleep`` polling.  Returns the row
     once it reaches a terminal state, or raises ``AssertionError`` on
     timeout — leaves the row state in the message so failures are
-    diagnosable from the assertion alone."""
+    diagnosable from the assertion alone.
+    """
     deadline = time.monotonic() + timeout
     last_state = None
     while time.monotonic() < deadline:
@@ -272,7 +273,7 @@ async def test_factor_reupload_endpoint_recomputes_emission_via_recalc_task(
             YearConfiguration(
                 year=2025,
                 is_started=True,
-                configuration_completed=datetime.now(timezone.utc),
+                configuration_completed=datetime.now(UTC),
             )
         )
         await s.commit()
@@ -464,7 +465,7 @@ async def test_factor_reupload_deletes_superseded_rows(pg_app):
             YearConfiguration(
                 year=2026,
                 is_started=True,
-                configuration_completed=datetime.now(timezone.utc),
+                configuration_completed=datetime.now(UTC),
             )
         )
         unit = Unit(

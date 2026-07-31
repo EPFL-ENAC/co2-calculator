@@ -9,7 +9,7 @@ source the first attempt had already consumed, raising a misleading
 ``processing/<job_id>/``.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -19,7 +19,8 @@ from app.services.data_ingestion.base_provider import DataIngestionProvider
 
 class ConcreteProvider(DataIngestionProvider):
     """Minimal concrete subclass — only exists to exercise the base class's
-    move helpers, which are the thing under test here."""
+    move helpers, which are the thing under test here.
+    """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -32,15 +33,15 @@ class ConcreteProvider(DataIngestionProvider):
     async def validate_connection(self) -> bool:
         return True
 
-    async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         return []
 
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         return raw_data
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         return {"inserted": 0, "skipped": 0, "errors": 0}
 
 
@@ -58,7 +59,8 @@ def _make_provider(job_id: int = 7) -> ConcreteProvider:
 @pytest.mark.asyncio
 async def test_move_to_processing_skips_when_destination_already_exists():
     """Retry after a prior successful move: destination present, tmp/
-    source already consumed. Must skip the move, not fail."""
+    source already consumed. Must skip the move, not fail.
+    """
     provider = _make_provider()
     provider._files_store = MagicMock()
     provider._files_store.file_exists = AsyncMock(return_value=True)
@@ -93,7 +95,8 @@ async def test_move_to_processing_moves_when_destination_missing():
 async def test_move_to_processing_raises_on_genuine_move_failure():
     """A real move failure (permissions, disk, or a genuinely missing
     source) with no destination present is still fatal — the idempotency
-    check must not swallow every failure, only the already-done case."""
+    check must not swallow every failure, only the already-done case.
+    """
     provider = _make_provider()
     provider._files_store = MagicMock()
     provider._files_store.file_exists = AsyncMock(return_value=False)
@@ -141,7 +144,8 @@ async def test_move_to_processed_moves_when_destination_missing():
 async def test_move_to_processed_failure_is_non_fatal():
     """Unlike tmp->processing, a processing->processed failure must not
     raise — the ingested data is already committed; only archival
-    bookkeeping is at stake. Falls back to the un-moved path."""
+    bookkeeping is at stake. Falls back to the un-moved path.
+    """
     provider = _make_provider()
     provider._files_store = MagicMock()
     provider._files_store.file_exists = AsyncMock(return_value=False)

@@ -6,7 +6,7 @@ with Elasticsearch:
 """
 
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -30,8 +30,7 @@ class AuditSyncService:
         self.es_client = ElasticsearchClient()
 
     async def sync_single_audit_record(self, audit_id: int) -> bool:
-        """
-        Sync a single audit record to Elasticsearch with status tracking.
+        """Sync a single audit record to Elasticsearch with status tracking.
 
         Uses the pattern: pending -> syncing -> synced/failed
 
@@ -131,9 +130,8 @@ class AuditSyncService:
 
             return False
 
-    async def sync_pending_audit_records(self, batch_size: int = 100) -> Dict[str, Any]:
-        """
-        Sync all pending audit records in batches.
+    async def sync_pending_audit_records(self, batch_size: int = 100) -> dict[str, Any]:
+        """Sync all pending audit records in batches.
 
         Args:
             batch_size: Number of records to process in each batch
@@ -283,9 +281,8 @@ class AuditSyncService:
             logger.error(f"Error in bulk sync operation: {e}")
             return {"synced": 0, "failed": 0, "total": 0, "error": str(e)}
 
-    async def retry_failed_audit_records(self, max_retries: int = 3) -> Dict[str, Any]:
-        """
-        Retry syncing failed audit records.
+    async def retry_failed_audit_records(self, max_retries: int = 3) -> dict[str, Any]:
+        """Retry syncing failed audit records.
 
         Args:
             max_retries: Maximum number of times to retry each failed record

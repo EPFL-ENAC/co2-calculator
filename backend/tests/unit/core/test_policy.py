@@ -236,7 +236,8 @@ class TestCheckModulePermission:
         self, mock_query_policy
     ):
         """institutional_id kwarg must reach the policy via input_data so the
-        scoped permission key (modules.X/iid) can be matched."""
+        scoped permission key (modules.X/iid) can be matched.
+        """
         user = MagicMock()
         user.id = "user-123"
         user.email = "test@example.com"

@@ -51,7 +51,8 @@ async def test_fire_and_forget_runs_to_completion_after_caller_returns():
 @pytest.mark.asyncio
 async def test_fire_and_forget_removes_from_set_when_done():
     """Once the task completes, the strong reference is released so the
-    set doesn't grow unboundedly across calls."""
+    set doesn't grow unboundedly across calls.
+    """
     started_size = len(_BACKGROUND_TASKS)
 
     async def _work():
@@ -73,7 +74,8 @@ async def test_fire_and_forget_removes_from_set_when_done():
 @pytest.mark.asyncio
 async def test_fire_and_forget_logs_unhandled_exception(caplog):
     """When the coroutine raises, the done-callback logs the error so it
-    doesn't disappear silently."""
+    doesn't disappear silently.
+    """
 
     async def _boom():
         raise RuntimeError("intentional test failure")

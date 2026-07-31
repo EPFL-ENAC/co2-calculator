@@ -5,8 +5,7 @@ A "plan" (project planner project) is a ``CarbonProject`` row with
 shown in the project planner routes.
 """
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -53,8 +52,8 @@ def _next_suffixed_name(base: str, existing: set[str]) -> str:
 
 def _to_read(
     project: CarbonProject,
-    creator_name: Optional[str],
-    total_tonnes_co2eq: Optional[float] = None,
+    creator_name: str | None,
+    total_tonnes_co2eq: float | None = None,
     default_factor_year: Optional[int] = None,
 ) -> SimulatorPlanRead:
     if project.id is None:
@@ -120,9 +119,11 @@ class SimulatorPlanService:
             for plan_id, stats_list in by_plan.items()
         }
 
-    async def get_plan(self, plan_id: int) -> Optional[SimulatorPlanRead]:
-        """Get a plan by ID, or None."""
-        row = await self.repo.get_plan_with_creator(plan_id)
+    async def get_plan_by_name(
+        self, unit_id: int, name: str
+    ) -> SimulatorPlanRead | None:
+        """Get a plan by unit and name, or None."""
+        row = await self.repo.get_plan_by_name(unit_id, name)
         if row is None:
             return None
         project, creator_name = row
@@ -135,7 +136,7 @@ class SimulatorPlanService:
         )
 
     async def create_plan(
-        self, *, unit_id: int, user: User, name: Optional[str] = None
+        self, *, unit_id: int, user: User, name: str | None = None
     ) -> SimulatorPlanRead:
         """Create a plan for a unit, owned by ``user``.
 
@@ -153,7 +154,7 @@ class SimulatorPlanService:
             carbon_report_type=CarbonReportType.SIMULATOR_PLAN,
             name=name,
             created_by=user.id,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         project = await self._flush_guarded(self.repo.create(project))
         return _to_read(
@@ -164,7 +165,7 @@ class SimulatorPlanService:
 
     async def update_plan(
         self, plan_id: int, update: SimulatorPlanUpdate
-    ) -> Optional[SimulatorPlanRead]:
+    ) -> SimulatorPlanRead | None:
         """Apply a PATCH to a plan; returns None if the plan does not exist.
 
         Renaming to the current name is a no-op; a collision with another
@@ -429,7 +430,7 @@ class SimulatorPlanService:
         report: CarbonReport | CarbonReportRead,
         module_type_id: int,
         *,
-        ref_report: Optional[CarbonReport] = None,
+        ref_report: CarbonReport | None = None,
     ) -> int:
         """Rebuild a plan module from the reference-year Calculator entries.
 
@@ -663,7 +664,7 @@ class SimulatorPlanService:
 
     async def duplicate_plan(
         self, plan_id: int, user: User
-    ) -> Optional[SimulatorPlanRead]:
+    ) -> SimulatorPlanRead | None:
         """Duplicate a plan as ``<name>-2`` (then ``-3``, ...); None if missing.
 
         The project row and its year range are copied, and the copy's per-year
@@ -684,7 +685,7 @@ class SimulatorPlanService:
             is_viewable_by_unit_members=source.is_viewable_by_unit_members,
             is_grant_proposal=source.is_grant_proposal,
             created_by=user.id,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         copy = await self._flush_guarded(self.repo.create(copy))
         # The copy has no reports yet, so its shape (with or without per-year

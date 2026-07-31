@@ -1,6 +1,5 @@
 """Unit tests for DataEntryRepository."""
 
-from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -1066,7 +1065,8 @@ async def test_get_submodule_data_populates_reference_kg_for_snapshot_rows(
 ):
     """Planner snapshot rows expose the source (reference-year) entry's summed
     emissions as ``reference_kg_co2eq`` — the 100% baseline the % slider scales
-    from. Ordinary rows (no ``source_data_entry_id``) get ``None``."""
+    from. Ordinary rows (no ``source_data_entry_id``) get ``None``.
+    """
     repo = DataEntryRepository(db_session)
 
     # Reference-year Calculator entry with two emission leaves summing to 1000.
@@ -1169,11 +1169,12 @@ async def test_get_submodule_data_populates_reference_kg_for_snapshot_rows(
 async def _make_equipment_entry(
     db_session: AsyncSession,
     *,
-    extra_data: Optional[dict] = None,
-    year: Optional[int] = 2025,
+    extra_data: dict | None = None,
+    year: int | None = 2025,
 ) -> DataEntry:
     """Build an equipment entry with no emission rows, so
-    ``get_submodule_data`` always falls through to the resolver."""
+    ``get_submodule_data`` always falls through to the resolver.
+    """
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)
     db_session.add(report)
     await db_session.flush()
@@ -1226,7 +1227,8 @@ async def test_get_submodule_data_resolves_factor_from_classification_in_sql(
     db_session: AsyncSession,
 ):
     """An entry with a classification but NO emission rows gets its factor
-    from the correlated SQL subquery — sort/filter/display all see it."""
+    from the correlated SQL subquery — sort/filter/display all see it.
+    """
     repo = DataEntryRepository(db_session)
     entry = await _make_equipment_entry(db_session)
     await _make_factor(
@@ -1256,7 +1258,8 @@ async def test_get_submodule_data_ignores_legacy_stored_id_pointing_at_deleted_f
 ):
     """A legacy ``data["primary_factor_id"]`` pointing at a deleted factor
     must never be dereferenced — the classification join wins, and no 500
-    is raised chasing the stale id."""
+    is raised chasing the stale id.
+    """
     repo = DataEntryRepository(db_session)
     entry = await _make_equipment_entry(
         db_session, extra_data={"primary_factor_id": 999999}
@@ -1288,7 +1291,8 @@ async def test_get_submodule_data_year_none_yields_no_factor(
 ):
     """An entry with ``year=None`` matches no factor (the join is
     year-equality-scoped), so factor-backed columns stay empty instead of
-    resolving against the wrong year."""
+    resolving against the wrong year.
+    """
     repo = DataEntryRepository(db_session)
     entry = await _make_equipment_entry(db_session, year=None)
     await _make_factor(
@@ -1319,7 +1323,8 @@ async def test_get_submodule_data_subkind_preference_ordering(
     """The SQL join mirrors FactorResolver's chain: an exact
     ``(kind, subkind)`` row beats the subkind-less fallback row even when
     the fallback has a lower id; an unknown subkind falls back to the
-    subkind-less row."""
+    subkind-less row.
+    """
     repo = DataEntryRepository(db_session)
     entry = await _make_equipment_entry(db_session)  # sub_class "13-inch"
     # Lower id: the kind-only fallback row. Higher id: the exact match.
@@ -1361,7 +1366,8 @@ async def test_get_submodule_data_duplicate_factor_rows_resolve_deterministicall
 ):
     """Duplicate factor generations (impossible in prod post-sweep, but
     seedable) must not 500 the page: the join picks the lowest id
-    deterministically; other rows are unaffected."""
+    deterministically; other rows are unaffected.
+    """
     repo = DataEntryRepository(db_session)
     entry = await _make_equipment_entry(db_session)
     first = await _make_factor(
@@ -1404,7 +1410,8 @@ async def test_get_submodule_data_travel_not_duplicated_for_multi_role_member(
     unit (different sius_code, issue #1564 Part 1). The MemberEntry join
     used to fetch the traveler's display name must pick exactly one of
     those rows deterministically — not fan out and duplicate the travel
-    entry once per matching role."""
+    entry once per matching role.
+    """
     repo = DataEntryRepository(db_session)
 
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)

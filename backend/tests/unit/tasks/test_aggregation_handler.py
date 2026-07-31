@@ -28,7 +28,8 @@ from app.tasks.registry import _REGISTRY, get_handler
 def _registry_snapshot():
     """Snapshot+restore the registry so test order doesn't matter and
     re-importing ``aggregation_tasks`` between test files doesn't trip
-    the duplicate-registration guard."""
+    the duplicate-registration guard.
+    """
     snapshot = dict(_REGISTRY)
     yield
     _REGISTRY.clear()
@@ -72,7 +73,8 @@ def test_aggregation_registered():
 @pytest.mark.asyncio
 async def test_aggregation_calls_recompute_stats_for_each_affected_module():
     """N modules in the (module_type, year) slice → one batched
-    ``recompute_stats_many`` call with every module id."""
+    ``recompute_stats_many`` call with every module id.
+    """
     job = _make_job()
     job_session = MagicMock()
     data_session = MagicMock()
@@ -95,7 +97,8 @@ async def test_aggregation_calls_recompute_stats_for_each_affected_module():
 @pytest.mark.asyncio
 async def test_aggregation_returns_modules_refreshed_in_meta():
     """Single module case — meta dict shape pinned (status_message,
-    result, modules_refreshed)."""
+    result, modules_refreshed).
+    """
     job = _make_job()
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=[MagicMock(id=42)])
@@ -137,7 +140,8 @@ async def test_aggregation_handles_empty_module_set():
 @pytest.mark.asyncio
 async def test_aggregation_raises_on_missing_module_type_id():
     """Missing ``module_type_id`` → ValueError so the runner records
-    FINISHED+ERROR with a clear scope-error message."""
+    FINISHED+ERROR with a clear scope-error message.
+    """
     job = _make_job(module_type_id=None)
     with pytest.raises(ValueError, match="missing module_type_id or year"):
         await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
@@ -154,7 +158,8 @@ async def test_aggregation_raises_on_missing_year():
 async def test_aggregation_raises_on_missing_job_id():
     """Defensive — a job without an id isn't persisted, so we shouldn't
     try to recompute on its behalf.  Mirrors the pattern in
-    ``emission_recalc_handler``."""
+    ``emission_recalc_handler``.
+    """
     job = _make_job(job_id=None)
     with pytest.raises(ValueError, match="job has no id"):
         await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
@@ -169,7 +174,8 @@ async def test_aggregation_raises_on_missing_job_id():
 async def test_aggregation_acquires_advisory_lock_on_postgres():
     """Postgres backend → handler calls ``pg_advisory_xact_lock(cat, year)``
     before doing work. Serialises cross-pipeline aggregations of the
-    same year against the shared ``carbon_reports.stats`` row."""
+    same year against the shared ``carbon_reports.stats`` row.
+    """
     job = _make_job(year=2026)
     data_session = MagicMock()
     data_session.get_bind = MagicMock(
@@ -199,7 +205,8 @@ async def test_aggregation_acquires_advisory_lock_on_postgres():
 @pytest.mark.asyncio
 async def test_aggregation_skips_advisory_lock_on_non_postgres():
     """SQLite / other backends → no advisory-lock attempt (skipped
-    cleanly, single-writer model serialises tests)."""
+    cleanly, single-writer model serialises tests).
+    """
     job = _make_job(year=2026)
     data_session = MagicMock()
     data_session.get_bind.return_value.dialect.name = "sqlite"
@@ -225,7 +232,8 @@ async def test_aggregation_skips_advisory_lock_on_non_postgres():
 @pytest.mark.asyncio
 async def test_aggregation_scopes_to_affected_module_ids():
     """When recalc siblings recorded affected_module_ids, the aggregation
-    recomputes ONLY those modules, not the full (module, year) slice."""
+    recomputes ONLY those modules, not the full (module, year) slice.
+    """
     job = _make_job(pipeline_id="dummy")
     modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
     svc = MagicMock()
@@ -249,7 +257,8 @@ async def test_aggregation_scopes_to_affected_module_ids():
 @pytest.mark.asyncio
 async def test_aggregation_falls_back_to_full_slice_when_no_affected_meta():
     """Helper returns None (legacy / no recalc meta) → preserves prior
-    behavior of recomputing every module in the (module, year) slice."""
+    behavior of recomputing every module in the (module, year) slice.
+    """
     job = _make_job(pipeline_id="dummy")
     modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
     svc = MagicMock()
@@ -278,7 +287,8 @@ async def test_aggregation_falls_back_to_full_slice_when_no_affected_meta():
 @pytest.mark.asyncio
 async def test_aggregation_bumps_status_by_default():
     """No ``skip_module_status_update`` in meta.config → the recalc-chained
-    default: modules still get bumped back to IN_PROGRESS."""
+    default: modules still get bumped back to IN_PROGRESS.
+    """
     job = _make_job(meta={"config": {}})
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=[MagicMock(id=42)])
@@ -295,7 +305,8 @@ async def test_aggregation_skips_status_bump_when_flagged():
     """``meta.config.skip_module_status_update`` (set by the admin
     recompute-stats trigger's create_root_aggregation_job) → bump_status=False,
     so a bulk backfill of stats under current code doesn't stale-out an
-    operator's prior module validation."""
+    operator's prior module validation.
+    """
     job = _make_job(meta={"config": {"skip_module_status_update": True}})
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=[MagicMock(id=42)])

@@ -12,8 +12,6 @@ Policy authorization is only applied to user-initiated API requests,
 not internal system operations like OAuth callbacks or provider synchronization.
 """
 
-from typing import List, Optional
-
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -40,7 +38,7 @@ class UserService:
         self.unit_service = UnitService(session)
 
     def get_uniq_unit_institutional_id_from_roles(
-        self, roles: Optional[List[Role]]
+        self, roles: list[Role] | None
     ) -> list[str]:
         """Get list of unit IDs associated with a user (from RoleScope.unit for now).
         here unit ids should be unit institutional ids. a.k.a CF
@@ -57,13 +55,13 @@ class UserService:
 
     async def _upsert_user_identity(
         self,
-        id: Optional[int],
+        id: int | None,
         institutional_id: str,
         email: str,
-        function: Optional[str] = None,
-        display_name: Optional[str] = None,
-        roles: Optional[List[Role]] = None,
-        provider: Optional[UserProvider] = None,
+        function: str | None = None,
+        display_name: str | None = None,
+        roles: list[Role] | None = None,
+        provider: UserProvider | None = None,
     ) -> User:
         """Upsert user identity scoped by (institutional_id, provider).
 
@@ -125,8 +123,8 @@ class UserService:
     async def unit_membership_sync_user(
         self,
         user: User,
-        roles: List[Role],
-        units: List[Unit],
+        roles: list[Role],
+        units: list[Unit],
     ) -> None:
         """Sync UnitUser associations for a user based on their current roles.
 
@@ -181,17 +179,16 @@ class UserService:
 
     async def upsert_user(
         self,
-        id: Optional[int],
+        id: int | None,
         email: str,
         institutional_id: str,
-        display_name: Optional[str] = None,
-        function: Optional[str] = None,
-        roles: Optional[List[Role]] = None,
+        display_name: str | None = None,
+        function: str | None = None,
+        roles: list[Role] | None = None,
         stop_recursion: bool = False,
-        provider: Optional[UserProvider] = None,
+        provider: UserProvider | None = None,
     ) -> User:
-        """
-        Create or update a user with all related entities.
+        """Create or update a user with all related entities.
 
         This orchestrates:
         1. User creation/update
@@ -258,7 +255,7 @@ class UserService:
 
     async def bulk_create(
         self,
-        users: List[User],
+        users: list[User],
     ) -> UpsertUserResult:
         """Bulk create users."""
         logger.info(f"Bulk creating/updating {len(users)} users")
@@ -266,18 +263,19 @@ class UserService:
         await self.session.flush()  # Ensure user IDs are populated
         return db_objs
 
-    async def bulk_upsert(self, users: List[User]) -> UpsertUserResult:
+    async def bulk_upsert(self, users: list[User]) -> UpsertUserResult:
         """Upsert users — business logic goes here if needed
-        (validation, enrichment, etc.)"""
+        (validation, enrichment, etc.)
+        """
         db_objs = await self.user_repo.bulk_upsert(users)
         await self.session.flush()  # Ensure user IDs are populated
         return db_objs
 
-    async def get_by_id(self, id: int) -> Optional[User]:
+    async def get_by_id(self, id: int) -> User | None:
         """Get user by id."""
         return await self.user_repo.get_by_id(id)
 
-    async def get_by_code(self, code: str) -> Optional[User]:
+    async def get_by_code(self, code: str) -> User | None:
         """Get user by code (deprecated: use get_by_institutional_id_and_provider)."""
         return await self.user_repo.get_by_code(code)
 
@@ -285,7 +283,7 @@ class UserService:
         self,
         institutional_id: str,
         provider: UserProvider,
-    ) -> Optional[User]:
+    ) -> User | None:
         """Get user by institutional_id scoped to provider.
 
         This is the primary user resolution method for authentication.
@@ -295,17 +293,16 @@ class UserService:
             provider=provider,
         )
 
-    async def get_by_email(self, email: str) -> Optional[User]:
+    async def get_by_email(self, email: str) -> User | None:
         """Get user by email."""
         return await self.user_repo.get_by_email(email)
 
-    async def count(self, filters: Optional[dict] = None) -> int:
+    async def count(self, filters: dict | None = None) -> int:
         """Count users with optional filters."""
         return await self.user_repo.count(filters)
 
     def _build_policy_input(self, user: User, action: str) -> dict:
-        """
-        Build policy input data from user context.
+        """Build policy input data from user context.
 
         Args:
             user: Current user
@@ -324,9 +321,8 @@ class UserService:
 
     async def list_users(
         self, user: User, skip: int = 0, limit: int = 100
-    ) -> List[User]:
-        """
-        List users with policy-based filtering.
+    ) -> list[User]:
+        """List users with policy-based filtering.
 
         This method:
         1. Builds policy input with user context
@@ -388,8 +384,7 @@ class UserService:
         return users
 
     async def get_user(self, user_id: int, current_user: User) -> User:
-        """
-        Get a user by ID with authorization.
+        """Get a user by ID with authorization.
 
         Returns 404 (not 403) if user lacks access to hide existence of the user.
 
@@ -445,8 +440,7 @@ class UserService:
         return user
 
     async def create_user(self, user_data: dict, current_user: User) -> User:
-        """
-        Create a new user.
+        """Create a new user.
 
         Note: Permission check is handled at the endpoint level via require_permission.
 
@@ -478,8 +472,7 @@ class UserService:
         return user
 
     async def update_user(self, id: int, user_data: dict, current_user: User) -> User:
-        """
-        Update a user.
+        """Update a user.
 
         Note: Permission check is handled at the endpoint level via require_permission.
 
@@ -511,8 +504,7 @@ class UserService:
         return user
 
     async def delete_user(self, user_id: int, current_user: User) -> bool:
-        """
-        Delete a user.
+        """Delete a user.
 
         Note: Permission check is handled at the endpoint level via require_permission.
 
@@ -539,9 +531,8 @@ class UserService:
 
         return deleted
 
-    async def export_users(self, current_user: User) -> List[User]:
-        """
-        Export all users (with policy-based filtering).
+    async def export_users(self, current_user: User) -> list[User]:
+        """Export all users (with policy-based filtering).
 
         Args:
             current_user: Current user (for authorization context)

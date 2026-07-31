@@ -4,11 +4,9 @@ This module provides functions to calculate user permissions based on their role
 Permissions are calculated dynamically from roles and returned as a structured dict.
 """
 
-from typing import Optional
-
 
 def derive_backoffice_affiliations(
-    permissions: Optional[dict],
+    permissions: dict | None,
     anchor_path: str = "backoffice.reporting",
 ) -> tuple[bool, set[str]]:
     """Inspect permission keys for backoffice sub-perimeter scoping (#459).
@@ -35,11 +33,11 @@ def derive_backoffice_affiliations(
 
 
 def has_permission(
-    permissions: Optional[dict],
+    permissions: dict | None,
     path: str,
     action: str = "view",
     *,
-    institutional_id: Optional[str] = None,
+    institutional_id: str | None = None,
     any_scope: bool = False,
 ) -> bool:
     """Check if a permission exists and grants ``action``.
@@ -102,12 +100,12 @@ def has_permission(
 
 
 def resolve_module_scope(
-    permissions: Optional[dict],
+    permissions: dict | None,
     path: str,
     action: str,
     *,
     institutional_id: str,
-) -> Optional[str]:
+) -> str | None:
     """Return the breadth at which ``action`` on ``path`` is granted for a unit.
 
     ``"global"`` (bare key) > ``"unit"`` (``path/<unit>``) > ``"own"``

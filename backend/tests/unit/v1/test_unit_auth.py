@@ -50,7 +50,8 @@ async def test_login_redirect_forces_https_behind_tls_terminator(monkeypatch):
     """Regression: behind a TLS-terminating LB the proxy may leave the
     pod-visible scheme as http (e.g. duplicate X-Forwarded-Proto that uvicorn's
     ProxyHeadersMiddleware drops). With COOKIE_SECURE set, oauth_login must
-    still hand Entra an https redirect_uri."""
+    still hand Entra an https redirect_uri.
+    """
     monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", True)
     captured = {}
 
@@ -68,7 +69,8 @@ async def test_login_redirect_forces_https_behind_tls_terminator(monkeypatch):
 @pytest.mark.asyncio
 async def test_login_redirect_keeps_http_for_local_dev(monkeypatch):
     """Local http dev keeps COOKIE_SECURE=false, so http://localhost is left
-    intact — Entra exempts localhost from the https redirect_uri requirement."""
+    intact — Entra exempts localhost from the https redirect_uri requirement.
+    """
     monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", False)
     captured = {}
 

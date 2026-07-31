@@ -20,7 +20,7 @@ cleaned in place instead of waiting for a reseed that no longer happens):
   restores the key-absent shape the CSV ingest always wrote.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
@@ -34,9 +34,9 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "954eac6c95da"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = "d88cd2f143bf"  # noqa: F841
-branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
-depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
+down_revision: str | Sequence[str] | None = "d88cd2f143bf"  # noqa: F841
+branch_labels: str | Sequence[str] | None = None  # noqa: F841
+depends_on: str | Sequence[str] | None = None  # noqa: F841
 
 
 def upgrade() -> None:
@@ -63,4 +63,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """No-op: both keys are dead weight the current code never reads or
-    writes; the removed values are not recoverable and not needed."""
+    writes; the removed values are not recoverable and not needed.
+    """

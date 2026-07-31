@@ -1,6 +1,6 @@
 """Unit service for business logic with Policy integration."""
 
-from typing import Any, List, Optional
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlmodel import col, select
@@ -27,10 +27,9 @@ class UnitService:
         self.unit_repo = UnitRepository(session)
 
     def _build_policy_input(
-        self, user: User, action: str, unit: Optional[Unit] = None
+        self, user: User, action: str, unit: Unit | None = None
     ) -> dict:
-        """
-        Build OPA input data from user and unit context.
+        """Build OPA input data from user and unit context.
 
         Args:
             user: Current user
@@ -56,9 +55,8 @@ class UnitService:
 
     async def get_user_units(
         self, user: User, skip: int = 0, limit: int = 100
-    ) -> List[dict]:
-        """
-        List units with policy authorization and enriched user data.
+    ) -> list[dict]:
+        """List units with policy authorization and enriched user data.
 
         This orchestrates:
         1. Policy authorization with user context
@@ -151,9 +149,7 @@ class UnitService:
             ) in rows
         ]
 
-    async def get_by_institutional_id(
-        self, institutional_id: str
-    ) -> Optional[UnitRead]:
+    async def get_by_institutional_id(self, institutional_id: str) -> UnitRead | None:
         """Get a unit by its institutional_id."""
         unit = await self.unit_repo.get_by_institutional_id(institutional_id)
         if unit is None:
@@ -161,8 +157,7 @@ class UnitService:
         return UnitRead.model_validate(unit)
 
     async def get_by_id(self, id: int, user: User) -> Unit:
-        """
-        Get a unit by ID with authorization.
+        """Get a unit by ID with authorization.
 
         Args:
             unit_id: Unit ID
@@ -213,8 +208,7 @@ class UnitService:
         return unit
 
     async def upsert(self, unit_data: Unit) -> Unit:
-        """
-        Create or update a unit (internal operation).
+        """Create or update a unit (internal operation).
 
         This is called during:
         - OAuth sync
@@ -240,7 +234,7 @@ class UnitService:
 
     async def bulk_create(
         self,
-        units: List[Unit],
+        units: list[Unit],
     ) -> UpsertResult:
         """Bulk create units."""
         logger.info(f"Bulk creating/updating {len(units)} units")
@@ -248,19 +242,20 @@ class UnitService:
         await self.session.flush()  # Ensure unit IDs are populated
         return db_objs
 
-    async def bulk_upsert(self, units: List[Unit]) -> UpsertResult:
+    async def bulk_upsert(self, units: list[Unit]) -> UpsertResult:
         """Upsert units — business logic goes here if needed
-        (validation, enrichment, etc.)"""
+        (validation, enrichment, etc.)
+        """
         db_objs = await self.unit_repo.bulk_upsert(units)
         await self.session.flush()  # Ensure unit IDs are populated
         return db_objs
 
     async def get_by_institutional_ids(
-        self, institutional_ids: List[str]
-    ) -> List[Unit]:
+        self, institutional_ids: list[str]
+    ) -> list[Unit]:
         """Get units by their institutional IDs (batch lookup, no policy checks)."""
         return await self.unit_repo.get_by_institutional_ids(institutional_ids)
 
-    async def count(self, filters: Optional[dict] = None) -> int:
+    async def count(self, filters: dict | None = None) -> int:
         """Count units with optional filters."""
         return await self.unit_repo.count(filters)

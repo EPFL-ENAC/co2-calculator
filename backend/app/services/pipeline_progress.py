@@ -27,7 +27,8 @@ The model is 3 fixed phases:
 
 from __future__ import annotations
 
-from typing import Iterable, Literal, Optional, TypedDict
+from collections.abc import Iterable
+from typing import Literal, TypedDict
 
 from app.models.data_ingestion import (
     DataIngestionJob,
@@ -74,7 +75,7 @@ class PipelineProgress(TypedDict):
     # had issues") distinctly from FAILED (red, "data didn't land").
     # ``None`` for orphans whose Pipeline row was never minted; the
     # frontend falls back to has_error/done in that case.
-    status: Optional[str]
+    status: str | None
     # Parent ``job_type`` ("csv_ingest" / "api_ingest" / "factor_ingest"
     # / "unit_sync" / "reference_ingest").  Used by the frontend to
     # decide *which* per-target card the phase indicator applies to:
@@ -82,7 +83,7 @@ class PipelineProgress(TypedDict):
     # render its phase on the data card, and vice versa.  Sourced
     # from ``pipeline.kind`` when present; falls back to the root
     # job's ``job_type`` for orphan / pre-Phase-1 cases.
-    kind: Optional[str]
+    kind: str | None
 
 
 def _is_finished(job: DataIngestionJob) -> bool:
@@ -120,7 +121,7 @@ def _find_root(jobs: list[DataIngestionJob]) -> DataIngestionJob | None:
 def compute_pipeline_progress(
     jobs: Iterable[DataIngestionJob],
     *,
-    pipeline: Optional[Pipeline] = None,
+    pipeline: Pipeline | None = None,
 ) -> PipelineProgress:
     """Compute the authoritative phase/done/error for a pipeline.
 
@@ -172,12 +173,12 @@ def compute_pipeline_progress(
     if pipeline is not None:
         has_error = pipeline.status in _ERROR_PIPELINE_STATUSES
         is_done = pipeline.status in _TERMINAL_PIPELINE_STATUSES
-        status_str: Optional[str] = pipeline.status
+        status_str: str | None = pipeline.status
         # ``pipeline.kind`` is the parent job_type (set at
         # ``ensure_pipeline_exists`` time).  Prefer it over the root
         # job's ``job_type`` so a legacy data-shape mismatch (e.g.
         # a meta backfill that doesn't reach jobs) still resolves.
-        kind: Optional[str] = pipeline.kind
+        kind: str | None = pipeline.kind
     else:
         has_error = has_error_jobs
         is_done = None  # sentinel: compute from jobs below

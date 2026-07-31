@@ -6,8 +6,6 @@ key survives as one lookup — ``GET /carbon-reports/unit/{unit_id}/year/{year}/
 — after which every call carries the report id ("lookup once, then identity").
 """
 
-from typing import List, Optional, Union
-
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -137,7 +135,7 @@ async def _get_professional_travel_institutional_id_filter(
     unit_id: int,
     current_user: User,
     data_entry_type_id: DataEntryTypeEnum,
-) -> Optional[str]:
+) -> str | None:
     """Return the institutional scope for professional-travel data access."""
     is_travel_type = data_entry_type_id in (
         DataEntryTypeEnum.plane,
@@ -168,7 +166,7 @@ async def _get_professional_travel_institutional_id_filter(
 
 def _has_global_or_principal_access_for_unit(
     current_user: User,
-    unit: Optional[Unit],
+    unit: Unit | None,
 ) -> bool:
     """Return whether the user has global or principal access for the unit.
 
@@ -243,8 +241,7 @@ async def get_module(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Get module data with equipment and emissions.
+    """Get module data with equipment and emissions.
 
     Returns equipment items grouped by submodule with pre-calculated
     emissions from the database. Preview mode returns limited items
@@ -277,7 +274,7 @@ async def get_module(
         report=report,
     )
     carbon_report_module_id = module.id
-    travel_institutional_id_filter: Optional[str] = None
+    travel_institutional_id_filter: str | None = None
     if ModuleTypeEnum[module_key] == ModuleTypeEnum.professional_travel:
         if not _has_global_or_principal_access_for_unit(
             current_user=current_user,
@@ -349,9 +346,8 @@ async def get_stats_by_class(
     module_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> List:
-    """
-    Get travel emissions aggregated by travel category and cabin_class.
+) -> list:
+    """Get travel emissions aggregated by travel category and cabin_class.
 
     Returns treemap-format data for charts.
     """
@@ -403,10 +399,10 @@ _MODULE_TOP_CLASS_GROUP_FIELD_OVERRIDES: dict[
 async def get_top_class_breakdown(
     carbon_report_id: int,
     module_id: str,
-    combine_unit_ids: List[int] = Query(default_factory=list),
+    combine_unit_ids: list[int] = Query(default_factory=list),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> List:
+) -> list:
     """Get emissions aggregated by subcategory with top 3 items per subcategory.
 
     Returns a list per subcategory, each containing the top 3 items (by
@@ -478,7 +474,7 @@ async def get_top_class_breakdown(
     # an override (e.g. animal facilities grouped by rodent/fish type) are
     # aggregated separately, preserving the configured bar order.
     overrides = _MODULE_TOP_CLASS_GROUP_FIELD_OVERRIDES.get(module_type, {})
-    field_groups: dict[str, List[DataEntryTypeEnum]] = {}
+    field_groups: dict[str, list[DataEntryTypeEnum]] = {}
     for det in data_entry_types:
         field_groups.setdefault(overrides.get(det, group_field), []).append(det)
 
@@ -508,13 +504,13 @@ async def get_top_class_breakdown(
 
 @router.get(
     "/{carbon_report_id}/modules/headcount/members",
-    response_model=List[HeadcountMemberDropdownItem],
+    response_model=list[HeadcountMemberDropdownItem],
 )
 async def list_headcount_members(
     carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> List[HeadcountMemberDropdownItem]:
+) -> list[HeadcountMemberDropdownItem]:
     """List headcount members with an institutional ID for traveler dropdowns.
 
     Args:
@@ -657,14 +653,13 @@ async def get_submodule(
     limit: int = Query(default=100, le=1000, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
     sort_order: str = Query(default="asc", description="Sort order: 'asc' or 'desc'"),
-    filter: Optional[str] = Query(
+    filter: str | None = Query(
         default=None, description="Filter string to search in name or display_name"
     ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Get paginated data for a single submodule.
+    """Get paginated data for a single submodule.
 
     Args:
         carbon_report_id: The addressed carbon report (pins unit and year)
@@ -753,7 +748,7 @@ async def check_unique(
     submodule_id: str,
     field: str = Query(..., description="JSON data field to check uniqueness for"),
     value: str = Query(..., description="Value to check"),
-    exclude_id: Optional[int] = Query(
+    exclude_id: int | None = Query(
         default=None, description="Entry ID to exclude (for PATCH pre-validation)"
     ),
     db: AsyncSession = Depends(get_db),
@@ -815,8 +810,7 @@ async def create(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Create new equipment item.
+    """Create new equipment item.
 
     Args:
         carbon_report_id: The addressed carbon report (pins unit and year)
@@ -875,10 +869,7 @@ async def create(
 
 @router.get(
     "/{carbon_report_id}/modules/{module_id}/{submodule_id}/{item_id}",
-    response_model=Union[
-        HeadcountItemResponse,
-        DataEntryResponse,
-    ],
+    response_model=HeadcountItemResponse | DataEntryResponse,
 )
 async def get(
     carbon_report_id: int,
@@ -904,10 +895,7 @@ async def get(
         f"GET item: carbon_report_id={sanitize(carbon_report_id)}, "
         f"module_id={sanitize(module_id)}, item_id={sanitize(item_id)}"
     )
-    item: Union[
-        HeadcountItemResponse,
-        DataEntryResponse,
-    ]
+    item: HeadcountItemResponse | DataEntryResponse
     item = await DataEntryService(db).get(
         id=item_id,
     )
@@ -918,10 +906,7 @@ async def get(
 
 @router.patch(
     "/{carbon_report_id}/modules/{module_id}/{submodule_id}/{item_id}",
-    response_model=Union[
-        HeadcountItemResponse,
-        DataEntryResponse,
-    ],
+    response_model=HeadcountItemResponse | DataEntryResponse,
 )
 async def update(
     carbon_report_id: int,

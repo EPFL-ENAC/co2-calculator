@@ -1,7 +1,6 @@
 """Carbon report service for business logic."""
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -114,7 +113,7 @@ def _build_report_stats(modules, is_simulator: bool = False) -> dict:
         validated_buckets=validated_buckets,
     )
 
-    highest_category_module_id: Optional[int] = None
+    highest_category_module_id: int | None = None
     highest_category_total = 0.0
     for module in modules:
         if module.module_type_id not in validated_module_type_ids:
@@ -133,7 +132,7 @@ def _build_report_stats(modules, is_simulator: bool = False) -> dict:
         "total_fte": total_fte,
         "by_emission_type": merged["by_emission_type"],
         "by_additional_value": merged["by_additional_value"],
-        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "computed_at": datetime.now(UTC).isoformat(),
         "entry_count": merged["entry_count"],
         "highest_category_module_id": highest_category_module_id,
     }
@@ -162,7 +161,7 @@ class CarbonReportService:
 
     async def _get_project(
         self, unit_id: int, report_type: CarbonReportType
-    ) -> Optional[CarbonProject]:
+    ) -> CarbonProject | None:
         """Return the existing CarbonProject for a unit+type, or None.
 
         Idempotent: never creates or mutates any data.
@@ -188,8 +187,7 @@ class CarbonReportService:
         return project
 
     async def create(self, data: CarbonReportCreate) -> CarbonReportRead:
-        """
-        Create a new carbon report and auto-create all module records.
+        """Create a new carbon report and auto-create all module records.
 
         Automatically resolves the Calculator carbon project for the unit
         (creating it if it doesn't yet exist).
@@ -228,7 +226,7 @@ class CarbonReportService:
         *,
         unit_id: int,
         reference_year: int,
-    ) -> Optional[CarbonReportRead]:
+    ) -> CarbonReportRead | None:
         """Return the existing Simulator Explore report for a unit/year, or None.
 
         Idempotent: never creates or mutates any data.
@@ -253,7 +251,7 @@ class CarbonReportService:
         project = await self._get_project(
             unit_id, CarbonReportType.SIMULATOR_EXPLORE
         ) or await self._create_project(unit_id, CarbonReportType.SIMULATOR_EXPLORE)
-        now_ts = int(datetime.now(timezone.utc).timestamp())
+        now_ts = int(datetime.now(UTC).timestamp())
         created = await self.repo.create(
             CarbonReportCreate(
                 unit_id=unit_id,
@@ -296,7 +294,7 @@ class CarbonReportService:
         carbon_reports = await self.repo.bulk_upsert(enriched)
         return [CarbonReportRead.model_validate(cr) for cr in carbon_reports]
 
-    async def get(self, carbon_report_id: int) -> Optional[CarbonReportRead]:
+    async def get(self, carbon_report_id: int) -> CarbonReportRead | None:
         """Get a carbon report by ID."""
         carbon_report = await self.repo.get(carbon_report_id)
         if carbon_report is None:
@@ -307,14 +305,14 @@ class CarbonReportService:
         results = await self.repo.get_reporting_overview(*args)
         return [CarbonReportRead.model_validate(cr) for cr in results]
 
-    async def list_by_unit(self, unit_id: int) -> List[CarbonReportRead]:
+    async def list_by_unit(self, unit_id: int) -> list[CarbonReportRead]:
         """List all Calculator carbon reports for a unit."""
         carbon_reports = await self.repo.list_by_unit(unit_id)
         return [CarbonReportRead.model_validate(cr) for cr in carbon_reports]
 
     async def get_by_unit_and_year(
         self, unit_id: int, year: int
-    ) -> Optional[CarbonReportRead]:
+    ) -> CarbonReportRead | None:
         """Get a Calculator carbon report by unit and year."""
         carbon_report = await self.repo.get_by_unit_and_year(unit_id, year)
         if carbon_report is None:
@@ -323,7 +321,7 @@ class CarbonReportService:
 
     async def update(
         self, carbon_report_id: int, data: CarbonReportUpdate
-    ) -> Optional[CarbonReportRead]:
+    ) -> CarbonReportRead | None:
         """Update a carbon report."""
         carbon_report = await self.repo.update(carbon_report_id, data)
         if carbon_report is None:
@@ -331,9 +329,7 @@ class CarbonReportService:
         return CarbonReportRead.model_validate(carbon_report)
 
     async def delete(self, carbon_report_id: int) -> bool:
-        """
-        Delete a carbon report and all its associated modules.
-        """
+        """Delete a carbon report and all its associated modules."""
         await self.module_service.delete_all_modules_for_report(carbon_report_id)
         return await self.repo.delete(carbon_report_id)
 
@@ -402,7 +398,7 @@ class CarbonReportService:
             report_id: report_type for report_id, report_type in type_rows
         }
 
-        now_ts = int(datetime.now(timezone.utc).timestamp())
+        now_ts = int(datetime.now(UTC).timestamp())
         updated = 0
         for report in reports:
             modules = modules_by_report.get(report.id or -1)
@@ -436,8 +432,7 @@ class CarbonReportService:
         )
 
     async def recompute_report_progress(self, carbon_report_id: int) -> None:
-        """
-        Recompute completion_progress and overall_status for a carbon report.
+        """Recompute completion_progress and overall_status for a carbon report.
 
         completion_progress: String like '5/7' showing completed modules vs total
         overall_status: Inferred from child modules:
@@ -469,7 +464,7 @@ class CarbonReportService:
         if report:
             report.completion_progress = completion_progress
             report.overall_status = overall_status
-            report.last_updated = int(datetime.now(timezone.utc).timestamp())
+            report.last_updated = int(datetime.now(UTC).timestamp())
             await self.session.flush()
             logger.info(
                 f"Report progress updated for carbon_report_id={report_id_sanitized}: "

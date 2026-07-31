@@ -95,7 +95,8 @@ def test_reset_registry_clears():
 def test_register_rejects_sync_function():
     """Sync handlers would only fail at first dispatch (`await sync_fn()` is
     a TypeError).  Catching at registration moves the error from "mystery
-    runtime job failure" to "import-time loud crash"."""
+    runtime job failure" to "import-time loud crash".
+    """
 
     def sync_handler(job, job_session, data_session) -> dict:
         return {}
@@ -109,7 +110,8 @@ def test_register_rejects_sync_function():
 
 def test_register_rejects_wrong_arity():
     """Handler signature must accept (job, job_session, data_session).
-    Anything taking fewer required positionals would TypeError at dispatch."""
+    Anything taking fewer required positionals would TypeError at dispatch.
+    """
 
     async def too_few(job) -> dict:
         return {}
@@ -125,7 +127,8 @@ def test_register_rejects_wrong_arity():
 
 def test_register_accepts_var_positional_handler():
     """``*args``-style handlers are valid — they trivially accept the 3-arg
-    contract.  Some test mocks use this shape."""
+    contract.  Some test mocks use this shape.
+    """
 
     async def varargs_handler(*args, **kwargs) -> dict:
         return {}

@@ -16,7 +16,7 @@ Pins:
 Requires Docker — see ``conftest.py``'s ``postgres_container``.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import httpx
@@ -47,7 +47,8 @@ WORKERS_URL = "/api/v1/sync/workers"
 @pytest_asyncio.fixture
 async def pg_app(pg_dsn, monkeypatch):
     """Wire FastAPI to test PG + bypass auth (same pattern as the
-    other workers/abort suites in this directory)."""
+    other workers/abort suites in this directory).
+    """
     psycopg_dsn = pg_dsn.replace("+asyncpg", "+psycopg")
     test_engine = create_async_engine(psycopg_dsn, future=True)
     Sf = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
@@ -98,8 +99,9 @@ async def _seed_pod(
 ) -> Pod:
     """Insert a pod row with a controllable ``last_heartbeat_at``
     offset.  ``heartbeat_age_seconds = 0`` → "live right now"; large
-    values → "dead" (past the 2× window the endpoint filters by)."""
-    now = datetime.now(timezone.utc)
+    values → "dead" (past the 2× window the endpoint filters by).
+    """
+    now = datetime.now(UTC)
     async with Sf() as s:
         pod = Pod(
             pod_id=pod_id,
@@ -131,7 +133,7 @@ async def _seed_claimed_job(Sf, *, locked_by: str) -> int:
             is_current=True,
             job_type="csv_ingest",
             locked_by=locked_by,
-            locked_at=datetime.now(timezone.utc),
+            locked_at=datetime.now(UTC),
             meta={},
         )
         s.add(job)
@@ -172,7 +174,8 @@ async def test_workers_endpoint_returns_only_live_pods(pg_app):
 @pytest.mark.asyncio
 async def test_workers_endpoint_surfaces_git_sha(pg_app):
     """The git_sha + app_version round-trip — the diagnostic that
-    catches the local+stage scenario at a glance."""
+    catches the local+stage scenario at a glance.
+    """
     Sf = pg_app["factory"]
     await _seed_pod(
         Sf,
@@ -233,7 +236,8 @@ async def test_workers_endpoint_counts_claimed_jobs(pg_app):
 async def test_workers_endpoint_returns_empty_when_no_pods(pg_app):
     """No pods registered → empty list, not 404 (the endpoint is
     always queryable; absence of pods is information, not an
-    error)."""
+    error).
+    """
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://test",
@@ -260,7 +264,7 @@ async def test_workers_endpoint_tolerates_tz_naive_rows(pg_app):
     from sqlalchemy import text
 
     Sf = pg_app["factory"]
-    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    now_naive = datetime.now(UTC).replace(tzinfo=None)
     # Bypass the ORM (which would coerce on write) and write the
     # naive value at the SQL layer — matches what a TIMESTAMP-WITHOUT-
     # TZ column would round-trip on read.

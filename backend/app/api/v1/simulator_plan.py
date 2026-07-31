@@ -1,7 +1,5 @@
 """Simulator plan (project planner) API endpoints."""
 
-from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -56,7 +54,7 @@ async def _require_plan_unit_access(
     return service
 
 
-@router.get("/unit/{unit_id}/", response_model=List[SimulatorPlanRead])
+@router.get("/unit/{unit_id}/", response_model=list[SimulatorPlanRead])
 async def list_simulator_plans(
     unit_id: int,
     db: AsyncSession = Depends(get_db),
@@ -82,7 +80,7 @@ async def list_simulator_plans(
 )
 async def create_simulator_plan(
     unit_id: int,
-    plan: Optional[SimulatorPlanCreate] = None,
+    plan: SimulatorPlanCreate | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -141,7 +139,7 @@ async def update_simulator_plan(
     return _with_can_manage(current_user, [result])[0]
 
 
-@router.get("/{plan_id}/years", response_model=List[SimulatorPlanYearRead])
+@router.get("/{plan_id}/years", response_model=list[SimulatorPlanYearRead])
 async def list_simulator_plan_years(
     plan_id: int,
     db: AsyncSession = Depends(get_db),

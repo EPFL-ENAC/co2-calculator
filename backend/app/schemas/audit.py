@@ -1,7 +1,7 @@
 """Audit log schemas for API request/response validation."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -16,18 +16,18 @@ class AuditLogEntry(BaseModel):
     entity_id: int
     version: int
     change_type: AuditChangeTypeEnum
-    change_reason: Optional[str] = None
-    changed_by: Optional[int] = None
-    changed_by_display_name: Optional[str] = None
+    change_reason: str | None = None
+    changed_by: int | None = None
+    changed_by_display_name: str | None = None
     changed_at: datetime
     handler_id: str
-    handled_ids: List[str] = Field(default_factory=list)
+    handled_ids: list[str] = Field(default_factory=list)
     ip_address: str
-    route_path: Optional[str] = None
-    message_summary: Optional[str] = None
-    sync_status: Optional[str] = None
-    sync_error: Optional[str] = None
-    synced_at: Optional[datetime] = None
+    route_path: str | None = None
+    message_summary: str | None = None
+    sync_status: str | None = None
+    sync_error: str | None = None
+    synced_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -36,8 +36,8 @@ class AuditLogEntry(BaseModel):
 class AuditLogDetail(AuditLogEntry):
     """Full audit log entry with snapshot and diff (for detail view)."""
 
-    data_snapshot: Dict[str, Any] = Field(default_factory=dict)
-    data_diff: Optional[Dict[str, Any]] = None
+    data_snapshot: dict[str, Any] = Field(default_factory=dict)
+    data_diff: dict[str, Any] | None = None
 
     class Config:
         from_attributes = True
@@ -54,7 +54,7 @@ class PaginationMeta(BaseModel):
 class AuditLogListResponse(BaseModel):
     """Paginated list of audit log entries."""
 
-    data: List[AuditLogEntry]
+    data: list[AuditLogEntry]
     pagination: PaginationMeta
 
 

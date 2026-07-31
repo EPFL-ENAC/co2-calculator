@@ -1,7 +1,7 @@
 """CarbonReportModule service for business logic."""
 
-from datetime import datetime, timezone
-from typing import List, Optional, Sequence
+from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -153,7 +153,7 @@ def compute_module_stats(
         "by_emission_type": merged_et,
         "by_additional_value": merged_additional,
         "entry_count": entry_count,
-        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "computed_at": datetime.now(UTC).isoformat(),
         **(module_extras or {}),
     }
 
@@ -202,9 +202,8 @@ class CarbonReportModuleService:
 
     async def create_all_modules_for_report(
         self, carbon_report_id: int
-    ) -> List[CarbonReportModuleRead]:
-        """
-        Create all module records for a new carbon report.
+    ) -> list[CarbonReportModuleRead]:
+        """Create all module records for a new carbon report.
 
         Creates one CarbonReportModule per module type (7 total) with
         status NOT_STARTED.
@@ -262,7 +261,7 @@ class CarbonReportModuleService:
 
     async def get_module(
         self, carbon_report_id: int, module_type_id: int
-    ) -> Optional[CarbonReportModuleRead]:
+    ) -> CarbonReportModuleRead | None:
         """Get a carbon report module by report and module type."""
         carbon_report_module = await self.repo.get_by_report_and_module_type(
             carbon_report_id, module_type_id
@@ -274,7 +273,7 @@ class CarbonReportModuleService:
     async def list_modules(
         self,
         carbon_report_id: int,
-    ) -> List[CarbonReportModuleRead]:
+    ) -> list[CarbonReportModuleRead]:
         """List all modules for a carbon report.
 
         Plan 310-D / Issue #1062 — ``current_pipeline_id`` enrichment
@@ -288,7 +287,7 @@ class CarbonReportModuleService:
 
     async def list_modules_for(
         self, module_type_id: int, year: int
-    ) -> List[CarbonReportModule]:
+    ) -> list[CarbonReportModule]:
         """Return all CarbonReportModule rows for a (module_type_id, year) slice.
 
         Used by the Plan 310-D ``aggregation`` handler to identify which
@@ -301,9 +300,8 @@ class CarbonReportModuleService:
 
     async def update_status(
         self, carbon_report_id: int, module_type_id: int, status: int
-    ) -> Optional[CarbonReportModuleRead]:
-        """
-        Update the status of a carbon report module.
+    ) -> CarbonReportModuleRead | None:
+        """Update the status of a carbon report module.
 
         Args:
             carbon_report_id: The carbon report ID
@@ -347,7 +345,7 @@ class CarbonReportModuleService:
 
     async def update_is_active(
         self, carbon_report_id: int, module_type_id: int, is_active: bool
-    ) -> Optional[CarbonReportModuleRead]:
+    ) -> CarbonReportModuleRead | None:
         """Toggle a module's Active flag (Simulator Plan checkbox)."""
         logger.info(
             f"Setting report {sanitize(carbon_report_id)} module "
@@ -479,7 +477,7 @@ class CarbonReportModuleService:
         fte_by_module = await self._headcount_fte_by_module(modules)
         year_by_report = await self._years_by_report(modules)
 
-        now_utc = int(datetime.now(timezone.utc).timestamp())
+        now_utc = int(datetime.now(UTC).timestamp())
         refreshed = 0
         report_ids: set[int] = set()
         for module in modules:
@@ -627,7 +625,7 @@ class CarbonReportModuleService:
         return {"it_top_classes": {stats_key: rows}}
 
     async def build_merged_it_top_classes(
-        self, carbon_report_ids: List[int], report_year: int | None = None
+        self, carbon_report_ids: list[int], report_year: int | None = None
     ) -> dict[str, list]:
         """Rank IT top classes across several reports as one aggregate.
 

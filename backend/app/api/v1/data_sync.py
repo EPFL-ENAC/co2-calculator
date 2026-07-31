@@ -1,8 +1,7 @@
 import asyncio
 import enum
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Optional, TypeVar
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import (
@@ -94,9 +93,9 @@ async def _stamp_job_type_and_meta(
     job_id: int,
     *,
     job_type: str,
-    provider_name: Optional[str] = None,
-    extra_meta: Optional[dict] = None,
-    pipeline_id: Optional[UUID] = None,
+    provider_name: str | None = None,
+    extra_meta: dict | None = None,
+    pipeline_id: UUID | None = None,
 ) -> None:
     """After ``provider.create_job`` returns, stamp ``job_type`` and
     extend ``meta`` so the runner's registry lookup hits the right
@@ -154,7 +153,8 @@ async def _validate_provider_connection_or_503(
 ) -> None:
     """Call ``provider.validate_connection()``, mapping both a config-gap
     ``ValueError`` and a plain "not connected" result to a clean 503 instead
-    of letting either escape as (or resemble) a bare 500."""
+    of letting either escape as (or resemble) a bare 500.
+    """
     try:
         connected = await provider.validate_connection()
     except ValueError as exc:
@@ -175,7 +175,7 @@ async def _validate_provider_connection_or_503(
 async def _institutional_id_for_crm(
     db: AsyncSession,
     carbon_report_module_id: int,
-) -> Optional[str]:
+) -> str | None:
     """Resolve carbon_report_module_id → unit.institutional_id."""
     stmt = (
         select(Unit.institutional_id)
@@ -197,7 +197,8 @@ async def _institutional_ids_for_crms(
     """Batch resolve carbon_report_module_id → unit.institutional_id.
 
     One IN-query for the whole page so the pipelines list shows the unit
-    code for unit-specific runs without an N+1 per row."""
+    code for unit-specific runs without an N+1 per row.
+    """
     if not carbon_report_module_ids:
         return {}
     stmt = (
@@ -215,7 +216,7 @@ async def _institutional_ids_for_crms(
 
 async def _institutional_id_for_job(
     job: DataIngestionJob, db: AsyncSession
-) -> Optional[str]:
+) -> str | None:
     """Resolve a job's institutional scope for permission gating.
 
     ``MODULE_UNIT_SPECIFIC`` jobs carry ``entity_id`` (FK to
@@ -330,26 +331,26 @@ router = APIRouter()
 
 
 class SyncRequestConfig(BaseModel):
-    carbon_report_module_id: Optional[int] = None
-    data_entry_type_id: Optional[int] = None
-    reduction_objective_type_id: Optional[int] = None
-    module_type_id: Optional[ModuleTypeEnum] = None
+    carbon_report_module_id: int | None = None
+    data_entry_type_id: int | None = None
+    reduction_objective_type_id: int | None = None
+    module_type_id: ModuleTypeEnum | None = None
 
 
 class SyncRequest(BaseModel):
     ingestion_method: IngestionMethod
     target_type: TargetType
-    year: Optional[int] = None
-    filters: Optional[dict] = {}
-    config: Optional[SyncRequestConfig] = None
-    file_path: Optional[str] = None
+    year: int | None = None
+    filters: dict | None = {}
+    config: SyncRequestConfig | None = None
+    file_path: str | None = None
 
 
 class SyncStatusResponse(BaseModel):
     job_id: int
     state: IngestionState
     message: str
-    progress: Optional[dict] = None
+    progress: dict | None = None
     # Issue #1219 — the parent's pipeline_id, assigned eagerly at
     # creation (not lazily at first fan-out) so the frontend can seed
     # its pipeline-state store and subscribe to the SSE stream from
@@ -357,22 +358,22 @@ class SyncStatusResponse(BaseModel):
     # discovers the pipeline after the upload job already FINISHED,
     # so phase 1 ("Inserting data…") is never visible and fast
     # chains complete inside the discovery gap, showing nothing.
-    pipeline_id: Optional[str] = None
+    pipeline_id: str | None = None
 
 
 class SyncJobResponse(BaseModel):
     job_id: int
-    module_type_id: Optional[int] = None
-    data_entry_type_id: Optional[int] = None
-    year: Optional[int] = None
+    module_type_id: int | None = None
+    data_entry_type_id: int | None = None
+    year: int | None = None
     ingestion_method: IngestionMethod
-    target_type: Optional[TargetType] = None
-    status_message: Optional[str] = None
-    meta: Optional[dict] = None
-    state: Optional[IngestionState] = None
-    result: Optional[IngestionResult] = None
-    locked_by: Optional[str] = None
-    is_current: Optional[bool] = None
+    target_type: TargetType | None = None
+    status_message: str | None = None
+    meta: dict | None = None
+    state: IngestionState | None = None
+    result: IngestionResult | None = None
+    locked_by: str | None = None
+    is_current: bool | None = None
 
 
 class RecalculationStatus(BaseModel):
@@ -382,10 +383,10 @@ class RecalculationStatus(BaseModel):
     data_entry_type_id: int
     year: int
     needs_recalculation: bool
-    last_factor_job_id: Optional[int] = None
-    last_factor_job_result: Optional[IngestionResult] = None
-    last_recalculation_job_id: Optional[int] = None
-    last_recalculation_job_result: Optional[IngestionResult] = None
+    last_factor_job_id: int | None = None
+    last_factor_job_result: IngestionResult | None = None
+    last_recalculation_job_id: int | None = None
+    last_recalculation_job_result: IngestionResult | None = None
 
 
 class ModuleRecalculationStatus(BaseModel):
@@ -410,24 +411,24 @@ class PipelineJobResponse(BaseModel):
     """
 
     job_id: int
-    job_type: Optional[str] = None
-    state: Optional[IngestionState] = None
-    result: Optional[IngestionResult] = None
-    target_type: Optional[TargetType] = None
-    status_message: Optional[str] = None
-    module_type_id: Optional[int] = None
-    data_entry_type_id: Optional[int] = None
-    year: Optional[int] = None
+    job_type: str | None = None
+    state: IngestionState | None = None
+    result: IngestionResult | None = None
+    target_type: TargetType | None = None
+    status_message: str | None = None
+    module_type_id: int | None = None
+    data_entry_type_id: int | None = None
+    year: int | None = None
 
     # See ``PipelineJobListEntry`` for the rationale — serialize
     # ``state`` and ``result`` as the enum NAME so the frontend's
     # string comparisons (``j.state === 'FINISHED'``) work.
     @field_serializer("state")
-    def _state_name(self, v: Optional[IngestionState]) -> Optional[str]:
+    def _state_name(self, v: IngestionState | None) -> str | None:
         return v.name if v is not None else None
 
     @field_serializer("result")
-    def _result_name(self, v: Optional[IngestionResult]) -> Optional[str]:
+    def _result_name(self, v: IngestionResult | None) -> str | None:
         return v.name if v is not None else None
 
 
@@ -436,7 +437,8 @@ class PipelineProgressResponse(BaseModel):
 
     Mirrors ``app.services.pipeline_progress.PipelineProgress``; the
     frontend trusts this instead of inferring "done" from a
-    possibly-incomplete job snapshot."""
+    possibly-incomplete job snapshot.
+    """
 
     phase: int
     phases_total: int
@@ -445,17 +447,18 @@ class PipelineProgressResponse(BaseModel):
     has_error: bool
     # PARTIAL tier (#1236) — the authoritative ``pipelines.status``
     # name so the console can render PARTIAL (amber) vs FAILED (red).
-    status: Optional[str] = None
+    status: str | None = None
     # Parent ``job_type`` so frontend cards (UploadCardData /
     # UploadCardFactors / UploadCardReferences) can decide whether
     # the phase indicator applies to *their* target — a factor
     # ingest's progress shouldn't surface on the data card.
-    kind: Optional[str] = None
+    kind: str | None = None
 
 
 class PipelineResponse(BaseModel):
     """Wrapper for ``GET /sync/pipelines/{pipeline_id}`` — pipeline UUID
-    plus the ordered job list (parent first, then fan-out children)."""
+    plus the ordered job list (parent first, then fan-out children).
+    """
 
     pipeline_id: UUID
     jobs: list[PipelineJobResponse]
@@ -487,7 +490,7 @@ _PIPELINE_META_ALLOW = (
 
 
 def _project_pipeline_meta(
-    meta: Optional[dict], *, include_factor_errors: bool = False
+    meta: dict | None, *, include_factor_errors: bool = False
 ) -> dict:
     """Allow-list a job's ``meta`` for the ops-console list payload.
 
@@ -510,25 +513,27 @@ def _project_pipeline_meta(
     return projected
 
 
-def _pipeline_author(meta: Optional[dict]) -> Optional[str]:
+def _pipeline_author(meta: dict | None) -> str | None:
     """Human author for the ops-console "author" column.
 
     Reads the creator stamped into the root job's ``meta.created_by`` at
     creation time (``base_provider.create_job``). Prefers the display
     name, falls back to email. ``None`` for runner-triggered pipelines
-    (recalc/aggregation) and pre-existing jobs created before this field."""
+    (recalc/aggregation) and pre-existing jobs created before this field.
+    """
     created = (meta or {}).get("created_by")
     if not isinstance(created, dict):
         return None
     return created.get("name") or created.get("email")
 
 
-def _crm_id_from_meta(meta: Optional[dict]) -> Optional[int]:
+def _crm_id_from_meta(meta: dict | None) -> int | None:
     """Read the unit's ``carbon_report_module_id`` from a job's meta.
 
     Unit-specific jobs store it in ``meta.config`` (``entity_id`` on the
     row is left NULL), so the list endpoint resolves the unit code from
-    here rather than the FK column."""
+    here rather than the FK column.
+    """
     cfg = (meta or {}).get("config")
     if not isinstance(cfg, dict):
         return None
@@ -536,10 +541,11 @@ def _crm_id_from_meta(meta: Optional[dict]) -> Optional[int]:
     return crm if isinstance(crm, int) else None
 
 
-def _module_label(value: Optional[int]) -> Optional[str]:
+def _module_label(value: int | None) -> str | None:
     """Resolve a module_type_id int to its enum name (#1234) — done
     server-side so the table shows names with no frontend int→label
-    map to drift. Unknown/legacy ints degrade to ``None``."""
+    map to drift. Unknown/legacy ints degrade to ``None``.
+    """
     if value is None:
         return None
     try:
@@ -548,7 +554,7 @@ def _module_label(value: Optional[int]) -> Optional[str]:
         return None
 
 
-def _det_label(value: Optional[int]) -> Optional[str]:
+def _det_label(value: int | None) -> str | None:
     """Resolve a data_entry_type_id int to its enum name (#1234)."""
     if value is None:
         return None
@@ -558,12 +564,9 @@ def _det_label(value: Optional[int]) -> Optional[str]:
         return None
 
 
-_EnumT = TypeVar("_EnumT", bound=enum.Enum)
-
-
-def _resolve_enum_name(
-    enum_cls: type[_EnumT], value: Optional[str], field: str
-) -> Optional[_EnumT]:
+def _resolve_enum_name[EnumT: enum.Enum](
+    enum_cls: type[EnumT], value: str | None, field: str
+) -> EnumT | None:
     """Resolve a query param to an enum member by *name* (#1234).
 
     ``IngestionState`` / ``IngestionResult`` are int enums, so FastAPI's
@@ -604,32 +607,33 @@ class PipelineJobListEntry(BaseModel):
     ``FINISHED`` which mismatches every frontend consumer (the TS
     interface declares ``string | null`` and renders comparisons like
     ``j.state === 'FINISHED'``).  The field_serializers below pin the
-    contract."""
+    contract.
+    """
 
     job_id: int
-    job_type: Optional[str] = None
-    state: Optional[IngestionState] = None
-    result: Optional[IngestionResult] = None
-    status_message: Optional[str] = None
-    module_type_id: Optional[int] = None
-    data_entry_type_id: Optional[int] = None
+    job_type: str | None = None
+    state: IngestionState | None = None
+    result: IngestionResult | None = None
+    status_message: str | None = None
+    module_type_id: int | None = None
+    data_entry_type_id: int | None = None
     # #1234 — human label (resolved from the int enum server-side so
     # the table shows names, not integers, with no frontend drift).
-    data_entry_type_label: Optional[str] = None
-    year: Optional[int] = None
+    data_entry_type_label: str | None = None
+    year: int | None = None
     # created_at → started_at is queue wait (chain/lock/poller latency);
     # started_at → finished_at is execution. The console shows both so a
     # sub-second aggregation that waited 20s behind its recalc sibling
     # doesn't read as "<1s total".
-    created_at: Optional[datetime] = None
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
-    attempts: Optional[int] = None
+    created_at: datetime | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    attempts: int | None = None
     # Pod that claimed this job (``locked_by``). With a shared DB, a local
     # dev process and cluster pods compete for the same NOT_STARTED rows —
     # showing the owner makes mixed-ownership chains diagnosable at a
     # glance (the local+dev-DB scenario, 2026-07-17).
-    worker: Optional[str] = None
+    worker: str | None = None
     # Derived server-side (backend owns the staleness rule): RUNNING with a
     # lock heartbeat older than STALE_JOB_TIMEOUT_MINUTES — the owning pod
     # died mid-job. The console renders a badge + the manual Recover button
@@ -639,11 +643,11 @@ class PipelineJobListEntry(BaseModel):
     meta: dict = {}
 
     @field_serializer("state")
-    def _state_name(self, v: Optional[IngestionState]) -> Optional[str]:
+    def _state_name(self, v: IngestionState | None) -> str | None:
         return v.name if v is not None else None
 
     @field_serializer("result")
-    def _result_name(self, v: Optional[IngestionResult]) -> Optional[str]:
+    def _result_name(self, v: IngestionResult | None) -> str | None:
         return v.name if v is not None else None
 
 
@@ -654,30 +658,31 @@ class PipelineListItem(BaseModel):
     before fan-out so it never minted a pipeline (``is_orphan=True``);
     it still appears as a pipeline-of-one.  Rollups (job_type, module,
     year, status_message) come from the root/parent job; timing spans
-    the whole chain."""
+    the whole chain.
+    """
 
-    pipeline_id: Optional[UUID] = None
+    pipeline_id: UUID | None = None
     is_orphan: bool
     progress: PipelineProgressResponse
-    job_type: Optional[str] = None
+    job_type: str | None = None
     # Scope of the run, from the root job's ``entity_type`` (enum NAME):
     # MODULE_PER_YEAR (backoffice per-year), MODULE_UNIT_SPECIFIC (per-unit
     # module page), or GLOBAL_PER_YEAR (unit/role sync, recalc).
-    entity_type: Optional[str] = None
+    entity_type: str | None = None
     # Human unit code (``unit.institutional_id``) for MODULE_UNIT_SPECIFIC
     # runs; ``None`` otherwise. Resolved server-side from the unit's
     # carbon_report_module_id.
-    unit_institutional_id: Optional[str] = None
-    module_type_id: Optional[int] = None
+    unit_institutional_id: str | None = None
+    module_type_id: int | None = None
     # #1234 — human label for the related module (server-resolved).
-    module_label: Optional[str] = None
-    year: Optional[int] = None
-    status_message: Optional[str] = None
+    module_label: str | None = None
+    year: int | None = None
+    status_message: str | None = None
     # #1234 — who triggered the pipeline (root job's creator), resolved
     # server-side from the job meta. ``None`` for runner-triggered runs.
-    author: Optional[str] = None
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
+    author: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
     latest_job_id: int
     job_count: int
     error_count: int
@@ -689,7 +694,8 @@ class PipelineListResponse(BaseModel):
 
     ``total`` is the full match count *before* the per-module
     permission drop (see endpoint docstring), so a page may contain
-    fewer than ``limit`` items for a scope-limited operator."""
+    fewer than ``limit`` items for a scope-limited operator.
+    """
 
     items: list[PipelineListItem]
     total: int
@@ -700,13 +706,14 @@ class PipelineListResponse(BaseModel):
 class StaleStatsEntry(BaseModel):
     """One ``(module_type_id, year)`` scope whose aggregation is missing,
     failed, stuck, or too old.  Returned by ``GET /sync/health/stale-stats``
-    for Datadog/Prometheus scrape — Plan 310-D Follow-up 1 (#1063)."""
+    for Datadog/Prometheus scrape — Plan 310-D Follow-up 1 (#1063).
+    """
 
     module_type_id: int
     year: int
-    last_finished_aggregation_at: Optional[datetime] = None
+    last_finished_aggregation_at: datetime | None = None
     why_stale: WhyStaleLiteral
-    last_aggregation_job_id: Optional[int] = None
+    last_aggregation_job_id: int | None = None
 
 
 @router.post("/dispatch", response_model=SyncStatusResponse)
@@ -717,8 +724,7 @@ async def sync_module_data_entries(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Sync data entries for a specific module.
+    """Sync data entries for a specific module.
 
     **Required Permission**: `backoffice.configuration.edit` (global data-sync)
     OR `modules.{name}.sync` for the unit (principal users uploading from the
@@ -910,9 +916,7 @@ async def sync_module_factors(
         require_permission("backoffice.configuration", "edit")
     ),
 ):
-    """
-    Sync (recompute) factors for a specific module and data-entry type.
-
+    """Sync (recompute) factors for a specific module and data-entry type.
 
     ``year`` is **mandatory** for this endpoint — factor updates are always
     year-scoped.
@@ -1002,8 +1006,7 @@ async def get_jobs_by_status(
         require_any_scope("view", "backoffice.pipeline_operations")
     ),
 ) -> list:
-    """
-    Get jobs filtered by status.
+    """Get jobs filtered by status.
 
     Args:
         filter_type: "active" for in-progress jobs, "completed" for finished jobs
@@ -1021,8 +1024,7 @@ async def get_jobs_by_year(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_module_or_config_view()),
 ) -> list:
-    """
-    Get all sync jobs for a specific year.
+    """Get all sync jobs for a specific year.
 
     Args:
         year: The year to filter jobs by
@@ -1056,8 +1058,7 @@ async def get_latest_jobs_by_year(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_module_or_config_view()),
 ) -> list:
-    """
-    Get the current job for each (module_type_id, target_type) combination.
+    """Get the current job for each (module_type_id, target_type) combination.
 
     Args:
         year: The year to filter jobs by
@@ -1170,8 +1171,8 @@ class WorkerResponse(BaseModel):
     """
 
     pod_id: str
-    git_sha: Optional[str] = None
-    app_version: Optional[str] = None
+    git_sha: str | None = None
+    app_version: str | None = None
     started_at: datetime
     last_heartbeat_at: datetime
     heartbeat_age_seconds: int
@@ -1204,7 +1205,7 @@ async def list_workers(
     """
     settings = get_settings()
     live_window = 2 * settings.POD_HEARTBEAT_INTERVAL_SECONDS
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cutoff = now - timedelta(seconds=live_window)
 
     # Live pods only — pods whose process crashed leave a row behind
@@ -1267,8 +1268,7 @@ async def job_stream_by_id(
     request: Request,
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Server-Sent Events endpoint to stream a single job update in real-time.
+    """Server-Sent Events endpoint to stream a single job update in real-time.
 
     Polls the database for status changes and sends updates to the client.
     Stream ends when the job is completed, failed, or the client disconnects.
@@ -1491,14 +1491,14 @@ async def get_recalculation_status(
 
 @router.get("/pipelines", response_model=PipelineListResponse)
 async def list_pipelines(
-    state: Optional[str] = None,
-    job_type: Optional[str] = None,
-    module_type_id: Optional[int] = None,
-    year: Optional[int] = None,
-    has_errors: Optional[bool] = None,
-    since: Optional[datetime] = None,
-    until: Optional[datetime] = None,
-    q: Optional[str] = None,
+    state: str | None = None,
+    job_type: str | None = None,
+    module_type_id: int | None = None,
+    year: int | None = None,
+    has_errors: bool | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    q: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -1757,7 +1757,7 @@ async def pipeline_stream_by_id(
     heartbeat_interval_seconds = 15
 
     async def event_generator():
-        last_snapshot: Optional[list[dict]] = None
+        last_snapshot: list[dict] | None = None
         polls_after_completion = 0
         seconds_since_heartbeat = 0
 
@@ -2031,8 +2031,7 @@ async def sync_units_from_accred(
     ),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Sync units from the caller's provider (Accred for ACCRED users,
+    """Sync units from the caller's provider (Accred for ACCRED users,
     fixture-backed for TEST users).
 
     Plan 310B Part 5 — creates a tracked DataIngestionJob (job_type=
@@ -2089,8 +2088,7 @@ async def recover_job(
         require_permission("backoffice.pipeline_operations", "edit")
     ),
 ):
-    """
-    Recover a job stuck in RUNNING after a pod crash.
+    """Recover a job stuck in RUNNING after a pod crash.
 
     Resets the job to NOT_STARTED and clears the lock. Only allowed
     when ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` —
@@ -2208,10 +2206,10 @@ async def _run_jobs_sequentially(job_ids: list[int]) -> None:
 
 @router.post("/admin/recompute-stats", response_model=RecomputeStatsResponse)
 async def recompute_stats(
-    year: Optional[int] = Query(
+    year: int | None = Query(
         None, description="Limit to a single year; omit to recompute every year."
     ),
-    module_type_id: Optional[int] = Query(
+    module_type_id: int | None = Query(
         None, description="Limit to a single module type; omit for every module type."
     ),
     db: AsyncSession = Depends(get_db),

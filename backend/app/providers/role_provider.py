@@ -5,7 +5,7 @@ user roles from different sources (JWT claims, EPFL Accred API, etc.).
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any
 
 import httpx
 
@@ -59,7 +59,7 @@ class RoleProvider(ABC):
         return User(provider=self.type, **user_raw)
 
     @abstractmethod
-    async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_by_user_id(self, user_id: str) -> dict[str, Any]:
         """Get user info from the role provider by user ID.
 
         Args:
@@ -68,7 +68,7 @@ class RoleProvider(ABC):
         pass
 
     @abstractmethod
-    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+    def get_user_id(self, userinfo: dict[str, Any]) -> str:
         """Get user ID for a user.
 
         Args:
@@ -79,7 +79,7 @@ class RoleProvider(ABC):
         pass
 
     @abstractmethod
-    async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
+    async def get_roles(self, userinfo: dict[str, Any]) -> list[Role]:
         """Get roles for a user.
 
         Args:
@@ -94,7 +94,7 @@ class RoleProvider(ABC):
         pass
 
     @abstractmethod
-    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
+    async def get_roles_by_user_id(self, user_id: str) -> list[Role]:
         """Get roles for a user by user ID.
 
         Args:
@@ -122,12 +122,12 @@ class JwtClaimsRoleProvider(RoleProvider):
 
     type: UserProvider = UserProvider.DEFAULT
 
-    async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_by_user_id(self, user_id: str) -> dict[str, Any]:
         """Not implemented for JwtClaimsRoleProvider."""
         # You can return an empty dict or raise an error
         return {}
 
-    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+    def get_user_id(self, userinfo: dict[str, Any]) -> str:
         """Get user ID for a user.
 
         Args:
@@ -144,7 +144,7 @@ class JwtClaimsRoleProvider(RoleProvider):
             return ""
         return str(user_id)
 
-    async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
+    async def get_roles(self, userinfo: dict[str, Any]) -> list[Role]:
         """Extract and parse roles from JWT claims.
 
         Args:
@@ -163,7 +163,7 @@ class JwtClaimsRoleProvider(RoleProvider):
             )
             return []
 
-        parsed_roles: List[Role] = []
+        parsed_roles: list[Role] = []
 
         for role_str in jwt_roles:
             if not isinstance(role_str, str):
@@ -244,7 +244,7 @@ class JwtClaimsRoleProvider(RoleProvider):
 
         return parsed_roles
 
-    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
+    async def get_roles_by_user_id(self, user_id: str) -> list[Role]:
         """Not implemented for JwtClaimsRoleProvider.
 
         Args:
@@ -264,7 +264,7 @@ class TestRoleProvider(RoleProvider):
 
     type: UserProvider = UserProvider.TEST
 
-    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+    def get_user_id(self, userinfo: dict[str, Any]) -> str:
         """Get user ID for a user.
 
         Args:
@@ -275,7 +275,7 @@ class TestRoleProvider(RoleProvider):
         user_id = userinfo.get("requested_role", RoleName.CO2_USER_STD.value)
         return make_test_user_id(f"testuser_{user_id}")
 
-    async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
+    async def get_roles(self, userinfo: dict[str, Any]) -> list[Role]:
         """Return test roles for a user.
 
         Args:
@@ -291,7 +291,7 @@ class TestRoleProvider(RoleProvider):
             return []
         return list(TEST_ROLES.get(role_name, []))
 
-    async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_by_user_id(self, user_id: str) -> dict[str, Any]:
         """Return test user info by user ID.
 
         Args:
@@ -320,7 +320,7 @@ class TestRoleProvider(RoleProvider):
             "roles": roles,
         }
 
-    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
+    async def get_roles_by_user_id(self, user_id: str) -> list[Role]:
         """Return test roles for a user by their user ID.
 
         Args:
@@ -359,7 +359,7 @@ class AccredRoleProvider(RoleProvider):
         self.api_username = settings.ACCRED_API_USERNAME
         self.api_key = settings.ACCRED_API_KEY
 
-    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+    def get_user_id(self, userinfo: dict[str, Any]) -> str:
         """Get institutional ID for a user.
 
         Args:
@@ -376,7 +376,7 @@ class AccredRoleProvider(RoleProvider):
             raise ValueError("User ID is required for Accred role provider")
         return str(user_id)
 
-    async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
+    async def get_roles(self, userinfo: dict[str, Any]) -> list[Role]:
         """Fetch roles from EPFL Accred API.
 
         Args:
@@ -393,7 +393,7 @@ class AccredRoleProvider(RoleProvider):
             logger.error(f"Error getting roles: {e}", extra={"userinfo": userinfo})
             return []
 
-    async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_by_user_id(self, user_id: str) -> dict[str, Any]:
         """Fetch user info from EPFL Accred API.
 
         Args:
@@ -490,7 +490,7 @@ class AccredRoleProvider(RoleProvider):
             roles=user_raw.get("roles", []),
         )
 
-    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
+    async def get_roles_by_user_id(self, user_id: str) -> list[Role]:
         """Fetch roles from EPFL Accred API.
 
         Args:
@@ -498,7 +498,6 @@ class AccredRoleProvider(RoleProvider):
         Returns:
             List of role dicts derived from authorizations
         """
-
         if not self.api_url or not self.api_username or not self.api_key:
             logger.error(
                 "Cannot fetch roles: Accred API not configured",
@@ -538,7 +537,7 @@ class AccredRoleProvider(RoleProvider):
                 return []
 
             # Map authorizations to roles
-            roles: List[Role] = []
+            roles: list[Role] = []
             # "calco2.user.standard"  # CO2 Calculator - User role.
             # # For EPFL staff. Standard users can fill in a yearly
             # # summary of their professional travel and view results.

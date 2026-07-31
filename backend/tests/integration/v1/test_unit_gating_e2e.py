@@ -156,7 +156,7 @@ class TestListCarbonReportModules:
     """``GET /carbon-reports/{id}/modules/`` — gated by ``require_unit_access``."""
 
     def test_cross_unit_principal_denied(self, client, monkeypatch):
-        """principal scoped to UNIT_IID hits a report on OTHER_IID → 403."""
+        """Principal scoped to UNIT_IID hits a report on OTHER_IID → 403."""
         _wire_user(_user(USER_IID, [_principal(UNIT_IID)]))
         _wire_db_unit(OTHER_IID)
         _mock_carbon_report_with_unit(monkeypatch)
@@ -333,7 +333,8 @@ class TestUnitResults:
 
 def _scoped_principal_user() -> MagicMock:
     """Real role list — let ``calculate_user_permissions`` run for the
-    ``is_permitted("modules.*", ...)`` admit-set comparison."""
+    ``is_permitted("modules.*", ...)`` admit-set comparison.
+    """
     user = MagicMock(spec=User)
     user.id = 1
     user.email = "principal@test.local"
@@ -355,7 +356,8 @@ def _scoped_standard_user() -> MagicMock:
 
 class TestFilesPermissionFallbackRemoved:
     """Regression: principal with only ``modules.*/0184`` perms must be
-    denied on /files/* now that the fallback is removed."""
+    denied on /files/* now that the fallback is removed.
+    """
 
     def test_list_files_rejects_scoped_principal_without_backoffice(self, client):
         _wire_user(_scoped_principal_user())
@@ -400,7 +402,8 @@ class TestFilesPermissionFallbackRemoved:
 
 class TestDataSyncPermissionFallbackRemoved:
     """Regression: principal with only ``modules.*/0184`` perms must be
-    denied on /sync/dispatch and /sync/jobs/{id}/stream now."""
+    denied on /sync/dispatch and /sync/jobs/{id}/stream now.
+    """
 
     def test_dispatch_rejects_scoped_principal_without_backoffice(self, client):
         _wire_user(_scoped_principal_user())

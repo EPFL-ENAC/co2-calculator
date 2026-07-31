@@ -1,7 +1,5 @@
 """Location API endpoints."""
 
-from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -16,7 +14,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/search", response_model=List[LocationRead])
+@router.get("/search", response_model=list[LocationRead])
 async def search_locations(
     query: str = Query(
         ...,
@@ -29,7 +27,7 @@ async def search_locations(
         le=20,
         description="Maximum number of results to return (default: 5, max: 20)",
     ),
-    transport_mode: Optional[TransportModeEnum] = Query(
+    transport_mode: TransportModeEnum | None = Query(
         None,
         description=(
             "Filter by location transport mode: 'train' or 'plane'. "
@@ -39,8 +37,7 @@ async def search_locations(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Search locations by name with relevance ordering.
+    """Search locations by name with relevance ordering.
 
     Results are ordered by relevance:
     1. Exact matches (name = query)
@@ -108,8 +105,7 @@ async def calculate_distance(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Calculate distance between two locations based on location transport mode.
+    """Calculate distance between two locations based on location transport mode.
 
     For flights: Haversine distance + 95 km (airport approaches, routing, taxiing)
     For trains: Haversine distance × 1.2 (track routing, curves, detours)

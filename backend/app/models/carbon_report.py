@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Optional
 
 from sqlalchemy import Index, UniqueConstraint
 from sqlmodel import JSON, Column, Field, SQLModel
@@ -22,7 +21,7 @@ class CarbonReportBase(SQLModel):
             "Report year (always set; for Simulator Explore, equals the reference year)"
         ),
     )
-    reference_year: Optional[int] = Field(
+    reference_year: int | None = Field(
         default=None,
         nullable=True,
         description=(
@@ -36,7 +35,7 @@ class CarbonReportBase(SQLModel):
         index=True,
         description="FK to units.id (integer)",
     )
-    carbon_project_id: Optional[int] = Field(
+    carbon_project_id: int | None = Field(
         default=None,
         foreign_key="carbon_projects.id",
         nullable=True,
@@ -69,7 +68,7 @@ class CarbonReportBase(SQLModel):
             " purchase module, e.g. 'chf'); display-only, no conversion"
         ),
     )
-    last_updated: Optional[int] = Field(
+    last_updated: int | None = Field(
         default=None,
         description=(
             "Timestamp of last update (epoch seconds)"
@@ -78,7 +77,7 @@ class CarbonReportBase(SQLModel):
             " - can be null if never updated since creation"
         ),
     )
-    completion_progress: Optional[str] = Field(
+    completion_progress: str | None = Field(
         default=None,
         description=(
             "String representation of completion progress (e.g., '5/7')"
@@ -95,7 +94,7 @@ class CarbonReportBase(SQLModel):
             " VALIDATED (2) if all modules are validated"
         ),
     )
-    stats: Optional[dict] = Field(
+    stats: dict | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
         description=(
@@ -115,8 +114,7 @@ class CarbonReportBase(SQLModel):
 
 
 class CarbonReport(CarbonReportBase, table=True):
-    """
-    Carbon report model representing an annual emissions report for a unit.
+    """Carbon report model representing an annual emissions report for a unit.
 
     A carbon report aggregates all emission data for a specific unit and year.
     """
@@ -130,7 +128,7 @@ class CarbonReport(CarbonReportBase, table=True):
             name="uq_carbon_reports_project_year",
         ),
     )
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
 
 
 class CarbonReportModuleBase(SQLModel):
@@ -170,7 +168,7 @@ class CarbonReportModuleBase(SQLModel):
         index=True,
         description="Reference to parent carbon report",
     )
-    last_updated: Optional[int] = Field(
+    last_updated: int | None = Field(
         default=None,
         description=(
             "Timestamp of last update (epoch seconds)"
@@ -179,7 +177,7 @@ class CarbonReportModuleBase(SQLModel):
             " - can be null if never updated since creation"
         ),
     )
-    stats: Optional[dict] = Field(
+    stats: dict | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
         description=(
@@ -195,8 +193,7 @@ class CarbonReportModuleBase(SQLModel):
 
 
 class CarbonReportModule(CarbonReportModuleBase, table=True):
-    """
-    Carbon report module model representing a specific module within a carbon report.
+    """Carbon report module model representing a specific module within a carbon report.
 
     Each carbon report can have multiple modules (headcount, equipment, travel, etc.),
     each tracked separately for status and data entry.
@@ -211,7 +208,7 @@ class CarbonReportModule(CarbonReportModuleBase, table=True):
             "carbon_report_id", "module_type_id", name="uq_carbon_report_module"
         ),
     )
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
 
 
 class CarbonReportModuleRead(CarbonReportModuleBase):

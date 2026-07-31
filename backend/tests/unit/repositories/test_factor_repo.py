@@ -230,7 +230,8 @@ def _override_handler() -> MagicMock:
 @pytest.mark.asyncio
 async def test_get_by_classification_override_handler_no_subkind(repo):
     """Handler with kind_field_override, no subkind supplied → single exec
-    call that targets only 'average' rows (override key absent)."""
+    call that targets only 'average' rows (override key absent).
+    """
     factor = SimpleNamespace(id=42)
     result_mock = MagicMock()
     result_mock.one_or_none.return_value = factor
@@ -252,7 +253,8 @@ async def test_get_by_classification_override_handler_no_subkind(repo):
 async def test_get_by_classification_override_handler_subkind_miss_fallback(repo):
     """Handler with kind_field_override, subkind supplied but first query
     misses → falls back to kind-only query; both queries should include
-    the override-null guard."""
+    the override-null guard.
+    """
     factor = SimpleNamespace(id=43)
     result_miss = MagicMock()
     result_miss.one_or_none.return_value = None

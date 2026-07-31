@@ -1,6 +1,6 @@
 """Service for year configuration management."""
 
-from typing import Any, Dict
+from typing import Any
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
@@ -9,7 +9,7 @@ from app.models.module_type import (
 )
 
 
-def generate_default_year_config() -> Dict[str, Any]:
+def generate_default_year_config() -> dict[str, Any]:
     """Generate default year configuration.
 
     Creates a default configuration with all modules and submodules enabled,
@@ -18,14 +18,14 @@ def generate_default_year_config() -> Dict[str, Any]:
     Returns:
         Default year configuration dictionary.
     """
-    modules: Dict[str, Any] = {}
+    modules: dict[str, Any] = {}
 
     # Iterate over ModuleTypeEnum in definition order
     for module_type in ModuleTypeEnum:
         module_key = str(module_type.value)
         data_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
-        submodules: Dict[str, Any] = {}
+        submodules: dict[str, Any] = {}
         for data_entry_type in data_entry_types:
             submodule_key = str(data_entry_type.value)
             submodules[submodule_key] = {
@@ -56,8 +56,8 @@ def generate_default_year_config() -> Dict[str, Any]:
 
 
 def get_module_config(
-    config: Dict[str, Any], module_type: ModuleTypeEnum
-) -> Dict[str, Any] | None:
+    config: dict[str, Any], module_type: ModuleTypeEnum
+) -> dict[str, Any] | None:
     """Get configuration for a specific module type.
 
     Args:
@@ -72,8 +72,8 @@ def get_module_config(
 
 
 def get_submodule_config(
-    module_config: Dict[str, Any], data_entry_type: DataEntryTypeEnum
-) -> Dict[str, Any] | None:
+    module_config: dict[str, Any], data_entry_type: DataEntryTypeEnum
+) -> dict[str, Any] | None:
     """Get configuration for a specific submodule (data entry type).
 
     Args:
@@ -90,7 +90,7 @@ def get_submodule_config(
 
 
 def check_threshold_exceeded(
-    config: Dict[str, Any],
+    config: dict[str, Any],
     module_type: ModuleTypeEnum,
     data_entry_type: DataEntryTypeEnum,
     value: float,

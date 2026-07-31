@@ -7,7 +7,7 @@ recovery machinery can never disagree on what "stuck" means — the parity
 test at the bottom locks the two implementations together.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlmodel import select
@@ -19,7 +19,7 @@ from app.models.data_ingestion import (
 )
 from app.repositories.data_ingestion import is_job_stale, stale_running_clause
 
-CUTOFF = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
+CUTOFF = datetime(2026, 7, 17, 12, 0, tzinfo=UTC)
 
 
 def _job(state: IngestionState, locked_at: datetime | None) -> DataIngestionJob:
@@ -56,7 +56,8 @@ def test_naive_locked_at_is_treated_as_utc():
 @pytest.mark.asyncio
 async def test_stale_predicate_parity(db_session):
     """The SQL clause and the Python twin classify the same rows the same
-    way — a change to one without the other fails here."""
+    way — a change to one without the other fails here.
+    """
     jobs = [
         _job(IngestionState.RUNNING, CUTOFF - timedelta(minutes=1)),  # stale
         _job(IngestionState.RUNNING, CUTOFF + timedelta(minutes=1)),  # fresh

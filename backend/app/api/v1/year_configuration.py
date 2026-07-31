@@ -5,7 +5,7 @@ import hashlib
 import io
 import os
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 from uuid import uuid4
 
 from fastapi import (
@@ -70,7 +70,7 @@ settings = get_settings()
 
 def _build_job_lookup(
     jobs: list,
-) -> dict[tuple[int | None, int | None, int | None, int | None], "SyncJobSummary"]:
+) -> dict[tuple[int | None, int | None, int | None, int | None], SyncJobSummary]:
     """Build a lookup dict from latest jobs keyed by
     (module, data_entry, target, method) IDs.
 
@@ -333,7 +333,7 @@ def get_files_storage_path() -> str:
     return os.environ.get("FILES_STORAGE_PATH", "./files_storage")
 
 
-def _deep_merge(base: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
+def _deep_merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge patch into base (returns a new dict).
 
     For each key in patch:
@@ -423,8 +423,8 @@ async def create_audit_entry(
     year: int,
     change_type: AuditChangeTypeEnum,
     user: User,
-    data_snapshot: Dict[str, Any],
-    data_diff: Dict[str, Any] | None = None,
+    data_snapshot: dict[str, Any],
+    data_diff: dict[str, Any] | None = None,
 ) -> None:
     """Create audit entry for year configuration change.
 

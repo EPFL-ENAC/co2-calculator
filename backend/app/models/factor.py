@@ -1,7 +1,5 @@
 """Generic factor model for storing calculation coefficients across module types."""
 
-from typing import Optional
-
 from sqlalchemy import ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import JSON, Column, Field, Integer, SQLModel
@@ -39,7 +37,7 @@ class FactorBase(SQLModel):
         description="""Factor values as JSON
             (e.g., {active_power_w: 100, standby_power_w: 10})""",
     )
-    year: Optional[int] = Field(
+    year: int | None = Field(
         default=None,
         nullable=True,  # Initially nullable for migration, will enforce NOT NULL later
         index=True,
@@ -50,8 +48,7 @@ class FactorBase(SQLModel):
 
 
 class Factor(FactorBase, table=True):
-    """
-    Generic factor table for storing calculation coefficients.
+    """Generic factor table for storing calculation coefficients.
 
     Each emission_type has its own calculation strategy:
     - equipment (id=2): Equipment power calculation
@@ -126,9 +123,9 @@ class Factor(FactorBase, table=True):
         ).ddl_if(dialect="postgresql"),
     )
 
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: int | None = Field(default=None, primary_key=True, index=True)
 
-    last_seen_job_id: Optional[int] = Field(
+    last_seen_job_id: int | None = Field(
         default=None,
         sa_column=Column(
             Integer,

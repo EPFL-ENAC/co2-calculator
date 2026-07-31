@@ -1,4 +1,4 @@
-from typing import Iterable, List, Optional
+from collections.abc import Iterable
 
 import sqlmodel as sa
 
@@ -11,11 +11,11 @@ ROLE_PRIORITY = {
 
 
 def pick_role_for_institutional_id(
-    roles: Optional[Iterable[Role]], institutional_id: str
-) -> Optional[RoleName]:
+    roles: Iterable[Role] | None, institutional_id: str
+) -> RoleName | None:
     if not roles:
         return None
-    candidates: List[RoleName] = [
+    candidates: list[RoleName] = [
         r.role
         for r in roles
         if isinstance(r.on, (UnitScope, OwnScope))

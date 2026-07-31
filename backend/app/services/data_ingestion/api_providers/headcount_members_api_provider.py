@@ -7,7 +7,7 @@ Privacy (A09): headcount rows are personal data. Never log row contents —
 counts and unit codes only.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from app.core.logging import get_logger
 from app.models.connector import ConnectorType
@@ -71,9 +71,9 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
     ]
 
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        transformed: List[Dict[str, Any]] = []
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        transformed: list[dict[str, Any]] = []
         for record in raw_data:
             sciper = record.get(self.CAPTION_SCIPER)
             if not sciper or str(sciper).strip() == "":
@@ -110,7 +110,7 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
         )
 
     def _build_data_entry(
-        self, record: Dict[str, Any], carbon_report_module_id: int
+        self, record: dict[str, Any], carbon_report_module_id: int
     ) -> DataEntry:
         # Persist exactly the member payload (matches HeadCountCreate);
         # routing fields (unit_institutional_id) stay out of the JSON.
@@ -126,9 +126,10 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
             },
         )
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         """Bulk-insert member entries. Emission writes are owned by the
-        runner-driven recalc chain (plan 310-D), same as the travel path."""
+        runner-driven recalc chain (plan 310-D), same as the travel path.
+        """
         entries = []
         for item in data:
             carbon_report_module_id = item.get("carbon_report_module_id")

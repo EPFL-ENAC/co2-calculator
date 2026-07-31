@@ -1,4 +1,4 @@
-from typing import Optional, Self
+from typing import Self
 
 from pydantic import ValidationInfo, field_validator, model_validator
 
@@ -11,7 +11,7 @@ from app.schemas.data_entry import (
 MAX_WEEKLY_USAGE_HOURS = 168
 
 
-def _validate_weekly_usage_hours(v: Optional[int]) -> Optional[int]:
+def _validate_weekly_usage_hours(v: int | None) -> int | None:
     if v is None:
         return v
     if v < 0:
@@ -23,9 +23,7 @@ def _validate_weekly_usage_hours(v: Optional[int]) -> Optional[int]:
     return v
 
 
-def _validate_non_negative_float(
-    v: Optional[float], field_name: str
-) -> Optional[float]:
+def _validate_non_negative_float(v: float | None, field_name: str) -> float | None:
     if v is None:
         return v
     if v < 0:
@@ -34,14 +32,14 @@ def _validate_non_negative_float(
 
 
 class _EquipmentUsageHoursValidationMixin:
-    active_usage_hours_per_week: Optional[int]
-    standby_usage_hours_per_week: Optional[int]
+    active_usage_hours_per_week: int | None
+    standby_usage_hours_per_week: int | None
 
     @field_validator(
         "active_usage_hours_per_week", "standby_usage_hours_per_week", mode="after"
     )
     @classmethod
-    def validate_usage_hours(cls, v: Optional[int]) -> Optional[int]:
+    def validate_usage_hours(cls, v: int | None) -> int | None:
         return _validate_weekly_usage_hours(v)
 
     @model_validator(mode="after")
@@ -61,13 +59,13 @@ class _EquipmentUsageHoursValidationMixin:
 class EquipmentHandlerResponse(DataEntryResponseGen):
     name: str
     equipment_class: str
-    sub_class: Optional[str] = None
-    active_usage_hours_per_week: Optional[int] = None
-    standby_usage_hours_per_week: Optional[int] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
-    active_power_w: Optional[int] = None
-    standby_power_w: Optional[int] = None
+    sub_class: str | None = None
+    active_usage_hours_per_week: int | None = None
+    standby_usage_hours_per_week: int | None = None
+    note: str | None = None
+    kg_co2eq: float | None = None
+    active_power_w: int | None = None
+    standby_power_w: int | None = None
 
     is_new: bool = False
 
@@ -76,10 +74,10 @@ class EquipmentHandlerCreate(_EquipmentUsageHoursValidationMixin, DataEntryCreat
     equipment_id: str
     name: str
     equipment_class: str
-    sub_class: Optional[str] = None
-    active_usage_hours_per_week: Optional[int] = None
-    standby_usage_hours_per_week: Optional[int] = None
-    note: Optional[str] = None
+    sub_class: str | None = None
+    active_usage_hours_per_week: int | None = None
+    standby_usage_hours_per_week: int | None = None
+    note: str | None = None
     # kg_co2eq: Optional[float] = None  # from csv is __kg_co2eq_override__
 
     @field_validator("equipment_id", "name", "equipment_class", mode="after")
@@ -91,9 +89,9 @@ class EquipmentHandlerCreate(_EquipmentUsageHoursValidationMixin, DataEntryCreat
 
 
 class EquipmentHandlerUpdate(_EquipmentUsageHoursValidationMixin, DataEntryUpdate):
-    active_usage_hours_per_week: Optional[int] = None
-    standby_usage_hours_per_week: Optional[int] = None
-    name: Optional[str] = None
-    equipment_class: Optional[str] = None
-    sub_class: Optional[str] = None
-    note: Optional[str] = None
+    active_usage_hours_per_week: int | None = None
+    standby_usage_hours_per_week: int | None = None
+    name: str | None = None
+    equipment_class: str | None = None
+    sub_class: str | None = None
+    note: str | None = None

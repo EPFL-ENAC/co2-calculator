@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
@@ -18,7 +18,7 @@ class ModulePerYearFactorCSVProvider(BaseFactorCSVProvider):
     def entity_type(self) -> EntityType:
         return EntityType.MODULE_PER_YEAR
 
-    async def _setup_handlers_and_context(self) -> Dict[str, Any]:
+    async def _setup_handlers_and_context(self) -> dict[str, Any]:
         valid_entry_types = self._resolve_valid_entry_types()
         configured_data_entry_type_id = self.data_entry_type_id
 

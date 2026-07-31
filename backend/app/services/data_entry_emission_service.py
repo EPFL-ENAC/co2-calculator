@@ -1,5 +1,3 @@
-from typing import Optional
-
 from sqlalchemy import func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -132,7 +130,7 @@ class DataEntryEmissionService:
 
     async def _get_year_from_data_entry(
         self, data_entry: DataEntry | DataEntryResponse
-    ) -> Optional[int]:
+    ) -> int | None:
         report = await self._get_report_for_data_entry(data_entry)
         if report is None:
             return None
@@ -576,7 +574,7 @@ class DataEntryEmissionService:
     async def _fetch_factors(
         self,
         comp: EmissionComputation,
-        year: Optional[int] = None,
+        year: int | None = None,
         *,
         data_entry_type: DataEntryTypeEnum | None = None,
         factor_resolver: FactorResolver | None = None,
@@ -738,7 +736,7 @@ class DataEntryEmissionService:
         ctx: dict,
         factor_values: dict,
         comp: EmissionComputation,
-    ) -> Optional[float]:
+    ) -> float | None:
         """Compute kg_co2eq from context and factor values.
 
         If ``comp.formula_func`` is set it takes precedence (complex formulas).

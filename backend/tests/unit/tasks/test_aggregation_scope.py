@@ -55,7 +55,8 @@ async def test_returns_union_of_finished_sibling_affected_ids(
     db_session: AsyncSession,
 ):
     """3 FINISHED recalc siblings with disjoint+overlapping affected sets →
-    helper returns the precise union (used to scope the aggregation)."""
+    helper returns the precise union (used to scope the aggregation).
+    """
     pid = uuid4()
     for r in (
         _recalc(pipeline_id=pid, affected=[101, 202], data_entry_type_id=10),
@@ -74,7 +75,8 @@ async def test_returns_union_of_finished_sibling_affected_ids(
 async def test_ignores_non_finished_siblings(db_session: AsyncSession):
     """RUNNING / NOT_STARTED siblings don't contribute — only FINISHED
     counts (Phase 4A.1 coalesce guarantees the aggregation runs after
-    every sibling is FINISHED, so this is the right snapshot)."""
+    every sibling is FINISHED, so this is the right snapshot).
+    """
     pid = uuid4()
     db_session.add(
         _recalc(
@@ -102,7 +104,8 @@ async def test_ignores_non_finished_siblings(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_returns_none_when_no_pipeline_id(db_session: AsyncSession):
     """No pipeline_id → legacy/orphan path; helper returns None so the
-    caller falls back to the full (module, year) module list."""
+    caller falls back to the full (module, year) module list.
+    """
     result = await _collect_affected_module_ids(None, db_session)
     assert result is None
 
@@ -111,7 +114,8 @@ async def test_returns_none_when_no_pipeline_id(db_session: AsyncSession):
 async def test_returns_none_when_no_affected_meta(db_session: AsyncSession):
     """Recalc siblings exist but none carry affected_module_ids →
     helper returns None (full-slice fallback). Common on legacy rows
-    or before recalc started recording the field."""
+    or before recalc started recording the field.
+    """
     pid = uuid4()
     db_session.add(_recalc(pipeline_id=pid, affected=None, data_entry_type_id=10))
     db_session.add(_recalc(pipeline_id=pid, affected=None, data_entry_type_id=11))
@@ -128,7 +132,8 @@ async def test_returns_empty_set_when_recalcs_touched_nothing(
 ):
     """Recalc siblings report empty affected_module_ids → helper returns
     an *empty* set (not None), so the aggregation correctly recomputes
-    zero modules instead of falling back to the full slice."""
+    zero modules instead of falling back to the full slice.
+    """
     pid = uuid4()
     db_session.add(_recalc(pipeline_id=pid, affected=[], data_entry_type_id=10))
     await db_session.flush()

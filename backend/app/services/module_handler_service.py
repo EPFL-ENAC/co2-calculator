@@ -25,7 +25,7 @@ class ModuleHandlerService:
 
     @staticmethod
     def clear_dependent_fields_on_kind_change(
-        handler: "ModuleHandler",
+        handler: ModuleHandler,
         update_payload: dict,
         item_data: dict,
         existing_data: dict | None,
@@ -54,7 +54,7 @@ class ModuleHandlerService:
 
     async def get_taxonomy(
         self,
-        handler: "ModuleHandler",
+        handler: ModuleHandler,
         data_entry_type: DataEntryTypeEnum,
         year: int,
     ) -> TaxonomyNode:
@@ -68,7 +68,6 @@ class ModuleHandlerService:
             data_entry_type: The data entry type to build taxonomy for
             year: The year for which to retrieve factors
         """
-
         factors = await self.factor_service.list_by_data_entry_type(
             data_entry_type, year
         )

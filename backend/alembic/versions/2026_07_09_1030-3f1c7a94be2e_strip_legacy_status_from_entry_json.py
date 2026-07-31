@@ -17,7 +17,7 @@ Data-only migration (issue #589, same shape as 954eac6c95da):
   cleaned in place, since the DB persists across deploys.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
@@ -31,9 +31,9 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "3f1c7a94be2e"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = "89c3079e388d"  # noqa: F841
-branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
-depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
+down_revision: str | Sequence[str] | None = "89c3079e388d"  # noqa: F841
+branch_labels: str | Sequence[str] | None = None  # noqa: F841
+depends_on: str | Sequence[str] | None = None  # noqa: F841
 
 
 def upgrade() -> None:
@@ -49,4 +49,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """No-op: the key is dead weight the current code never reads or writes;
-    the removed values carried no information (always VALIDATED)."""
+    the removed values carried no information (always VALIDATED).
+    """

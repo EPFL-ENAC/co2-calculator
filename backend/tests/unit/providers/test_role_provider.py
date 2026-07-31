@@ -3,7 +3,7 @@
 Tests cover both JwtClaimsRoleProvider and AccredRoleProvider with 100% coverage.
 """
 
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -49,7 +49,7 @@ def mock_logger():
 
 
 @pytest.fixture
-def sample_userinfo() -> Dict[str, Any]:
+def sample_userinfo() -> dict[str, Any]:
     """Fixture providing sample userinfo dict."""
     return {
         "email": "user@epfl.ch",
@@ -607,13 +607,15 @@ class TestGetRoleProvider:
         """The override param also accepts a persisted ``UserProvider``
         value (e.g. ``User.provider``), used by background sync to
         re-resolve roles from an entity's original source regardless of
-        the current ROLE_PROVIDER_TYPE setting."""
+        the current ROLE_PROVIDER_TYPE setting.
+        """
         provider = get_role_provider(UserProvider.ACCRED)
         assert isinstance(provider, AccredRoleProvider)
 
     def test_get_unknown_role_provider_raises(self):
         """Pins F9: unknown ROLE_PROVIDER_TYPE raises ValueError instead of
-        silently degrading to JwtClaimsRoleProvider."""
+        silently degrading to JwtClaimsRoleProvider.
+        """
         with patch("app.providers.role_provider.settings") as mock_settings:
             mock_settings.ROLE_PROVIDER_TYPE = "unknown"
 
@@ -622,7 +624,8 @@ class TestGetRoleProvider:
 
     def test_factory_no_longer_reads_provider_plugin(self):
         """Regression: the factory must read ROLE_PROVIDER_TYPE, not the
-        removed PROVIDER_PLUGIN setting."""
+        removed PROVIDER_PLUGIN setting.
+        """
         with patch("app.providers.role_provider.settings") as mock_settings:
             mock_settings.ROLE_PROVIDER_TYPE = RoleProviderType.JWT
             # A stray PROVIDER_PLUGIN would only be read by legacy code; the
@@ -646,7 +649,8 @@ class TestJwtClaimsRoleProviderClaimCombinations:
     async def test_unknown_role_name_is_skipped_not_raised(self):
         """Pins F11 fix: a role whose name is not in the RoleName enum is
         skipped (with a warning), so one malformed entry from the IdP does
-        not DoS the entire login."""
+        not DoS the entire login.
+        """
         provider = JwtClaimsRoleProvider()
         good_role = f"{RoleName.CO2_USER_STD.value}@unit:12345"
         userinfo = {
@@ -660,7 +664,8 @@ class TestJwtClaimsRoleProviderClaimCombinations:
     @pytest.mark.asyncio
     async def test_empty_role_name_is_skipped_not_raised(self):
         """Pins F11 fix: an empty role name (e.g. `@unit:12345`) is also a
-        ValueError from RoleName(""); must be skipped with a warning."""
+        ValueError from RoleName(""); must be skipped with a warning.
+        """
         provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles({"sub": "x", "roles": ["@unit:12345"]})
         assert roles == []
@@ -669,7 +674,8 @@ class TestJwtClaimsRoleProviderClaimCombinations:
     async def test_unknown_scope_type_warns_when_skipped(self, caplog):
         """Pins F12 fix: roles with an unknown scope type
         (e.g. `co2.user.standard@bogus:value`) emit a warning before being
-        dropped. Silent drops mask IdP/config drift."""
+        dropped. Silent drops mask IdP/config drift.
+        """
         provider = JwtClaimsRoleProvider()
         with caplog.at_level("WARNING"):
             roles = await provider.get_roles(
@@ -688,7 +694,8 @@ class TestJwtClaimsRoleProviderClaimCombinations:
     async def test_non_list_roles_claim_returns_empty(self):
         """If the IdP returns a non-list `roles` claim (e.g. a string), the
         provider must not crash. Current behaviour: returns []. Pin so we
-        notice if iteration semantics change."""
+        notice if iteration semantics change.
+        """
         provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles({"sub": "x", "roles": "not_a_list"})
         assert roles == []
@@ -703,7 +710,8 @@ class TestJwtClaimsRoleProviderClaimCombinations:
     @pytest.mark.asyncio
     async def test_role_with_non_string_entry_is_skipped(self):
         """A role entry that isn't a string (e.g. a dict from a misconfigured
-        IdP) must be skipped, not crash the whole resolution."""
+        IdP) must be skipped, not crash the whole resolution.
+        """
         provider = JwtClaimsRoleProvider()
         good_role = f"{RoleName.CO2_USER_STD.value}@unit:12345"
         roles = await provider.get_roles(

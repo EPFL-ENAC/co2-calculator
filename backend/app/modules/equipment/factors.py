@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import ValidationInfo, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -23,8 +21,8 @@ class _EquipmentFactorValidationMixin(_EquipmentUsageHoursValidationMixin):
     )
     @classmethod
     def validate_factor_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
+        cls, v: float | None, info: ValidationInfo
+    ) -> float | None:
         return _validate_non_negative_float(v, info.field_name or "")
 
 
@@ -40,7 +38,7 @@ value_fields: list[str] = [
 
 class EquipmentFactorCreate(_EquipmentFactorValidationMixin, FactorCreate):
     equipment_class: str
-    sub_class: Optional[str] = None
+    sub_class: str | None = None
     active_usage_hours_per_week: int  # make it mandatory
     standby_usage_hours_per_week: int  # make it mandatory
     active_power_w: float
@@ -54,18 +52,18 @@ class EquipmentFactorCreate(_EquipmentFactorValidationMixin, FactorCreate):
 
 
 class EquipmentFactorUpdate(_EquipmentFactorValidationMixin, FactorUpdate):
-    equipment_class: Optional[str] = None
-    sub_class: Optional[str] = None
-    active_power_w: Optional[float] = None
-    standby_power_w: Optional[float] = None
-    active_usage_hours_per_week: Optional[int] = None
-    standby_usage_hours_per_week: Optional[int] = None
-    ef_kg_co2eq_per_kwh: Optional[float] = None
+    equipment_class: str | None = None
+    sub_class: str | None = None
+    active_power_w: float | None = None
+    standby_power_w: float | None = None
+    active_usage_hours_per_week: int | None = None
+    standby_usage_hours_per_week: int | None = None
+    ef_kg_co2eq_per_kwh: float | None = None
 
 
 class EquipmentFactorResponse(FactorResponseGen):
     equipment_class: str
-    sub_class: Optional[str] = None
+    sub_class: str | None = None
     active_power_w: float
     standby_power_w: float
 

@@ -5,7 +5,6 @@ Used by TestRoleProvider, TestUnitProvider, and seed_fake_user_unit.
 """
 
 import hashlib
-from typing import Dict, List
 
 from app.models.unit import Unit
 from app.models.user import (
@@ -39,7 +38,7 @@ def make_test_user_id(user_id: str) -> str:
 # institutional_id is computed via make_test_user_id for consistency
 # with the login-test flow.
 
-TEST_USERS: Dict[RoleName, Dict[str, str]] = {
+TEST_USERS: dict[RoleName, dict[str, str]] = {
     RoleName.CO2_USER_STD: {
         "institutional_id": make_test_user_id("testuser_calco2.user.standard"),
         "email": "testuser_calco2.user.standard@example.org",
@@ -67,7 +66,7 @@ TEST_USERS: Dict[RoleName, Dict[str, str]] = {
 }
 
 # Reverse lookup: institutional_id → RoleName
-_USER_ID_TO_ROLE: Dict[str, RoleName] = {
+_USER_ID_TO_ROLE: dict[str, RoleName] = {
     u["institutional_id"]: role for role, u in TEST_USERS.items()
 }
 
@@ -110,7 +109,7 @@ def _test_leaf(institutional_code: str, institutional_id: str, name: str) -> Uni
     )
 
 
-TEST_UNITS: List[Unit] = [
+TEST_UNITS: list[Unit] = [
     Unit(
         provider=UserProvider.TEST,
         institutional_code="12635",
@@ -143,7 +142,7 @@ TEST_UNITS: List[Unit] = [
 TEST_UNIT_IDS = [u.institutional_id for u in TEST_UNITS if u.institutional_id]
 # Leaf (level-4) test unit ids — the selectable workspaces. Unit/own scopes are
 # built over all of them so a login-test user lands with four units to pick from.
-TEST_LEAF_UNIT_IIDS: List[str] = [
+TEST_LEAF_UNIT_IIDS: list[str] = [
     u.institutional_id for u in TEST_UNITS if u.level == 4 and u.institutional_id
 ]
 
@@ -151,7 +150,7 @@ TEST_LEAF_UNIT_IIDS: List[str] = [
 # -- Test Roles ---------------------------------------------------------------
 # Maps each RoleName to the list of Role objects assigned during test login.
 
-TEST_ROLES: Dict[RoleName, List[Role]] = {
+TEST_ROLES: dict[RoleName, list[Role]] = {
     RoleName.CO2_USER_STD: [
         Role(
             role=RoleName.CO2_USER_STD,

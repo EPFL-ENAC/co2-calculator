@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.core.logging import get_logger
 from app.models.connector import ConnectorType
@@ -22,7 +22,8 @@ logger = get_logger(__name__)
 class ProfessionalTravelApiProvider(BaseTableauApiProvider):
     """Professional-travel (flights) provider backed by the EPFL Tableau
     connection. Credentials + datasource LUID come from the DB via the base
-    class; this subclass owns only the travel-specific transform/load."""
+    class; this subclass owns only the travel-specific transform/load.
+    """
 
     CONNECTOR = ConnectorType.EPFL_TABLEAU
     MODULE_TYPE = ModuleTypeEnum.professional_travel
@@ -57,8 +58,8 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
     ]
 
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         try:
             transformed = []
 
@@ -141,9 +142,8 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
             f"{stats['rows_skipped']} skipped"
         )
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Load transformed travel data into database.
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
+        """Load transformed travel data into database.
 
         Expects each record to have carbon_report_module_id already resolved.
         Uses self.data_session for consistency.
@@ -244,7 +244,7 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
         await self.data_session.flush()
         return {"inserted": len(data_entries_response)}
 
-    def _parse_date(self, date_str: str) -> Optional[datetime]:
+    def _parse_date(self, date_str: str) -> datetime | None:
         if not date_str or len(date_str) != 8:
             return None
         return datetime.strptime(date_str, "%Y%m%d")

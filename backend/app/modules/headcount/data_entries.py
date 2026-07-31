@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel, field_validator
 
 from app.schemas.data_entry import (
@@ -13,14 +11,14 @@ SIUS_CODE_VALUES = {"51", "52", "53", "54", "56", "57", "58", "59"}
 
 class HeadcountItemResponse(DataEntryResponseGen):
     name: str
-    sius_code: Optional[str] = None
-    fte: Optional[float] = None
-    user_institutional_id: Optional[str] = None
-    note: Optional[str] = None
+    sius_code: str | None = None
+    fte: float | None = None
+    user_institutional_id: str | None = None
+    note: str | None = None
 
 
 class HeadCountStudentResponse(DataEntryResponseGen):
-    fte: Optional[float] = None
+    fte: float | None = None
 
 
 class HeadCountCreate(DataEntryCreate):
@@ -28,7 +26,7 @@ class HeadCountCreate(DataEntryCreate):
     sius_code: str
     user_institutional_id: str
     fte: float
-    note: Optional[str] = None
+    note: str | None = None
 
     @field_validator("name", mode="after")
     @classmethod
@@ -47,7 +45,7 @@ class HeadCountCreate(DataEntryCreate):
 
     @field_validator("fte", mode="after")
     @classmethod
-    def validate_fte(cls, v: Optional[float]) -> Optional[float]:
+    def validate_fte(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v > 1:
@@ -77,11 +75,11 @@ class HeadCountStudentCreate(DataEntryCreate):
 
 
 class HeadCountStudentUpdate(DataEntryUpdate):
-    fte: Optional[float] = None
+    fte: float | None = None
 
     @field_validator("fte", mode="after")
     @classmethod
-    def validate_fte(cls, v: Optional[float]) -> Optional[float]:
+    def validate_fte(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0:
@@ -90,14 +88,14 @@ class HeadCountStudentUpdate(DataEntryUpdate):
 
 
 class HeadCountUpdate(DataEntryUpdate):
-    name: Optional[str] = None
-    sius_code: Optional[str] = None
-    fte: Optional[float] = None
-    note: Optional[str] = None
+    name: str | None = None
+    sius_code: str | None = None
+    fte: float | None = None
+    note: str | None = None
 
     @field_validator("fte", mode="after")
     @classmethod
-    def validate_fte(cls, v: Optional[float]) -> Optional[float]:
+    def validate_fte(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v > 1:
@@ -108,7 +106,7 @@ class HeadCountUpdate(DataEntryUpdate):
 
     @field_validator("sius_code", mode="after")
     @classmethod
-    def validate_sius_code(cls, v: Optional[str]) -> Optional[str]:
+    def validate_sius_code(cls, v: str | None) -> str | None:
         if v is None:
             return v
         if v not in SIUS_CODE_VALUES:

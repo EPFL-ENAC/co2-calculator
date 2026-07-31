@@ -8,7 +8,8 @@ from app.core.config import get_settings
 def _restore_settings_cache():
     """Clear the lru_cache after each test too, so once monkeypatch reverts
     the env, the next caller re-reads real settings instead of the blanked
-    values left behind by a fail-closed test."""
+    values left behind by a fail-closed test.
+    """
     yield
     get_settings.cache_clear()
 

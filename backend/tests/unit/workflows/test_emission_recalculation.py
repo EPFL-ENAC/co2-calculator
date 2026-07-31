@@ -20,7 +20,8 @@ def _make_mock_entry(entry_id: int, module_id: int) -> MagicMock:
 
 def _make_mock_handler() -> MagicMock:
     """Handler mock whose async ``prefetch_slice`` hook returns an empty
-    slice cache — the workflow awaits it once before looping entries."""
+    slice cache — the workflow awaits it once before looping entries.
+    """
     handler = MagicMock()
     handler.prefetch_slice = AsyncMock(return_value={})
     return handler
@@ -28,7 +29,8 @@ def _make_mock_handler() -> MagicMock:
 
 def _patch_resolver_empty(mock_resolver_cls) -> None:
     """Wire a FactorResolver mock whose bulk map is empty — the shape
-    most tests need when the resolved factor id doesn't matter."""
+    most tests need when the resolved factor id doesn't matter.
+    """
     mock_resolver_cls.return_value.factors_by_id = AsyncMock(return_value={})
 
 
@@ -166,7 +168,8 @@ async def test_recalculate_aborts_batch_on_connection_invalidated():
     reconnect" log line per remaining data_entry and a silently failed
     job.  Re-raising lets the runner record FINISHED+ERROR with the
     real cause (per-entry data errors still continue — see
-    test_recalculate_partial_error)."""
+    test_recalculate_partial_error).
+    """
     from sqlalchemy.exc import DBAPIError
 
     mock_session = MagicMock()
@@ -238,7 +241,8 @@ async def test_recalculate_aborts_batch_on_pending_rollback():
     just ``DBAPIError.connection_invalidated``.  This is the case the
     first version of the fix missed: once the session needs a full
     rollback, every remaining entry (including ``begin_nested()``'s
-    SAVEPOINT enter) re-raises the same error."""
+    SAVEPOINT enter) re-raises the same error.
+    """
     from sqlalchemy.exc import PendingRollbackError
 
     mock_session = MagicMock()
@@ -332,7 +336,8 @@ async def test_recalculate_reports_affected_module_ids_for_chain():
     instead it reports ``affected_module_ids`` so the calling handler
     can chain a single deduplicated aggregation pass for the slice.
     Distinct module ids in ``affected_module_ids`` == "modules whose
-    stats need refreshing once the recalc commits"."""
+    stats need refreshing once the recalc commits".
+    """
     mock_session = MagicMock()
     svc = EmissionRecalculationWorkflow(mock_session)
 
@@ -389,7 +394,8 @@ async def test_recalculate_reports_progress_time_based(monkeypatch):
     """Progress reporting is wall-time-throttled (stage incident
     2026-07-17: the old every-5000-entries gate gave an 8488-entry slice
     a single update). With the throttle forced open, every entry reports,
-    plus the terminal N/N update after the loop."""
+    plus the terminal N/N update after the loop.
+    """
     import app.workflows.emission_recalculation as wf_mod
 
     monkeypatch.setattr(wf_mod, "PROGRESS_REPORT_INTERVAL_S", -1.0)
@@ -438,7 +444,8 @@ async def test_recalculate_reports_progress_time_based(monkeypatch):
 async def test_recalculate_always_reports_terminal_progress():
     """A slice too fast to cross the report interval still gets the
     terminal N/N update — the operator never sees a job finish while the
-    status line reads an intermediate count."""
+    status line reads an intermediate count.
+    """
     mock_session = MagicMock()
     svc = EmissionRecalculationWorkflow(mock_session)
 
@@ -494,7 +501,8 @@ async def test_recalculate_always_reports_terminal_progress():
 @pytest.mark.asyncio
 async def test_recalculate_never_mutates_entry_data():
     """entry.data is read-only input to the loop — no tentative swap,
-    no rollback-on-failure. Assert identity AND value are unchanged."""
+    no rollback-on-failure. Assert identity AND value are unchanged.
+    """
     mock_session = MagicMock()
     svc = EmissionRecalculationWorkflow(mock_session)
 
@@ -544,7 +552,8 @@ async def test_recalculate_never_mutates_entry_data():
 @pytest.mark.asyncio
 async def test_recalculate_entry_data_untouched_on_per_entry_failure():
     """A per-entry ``prepare_create`` failure has nothing to roll back —
-    entry.data was never written to in the first place."""
+    entry.data was never written to in the first place.
+    """
     mock_session = MagicMock()
     svc = EmissionRecalculationWorkflow(mock_session)
 
@@ -595,7 +604,8 @@ async def test_recalculate_shares_one_resolver_across_entries():
     the SAME instance to every ``prepare_create`` call, so the
     resolver's memoized bulk SELECT (``factors_by_id``) runs once
     regardless of how many entries are in the slice — not once per
-    entry."""
+    entry.
+    """
     mock_session = MagicMock()
     svc = EmissionRecalculationWorkflow(mock_session)
 
@@ -653,7 +663,8 @@ async def test_recalculate_carries_new_factor_id_into_emission_rows():
     """After a factor swap, the recalculated emission rows (buffered
     for ``bulk_replace_for_entries``) carry the new
     ``DataEntryEmission.primary_factor_id`` — the resolved id lives on
-    the emission, never back on ``entry.data``."""
+    the emission, never back on ``entry.data``.
+    """
     mock_session = MagicMock()
     svc = EmissionRecalculationWorkflow(mock_session)
 

@@ -77,7 +77,8 @@ async def test_check_permission_returns_none_when_allowed(monkeypatch):
 @pytest.mark.asyncio
 async def test_require_permission_dependency_raises_403_when_denied(monkeypatch):
     """The FastAPI dependency built by `require_permission` must surface a
-    403 (not 401) when the user is authenticated but not authorized."""
+    403 (not 401) when the user is authenticated but not authorized.
+    """
     monkeypatch.setattr(
         "app.core.security.query_policy",
         AsyncMock(return_value={"allow": False}),
@@ -105,7 +106,8 @@ async def test_require_permission_dependency_returns_user_when_allowed(monkeypat
 async def test_is_permitted_glob_denies_if_any_match_denied(monkeypatch):
     """Pin the AND-semantics of glob expansion in `is_permitted`: a `modules.*`
     check must DENY if even one matching path is denied. A relaxation here
-    would silently grant cross-module access."""
+    would silently grant cross-module access.
+    """
     user = _user_with_paths(["modules.headcount", "modules.travel", "modules.purchase"])
 
     async def policy(path: str, input_data: dict):
@@ -121,7 +123,8 @@ async def test_is_permitted_glob_denies_if_any_match_denied(monkeypatch):
 @pytest.mark.asyncio
 async def test_is_permitted_no_glob_match_falls_through_to_opa(monkeypatch):
     """When the requested path matches no known user-permission keys, the
-    glob short-circuit must not silently return True — defer to OPA."""
+    glob short-circuit must not silently return True — defer to OPA.
+    """
     user = _user_with_paths(["modules.headcount"])
     opa = AsyncMock(return_value={"allow": False})
     monkeypatch.setattr("app.core.security.query_policy", opa)

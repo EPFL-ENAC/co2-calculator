@@ -1,7 +1,6 @@
 """Simulator plan schemas for API request/response validation."""
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -25,11 +24,11 @@ class SimulatorPlanCreate(BaseModel):
     available default name (new-project, new-project-2, ...).
     """
 
-    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    name: str | None = Field(default=None, min_length=1, max_length=100)
 
     @field_validator("name")
     @classmethod
-    def validate_name(cls, value: Optional[str]) -> Optional[str]:
+    def validate_name(cls, value: str | None) -> str | None:
         if value is None:
             return None
         return _validate_plan_name(value)
@@ -48,14 +47,14 @@ class SimulatorPlanUpdate(BaseModel):
     plan must then be a grant proposal); ``True`` (re)creates them.
     """
 
-    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    start_year: Optional[int] = Field(default=None, ge=1000, le=9999)
-    end_year: Optional[int] = Field(default=None, ge=1000, le=9999)
-    is_viewable_by_unit_members: Optional[bool] = None
     is_grant_proposal: Optional[bool] = None
-    with_year_sections: Optional[bool] = None
     default_reference_year: Optional[int] = Field(default=None, ge=1000, le=9999)
+    with_year_sections: Optional[bool] = None
     """Reference year for year reports newly created by this range change.
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    start_year: int | None = Field(default=None, ge=1000, le=9999)
+    end_year: int | None = Field(default=None, ge=1000, le=9999)
+    is_viewable_by_unit_members: bool | None = None
 
     The workspace year the planner was opened from. Applied (with the usual
     prefill) only to reports the sync creates; existing reports keep theirs.
@@ -63,7 +62,7 @@ class SimulatorPlanUpdate(BaseModel):
 
     @field_validator("name")
     @classmethod
-    def validate_name(cls, value: Optional[str]) -> Optional[str]:
+    def validate_name(cls, value: str | None) -> str | None:
         if value is None:
             return None
         return _validate_plan_name(value)
@@ -89,16 +88,15 @@ class SimulatorPlanRead(BaseModel):
     id: int
     unit_id: int
     name: str
-    start_year: Optional[int] = None
-    end_year: Optional[int] = None
+    start_year: int | None = None
+    end_year: int | None = None
     is_viewable_by_unit_members: bool = False
     is_grant_proposal: bool = False
     default_factor_year: Optional[int] = None
-    created_by: Optional[int] = None
-    created_at: Optional[datetime] = None
-    creator_name: Optional[str] = None
-    total_tonnes_co2eq: Optional[float] = None
-    can_manage: bool = False
+    created_by: int | None = None
+    created_at: datetime | None = None
+    creator_name: str | None = None
+    total_tonnes_co2eq: float | None = None
 
     class Config:
         from_attributes = True
@@ -109,11 +107,11 @@ class SimulatorPlanYearRead(BaseModel):
 
     id: int
     year: int
-    reference_year: Optional[int] = None
     is_grant: bool = False
     budget: Optional[float] = None
     budget_currency: Optional[str] = None
-    stats: Optional[dict] = None
+    reference_year: int | None = None
+    stats: dict | None = None
     modules: list[CarbonReportModuleRead] = []
 
     class Config:

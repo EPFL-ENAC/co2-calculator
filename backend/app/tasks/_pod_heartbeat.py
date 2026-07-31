@@ -29,7 +29,7 @@ kill the heartbeat (mirrors ``_pipeline_reconciler``).
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 
@@ -48,7 +48,7 @@ async def _upsert_pod_row(*, started_at: datetime) -> None:
     uptime" in the UI).
     """
     settings = get_settings()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with SessionLocal() as session:
         # Raw SQL because SQLModel doesn't expose a portable
         # ON CONFLICT path that works across Postgres and SQLite
@@ -117,7 +117,7 @@ async def pod_heartbeat_loop() -> None:
     """
     settings = get_settings()
     interval = settings.POD_HEARTBEAT_INTERVAL_SECONDS
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(UTC)
     # First tick BEFORE the sleep so the row is registered as soon
     # as the loop starts — operators get the new pod in the
     # workers view immediately, not ``interval`` seconds later.

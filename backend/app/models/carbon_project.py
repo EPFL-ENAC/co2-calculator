@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import Column, DateTime
 from sqlalchemy import Enum as SAEnum
@@ -29,9 +28,9 @@ class CarbonProjectBase(SQLModel):
         ),
         description="Project type: Calculator, Simulator_Explore, or Simulator_Plan",
     )
-    start_year: Optional[int] = Field(default=None, nullable=True, index=True)
-    end_year: Optional[int] = Field(default=None, nullable=True, index=True)
-    name: Optional[str] = Field(default=None, nullable=True, index=True)
+    start_year: int | None = Field(default=None, nullable=True, index=True)
+    end_year: int | None = Field(default=None, nullable=True, index=True)
+    name: str | None = Field(default=None, nullable=True, index=True)
     is_viewable_by_unit_members: bool = Field(default=False, nullable=False)
     is_grant_proposal: bool = Field(
         default=False,
@@ -48,7 +47,7 @@ class CarbonProjectBase(SQLModel):
         nullable=True,
         description="User who created the project (set for Simulator Plan projects)",
     )
-    created_at: Optional[datetime] = Field(
+    created_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
         description="Creation timestamp (set for Simulator Plan projects)",
@@ -65,4 +64,4 @@ class CarbonProject(CarbonProjectBase, table=True):
     #   Simulator_Plan projects (the name is a URL identifier)
     __tablename__ = "carbon_projects"
 
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: int | None = Field(default=None, primary_key=True, index=True)

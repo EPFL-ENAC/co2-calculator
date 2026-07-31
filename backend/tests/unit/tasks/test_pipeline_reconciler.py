@@ -57,7 +57,8 @@ async def test_loop_calls_reconcile_and_sleeps():
 @pytest.mark.asyncio
 async def test_loop_survives_sweep_exception():
     """A raised exception from ``reconcile_pipeline_statuses`` does NOT
-    kill the loop — the next iteration runs as usual."""
+    kill the loop — the next iteration runs as usual.
+    """
     from app.tasks._pipeline_reconciler import reconcile_pipeline_statuses_loop
 
     call_count = {"n": 0}
@@ -94,7 +95,8 @@ async def test_loop_survives_sweep_exception():
 @pytest.mark.asyncio
 async def test_loop_skips_info_log_on_quiet_sweep(caplog):
     """corrected=0 → no INFO log (otherwise the cron would spam at 60s
-    cadence in steady state)."""
+    cadence in steady state).
+    """
     from app.tasks._pipeline_reconciler import reconcile_pipeline_statuses_loop
 
     async def fake_sleep(*_a, **_kw):

@@ -75,7 +75,8 @@ def _stub_csv_provider() -> type:
 
 def test_seeded_year_dataclass_is_frozen() -> None:
     """The helper returns a frozen dataclass — pin that contract so
-    Units 2-11 can't accidentally mutate the snapshot."""
+    Units 2-11 can't accidentally mutate the snapshot.
+    """
     seeded = SeededYear(year=2025)
     with pytest.raises(dataclasses.FrozenInstanceError):
         seeded.year = 2026  # type: ignore[misc]
@@ -83,7 +84,8 @@ def test_seeded_year_dataclass_is_frozen() -> None:
 
 def test_csv_fixture_path_resolves_committed_smoke_fixture() -> None:
     """``('headcount', 'data')`` must resolve to the committed trimmed
-    fixture even when ``backend/seed_data/`` is absent (CI scenario)."""
+    fixture even when ``backend/seed_data/`` is absent (CI scenario).
+    """
     path = csv_fixture_path("headcount", "data")
     assert path.is_file(), f"resolved path {path} should exist"
     assert path.suffix == ".csv"
@@ -92,7 +94,8 @@ def test_csv_fixture_path_resolves_committed_smoke_fixture() -> None:
 def test_csv_fixture_path_unknown_pair_raises_keyerror() -> None:
     """A ``(module, kind)`` with no mapping raises ``KeyError`` — pin
     the contract so Units 2-11 know they have to register new pairs
-    explicitly rather than silently get a missing-file error."""
+    explicitly rather than silently get a missing-file error.
+    """
     with pytest.raises(KeyError):
         csv_fixture_path("nonexistent", "module")
 
@@ -100,7 +103,8 @@ def test_csv_fixture_path_unknown_pair_raises_keyerror() -> None:
 @pytest.mark.asyncio
 async def test_seeded_year_with_units_creates_full_tree(pg_dsn) -> None:
     """``seeded_year_with_units`` must persist YearConfiguration + units
-    + reports + one CRM per (unit, ModuleTypeEnum)."""
+    + reports + one CRM per (unit, ModuleTypeEnum).
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -121,7 +125,8 @@ async def test_seeded_year_with_units_creates_full_tree(pg_dsn) -> None:
 @pytest.mark.asyncio
 async def test_assert_stats_match_diffs_subset(pg_dsn) -> None:
     """``assert_stats_match`` succeeds on subset matches and surfaces
-    a clear path on mismatches."""
+    a clear path on mismatches.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

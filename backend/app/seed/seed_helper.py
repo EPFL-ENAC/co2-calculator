@@ -1,5 +1,3 @@
-from typing import Dict, Optional
-
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
@@ -92,8 +90,8 @@ async def get_carbon_report_module_id(
 async def load_factors_map(
     session: AsyncSession,
     data_entry_type: DataEntryTypeEnum,
-    year: Optional[int] = None,
-) -> Dict[str, Factor]:
+    year: int | None = None,
+) -> dict[str, Factor]:
     """Load factors from database into a lookup dictionary.
 
     If year is provided, only factors matching that year are included.
@@ -104,7 +102,7 @@ async def load_factors_map(
     factors: list[Factor] = await service.list_by_data_entry_type(
         data_entry_type, year=year
     )
-    factors_map: Dict[str, Factor] = {}
+    factors_map: dict[str, Factor] = {}
 
     factor_handler = BaseModuleHandler.get_by_type(data_entry_type)
     kind_field = factor_handler.kind_field
@@ -143,8 +141,8 @@ def normalize_kind(kind: str) -> str:
 
 def is_in_factors_map(
     kind: str,
-    subkind: Optional[str],
-    factors_map: Dict[str, Factor],
+    subkind: str | None,
+    factors_map: dict[str, Factor],
     *,
     require_subkind: bool = False,
 ) -> bool:
@@ -165,11 +163,10 @@ def is_in_factors_map(
 
 def lookup_factor(
     kind: str,
-    subkind: Optional[str],
-    factors_map: Dict[str, Factor],
-) -> Optional[Factor]:
-    """
-    Lookup factor for data_entry by kind only.
+    subkind: str | None,
+    factors_map: dict[str, Factor],
+) -> Factor | None:
+    """Lookup factor for data_entry by kind only.
 
     Returns None if no match found OR if multiple matches exist (ambiguous).
 
@@ -208,11 +205,10 @@ def lookup_factor(
 
 def lookup_data_entry_type_by_kind(
     kind: str,
-    subkind: Optional[str],
-    factors_maps_by_type: Dict[DataEntryTypeEnum, Dict[str, Factor]],
-) -> Optional[DataEntryTypeEnum]:
-    """
-    Infer data_entry_type from kind/subkind using partial factor matching.
+    subkind: str | None,
+    factors_maps_by_type: dict[DataEntryTypeEnum, dict[str, Factor]],
+) -> DataEntryTypeEnum | None:
+    """Infer data_entry_type from kind/subkind using partial factor matching.
 
     This function searches across multiple data entry types' factor maps to
     determine which data_entry_type a given kind/subkind belongs to.

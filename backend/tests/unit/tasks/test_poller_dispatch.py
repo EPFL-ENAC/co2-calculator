@@ -20,7 +20,8 @@ from app.tasks._poller import _IN_FLIGHT_JOB_IDS, dispatch_job, schedule_job
 def _make_job(job_id: int | None, job_type: str | None = "csv_ingest"):
     """Minimal mock DataIngestionJob.  ``spec=DataIngestionJob`` so
     attribute typos in the dispatcher AttributeError rather than
-    silently return a Mock."""
+    silently return a Mock.
+    """
     job = MagicMock(spec=DataIngestionJob)
     job.id = job_id
     job.job_type = job_type
@@ -56,7 +57,8 @@ async def test_dispatch_job_routes_through_run_job():
 )
 async def test_dispatch_job_routes_every_known_job_type_through_run_job(job_type):
     """All Plan 310-C job_types take the same path — there is no
-    job_type-specific branching in the poller anymore."""
+    job_type-specific branching in the poller anymore.
+    """
     job = _make_job(42, job_type)
     with patch("app.tasks._poller.run_job", new_callable=AsyncMock) as mock_run:
         await dispatch_job(job, "test-pod")
@@ -66,7 +68,8 @@ async def test_dispatch_job_routes_every_known_job_type_through_run_job(job_type
 @pytest.mark.asyncio
 async def test_dispatch_job_skips_when_id_missing():
     """A job row with no id must NOT crash the poller; just skip and
-    log a warning."""
+    log a warning.
+    """
     job = _make_job(None, "csv_ingest")
     with patch("app.tasks._poller.run_job", new_callable=AsyncMock) as mock_run:
         await dispatch_job(job, "test-pod")

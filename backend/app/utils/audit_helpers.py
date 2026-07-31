@@ -4,8 +4,6 @@ Provides helper functions to extract audit-relevant information like
 handled_ids (affected user provider codes) from various entity types.
 """
 
-from typing import Union
-
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 
@@ -13,10 +11,9 @@ logger = get_logger(__name__)
 
 
 def extract_handled_ids(
-    data_entry: Union[DataEntry, dict], data_entry_type_id: DataEntryTypeEnum
+    data_entry: DataEntry | dict, data_entry_type_id: DataEntryTypeEnum
 ) -> list[str]:
-    """
-    Extract list of user provider codes affected by this data entry.
+    """Extract list of user provider codes affected by this data entry.
 
     Different data entry types store user identifiers in different fields:
     - Professional travel (plane/train): user_institutional_id or sciper
@@ -83,10 +80,9 @@ def extract_handled_ids(
 
 
 def extract_handled_ids_from_list(
-    data_entries: list[Union[DataEntry, dict]], data_entry_type_id: DataEntryTypeEnum
+    data_entries: list[DataEntry | dict], data_entry_type_id: DataEntryTypeEnum
 ) -> list[str]:
-    """
-    Extract unique list of user provider codes from multiple data entries.
+    """Extract unique list of user provider codes from multiple data entries.
 
     Args:
         data_entries: List of DataEntry objects or dicts

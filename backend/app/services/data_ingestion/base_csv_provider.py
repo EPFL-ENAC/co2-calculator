@@ -5,7 +5,7 @@ import time
 import urllib.parse
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, TypedDict
 
 from pydantic import ValidationError
 from sqlmodel import col, select
@@ -70,7 +70,7 @@ REUPLOAD_HINT = (
 )
 
 
-def _is_blank_data_row(row: Dict[str, str], required_columns: set[str]) -> bool:
+def _is_blank_data_row(row: dict[str, str], required_columns: set[str]) -> bool:
     """Return True when every required column is empty or absent in the raw row."""
     if not required_columns:
         return False
@@ -78,8 +78,7 @@ def _is_blank_data_row(row: Dict[str, str], required_columns: set[str]) -> bool:
 
 
 def _validate_file_path(file_path: str) -> None:
-    """
-    Validate file_path to prevent directory traversal attacks.
+    """Validate file_path to prevent directory traversal attacks.
     File should come from files_store and start with expected prefixes.
     """
     if not file_path:
@@ -151,7 +150,7 @@ def _get_required_columns_from_handler(handler: Any) -> set[str]:
 
 def _guard_factors_required(
     *,
-    factors_map: Dict[str, Any],
+    factors_map: dict[str, Any],
     handlers: list[Any],
     module_label: str,
     year: int | None,
@@ -191,7 +190,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         user: User | None = None,
         job_session: Any = None,
         *,
@@ -221,14 +220,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Track which missing units we've already warned about (deduplication)
         self._missing_units_logged: set[str] = set()
         # Cache for carbon_report_module_id -> year mapping (avoid per-row DB queries)
-        self._year_cache: Dict[int, int] = {}
+        self._year_cache: dict[int, int] = {}
         # Progress reporting: current phase label + throttle/rate bookkeeping.
         self._phase = ""
         self._phase_started_at = 0.0
         self._last_report_at = 0.0
         # Per-segment wall-time accumulator for the row-loop profile (diagnostic;
         # answers "where do the N seconds go" — DB-heavy segments stand out).
-        self._seg: Dict[str, float] = {}
+        self._seg: dict[str, float] = {}
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -272,7 +271,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
     @property
     def user_service(self) -> Any:
         """Lazy initialization of user service"""
-
         if self._user_service is None:
             self._user_service = UserService(self.data_session)
         return self._user_service
@@ -297,17 +295,17 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             logger.error(f"Failed to validate CSV file: {str(e)}")
             return False
 
-    async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         """Not used - processing is done in process_csv_in_batches"""
         return []
 
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Not used - transformation is done in process_csv_in_batches"""
         return raw_data
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         """Not used - loading is done in process_csv_in_batches"""
         return {"inserted": 0, "skipped": 0, "errors": 0}
 
@@ -317,8 +315,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         expected_columns: set[str],
         required_columns: set[str],
     ) -> None:
-        """
-        Validate CSV headers by checking first 5 rows.
+        """Validate CSV headers by checking first 5 rows.
         Fails if ALL first rows are missing required columns.
         In strict mode, also fails if expected columns are missing.
 
@@ -369,9 +366,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 )
 
     @abstractmethod
-    async def _setup_handlers_and_factors(self) -> Dict[str, Any]:
-        """
-        Setup handlers and factors for this entity type.
+    async def _setup_handlers_and_factors(self) -> dict[str, Any]:
+        """Setup handlers and factors for this entity type.
 
         Subclasses should determine which handlers to load and which factors
         to retrieve, based on entity-specific configuration.
@@ -385,10 +381,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         pass
 
     async def _load_handlers_and_factors(
-        self, entry_types: List[DataEntryTypeEnum]
-    ) -> tuple[List[Any], Dict[str, Any]]:
-        """
-        Load deduplicated handlers and the merged factors map for the
+        self, entry_types: list[DataEntryTypeEnum]
+    ) -> tuple[list[Any], dict[str, Any]]:
+        """Load deduplicated handlers and the merged factors map for the
         given data entry types.
 
         Year is required: factor lookups during row processing key on
@@ -404,7 +399,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Deduplicate handlers by class to avoid multiple identical
         # instances (e.g., EquipmentModuleHandler registered for
         # it/scientific/other)
-        handlers: List[Any] = []
+        handlers: list[Any] = []
         seen_handler_classes: set[type[Any]] = set()
         for entry_type in entry_types:
             handler = BaseModuleHandler.get_by_type(entry_type)
@@ -413,7 +408,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 handlers.append(handler)
                 seen_handler_classes.add(handler_class)
 
-        factors_map: Dict[str, Any] = {}
+        factors_map: dict[str, Any] = {}
         for entry_type in entry_types:
             type_factors = await load_factors_map(
                 self.data_session, entry_type, self.year
@@ -429,13 +424,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
     def _assemble_setup_result(
         self,
         *,
-        handlers: List[Any],
-        factors_map: Dict[str, Any],
+        handlers: list[Any],
+        factors_map: dict[str, Any],
         module_label: str,
         required_columns: set[str],
-    ) -> Dict[str, Any]:
-        """
-        Build the setup dict returned by ``_setup_handlers_and_factors``.
+    ) -> dict[str, Any]:
+        """Build the setup dict returned by ``_setup_handlers_and_factors``.
 
         Runs the require-factor guard, derives expected columns, and
         builds the factor_id -> factor map for O(1) lookup during row
@@ -467,14 +461,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     def _resolve_type_from_config_or_category(
         self,
-        filtered_row: Dict[str, str],
-        handlers: List[Any],
+        filtered_row: dict[str, str],
+        handlers: list[Any],
         row_idx: int,
         stats: StatsDict,
         max_row_errors: int,
-    ) -> tuple[DataEntryTypeEnum | None, "ModuleHandler | None"]:
-        """
-        Shared Priority 1/2 of data_entry_type resolution.
+    ) -> tuple[DataEntryTypeEnum | None, ModuleHandler | None]:
+        """Shared Priority 1/2 of data_entry_type resolution.
 
         Priority 1: configured ``data_entry_type_id`` from job config
         (cast through int so string ids from JSON config work).
@@ -505,11 +498,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     def _extract_kind_subkind_values(
         self,
-        filtered_row: Dict[str, str],
-        handlers: List[Any],
+        filtered_row: dict[str, str],
+        handlers: list[Any],
     ) -> tuple[str, str | None]:
-        """
-        Extract kind and subkind values from filtered row.
+        """Extract kind and subkind values from filtered row.
 
         Tries each handler's kind_field/subkind_field first, then falls
         back to common field names. Works for single- and multi-handler
@@ -545,15 +537,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
     @abstractmethod
     async def _resolve_handler_and_validate(
         self,
-        filtered_row: Dict[str, str],
+        filtered_row: dict[str, str],
         factor: Any | None,
         stats: StatsDict,
         row_idx: int,
         max_row_errors: int,
-        setup_result: Dict[str, Any],
-    ) -> tuple[DataEntryTypeEnum | None, "ModuleHandler | None", str | None]:
-        """
-        Resolve the handler and validate the row.
+        setup_result: dict[str, Any],
+    ) -> tuple[DataEntryTypeEnum | None, ModuleHandler | None, str | None]:
+        """Resolve the handler and validate the row.
 
         Subclasses implement entity-specific validation and handler resolution.
 
@@ -562,9 +553,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         pass
 
-    async def _resolve_carbon_report_modules(self, csv_text: str) -> Dict[str, int]:
-        """
-        Pre-scan CSV to extract unique unit_ids (institutional_ids)
+    async def _resolve_carbon_report_modules(self, csv_text: str) -> dict[str, int]:
+        """Pre-scan CSV to extract unique unit_ids (institutional_ids)
         and resolve carbon_report_module_id.
 
         Note: CSV column is named 'unit_institutional_id'
@@ -576,7 +566,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         Returns: {institutional_id: carbon_report_module_id} mapping
         """
-
         # Validate year is present
         if not self.year:
             raise ValueError("year is required for MODULE_PER_YEAR entity type")
@@ -613,7 +602,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 col(CarbonReportModule.module_type_id) == module_type_id,
             )
         )
-        full_map: Dict[str, int] = {}
+        full_map: dict[str, int] = {}
         for institutional_id, module_id, unit_db_id in (
             await self.data_session.execute(map_stmt)
         ).all():
@@ -651,7 +640,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # which would then wipe CSV-uploaded entries of units this file
         # doesn't even mention (and drag the DELETE across the whole
         # year's modules).
-        code_to_module_map: Dict[str, int] = {
+        code_to_module_map: dict[str, int] = {
             code: full_map[code] for code in unit_codes if code in full_map
         }
 
@@ -726,8 +715,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def ingest(
         self,
-        filters: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Override ingest to use custom process_csv_in_batches"""
         try:
             await self._update_job(
@@ -758,12 +747,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _delete_existing_entries_for_module_per_year(
         self,
-        unit_to_module_map: Dict[str, int],
+        unit_to_module_map: dict[str, int],
         stats: StatsDict,
         data_entry_service: DataEntryService,
     ) -> None:
-        """
-        Delete existing entries from previous bulk per-year ingests.
+        """Delete existing entries from previous bulk per-year ingests.
 
         A per-year upload is a complete yearly export, so it replaces every
         machine-owned bulk source (prior CSV uploads AND API syncs — see
@@ -779,7 +767,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             stats: Statistics dict to update
             data_entry_service: DataEntryService instance to use
         """
-
         if not (self.job and self.job.module_type_id):
             logger.info("No job module_type_id — skipping pre-import deletion")
             return
@@ -863,7 +850,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         *,
         processed: int | None = None,
         total: int | None = None,
-        stats: "StatsDict | None" = None,
+        stats: StatsDict | None = None,
         force: bool = False,
     ) -> None:
         """Throttled progress write to the job row + an INFO log line.
@@ -877,7 +864,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self._last_report_at = now
 
         msg = format_progress(phase, processed, total, now - self._phase_started_at)
-        meta: Dict[str, Any] = dict(stats) if stats else {}
+        meta: dict[str, Any] = dict(stats) if stats else {}
         meta["progress"] = {"phase": phase, "processed": processed, "total": total}
         logger.info(msg)
         await self._update_job(
@@ -887,14 +874,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             extra_metadata=meta,
         )
 
-    async def process_csv_in_batches(self) -> Dict[str, Any]:
+    async def process_csv_in_batches(self) -> dict[str, Any]:
         """Orchestrate CSV processing: setup → process rows → finalize"""
         try:
             # Setup: validate, load factors, move file
             setup_result = await self._setup_and_validate()
 
             # Resolve carbon_report_module_ids if needed (MODULE_PER_YEAR only)
-            unit_to_module_map: Dict[str, int] | None = None
+            unit_to_module_map: dict[str, int] | None = None
 
             # Initialize statistics early for deletion tracking
             max_row_errors = int(self.config.get("max_row_errors", 100))
@@ -945,17 +932,17 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             self._seg = {}
             parse_start = time.perf_counter()
             row_idx = 0
-            batch: List[DataEntry] = []
+            batch: list[DataEntry] = []
             # Parallel list of kg_co2eq overrides aligned with `batch` by index.
             # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
-            batch_kg_co2eq_overrides: List[float | None] = []
+            batch_kg_co2eq_overrides: list[float | None] = []
             # Track seen (user_institutional_id, sius_code) pairs per module to
             # catch duplicates. A person can legitimately hold two roles
             # (different sius_code) in the same unit. Seeded with the DB's
             # surviving member rows (post-delete: manual/unit-specific ones)
             # in ONE bulk query — a per-row uniqueness SELECT at stage
             # latencies turned an 8.5k-row parse into ~10 min (2026-07-17).
-            seen_institutional_ids: Dict[int, set[tuple[str, str]]] = {}
+            seen_institutional_ids: dict[int, set[tuple[str, str]]] = {}
             # Unconditional on purpose: the query is one indexed round trip
             # that returns nothing for non-member modules, and gating it on
             # a resolvable module_type_id would silently skip DB-level
@@ -1121,9 +1108,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _setup_and_validate(
         self,
-    ) -> Dict[str, Any]:
-        """
-        Setup phase: move file, download CSV, load factors, validate headers.
+    ) -> dict[str, Any]:
+        """Setup phase: move file, download CSV, load factors, validate headers.
         Returns context dict with all data needed for row processing.
         """
         # Load job from database if not already loaded (needed for module_type_id, etc.)
@@ -1192,15 +1178,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _process_row(
         self,
-        row: Dict[str, str],
+        row: dict[str, str],
         row_idx: int,
-        setup_result: Dict[str, Any],
+        setup_result: dict[str, Any],
         stats: StatsDict,
         max_row_errors: int,
-        unit_to_module_map: Dict[str, int] | None = None,
+        unit_to_module_map: dict[str, int] | None = None,
     ) -> tuple[DataEntry | None, str | None, Any | None, float | None]:
-        """
-        Process a single CSV row.
+        """Process a single CSV row.
         Returns (DataEntry, error_msg, factor, kg_co2eq_override) tuple.
         If error_msg is not None, row processing failed and error was recorded.
 
@@ -1311,7 +1296,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 return None, error_msg, None, None
 
             # Validate payload with handler
-            payload: Dict[str, str | int | None] = dict(filtered_row)
+            payload: dict[str, str | int | None] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
             payload["carbon_report_module_id"] = carbon_report_module_id
 
@@ -1368,8 +1353,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             return None, error_msg, None, None
 
     def _compute_ingestion_result(self, stats: StatsDict) -> IngestionResult:
-        """
-        Compute ingestion result based on success rate.
+        """Compute ingestion result based on success rate.
 
         Rules:
         - SUCCESS: rows_skipped == 0 (100% processed)
@@ -1395,16 +1379,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _finalize_and_commit(
         self,
-        batch: List[DataEntry],
+        batch: list[DataEntry],
         data_entry_service: DataEntryService,
         emission_service: DataEntryEmissionService,
         stats: StatsDict,
-        setup_result: Dict[str, Any],
-        batch_kg_co2eq_overrides: List[float | None],
-    ) -> Dict[str, Any]:
-        """
-        Finalize: process remaining batch, move file to processed/, update job.
-        """
+        setup_result: dict[str, Any],
+        batch_kg_co2eq_overrides: list[float | None],
+    ) -> dict[str, Any]:
+        """Finalize: process remaining batch, move file to processed/, update job."""
         # Process final batch (remaining rows below the COPY batch size)
         if batch:
             await self._process_batch(
@@ -1475,11 +1457,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _process_batch(
         self,
-        batch: List[DataEntry],
+        batch: list[DataEntry],
         data_entry_service: DataEntryService,
         emission_service: DataEntryEmissionService,
-        user: Optional[User],
-        batch_kg_co2eq_overrides: List[float | None],
+        user: User | None,
+        batch_kg_co2eq_overrides: list[float | None],
     ) -> None:
         """Process a batch of data entries: bulk insert entries and emissions.
 
@@ -1531,8 +1513,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         return None
 
     async def _recompute_module_stats(self) -> None:
-        """
-        Plan 310-D —  the runner-driven
+        """Plan 310-D —  the runner-driven
         ``aggregation`` handler (chained by ``emission_recalc`` after the
         data ingest's recalc finishes) owns ``carbon_reports.stats`` writes
         for the bulk path.
@@ -1540,8 +1521,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         return
 
     def _get_source_from_entity_type(self) -> DataEntrySourceEnum | None:
-        """
-        Determine source enum value based on entity_type.
+        """Determine source enum value based on entity_type.
 
         Returns:
             DataEntrySourceEnum value or None if not determinable
@@ -1554,14 +1534,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     @staticmethod
     def _resolve_data_entry_type_from_category(
-        row: Dict[str, str],
+        row: dict[str, str],
         handler: Any,
         row_idx: int,
         stats: StatsDict,
         max_row_errors: int,
     ) -> DataEntryTypeEnum | None:
-        """
-        Resolve data_entry_type from module-specific category column.
+        """Resolve data_entry_type from module-specific category column.
 
         Args:
             row: CSV row data

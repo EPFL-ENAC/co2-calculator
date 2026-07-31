@@ -6,7 +6,7 @@ unit_sync, entity_type=GLOBAL_PER_YEAR).  Plan 310-C cutover: the
 ``run_job(id)``; the runner drives claim, heartbeat, and FINISHED state.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -152,7 +152,7 @@ async def unit_sync_handler(
     phases: list[dict] = []
 
     def _start_phase(name: str) -> None:
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         if phases and phases[-1].get("state") == "running":
             phases[-1]["state"] = "finished"
             phases[-1]["finished_at"] = now
@@ -161,7 +161,7 @@ async def unit_sync_handler(
     def _finish_last_phase() -> None:
         if phases and phases[-1].get("state") == "running":
             phases[-1]["state"] = "finished"
-            phases[-1]["finished_at"] = datetime.now(timezone.utc).isoformat()
+            phases[-1]["finished_at"] = datetime.now(UTC).isoformat()
 
     _start_phase("fetch_units")
     await job_repo.update_ingestion_job(
@@ -240,7 +240,7 @@ async def unit_sync_handler(
         )
     ).scalar_one_or_none()
     if year_cfg_row is not None:
-        year_cfg_row.configuration_completed = datetime.now(timezone.utc)
+        year_cfg_row.configuration_completed = datetime.now(UTC)
         data_session.add(year_cfg_row)
     else:
         logger.warning(

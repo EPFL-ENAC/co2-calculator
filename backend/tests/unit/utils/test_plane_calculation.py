@@ -173,7 +173,8 @@ def test_two_trips_doubles_emission() -> None:
 
 def test_resolve_computations_passes_cabin_class_as_subkind() -> None:
     """The handler must forward cabin_class as subkind so the factor repo
-    can match the right EF row (category × cabin_class)."""
+    can match the right EF row (category × cabin_class).
+    """
     handler = ProfessionalTravelPlaneModuleHandler()
 
     class _FakeEntry:

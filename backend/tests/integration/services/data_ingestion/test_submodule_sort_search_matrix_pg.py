@@ -76,7 +76,8 @@ def _is_float_expr(expr: Any) -> bool:
 def _order_checkable(expr: Any, det_has_factor: bool) -> bool:
     """True when the sort key must order by the synthesized values: it reads
     entry data (coalesce fallbacks included), or it reads the factor tables
-    and this det got matched factors seeded (kind-carrying handlers)."""
+    and this det got matched factors seeded (kind-carrying handlers).
+    """
     try:
         sql = str(expr.compile(compile_kwargs={"literal_binds": False}))
     except Exception:
@@ -88,7 +89,8 @@ def _order_checkable(expr: Any, det_has_factor: bool) -> bool:
 
 def _synth_data(handler: Any, det: DataEntryTypeEnum, variant: str) -> dict:
     """Build entry data from the handler's own maps: every mapped key gets a
-    deterministic value; floats sort numerically, strings alphabetically."""
+    deterministic value; floats sort numerically, strings alphabetically.
+    """
     is_a = variant == "A"
     data: dict[str, Any] = dict(_EXTRA_DATA.get(det, {}))
     for key, expr in {**handler.sort_map, **handler.filter_map}.items():
@@ -267,7 +269,8 @@ async def test_sort_search_pagination_matrix_all_modules(pg_dsn):
 @pytest.mark.asyncio
 async def test_buildings_sort_by_surface_from_building_rooms(pg_dsn):
     """#1721 report 1: surface lives on the joined ``building_rooms`` row —
-    sorting must follow it even though entry data carries no surface."""
+    sorting must follow it even though entry data carries no surface.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:

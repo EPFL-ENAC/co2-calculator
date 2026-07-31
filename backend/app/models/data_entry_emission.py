@@ -1,8 +1,8 @@
 """Data entry emission models for storing computed emission results."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable, Optional
 
 from sqlalchemy import Float, ForeignKey
 from sqlmodel import JSON, TIMESTAMP, Column, Field, Integer, SQLModel
@@ -27,9 +27,9 @@ class FactorQuery:
     """
 
     data_entry_type: DataEntryTypeEnum
-    kind: Optional[str] = None
-    subkind: Optional[str] = None
-    emission_type: Optional[EmissionType] = (
+    kind: str | None = None
+    subkind: str | None = None
+    emission_type: EmissionType | None = (
         None  # Optional, can be used for additional filtering in repo queries
     )
     context: dict = field(default_factory=dict)
@@ -58,9 +58,9 @@ class EmissionComputation:
 
     # --- Factor retrieval ---
     # Strategy A: direct factor ID (primary_factor_id already resolved at creation)
-    factor_id: Optional[int] = None
+    factor_id: int | None = None
     # Strategy B: classification query resolved at compute time
-    factor_query: Optional[FactorQuery] = None
+    factor_query: FactorQuery | None = None
 
     # --- Formula (key-based, simple) ---
     # Name of the factor value key giving the emission intensity
@@ -68,14 +68,14 @@ class EmissionComputation:
     # Name of the context key giving the physical quantity
     quantity_key: str = ""
     # Optional second multiplier from factor values (e.g. "rfi_adjustement")
-    multiplier_key: Optional[str] = None
+    multiplier_key: str | None = None
     # Value used when multiplier_key is absent from factor values
     multiplier_default: float = 1.0
 
     # --- Formula (callable, complex) ---
     # When set, takes precedence over key-based formula.
     # Signature: (ctx: dict, factor_values: dict) -> Optional[float]
-    formula_func: Optional[Callable[[dict, dict], Optional[float]]] = None
+    formula_func: Callable[[dict, dict], float | None] | None = None
 
 
 ####
@@ -100,7 +100,7 @@ class DataEntryEmissionBase(SQLModel):
         description="Type of emission (equipment, food, waste, commute, etc.)",
     )
     # Primary factor used for calculation (main factor for traceability)
-    primary_factor_id: Optional[int] = Field(
+    primary_factor_id: int | None = Field(
         default=None,
         sa_column=Column(
             Integer, ForeignKey("factors.id", ondelete="CASCADE"), index=True
@@ -130,7 +130,7 @@ class DataEntryEmissionBase(SQLModel):
             "(e.g. km for commuting and travel, kg for food and waste)."
         ),
     )
-    scope: Optional[int] = Field(
+    scope: int | None = Field(
         default=None,
         sa_column=Column(Integer, nullable=True),
         description="Scope (1/2/3) for leaf rows; NULL for rollup rows",
@@ -148,8 +148,7 @@ class DataEntryEmissionBase(SQLModel):
 
 
 class DataEntryEmission(DataEntryEmissionBase, table=True):
-    """
-    Generic emission results table.
+    """Generic emission results table.
 
     Stores computed CO2 emissions for all module types. Supports:
     - Multiple emissions per data entry (headcount → food, waste, commute)
@@ -207,7 +206,7 @@ class DataEntryEmission(DataEntryEmissionBase, table=True):
 
     __tablename__ = "data_entry_emissions"
 
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: int | None = Field(default=None, primary_key=True, index=True)
 
     def __repr__(self) -> str:
         return (
