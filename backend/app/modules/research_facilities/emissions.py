@@ -11,10 +11,15 @@ STAT_BUCKETS: tuple[StatBucket, ...] = (
 
 _IT_RESEARCH_FACILITY_IDS: frozenset[str] = frozenset(
     {
+        "0616",  # ISIC-ITDMP
         "1027",  # IMAGING-GE
         "1202",  # RCP-GE
+        "1800",  # DCI-GE
         "1902",  # SCITAS-GE
+        "1915",  # SCALA-GE
         "1916",  # SDSC-GE
+        "2043",  # CIBM-GE
+        "2044",  # CIBM-MRI
     }
 )
 
