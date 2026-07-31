@@ -215,7 +215,7 @@ const props = withDefaults(
   }>(),
   {
     showControls: true,
-    forcedView: 'breakdown',
+    forcedView: 'type',
     combineUnitIds: () => [],
     excludeModules: () => [],
   },
