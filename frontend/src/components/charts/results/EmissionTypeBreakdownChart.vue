@@ -141,13 +141,29 @@ const ROOM_TYPE_SEGMENT_ORDER = [
   'miscellaneous',
 ];
 
-function sortSegmentKeys(keys: string[]): string[] {
+// Combustion fuel segments stack largest-first within the decentralized
+// heating bar; other categories keep their backend order.
+const COMBUSTION_SEGMENT_PREFIX = 'buildings_energy_combustion_';
+
+function sortSegmentKeys(
+  keys: string[],
+  segmentTotals?: Map<string, number>,
+): string[] {
   return keys.slice().sort((a, b) => {
     const aSuffix = a.split('_').pop() ?? a;
     const bSuffix = b.split('_').pop() ?? b;
     const aIdx = ROOM_TYPE_SEGMENT_ORDER.indexOf(aSuffix);
     const bIdx = ROOM_TYPE_SEGMENT_ORDER.indexOf(bSuffix);
-    if (aIdx === -1 && bIdx === -1) return 0;
+    if (aIdx === -1 && bIdx === -1) {
+      if (
+        segmentTotals &&
+        a.startsWith(COMBUSTION_SEGMENT_PREFIX) &&
+        b.startsWith(COMBUSTION_SEGMENT_PREFIX)
+      ) {
+        return (segmentTotals.get(b) ?? 0) - (segmentTotals.get(a) ?? 0);
+      }
+      return 0;
+    }
     if (aIdx === -1) return 1;
     if (bIdx === -1) return -1;
     return aIdx - bIdx;
@@ -288,12 +304,14 @@ const chartData = computed(() => {
 
   // Collect all unique segment keys
   const segmentKeysSet = new Set<string>();
+  const segmentTotals = new Map<string, number>();
   const bars: Record<string, unknown>[] = [];
 
   for (const [compoundKey, segments] of barMap) {
     const barData: Record<string, unknown> = { xx_category: compoundKey };
     for (const [key, val] of Object.entries(segments)) {
       segmentKeysSet.add(key);
+      segmentTotals.set(key, (segmentTotals.get(key) ?? 0) + val);
       barData[key] = val;
     }
     bars.push(barData);
@@ -303,7 +321,7 @@ const chartData = computed(() => {
 
   return {
     bars,
-    segmentKeys: sortSegmentKeys(Array.from(segmentKeysSet)),
+    segmentKeys: sortSegmentKeys(Array.from(segmentKeysSet), segmentTotals),
     barKey: 'xx_category',
     barCategoryMap,
     barLabelMap,
