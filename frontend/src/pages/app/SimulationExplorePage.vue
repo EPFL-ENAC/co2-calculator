@@ -117,30 +117,6 @@
             />
           </div>
         </div>
-
-        <q-separator />
-
-        <div
-          class="row no-wrap items-center justify-center q-pa-xl"
-          style="gap: 24px"
-        >
-          <q-icon name="o_calendar_month" color="info" size="md" />
-          <div class="col">
-            <div class="text-h5 text-weight-medium q-mb-xs">
-              {{ $t('simulation_explore_page_convert_to_plan_title') }}
-            </div>
-            <div class="text-body2 text-secondary">
-              {{ $t('simulation_explore_page_convert_to_plan_description') }}
-            </div>
-          </div>
-          <q-btn
-            unelevated
-            no-caps
-            :label="$t('simulation_explore_page_convert_to_plan_button')"
-            color="info"
-            class="text-weight-medium"
-          />
-        </div>
       </q-card>
     </template>
   </q-page>
