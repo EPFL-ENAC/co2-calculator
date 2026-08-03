@@ -4,7 +4,7 @@ import asyncio
 from typing import Any, Dict, Optional
 
 from psycopg.types.json import Json
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import Select, and_, asc, desc, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.exc import InvalidRequestError
@@ -1166,11 +1166,18 @@ class DataEntryRepository:
                     int(source_entry_id)
                 )
 
-            items.append(handler.to_response(data_entry, enriched_data))
+            try:
+                items.append(handler.to_response(data_entry, enriched_data))
+            except ValidationError as exc:
+                logger.warning(
+                    f"Skipping data_entry id={data_entry.id} "
+                    f"(type={data_entry_type_id}) in submodule listing: "
+                    f"stored data does not match the response schema: {exc}"
+                )
 
         response = SubmoduleResponse(
             id=data_entry_type_id,
-            count=count,
+            count=len(items),
             items=items,
             summary=SubmoduleSummary(
                 total_items=total_items,
