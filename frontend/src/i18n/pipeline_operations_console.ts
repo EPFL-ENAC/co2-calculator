@@ -64,7 +64,7 @@ export default {
   pipeops_col_jobs: { en: 'Jobs', fr: 'Jobs' },
   pipeops_col_duration: { en: 'Duration', fr: 'Durée' },
   pipeops_col_when: { en: 'Started', fr: 'Démarré' },
-  pipeops_col_author: { en: 'Author', fr: 'Auteur' },
+  pipeops_col_author: { en: 'Author', fr: 'Auteur·e' },
   pipeops_col_message: { en: 'Message', fr: 'Message' },
   pipeops_col_actions: { en: 'Actions', fr: 'Actions' },
 

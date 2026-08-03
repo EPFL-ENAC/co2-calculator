@@ -45,11 +45,11 @@ export default {
   },
   documentation_editing_calculator_user_documentation_title: {
     en: 'User Documentation',
-    fr: 'Documentation utilisateur-ice',
+    fr: 'Documentation utilisateur·rice',
   },
   documentation_editing_calculator_user_documentation_description: {
     en: 'Repository link to the user documentation of the CO₂ calculator application.',
-    fr: 'Lien vers le repository de la documentation utilisateur-ice de l’application Calculateur CO₂.',
+    fr: 'Lien vers le repository de la documentation utilisateur·rice de l’application Calculateur CO₂.',
   },
 
   documentation_editing_calculator_backoffice_documentation_title: {
@@ -199,7 +199,7 @@ export default {
   },
   documentation_editing_rows_backoffice_user_management_topic: {
     en: 'Backoffice User Management',
-    fr: 'Gestion des Utilisateurs Backoffice',
+    fr: 'Gestion des Utilisateur·rices Backoffice',
   },
   documentation_editing_rows_backoffice_user_management_description: {
     en: 'Find all text related to backoffice user management within the application.',

@@ -289,6 +289,6 @@ export default {
   },
   open_year_for_users: {
     en: 'Open year for users',
-    fr: 'Ouvrir l’année pour les utilisateurs',
+    fr: 'Ouvrir l’année pour les utilisateur·rices',
   },
 } as const;
