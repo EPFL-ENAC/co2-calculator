@@ -1209,10 +1209,17 @@ export const useModuleStore = defineStore('modules', () => {
   }
 
   async function getMultiYearReportStats(
-    unitId: number,
+    unitIds: number[],
   ): Promise<MultiYearReportStatsResponse> {
-    const path = `modules-stats/unit/${encodeURIComponent(unitId)}/multi-year-report-stats`;
-    return api.get(path).json<MultiYearReportStatsResponse>();
+    const searchParams = new URLSearchParams();
+    for (const id of unitIds) {
+      searchParams.append('unit_ids', String(id));
+    }
+    return api
+      .get(
+        `modules-stats/merged/multi-year-report-stats?${searchParams.toString()}`,
+      )
+      .json<MultiYearReportStatsResponse>();
   }
 
   // Track which carbon report the cached validated totals belong to

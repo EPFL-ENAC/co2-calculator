@@ -451,9 +451,11 @@ function getModuleCarComparison(module: string): string | undefined {
 const viewUncertainties = ref(false);
 const viewAdditionalData = computed(() => !hideAdditionalData.value);
 const compareYearsOpen = ref(false);
-const compareYearsUnitId = computed(
-  () => workspaceStore.selectedCarbonReport?.unit_id ?? null,
-);
+const compareYearsUnitIds = computed<number[]>(() => {
+  if (mergedContext.value) return mergedContext.value.unitIds;
+  const unitId = workspaceStore.selectedCarbonReport?.unit_id;
+  return unitId != null ? [unitId] : [];
+});
 
 const additionalBreakdown = computed(
   () => moduleStore.state.emissionBreakdown?.additional_breakdown ?? [],
@@ -1061,7 +1063,7 @@ const getUncertainty = (
 
     <CompareYearsDialog
       v-model="compareYearsOpen"
-      :unit-id="compareYearsUnitId"
+      :unit-ids="compareYearsUnitIds"
     />
   </q-page>
 </template>
