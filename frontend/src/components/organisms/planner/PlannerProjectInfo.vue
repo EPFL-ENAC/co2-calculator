@@ -102,6 +102,7 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
+import { useRoute } from 'vue-router';
 
 import {
   useSimulatorPlansStore,
@@ -115,6 +116,7 @@ const emit = defineEmits<{ updated: [plan: SimulatorPlan] }>();
 
 const { t } = useI18n();
 const $q = useQuasar();
+const route = useRoute();
 const plansStore = useSimulatorPlansStore();
 const yearConfigStore = useYearConfigStore();
 
@@ -201,6 +203,7 @@ async function generateYears() {
     const updated = await plansStore.updatePlan(props.plan.id, {
       start_year: start,
       end_year: end,
+      default_reference_year: Number(route.params.year),
     });
     emit('updated', updated);
     $q.notify({ type: 'positive', message: t('planner_years_generated') });

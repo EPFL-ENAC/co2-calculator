@@ -55,6 +55,7 @@ def _to_read(
     project: CarbonProject,
     creator_name: Optional[str],
     total_tonnes_co2eq: Optional[float] = None,
+    default_factor_year: Optional[int] = None,
 ) -> SimulatorPlanRead:
     if project.id is None:
         raise ValueError("project must be persisted before use")
@@ -69,6 +70,7 @@ def _to_read(
         created_at=project.created_at,
         creator_name=creator_name,
         total_tonnes_co2eq=total_tonnes_co2eq,
+        default_factor_year=default_factor_year,
     )
 
 
@@ -90,8 +92,14 @@ class SimulatorPlanService:
         totals = await self._totals_by_plan(
             [project.id for project, _ in rows if project.id is not None]
         )
+        default_factor_year = await self.repo.get_latest_calculator_year(unit_id)
         return [
-            _to_read(project, creator_name, totals.get(project.id or -1))
+            _to_read(
+                project,
+                creator_name,
+                totals.get(project.id or -1),
+                default_factor_year,
+            )
             for project, creator_name in rows
         ]
 
@@ -119,7 +127,11 @@ class SimulatorPlanService:
         if row is None:
             return None
         project, creator_name = row
-        return _to_read(project, creator_name)
+        return _to_read(
+            project,
+            creator_name,
+            default_factor_year=await self.repo.get_latest_calculator_year(unit_id),
+        )
 
     async def create_plan(
         self, *, unit_id: int, user: User, name: Optional[str] = None
@@ -143,7 +155,11 @@ class SimulatorPlanService:
             created_at=datetime.now(timezone.utc),
         )
         project = await self._flush_guarded(self.repo.create(project))
-        return _to_read(project, user.display_name)
+        return _to_read(
+            project,
+            user.display_name,
+            default_factor_year=await self.repo.get_latest_calculator_year(unit_id),
+        )
 
     async def update_plan(
         self, plan_id: int, update: SimulatorPlanUpdate
@@ -177,15 +193,26 @@ class SimulatorPlanService:
         ):
             raise ValueError("start_year must be <= end_year")
         project = await self._flush_guarded(self.repo.create(project))
-        await self._sync_year_reports(project)
+        await self._sync_year_reports(
+            project, default_reference_year=update.default_reference_year
+        )
         return await self._read_with_creator(project)
 
-    async def _sync_year_reports(self, project: CarbonProject) -> None:
+    async def _sync_year_reports(
+        self,
+        project: CarbonProject,
+        default_reference_year: Optional[int] = None,
+    ) -> None:
         """Make the plan's reports match ``start_year..end_year``, one per year.
 
         Out-of-range reports are deleted together with their entries
         (destructive by design — the user shrank the range deliberately).
         No-op until both bounds are set.
+
+        Newly created year reports default their reference year to
+        ``default_reference_year`` (the workspace year the range was set
+        from) and are prefilled from it, exactly as if the user had picked
+        it in the dialog. Existing reports keep their reference year.
         """
         if project.start_year is None or project.end_year is None:
             return
@@ -199,13 +226,19 @@ class SimulatorPlanService:
             elif report.id is not None:
                 await self.report_service.delete(report.id)
         for year in sorted(target_years - existing_years):
-            await self.report_service.create(
+            report_read = await self.report_service.create(
                 CarbonReportCreate(
                     unit_id=project.unit_id,
                     year=year,
                     carbon_project_id=project.id,
+                    reference_year=default_reference_year,
                 )
             )
+            if default_reference_year is not None:
+                # Prefill computes the copied rows' emissions itself; only
+                # the report rollup is missing (no other entries exist yet).
+                await self._prefill_reference_modules(report_read)
+                await self.report_service.recompute_report_stats(report_read.id)
 
     async def list_plan_years(
         self, plan_id: int
@@ -226,18 +259,19 @@ class SimulatorPlanService:
         return years
 
     async def set_reference_year(
-        self, plan_id: int, year: int, reference_year: int
+        self, plan_id: int, year: int, reference_year: Optional[int]
     ) -> Optional[SimulatorPlanYearRead]:
-        """Set the baseline year of one plan-year report; None if missing.
+        """Set or remove the baseline year of one plan-year report; None if missing.
 
-        Destructive: every module of the plan-year is emptied — the prefilled
-        ones rebuilt from the new baseline at 100%, the manually filled ones
-        left blank — so the percentages, edits and hand-entered values made
-        under the previous reference year are lost. The dialog warns about it
-        before calling this.
+        Destructive: every prefilled module of the plan-year is emptied and,
+        when a baseline is set, rebuilt from it at 100% — the percentages,
+        edits and hand-added rows made under the previous reference year are
+        lost. Removing the baseline (``reference_year=None``) empties them
+        the same way and leaves the year manual-input. The dialog warns
+        about it before calling this.
 
-        The rebuilt entries get their emissions recomputed, since factor lookup
-        follows the reference year.
+        The remaining entries get their emissions recomputed, since factor
+        lookup follows the reference year.
         """
         reports = await self.repo.list_reports_for_project(plan_id)
         report = next((r for r in reports if r.year == year), None)
@@ -251,24 +285,28 @@ class SimulatorPlanService:
             await self._recalculate_report_emissions(report)
         return await self._year_read(report)
 
-    async def _prefill_reference_modules(self, report: CarbonReport) -> None:
-        """Empty the whole plan-year, then rebuild its prefilled modules.
+    async def _prefill_reference_modules(
+        self, report: CarbonReport | CarbonReportRead
+    ) -> None:
+        """Rebuild every prefilled-behavior module from the reference year.
 
-        Runs on reference-year set/change (there is no manual prefill trigger).
-        Every entry of the plan-year is deleted first — all of them hang on the
-        baseline, whether copied from it (prefilled modules) or entered against
-        it and priced with its factors (headcount, purchases, travel) — and only
-        then are the prefilled modules copied from the new reference year.
-        When the reference year has no Calculator report for the unit there is
-        nothing to copy and they stay empty — showing the previous baseline's
-        rows under a new reference year would be a lie.
+        Runs on reference-year set/change/removal (there is no manual prefill
+        trigger). The modules are emptied first, so a module never mixes two
+        baselines; on removal the wipe is all that happens and the year
+        becomes manual-input. When the reference year has no Calculator
+        report for the unit there is nothing to copy and they stay empty —
+        showing the previous baseline's rows under a new reference year
+        would be a lie.
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
+        modules = await self.report_service.module_service.list_modules(report.id)
+        prefilled = [
+            m for m in modules if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
+        ]
+        await self._clear_module_entries([m.id for m in prefilled if m.id is not None])
         if report.reference_year is None:
             return
-        modules = await self.report_service.module_service.list_modules(report.id)
-        await self._clear_module_entries([m.id for m in modules if m.id is not None])
         ref_report = await self.repo.get_calculator_report(
             report.unit_id, report.reference_year
         )
@@ -560,7 +598,13 @@ class SimulatorPlanService:
         )
         copy = await self._flush_guarded(self.repo.create(copy))
         await self._sync_year_reports(copy)
-        return _to_read(copy, user.display_name)
+        return _to_read(
+            copy,
+            user.display_name,
+            default_factor_year=await self.repo.get_latest_calculator_year(
+                copy.unit_id
+            ),
+        )
 
     async def delete_plan(self, plan_id: int) -> bool:
         """Delete a plan and any carbon reports attached to it.
@@ -579,11 +623,16 @@ class SimulatorPlanService:
 
     async def _read_with_creator(self, project: CarbonProject) -> SimulatorPlanRead:
         """Build a Read DTO resolving the creator display name via the join."""
+        default_factor_year = await self.repo.get_latest_calculator_year(
+            project.unit_id
+        )
         row = await self.repo.get_plan_by_name(project.unit_id, project.name or "")
         if row is None:
-            return _to_read(project, None)
+            return _to_read(project, None, default_factor_year=default_factor_year)
         refreshed, creator_name = row
-        return _to_read(refreshed, creator_name)
+        return _to_read(
+            refreshed, creator_name, default_factor_year=default_factor_year
+        )
 
     @staticmethod
     async def _flush_guarded(awaitable) -> CarbonProject:

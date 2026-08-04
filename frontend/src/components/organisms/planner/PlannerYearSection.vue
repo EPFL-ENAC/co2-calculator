@@ -57,7 +57,7 @@
           {{
             yearData.reference_year
               ? $t('planner_reference_year_rebuild_hint')
-              : $t('planner_reference_year_hint')
+              : $t('planner_reference_year_hint', { year: factorYear })
           }}
         </div>
       </q-card-section>
@@ -83,7 +83,6 @@
         <q-separator v-if="entryIdx > 0" />
         <q-expansion-item
           :model-value="isExpanded(entry.config.module)"
-          :disable="!hasReferenceYear"
           header-class="q-py-md"
           @update:model-value="
             (open: boolean) => onToggle(entry.config.module, open)
@@ -156,9 +155,11 @@
               :error="moduleStore.state.error"
               :unit-id="unitId"
               :year="yearData.year"
-              :factor-year="yearData.reference_year"
+              :factor-year="factorYear"
               :carbon-report-id="yearData.id"
-              :show-reference-columns="entry.config.behavior === 'prefilled'"
+              :show-reference-columns="
+                entry.config.behavior === 'prefilled' && hasReferenceYear
+              "
               :disable="entry.module?.is_active === false"
             />
           </div>
@@ -202,6 +203,8 @@ const props = defineProps<{
   planId: number;
   yearData: SimulatorPlanYear;
   unitId: number;
+  /** Latest Calculator report year of the unit (factor fallback). */
+  defaultFactorYear: number | null;
   referenceYearOptions: { label: string; value: number }[];
   /** `${year}-${module}` of every expanded module across the page. */
   expandedKeys: string[];
@@ -220,9 +223,19 @@ const settingReferenceYear = ref(false);
 const referenceYearDialogOpen = ref(false);
 const togglingModuleId = ref<number | null>(null);
 
-// Every module resolves its factors from the reference year; without one there
-// is nothing to enter data against, so the drawers stay shut.
+// The reference year only gates the prefill columns; data entry itself is
+// always open. Its rows and dropdowns follow `factorYear` below.
 const hasReferenceYear = computed(() => props.yearData.reference_year !== null);
+
+// Factor year, mirroring the backend chain (`resolve_factor_year`): the
+// reference year wins, then the unit's latest Calculator report year, then
+// the plan year itself (units without any Calculator report).
+const factorYear = computed(
+  () =>
+    props.yearData.reference_year ??
+    props.defaultFactorYear ??
+    props.yearData.year,
+);
 
 const GRID_MODULES: Module[] = [MODULES.Headcount, MODULES.Purchase];
 
@@ -248,7 +261,7 @@ function isExpanded(module: Module): boolean {
 }
 
 function factorScopedKey(module: Module): string {
-  return factorMountKey(module, props.yearData.reference_year);
+  return factorMountKey(module, factorYear.value);
 }
 
 async function refreshExpandedModule(module: Module) {
@@ -265,7 +278,7 @@ function onToggle(module: Module, open: boolean) {
   if (open) void refreshExpandedModule(module);
 }
 
-async function onReferenceYearChange(referenceYear: number) {
+async function onReferenceYearChange(referenceYear: number | null) {
   settingReferenceYear.value = true;
   try {
     await plansStore.setReferenceYear(

@@ -15,6 +15,9 @@ export interface SimulatorPlan {
   start_year: number | null;
   end_year: number | null;
   is_viewable_by_unit_members: boolean;
+  /** Latest Calculator report year of the unit; factor fallback when a plan
+   * year has no reference year (backend-derived, read-only). */
+  default_factor_year: number | null;
   created_by: number | null;
   created_at: string | null;
   creator_name: string | null;
@@ -45,6 +48,9 @@ export interface SimulatorPlanUpdatePayload {
   start_year?: number;
   end_year?: number;
   is_viewable_by_unit_members?: boolean;
+  /** Reference year defaulted onto (and prefilled into) year reports newly
+   * created by this range change; send the current workspace year. */
+  default_reference_year?: number;
 }
 
 export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
@@ -120,12 +126,19 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     planId: number,
     payload: SimulatorPlanUpdatePayload,
   ): Promise<SimulatorPlan> {
+    const rangeChange =
+      payload.start_year !== undefined || payload.end_year !== undefined;
     const plan = await api
-      .patch(`project-plans/${planId}`, { json: payload })
+      .patch(`project-plans/${planId}`, {
+        json: payload,
+        // A range change prefills every new year report from the default
+        // reference year, same workload as setReferenceYear below.
+        ...(rangeChange ? { timeout: 300000 } : {}),
+      })
       .json<SimulatorPlan>();
 
     markPlansStale();
-    if (payload.start_year !== undefined || payload.end_year !== undefined) {
+    if (rangeChange) {
       await fetchPlanYears(planId);
     }
     return plan;
@@ -173,11 +186,11 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     aggregateStats.value = null;
   }
 
-  /** Set the reference (baseline) year of one plan-year report. */
+  /** Set or remove (null) the reference (baseline) year of one plan-year report. */
   async function setReferenceYear(
     planId: number,
     year: number,
-    referenceYear: number,
+    referenceYear: number | null,
   ): Promise<SimulatorPlanYear> {
     const updated = await api
       .patch(`project-plans/${planId}/years/${year}`, {

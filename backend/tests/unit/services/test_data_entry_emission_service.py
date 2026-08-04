@@ -1919,6 +1919,7 @@ class TestFactorYearResolution:
         report = MagicMock()
         report.year = year
         report.reference_year = reference_year
+        report.carbon_project_id = None
         return report
 
     @pytest.mark.asyncio
