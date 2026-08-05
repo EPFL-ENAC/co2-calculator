@@ -125,10 +125,14 @@ export function useProjectPlannerPrintData() {
 
   const printModules = getPlannerPrintModules();
 
-  // The Project Grant report stays out of the printed report until #1977
-  // settles how grant results combine with the per-year results.
+  // Year pages and the range label cover the year sections; the Project
+  // Grant report gets its own summary page (#1977).
   const planYears = computed(() =>
     plansStore.planYears.filter((year) => !year.is_grant),
+  );
+
+  const grantYear = computed(
+    () => plansStore.planYears.find((year) => year.is_grant) ?? null,
   );
 
   const yearRangeLabel = computed(() => {
@@ -156,11 +160,11 @@ export function useProjectPlannerPrintData() {
     sumBreakdownTonnes(planBreakdown.value),
   );
 
-  /** Per-year breakdowns, keyed by the plan-year carbon report id. */
+  /** Per-report breakdowns (years + grant), keyed by carbon report id. */
   const yearBreakdowns = computed<Record<number, EmissionBreakdownResponse>>(
     () => {
       const map: Record<number, EmissionBreakdownResponse> = {};
-      for (const year of planYears.value) {
+      for (const year of plansStore.planYears) {
         if (!year.stats) continue;
         map[year.id] = toEmissionBreakdown(
           year.stats as unknown as ReportStats,
@@ -207,6 +211,17 @@ export function useProjectPlannerPrintData() {
     const list: PlannerPrintSheet[] = [];
     // The cover is page 1.
     let pageNumber = 2;
+
+    // The Project Grant summary leads, mirroring the planner page's
+    // section order (#1977).
+    if (grantYear.value) {
+      list.push({
+        kind: 'year',
+        key: `grant-${grantYear.value.id}`,
+        pageNumber: pageNumber++,
+        year: grantYear.value,
+      });
+    }
 
     for (const year of planYears.value) {
       list.push({
@@ -460,6 +475,7 @@ export function useProjectPlannerPrintData() {
     yearTotalTonnes,
     headcountRows,
     incompleteModules,
+    grantYear,
     sheets,
     moduleTables,
     initWorkspaceFromRoute,

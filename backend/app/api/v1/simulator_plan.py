@@ -164,21 +164,26 @@ async def get_simulator_plan_aggregate_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Sum the plan's per-year report stats into one payload.
+    """Aggregate the plan's report stats into the results payload.
 
-    Same shape as ``/modules-stats/{carbon_report_id}/report-stats``, so the
-    planner results chart derives from it through the same frontend adapter.
-    Per-year stats already exclude modules whose Active checkbox is off.
-    The Project Grant report is excluded until #1977 settles how grant
-    results combine with the per-year results.
+    ``years`` sums the per-year reports (same shape as
+    ``/modules-stats/{carbon_report_id}/report-stats``, so the planner
+    results chart derives from it through the same frontend adapter);
+    ``grant`` carries the Project Grant report's own stats, or null —
+    the two are charted side by side, never summed together (#1977).
+    Per-report stats already exclude modules whose Active checkbox is off.
     """
     service = await _require_plan_unit_access(db, current_user, plan_id, "view")
     years = await service.list_plan_years(plan_id)
     if years is None:
         raise HTTPException(status_code=404, detail="Plan not found")
-    return merge_report_stats(
-        [dict(year.stats or {}) for year in years if not year.is_grant]
-    )
+    grant = next((dict(y.stats or {}) for y in years if y.is_grant), None)
+    return {
+        "years": merge_report_stats(
+            [dict(year.stats or {}) for year in years if not year.is_grant]
+        ),
+        "grant": grant,
+    }
 
 
 @router.patch("/{plan_id}/years/{year}", response_model=SimulatorPlanYearRead)

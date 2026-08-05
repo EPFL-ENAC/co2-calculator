@@ -81,7 +81,35 @@
                separator but never at the card edges). Still a grid, because
                BigNumber sizes itself against its row. -->
           <div class="results-blocks">
+            <!-- Grant results sit beside the year-by-year results, never
+                 summed together — the two views count the same project
+                 (#1977). -->
+            <div
+              v-if="plan.is_grant_proposal"
+              class="row items-stretch no-wrap"
+            >
+              <BigNumber
+                class="col"
+                :title="$t('planner_results_grant_total_title')"
+                :number="formatTonnesCO2(grantTotalTonnes)"
+                comparison=""
+                color="info"
+                compact
+                :bordered="false"
+              />
+              <q-separator vertical />
+              <BigNumber
+                class="col"
+                :title="$t('planner_results_years_total_title')"
+                :number="formatTonnesCO2(totalTonnesCo2eq)"
+                comparison=""
+                color="info"
+                compact
+                :bordered="false"
+              />
+            </div>
             <BigNumber
+              v-else
               :title="$t('planner_results_total_tonnes_co2eq')"
               :number="formatTonnesCO2(totalTonnesCo2eq)"
               comparison=""
@@ -92,7 +120,18 @@
 
             <q-separator />
 
+            <PlannerGrantComparisonChart
+              v-if="plan.is_grant_proposal"
+              :title="
+                $t('planner_results_comparison_chart_title', {
+                  name: plan.name,
+                })
+              "
+              :grant-breakdown="grantBreakdown"
+              :years-breakdown="breakdown"
+            />
             <ModuleCarbonFootprintChart
+              v-else
               :breakdown-data="breakdown"
               :title="$t('planner_results_chart_title', { name: plan.name })"
               :bordered="false"
@@ -133,6 +172,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
+import PlannerGrantComparisonChart from 'src/components/charts/results/PlannerGrantComparisonChart.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import PlannerProjectInfo from 'src/components/organisms/planner/PlannerProjectInfo.vue';
 import PlannerYearSection from 'src/components/organisms/planner/PlannerYearSection.vue';
@@ -192,7 +232,15 @@ const breakdown = computed(() =>
     : null,
 );
 
+const grantBreakdown = computed(() =>
+  plansStore.grantStats ? toEmissionBreakdown(plansStore.grantStats) : null,
+);
+
 const totalTonnesCo2eq = computed(() => sumBreakdownTonnes(breakdown.value));
+
+const grantTotalTonnes = computed(() =>
+  sumBreakdownTonnes(grantBreakdown.value),
+);
 
 function downloadReport() {
   const url = router.resolve({

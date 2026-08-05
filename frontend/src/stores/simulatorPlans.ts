@@ -77,6 +77,9 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
   // mutations.
   const activePlanId = ref<number | null>(null);
   const aggregateStats = ref<ReportStats | null>(null);
+  // The Project Grant report's own stats — charted beside the year
+  // aggregate, never summed into it (#1977).
+  const grantStats = ref<ReportStats | null>(null);
   const aggregateLoading = ref(false);
 
   const plansStale = ref(false);
@@ -177,9 +180,11 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     activePlanId.value = planId;
     aggregateLoading.value = true;
     try {
-      aggregateStats.value = await api
+      const payload = await api
         .get(`project-plans/${planId}/aggregate-stats`)
-        .json<ReportStats>();
+        .json<{ years: ReportStats; grant: ReportStats | null }>();
+      aggregateStats.value = payload.years;
+      grantStats.value = payload.grant;
     } finally {
       aggregateLoading.value = false;
     }
@@ -194,6 +199,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
   function clearAggregate(): void {
     activePlanId.value = null;
     aggregateStats.value = null;
+    grantStats.value = null;
   }
 
   /**
@@ -315,6 +321,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     planYearsLoading,
     activePlanId,
     aggregateStats,
+    grantStats,
     aggregateLoading,
     plansStale,
     fetchPlans,

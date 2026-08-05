@@ -144,8 +144,24 @@ export default {
     fr: 'Empreinte carbone totale du projet',
   },
   planner_results_chart_title: {
+    en: '{name} carbon footprint, year by year',
+    fr: 'Empreinte carbone de {name}, année par année',
+  },
+  planner_results_comparison_chart_title: {
     en: '{name} carbon footprint',
     fr: 'Empreinte carbone de {name}',
+  },
+  planner_results_series_years: {
+    en: 'Year by year',
+    fr: 'Année par année',
+  },
+  planner_results_grant_total_title: {
+    en: 'Project Grant carbon footprint',
+    fr: 'Empreinte carbone du financement du projet',
+  },
+  planner_results_years_total_title: {
+    en: 'Year-by-year carbon footprint',
+    fr: 'Empreinte carbone année par année',
   },
   planner_results_download_title: {
     en: 'Your Project Report',

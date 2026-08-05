@@ -132,12 +132,15 @@ async def test_aggregate_stats_sums_plan_years(client, plan_workspace):
 
     assert response.status_code == 200, response.text
     payload = response.json()
+    years = payload["years"]
     # 2027 has no stats yet and contributes nothing rather than breaking the sum.
-    assert payload["total"] == 4000.0
-    assert payload["total_fte"] == 15.0
-    assert payload["buckets"]["equipment"]["total_kg"] == 4000.0
-    assert payload["buckets"]["equipment"]["by_emission_type"][EMISSION_ID] == 4000.0
-    assert payload["scope2"] == 4000.0
+    assert years["total"] == 4000.0
+    assert years["total_fte"] == 15.0
+    assert years["buckets"]["equipment"]["total_kg"] == 4000.0
+    assert years["buckets"]["equipment"]["by_emission_type"][EMISSION_ID] == 4000.0
+    assert years["scope2"] == 4000.0
+    # No Project Grant report on this plan: grant stays null, never summed in.
+    assert payload["grant"] is None
 
 
 async def test_aggregate_stats_empty_range_is_zero_shaped(client, plan_workspace):
@@ -148,9 +151,11 @@ async def test_aggregate_stats_empty_range_is_zero_shaped(client, plan_workspace
 
     assert response.status_code == 200, response.text
     payload = response.json()
-    assert payload["buckets"] == {}
-    assert payload["total"] == 0.0
-    assert payload["total_fte"] == 0.0
+    years = payload["years"]
+    assert years["buckets"] == {}
+    assert years["total"] == 0.0
+    assert years["total_fte"] == 0.0
+    assert payload["grant"] is None
 
 
 async def test_aggregate_stats_unknown_plan_is_404(client, plan_workspace):

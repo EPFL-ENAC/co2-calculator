@@ -39,10 +39,11 @@ Grant section renders **before** (not instead of) the year sections.
   disambiguate the grant report from the start-year report.
 - `GET /project-plans/{id}/years` returns the grant report first
   (`is_grant` on the DTO); the frontend renders sections in list order.
-- Grant stats are **excluded** from `/aggregate-stats`, the home-table plan
-  totals (`list_report_stats_by_project`) and the print report until #1977
-  settles how grant results combine with per-year results — summing both
-  would count the project twice.
+- `/aggregate-stats` returns `{years, grant}`: the year aggregate and the
+  Project Grant report's own stats, charted side by side and never summed
+  together — summing both would count the project twice (#1977). The
+  home-table plan totals (`list_report_stats_by_project`) stay years-only
+  for the same reason.
 - `PATCH /carbon-reports/{id}/modules/{module_type_id}/active` rejects (409)
   deactivating Equipment on a grant report (`GRANT_LOCKED_MODULE_TYPES`): a
   grant proposal is first and foremost about the equipment it funds.
@@ -130,10 +131,21 @@ Grant section renders **before** (not instead of) the year sections.
   formula requires an exact `use_unit` match — deferred with #1980's
   remaining design.
 
+### #1977: grant results (first cut)
+
+- On grant proposals the planner results card shows one grouped chart
+  (`PlannerGrantComparisonChart`): two bars per category — Project Grant
+  vs year by year, legend-labeled, colorblind-aware palette. Its CSV
+  button downloads one file per view; the headline row shows both totals
+  side by side, split by a vertical separator. Non-grant plans keep the
+  single chart and total.
+- The PDF gains a "Project Grant" summary page right after the cover
+  (reference year, grant total, breakdown chart) — `PlannerPrintYearPage`
+  reused with a name title instead of the anchor year. Grant module
+  detail pages in the PDF remain open.
+
 ## Deferred to follow-up issues
 
-- **#1977 Results**: grant results in the chart/aggregates and the PDF
-  export (grant is currently excluded from all three).
 - **#1979 remainder**: the over-project-years column for Equipment once its
   custom grant module lands (planner headcount is already manual, so the
   "not prefilled" requirement holds by construction; the RF grid shows the
