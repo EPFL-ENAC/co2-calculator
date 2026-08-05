@@ -220,8 +220,8 @@ export default {
     fr: 'Impossible de créer les sections du projet',
   },
   planner_module_grant_locked_tooltip: {
-    en: 'Equipment and Research Facilities always count in a grant proposal.',
-    fr: 'Les équipements et les plateformes de recherche comptent toujours dans une demande de financement.',
+    en: 'Equipment always counts in a grant proposal.',
+    fr: 'Les équipements comptent toujours dans une demande de financement.',
   },
   planner_no_years_hint: {
     en: 'Set a start and end year to plan your project — one section per year will appear here.',
@@ -346,6 +346,38 @@ export default {
   planner_submodule_budget_hint: {
     en: 'The part of the grant budget planned here.',
     fr: 'La part du budget du financement prévue ici.',
+  },
+  planner_rf_hint: {
+    en: "Add the platforms the project will use and enter the planned use in each platform's own metric (budget, hours, CPU, housing).",
+    fr: "Ajoutez les plateformes que le projet utilisera et saisissez l'utilisation prévue dans la métrique propre à chaque plateforme (budget, heures, CPU, hébergement).",
+  },
+  planner_rf_add_label: {
+    en: 'Add a platform',
+    fr: 'Ajouter une plateforme',
+  },
+  planner_rf_common_title: {
+    en: 'Research facilities',
+    fr: 'Infrastructures de recherche',
+  },
+  planner_rf_use_label: {
+    en: 'Planned use',
+    fr: 'Utilisation prévue',
+  },
+  planner_rf_empty: {
+    en: 'No platform is available for the current year.',
+    fr: "Aucune plateforme n'est disponible pour l'année en cours.",
+  },
+  planner_rf_kg_per_year: {
+    en: '{value} kgCO₂eq / year',
+    fr: '{value} kgCO₂eq / an',
+  },
+  planner_rf_kg_project: {
+    en: '{value} kgCO₂eq over {years} years',
+    fr: '{value} kgCO₂eq sur {years} ans',
+  },
+  planner_rf_save_error: {
+    en: 'Could not save the platform use',
+    fr: "Impossible d'enregistrer l'utilisation de la plateforme",
   },
   planner_module_prefilled_badge: {
     en: 'Prefilled from reference year',

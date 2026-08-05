@@ -356,6 +356,11 @@ class SimulatorPlanService:
         if ref_report is None:
             return
         for module_type_id in sorted(m.module_type_id for m in prefilled):
+            # The grant RF grid starts from the reference year's platform
+            # list, not from copied entries (#1980) — cleared above, left
+            # empty for the user's own selection.
+            if report.is_grant and module_type_id == ModuleTypeEnum.research_facilities:
+                continue
             if module_type_id == ModuleTypeEnum.headcount:
                 await self.prefill_headcount_from_reference(
                     report, ref_report=ref_report

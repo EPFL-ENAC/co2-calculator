@@ -297,9 +297,7 @@ async def update_carbon_report_module_active(
         if module_type_id in GRANT_LOCKED_MODULE_TYPES:
             raise HTTPException(
                 status_code=409,
-                detail=(
-                    "Equipment and Research Facilities always count in a grant proposal"
-                ),
+                detail="Equipment always counts in a grant proposal",
             )
 
     module_service = CarbonReportModuleService(db)

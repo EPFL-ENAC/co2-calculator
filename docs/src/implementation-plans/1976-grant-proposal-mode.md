@@ -3,7 +3,7 @@ status: in-progress
 issue: 1976
 last_updated: 2026-08-05
 title: "Simulator Plan — Grant proposal mode (first increment)"
-summary: "Plans gain a persisted Grant proposal checkbox and, when checked, a Project Grant section (a dedicated grant carbon report) rendered before the year sections with the same module list; Equipment and Research Facilities cannot be excluded from it. Grant tables carry a kgCO₂eq-over-project-years column (#1979 first cut) and the section carries a total grant budget plus per-submodule budgets with a distribution check (#1978). Custom Equipment/RF grant modules (#1980/#1981) and grant results (#1977) are follow-ups."
+summary: "Plans gain a persisted Grant proposal checkbox and, when checked, a Project Grant section (a dedicated grant carbon report) rendered before the year sections; Equipment cannot be excluded from it. Grant tables carry a kgCO₂eq-over-project-years column (#1979 first cut), the section carries a total grant budget plus per-submodule budgets with a distribution check (#1978), and Research Facilities render a custom platform-selection grid (#1980). The custom Equipment module (#1981) and grant results (#1977) are follow-ups."
 ---
 
 # Simulator Plan — Grant proposal mode (first increment)
@@ -44,9 +44,10 @@ Grant section renders **before** (not instead of) the year sections.
   settles how grant results combine with per-year results — summing both
   would count the project twice.
 - `PATCH /carbon-reports/{id}/modules/{module_type_id}/active` rejects (409)
-  deactivating Equipment or Research Facilities on a grant report
-  (`GRANT_LOCKED_MODULE_TYPES`): a grant proposal is first and foremost
-  about the equipment and research facilities it funds.
+  deactivating Equipment on a grant report (`GRANT_LOCKED_MODULE_TYPES`): a
+  grant proposal is first and foremost about the equipment it funds.
+  Research Facilities left the locked set once their opt-in platform grid
+  shipped (#1980) — an unselected platform list already means "not used".
 
 ### Frontend
 
@@ -66,7 +67,7 @@ Grant section renders **before** (not instead of) the year sections.
 ### #1979 first cut: kgCO₂eq over the project's years
 
 - In grant tables only (not year sections, not the grant-locked
-  Equipment/RF, not headcount), the kgCO₂eq column is relabeled
+  Equipment, not headcount), the kgCO₂eq column is relabeled
   "kgCO₂eq / year" and a "kgCO₂eq over {n} years" column follows it —
   same `kg_co2eq` field multiplied by the plan's year count in
   `ModuleTable` (presentation only, no stored derived value). The
@@ -100,15 +101,45 @@ Grant section renders **before** (not instead of) the year sections.
   carry one field each, keyed by module name. The wording never says
   "submodule" and only shows the currency the user picked.
 
+### #1980: grant-mode Research Facilities module
+
+- In the Project Grant section only (year sections keep the standard
+  prefilled table), RF renders `PlannerResearchFacilityRows`: an
+  "Add a platform" searchable dropdown offering the **current workspace
+  year's** whole platform list — common facilities and animal facilities
+  (labeled with their rodent/fish type) — sourced from the new
+  `GET /factors/{data_entry_type}/list?year=` endpoint. (Product decision
+  overriding the issue's reference-year note. Emission computation still
+  resolves the grant's reference-year factors — the plan-wide invariant —
+  so a platform missing from the reference year shows no kg; the two years
+  coincide in normal use.)
+- Picking a platform adds its row: planned use entered in the platform's
+  own metric (the factor's `use_unit` — budget/hours/CPU/housing; shown as
+  the field suffix), kgCO₂eq per year and over the project's years computed
+  by the existing RF share formula against the **reference year's factors**.
+  Rows persist as ordinary `research_facilities` / `animal_facilities`
+  entries on the grant report through the generic submodule routes; the
+  delete button removes the entry.
+- A group (research facilities / animal facilities) only renders — title,
+  budget field and rows — once it holds at least one platform.
+- Grant reports skip the RF snapshot-prefill on reference-year changes
+  (entries are still cleared so baselines never mix); year reports keep
+  prefilling.
+- The metric is fixed by the platform's factor: offering a free metric
+  choice would need multi-unit factors (backoffice change) since the
+  formula requires an exact `use_unit` match — deferred with #1980's
+  remaining design.
+
 ## Deferred to follow-up issues
 
 - **#1977 Results**: grant results in the chart/aggregates and the PDF
   export (grant is currently excluded from all three).
-- **#1979 remainder**: the over-project-years column for Equipment and RF
-  once their custom grant modules land (planner headcount is already
-  manual, so the "not prefilled" requirement holds by construction).
-- **#1980 RF / #1981 Equipment**: the custom grant-mode modules (manual
-  per-row percentages, global percentage toggle, platform selection). Until
-  then both render the standard planner tables but cannot be excluded.
+- **#1979 remainder**: the over-project-years column for Equipment once its
+  custom grant module lands (planner headcount is already manual, so the
+  "not prefilled" requirement holds by construction; the RF grid shows the
+  over-project values inline).
+- **#1981 Equipment**: the custom grant-mode equipment module (manual
+  per-row percentages, global percentage toggle, add via dropdown). Until
+  then it renders the standard planner table but cannot be excluded.
 - Cosmetic: the reference-year dialog wording says "Planned year {year}"
   for the grant section (it shows the start year).

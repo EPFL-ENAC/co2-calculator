@@ -182,7 +182,7 @@
           <!-- Grid stripes run edge to edge, so they carry no padding. -->
           <div
             v-if="isExpanded(entry.config.module)"
-            :class="isGridModule(entry.config.module) ? undefined : 'q-pa-md'"
+            :class="isEdgeToEdge(entry.config.module) ? undefined : 'q-pa-md'"
           >
             <!-- Headcount and Purchases are single grids, so they carry one
                  submodule-budget field here; table modules get theirs inside
@@ -242,6 +242,17 @@
               :project-years-count="grantYearsCountFor(entry.config.module)"
               :disable="entry.module?.is_active === false"
             />
+            <!-- Grant proposals plan RF use from the reference year's whole
+                 platform list; year sections keep the standard prefilled
+                 table (#1980). -->
+            <planner-research-facility-rows
+              v-else-if="isGrantRfModule(entry.config.module)"
+              :carbon-report-id="yearData.id"
+              :project-years-count="projectYearsCount ?? null"
+              :grant-budgets="entry.module?.budgets ?? null"
+              :budget-currency="yearData.budget_currency"
+              :disable="entry.module?.is_active === false"
+            />
             <module-table-section
               v-else
               :key="factorScopedKey(entry.config.module)"
@@ -279,6 +290,7 @@ import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
 import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
 import PlannerPurchaseRows from 'src/components/organisms/planner/PlannerPurchaseRows.vue';
+import PlannerResearchFacilityRows from 'src/components/organisms/planner/PlannerResearchFacilityRows.vue';
 import PlannerReferenceYearDialog from 'src/components/organisms/planner/PlannerReferenceYearDialog.vue';
 import { CURRENCY_OPTIONS, currencyLabel } from 'src/constant/currencies';
 import {
@@ -440,13 +452,21 @@ function isGridModule(module: Module): boolean {
   return GRID_MODULES.includes(module);
 }
 
-// A grant proposal is first and foremost about the equipment and research
-// facilities it funds, so these always count (#1976). Mirrors the backend
-// GRANT_LOCKED_MODULE_TYPES set, which rejects the toggle server-side.
-const GRANT_LOCKED_MODULES: Module[] = [
-  MODULES.Equipment,
-  MODULES.ResearchFacilities,
-];
+/** Grant proposals swap the RF table for the platform-selection grid (#1980). */
+function isGrantRfModule(module: Module): boolean {
+  return props.yearData.is_grant && module === MODULES.ResearchFacilities;
+}
+
+/** Grid stripes run edge to edge, so these blocks carry no outer padding. */
+function isEdgeToEdge(module: Module): boolean {
+  return isGridModule(module) || isGrantRfModule(module);
+}
+
+// A grant proposal is first and foremost about the equipment it funds, so it
+// always counts (#1976); research facilities left the set with their opt-in
+// platform grid (#1980). Mirrors the backend GRANT_LOCKED_MODULE_TYPES set,
+// which rejects the toggle server-side.
+const GRANT_LOCKED_MODULES: Module[] = [MODULES.Equipment];
 
 function isGrantLocked(module: Module): boolean {
   return props.yearData.is_grant && GRANT_LOCKED_MODULES.includes(module);
@@ -454,8 +474,8 @@ function isGrantLocked(module: Module): boolean {
 
 /**
  * Grant tables show kgCO₂eq per year and multiplied over the project's years
- * (#1979). Year sections never do, and the grant-locked modules wait for
- * their custom grant UI (#1980/#1981).
+ * (#1979). Year sections never do, and grant-locked Equipment waits for its
+ * custom grant UI (#1981); the RF grid shows the pair on its own rows.
  */
 function grantYearsCountFor(module: Module): number | null {
   if (!props.yearData.is_grant || isGrantLocked(module)) return null;

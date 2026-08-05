@@ -51,12 +51,11 @@ PLANNER_PREFILLED_MODULE_TYPES: set[ModuleTypeEnum] = {
 }
 
 # Modules a Project Grant report always counts: a grant proposal is first and
-# foremost about the equipment and research facilities it funds, so their
-# Active checkbox is locked on (#1976). Mirrors the frontend
-# planner-module-config GRANT_LOCKED_MODULES set.
+# foremost about the equipment it funds, so its Active checkbox is locked on
+# (#1976). Research facilities left the set with their opt-in platform grid
+# (#1980). Mirrors the frontend PlannerYearSection GRANT_LOCKED_MODULES set.
 GRANT_LOCKED_MODULE_TYPES: set[ModuleTypeEnum] = {
     ModuleTypeEnum.equipment,
-    ModuleTypeEnum.research_facilities,
 }
 
 
