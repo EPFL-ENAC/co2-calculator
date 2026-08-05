@@ -858,6 +858,12 @@ type CommonProps = {
    * Calculator and non-prefilled planner modules.
    */
   showReferenceColumns?: boolean;
+  /**
+   * Planner Project Grant context: the plan's year count. When set, the
+   * kgCO₂eq column reads per-year and gains a "× project years" column after
+   * it (#1979). Null everywhere else.
+   */
+  projectYearsCount?: number | null;
   threshold: Threshold;
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
@@ -876,6 +882,7 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
   carbonReportId: undefined,
   factorYear: undefined,
   showReferenceColumns: false,
+  projectYearsCount: null,
   moduleColor: undefined,
   moduleColorLighter: undefined,
 });
@@ -1174,6 +1181,34 @@ const qCols = computed<TableViewColumn[]>(() => {
     }
   }
 
+  // Project Grant tables: the kgCO₂eq column reads per-year and a "× project
+  // years" column follows it, so a value and its project total sit side by
+  // side (#1979). Same kg_co2eq field — the multiply is presentation only.
+  if (props.projectYearsCount != null) {
+    const kgIdx = baseCols.findIndex((c) => c.name === 'kg_co2eq');
+    if (kgIdx >= 0) {
+      baseCols[kgIdx] = {
+        ...baseCols[kgIdx],
+        label: $t('planner_kg_per_year_col'),
+        minColumnWidth: undefined,
+        columnSize: 'xs',
+      };
+      baseCols.splice(kgIdx + 1, 0, {
+        name: 'project_kg_co2eq',
+        label: $t('planner_kg_project_col', {
+          years: props.projectYearsCount,
+        }),
+        field: 'kg_co2eq',
+        sortable: true,
+        align: 'right',
+        inputComponent: QInput,
+        editableInline: false,
+        type: 'number',
+        columnSize: 'xs',
+      });
+    }
+  }
+
   if (showTableActions.value) {
     baseCols.push({
       name: 'action',
@@ -1282,6 +1317,14 @@ function renderCell(
   }
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
+  if (col.name === 'project_kg_co2eq') {
+    return nOrDash((val as number) * (props.projectYearsCount ?? 1), {
+      options: {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      },
+    });
+  }
   if (
     col.name === 'kg_co2eq' ||
     col.name === 't_co2eq' ||

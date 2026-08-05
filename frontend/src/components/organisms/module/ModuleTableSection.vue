@@ -16,6 +16,7 @@
           :factor-year="factorYear"
           :carbon-report-id="carbonReportId"
           :show-reference-columns="showReferenceColumns"
+          :project-years-count="projectYearsCount"
           :threshold="currentModuleConfig.threshold || defaultThreshold"
         />
       </template>
@@ -53,6 +54,8 @@ const props = defineProps<{
   carbonReportId?: number;
   /** Planner prefilled: show the reference-kg column + % slider. */
   showReferenceColumns?: boolean;
+  /** Planner Project Grant: plan year count for the "× project years" column. */
+  projectYearsCount?: number | null;
   /**
    * Replaces the Calculator MODULES_CONFIG entry — the Simulator Plan
    * renders planner-specific submodules (see constant/planner-module-config).

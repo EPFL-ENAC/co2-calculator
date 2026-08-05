@@ -62,6 +62,7 @@
           :default-factor-year="plan.default_factor_year"
           :reference-year-options="referenceYearOptions"
           :expanded-keys="expandedKeys"
+          :project-years-count="projectYearsCount"
           @toggle-module="onToggleModule"
         />
 
@@ -177,6 +178,13 @@ function onToggleModule({
   );
   expandedKeys.value = open ? [...others, key] : others;
 }
+
+// Grant tables multiply per-year kgCO₂eq over the plan's duration (#1979).
+const projectYearsCount = computed(() =>
+  plan.value?.start_year != null && plan.value?.end_year != null
+    ? plan.value.end_year - plan.value.start_year + 1
+    : null,
+);
 
 const breakdown = computed(() =>
   plansStore.aggregateStats

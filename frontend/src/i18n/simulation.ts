@@ -291,6 +291,22 @@ export default {
     en: '% of reference year',
     fr: '% de l’année de référence',
   },
+  planner_kg_per_year_col: {
+    en: 'kgCO₂eq / year',
+    fr: 'kgCO₂eq / an',
+  },
+  planner_kg_project_col: {
+    en: 'kgCO₂eq over {years} years',
+    fr: 'kgCO₂eq sur {years} ans',
+  },
+  planner_purchase_kg_per_year: {
+    en: '{value} tCO₂eq / year',
+    fr: '{value} tCO₂eq / an',
+  },
+  planner_purchase_kg_project: {
+    en: '{value} tCO₂eq over {years} years',
+    fr: '{value} tCO₂eq sur {years} ans',
+  },
   planner_module_prefilled_badge: {
     en: 'Prefilled from reference year',
     fr: "Prérempli depuis l'année de référence",

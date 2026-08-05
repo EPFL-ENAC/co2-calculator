@@ -39,6 +39,7 @@
           :factor-year="factorYear"
           :carbon-report-id="carbonReportId"
           :show-reference-columns="showReferenceColumns"
+          :project-years-count="projectYearsCount"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -124,6 +125,7 @@
           :factor-year="factorYear"
           :carbon-report-id="carbonReportId"
           :show-reference-columns="showReferenceColumns"
+          :project-years-count="projectYearsCount"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -243,6 +245,8 @@ type CommonProps = {
   carbonReportId?: number;
   /** Planner prefilled: show the reference-kg column + % slider. */
   showReferenceColumns?: boolean;
+  /** Planner Project Grant: plan year count for the "× project years" column. */
+  projectYearsCount?: number | null;
   threshold: Threshold;
   disable: boolean;
   isExplorer?: boolean;
@@ -266,6 +270,7 @@ const props = withDefaults(
     carbonReportId: undefined,
     factorYear: undefined,
     showReferenceColumns: undefined,
+    projectYearsCount: null,
   },
 );
 const authStore = useAuthStore();

@@ -156,6 +156,7 @@
               v-else-if="entry.config.module === MODULES.Purchase"
               :key="factorScopedKey(entry.config.module)"
               :carbon-report-id="yearData.id"
+              :project-years-count="grantYearsCountFor(entry.config.module)"
               :disable="entry.module?.is_active === false"
             />
             <module-table-section
@@ -173,6 +174,7 @@
               :show-reference-columns="
                 entry.config.behavior === 'prefilled' && hasReferenceYear
               "
+              :project-years-count="grantYearsCountFor(entry.config.module)"
               :disable="entry.module?.is_active === false"
             />
           </div>
@@ -221,6 +223,8 @@ const props = defineProps<{
   referenceYearOptions: { label: string; value: number }[];
   /** `${year}-${module}` of every expanded module across the page. */
   expandedKeys: string[];
+  /** The plan's year count (end - start + 1); null until the range is set. */
+  projectYearsCount?: number | null;
 }>();
 const emit = defineEmits<{
   toggleModule: [payload: { key: string; module: Module; open: boolean }];
@@ -266,6 +270,16 @@ const GRANT_LOCKED_MODULES: Module[] = [
 
 function isGrantLocked(module: Module): boolean {
   return props.yearData.is_grant && GRANT_LOCKED_MODULES.includes(module);
+}
+
+/**
+ * Grant tables show kgCO₂eq per year and multiplied over the project's years
+ * (#1979). Year sections never do, and the grant-locked modules wait for
+ * their custom grant UI (#1980/#1981).
+ */
+function grantYearsCountFor(module: Module): number | null {
+  if (!props.yearData.is_grant || isGrantLocked(module)) return null;
+  return props.projectYearsCount ?? null;
 }
 
 const moduleEntries = computed<ModuleEntry[]>(() =>
