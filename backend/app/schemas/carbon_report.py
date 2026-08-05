@@ -14,6 +14,7 @@ class CarbonReportBase(BaseModel):
     reference_year: Optional[int] = None
     unit_id: int
     carbon_project_id: Optional[int] = None
+    is_grant: bool = False
 
 
 class CarbonReportCreate(CarbonReportBase):

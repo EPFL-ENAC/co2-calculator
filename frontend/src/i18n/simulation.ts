@@ -187,21 +187,41 @@ export default {
     en: 'Visible to all lab members',
     fr: 'Visible par tous les membres du laboratoire',
   },
-  planner_generate_years_button: {
-    en: 'Create year sections',
-    fr: 'Créer les sections annuelles',
+  planner_grant_proposal_label: {
+    en: 'Grant proposal',
+    fr: 'Demande de financement',
   },
-  planner_generate_years_hint: {
-    en: 'Creates one editable section per year between the start and end year.',
-    fr: 'Crée une section modifiable par année entre les années de début et de fin.',
+  planner_grant_proposal_checkbox: {
+    en: 'This project is a grant proposal',
+    fr: 'Ce projet est une demande de financement',
   },
-  planner_years_generated: {
-    en: 'Year sections updated',
-    fr: 'Sections annuelles mises à jour',
+  planner_grant_proposal_hint: {
+    en: 'Adds a Project Grant section covering the whole project, in addition to the year sections.',
+    fr: 'Ajoute une section Financement du projet couvrant tout le projet, en plus des sections annuelles.',
   },
-  planner_years_generate_error: {
-    en: 'Could not create the year sections',
-    fr: 'Impossible de créer les sections annuelles',
+  planner_project_grant_title: {
+    en: 'Project Grant',
+    fr: 'Financement du projet',
+  },
+  planner_generate_sections_button: {
+    en: 'Create project sections',
+    fr: 'Créer les sections du projet',
+  },
+  planner_generate_sections_hint: {
+    en: 'Creates one editable section per year between the start and end year, plus the Project Grant section when the project is a grant proposal.',
+    fr: 'Crée une section modifiable par année entre les années de début et de fin, ainsi que la section Financement du projet si le projet est une demande de financement.',
+  },
+  planner_sections_generated: {
+    en: 'Project sections updated',
+    fr: 'Sections du projet mises à jour',
+  },
+  planner_sections_generate_error: {
+    en: 'Could not create the project sections',
+    fr: 'Impossible de créer les sections du projet',
+  },
+  planner_module_grant_locked_tooltip: {
+    en: 'Equipment and Research Facilities always count in a grant proposal.',
+    fr: 'Les équipements et les plateformes de recherche comptent toujours dans une demande de financement.',
   },
   planner_no_years_hint: {
     en: 'Set a start and end year to plan your project — one section per year will appear here.',

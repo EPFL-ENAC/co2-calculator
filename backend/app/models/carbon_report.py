@@ -43,6 +43,15 @@ class CarbonReportBase(SQLModel):
         index=True,
         description="FK to carbon_projects.id — every report may belong to a project",
     )
+    is_grant: bool = Field(
+        default=False,
+        nullable=False,
+        sa_column_kwargs={"server_default": "false"},
+        description=(
+            "Simulator Plan only: the plan's Project Grant report"
+            " (anchored to the plan's start year), as opposed to a year report"
+        ),
+    )
     last_updated: Optional[int] = Field(
         default=None,
         description=(
@@ -100,6 +109,7 @@ class CarbonReport(CarbonReportBase, table=True):
         UniqueConstraint(
             "carbon_project_id",
             "year",
+            "is_grant",
             name="uq_carbon_reports_project_year",
         ),
     )

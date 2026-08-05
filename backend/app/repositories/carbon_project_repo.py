@@ -129,12 +129,19 @@ class CarbonProjectRepository:
 
         Backs the plan totals shown in the home-page planner table: one query
         for the whole unit instead of one per plan.
+
+        Project Grant reports are excluded: how grant results combine with the
+        per-year results is still open (#1977), and summing both would count
+        the same project twice.
         """
         if not project_ids:
             return []
         statement = select(
             col(CarbonReport.carbon_project_id), col(CarbonReport.stats)
-        ).where(col(CarbonReport.carbon_project_id).in_(project_ids))
+        ).where(
+            col(CarbonReport.carbon_project_id).in_(project_ids),
+            col(CarbonReport.is_grant).is_(False),
+        )
         result = await self.session.execute(statement)
         return [(project_id, stats) for project_id, stats in result.all()]
 

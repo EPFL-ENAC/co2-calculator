@@ -27,6 +27,22 @@
 
     <q-card-section>
       <div class="text-weight-medium q-mb-sm">
+        {{ $t('planner_grant_proposal_label') }}
+      </div>
+      <q-checkbox
+        v-model="grantProposalInput"
+        :label="$t('planner_grant_proposal_checkbox')"
+        color="info"
+        size="sm"
+      />
+      <div class="text-body2 text-grey-7">
+        {{ $t('planner_grant_proposal_hint') }}
+      </div>
+    </q-card-section>
+    <q-separator />
+
+    <q-card-section>
+      <div class="text-weight-medium q-mb-sm">
         {{ $t('planner_year_selection_label') }}
       </div>
       <div class="row q-col-gutter-md">
@@ -63,26 +79,6 @@
           </q-select>
         </div>
       </div>
-
-      <!-- The per-year sections are created explicitly (not as a hidden
-           side-effect of picking a year), with visible progress. -->
-      <div class="row items-center q-gutter-sm q-mt-md">
-        <q-btn
-          unelevated
-          no-caps
-          size="sm"
-          color="info"
-          class="text-weight-regular"
-          icon="o_playlist_add"
-          :label="$t('planner_generate_years_button')"
-          :disable="!yearsDirty || !yearsValid"
-          :loading="generatingYears"
-          @click="generateYears"
-        />
-        <span class="text-body2 text-grey-7">
-          {{ $t('planner_generate_years_hint') }}
-        </span>
-      </div>
     </q-card-section>
     <q-separator />
 
@@ -94,6 +90,28 @@
         size="sm"
         @update:model-value="saveIfDirty('is_viewable_by_unit_members')"
       />
+    </q-card-section>
+    <q-separator />
+
+    <!-- The plan's sections (Project Grant + per-year) are created explicitly
+         (not as a hidden side-effect of picking a year), with visible
+         progress. -->
+    <q-card-section>
+      <q-btn
+        unelevated
+        no-caps
+        size="md"
+        color="info"
+        class="full-width text-weight-medium"
+        icon="o_playlist_add"
+        :label="$t('planner_generate_sections_button')"
+        :disable="!sectionsDirty || !yearsValid"
+        :loading="generatingSections"
+        @click="generateSections"
+      />
+      <div class="text-body2 text-grey-7 q-mt-sm">
+        {{ $t('planner_generate_sections_hint') }}
+      </div>
     </q-card-section>
   </q-card>
 </template>
@@ -123,10 +141,11 @@ const yearConfigStore = useYearConfigStore();
 const nameInput = ref(props.plan.name);
 const startYearInput = ref<number | null>(props.plan.start_year ?? null);
 const endYearInput = ref<number | null>(props.plan.end_year ?? null);
+const grantProposalInput = ref(props.plan.is_grant_proposal);
 const shareWithLab = ref(props.plan.is_viewable_by_unit_members);
 const nameTouched = ref(false);
 const saving = ref(false);
-const generatingYears = ref(false);
+const generatingSections = ref(false);
 
 watch(
   () => props.plan,
@@ -134,6 +153,7 @@ watch(
     nameInput.value = plan.name;
     startYearInput.value = plan.start_year ?? null;
     endYearInput.value = plan.end_year ?? null;
+    grantProposalInput.value = plan.is_grant_proposal;
     shareWithLab.value = plan.is_viewable_by_unit_members;
   },
 );
@@ -180,37 +200,49 @@ const yearsValid = computed(
     endYearInput.value >= startYearInput.value,
 );
 
-// Dirty vs. the persisted range — the button is idle until the user changes
-// a year, and disables again once the sections match the selection.
+// Dirty vs. the persisted plan — the button is idle until the user changes
+// a year or the grant checkbox, and disables again once the sections match
+// the selection.
 const yearsDirty = computed(
   () =>
     startYearInput.value !== (props.plan.start_year ?? null) ||
     endYearInput.value !== (props.plan.end_year ?? null),
 );
 
+const sectionsDirty = computed(
+  () =>
+    yearsDirty.value ||
+    grantProposalInput.value !== props.plan.is_grant_proposal,
+);
+
 /**
- * Create/update one CarbonReport per year in the selected range. Made an
- * explicit, feedback-carrying action (button + spinner + notify) instead of a
- * hidden side-effect of picking a year — the backend syncs the year reports.
+ * Create/update one CarbonReport per year in the selected range, plus the
+ * Project Grant report when the plan is a grant proposal. Made an explicit,
+ * feedback-carrying action (button + spinner + notify) instead of a hidden
+ * side-effect of picking a year — the backend syncs the reports.
  */
-async function generateYears() {
+async function generateSections() {
   const start = startYearInput.value;
   const end = endYearInput.value;
-  if (start === null || end === null || generatingYears.value) return;
+  if (start === null || end === null || generatingSections.value) return;
 
-  generatingYears.value = true;
+  generatingSections.value = true;
   try {
     const updated = await plansStore.updatePlan(props.plan.id, {
       start_year: start,
       end_year: end,
       default_reference_year: Number(route.params.year),
+      is_grant_proposal: grantProposalInput.value,
     });
     emit('updated', updated);
-    $q.notify({ type: 'positive', message: t('planner_years_generated') });
+    $q.notify({ type: 'positive', message: t('planner_sections_generated') });
   } catch {
-    $q.notify({ type: 'negative', message: t('planner_years_generate_error') });
+    $q.notify({
+      type: 'negative',
+      message: t('planner_sections_generate_error'),
+    });
   } finally {
-    generatingYears.value = false;
+    generatingSections.value = false;
   }
 }
 

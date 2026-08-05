@@ -5,7 +5,13 @@
       header-class="text-h5 text-weight-medium"
     >
       <template #header>
-        <q-item-section>{{ yearData.year }}</q-item-section>
+        <q-item-section>
+          {{
+            yearData.is_grant
+              ? $t('planner_project_grant_title')
+              : yearData.year
+          }}
+        </q-item-section>
       </template>
 
       <q-separator />
@@ -110,14 +116,18 @@
                   size="sm"
                   dense
                   :disable="
-                    !entry.module || togglingModuleId === entry.module.id
+                    !entry.module ||
+                    togglingModuleId === entry.module.id ||
+                    isGrantLocked(entry.config.module)
                   "
                   @update:model-value="
                     (active: boolean) => onToggleActive(entry, active)
                   "
                 >
                   <q-tooltip>{{
-                    $t('planner_module_active_tooltip')
+                    isGrantLocked(entry.config.module)
+                      ? $t('planner_module_grant_locked_tooltip')
+                      : $t('planner_module_active_tooltip')
                   }}</q-tooltip>
                 </q-checkbox>
               </div>
@@ -246,6 +256,18 @@ function isGridModule(module: Module): boolean {
   return GRID_MODULES.includes(module);
 }
 
+// A grant proposal is first and foremost about the equipment and research
+// facilities it funds, so these always count (#1976). Mirrors the backend
+// GRANT_LOCKED_MODULE_TYPES set, which rejects the toggle server-side.
+const GRANT_LOCKED_MODULES: Module[] = [
+  MODULES.Equipment,
+  MODULES.ResearchFacilities,
+];
+
+function isGrantLocked(module: Module): boolean {
+  return props.yearData.is_grant && GRANT_LOCKED_MODULES.includes(module);
+}
+
 const moduleEntries = computed<ModuleEntry[]>(() =>
   PLANNER_MODULES.map((config) => ({
     config,
@@ -255,8 +277,14 @@ const moduleEntries = computed<ModuleEntry[]>(() =>
   })),
 );
 
+// The Project Grant report shares its year with the start-year report, so
+// its expansion keys carry their own prefix.
+const sectionKey = computed(() =>
+  props.yearData.is_grant ? 'grant' : String(props.yearData.year),
+);
+
 function expansionKey(module: Module): string {
-  return `${props.yearData.year}-${module}`;
+  return `${sectionKey.value}-${module}`;
 }
 
 function isExpanded(module: Module): boolean {
@@ -288,11 +316,12 @@ async function onReferenceYearChange(referenceYear: number | null) {
       props.planId,
       props.yearData.year,
       referenceYear,
+      props.yearData.is_grant,
     );
     referenceYearDialogOpen.value = false;
     // The prefilled modules were rebuilt from the new baseline; refresh this
-    // year's open modules so their rows appear without a manual reload.
-    const prefix = `${props.yearData.year}-`;
+    // section's open modules so their rows appear without a manual reload.
+    const prefix = `${sectionKey.value}-`;
     for (const key of props.expandedKeys) {
       if (!key.startsWith(prefix)) continue;
       await refreshExpandedModule(key.slice(prefix.length) as Module);

@@ -14,6 +14,7 @@ from app.core.policy import (
     require_unit_access,
 )
 from app.db import SessionLocal
+from app.models.module_type import GRANT_LOCKED_MODULE_TYPES
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import (
@@ -289,6 +290,15 @@ async def update_carbon_report_module_active(
     unit = await db.get(Unit, report.unit_id)
     require_unit_access(current_user, unit)
     await require_plan_scope_for_report(db, current_user, report, "edit")
+
+    if report.is_grant and not update.is_active:
+        if module_type_id in GRANT_LOCKED_MODULE_TYPES:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Equipment and Research Facilities always count in a grant proposal"
+                ),
+            )
 
     module_service = CarbonReportModuleService(db)
     result = await module_service.update_is_active(

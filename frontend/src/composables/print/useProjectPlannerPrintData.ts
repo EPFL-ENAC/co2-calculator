@@ -125,7 +125,11 @@ export function useProjectPlannerPrintData() {
 
   const printModules = getPlannerPrintModules();
 
-  const planYears = computed(() => plansStore.planYears);
+  // The Project Grant report stays out of the printed report until #1977
+  // settles how grant results combine with the per-year results.
+  const planYears = computed(() =>
+    plansStore.planYears.filter((year) => !year.is_grant),
+  );
 
   const yearRangeLabel = computed(() => {
     const years = planYears.value;
@@ -357,7 +361,7 @@ export function useProjectPlannerPrintData() {
         yearConfigStore.fetchConfiguredYears(),
       ]);
 
-      const years = plansStore.planYears;
+      const years = planYears.value;
       const taxonomyYear =
         years.find((year) => year.reference_year != null)?.reference_year ??
         plan.value.default_factor_year ??

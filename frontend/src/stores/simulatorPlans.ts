@@ -18,6 +18,7 @@ export interface SimulatorPlan {
   /** Latest Calculator report year of the unit; factor fallback when a plan
    * year has no reference year (backend-derived, read-only). */
   default_factor_year: number | null;
+  is_grant_proposal: boolean;
   created_by: number | null;
   created_at: string | null;
   creator_name: string | null;
@@ -34,11 +35,15 @@ export interface SimulatorPlanModule {
   stats: Record<string, unknown> | null;
 }
 
-/** One plan-year carbon report with its modules. */
+/**
+ * One plan carbon report with its modules: a year of the range, or the
+ * Project Grant report (`is_grant`, anchored to the start year).
+ */
 export interface SimulatorPlanYear {
   id: number;
   year: number;
   reference_year: number | null;
+  is_grant: boolean;
   stats: Record<string, unknown> | null;
   modules: SimulatorPlanModule[];
 }
@@ -51,6 +56,7 @@ export interface SimulatorPlanUpdatePayload {
   /** Reference year defaulted onto (and prefilled into) year reports newly
    * created by this range change; send the current workspace year. */
   default_reference_year?: number;
+  is_grant_proposal?: boolean;
 }
 
 export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
@@ -138,7 +144,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
       .json<SimulatorPlan>();
 
     markPlansStale();
-    if (rangeChange) {
+    if (rangeChange || payload.is_grant_proposal !== undefined) {
       await fetchPlanYears(planId);
     }
     return plan;
@@ -186,20 +192,25 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     aggregateStats.value = null;
   }
 
-  /** Set or remove (null) the reference (baseline) year of one plan-year report. */
+  /**
+   * Set or remove (null) the reference (baseline) year of one plan-year report. `isGrant`
+   * targets the Project Grant report, which shares its year with the
+   * start-year report.
+   */
   async function setReferenceYear(
     planId: number,
     year: number,
     referenceYear: number | null,
+    isGrant = false,
   ): Promise<SimulatorPlanYear> {
     const updated = await api
       .patch(`project-plans/${planId}/years/${year}`, {
-        json: { reference_year: referenceYear },
+        json: { reference_year: referenceYear, is_grant: isGrant },
         timeout: 300000, // 5 minutes; TODO: backend to make a background task instead!
       })
       .json<SimulatorPlanYear>();
     planYears.value = planYears.value.map((y) =>
-      y.year === updated.year ? updated : y,
+      y.id === updated.id ? updated : y,
     );
     await refreshAggregateIfActive();
     return updated;

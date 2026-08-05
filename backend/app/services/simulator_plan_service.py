@@ -66,6 +66,7 @@ def _to_read(
         start_year=project.start_year,
         end_year=project.end_year,
         is_viewable_by_unit_members=project.is_viewable_by_unit_members,
+        is_grant_proposal=project.is_grant_proposal,
         created_by=project.created_by,
         created_at=project.created_at,
         creator_name=creator_name,
@@ -182,6 +183,8 @@ class SimulatorPlanService:
             project.name = update.name
         if update.is_viewable_by_unit_members is not None:
             project.is_viewable_by_unit_members = update.is_viewable_by_unit_members
+        if update.is_grant_proposal is not None:
+            project.is_grant_proposal = update.is_grant_proposal
         if update.start_year is not None:
             project.start_year = update.start_year
         if update.end_year is not None:
@@ -220,8 +223,11 @@ class SimulatorPlanService:
             raise ValueError("project must be persisted before use")
         target_years = set(range(project.start_year, project.end_year + 1))
         existing_years: set[int] = set()
+        grant_report: Optional[CarbonReport] = None
         for report in await self.repo.list_reports_for_project(project.id):
-            if report.year in target_years:
+            if report.is_grant:
+                grant_report = report
+            elif report.year in target_years:
                 existing_years.add(report.year)
             elif report.id is not None:
                 await self.report_service.delete(report.id)
@@ -234,11 +240,43 @@ class SimulatorPlanService:
                     reference_year=default_reference_year,
                 )
             )
-            if default_reference_year is not None:
-                # Prefill computes the copied rows' emissions itself; only
-                # the report rollup is missing (no other entries exist yet).
-                await self._prefill_reference_modules(report_read)
-                await self.report_service.recompute_report_stats(report_read.id)
+        await self._sync_grant_report(project, grant_report)
+        if default_reference_year is not None:
+            # Prefill computes the copied rows' emissions itself; only
+            # the report rollup is missing (no other entries exist yet).
+            await self._prefill_reference_modules(report_read)
+            await self.report_service.recompute_report_stats(report_read.id)
+
+    async def _sync_grant_report(
+        self, project: CarbonProject, grant_report: Optional[CarbonReport]
+    ) -> None:
+        """Make the plan's Project Grant report match ``is_grant_proposal``.
+
+        Unchecking the checkbox deletes the grant report together with its
+        entries (destructive by design, like shrinking the year range). The
+        report is anchored to the plan's start year: when the range moves it
+        follows, keeping its data — grant entries resolve their factors from
+        the reference year, not the report year.
+        """
+        if not project.is_grant_proposal:
+            if grant_report is not None and grant_report.id is not None:
+                await self.report_service.delete(grant_report.id)
+            return
+        if project.start_year is None or project.id is None:
+            return
+        if grant_report is None:
+            await self.report_service.create(
+                CarbonReportCreate(
+                    unit_id=project.unit_id,
+                    year=project.start_year,
+                    carbon_project_id=project.id,
+                    is_grant=True,
+                )
+            )
+        elif grant_report.year != project.start_year:
+            grant_report.year = project.start_year
+            self.session.add(grant_report)
+            await self.session.flush()
 
     async def list_plan_years(
         self, plan_id: int
@@ -253,15 +291,18 @@ class SimulatorPlanService:
             return None
         if project.id is None:
             raise ValueError("project must be persisted before use")
-        years: list[SimulatorPlanYearRead] = []
-        for report in await self.repo.list_reports_for_project(project.id):
-            years.append(await self._year_read(report))
-        return years
+        reports = await self.repo.list_reports_for_project(project.id)
+        # The Project Grant section renders before the year sections.
+        reports.sort(key=lambda r: (not r.is_grant, r.year))
+        return [await self._year_read(report) for report in reports]
 
     async def set_reference_year(
-        self, plan_id: int, year: int, reference_year: Optional[int]
+        self, plan_id: int, year: int, reference_year: Optional[int], *, is_grant: bool = False
     ) -> Optional[SimulatorPlanYearRead]:
         """Set or remove the baseline year of one plan-year report; None if missing.
+
+        ``is_grant`` targets the Project Grant report, which shares its year
+        with the start-year report.
 
         Destructive: every prefilled module of the plan-year is emptied and,
         when a baseline is set, rebuilt from it at 100% — the percentages,
@@ -274,7 +315,9 @@ class SimulatorPlanService:
         lookup follows the reference year.
         """
         reports = await self.repo.list_reports_for_project(plan_id)
-        report = next((r for r in reports if r.year == year), None)
+        report = next(
+            (r for r in reports if r.year == year and r.is_grant == is_grant), None
+        )
         if report is None:
             return None
         if report.reference_year != reference_year:
@@ -343,6 +386,7 @@ class SimulatorPlanService:
             id=report.id,
             year=report.year,
             reference_year=report.reference_year,
+            is_grant=report.is_grant,
             stats=report.stats,
             modules=modules,
         )
@@ -593,6 +637,7 @@ class SimulatorPlanService:
             end_year=source.end_year,
             name=new_name,
             is_viewable_by_unit_members=source.is_viewable_by_unit_members,
+            is_grant_proposal=source.is_grant_proposal,
             created_by=user.id,
             created_at=datetime.now(timezone.utc),
         )

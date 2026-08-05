@@ -47,6 +47,7 @@ class SimulatorPlanUpdate(BaseModel):
     start_year: Optional[int] = Field(default=None, ge=1000, le=9999)
     end_year: Optional[int] = Field(default=None, ge=1000, le=9999)
     is_viewable_by_unit_members: Optional[bool] = None
+    is_grant_proposal: Optional[bool] = None
     default_reference_year: Optional[int] = Field(default=None, ge=1000, le=9999)
     """Reference year for year reports newly created by this range change.
 
@@ -65,8 +66,15 @@ class SimulatorPlanUpdate(BaseModel):
 class SimulatorPlanReferenceYearUpdate(BaseModel):
     """Schema for setting the baseline year of one plan-year report.
 
+    reference_year: Optional[int] = Field(default=None, ge=1000, le=9999)
+    """
     ``None`` removes the reference year: the prefilled modules are emptied
     (same wipe as a change) and the year becomes manual-input.
+    """
+    is_grant: bool = False
+    """
+    ``is_grant`` disambiguates the Project Grant report from the year report
+    sharing its year (the grant report is anchored to the plan's start year).
     """
 
     reference_year: Optional[int] = Field(default=None, ge=1000, le=9999)
@@ -98,6 +106,7 @@ class SimulatorPlanYearRead(BaseModel):
     id: int
     year: int
     reference_year: Optional[int] = None
+    is_grant: bool = False
     stats: Optional[dict] = None
     modules: list[CarbonReportModuleRead] = []
 

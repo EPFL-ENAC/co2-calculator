@@ -209,14 +209,15 @@ const referenceYearOptions = computed(() =>
 async function onPlanUpdated(updated: SimulatorPlan) {
   const previous = plan.value;
   const renamed = previous !== null && previous.name !== updated.name;
-  const rangeChanged =
+  const sectionsChanged =
     previous !== null &&
     (previous.start_year !== updated.start_year ||
-      previous.end_year !== updated.end_year);
+      previous.end_year !== updated.end_year ||
+      previous.is_grant_proposal !== updated.is_grant_proposal);
   plan.value = updated;
-  // The year range drives the backend year-report sync; refetch so the
-  // per-year sections reflect the new range without a page reload.
-  if (rangeChanged) {
+  // The year range and grant flag drive the backend report sync; refetch so
+  // the sections reflect the new plan without a page reload.
+  if (sectionsChanged) {
     await plansStore.fetchPlanYears(updated.id);
     await plansStore.fetchAggregateStats(updated.id);
   }
