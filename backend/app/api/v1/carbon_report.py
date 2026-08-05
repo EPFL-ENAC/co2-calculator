@@ -18,11 +18,13 @@ from app.models.module_type import GRANT_LOCKED_MODULE_TYPES
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import (
+    CarbonReportBudgetUpdate,
     CarbonReportCreate,
     CarbonReportModuleActiveUpdate,
     CarbonReportModuleRead,
     CarbonReportModuleUpdate,
     CarbonReportRead,
+    CarbonReportSubmoduleBudgetUpdate,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
@@ -315,5 +317,81 @@ async def update_carbon_report_module_active(
 
     await report_service.recompute_report_stats(carbon_report_id)
     await report_service.recompute_report_progress(carbon_report_id)
+    await db.commit()
+    return result
+
+
+async def _require_grant_report_edit(
+    db: AsyncSession, current_user: User, carbon_report_id: int
+) -> CarbonReportService:
+    """Load a Project Grant report and enforce plan-edit access on it.
+
+    404 when the report is missing, 409 when it is not a grant report —
+    budgets exist only on the Project Grant section (#1978).
+    """
+    report_service = CarbonReportService(db)
+    report = await report_service.get(carbon_report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Carbon report not found")
+    unit = await db.get(Unit, report.unit_id)
+    require_unit_access(current_user, unit)
+    await require_plan_scope_for_report(db, current_user, report, "edit")
+    if not report.is_grant:
+        raise HTTPException(
+            status_code=409,
+            detail="Budgets only apply to Project Grant reports",
+        )
+    return report_service
+
+
+@router.patch("/{carbon_report_id}/budget", response_model=CarbonReportRead)
+async def update_carbon_report_budget(
+    carbon_report_id: int,
+    update: CarbonReportBudgetUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set a Project Grant report's total budget (#1978)."""
+    report_service = await _require_grant_report_edit(
+        db, current_user, carbon_report_id
+    )
+    result = await report_service.set_budget(
+        carbon_report_id, update.budget, update.budget_currency
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Carbon report not found")
+    await db.commit()
+    return result
+
+
+@router.patch(
+    "/{carbon_report_id}/modules/{module_type_id}/budget",
+    response_model=CarbonReportModuleRead,
+)
+async def update_carbon_report_submodule_budget(
+    carbon_report_id: int,
+    module_type_id: int,
+    update: CarbonReportSubmoduleBudgetUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set a grant submodule's share of the budget (#1978).
+
+    The frontend checks the submodule budgets against the grant's total and
+    surfaces the non-distributed or over-distributed remainder.
+    """
+    await _require_grant_report_edit(db, current_user, carbon_report_id)
+    module_service = CarbonReportModuleService(db)
+    result = await module_service.update_submodule_budget(
+        carbon_report_id, module_type_id, update.submodule, update.budget
+    )
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Module type {module_type_id} not found for "
+                f"carbon report {carbon_report_id}"
+            ),
+        )
     await db.commit()
     return result

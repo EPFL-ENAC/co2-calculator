@@ -46,6 +46,7 @@ erDiagram
     INTEGER unit_id FK
   }
   carbon_report_modules {
+    JSON budgets
     INTEGER carbon_report_id FK
     INTEGER id PK
     BOOLEAN is_active
@@ -55,6 +56,8 @@ erDiagram
     INTEGER status "indexed"
   }
   carbon_reports {
+    FLOAT budget
+    VARCHAR budget_currency
     INTEGER carbon_project_id FK
     VARCHAR completion_progress
     INTEGER id PK

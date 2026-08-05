@@ -70,6 +70,50 @@
 
       <q-separator />
 
+      <!-- Grant budget: the total lives here, its distribution lives inside
+           each module; the check line reconciles the two (#1978). -->
+      <template v-if="yearData.is_grant">
+        <q-card-section>
+          <div class="text-weight-medium q-mb-sm">
+            {{ $t('planner_grant_budget_label') }}
+          </div>
+          <div class="row items-start q-gutter-sm">
+            <q-input
+              v-model.number="budgetInput"
+              class="grant-budget-input"
+              type="number"
+              outlined
+              dense
+              hide-bottom-space
+              min="0"
+              :label="$t('planner_grant_budget_input_label')"
+              :loading="savingBudget"
+              @blur="saveBudget"
+              @keyup.enter="saveBudget"
+            />
+            <q-select
+              v-model="budgetCurrencyInput"
+              class="grant-budget-currency"
+              :options="CURRENCY_OPTIONS"
+              :label="$t('planner_budget_currency_label')"
+              outlined
+              dense
+              hide-bottom-space
+              emit-value
+              map-options
+              @update:model-value="saveBudget"
+            />
+          </div>
+          <div
+            class="text-body2 q-mt-sm"
+            :class="overDistributed ? 'text-negative' : 'text-grey-7'"
+          >
+            {{ budgetCheckText }}
+          </div>
+        </q-card-section>
+        <q-separator />
+      </template>
+
       <planner-reference-year-dialog
         v-if="referenceYearDialogOpen"
         :key="`ref-year-${yearData.reference_year}`"
@@ -140,6 +184,45 @@
             v-if="isExpanded(entry.config.module)"
             :class="isGridModule(entry.config.module) ? undefined : 'q-pa-md'"
           >
+            <!-- Headcount and Purchases are single grids, so they carry one
+                 submodule-budget field here; table modules get theirs inside
+                 each submodule section (#1978). -->
+            <template
+              v-if="
+                yearData.is_grant &&
+                entry.module &&
+                isGridModule(entry.config.module)
+              "
+            >
+              <div class="q-pa-md">
+                <div class="text-weight-medium q-mb-sm">
+                  {{ $t('planner_budget_section_title') }}
+                </div>
+                <q-input
+                  v-model.number="gridBudgetInputs[entry.config.module]"
+                  class="grant-budget-input"
+                  type="number"
+                  outlined
+                  dense
+                  hide-bottom-space
+                  min="0"
+                  :suffix="currencyLabel(yearData.budget_currency)"
+                  :label="
+                    $t('planner_submodule_budget_label', {
+                      submodule: $t(entry.config.module),
+                    })
+                  "
+                  :loading="savingGridBudgetModule === entry.config.module"
+                  :disable="entry.module.is_active === false"
+                  @blur="saveGridBudget(entry)"
+                  @keyup.enter="saveGridBudget(entry)"
+                />
+                <div class="text-body2 text-grey-7 q-mt-sm">
+                  {{ $t('planner_submodule_budget_hint') }}
+                </div>
+              </div>
+              <q-separator />
+            </template>
             <!-- Headcount is a fixed SIUS-category grid and Purchases a
                    global-budget XOR per-category grid, not add-row tables
                    (design). Other modules reuse the Calculator tables. -->
@@ -175,6 +258,9 @@
                 entry.config.behavior === 'prefilled' && hasReferenceYear
               "
               :project-years-count="grantYearsCountFor(entry.config.module)"
+              :show-grant-budgets="yearData.is_grant"
+              :grant-budgets="entry.module?.budgets ?? null"
+              :grant-budget-currency="yearData.budget_currency"
               :disable="entry.module?.is_active === false"
             />
           </div>
@@ -194,6 +280,7 @@ import ModuleTableSection from 'src/components/organisms/module/ModuleTableSecti
 import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
 import PlannerPurchaseRows from 'src/components/organisms/planner/PlannerPurchaseRows.vue';
 import PlannerReferenceYearDialog from 'src/components/organisms/planner/PlannerReferenceYearDialog.vue';
+import { CURRENCY_OPTIONS, currencyLabel } from 'src/constant/currencies';
 import {
   PLANNER_MODULES,
   type PlannerModuleConfig,
@@ -231,7 +318,7 @@ const emit = defineEmits<{
 }>();
 
 const $q = useQuasar();
-const { t } = useI18n();
+const { t, n } = useI18n();
 const moduleStore = useModuleStore();
 const plansStore = useSimulatorPlansStore();
 
@@ -242,6 +329,99 @@ const togglingModuleId = ref<number | null>(null);
 
 // The reference year only gates the prefill columns; data entry itself is
 // always open. Its rows and dropdowns follow `factorYear` below.
+// Grant budget inputs are seeded from the loaded report once; the check line
+// below reads the persisted store values, so it only moves on save (#1978).
+const budgetInput = ref<number | null>(props.yearData.budget);
+const budgetCurrencyInput = ref<string | null>(props.yearData.budget_currency);
+const savingBudget = ref(false);
+// Headcount and Purchases are single grids: their one budget field lives on
+// this level, stored under the module name as the submodule key.
+const gridBudgetInputs = ref<Record<string, number | null>>(
+  Object.fromEntries(
+    PLANNER_MODULES.map((config) => {
+      const module = props.yearData.modules.find(
+        (m) => m.module_type_id === getModuleTypeId(config.module),
+      );
+      return [config.module, module?.budgets?.[config.module] ?? null];
+    }),
+  ),
+);
+const savingGridBudgetModule = ref<string | null>(null);
+
+const distributedBudget = computed(() =>
+  props.yearData.modules.reduce(
+    (sum, m) =>
+      sum + Object.values(m.budgets ?? {}).reduce((s, value) => s + value, 0),
+    0,
+  ),
+);
+
+const overDistributed = computed(
+  () =>
+    props.yearData.budget !== null &&
+    distributedBudget.value > props.yearData.budget,
+);
+
+const budgetCheckText = computed(() => {
+  const total = props.yearData.budget;
+  if (total === null) return t('planner_grant_budget_hint');
+  if (overDistributed.value) {
+    return t('planner_grant_budget_over', {
+      amount: n(distributedBudget.value - total),
+    });
+  }
+  return t('planner_grant_budget_distribution', {
+    distributed: n(distributedBudget.value),
+    total: n(total),
+    remaining: n(total - distributedBudget.value),
+  });
+});
+
+function toBudgetValue(raw: number | null | undefined): number | null {
+  return typeof raw === 'number' && Number.isFinite(raw) && raw >= 0
+    ? raw
+    : null;
+}
+
+async function saveBudget() {
+  const value = toBudgetValue(budgetInput.value);
+  const currency = budgetCurrencyInput.value;
+  if (
+    (value === props.yearData.budget &&
+      currency === props.yearData.budget_currency) ||
+    savingBudget.value
+  ) {
+    return;
+  }
+  savingBudget.value = true;
+  try {
+    await plansStore.setGrantBudget(props.yearData.id, value, currency);
+  } catch {
+    $q.notify({ type: 'negative', message: t('planner_grant_budget_error') });
+  } finally {
+    savingBudget.value = false;
+  }
+}
+
+async function saveGridBudget(entry: ModuleEntry) {
+  if (!entry.module) return;
+  const submodule = entry.config.module;
+  const value = toBudgetValue(gridBudgetInputs.value[submodule]);
+  if (value === (entry.module.budgets?.[submodule] ?? null)) return;
+  savingGridBudgetModule.value = submodule;
+  try {
+    await plansStore.setSubmoduleBudget(
+      props.yearData.id,
+      entry.module.module_type_id,
+      submodule,
+      value,
+    );
+  } catch {
+    $q.notify({ type: 'negative', message: t('planner_grant_budget_error') });
+  } finally {
+    savingGridBudgetModule.value = null;
+  }
+}
 const hasReferenceYear = computed(() => props.yearData.reference_year !== null);
 
 // Factor year, mirroring the backend chain (`resolve_factor_year`): the
@@ -414,5 +594,16 @@ async function onToggleActive(entry: ModuleEntry, active: boolean) {
 .reference-year-empty {
   border-style: tokens.$reference-year-row-empty-border-style;
   border-color: tokens.$reference-year-row-empty-border-color;
+}
+
+// Budget fields hold one amount; a bounded box keeps them from stretching
+// across the card like a text field would.
+.grant-budget-input {
+  max-width: 240px;
+  flex: 1;
+}
+
+.grant-budget-currency {
+  width: 110px;
 }
 </style>

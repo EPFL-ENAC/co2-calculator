@@ -387,6 +387,8 @@ class SimulatorPlanService:
             year=report.year,
             reference_year=report.reference_year,
             is_grant=report.is_grant,
+            budget=report.budget,
+            budget_currency=report.budget_currency,
             stats=report.stats,
             modules=modules,
         )

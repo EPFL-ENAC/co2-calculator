@@ -52,6 +52,23 @@ class CarbonReportBase(SQLModel):
             " (anchored to the plan's start year), as opposed to a year report"
         ),
     )
+    budget: Optional[float] = Field(
+        default=None,
+        nullable=True,
+        description=(
+            "Project Grant reports only: the grant's total budget,"
+            " checked against the per-submodule budgets (#1978)"
+        ),
+    )
+    budget_currency: Optional[str] = Field(
+        default=None,
+        nullable=True,
+        max_length=8,
+        description=(
+            "Currency code of the grant budget (lowercase, same set as the"
+            " purchase module, e.g. 'chf'); display-only, no conversion"
+        ),
+    )
     last_updated: Optional[int] = Field(
         default=None,
         description=(
@@ -137,6 +154,15 @@ class CarbonReportModuleBase(SQLModel):
             "Whether the module counts toward report sums/stats."
             " Toggled by the Simulator Plan 'Active' checkbox;"
             " always true for Calculator/Explore modules."
+        ),
+    )
+    budgets: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
+        description=(
+            "Project Grant reports only: the submodules' shares of the grant"
+            " budget, keyed by submodule id (#1978); null everywhere else"
+            ".e.g: { 'building': 200000, 'energy_combustion': 50000 }"
         ),
     )
     carbon_report_id: int = Field(

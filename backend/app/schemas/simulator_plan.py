@@ -107,6 +107,8 @@ class SimulatorPlanYearRead(BaseModel):
     year: int
     reference_year: Optional[int] = None
     is_grant: bool = False
+    budget: Optional[float] = None
+    budget_currency: Optional[str] = None
     stats: Optional[dict] = None
     modules: list[CarbonReportModuleRead] = []
 

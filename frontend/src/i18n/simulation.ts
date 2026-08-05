@@ -307,6 +307,46 @@ export default {
     en: '{value} tCO₂eq over {years} years',
     fr: '{value} tCO₂eq sur {years} ans',
   },
+  planner_grant_budget_label: {
+    en: 'Grant budget',
+    fr: 'Budget du financement',
+  },
+  planner_grant_budget_input_label: {
+    en: 'Total budget',
+    fr: 'Budget total',
+  },
+  planner_grant_budget_hint: {
+    en: 'Set the total budget of the grant, then distribute it in the sections below.',
+    fr: 'Saisissez le budget total du financement, puis répartissez-le dans les sections ci-dessous.',
+  },
+  planner_grant_budget_distribution: {
+    en: '{distributed} of {total} distributed, {remaining} remaining.',
+    fr: '{distributed} sur {total} répartis, {remaining} restants.',
+  },
+  planner_grant_budget_over: {
+    en: 'The distributed budgets exceed the total budget by {amount}.',
+    fr: 'Les budgets répartis dépassent le budget total de {amount}.',
+  },
+  planner_grant_budget_error: {
+    en: 'Could not save the budget',
+    fr: "Impossible d'enregistrer le budget",
+  },
+  planner_budget_section_title: {
+    en: 'Budget',
+    fr: 'Budget',
+  },
+  planner_budget_currency_label: {
+    en: 'Currency',
+    fr: 'Devise',
+  },
+  planner_submodule_budget_label: {
+    en: '{submodule} budget',
+    fr: 'Budget {submodule}',
+  },
+  planner_submodule_budget_hint: {
+    en: 'The part of the grant budget planned here.',
+    fr: 'La part du budget du financement prévue ici.',
+  },
   planner_module_prefilled_badge: {
     en: 'Prefilled from reference year',
     fr: "Prérempli depuis l'année de référence",

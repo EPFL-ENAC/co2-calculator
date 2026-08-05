@@ -15,6 +15,8 @@ class CarbonReportBase(BaseModel):
     unit_id: int
     carbon_project_id: Optional[int] = None
     is_grant: bool = False
+    budget: Optional[float] = None
+    budget_currency: Optional[str] = None
 
 
 class CarbonReportCreate(CarbonReportBase):
@@ -68,6 +70,7 @@ class CarbonReportModuleRead(BaseModel):
     module_type_id: int
     status: int
     is_active: bool = True
+    budgets: Optional[dict[str, float]] = None
     stats: Optional[dict] = None
 
     class Config:
@@ -89,3 +92,24 @@ class CarbonReportModuleActiveUpdate(BaseModel):
     """Schema for toggling a module's Active flag (Simulator Plan)."""
 
     is_active: bool
+
+
+class CarbonReportBudgetUpdate(BaseModel):
+    """Schema for setting a Project Grant report's total budget (#1978).
+
+    ``budget_currency`` is a lowercase code from the purchase module's
+    currency set; like purchase entries it is not validated server-side.
+    """
+
+    budget: Optional[float] = Field(default=None, ge=0)
+    budget_currency: Optional[str] = Field(default=None, min_length=3, max_length=8)
+
+
+class CarbonReportSubmoduleBudgetUpdate(BaseModel):
+    """Schema for setting a grant submodule's share of the budget (#1978).
+
+    A null ``budget`` clears the submodule's entry.
+    """
+
+    submodule: str = Field(min_length=1, max_length=100)
+    budget: Optional[float] = Field(default=None, ge=0)

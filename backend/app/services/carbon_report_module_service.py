@@ -358,6 +358,26 @@ class CarbonReportModuleService:
             return None
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
+    async def update_submodule_budget(
+        self,
+        carbon_report_id: int,
+        module_type_id: int,
+        submodule: str,
+        budget: float | None,
+    ) -> Optional[CarbonReportModuleRead]:
+        """Set a grant submodule's share of the budget (#1978)."""
+        logger.info(
+            f"Setting report {sanitize(carbon_report_id)} module "
+            f"{sanitize(module_type_id)} submodule {sanitize(submodule)} "
+            f"budget={sanitize(budget)}"
+        )
+        carbon_report_module = await self.repo.update_submodule_budget(
+            carbon_report_id, module_type_id, submodule, budget
+        )
+        if carbon_report_module is None:
+            return None
+        return CarbonReportModuleRead.model_validate(carbon_report_module)
+
     async def recompute_stats_many(
         self, carbon_report_module_ids: list[int], *, bump_status: bool = True
     ) -> int:

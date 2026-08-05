@@ -32,6 +32,8 @@ export interface SimulatorPlanModule {
   module_type_id: number;
   status: number;
   is_active: boolean;
+  /** Grant submodule budgets, keyed by submodule id (#1978). */
+  budgets: Record<string, number> | null;
   stats: Record<string, unknown> | null;
 }
 
@@ -44,6 +46,8 @@ export interface SimulatorPlanYear {
   year: number;
   reference_year: number | null;
   is_grant: boolean;
+  budget: number | null;
+  budget_currency: string | null;
   stats: Record<string, unknown> | null;
   modules: SimulatorPlanModule[];
 }
@@ -250,6 +254,47 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     return updated;
   }
 
+  /** Set the Project Grant report's total budget and its currency (#1978). */
+  async function setGrantBudget(
+    carbonReportId: number,
+    budget: number | null,
+    budgetCurrency: string | null,
+  ): Promise<void> {
+    const updated = await api
+      .patch(`carbon-reports/${carbonReportId}/budget`, {
+        json: { budget, budget_currency: budgetCurrency },
+      })
+      .json<{ budget: number | null; budget_currency: string | null }>();
+    planYears.value = planYears.value.map((y) =>
+      y.id === carbonReportId
+        ? {
+            ...y,
+            budget: updated.budget,
+            budget_currency: updated.budget_currency,
+          }
+        : y,
+    );
+  }
+
+  /** Set a grant submodule's share of the budget (#1978). */
+  async function setSubmoduleBudget(
+    carbonReportId: number,
+    moduleTypeId: number,
+    submodule: string,
+    budget: number | null,
+  ): Promise<SimulatorPlanModule> {
+    const updated = await api
+      .patch(
+        `carbon-reports/${carbonReportId}/modules/${moduleTypeId}/budget`,
+        {
+          json: { submodule, budget },
+        },
+      )
+      .json<SimulatorPlanModule>();
+    replaceModuleInYear(carbonReportId, updated);
+    return updated;
+  }
+
   async function duplicatePlan(planId: number): Promise<SimulatorPlan> {
     const plan = await api
       .post(`project-plans/${planId}/duplicate`)
@@ -285,6 +330,8 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     clearAggregate,
     setReferenceYear,
     setModuleActive,
+    setGrantBudget,
+    setSubmoduleBudget,
     duplicatePlan,
     deletePlan,
   };

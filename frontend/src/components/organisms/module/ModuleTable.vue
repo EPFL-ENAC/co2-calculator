@@ -75,6 +75,7 @@
   <q-table
     v-model:pagination="moduleStore.state.paginationSubmodule[submoduleType]"
     class="co2-table border"
+    :class="{ 'co2-table--wrap-headers': projectYearsCount != null }"
     :style="tableStyle"
     :columns="qCols"
     :rows="moduleStore.state.dataSubmodule[submoduleType]?.items || []"
@@ -1171,7 +1172,9 @@ const qCols = computed<TableViewColumn[]>(() => {
       inputComponent: QInput,
       editableInline: false,
       type: 'number',
-      minColumnWidth: 180,
+      // Grant tables carry an extra kg column, so the slider cedes a little
+      // room to keep the table inside the viewport.
+      minColumnWidth: props.projectYearsCount != null ? 150 : 180,
     };
     if (kgIdx >= 0) {
       baseCols.splice(kgIdx, 0, referenceCol);
@@ -2262,6 +2265,12 @@ onUnmounted(() => {
 
   th {
     font-size: tokens.$text-size-sm;
+  }
+
+  /* Grant tables carry two extra kg columns; letting the headers wrap keeps
+     every column at its content width instead of its longest header line. */
+  &--wrap-headers th {
+    white-space: normal;
   }
 
   thead tr th {
