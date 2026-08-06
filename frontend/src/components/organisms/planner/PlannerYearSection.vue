@@ -106,7 +106,13 @@
           </div>
           <div
             class="text-body2 q-mt-sm"
-            :class="overDistributed ? 'text-negative' : 'text-grey-7'"
+            :class="
+              overDistributed
+                ? 'text-negative'
+                : fullyDistributed
+                  ? 'text-positive'
+                  : 'text-grey-7'
+            "
           >
             {{ budgetCheckText }}
           </div>
@@ -374,6 +380,12 @@ const overDistributed = computed(
     distributedBudget.value > props.yearData.budget,
 );
 
+const fullyDistributed = computed(
+  () =>
+    props.yearData.budget !== null &&
+    distributedBudget.value === props.yearData.budget,
+);
+
 const budgetCheckText = computed(() => {
   const total = props.yearData.budget;
   if (total === null) return t('planner_grant_budget_hint');
@@ -384,6 +396,7 @@ const budgetCheckText = computed(() => {
   }
   return t('planner_grant_budget_distribution', {
     distributed: n(distributedBudget.value),
+    currency: currencyLabel(props.yearData.budget_currency),
     total: n(total),
     remaining: n(total - distributedBudget.value),
   });

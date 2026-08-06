@@ -208,8 +208,8 @@ export default {
     fr: 'Demande de financement',
   },
   planner_grant_proposal_checkbox: {
-    en: 'This project is a grant proposal',
-    fr: 'Ce projet est une demande de financement',
+    en: 'Grant proposal',
+    fr: 'Demande de financement',
   },
   planner_grant_proposal_hint: {
     en: 'Adds a Project Grant section covering the whole project.',
@@ -220,24 +220,24 @@ export default {
     fr: 'Financement du projet',
   },
   planner_year_by_year_checkbox: {
-    en: 'Plan the project year by year',
-    fr: 'Planifier le projet année par année',
+    en: 'Ongoing Project',
+    fr: 'Projet en cours',
   },
   planner_year_by_year_hint: {
-    en: 'Adds one editable section per year between the start and end year.',
-    fr: 'Ajoute une section modifiable par année entre les années de début et de fin.',
+    en: 'Add detailed sections for each year.',
+    fr: 'Ajoute des sections détaillées pour chaque année.',
   },
   planner_sections_need_one: {
-    en: 'Select the year-by-year planning, the grant proposal, or both.',
-    fr: 'Sélectionnez la planification année par année, la demande de financement, ou les deux.',
+    en: 'Select the ongoing project, the grant proposal, or both.',
+    fr: 'Sélectionnez le projet en cours, la demande de financement, ou les deux.',
   },
   planner_generate_sections_button: {
     en: 'Create project sections',
     fr: 'Créer les sections du projet',
   },
   planner_generate_sections_hint: {
-    en: 'Creates the selected sections: one editable section per year between the start and end year when planning year by year, plus the Project Grant section when the project is a grant proposal.',
-    fr: 'Crée les sections sélectionnées : une section modifiable par année entre les années de début et de fin pour la planification année par année, ainsi que la section Financement du projet si le projet est une demande de financement.',
+    en: 'Creates the selected sections: one editable section per year between the start and end year for an ongoing project, plus the Project Grant section when the project is a grant proposal.',
+    fr: 'Crée les sections sélectionnées : une section modifiable par année entre les années de début et de fin pour un projet en cours, ainsi que la section Financement du projet si le projet est une demande de financement.',
   },
   planner_sections_generated: {
     en: 'Project sections updated',
@@ -324,8 +324,8 @@ export default {
     fr: 'kgCO₂eq / an',
   },
   planner_kg_project_col: {
-    en: 'kgCO₂eq over {years} years',
-    fr: 'kgCO₂eq sur {years} ans',
+    en: 'kgCO₂-eq over {years} years',
+    fr: 'kgCO₂-eq sur {years} ans',
   },
   planner_purchase_kg_per_year: {
     en: '{value} tCO₂eq / year',
@@ -348,8 +348,8 @@ export default {
     fr: 'Saisissez le budget total du financement, puis répartissez-le dans les sections ci-dessous.',
   },
   planner_grant_budget_distribution: {
-    en: '{distributed} of {total} distributed, {remaining} remaining.',
-    fr: '{distributed} sur {total} répartis, {remaining} restants.',
+    en: '{distributed} {currency} of {total} allocated. {remaining} remaining to allocate in the categories below.',
+    fr: '{distributed} {currency} sur {total} alloués. {remaining} restants à allouer dans les catégories ci-dessous.',
   },
   planner_grant_budget_over: {
     en: 'The distributed budgets exceed the total budget by {amount}.',
