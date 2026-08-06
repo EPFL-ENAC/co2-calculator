@@ -45,12 +45,22 @@
       <div class="text-weight-medium q-mb-sm">
         {{ $t('planner_year_selection_label') }}
       </div>
-      <div class="row q-col-gutter-md">
+      <q-checkbox
+        v-model="yearByYearChecked"
+        :label="$t('planner_year_by_year_checkbox')"
+        color="info"
+        size="sm"
+      />
+      <div class="text-body2 text-grey-7">
+        {{ $t('planner_year_by_year_hint') }}
+      </div>
+      <div class="row q-col-gutter-md q-mt-xs">
         <div class="col-12 col-sm-6">
           <q-select
             v-model="startYearInput"
             :label="$t('planner_start_year_label')"
             :options="startYearOptions"
+            :disable="!yearByYearChecked"
             outlined
             dense
             hide-bottom-space
@@ -67,6 +77,7 @@
             v-model="endYearInput"
             :label="$t('planner_end_year_label')"
             :options="endYearOptions"
+            :disable="!yearByYearChecked"
             outlined
             dense
             hide-bottom-space
@@ -105,10 +116,16 @@
         class="full-width text-weight-medium"
         icon="o_playlist_add"
         :label="$t('planner_generate_sections_button')"
-        :disable="!sectionsDirty || !yearsValid"
+        :disable="!sectionsDirty || !yearsValid || !sectionTypeSelected"
         :loading="generatingSections"
         @click="generateSections"
       />
+      <div
+        v-if="!sectionTypeSelected"
+        class="text-body2 text-negative q-mt-sm"
+      >
+        {{ $t('planner_sections_need_one') }}
+      </div>
       <div class="text-body2 text-grey-7 q-mt-sm">
         {{ $t('planner_generate_sections_hint') }}
       </div>
@@ -147,6 +164,20 @@ const nameTouched = ref(false);
 const saving = ref(false);
 const generatingSections = ref(false);
 
+// Whether the plan currently has per-year sections is not a plan column; it
+// is derived from its reports (a plan with none yet defaults to having them).
+const persistedYearByYear = computed(() =>
+  plansStore.planYears.length
+    ? plansStore.planYears.some((y) => !y.is_grant)
+    : true,
+);
+// null = untouched, mirror the persisted state (which arrives async).
+const yearByYearInput = ref<boolean | null>(null);
+const yearByYearChecked = computed({
+  get: () => yearByYearInput.value ?? persistedYearByYear.value,
+  set: (value: boolean) => (yearByYearInput.value = value),
+});
+
 watch(
   () => props.plan,
   (plan) => {
@@ -155,6 +186,7 @@ watch(
     endYearInput.value = plan.end_year ?? null;
     grantProposalInput.value = plan.is_grant_proposal;
     shareWithLab.value = plan.is_viewable_by_unit_members;
+    yearByYearInput.value = null;
   },
 );
 
@@ -193,12 +225,15 @@ const endYearOptions = computed(() =>
   ),
 );
 
-const yearsValid = computed(
-  () =>
-    startYearInput.value !== null &&
-    endYearInput.value !== null &&
-    endYearInput.value >= startYearInput.value,
-);
+// A grant-only plan needs no year range (the grant section covers the
+// whole project); year-by-year planning, or a half-set range, still
+// requires both bounds.
+const yearsValid = computed(() => {
+  const start = startYearInput.value;
+  const end = endYearInput.value;
+  if (start === null && end === null) return !yearByYearChecked.value;
+  return start !== null && end !== null && end >= start;
+});
 
 // Dirty vs. the persisted plan — the button is idle until the user changes
 // a year or the grant checkbox, and disables again once the sections match
@@ -212,7 +247,13 @@ const yearsDirty = computed(
 const sectionsDirty = computed(
   () =>
     yearsDirty.value ||
-    grantProposalInput.value !== props.plan.is_grant_proposal,
+    grantProposalInput.value !== props.plan.is_grant_proposal ||
+    yearByYearChecked.value !== persistedYearByYear.value,
+);
+
+// A plan with neither year sections nor a grant section would be empty.
+const sectionTypeSelected = computed(
+  () => grantProposalInput.value || yearByYearChecked.value,
 );
 
 /**
@@ -224,16 +265,27 @@ const sectionsDirty = computed(
 async function generateSections() {
   const start = startYearInput.value;
   const end = endYearInput.value;
-  if (start === null || end === null || generatingSections.value) return;
+  if (!yearsValid.value || generatingSections.value) return;
+
+  const payload: SimulatorPlanUpdatePayload = {
+    is_grant_proposal: grantProposalInput.value,
+    with_year_sections: yearByYearChecked.value,
+  };
+  if (start !== null && end !== null) {
+    payload.start_year = start;
+    payload.end_year = end;
+  }
 
   generatingSections.value = true;
   try {
-    const updated = await plansStore.updatePlan(props.plan.id, {
+    const payload = {
       start_year: start,
       end_year: end,
       default_reference_year: Number(route.params.year),
       is_grant_proposal: grantProposalInput.value,
-    });
+    };
+    const updated = await plansStore.updatePlan(props.plan.id, payload);
+    yearByYearInput.value = null;
     emit('updated', updated);
     $q.notify({ type: 'positive', message: t('planner_sections_generated') });
   } catch {

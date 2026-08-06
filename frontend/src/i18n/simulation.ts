@@ -212,20 +212,32 @@ export default {
     fr: 'Ce projet est une demande de financement',
   },
   planner_grant_proposal_hint: {
-    en: 'Adds a Project Grant section covering the whole project, in addition to the year sections.',
-    fr: 'Ajoute une section Financement du projet couvrant tout le projet, en plus des sections annuelles.',
+    en: 'Adds a Project Grant section covering the whole project.',
+    fr: 'Ajoute une section Financement du projet couvrant tout le projet.',
   },
   planner_project_grant_title: {
     en: 'Project Grant',
     fr: 'Financement du projet',
+  },
+  planner_year_by_year_checkbox: {
+    en: 'Plan the project year by year',
+    fr: 'Planifier le projet année par année',
+  },
+  planner_year_by_year_hint: {
+    en: 'Adds one editable section per year between the start and end year.',
+    fr: 'Ajoute une section modifiable par année entre les années de début et de fin.',
+  },
+  planner_sections_need_one: {
+    en: 'Select the year-by-year planning, the grant proposal, or both.',
+    fr: 'Sélectionnez la planification année par année, la demande de financement, ou les deux.',
   },
   planner_generate_sections_button: {
     en: 'Create project sections',
     fr: 'Créer les sections du projet',
   },
   planner_generate_sections_hint: {
-    en: 'Creates one editable section per year between the start and end year, plus the Project Grant section when the project is a grant proposal.',
-    fr: 'Crée une section modifiable par année entre les années de début et de fin, ainsi que la section Financement du projet si le projet est une demande de financement.',
+    en: 'Creates the selected sections: one editable section per year between the start and end year when planning year by year, plus the Project Grant section when the project is a grant proposal.',
+    fr: 'Crée les sections sélectionnées : une section modifiable par année entre les années de début et de fin pour la planification année par année, ainsi que la section Financement du projet si le projet est une demande de financement.',
   },
   planner_sections_generated: {
     en: 'Project sections updated',

@@ -61,6 +61,8 @@ export interface SimulatorPlanUpdatePayload {
    * created by this range change; send the current workspace year. */
   default_reference_year?: number;
   is_grant_proposal?: boolean;
+  /** Not persisted: opts the plan out of (or back into) per-year sections. */
+  with_year_sections?: boolean;
 }
 
 export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
@@ -132,8 +134,9 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
 
   /**
    * PATCH the plan (name / year range / lab visibility). Changing the year
-   * range syncs the plan's per-year reports server-side, so the years list
-   * is refetched afterwards.
+   * range, grant flag or year-sections flag syncs the plan's reports
+   * server-side, so the years list and the results aggregate are refetched
+   * afterwards.
    */
   async function updatePlan(
     planId: number,
@@ -151,8 +154,13 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
       .json<SimulatorPlan>();
 
     markPlansStale();
-    if (rangeChange || payload.is_grant_proposal !== undefined) {
+    if (
+      rangeChange ||
+      payload.is_grant_proposal !== undefined ||
+      payload.with_year_sections !== undefined
+    ) {
       await fetchPlanYears(planId);
+      await refreshAggregateIfActive();
     }
     return plan;
   }

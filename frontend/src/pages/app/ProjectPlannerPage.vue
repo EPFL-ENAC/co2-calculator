@@ -85,7 +85,7 @@
                  summed together — the two views count the same project
                  (#1977). -->
             <div
-              v-if="plan.is_grant_proposal"
+              v-if="plan.is_grant_proposal && hasYearSections"
               class="row items-stretch no-wrap"
             >
               <BigNumber
@@ -109,6 +109,15 @@
               />
             </div>
             <BigNumber
+              v-else-if="plan.is_grant_proposal"
+              :title="$t('planner_results_grant_total_title')"
+              :number="formatTonnesCO2(grantTotalTonnes)"
+              comparison=""
+              color="info"
+              compact
+              :bordered="false"
+            />
+            <BigNumber
               v-else
               :title="$t('planner_results_total_tonnes_co2eq')"
               :number="formatTonnesCO2(totalTonnesCo2eq)"
@@ -121,7 +130,7 @@
             <q-separator />
 
             <PlannerGrantComparisonChart
-              v-if="plan.is_grant_proposal"
+              v-if="plan.is_grant_proposal && hasYearSections"
               :title="
                 $t('planner_results_comparison_chart_title', {
                   name: plan.name,
@@ -129,6 +138,16 @@
               "
               :grant-breakdown="grantBreakdown"
               :years-breakdown="breakdown"
+            />
+            <ModuleCarbonFootprintChart
+              v-else-if="plan.is_grant_proposal"
+              :breakdown-data="grantBreakdown"
+              :title="
+                $t('planner_results_comparison_chart_title', {
+                  name: plan.name,
+                })
+              "
+              :bordered="false"
             />
             <ModuleCarbonFootprintChart
               v-else
@@ -226,6 +245,10 @@ const projectYearsCount = computed(() =>
     : null,
 );
 
+const hasYearSections = computed(() =>
+  plansStore.planYears.some((y) => !y.is_grant),
+);
+
 const breakdown = computed(() =>
   plansStore.aggregateStats
     ? toEmissionBreakdown(plansStore.aggregateStats)
@@ -265,18 +288,9 @@ const referenceYearOptions = computed(() =>
 async function onPlanUpdated(updated: SimulatorPlan) {
   const previous = plan.value;
   const renamed = previous !== null && previous.name !== updated.name;
-  const sectionsChanged =
-    previous !== null &&
-    (previous.start_year !== updated.start_year ||
-      previous.end_year !== updated.end_year ||
-      previous.is_grant_proposal !== updated.is_grant_proposal);
   plan.value = updated;
-  // The year range and grant flag drive the backend report sync; refetch so
-  // the sections reflect the new plan without a page reload.
-  if (sectionsChanged) {
-    await plansStore.fetchPlanYears(updated.id);
-    await plansStore.fetchAggregateStats(updated.id);
-  }
+  // Section-affecting updates (year range, grant flag, year sections) are
+  // refetched by the store's updatePlan, no extra refetch needed here.
   if (renamed) {
     // Param-only replace keeps this component instance mounted.
     await router.replace({

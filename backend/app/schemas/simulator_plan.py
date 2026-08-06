@@ -41,6 +41,11 @@ class SimulatorPlanUpdate(BaseModel):
     Setting/changing the year range syncs the plan's per-year reports:
     missing years are created, out-of-range years are deleted with their
     entries (destructive by design).
+
+    ``with_year_sections`` is not persisted: whether a plan has per-year
+    sections is derived from its non-grant reports. Omitted, the sync keeps
+    the plan's current shape; ``False`` deletes the per-year reports (the
+    plan must then be a grant proposal); ``True`` (re)creates them.
     """
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
@@ -48,8 +53,13 @@ class SimulatorPlanUpdate(BaseModel):
     end_year: Optional[int] = Field(default=None, ge=1000, le=9999)
     is_viewable_by_unit_members: Optional[bool] = None
     is_grant_proposal: Optional[bool] = None
+    with_year_sections: Optional[bool] = None
     default_reference_year: Optional[int] = Field(default=None, ge=1000, le=9999)
     """Reference year for year reports newly created by this range change.
+
+    The workspace year the planner was opened from. Applied (with the usual
+    prefill) only to reports the sync creates; existing reports keep theirs.
+    """
 
     The workspace year the planner was opened from. Applied (with the usual
     prefill) only to reports the sync creates; existing reports keep theirs.

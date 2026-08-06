@@ -197,7 +197,9 @@ class SimulatorPlanService:
             raise ValueError("start_year must be <= end_year")
         project = await self._flush_guarded(self.repo.create(project))
         await self._sync_year_reports(
-            project, default_reference_year=update.default_reference_year
+            project,
+            default_reference_year=update.default_reference_year,
+            with_year_sections=update.with_year_sections,
         )
         return await self._read_with_creator(project)
 
@@ -205,29 +207,47 @@ class SimulatorPlanService:
         self,
         project: CarbonProject,
         default_reference_year: Optional[int] = None,
+        *,
+        with_year_sections: Optional[bool] = None,
     ) -> None:
         """Make the plan's reports match ``start_year..end_year``, one per year.
 
         Out-of-range reports are deleted together with their entries
         (destructive by design — the user shrank the range deliberately).
-        No-op until both bounds are set.
+        Until both bounds are set, only the grant report is synced.
 
         Newly created year reports default their reference year to
         ``default_reference_year`` (the workspace year the range was set
         from) and are prefilled from it, exactly as if the user had picked
         it in the dialog. Existing reports keep their reference year.
+
+        ``with_year_sections`` opts the plan out of (or back into) per-year
+        reports; ``None`` keeps the plan's current shape, derived from its
+        existing non-grant reports (a plan with no reports yet gets them).
+        A plan must keep either its year sections or its grant proposal.
         """
-        if project.start_year is None or project.end_year is None:
-            return
         if project.id is None:
             raise ValueError("project must be persisted before use")
-        target_years = set(range(project.start_year, project.end_year + 1))
+        reports = await self.repo.list_reports_for_project(project.id)
+        grant_report = next((r for r in reports if r.is_grant), None)
+        if project.start_year is None or project.end_year is None:
+            await self._sync_grant_report(project, grant_report)
+            return
+        want_years = with_year_sections
+        if want_years is None:
+            want_years = not reports or any(not r.is_grant for r in reports)
+        if not want_years and not project.is_grant_proposal:
+            raise ValueError("A plan needs year-by-year sections or a grant proposal")
+        target_years = (
+            set(range(project.start_year, project.end_year + 1))
+            if want_years
+            else set()
+        )
         existing_years: set[int] = set()
-        grant_report: Optional[CarbonReport] = None
-        for report in await self.repo.list_reports_for_project(project.id):
+        for report in reports:
             if report.is_grant:
-                grant_report = report
-            elif report.year in target_years:
+                continue
+            if report.year in target_years:
                 existing_years.add(report.year)
             elif report.id is not None:
                 await self.report_service.delete(report.id)
@@ -254,26 +274,27 @@ class SimulatorPlanService:
 
         Unchecking the checkbox deletes the grant report together with its
         entries (destructive by design, like shrinking the year range). The
-        report is anchored to the plan's start year: when the range moves it
-        follows, keeping its data — grant entries resolve their factors from
-        the reference year, not the report year.
+        report is anchored to the plan's start year — or the current year
+        until one is set: when the range moves (or arrives) it follows,
+        keeping its data — grant entries resolve their factors from the
+        reference year, not the report year.
         """
         if not project.is_grant_proposal:
             if grant_report is not None and grant_report.id is not None:
                 await self.report_service.delete(grant_report.id)
             return
-        if project.start_year is None or project.id is None:
+        if project.id is None:
             return
         if grant_report is None:
             await self.report_service.create(
                 CarbonReportCreate(
                     unit_id=project.unit_id,
-                    year=project.start_year,
+                    year=project.start_year or datetime.now(timezone.utc).year,
                     carbon_project_id=project.id,
                     is_grant=True,
                 )
             )
-        elif grant_report.year != project.start_year:
+        elif project.start_year is not None and grant_report.year != project.start_year:
             grant_report.year = project.start_year
             self.session.add(grant_report)
             await self.session.flush()
@@ -649,7 +670,14 @@ class SimulatorPlanService:
             created_at=datetime.now(timezone.utc),
         )
         copy = await self._flush_guarded(self.repo.create(copy))
-        await self._sync_year_reports(copy)
+        # The copy has no reports yet, so its shape (with or without per-year
+        # sections) cannot be derived from itself — carry the source's over.
+        source_reports = await self.repo.list_reports_for_project(plan_id)
+        await self._sync_year_reports(
+            copy,
+            with_year_sections=not source_reports
+            or any(not r.is_grant for r in source_reports),
+        )
         return _to_read(
             copy,
             user.display_name,
