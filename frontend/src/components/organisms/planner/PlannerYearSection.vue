@@ -253,7 +253,9 @@
                  table (#1980). -->
             <planner-research-facility-rows
               v-else-if="isGrantRfModule(entry.config.module)"
+              :key="factorScopedKey(entry.config.module)"
               :carbon-report-id="yearData.id"
+              :factor-year="yearData.reference_year ?? yearData.year"
               :project-years-count="projectYearsCount ?? null"
               :grant-budgets="entry.module?.budgets ?? null"
               :budget-currency="yearData.budget_currency"

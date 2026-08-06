@@ -152,7 +152,6 @@ import {
 } from 'src/constant/modules';
 import { getModuleTypeId } from 'src/constant/moduleStates';
 import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
-import { useWorkspaceStore } from 'src/stores/workspace';
 
 /**
  * Project Grant research-facilities grid (#1980): a dropdown offers the
@@ -199,6 +198,7 @@ interface RfEntry {
 
 const props = defineProps<{
   carbonReportId: number;
+  factorYear: number | null;
   projectYearsCount?: number | null;
   grantBudgets?: Record<string, number> | null;
   budgetCurrency?: string | null;
@@ -293,14 +293,13 @@ function rowKey(sub: RfSub, facilityId: string, facilityType: string | null) {
   return `${sub}:${facilityId}${facilityType ? `:${facilityType}` : ''}`;
 }
 
-// The platform list follows the current workspace year — the year whose
-// Calculator holds the platforms as the user knows them.
-const workspaceYear = useWorkspaceStore().selectedYear;
-
+// The platform list follows the factor year the backend computes with
+// (reference year, else the report year), so each row's metric matches
+// the factor behind its kgCO₂eq.
 async function fetchFactors(sub: RfSub): Promise<RfFactor[]> {
-  if (workspaceYear === null) return [];
+  if (props.factorYear === null) return [];
   return api
-    .get(`factors/${enumSubmodule[sub]}/list?year=${workspaceYear}`)
+    .get(`factors/${enumSubmodule[sub]}/list?year=${props.factorYear}`)
     .json<RfFactor[]>();
 }
 
