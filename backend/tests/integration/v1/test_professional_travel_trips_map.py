@@ -100,6 +100,7 @@ def _wire(monkeypatch, user, decision_fn):
     _resolved_report = MagicMock()
     _resolved_report.unit_id = 1
     _resolved_report.year = 2024
+    _resolved_report.carbon_project_id = None
     _resolved_module = MagicMock()
     _resolved_module.id = 1
     monkeypatch.setattr(

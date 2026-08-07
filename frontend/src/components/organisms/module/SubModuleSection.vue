@@ -53,7 +53,7 @@
       </div>
       <q-separator />
       <div
-        v-if="isInputDeactivated && !isExplorer"
+        v-if="isInputDeactivated && !isExplorer && !isPlanner"
         class="q-mx-lg q-my-md inputs-deactivated-notice"
       >
         <div class="inputs-deactivated-notice__content">
@@ -193,6 +193,7 @@ import {
   getSubmoduleIconColor,
   getSubmoduleLighterColor,
 } from 'src/composables/useModuleIconColors';
+import { canShowModuleForm } from 'src/utils/module-table-access';
 interface Option {
   label: string;
   value: string;
@@ -288,9 +289,13 @@ const isInputDeactivated = computed(() => {
   return subConfig?.inputs_deactivated ?? false;
 });
 
-const isTableDisabled = computed(
-  () => !props.isExplorer && (props.disable || isInputDeactivated.value),
-);
+// Planner tables address a plan-year report by id; the Calculator never does.
+const isPlanner = computed(() => props.carbonReportId != null);
+
+const isTableDisabled = computed(() => {
+  if (props.isExplorer) return false;
+  return props.disable || (!isPlanner.value && isInputDeactivated.value);
+});
 
 const backendThreshold = computed<Threshold | null>(() => {
   const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
@@ -320,8 +325,6 @@ const canEdit = computed(() => {
     PermissionAction.EDIT,
   );
 });
-
-const isFormDisabled = computed(() => props.disable);
 
 const submoduleCount = computed(() => {
   const submoduleEnumId =
@@ -365,7 +368,14 @@ const hasModuleForm = computed(() => {
 });
 
 const showModuleForm = computed(
-  () => hasModuleForm.value && !isFormDisabled.value && canEdit.value,
+  () =>
+    hasModuleForm.value &&
+    canShowModuleForm({
+      isExplorer: props.isExplorer === true,
+      isPlanner: isPlanner.value,
+      canEdit: canEdit.value,
+      disable: props.disable,
+    }),
 );
 
 const hasTableTooltip = computed(() => {

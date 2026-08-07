@@ -25,8 +25,9 @@ export interface ModuleTableAccess {
 /** Editing, inline edits, row deletion and the Planner % slider. */
 export function isModuleTableDisabled(ctx: ModuleTableAccess): boolean {
   if (ctx.isExplorer) return false;
-  if (ctx.disable || !ctx.canEdit) return true;
+  if (ctx.disable) return true;
   if (ctx.isPlanner) return false;
+  if (!ctx.canEdit) return true;
   return ctx.isValidated;
 }
 
@@ -36,7 +37,23 @@ export function isModuleTableDisabled(ctx: ModuleTableAccess): boolean {
  * validated lock.
  */
 export function isModuleNoteDisabled(ctx: ModuleTableAccess): boolean {
-  if (!ctx.canEdit) return true;
   if (ctx.isExplorer || ctx.isPlanner) return false;
+  if (!ctx.canEdit) return true;
   return ctx.isValidated;
+}
+
+/** The add/edit form under a table (SubModuleSection). */
+export function canShowModuleForm(
+  ctx: Omit<ModuleTableAccess, 'isValidated'>,
+): boolean {
+  if (ctx.disable) return false;
+  if (ctx.isExplorer || ctx.isPlanner) return true;
+  return ctx.canEdit;
+}
+
+/** Row-level edit affordances, e.g. the delete button in ModuleTable. */
+export function hasRowEditPermission(
+  ctx: Omit<ModuleTableAccess, 'isValidated' | 'disable'>,
+): boolean {
+  return ctx.isExplorer || ctx.isPlanner || ctx.canEdit;
 }
