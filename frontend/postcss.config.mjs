@@ -1,17 +1,13 @@
 // https://github.com/michael-ciniawsky/postcss-load-config
 
-import rtlcss from 'postcss-rtlcss';
 import autoprefixer from 'autoprefixer';
 
-// https://github.com/elchininet/postcss-rtlcss
-// If you want to support RTL css, then
-// 1. yarn/npm install postcss-rtlcss
-// 2. optionally set quasar.config.js > framework > lang to an RTL language
-// 3. uncomment the following line:
-// require('postcss-rtlcss')
+// RTL support not needed for now. If it becomes required:
+// 1. npm install postcss-rtlcss
+// 2. add it to the plugins list below
+// 3. optionally set quasar.config.js > framework > lang to an RTL language
 export default {
   plugins: [
-    rtlcss({}),
     autoprefixer({
       overrideBrowserslist: [
         'last 4 Chrome versions',
