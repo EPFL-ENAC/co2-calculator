@@ -3,6 +3,10 @@ export default {
     en: 'Could not save the headcount value',
     fr: "Impossible d'enregistrer la valeur d'effectif",
   },
+  simulation_headcount_fte_hint: {
+    en: 'Total number of FTEs is used to generate the indicators for the additional categories (Food, Commuting, and Waste).',
+    fr: "Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets).",
+  },
   documentation_editing_rows_simulation_topic: {
     en: 'Simulation',
     fr: 'Simulation',
@@ -116,8 +120,8 @@ export default {
     fr: "Estimer l'empreinte d'un projet ou d'une catégorie d'émission carbone.",
   },
   planner_page_intro: {
-    en: "Do you need to estimate the carbon footprint of a project, for example as part of a grant application, before, during, or after your project? Would you like to estimate the carbon footprint of a trip, a purchase, or the consumption of scientific equipment? This space gives you access to EPFL's carbon footprint simulator.",
-    fr: "Vous avez besoin d'estimer l'empreinte d'un projet par exemple dans le cadre d'une demande de grant, en amont, pendant ou après votre projet ? Vous souhaitez estimer l'empreinte d'un voyage, d'un achat ou de la consommation d'un équipement scientifique ? Cet espace vous permet d'accéder au simulateur d'empreinte carbone de l'EPFL.",
+    en: 'The CO₂ Project Planner allows you to estimate the carbon footprint of your past, current, or future projects based on your facility’s annual report. This data can be used to optimize your project designs, support your grant applications, and guide your planning.',
+    fr: "Le planificateur de projet CO₂ permet de simuler l'empreinte carbone de vos projets passés, en cours ou futurs à partir du bilan annuel de votre unité. Ces données peuvent être utilisées pour optimiser la conception de vos projets, soutenir vos demandes de financement et guider votre planification.",
   },
   planner_project_label: {
     en: 'Project',
@@ -140,8 +144,24 @@ export default {
     fr: 'Empreinte carbone totale du projet',
   },
   planner_results_chart_title: {
+    en: '{name} carbon footprint, year by year',
+    fr: 'Empreinte carbone de {name}, année par année',
+  },
+  planner_results_comparison_chart_title: {
     en: '{name} carbon footprint',
     fr: 'Empreinte carbone de {name}',
+  },
+  planner_results_series_years: {
+    en: 'Year by year',
+    fr: 'Année par année',
+  },
+  planner_results_grant_total_title: {
+    en: 'Project Grant carbon footprint',
+    fr: 'Empreinte carbone du financement du projet',
+  },
+  planner_results_years_total_title: {
+    en: 'Year-by-year carbon footprint',
+    fr: 'Empreinte carbone année par année',
   },
   planner_results_download_title: {
     en: 'Your Project Report',
@@ -183,21 +203,49 @@ export default {
     en: 'Visible to all lab members',
     fr: 'Visible par tous les membres du laboratoire',
   },
-  planner_generate_years_button: {
-    en: 'Create year sections',
-    fr: 'Créer les sections annuelles',
+  planner_grant_proposal_label: {
+    en: 'Grant proposal',
+    fr: 'Demande de financement',
   },
-  planner_generate_years_hint: {
-    en: 'Creates one editable section per year between the start and end year.',
-    fr: 'Crée une section modifiable par année entre les années de début et de fin.',
+  planner_grant_proposal_checkbox: {
+    en: 'Grant proposal',
+    fr: 'Demande de financement',
   },
-  planner_years_generated: {
-    en: 'Year sections updated',
-    fr: 'Sections annuelles mises à jour',
+  planner_grant_proposal_hint: {
+    en: 'Adds a Project Grant section covering the whole project.',
+    fr: 'Ajoute une section Financement du projet couvrant tout le projet.',
   },
-  planner_years_generate_error: {
-    en: 'Could not create the year sections',
-    fr: 'Impossible de créer les sections annuelles',
+  planner_project_grant_title: {
+    en: 'Project Grant',
+    fr: 'Financement du projet',
+  },
+  planner_year_by_year_checkbox: {
+    en: 'Ongoing Project',
+    fr: 'Projet en cours',
+  },
+  planner_year_by_year_hint: {
+    en: 'Add detailed sections for each year.',
+    fr: 'Ajoute des sections détaillées pour chaque année.',
+  },
+  planner_sections_need_one: {
+    en: 'Select the ongoing project, the grant proposal, or both.',
+    fr: 'Sélectionnez le projet en cours, la demande de financement, ou les deux.',
+  },
+  planner_generate_sections_button: {
+    en: 'Create project sections',
+    fr: 'Créer les sections du projet',
+  },
+  planner_generate_sections_hint: {
+    en: 'Creates the selected sections: one editable section per year between the start and end year for an ongoing project, plus the Project Grant section when the project is a grant proposal.',
+    fr: 'Crée les sections sélectionnées : une section modifiable par année entre les années de début et de fin pour un projet en cours, ainsi que la section Financement du projet si le projet est une demande de financement.',
+  },
+  planner_sections_generated: {
+    en: 'Project sections updated',
+    fr: 'Sections du projet mises à jour',
+  },
+  planner_sections_generate_error: {
+    en: 'Could not create the project sections',
+    fr: 'Impossible de créer les sections du projet',
   },
   planner_no_years_hint: {
     en: 'Set a start and end year to plan your project — one section per year will appear here.',
@@ -208,8 +256,8 @@ export default {
     fr: 'Année de référence',
   },
   planner_reference_year_hint: {
-    en: 'Select a reference year: all factors and prefilled data of this planned year come from it. The modules below stay locked until you do.',
-    fr: "Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année planifiée en proviennent. Les modules ci-dessous restent verrouillés tant qu'elle n'est pas définie.",
+    en: 'Optional: select a reference year to prefill the modules below and use its factors. Without one, you enter data manually and factors come from year {year}.',
+    fr: "Facultatif : sélectionnez une année de référence pour préremplir les modules ci-dessous et utiliser ses facteurs. Sans année de référence, vous saisissez les données manuellement et les facteurs proviennent de l'année {year}.",
   },
   planner_reference_year_error: {
     en: 'Could not set the reference year',
@@ -224,8 +272,8 @@ export default {
     fr: 'Modifier',
   },
   planner_reference_year_rebuild_hint: {
-    en: 'The prefilled modules of this planned year are rebuilt from the reference year — changing it deletes their current data.',
-    fr: "Les modules préremplis de cette année planifiée sont reconstruits à partir de l'année de référence — la changer supprime leurs données actuelles.",
+    en: 'This planned year is built on its reference year. Changing it deletes the current data of every module, then rebuilds the prefilled ones from the new reference year.',
+    fr: 'Cette année planifiée repose sur son année de référence. La changer supprime les données actuelles de tous les modules, puis reconstruit les modules préremplis à partir de la nouvelle année de référence.',
   },
   planner_reference_year_dialog_title: {
     en: 'Planned year {year}: choose its reference year',
@@ -235,13 +283,21 @@ export default {
     en: 'Reference year (source of the data)',
     fr: 'Année de référence (source des données)',
   },
+  planner_reference_year_dialog_none_option: {
+    en: 'No reference year (manual data entry)',
+    fr: 'Aucune année de référence (saisie manuelle des données)',
+  },
+  planner_reference_year_dialog_none_consequences: {
+    en: 'Without a reference year, the modules of planned year {year} start empty and you enter their data manually.',
+    fr: "Sans année de référence, les modules de l'année planifiée {year} démarrent vides et vous saisissez leurs données manuellement.",
+  },
   planner_reference_year_dialog_consequences: {
-    en: 'The prefilled modules of planned year {year} are rebuilt from the reference year you pick, and use its emission factors.',
-    fr: "Les modules préremplis de l'année planifiée {year} sont reconstruits à partir de l'année de référence choisie et utilisent ses facteurs d'émission.",
+    en: 'The prefilled modules of planned year {year} are rebuilt from the reference year you pick, and every module uses its emission factors.',
+    fr: "Les modules préremplis de l'année planifiée {year} sont reconstruits à partir de l'année de référence choisie, et tous les modules utilisent ses facteurs d'émission.",
   },
   planner_reference_year_dialog_wipe_warning: {
-    en: 'Changing the reference year deletes everything the prefilled modules of planned year {year} contain: the prefilled rows, your percentages, your edits and the rows you added yourself. The reference year itself keeps its data. This cannot be undone.',
-    fr: "Changer l'année de référence supprime tout ce que contiennent les modules préremplis de l'année planifiée {year} : les lignes préremplies, vos pourcentages, vos modifications et les lignes que vous avez ajoutées. L'année de référence, elle, conserve ses données. Cette action est irréversible.",
+    en: 'Changing the reference year deletes every entry of planned year {year}: the prefilled rows, your percentages, your edits, and everything you filled in yourself in the other modules. The prefilled modules are then rebuilt from the new reference year. The reference year itself keeps its data. This cannot be undone.',
+    fr: "Changer l'année de référence supprime toutes les saisies de l'année planifiée {year} : les lignes préremplies, vos pourcentages, vos modifications et tout ce que vous avez renseigné vous-même dans les autres modules. Les modules préremplis sont ensuite reconstruits à partir de la nouvelle année de référence. L'année de référence, elle, conserve ses données. Cette action est irréversible.",
   },
   planner_reference_year_dialog_wipe_ack: {
     en: 'I understand that my planned data for {year} will be deleted',
@@ -258,6 +314,130 @@ export default {
   planner_percentage_col: {
     en: '% of reference year',
     fr: '% de l’année de référence',
+  },
+  planner_kg_per_year_col: {
+    en: 'kgCO₂eq / year',
+    fr: 'kgCO₂eq / an',
+  },
+  planner_kg_project_col: {
+    en: 'kgCO₂-eq over {years} years',
+    fr: 'kgCO₂-eq sur {years} ans',
+  },
+  planner_purchase_kg_per_year: {
+    en: '{value} tCO₂eq / year',
+    fr: '{value} tCO₂eq / an',
+  },
+  planner_purchase_kg_project: {
+    en: '{value} tCO₂eq over {years} years',
+    fr: '{value} tCO₂eq sur {years} ans',
+  },
+  planner_grant_budget_label: {
+    en: 'Grant budget',
+    fr: 'Budget du financement',
+  },
+  planner_grant_budget_input_label: {
+    en: 'Total budget',
+    fr: 'Budget total',
+  },
+  planner_grant_budget_hint: {
+    en: 'Set the total budget of the grant, then distribute it in the sections below.',
+    fr: 'Saisissez le budget total du financement, puis répartissez-le dans les sections ci-dessous.',
+  },
+  planner_grant_budget_distribution: {
+    en: '{distributed} {currency} of {total} allocated. {remaining} remaining to allocate in the categories below.',
+    fr: '{distributed} {currency} sur {total} alloués. {remaining} restants à allouer dans les catégories ci-dessous.',
+  },
+  planner_grant_budget_over: {
+    en: 'The distributed budgets exceed the total budget by {amount}.',
+    fr: 'Les budgets répartis dépassent le budget total de {amount}.',
+  },
+  planner_grant_budget_error: {
+    en: 'Could not save the budget',
+    fr: "Impossible d'enregistrer le budget",
+  },
+  planner_budget_section_title: {
+    en: 'Budget',
+    fr: 'Budget',
+  },
+  planner_budget_currency_label: {
+    en: 'Currency',
+    fr: 'Devise',
+  },
+  planner_submodule_budget_label: {
+    en: '{submodule} budget',
+    fr: 'Budget {submodule}',
+  },
+  planner_submodule_budget_hint: {
+    en: 'The part of the grant budget planned here.',
+    fr: 'La part du budget du financement prévue ici.',
+  },
+  planner_equipment_mode_title: {
+    en: 'Planning mode',
+    fr: 'Mode de planification',
+  },
+  planner_equipment_mode_per_line: {
+    en: 'Manual entry per line',
+    fr: 'Saisie manuelle par ligne',
+  },
+  planner_equipment_mode_global: {
+    en: 'Global percentage',
+    fr: 'Pourcentage global',
+  },
+  planner_equipment_mode_per_line_hint: {
+    en: 'Each prefilled equipment gets its own percentage of the reference year, starting at 0%.',
+    fr: "Chaque équipement prérempli reçoit son propre pourcentage de l'année de référence, à 0% au départ.",
+  },
+  planner_equipment_mode_global_hint: {
+    en: 'One percentage of the reference year is applied to every prefilled line at once.',
+    fr: "Un pourcentage de l'année de référence est appliqué à toutes les lignes préremplies en une fois.",
+  },
+  planner_equipment_global_error: {
+    en: 'Could not apply the percentage',
+    fr: "Impossible d'appliquer le pourcentage",
+  },
+  planner_equipment_switch_to_global_message: {
+    en: 'The percentages entered per line and the budgets per equipment type will be reset so one global percentage can be used instead. Equipment added by hand keeps its values.',
+    fr: "Les pourcentages saisis par ligne et les budgets par type d'équipement seront réinitialisés afin d'utiliser un pourcentage global. Les équipements ajoutés à la main conservent leurs valeurs.",
+  },
+  planner_equipment_switch_to_per_line_message: {
+    en: 'The global percentage and the equipment budget will be reset so each line can be planned on its own. Equipment added by hand keeps its values.',
+    fr: 'Le pourcentage global et le budget équipements seront réinitialisés afin de planifier chaque ligne individuellement. Les équipements ajoutés à la main conservent leurs valeurs.',
+  },
+  planner_equipment_switch_error: {
+    en: 'Could not switch the planning mode.',
+    fr: 'Impossible de changer le mode de planification.',
+  },
+  planner_rf_hint: {
+    en: "Add the platforms the project will use and enter the planned use in each platform's own metric (budget, hours, CPU, housing).",
+    fr: "Ajoutez les plateformes que le projet utilisera et saisissez l'utilisation prévue dans la métrique propre à chaque plateforme (budget, heures, CPU, hébergement).",
+  },
+  planner_rf_add_label: {
+    en: 'Add a platform',
+    fr: 'Ajouter une plateforme',
+  },
+  planner_rf_common_title: {
+    en: 'Research facilities',
+    fr: 'Infrastructures de recherche',
+  },
+  planner_rf_use_label: {
+    en: 'Planned use',
+    fr: 'Utilisation prévue',
+  },
+  planner_rf_empty: {
+    en: 'No platform is available for the current year.',
+    fr: "Aucune plateforme n'est disponible pour l'année en cours.",
+  },
+  planner_rf_kg_per_year: {
+    en: '{value} kgCO₂eq / year',
+    fr: '{value} kgCO₂eq / an',
+  },
+  planner_rf_kg_project: {
+    en: '{value} kgCO₂eq over {years} years',
+    fr: '{value} kgCO₂eq sur {years} ans',
+  },
+  planner_rf_save_error: {
+    en: 'Could not save the platform use',
+    fr: "Impossible d'enregistrer l'utilisation de la plateforme",
   },
   planner_module_prefilled_badge: {
     en: 'Prefilled from reference year',
@@ -342,6 +522,10 @@ export default {
   'planner_purchase_category.other_purchases': {
     en: 'Other purchases',
     fr: 'Autres achats',
+  },
+  'planner_purchase_category.purchases_centralized': {
+    en: 'Additional purchases',
+    fr: 'Achats supplémentaires',
   },
   'planner_traveler_category.internal': {
     en: 'Internal',

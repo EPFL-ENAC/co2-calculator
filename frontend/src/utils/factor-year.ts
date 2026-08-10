@@ -9,9 +9,13 @@
  *
  * - ``undefined`` — Calculator: the report has no reference year, so its own
  *   year is the factor year.
- * - ``null`` — a Simulator Plan year with no reference year picked yet. There
- *   is no year to resolve against; callers must not fall back to the plan year,
- *   since the backend would not use it either.
+ * - a number — a Simulator Plan year: the reference year when picked, else the
+ *   unit's latest Calculator report year (``default_factor_year`` on the plan
+ *   DTO), mirroring the backend chain in
+ *   ``app/utils/factor_year.resolve_factor_year``.
+ * - ``null`` — no resolvable factor year; callers must not fall back to the
+ *   plan year, since the backend would not use it either. The planner no
+ *   longer produces this case.
  */
 export function resolveFactorYear(
   factorYear: number | null | undefined,

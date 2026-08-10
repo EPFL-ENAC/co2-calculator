@@ -148,4 +148,9 @@ export default {
       en: 'Centralized purchases ({count})',
       fr: 'Achats centralisés ({count})',
     },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.PurchasesCentralized}-form-title`]:
+    {
+      en: 'Add centralized purchase',
+      fr: 'Ajoutez un achat centralisé',
+    },
 } as const;

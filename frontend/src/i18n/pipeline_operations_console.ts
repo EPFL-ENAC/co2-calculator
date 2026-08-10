@@ -64,7 +64,7 @@ export default {
   pipeops_col_jobs: { en: 'Jobs', fr: 'Jobs' },
   pipeops_col_duration: { en: 'Duration', fr: 'Durée' },
   pipeops_col_when: { en: 'Started', fr: 'Démarré' },
-  pipeops_col_author: { en: 'Author', fr: 'Auteur' },
+  pipeops_col_author: { en: 'Author', fr: 'Auteur·e' },
   pipeops_col_message: { en: 'Message', fr: 'Message' },
   pipeops_col_actions: { en: 'Actions', fr: 'Actions' },
 
@@ -131,6 +131,19 @@ export default {
   pipeops_history_count: {
     en: '{n} entries',
     fr: '{n} entrées',
+  },
+
+  pipeops_factor_errors_count: {
+    en: '{n} factors could not be recomputed',
+    fr: "{n} facteurs n'ont pas pu être recalculés",
+  },
+  pipeops_factor_errors_title: {
+    en: 'Errors ({n})',
+    fr: 'Erreurs ({n})',
+  },
+  pipeops_factor_errors_show_all: {
+    en: 'Show all',
+    fr: 'Tout afficher',
   },
 
   pipeops_orphan_tag: { en: '(no pipeline)', fr: '(sans pipeline)' },

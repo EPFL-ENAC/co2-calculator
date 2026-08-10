@@ -37,7 +37,7 @@ export default {
 
   [`${MODULES.Headcount}-student-table-title-info-label`]: {
     en: 'Students table information',
-    fr: 'Informations sur le tableau des étudiant•es',
+    fr: 'Informations sur le tableau des étudiant·es',
   },
   [`${MODULES.Headcount}-charts-title`]: {
     en: 'FTE per function',
@@ -101,6 +101,6 @@ export default {
   },
   'headcount-member-error-duplicate-uid': {
     en: "This user's {label} already exists.",
-    fr: 'Le {label} de cet utilisateur•rice existe déjà.',
+    fr: 'Le {label} de cet·te utilisateur·rice existe déjà.',
   },
 } as const;

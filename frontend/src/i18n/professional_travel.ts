@@ -218,7 +218,7 @@ export default {
   },
   [`${MODULES.ProfessionalTravel}-trips-map-popup-travelers`]: {
     en: 'Traveler | Travelers',
-    fr: 'Voyageur | Voyageurs',
+    fr: 'Voyageur·euse | Voyageur·euses',
   },
   [`${MODULES.ProfessionalTravel}-trips-map-legend-emissions`]: {
     en: 'Emissions',

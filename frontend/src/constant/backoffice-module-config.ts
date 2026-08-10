@@ -190,6 +190,7 @@ export const MODULE_SUBMODULES: Partial<
       labelKey: 'data_management_submodule_research_facilities',
       moduleTypeId: 6,
       dataEntryTypeId: 70,
+      hasApi: true,
       forceInputsDeactivated: true,
     },
     {

@@ -366,7 +366,7 @@ export default {
   },
   data_management_year_sync_success_caption: {
     en: 'All units and principal users have been imported. You can now upload module data.',
-    fr: 'Toutes les unités et les utilisateurs principaux ont été importés. Vous pouvez maintenant téléverser les données des modules.',
+    fr: 'Toutes les unités et les utilisateur·rices principaux·ales ont été importé·es. Vous pouvez maintenant téléverser les données des modules.',
   },
   data_management_year_sync_error: {
     en: 'Unit sync failed for year {year}',
@@ -438,7 +438,7 @@ export default {
   },
   data_management_submodule_inputs_deactivation_description: {
     en: 'When checked, users will not be able to add or edit data entries for this submodule.',
-    fr: 'Lorsque cette option est cochée, les utilisateurs ne pourront pas ajouter ou modifier des entrées de données pour ce sous-module.',
+    fr: 'Lorsque cette option est cochée, les utilisateur·rices ne pourront pas ajouter ou modifier des entrées de données pour ce sous-module.',
   },
   data_management_submodule_inputs_deactivation_label: {
     en: 'Deactivate input form',
@@ -791,7 +791,7 @@ export default {
   },
   data_management_year_is_open: {
     en: 'Open to users',
-    fr: 'Ouverte aux utilisateurs',
+    fr: 'Ouverte aux utilisateur·rices',
   },
   data_management_year_is_not_open: {
     en: 'Not yet open',
@@ -803,6 +803,6 @@ export default {
   },
   data_management_year_opened_success: {
     en: 'Year {year} opened to users',
-    fr: 'Année {year} ouverte aux utilisateurs avec succès',
+    fr: 'Année {year} ouverte aux utilisateur·rices avec succès',
   },
 } as const;

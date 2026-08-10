@@ -45,7 +45,7 @@ export default {
   },
   audit_entity_user: {
     en: 'User',
-    fr: 'Utilisateur',
+    fr: 'Utilisateur·rice',
   },
   audit_entity_factor: {
     en: 'Factor',
@@ -153,7 +153,7 @@ export default {
   },
   audit_col_user: {
     en: 'User or Job',
-    fr: 'Utilisateur ou tâche',
+    fr: 'Utilisateur·rice ou tâche',
   },
   audit_col_sync_status: {
     en: 'Sync Status',
@@ -223,7 +223,7 @@ export default {
   // Search bar
   audit_search_placeholder: {
     en: 'Search by user, entity, or reason...',
-    fr: 'Rechercher par utilisateur, entité ou raison...',
+    fr: 'Rechercher par utilisateur·rice, entité ou raison...',
   },
 
   // Pagination
@@ -291,7 +291,7 @@ export default {
   },
   audit_detail_user: {
     en: 'User or Job (created_by)',
-    fr: 'Utilisateur ou tâche (créé par)',
+    fr: 'Utilisateur·rice ou tâche (créé par)',
   },
   audit_detail_handler_id: {
     en: 'Handler ID',

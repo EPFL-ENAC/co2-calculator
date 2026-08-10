@@ -75,6 +75,7 @@
   <q-table
     v-model:pagination="moduleStore.state.paginationSubmodule[submoduleType]"
     class="co2-table border"
+    :class="{ 'co2-table--wrap-headers': projectYearsCount != null }"
     :style="tableStyle"
     :columns="qCols"
     :rows="moduleStore.state.dataSubmodule[submoduleType]?.items || []"
@@ -212,7 +213,10 @@
               :dropdown-icon="col.type === 'select' ? 'expand_more' : undefined"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
-              @blur="commitInline(slotProps.row, col)"
+              @blur="col.type !== 'select' && commitInline(slotProps.row, col)"
+              @update:model-value="
+                col.type === 'select' && commitInline(slotProps.row, col)
+              "
             >
               <template v-if="col.type !== 'select'" #append>
                 <q-icon
@@ -246,7 +250,7 @@
               </q-tooltip>
             </q-btn>
             <q-btn
-              v-if="showTableRowActions && canEdit && hasModuleUpload"
+              v-if="showTableRowActions && canEditRows && hasModuleUpload"
               icon="o_delete"
               color="black"
               :disable="isDisabled"
@@ -277,7 +281,7 @@
                 :min="REFERENCE_PERCENTAGE_MIN"
                 :max="REFERENCE_PERCENTAGE_MAX"
                 :step="5"
-                :disable="isDisabled"
+                :disable="isDisabled || percentageLocked"
                 color="negative"
                 class="col"
                 @update:model-value="
@@ -294,7 +298,7 @@
                   type="number"
                   :min="REFERENCE_PERCENTAGE_MIN"
                   :max="REFERENCE_PERCENTAGE_MAX"
-                  :disable="isDisabled"
+                  :disable="isDisabled || percentageLocked"
                   :aria-label="$t('planner_percentage_col')"
                   :style="percentageFieldWidth(slotProps.row)"
                   dense
@@ -525,6 +529,7 @@ import {
   REFERENCE_PERCENTAGE_MIN,
 } from 'src/utils/reference-percentage';
 import {
+  hasRowEditPermission,
   isModuleNoteDisabled,
   isModuleTableDisabled,
   type ModuleTableAccess,
@@ -854,6 +859,17 @@ type CommonProps = {
    * Calculator and non-prefilled planner modules.
    */
   showReferenceColumns?: boolean;
+  /**
+   * Planner Project Grant context: the plan's year count. When set, the
+   * kgCO₂eq column reads per-year and gains a "× project years" column after
+   * it (#1979). Null everywhere else.
+   */
+  projectYearsCount?: number | null;
+  /**
+   * Grant equipment "global percentage" mode: the per-row % controls are
+   * driven by the module-level value and stay read-only (#1981).
+   */
+  percentageLocked?: boolean;
   threshold: Threshold;
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
@@ -872,6 +888,8 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
   carbonReportId: undefined,
   factorYear: undefined,
   showReferenceColumns: false,
+  projectYearsCount: null,
+  percentageLocked: false,
   moduleColor: undefined,
   moduleColorLighter: undefined,
 });
@@ -982,6 +1000,8 @@ const tableAccess = computed<ModuleTableAccess>(() => ({
 }));
 
 const isDisabled = computed(() => isModuleTableDisabled(tableAccess.value));
+
+const canEditRows = computed(() => hasRowEditPermission(tableAccess.value));
 
 const showTableRowActions = computed(
   () => props.submoduleConfig?.hasTableAction !== false,
@@ -1158,13 +1178,43 @@ const qCols = computed<TableViewColumn[]>(() => {
       inputComponent: QInput,
       editableInline: false,
       type: 'number',
-      minColumnWidth: 180,
+      // Grant tables carry an extra kg column, so the slider cedes a little
+      // room to keep the table inside the viewport.
+      minColumnWidth: props.projectYearsCount != null ? 150 : 180,
     };
     if (kgIdx >= 0) {
       baseCols.splice(kgIdx, 0, referenceCol);
       baseCols.splice(kgIdx + 2, 0, sliderCol);
     } else {
       baseCols.push(referenceCol, sliderCol);
+    }
+  }
+
+  // Project Grant tables: the kgCO₂eq column reads per-year and a "× project
+  // years" column follows it, so a value and its project total sit side by
+  // side (#1979). Same kg_co2eq field — the multiply is presentation only.
+  if (props.projectYearsCount != null) {
+    const kgIdx = baseCols.findIndex((c) => c.name === 'kg_co2eq');
+    if (kgIdx >= 0) {
+      baseCols[kgIdx] = {
+        ...baseCols[kgIdx],
+        label: $t('planner_kg_per_year_col'),
+        minColumnWidth: undefined,
+        columnSize: 'xs',
+      };
+      baseCols.splice(kgIdx + 1, 0, {
+        name: 'project_kg_co2eq',
+        label: $t('planner_kg_project_col', {
+          years: props.projectYearsCount,
+        }),
+        field: 'kg_co2eq',
+        sortable: true,
+        align: 'right',
+        inputComponent: QInput,
+        editableInline: false,
+        type: 'number',
+        columnSize: 'xs',
+      });
     }
   }
 
@@ -1276,6 +1326,14 @@ function renderCell(
   }
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
+  if (col.name === 'project_kg_co2eq') {
+    return nOrDash((val as number) * (props.projectYearsCount ?? 1), {
+      options: {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      },
+    });
+  }
   if (
     col.name === 'kg_co2eq' ||
     col.name === 't_co2eq' ||
@@ -2213,6 +2271,12 @@ onUnmounted(() => {
 
   th {
     font-size: tokens.$text-size-sm;
+  }
+
+  /* Grant tables carry two extra kg columns; letting the headers wrap keeps
+     every column at its content width instead of its longest header line. */
+  &--wrap-headers th {
+    white-space: normal;
   }
 
   thead tr th {

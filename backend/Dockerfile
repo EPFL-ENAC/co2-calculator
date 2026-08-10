@@ -42,6 +42,12 @@ RUN addgroup -g 1001 appgroup && \
   adduser -D -H -s /sbin/nologin -u 1001 -G appgroup appuser && \
   chown -R appuser:appgroup /app
 
+# The app runs entirely from /app/.venv (built by uv in the builder stage);
+# nothing at runtime calls the base image's system pip. Its vendored copies
+# of msgpack/setuptools under pip/_vendor trip Trivy for CVEs that never
+# apply to us — remove pip itself rather than chase its bundled versions.
+RUN python -m pip uninstall -y pip setuptools wheel
+
 USER appuser
 
 COPY --from=builder /app/.venv /app/.venv

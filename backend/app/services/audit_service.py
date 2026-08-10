@@ -6,11 +6,12 @@ Provides append-only versioning with hash chain integrity for any entity type.
 import hashlib
 import json
 from datetime import datetime, timezone
-from sqlite3 import IntegrityError
 from typing import Any, Dict, List, Optional
 
 from fastapi import BackgroundTasks
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -214,6 +215,18 @@ class AuditDocumentService:
         data_snapshot = jsonable_encoder(data_snapshot)
         if route_payload is not None:
             route_payload = jsonable_encoder(route_payload)
+
+        # Serialize concurrent writers on the same entity: the head read,
+        # version increment and is_current flip below are a read-modify-write
+        # that two parallel requests (e.g. the print page fetching plane and
+        # train at once, both auditing the same CarbonReportModule) would race,
+        # violating audit_document_one_current_idx. The advisory xact lock is
+        # released at commit/rollback; the second writer then sees the new head.
+        if self.session.get_bind().dialect.name == "postgresql":
+            await self.session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                {"key": f"{entity_type}:{entity_id}"},
+            )
 
         # Get current version to compute diff and hash chain
         current = await self.get_current_version(entity_type, entity_id)

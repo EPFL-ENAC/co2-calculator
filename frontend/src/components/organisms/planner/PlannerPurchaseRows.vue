@@ -59,7 +59,26 @@
           </label>
           <div class="planner-purchase-table__kg text-body2 text-grey-7">
             <template v-if="row.kg !== null">
-              {{ formatTonnesCO2(row.kg / 1000) }} {{ $t('tco2eq') }}
+              <template v-if="projectYearsCount != null">
+                {{
+                  $t('planner_purchase_kg_per_year', {
+                    value: formatTonnesCO2(row.kg / 1000),
+                  })
+                }}
+                <span class="text-weight-medium q-ml-sm">
+                  {{
+                    $t('planner_purchase_kg_project', {
+                      value: formatTonnesCO2(
+                        (row.kg * projectYearsCount) / 1000,
+                      ),
+                      years: projectYearsCount,
+                    })
+                  }}
+                </span>
+              </template>
+              <template v-else>
+                {{ formatTonnesCO2(row.kg / 1000) }} {{ $t('tco2eq') }}
+              </template>
             </template>
           </div>
           <q-input
@@ -131,7 +150,7 @@ import { api } from 'src/api/http';
 import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
 import { formatTonnesCO2 } from 'src/utils/number';
 
-// The 7 backend categories (modules_planner/purchase/emissions.py
+// The 8 backend categories (modules_planner/purchase/emissions.py
 // PLANNER_PURCHASE_EMISSIONS), rendered as fixed rows in the design's order.
 const CATEGORIES = [
   'scientific_equipment',
@@ -141,6 +160,7 @@ const CATEGORIES = [
   'services',
   'vehicles',
   'other_purchases',
+  'purchases_centralized',
 ] as const;
 
 type Mode = 'global' | 'per_category';
@@ -183,6 +203,8 @@ interface SubmoduleItem {
 const props = defineProps<{
   carbonReportId: number;
   disable: boolean;
+  /** Set in the Project Grant section: multiply kg over the plan's years. */
+  projectYearsCount?: number | null;
 }>();
 
 const $q = useQuasar();
@@ -248,7 +270,9 @@ function fillRow(row: PurchaseRow, item: SubmoduleItem | undefined) {
   row.amount = item?.amount_eur ?? null;
   row.saved = row.amount;
   row.entryId = item?.id ?? null;
-  row.kg = item?.kg_co2eq ?? null;
+  // A saved amount always reads a figure: a category the reference year has no
+  // factor for is 0, not blank.
+  row.kg = item ? (item.kg_co2eq ?? 0) : null;
   row.error = null;
 }
 
@@ -276,9 +300,9 @@ async function load() {
 /** Re-read the emissions of the saved kind without touching typed amounts. */
 async function refreshKg() {
   const items = await fetchItems(mode.value);
-  const byId = new Map(items.map((it) => [it.id, it.kg_co2eq ?? null]));
+  const byId = new Map(items.map((it) => [it.id, it.kg_co2eq ?? 0]));
   rowsFor(mode.value).forEach((row) => {
-    row.kg = row.entryId === null ? null : (byId.get(row.entryId) ?? null);
+    row.kg = row.entryId === null ? null : (byId.get(row.entryId) ?? 0);
   });
 }
 

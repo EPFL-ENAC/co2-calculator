@@ -43,6 +43,32 @@ class CarbonReportBase(SQLModel):
         index=True,
         description="FK to carbon_projects.id — every report may belong to a project",
     )
+    is_grant: bool = Field(
+        default=False,
+        nullable=False,
+        sa_column_kwargs={"server_default": "false"},
+        description=(
+            "Simulator Plan only: the plan's Project Grant report"
+            " (anchored to the plan's start year), as opposed to a year report"
+        ),
+    )
+    budget: Optional[float] = Field(
+        default=None,
+        nullable=True,
+        description=(
+            "Project Grant reports only: the grant's total budget,"
+            " checked against the per-submodule budgets (#1978)"
+        ),
+    )
+    budget_currency: Optional[str] = Field(
+        default=None,
+        nullable=True,
+        max_length=8,
+        description=(
+            "Currency code of the grant budget (lowercase, same set as the"
+            " purchase module, e.g. 'chf'); display-only, no conversion"
+        ),
+    )
     last_updated: Optional[int] = Field(
         default=None,
         description=(
@@ -100,6 +126,7 @@ class CarbonReport(CarbonReportBase, table=True):
         UniqueConstraint(
             "carbon_project_id",
             "year",
+            "is_grant",
             name="uq_carbon_reports_project_year",
         ),
     )
@@ -127,6 +154,15 @@ class CarbonReportModuleBase(SQLModel):
             "Whether the module counts toward report sums/stats."
             " Toggled by the Simulator Plan 'Active' checkbox;"
             " always true for Calculator/Explore modules."
+        ),
+    )
+    budgets: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
+        description=(
+            "Project Grant reports only: the submodules' shares of the grant"
+            " budget, keyed by submodule id (#1978); null everywhere else"
+            ".e.g: { 'building': 200000, 'energy_combustion': 50000 }"
         ),
     )
     carbon_report_id: int = Field(

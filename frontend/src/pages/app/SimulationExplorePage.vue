@@ -39,6 +39,12 @@
             <q-separator />
 
             <div class="q-px-lg q-py-md">
+              <p
+                v-if="m.type === MODULES.Headcount"
+                class="text-body2 text-grey-7 q-mb-md"
+              >
+                {{ $t('simulation_headcount_fte_hint') }}
+              </p>
               <div
                 v-for="(sub, subIdx) in m.submodules"
                 :key="`${m.type}-${sub.id}`"
@@ -63,7 +69,13 @@
           </q-expansion-item>
         </template>
       </q-card>
-      <q-card flat bordered>
+      <q-skeleton
+        v-if="!breakdownReady"
+        type="rect"
+        height="200px"
+        class="full-width"
+      />
+      <q-card v-else flat bordered>
         <div class="q-pt-lg q-px-lg">
           <h2 class="text-h3 text-weight-medium">
             {{ $t('simulation_explore_page_results_title') }}
@@ -111,30 +123,6 @@
             />
           </div>
         </div>
-
-        <q-separator />
-
-        <div
-          class="row no-wrap items-center justify-center q-pa-xl"
-          style="gap: 24px"
-        >
-          <q-icon name="o_calendar_month" color="info" size="md" />
-          <div class="col">
-            <div class="text-h5 text-weight-medium q-mb-xs">
-              {{ $t('simulation_explore_page_convert_to_plan_title') }}
-            </div>
-            <div class="text-body2 text-secondary">
-              {{ $t('simulation_explore_page_convert_to_plan_description') }}
-            </div>
-          </div>
-          <q-btn
-            unelevated
-            no-caps
-            :label="$t('simulation_explore_page_convert_to_plan_button')"
-            color="info"
-            class="text-weight-medium"
-          />
-        </div>
       </q-card>
     </template>
   </q-page>
@@ -147,7 +135,11 @@ import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
-import { MODULES_THRESHOLD_TYPES, type Threshold } from 'src/constant/modules';
+import {
+  MODULES,
+  MODULES_THRESHOLD_TYPES,
+  type Threshold,
+} from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
@@ -193,6 +185,9 @@ const defaultThreshold: Threshold = {
 
 const mountPrimaryCharts = ref(false);
 const simulatorReady = ref(false);
+// Gates the results card: until the Explorer's own breakdown is fetched, the
+// shared store still holds the Calculator's data from the workspace guard.
+const breakdownReady = ref(false);
 
 const modules = computed(() => getExploreModules(yearConfigStore.getModule));
 
@@ -253,8 +248,8 @@ onMounted(async () => {
     // so that module table requests don't 404 before the record is created.
     simulatorReady.value = true;
   }
-  await prefetchSubmoduleCounts();
-  await fetchEmissionBreakdown();
+  await Promise.all([prefetchSubmoduleCounts(), fetchEmissionBreakdown()]);
+  breakdownReady.value = true;
 });
 </script>
 

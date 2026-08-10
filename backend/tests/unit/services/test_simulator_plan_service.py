@@ -103,20 +103,19 @@ async def test_create_plan_explicit_name_collision_raises(async_session, user):
         await service.create_plan(unit_id=1, user=user, name="my-plan")
 
 
-# ── get_plan_by_name / list_plans ─────────────────────────────────────────────
+# ── get_plan / list_plans ─────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_get_plan_by_name(async_session, user):
+async def test_get_plan(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="my-plan")
-    fetched = await service.get_plan_by_name(1, "my-plan")
+    fetched = await service.get_plan(created.id)
 
     assert fetched is not None
     assert fetched.id == created.id
     assert fetched.creator_name == "Ada Lovelace"
-    assert await service.get_plan_by_name(1, "unknown") is None
-    assert await service.get_plan_by_name(2, "my-plan") is None
+    assert await service.get_plan(9999) is None
 
 
 @pytest.mark.asyncio
@@ -144,8 +143,9 @@ async def test_rename_plan(async_session, user):
     assert renamed is not None
     assert renamed.name == "new-name"
     assert renamed.creator_name == "Ada Lovelace"
-    assert await service.get_plan_by_name(1, "old-name") is None
-    assert await service.get_plan_by_name(1, "new-name") is not None
+    refetched = await service.get_plan(created.id)
+    assert refetched is not None
+    assert refetched.name == "new-name"
 
 
 @pytest.mark.asyncio
@@ -204,7 +204,7 @@ async def test_delete_plan(async_session, user):
     created = await service.create_plan(unit_id=1, user=user, name="doomed")
 
     assert await service.delete_plan(created.id) is True
-    assert await service.get_plan_by_name(1, "doomed") is None
+    assert await service.get_plan(created.id) is None
     assert await service.delete_plan(created.id) is False
 
 
@@ -251,6 +251,47 @@ async def test_setting_year_range_creates_reports_with_modules(async_session, us
     # Each plan-year report gets its full module set.
     assert all(len(y.modules) > 0 for y in years)
     assert all(m.is_active for y in years for m in y.modules)
+
+
+@pytest.mark.asyncio
+async def test_year_range_defaults_reference_year_on_new_reports(async_session, user):
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+
+    await service.update_plan(
+        created.id,
+        SimulatorPlanUpdate(
+            start_year=2027, end_year=2028, default_reference_year=2026
+        ),
+    )
+    years = await service.list_plan_years(created.id)
+    assert years is not None
+    assert [y.reference_year for y in years] == [2026, 2026]
+
+    # Growing the range only defaults the new report; 2027-2028 keep theirs.
+    await service.update_plan(
+        created.id, SimulatorPlanUpdate(end_year=2029, default_reference_year=2025)
+    )
+    years = await service.list_plan_years(created.id)
+    assert years is not None
+    assert [(y.year, y.reference_year) for y in years] == [
+        (2027, 2026),
+        (2028, 2026),
+        (2029, 2025),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_year_range_without_default_leaves_reference_unset(async_session, user):
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+
+    await service.update_plan(
+        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    )
+    years = await service.list_plan_years(created.id)
+    assert years is not None
+    assert [y.reference_year for y in years] == [None]
 
 
 @pytest.mark.asyncio
@@ -367,6 +408,25 @@ async def test_set_reference_year_auto_prefills_prefilled_modules(async_session,
         report.id, int(ModuleTypeEnum.purchase)
     )
     assert await entry_repo.list_by_module(plan_purchase.id) == []
+
+
+@pytest.mark.asyncio
+async def test_remove_reference_year_wipes_prefilled_modules(async_session, user):
+    """Removing the baseline empties the prefilled modules, same as a change."""
+    service = SimulatorPlanService(async_session)
+    await _calculator_report_with_process_entries(service, async_session)
+    plan = await service.create_plan(unit_id=1, user=user, name="proj")
+    report = await _plan_year_report(service, plan.id)
+
+    plan_module = await service.report_service.module_service.get_module(
+        report.id, int(ModuleTypeEnum.process_emissions)
+    )
+    entry_repo = DataEntryRepository(async_session)
+    assert len(await entry_repo.list_by_module(plan_module.id)) == 2
+
+    result = await service.set_reference_year(plan.id, 2027, None)
+    assert result is not None and result.reference_year is None
+    assert await entry_repo.list_by_module(plan_module.id) == []
 
 
 @pytest.mark.asyncio

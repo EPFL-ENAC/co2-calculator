@@ -81,7 +81,7 @@ const routes: RouteRecordRaw[] = [
   },
   // Project planner print preview — own layout, no header/sidebar
   {
-    path: `/:language(${LANGUAGE_PATTERN})/:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})/simulation/project-planner/:name(${SIMULATION_ID_PATTERN})/print`,
+    path: `/:language(${LANGUAGE_PATTERN})/:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})/simulation/project-planner/:planId(\\d+)/print`,
     component: () => import('layouts/PrintLayout.vue'),
     children: [
       {
@@ -235,7 +235,7 @@ const routes: RouteRecordRaw[] = [
               {
                 // Reached from the "Start a project" button on the unified
                 // home page (CO2ProjectPlanner); :name is the plan name.
-                path: `simulation/project-planner/:name(${SIMULATION_ID_PATTERN})`,
+                path: 'simulation/plan/:planId(\\d+)',
                 name: 'project-planner',
                 component: () => import('pages/app/ProjectPlannerPage.vue'),
                 meta: {

@@ -105,21 +105,38 @@ def _superadmin() -> Role:
     return Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
 
-def _wire(monkeypatch, user, unit_iid: str = UNIT_IID) -> None:
+def _wire(
+    monkeypatch,
+    user,
+    unit_iid: str = UNIT_IID,
+    carbon_report_type: CarbonReportType | None = None,
+) -> None:
     """Wire dependency overrides + service stubs.
 
     Crucially, ``get_module_permission_decision`` is NOT patched — the real
     policy chain runs. Only the data layer (Unit fetch, DataEntryService,
     carbon-report id lookup) is stubbed so the test stays in-process.
+
+    ``carbon_report_type`` selects the resolved report's project type:
+    ``None`` pins a Calculator report with no project at all; an enum value
+    attaches a project of that type (the simulator gate branches on it).
     """
     app.dependency_overrides[deps_module.get_current_user] = lambda: user
 
     mock_unit = MagicMock()
     mock_unit.institutional_id = unit_iid
 
+    mock_project = MagicMock()
+    mock_project.carbon_report_type = carbon_report_type
+
+    async def mock_db_get(model, key):
+        if model is CarbonProject:
+            return mock_project
+        return mock_unit
+
     async def mock_get_db():
         db = MagicMock()
-        db.get = AsyncMock(return_value=mock_unit)
+        db.get = AsyncMock(side_effect=mock_db_get)
         yield db
 
     app.dependency_overrides[deps_module.get_db] = mock_get_db
@@ -137,12 +154,14 @@ def _wire(monkeypatch, user, unit_iid: str = UNIT_IID) -> None:
 
     mock_service.get_headcount_members = mock_get_members
     mock_service.get_member_by_institutional_id = mock_get_member_by_iid
+    mock_service.check_json_field_unique = AsyncMock(return_value=True)
     monkeypatch.setattr(
         "app.api.v1.carbon_report_module.DataEntryService", lambda db: mock_service
     )
     _resolved_report = MagicMock()
     _resolved_report.unit_id = 1
     _resolved_report.year = 2024
+    _resolved_report.carbon_project_id = None if carbon_report_type is None else 5
     _resolved_module = MagicMock()
     _resolved_module.id = 1
     monkeypatch.setattr(
@@ -227,6 +246,81 @@ class TestPermissionScopeEndToEnd:
         data = r.json()
         assert len(data) == 1
         assert data[0]["institutional_id"] == "11111"
+
+
+CHECK_UNIQUE_URL = (
+    "/api/v1/carbon-reports/1/modules/headcount/member/check-unique"
+    "?field=user_institutional_id&value=x"
+)
+
+
+class TestSimulatorReportGate:
+    """#1988: reports of a simulator project (Explore/Plan) drop the module
+    gate to unit membership; Calculator reports keep the strict per-module
+    gate. Exercised through the real policy chain on the check-unique route,
+    which a std user's form calls for modules they hold no permission on."""
+
+    def test_std_on_calculator_report_denied(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire(
+            monkeypatch,
+            user,
+            unit_iid=UNIT_IID,
+            carbon_report_type=CarbonReportType.CALCULATOR,
+        )
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_std_on_projectless_report_denied(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire(monkeypatch, user, unit_iid=UNIT_IID, carbon_report_type=None)
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_std_on_explore_report_passes(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire(
+            monkeypatch,
+            user,
+            unit_iid=UNIT_IID,
+            carbon_report_type=CarbonReportType.SIMULATOR_EXPLORE,
+        )
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 200, r.text
+        assert r.json() == {"unique": True}
+
+    def test_std_on_plan_report_passes(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire(
+            monkeypatch,
+            user,
+            unit_iid=UNIT_IID,
+            carbon_report_type=CarbonReportType.SIMULATOR_PLAN,
+        )
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 200, r.text
+
+    def test_std_of_other_unit_denied_on_explore_report(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire(
+            monkeypatch,
+            user,
+            unit_iid=OTHER_IID,
+            carbon_report_type=CarbonReportType.SIMULATOR_EXPLORE,
+        )
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_principal_on_calculator_report_passes(self, client, monkeypatch):
+        user = _user("11111", [_principal(UNIT_IID)])
+        _wire(
+            monkeypatch,
+            user,
+            unit_iid=UNIT_IID,
+            carbon_report_type=CarbonReportType.CALCULATOR,
+        )
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 200, r.text
 
 
 # ─────────────────────────────────────────────────────────────────────────────

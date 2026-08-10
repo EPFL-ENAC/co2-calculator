@@ -340,6 +340,11 @@ interface HistoryEntry {
   ts: string;
 }
 
+interface FactorError {
+  factor_id?: number | null;
+  error?: string | null;
+}
+
 function jobPhases(j: { meta: Record<string, unknown> }): PhaseEntry[] {
   const raw = j.meta?.phases;
   return Array.isArray(raw) ? (raw as PhaseEntry[]) : [];
@@ -348,6 +353,44 @@ function jobPhases(j: { meta: Record<string, unknown> }): PhaseEntry[] {
 function jobHistory(j: { meta: Record<string, unknown> }): HistoryEntry[] {
   const raw = j.meta?.status_history;
   return Array.isArray(raw) ? (raw as HistoryEntry[]) : [];
+}
+
+function jobErrors(j: { meta: Record<string, unknown> }): FactorError[] {
+  const raw = j.meta?.error_details;
+  return Array.isArray(raw) ? (raw as FactorError[]) : [];
+}
+
+function formatFactorError(e: FactorError): string {
+  const id = e?.factor_id != null ? `#${e.factor_id}` : '#?';
+  const msg = e?.error ?? JSON.stringify(e);
+  return `${id}: ${msg}`;
+}
+
+function errorBlock(errors: FactorError[]): string {
+  return [
+    t('pipeops_factor_errors_title', { n: errors.length }),
+    ...errors.map(formatFactorError),
+  ].join('\n');
+}
+
+function jobMessageText(j: PipelineJobListEntry): string {
+  const errors = jobErrors(j);
+  const parts = [j.status_message ?? ''];
+  if (errors.length) parts.push(errorBlock(errors));
+  return parts.filter(Boolean).join('\n\n');
+}
+
+function pipelineMessageText(p: PipelineListItem): string {
+  const parts = [pipelineMessage(p) ?? ''];
+  for (const j of p.jobs) {
+    const errors = jobErrors(j);
+    if (errors.length) parts.push(`#${j.job_id}\n${errorBlock(errors)}`);
+  }
+  return parts.filter(Boolean).join('\n\n');
+}
+
+function hasErrorDetails(p: PipelineListItem): boolean {
+  return p.jobs.some((j) => jobErrors(j).length > 0);
 }
 
 function phaseColor(p: PhaseEntry): string {
@@ -723,10 +766,13 @@ onUnmounted(() => {
                 <td>{{ p.author ?? '—' }}</td>
                 <td
                   class="text-grey-8 ellipsis"
-                  :class="{ 'cursor-pointer': !!pipelineMessage(p) }"
+                  :class="{
+                    'cursor-pointer':
+                      !!pipelineMessage(p) || hasErrorDetails(p),
+                  }"
                   style="max-width: 320px"
                   :title="$t('pipeops_msg_click_hint')"
-                  @click.stop="openMsg(pipelineMessage(p))"
+                  @click.stop="openMsg(pipelineMessageText(p))"
                 >
                   {{ pipelineMessage(p) ?? '—' }}
                 </td>
@@ -838,11 +884,11 @@ onUnmounted(() => {
                           </template>
                         </span>
                         <span
-                          v-if="j.status_message"
+                          v-if="j.status_message || jobErrors(j).length"
                           class="text-caption text-grey-8 ellipsis cursor-pointer"
                           style="max-width: 520px"
                           :title="$t('pipeops_msg_click_hint')"
-                          @click.stop="openMsg(j.status_message)"
+                          @click.stop="openMsg(jobMessageText(j))"
                         >
                           {{ j.status_message }}
                         </span>
@@ -865,6 +911,41 @@ onUnmounted(() => {
                           {{ ph.name }}
                           <q-tooltip v-if="ph.error">{{ ph.error }}</q-tooltip>
                         </q-chip>
+                      </div>
+
+                      <!-- per-factor recompute failures -->
+                      <div
+                        v-if="jobErrors(j).length"
+                        class="q-mt-xs q-pl-md text-caption text-negative"
+                      >
+                        <div class="row items-center no-wrap">
+                          <q-icon name="report_problem" size="14px" />
+                          <span class="q-ml-xs">
+                            {{
+                              $t('pipeops_factor_errors_count', {
+                                n: jobErrors(j).length,
+                              })
+                            }}
+                          </span>
+                        </div>
+                        <div
+                          v-for="(e, idx) in jobErrors(j).slice(0, 5)"
+                          :key="idx"
+                          class="q-pl-md"
+                        >
+                          {{ formatFactorError(e) }}
+                        </div>
+                        <q-btn
+                          v-if="jobErrors(j).length > 5"
+                          flat
+                          dense
+                          no-caps
+                          size="sm"
+                          color="negative"
+                          class="q-pl-md"
+                          :label="$t('pipeops_factor_errors_show_all')"
+                          @click.stop="openMsg(jobMessageText(j))"
+                        />
                       </div>
 
                       <!-- #2A — status_history timeline -->

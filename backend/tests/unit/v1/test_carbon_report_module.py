@@ -532,7 +532,7 @@ async def test_get_module_headcount_does_not_raise_name_error():
     with (
         patch.object(
             crm,
-            "check_module_permission_for_unit",
+            "check_module_permission_for_report",
             AsyncMock(return_value=unit),
         ),
         patch.object(

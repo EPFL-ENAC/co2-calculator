@@ -33,7 +33,6 @@ import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
 import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
 import { useYearConfigStore } from 'src/stores/yearConfig';
-import { isModuleFullyAvailable } from 'src/composables/useModuleAvailability';
 import ReductionObjectiveChart from 'src/components/charts/results/ReductionObjectiveChart.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { nOrDash } from 'src/utils/number';
@@ -338,13 +337,15 @@ const getModuleResult = (module: string): ModuleResult | undefined => {
 };
 
 /**
- * Same enabled/greyed decision Home's chart icon axis and the backoffice
- * Reporting page use (isModuleFullyAvailable) — deactivated, no EDIT
- * permission, or no computed stats all render the row greyed out rather
- * than hiding or fully enabling it.
+ * Unlike Home's chart icon axis (isModuleFullyAvailable), these rows ignore
+ * the user's module permissions: the page only shows validated, aggregated
+ * results, so every member of the unit may open every category. A row is
+ * greyed out only when the module is deactivated in the back-office or has
+ * no computed stats yet.
  */
 const isModuleAvailable = (module: string): boolean =>
-  isModuleFullyAvailable(module as Module, Boolean(getModuleResult(module)));
+  Boolean(getModuleResult(module)) &&
+  yearConfigStore.isModuleVisible(module as Module);
 const { t, te } = useI18n();
 
 const combinedUnitNames = computed(() =>
@@ -451,9 +452,11 @@ function getModuleCarComparison(module: string): string | undefined {
 const viewUncertainties = ref(false);
 const viewAdditionalData = computed(() => !hideAdditionalData.value);
 const compareYearsOpen = ref(false);
-const compareYearsUnitId = computed(
-  () => workspaceStore.selectedCarbonReport?.unit_id ?? null,
-);
+const compareYearsUnitIds = computed<number[]>(() => {
+  if (mergedContext.value) return mergedContext.value.unitIds;
+  const unitId = workspaceStore.selectedCarbonReport?.unit_id;
+  return unitId != null ? [unitId] : [];
+});
 
 const additionalBreakdown = computed(
   () => moduleStore.state.emissionBreakdown?.additional_breakdown ?? [],
@@ -1061,7 +1064,7 @@ const getUncertainty = (
 
     <CompareYearsDialog
       v-model="compareYearsOpen"
-      :unit-id="compareYearsUnitId"
+      :unit-ids="compareYearsUnitIds"
     />
   </q-page>
 </template>
@@ -1132,9 +1135,8 @@ $combine-chip-padding-x: 1.125rem;
   }
 }
 
-// Deactivated / no-EDIT-permission / no-stats-yet — same muted treatment
-// Home's module-icon-axis chart uses for the same three reasons (see
-// isModuleFullyAvailable).
+// Deactivated / no-stats-yet — same muted treatment Home's
+// module-icon-axis chart uses (see isModuleAvailable).
 .results-module-header--unavailable {
   opacity: 0.4;
   filter: grayscale(1);

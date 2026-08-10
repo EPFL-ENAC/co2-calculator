@@ -27,9 +27,9 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  unitId: {
-    type: Number as PropType<number | null | undefined>,
-    default: null,
+  unitIds: {
+    type: Array as PropType<number[]>,
+    default: () => [],
   },
 });
 
@@ -78,14 +78,14 @@ const selectedScopes = ref<string[]>([...SCOPE_KEYS]);
 const showObjective = ref(true);
 
 async function load() {
-  if (props.unitId == null) return;
+  if (props.unitIds.length === 0) return;
   loading.value = true;
   error.value = null;
   infoColorHex.value = readCssVarHex('--q-info');
   try {
     const year = workspaceStore.selectedYear ?? new Date().getFullYear();
     const [res] = await Promise.all([
-      moduleStore.getMultiYearReportStats(props.unitId),
+      moduleStore.getMultiYearReportStats(props.unitIds),
       // Populate reduction_objectives.goals for the objective bar.
       yearConfigStore.fetchConfig(year),
     ]);
@@ -346,7 +346,8 @@ const scopeObjectiveBars = computed(() =>
                   class="compare-years-kpi__delta"
                   :class="objectiveGap.missing ? 'text-negative' : 'text-info'"
                 >
-                  {{
+                  {{ objectiveGap.missing ? '-' : ''
+                  }}{{
                     $nOrDash(objectiveGap.pctMagnitude * 100, {
                       options: { maximumFractionDigits: 0 },
                     })
@@ -355,6 +356,7 @@ const scopeObjectiveBars = computed(() =>
                 <span class="compare-years-kpi__sub">
                   {{
                     $t('results_compare_years_gap_target', {
+                      year: objectiveGap.targetYear,
                       value: `${formatTonnes(objectiveGap.objectiveTonnes)} ${$t(
                         'results_units_tonnes',
                       )}`,

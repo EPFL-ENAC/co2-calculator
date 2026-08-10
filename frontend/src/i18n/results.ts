@@ -92,16 +92,16 @@ export default {
     fr: 'Objectif',
   },
   results_compare_years_gap_label: {
-    en: 'Missing to reach {year} target',
-    fr: 'Manque pour atteindre l’objectif {year}',
+    en: 'Reduction needed to reach {year} target',
+    fr: 'Réduction nécessaire pour atteindre l’objectif {year}',
   },
   results_compare_years_gap_beaten_label: {
     en: 'Below {year} target',
     fr: 'Sous l’objectif {year}',
   },
   results_compare_years_gap_target: {
-    en: 'target {value}',
-    fr: 'cible {value}',
+    en: '{year} target: {value}',
+    fr: 'Objectif pour {year} : {value}',
   },
   results_compare_years_by_module: {
     en: 'Emissions by category',
@@ -380,6 +380,46 @@ export default {
   results_objectives_unit_no_validated_message: {
     en: 'Validate at least one module/category to unlock the unit simulation sliders.',
     fr: 'Validez au moins un module/catégorie pour déverrouiller les curseurs de simulation.',
+  },
+  results_objectives_scenario_label: {
+    en: 'Scenario',
+    fr: 'Scénario',
+  },
+  results_objectives_scenario_reset: {
+    en: 'Reset',
+    fr: 'Réinitialiser',
+  },
+  results_objectives_scenario_bau: {
+    en: 'BAU',
+    fr: 'BAU',
+  },
+  results_objectives_scenario_low_effort: {
+    en: 'Low effort',
+    fr: 'Effort faible',
+  },
+  results_objectives_scenario_middle: {
+    en: 'Middle of the road',
+    fr: 'Voie intermédiaire',
+  },
+  results_objectives_scenario_high_effort: {
+    en: 'High effort',
+    fr: 'Effort élevé',
+  },
+  results_objectives_scenario_ambitious: {
+    en: 'Ambitious',
+    fr: 'Ambitieux',
+  },
+  results_objectives_scenario_bau_description: {
+    en: 'In the Business As Usual scenario, emissions continue to grow at the current rate, in line with population growth.',
+    fr: 'Dans le scénario « Business As Usual », les émissions continuent d’augmenter au rythme actuel, parallèlement à la croissance de la population.',
+  },
+  results_objectives_scenario_middle_description: {
+    en: 'This is an intermediate scenario between BAU and fulfilling the reduction goals set by the Climate Act.',
+    fr: 'Il s’agit d’un scénario intermédiaire entre le scénario BAU et la réalisation des objectifs de réduction fixés par la loi sur le climat.',
+  },
+  results_objectives_scenario_ambitious_description: {
+    en: 'This scenario represents the fulfilment of the Climate Act’s reduction goals, ultimately achieving a 90% reduction by 2040 and carbon neutrality.',
+    fr: 'Ce scénario correspond à la réalisation des objectifs de réduction fixés par la Loi Climat, à savoir une réduction de 90 % d’ici 2040 et la neutralité carbone.',
   },
   results_additional_data: {
     en: 'Additional data',

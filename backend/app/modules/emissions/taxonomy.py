@@ -170,10 +170,10 @@ class EmissionType(int, Enum):
     # -------------------------------------------------------------------------
     research_facilities = 100000
     research_facilities__facilities = 100100
+    research_facilities__it_facilities = 100300
     research_facilities__animal = 100200
     research_facilities__animal__rodent = 10020001
     research_facilities__animal__fish = 10020002
-    research_facilities__it_facilities = 100300
 
     # -------------------------------------------------------------------------
     # External Clouds & AI

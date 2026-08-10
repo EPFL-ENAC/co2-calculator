@@ -4,7 +4,7 @@ import asyncio
 from typing import Any, Dict, Optional
 
 from psycopg.types.json import Json
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import Select, and_, asc, desc, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.exc import InvalidRequestError
@@ -728,6 +728,7 @@ class DataEntryRepository:
         # an implicit cross join (0 or inflated counts). Each branch records
         # its join chain here.
         count_factor_joins: list[tuple[Any, Any]] = []
+        count_location_joins: list[tuple[Any, Any]] = []
         if (
             not is_travel_entry
             and not is_headcount_entry
@@ -939,26 +940,21 @@ class DataEntryRepository:
                         isouter=True,
                     )
                 elif is_plane_entry:
+                    plane_origin_on = (
+                        col(OriginLocation.iata_code)
+                        == DataEntry.data["origin_iata"].as_string()
+                    ) & (col(OriginLocation.transport_mode) == TransportModeEnum.plane)
+                    plane_dest_on = (
+                        col(DestLocation.iata_code)
+                        == DataEntry.data["destination_iata"].as_string()
+                    ) & (col(DestLocation.transport_mode) == TransportModeEnum.plane)
                     statement = statement.join(
-                        OriginLocation,
-                        (
-                            col(OriginLocation.iata_code)
-                            == DataEntry.data["origin_iata"].as_string()
-                        )
-                        & (
-                            col(OriginLocation.transport_mode)
-                            == TransportModeEnum.plane
-                        ),
-                        isouter=True,
-                    ).join(
-                        DestLocation,
-                        (
-                            col(DestLocation.iata_code)
-                            == DataEntry.data["destination_iata"].as_string()
-                        )
-                        & (col(DestLocation.transport_mode) == TransportModeEnum.plane),
-                        isouter=True,
-                    )
+                        OriginLocation, plane_origin_on, isouter=True
+                    ).join(DestLocation, plane_dest_on, isouter=True)
+                    count_location_joins = [
+                        (OriginLocation, plane_origin_on),
+                        (DestLocation, plane_dest_on),
+                    ]
             kg_sort_expr = emission_agg.c.total_kg_co2eq
 
         statement = statement.where(
@@ -976,6 +972,11 @@ class DataEntryRepository:
         if handler_default:
             statement = statement.where(*handler_default)
         filter_map = dict(getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP)
+        if is_plane_entry and OriginLocation is not None:
+            # Plane entries store only IATA codes; the displayed from/to are
+            # the joined airport names, so search must match those too.
+            filter_map["origin_name"] = OriginLocation.name
+            filter_map["destination_name"] = DestLocation.name
         statement, filter_pattern = self._apply_name_filter(
             statement, filter, filter_map
         )
@@ -1054,14 +1055,18 @@ class DataEntryRepository:
                 "factors" in str(expr) or "building_rooms" in str(expr)
                 for expr in filter_map.values()
             )
-            if count_factor_joins and filter_reads_factor:
-                # Join Factor (and whatever it hangs off) exactly like the
-                # page query so the count sees the same rows — without this
-                # a Factor-referencing filter degenerates into an implicit
-                # cross join (0 or inflated counts).
+            needs_factor_joins = bool(count_factor_joins) and filter_reads_factor
+            if needs_factor_joins or count_location_joins:
+                # Join Factor/Location (and whatever they hang off) exactly
+                # like the page query so the count sees the same rows —
+                # without this a joined-table filter degenerates into an
+                # implicit cross join (0 or inflated counts).
                 count_stmt = count_stmt.select_from(DataEntry)
+            if needs_factor_joins:
                 for target, onclause in count_factor_joins:
                     count_stmt = count_stmt.join(target, onclause, isouter=True)
+            for target, onclause in count_location_joins:
+                count_stmt = count_stmt.join(target, onclause, isouter=True)
             conditions = [
                 filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
             ]
@@ -1166,11 +1171,18 @@ class DataEntryRepository:
                     int(source_entry_id)
                 )
 
-            items.append(handler.to_response(data_entry, enriched_data))
+            try:
+                items.append(handler.to_response(data_entry, enriched_data))
+            except ValidationError as exc:
+                raise ValueError(
+                    f"data_entry id={data_entry.id} "
+                    f"(type={data_entry_type_id}) does not match the "
+                    f"response schema"
+                ) from exc
 
         response = SubmoduleResponse(
             id=data_entry_type_id,
-            count=count,
+            count=len(items),
             items=items,
             summary=SubmoduleSummary(
                 total_items=total_items,

@@ -29,7 +29,7 @@ export default {
   },
   role_backoffice_description: {
     en: 'Day-to-day back-office operations: reporting, user management, documentation',
-    fr: 'Opérations courantes du back-office : reporting, gestion des utilisateurs, documentation',
+    fr: 'Opérations courantes du back-office : reporting, gestion des utilisateur·rices, documentation',
   },
   role_superadmin_description: {
     en: 'Full back-office access including sensitive configuration and pipeline controls',

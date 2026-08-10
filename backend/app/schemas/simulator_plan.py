@@ -41,12 +41,25 @@ class SimulatorPlanUpdate(BaseModel):
     Setting/changing the year range syncs the plan's per-year reports:
     missing years are created, out-of-range years are deleted with their
     entries (destructive by design).
+
+    ``with_year_sections`` is not persisted: whether a plan has per-year
+    sections is derived from its non-grant reports. Omitted, the sync keeps
+    the plan's current shape; ``False`` deletes the per-year reports (the
+    plan must then be a grant proposal); ``True`` (re)creates them.
     """
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     start_year: Optional[int] = Field(default=None, ge=1000, le=9999)
     end_year: Optional[int] = Field(default=None, ge=1000, le=9999)
     is_viewable_by_unit_members: Optional[bool] = None
+    is_grant_proposal: Optional[bool] = None
+    with_year_sections: Optional[bool] = None
+    default_reference_year: Optional[int] = Field(default=None, ge=1000, le=9999)
+    """Reference year for year reports newly created by this range change.
+
+    The workspace year the planner was opened from. Applied (with the usual
+    prefill) only to reports the sync creates; existing reports keep theirs.
+    """
 
     @field_validator("name")
     @classmethod
@@ -57,9 +70,17 @@ class SimulatorPlanUpdate(BaseModel):
 
 
 class SimulatorPlanReferenceYearUpdate(BaseModel):
-    """Schema for setting the baseline year of one plan-year report."""
+    """Schema for setting the baseline year of one plan-year report.
 
-    reference_year: int = Field(ge=1000, le=9999)
+    ``None`` removes the reference year: the prefilled modules are emptied
+    (same wipe as a change) and the year becomes manual-input.
+
+    ``is_grant`` disambiguates the Project Grant report from the year report
+    sharing its year (the grant report is anchored to the plan's start year).
+    """
+
+    reference_year: Optional[int] = Field(default=None, ge=1000, le=9999)
+    is_grant: bool = False
 
 
 class SimulatorPlanRead(BaseModel):
@@ -71,10 +92,13 @@ class SimulatorPlanRead(BaseModel):
     start_year: Optional[int] = None
     end_year: Optional[int] = None
     is_viewable_by_unit_members: bool = False
+    is_grant_proposal: bool = False
+    default_factor_year: Optional[int] = None
     created_by: Optional[int] = None
     created_at: Optional[datetime] = None
     creator_name: Optional[str] = None
     total_tonnes_co2eq: Optional[float] = None
+    can_manage: bool = False
 
     class Config:
         from_attributes = True
@@ -86,6 +110,9 @@ class SimulatorPlanYearRead(BaseModel):
     id: int
     year: int
     reference_year: Optional[int] = None
+    is_grant: bool = False
+    budget: Optional[float] = None
+    budget_currency: Optional[str] = None
     stats: Optional[dict] = None
     modules: list[CarbonReportModuleRead] = []
 

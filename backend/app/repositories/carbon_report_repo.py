@@ -33,8 +33,9 @@ class CarbonReportRepository:
     async def bulk_upsert(self, data: list[CarbonReportCreate]) -> list[CarbonReport]:
         """Bulk upsert carbon reports using INSERT ... ON CONFLICT DO NOTHING.
 
-        Uses the uq_carbon_reports_project_year constraint (carbon_project_id, year)
-        as the conflict target. Callers must resolve carbon_project_id before
+        Uses the uq_carbon_reports_project_year constraint (carbon_project_id,
+        year, is_grant) as the conflict target. Callers must resolve
+        carbon_project_id before
         calling this method (it must be non-null for conflict detection to work).
         """
         stmt = (

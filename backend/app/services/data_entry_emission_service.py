@@ -31,6 +31,7 @@ from app.repositories.data_entry_emission_repo import (
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.factor_resolver import FactorResolver
 from app.services.factor_service import FactorService
+from app.utils.factor_year import resolve_factor_year
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -135,12 +136,7 @@ class DataEntryEmissionService:
         report = await self._get_report_for_data_entry(data_entry)
         if report is None:
             return None
-        # reference_year wins: Simulator Plan reports source all factors from
-        # their baseline year (plan years can be in the future, where no
-        # factors exist). reference_year is NULL for Calculator/Explore.
-        if report.reference_year is not None:
-            return report.reference_year
-        return report.year
+        return await resolve_factor_year(self.session, report)
 
     async def _get_percentage_override_kg(
         self,
@@ -349,11 +345,7 @@ class DataEntryEmissionService:
             if report is not None:
                 # Same precedence as _get_year_from_data_entry: the plan's
                 # reference year drives factor lookup.
-                year = (
-                    report.reference_year
-                    if report.reference_year is not None
-                    else report.year
-                )
+                year = await resolve_factor_year(self.session, report)
         if year is None:
             logger.warning(
                 "Could not determine year for data entry, factors may not match"

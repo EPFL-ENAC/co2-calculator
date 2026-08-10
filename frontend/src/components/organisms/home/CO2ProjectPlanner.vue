@@ -81,7 +81,7 @@ async function onStartProject() {
     const plan = await plansStore.createPlan(unitId.value);
     await router.push({
       name: 'project-planner',
-      params: { ...route.params, name: plan.name },
+      params: { ...route.params, planId: plan.id },
     });
   } finally {
     creating.value = false;
@@ -96,7 +96,7 @@ async function onDuplicate(row: SimulatorPlan) {
 function onEdit(row: SimulatorPlan) {
   void router.push({
     name: 'project-planner',
-    params: { ...route.params, name: row.name },
+    params: { ...route.params, planId: row.id },
   });
 }
 
@@ -221,10 +221,15 @@ onMounted(() => {
                     dense
                     flat
                     class="action-btn action-btn--delete"
+                    :disable="!props.row.can_manage"
                     @click="onAskDelete(props.row)"
                   >
                     <q-tooltip class="tooltip action-tooltip" :offset="[0, 8]">
-                      {{ $t('common_delete') }}
+                      {{
+                        props.row.can_manage
+                          ? $t('common_delete')
+                          : $t('planner_delete_creator_only')
+                      }}
                     </q-tooltip>
                   </q-btn>
                 </div>

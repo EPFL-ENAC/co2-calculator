@@ -27,7 +27,7 @@ def test_category_totals_count_leaves_only():
     assert sum(totals.values()) == 110.0
 
 
-def test_animal_facilities_are_not_it():
+def test_only_it_research_facilities_are_it():
     by_et = {
         str(EmissionType.research_facilities__facilities.value): 40.0,
         str(EmissionType.research_facilities__it_facilities.value): 60.0,
@@ -37,7 +37,7 @@ def test_animal_facilities_are_not_it():
         str(EmissionType.research_facilities.value): 150.0,
     }
     totals = build_it_category_totals(by_et)
-    assert totals[IT_CATEGORY_RESEARCH] == 100.0
+    assert totals[IT_CATEGORY_RESEARCH] == 60.0
 
 
 def test_cloud_ai_detail_groups_ai_providers():

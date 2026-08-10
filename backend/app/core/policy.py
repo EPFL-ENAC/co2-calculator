@@ -628,14 +628,25 @@ def plan_is_visible_to(current_user: User, project: Any) -> bool:
     return bool(project.is_viewable_by_unit_members)
 
 
+def plan_can_manage(current_user: User, project: Any) -> bool:
+    """Whether the user may delete a Simulator Plan project.
+
+    Creators and global-scope roles only. Accepts either the ORM row or the
+    ``SimulatorPlanRead`` DTO — both expose ``created_by``.
+    """
+    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
+        return True
+    return project.created_by == current_user.id
+
+
 async def require_plan_scope_for_report(
     db: AsyncSession, current_user: User, report: Any, action: str
 ) -> None:
     """Enforce Simulator Plan scoping when ``report`` belongs to a plan.
 
     No-op for Calculator/Explore reports (and reports with no project). The
-    single place every report-addressed write consults so plan read-only /
-    creator-only rules can't be forgotten on a new route.
+    single place every report-addressed write consults so plan visibility
+    rules can't be forgotten on a new route.
     """
     if report.carbon_project_id is None:
         return
@@ -650,30 +661,28 @@ async def require_plan_scope_for_report(
 def require_plan_access(current_user: User, project: Any, action: str) -> None:
     """Enforce Simulator Plan scoping on top of unit access.
 
-    Shared plans are read-only for non-creators: ``view`` follows
-    :func:`plan_is_visible_to`; ``edit`` requires the creator (or a
-    global-scope role). Unshared plans 404 for other unit members so
-    their existence is not leaked.
+    Shared plans are fully editable by unit members: ``view`` and ``edit``
+    both follow :func:`plan_is_visible_to`. ``manage`` (deletion) requires
+    the creator or a global-scope role. Unshared plans 404 for other unit
+    members so their existence is not leaked.
 
     Args:
         current_user: The authenticated user.
         project: The plan's CarbonProject row.
-        action: ``"view"`` or ``"edit"``.
+        action: ``"view"``, ``"edit"`` or ``"manage"``.
     """
     if not plan_is_visible_to(current_user, project):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Plan not found",
         )
-    if action == "view":
+    if action in ("view", "edit"):
         return
-    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
-        return
-    if project.created_by == current_user.id:
+    if plan_can_manage(current_user, project):
         return
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="Only the plan's creator can modify it.",
+        detail="Only the plan's creator can delete it.",
     )
 
 
@@ -737,3 +746,45 @@ async def check_module_permission_for_unit(
         institutional_id=unit.institutional_id,
     )
     return unit
+
+
+async def check_module_permission_for_report(
+    *,
+    current_user: User,
+    module_id: str,
+    action: str,
+    db: AsyncSession,
+    report: Any,
+) -> Unit:
+    """Module gate for report-addressed routes.
+
+    Calculator reports keep the full per-module permission gate
+    (``check_module_permission_for_unit``). Simulator reports (Explore and
+    Plan) drop to unit membership: any unit member may read and write the
+    sandbox/plan modules. Plan creator/share rules are enforced separately by
+    ``require_plan_scope_for_report``, and the professional-travel own-rows
+    filter stays keyed on the caller's role at the data layer.
+
+    Returns the loaded ``Unit`` so callers can reuse it (e.g. for travel
+    filters or principal/global checks) without re-fetching.
+    """
+    if report.carbon_project_id is not None:
+        project = await db.get(CarbonProject, report.carbon_project_id)
+        if project is not None and project.carbon_report_type in (
+            CarbonReportType.SIMULATOR_EXPLORE,
+        ):
+            unit = await db.get(Unit, report.unit_id)
+            if unit is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Unit {report.unit_id} not found",
+                )
+            require_unit_access(current_user, unit)
+            return unit
+    return await check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action=action,
+        db=db,
+        unit_id=report.unit_id,
+    )
