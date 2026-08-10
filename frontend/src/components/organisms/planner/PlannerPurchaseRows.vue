@@ -131,7 +131,7 @@ import { api } from 'src/api/http';
 import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
 import { formatTonnesCO2 } from 'src/utils/number';
 
-// The 7 backend categories (modules_planner/purchase/emissions.py
+// The 8 backend categories (modules_planner/purchase/emissions.py
 // PLANNER_PURCHASE_EMISSIONS), rendered as fixed rows in the design's order.
 const CATEGORIES = [
   'scientific_equipment',
@@ -141,6 +141,7 @@ const CATEGORIES = [
   'services',
   'vehicles',
   'other_purchases',
+  'purchases_centralized',
 ] as const;
 
 type Mode = 'global' | 'per_category';
@@ -248,7 +249,9 @@ function fillRow(row: PurchaseRow, item: SubmoduleItem | undefined) {
   row.amount = item?.amount_eur ?? null;
   row.saved = row.amount;
   row.entryId = item?.id ?? null;
-  row.kg = item?.kg_co2eq ?? null;
+  // A saved amount always reads a figure: a category the reference year has no
+  // factor for is 0, not blank.
+  row.kg = item ? (item.kg_co2eq ?? 0) : null;
   row.error = null;
 }
 
@@ -276,9 +279,9 @@ async function load() {
 /** Re-read the emissions of the saved kind without touching typed amounts. */
 async function refreshKg() {
   const items = await fetchItems(mode.value);
-  const byId = new Map(items.map((it) => [it.id, it.kg_co2eq ?? null]));
+  const byId = new Map(items.map((it) => [it.id, it.kg_co2eq ?? 0]));
   rowsFor(mode.value).forEach((row) => {
-    row.kg = row.entryId === null ? null : (byId.get(row.entryId) ?? null);
+    row.kg = row.entryId === null ? null : (byId.get(row.entryId) ?? 0);
   });
 }
 

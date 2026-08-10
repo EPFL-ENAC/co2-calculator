@@ -208,8 +208,8 @@ export default {
     fr: 'Année de référence',
   },
   planner_reference_year_hint: {
-    en: 'Select a reference year: all factors and prefilled data of this planned year come from it. The modules below stay locked until you do.',
-    fr: "Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année planifiée en proviennent. Les modules ci-dessous restent verrouillés tant qu'elle n'est pas définie.",
+    en: 'Optional: select a reference year to prefill the modules below and use its factors. Without one, you enter data manually and factors come from year {year}.',
+    fr: "Facultatif : sélectionnez une année de référence pour préremplir les modules ci-dessous et utiliser ses facteurs. Sans année de référence, vous saisissez les données manuellement et les facteurs proviennent de l'année {year}.",
   },
   planner_reference_year_error: {
     en: 'Could not set the reference year',
@@ -234,6 +234,14 @@ export default {
   planner_reference_year_dialog_select_label: {
     en: 'Reference year (source of the data)',
     fr: 'Année de référence (source des données)',
+  },
+  planner_reference_year_dialog_none_option: {
+    en: 'No reference year (manual data entry)',
+    fr: 'Aucune année de référence (saisie manuelle des données)',
+  },
+  planner_reference_year_dialog_none_consequences: {
+    en: 'Without a reference year, the modules of planned year {year} start empty and you enter their data manually.',
+    fr: "Sans année de référence, les modules de l'année planifiée {year} démarrent vides et vous saisissez leurs données manuellement.",
   },
   planner_reference_year_dialog_consequences: {
     en: 'The prefilled modules of planned year {year} are rebuilt from the reference year you pick, and every module uses its emission factors.',
@@ -342,6 +350,10 @@ export default {
   'planner_purchase_category.other_purchases': {
     en: 'Other purchases',
     fr: 'Autres achats',
+  },
+  'planner_purchase_category.purchases_centralized': {
+    en: 'Additional purchases',
+    fr: 'Achats supplémentaires',
   },
   'planner_traveler_category.internal': {
     en: 'Internal',

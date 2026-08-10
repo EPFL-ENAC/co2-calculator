@@ -34,6 +34,7 @@ from app.utils.distance_geography import (
     calculate_train_distance,
     get_haul_category,
 )
+from app.utils.factor_year import resolve_factor_year
 
 logger = get_logger(__name__)
 
@@ -48,7 +49,7 @@ async def _get_report_year_for_module(
     if carbon_report_module_id is None:
         return None
     stmt = (
-        select(CarbonReport.year, CarbonReport.reference_year)
+        select(CarbonReport)
         .join(
             CarbonReportModule,
             col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
@@ -56,13 +57,10 @@ async def _get_report_year_for_module(
         .where(col(CarbonReportModule.id) == carbon_report_module_id)
     )
     result = await session.exec(stmt)
-    row = result.one_or_none()
-    if row is None:
+    report = result.one_or_none()
+    if report is None:
         return None
-    year, reference_year = row
-    # reference_year wins: Simulator Plan reports source factors from their
-    # baseline year (see DataEntryEmissionService._get_year_from_data_entry).
-    return reference_year if reference_year is not None else year
+    return await resolve_factor_year(session, report)
 
 
 class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):

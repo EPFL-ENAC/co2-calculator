@@ -23,7 +23,7 @@
       <q-card-section>
         <q-select
           v-model="selected"
-          :options="options"
+          :options="allOptions"
           :label="$t('planner_reference_year_dialog_select_label')"
           outlined
           dense
@@ -31,26 +31,28 @@
           map-options
         />
         <div class="text-body2 text-grey-8 q-mt-md">
-          {{ $t('planner_reference_year_dialog_consequences', { year }) }}
+          {{
+            selected === NONE
+              ? $t('planner_reference_year_dialog_none_consequences', { year })
+              : $t('planner_reference_year_dialog_consequences', { year })
+          }}
         </div>
 
-        <template v-if="referenceYear !== null">
-          <q-banner dense rounded class="bg-red-1 text-negative q-mt-md">
-            <template #avatar>
-              <q-icon name="o_warning" color="negative" size="sm" />
-            </template>
-            <div class="text-body2">
-              {{ $t('planner_reference_year_dialog_wipe_warning', { year }) }}
-            </div>
-          </q-banner>
-          <q-checkbox
-            v-model="acknowledged"
-            dense
-            color="negative"
-            class="q-mt-md"
-            :label="$t('planner_reference_year_dialog_wipe_ack', { year })"
-          />
-        </template>
+        <q-banner dense rounded class="bg-red-1 text-negative q-mt-md">
+          <template #avatar>
+            <q-icon name="o_warning" color="negative" size="sm" />
+          </template>
+          <div class="text-body2">
+            {{ $t('planner_reference_year_dialog_wipe_warning', { year }) }}
+          </div>
+        </q-banner>
+        <q-checkbox
+          v-model="acknowledged"
+          dense
+          color="negative"
+          class="q-mt-md"
+          :label="$t('planner_reference_year_dialog_wipe_ack', { year })"
+        />
       </q-card-section>
 
       <q-card-actions class="q-px-md q-pb-md">
@@ -80,6 +82,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -91,26 +94,33 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   'update:modelValue': [open: boolean];
-  confirm: [referenceYear: number];
+  confirm: [referenceYear: number | null];
 }>();
+
+const { t } = useI18n();
+
+// Sentinel for the "no reference year" choice: q-select's map-options cannot
+// display a null-valued option, so null maps to this in and out.
+const NONE = 0;
+
+const allOptions = computed(() => [
+  ...props.options,
+  { label: t('planner_reference_year_dialog_none_option'), value: NONE },
+]);
 
 // Seeded once per mount: the parent keys the dialog on the current reference
 // year, so a re-open starts from what is set rather than the last pick.
-const selected = ref<number | null>(props.referenceYear);
+const selected = ref<number>(props.referenceYear ?? NONE);
 
-// Changing a baseline that is already set deletes the prefilled modules' data,
-// so the user has to acknowledge it. The first-time set deletes nothing.
+// Any change (set, switch or removal) deletes the prefilled modules' data,
+// so the user has to acknowledge it.
 const acknowledged = ref(false);
 
 const confirmDisabled = computed(
-  () =>
-    selected.value === null ||
-    selected.value === props.referenceYear ||
-    (props.referenceYear !== null && !acknowledged.value),
+  () => selected.value === (props.referenceYear ?? NONE) || !acknowledged.value,
 );
 
 function onConfirm() {
-  if (selected.value === null) return;
-  emit('confirm', selected.value);
+  emit('confirm', selected.value === NONE ? null : selected.value);
 }
 </script>

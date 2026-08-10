@@ -59,6 +59,7 @@
           :plan-id="plan.id"
           :year-data="yearData"
           :unit-id="unitId"
+          :default-factor-year="plan.default_factor_year"
           :reference-year-options="referenceYearOptions"
           :expanded-keys="expandedKeys"
           @toggle-module="onToggleModule"

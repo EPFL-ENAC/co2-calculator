@@ -29,7 +29,7 @@ export const PLANNER_MODULE_CONFIG: Partial<
 > = {
   [MODULES.Headcount]: {
     module: MODULES.Headcount,
-    behavior: 'manual',
+    behavior: 'prefilled',
   },
   [MODULES.ProfessionalTravel]: {
     module: MODULES.ProfessionalTravel,

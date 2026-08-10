@@ -360,6 +360,7 @@ export function useProjectPlannerPrintData() {
       const years = plansStore.planYears;
       const taxonomyYear =
         years.find((year) => year.reference_year != null)?.reference_year ??
+        plan.value.default_factor_year ??
         years[0]?.year ??
         null;
 

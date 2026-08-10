@@ -38,8 +38,11 @@ DEFAULT_COMPLETION_PROGRESS = f"0/{TOTAL_MODULE_TYPES}"
 
 # Simulator Plan "prefilled" (type-2) modules: snapshot-copied from the
 # reference year. Mirrors the frontend planner-module-config
-# ``behavior === 'prefilled'`` set.
+# ``behavior === 'prefilled'`` set. Headcount is prefilled too, but its
+# Calculator rows are aggregated per SIUS category instead of copied one to
+# one — see ``SimulatorPlanService.prefill_headcount_from_reference``.
 PLANNER_PREFILLED_MODULE_TYPES: set[ModuleTypeEnum] = {
+    ModuleTypeEnum.headcount,
     ModuleTypeEnum.process_emissions,
     ModuleTypeEnum.buildings,
     ModuleTypeEnum.equipment,
