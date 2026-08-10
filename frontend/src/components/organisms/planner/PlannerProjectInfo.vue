@@ -271,16 +271,11 @@ async function generateSections() {
   if (start !== null && end !== null) {
     payload.start_year = start;
     payload.end_year = end;
+    payload.default_reference_year = Number(route.params.year);
   }
 
   generatingSections.value = true;
   try {
-    const payload = {
-      start_year: start,
-      end_year: end,
-      default_reference_year: Number(route.params.year),
-      is_grant_proposal: grantProposalInput.value,
-    };
     const updated = await plansStore.updatePlan(props.plan.id, payload);
     yearByYearInput.value = null;
     emit('updated', updated);

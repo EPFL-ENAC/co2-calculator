@@ -260,12 +260,12 @@ class SimulatorPlanService:
                     reference_year=default_reference_year,
                 )
             )
+            if default_reference_year is not None:
+                # Prefill computes the copied rows' emissions itself; only
+                # the report rollup is missing (no other entries exist yet).
+                await self._prefill_reference_modules(report_read)
+                await self.report_service.recompute_report_stats(report_read.id)
         await self._sync_grant_report(project, grant_report)
-        if default_reference_year is not None:
-            # Prefill computes the copied rows' emissions itself; only
-            # the report rollup is missing (no other entries exist yet).
-            await self._prefill_reference_modules(report_read)
-            await self.report_service.recompute_report_stats(report_read.id)
 
     async def _sync_grant_report(
         self, project: CarbonProject, grant_report: Optional[CarbonReport]
