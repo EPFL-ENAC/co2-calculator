@@ -116,8 +116,8 @@ export default {
     fr: "Estimer l'empreinte d'un projet ou d'une catégorie d'émission carbone.",
   },
   planner_page_intro: {
-    en: "Do you need to estimate the carbon footprint of a project, for example as part of a grant application, before, during, or after your project? Would you like to estimate the carbon footprint of a trip, a purchase, or the consumption of scientific equipment? This space gives you access to EPFL's carbon footprint simulator.",
-    fr: "Vous avez besoin d'estimer l'empreinte d'un projet par exemple dans le cadre d'une demande de grant, en amont, pendant ou après votre projet ? Vous souhaitez estimer l'empreinte d'un voyage, d'un achat ou de la consommation d'un équipement scientifique ? Cet espace vous permet d'accéder au simulateur d'empreinte carbone de l'EPFL.",
+    en: 'The CO₂ Project Planner allows you to estimate the carbon footprint of your past, current, or future projects based on your facility’s annual report. This data can be used to optimize your project designs, support your grant applications, and guide your planning.',
+    fr: "Le planificateur de projet CO₂ permet de simuler l'empreinte carbone de vos projets passés, en cours ou futurs à partir du bilan annuel de votre unité. Ces données peuvent être utilisées pour optimiser la conception de vos projets, soutenir vos demandes de financement et guider votre planification.",
   },
   planner_project_label: {
     en: 'Project',
