@@ -381,7 +381,16 @@ async function loadTravelerNames(unitId: number, year: number | string) {
 function fetchTripsMapIfNeeded() {
   const unitId = workspaceStore.selectedUnit?.id;
   const year = workspaceStore.selectedYear;
-  if (unitId && year && props.type === MODULES.ProfessionalTravel) {
+  if (props.type !== MODULES.ProfessionalTravel) return;
+  if (
+    !authStore.hasUserModulePermission(
+      MODULES.ProfessionalTravel,
+      PermissionAction.VIEW,
+    )
+  ) {
+    return;
+  }
+  if (unitId && year) {
     void moduleStore.getProfessionalTravelTripsMap(unitId, String(year));
     void loadTravelerNames(unitId, year);
   }
