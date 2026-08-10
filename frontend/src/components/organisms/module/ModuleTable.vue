@@ -249,7 +249,7 @@
               </q-tooltip>
             </q-btn>
             <q-btn
-              v-if="showTableRowActions && canEdit && hasModuleUpload"
+              v-if="showTableRowActions && canEditRows && hasModuleUpload"
               icon="o_delete"
               color="black"
               :disable="isDisabled"
@@ -528,6 +528,7 @@ import {
   REFERENCE_PERCENTAGE_MIN,
 } from 'src/utils/reference-percentage';
 import {
+  hasRowEditPermission,
   isModuleNoteDisabled,
   isModuleTableDisabled,
   type ModuleTableAccess,
@@ -985,6 +986,8 @@ const tableAccess = computed<ModuleTableAccess>(() => ({
 }));
 
 const isDisabled = computed(() => isModuleTableDisabled(tableAccess.value));
+
+const canEditRows = computed(() => hasRowEditPermission(tableAccess.value));
 
 const showTableRowActions = computed(
   () => props.submoduleConfig?.hasTableAction !== false,

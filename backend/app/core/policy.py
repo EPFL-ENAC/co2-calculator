@@ -746,3 +746,45 @@ async def check_module_permission_for_unit(
         institutional_id=unit.institutional_id,
     )
     return unit
+
+
+async def check_module_permission_for_report(
+    *,
+    current_user: User,
+    module_id: str,
+    action: str,
+    db: AsyncSession,
+    report: Any,
+) -> Unit:
+    """Module gate for report-addressed routes.
+
+    Calculator reports keep the full per-module permission gate
+    (``check_module_permission_for_unit``). Simulator reports (Explore and
+    Plan) drop to unit membership: any unit member may read and write the
+    sandbox/plan modules. Plan creator/share rules are enforced separately by
+    ``require_plan_scope_for_report``, and the professional-travel own-rows
+    filter stays keyed on the caller's role at the data layer.
+
+    Returns the loaded ``Unit`` so callers can reuse it (e.g. for travel
+    filters or principal/global checks) without re-fetching.
+    """
+    if report.carbon_project_id is not None:
+        project = await db.get(CarbonProject, report.carbon_project_id)
+        if project is not None and project.carbon_report_type in (
+            CarbonReportType.SIMULATOR_EXPLORE,
+        ):
+            unit = await db.get(Unit, report.unit_id)
+            if unit is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Unit {report.unit_id} not found",
+                )
+            require_unit_access(current_user, unit)
+            return unit
+    return await check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action=action,
+        db=db,
+        unit_id=report.unit_id,
+    )

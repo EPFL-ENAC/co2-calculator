@@ -8,13 +8,14 @@ from fastapi import HTTPException
 from app.core.policy import (
     _get_module_permission_path,
     check_module_permission,
+    check_module_permission_for_report,
     is_module_permitted,
     plan_is_visible_to,
     query_policy,
     require_plan_access,
     require_plan_scope_for_report,
 )
-from app.models.user import GlobalScope, Role, RoleName, UnitScope
+from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope
 
 
 class TestGetModulePermissionPath:
@@ -691,3 +692,149 @@ class TestRequirePlanScopeForReport:
                 db, non_creator, self._report(5), "edit"
             )
         assert exc.value.status_code == 404
+
+
+class TestCheckModulePermissionForReport:
+    """Simulator reports drop the module gate to unit membership (#1988);
+    Calculator reports delegate to the strict per-module gate unchanged."""
+
+    @staticmethod
+    def _report(project_id=5, unit_id=1):
+        report = MagicMock()
+        report.carbon_project_id = project_id
+        report.unit_id = unit_id
+        return report
+
+    @staticmethod
+    def _db(project_type, unit):
+        from app.models.carbon_project import CarbonProject
+
+        project = MagicMock()
+        project.carbon_report_type = project_type
+
+        async def _get(model, key):
+            if model is CarbonProject:
+                return project
+            return unit
+
+        db = MagicMock()
+        db.get = AsyncMock(side_effect=_get)
+        return db
+
+    @staticmethod
+    def _std_user(iid):
+        user = MagicMock()
+        user.roles = [
+            Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id=iid))
+        ]
+        return user
+
+    @staticmethod
+    def _unit(iid="0184"):
+        unit = MagicMock()
+        unit.institutional_id = iid
+        return unit
+
+    @pytest.mark.asyncio
+    async def test_explore_report_passes_for_std_unit_member(self):
+        from app.models.carbon_report import CarbonReportType
+
+        unit = self._unit("0184")
+        result = await check_module_permission_for_report(
+            current_user=self._std_user("0184"),
+            module_id="headcount",
+            action="view",
+            db=self._db(CarbonReportType.SIMULATOR_EXPLORE, unit),
+            report=self._report(),
+        )
+        assert result is unit
+
+    @pytest.mark.asyncio
+    async def test_plan_report_passes_for_std_unit_member(self):
+        from app.models.carbon_report import CarbonReportType
+
+        unit = self._unit("0184")
+        result = await check_module_permission_for_report(
+            current_user=self._std_user("0184"),
+            module_id="equipment",
+            action="edit",
+            db=self._db(CarbonReportType.SIMULATOR_PLAN, unit),
+            report=self._report(),
+        )
+        assert result is unit
+
+    @pytest.mark.asyncio
+    async def test_explore_report_denies_std_of_other_unit(self):
+        from app.models.carbon_report import CarbonReportType
+
+        with pytest.raises(HTTPException) as exc:
+            await check_module_permission_for_report(
+                current_user=self._std_user("9999"),
+                module_id="headcount",
+                action="view",
+                db=self._db(CarbonReportType.SIMULATOR_EXPLORE, self._unit("0184")),
+                report=self._report(),
+            )
+        assert exc.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_simulator_report_missing_unit_is_404(self):
+        from app.models.carbon_report import CarbonReportType
+
+        with pytest.raises(HTTPException) as exc:
+            await check_module_permission_for_report(
+                current_user=self._std_user("0184"),
+                module_id="headcount",
+                action="view",
+                db=self._db(CarbonReportType.SIMULATOR_EXPLORE, None),
+                report=self._report(),
+            )
+        assert exc.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_calculator_report_delegates_to_unit_gate(self):
+        from app.models.carbon_report import CarbonReportType
+
+        unit = self._unit("0184")
+        user = self._std_user("0184")
+        db = self._db(CarbonReportType.CALCULATOR, unit)
+        with patch(
+            "app.core.policy.check_module_permission_for_unit",
+            AsyncMock(return_value=unit),
+        ) as delegate:
+            result = await check_module_permission_for_report(
+                current_user=user,
+                module_id="headcount",
+                action="view",
+                db=db,
+                report=self._report(unit_id=7),
+            )
+        assert result is unit
+        delegate.assert_awaited_once_with(
+            current_user=user,
+            module_id="headcount",
+            action="view",
+            db=db,
+            unit_id=7,
+        )
+
+    @pytest.mark.asyncio
+    async def test_report_without_project_delegates_to_unit_gate(self):
+        unit = self._unit("0184")
+        user = self._std_user("0184")
+        db = MagicMock()
+        db.get = AsyncMock()
+        with patch(
+            "app.core.policy.check_module_permission_for_unit",
+            AsyncMock(return_value=unit),
+        ) as delegate:
+            result = await check_module_permission_for_report(
+                current_user=user,
+                module_id="headcount",
+                action="view",
+                db=db,
+                report=self._report(project_id=None, unit_id=7),
+            )
+        assert result is unit
+        db.get.assert_not_awaited()
+        delegate.assert_awaited_once()

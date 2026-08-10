@@ -24,6 +24,7 @@ from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import (
+    check_module_permission_for_report,
     check_module_permission_for_unit,
     get_module_permission_decision,
     require_plan_scope_for_report,
@@ -268,12 +269,12 @@ async def get_module(
     report, module = await resolve_report_module(
         carbon_report_id, module_id, db, current_user
     )
-    unit = await check_module_permission_for_unit(
+    unit = await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=report.unit_id,
+        report=report,
     )
     carbon_report_module_id = module.id
     travel_institutional_id_filter: Optional[str] = None
@@ -357,12 +358,12 @@ async def get_stats_by_class(
     report, module = await resolve_report_module(
         carbon_report_id, module_id, db, current_user
     )
-    await check_module_permission_for_unit(
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=report.unit_id,
+        report=report,
     )
 
     stats = await DataEntryEmissionService(db).get_travel_stats_by_class(
@@ -421,12 +422,12 @@ async def get_top_class_breakdown(
         carbon_report_id, module_id, db, current_user
     )
     year = report.year
-    await check_module_permission_for_unit(
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=report.unit_id,
+        report=report,
     )
 
     module_key = module_id.replace("-", "_")
@@ -617,12 +618,12 @@ async def get_professional_travel_trips_map(
     report, module = await resolve_report_module(
         carbon_report_id, "professional-travel", db, current_user
     )
-    await check_module_permission_for_unit(
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id="professional-travel",
         action="view",
         db=db,
-        unit_id=report.unit_id,
+        report=report,
     )
 
     # Use the train data_entry_type to drive the scoping helper — the helper
@@ -682,12 +683,12 @@ async def get_submodule(
     report, module = await resolve_report_module(
         carbon_report_id, module_id, db, current_user
     )
-    await check_module_permission_for_unit(
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=report.unit_id,
+        report=report,
     )
 
     logger.info(
@@ -778,12 +779,12 @@ async def check_unique(
     report, module = await resolve_report_module(
         carbon_report_id, module_id, db, current_user
     )
-    await check_module_permission_for_unit(
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=report.unit_id,
+        report=report,
     )
 
     submodule_key = submodule_id.replace("-", "_")
@@ -836,12 +837,12 @@ async def create(
     report, carbon_report_module = await resolve_report_module(
         carbon_report_id, module_id, db, current_user, action="edit"
     )
-    await check_module_permission_for_unit(
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="edit",
         db=db,
-        unit_id=report.unit_id,
+        report=report,
     )
 
     logger.info(
@@ -891,12 +892,12 @@ async def get(
     report, _module = await resolve_report_module(
         carbon_report_id, module_id, db, current_user
     )
-    await check_module_permission_for_unit(
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=report.unit_id,
+        report=report,
     )
 
     logger.info(
@@ -937,12 +938,12 @@ async def update(
     report, carbon_report_module = await resolve_report_module(
         carbon_report_id, module_id, db, current_user, action="edit"
     )
-    await check_module_permission_for_unit(
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="edit",
         db=db,
-        unit_id=report.unit_id,
+        report=report,
     )
 
     logger.info(
@@ -993,12 +994,12 @@ async def delete(
     report, carbon_report_module = await resolve_report_module(
         carbon_report_id, module_id, db, current_user, action="edit"
     )
-    await check_module_permission_for_unit(
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="edit",
         db=db,
-        unit_id=report.unit_id,
+        report=report,
     )
 
     if current_user.id is None:
