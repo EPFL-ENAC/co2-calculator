@@ -12,6 +12,9 @@ from app.services.data_ingestion.api_providers.headcount_members_api_provider im
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
     ProfessionalTravelApiProvider,
 )
+from app.services.data_ingestion.api_providers.research_facilities_api_provider import (
+    ResearchFacilitiesApiProvider,
+)
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.computed_providers.research_facilities_animal import (
     ResearchFacilitiesAnimalFactorUpdateProvider,
@@ -101,6 +104,12 @@ class ProviderFactory:
             TargetType.DATA_ENTRIES,
             EntityType.MODULE_PER_YEAR,
         ): HeadcountMembersApiProvider,
+        (
+            ModuleTypeEnum.research_facilities,
+            IngestionMethod.api,
+            TargetType.DATA_ENTRIES,
+            EntityType.MODULE_PER_YEAR,
+        ): ResearchFacilitiesApiProvider,
     }
 
     # WHAT IS THAT?
