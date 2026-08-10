@@ -1,7 +1,5 @@
 """Carbon project repository for simulator plan database operations."""
 
-from typing import Optional
-
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -52,14 +50,11 @@ class CarbonProjectRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
-    async def get_plan_by_name(
-        self, unit_id: int, name: str
+    async def get_plan_with_creator(
+        self, plan_id: int
     ) -> tuple[CarbonProject, str | None] | None:
-        """Get a plan project by unit and name, with the creator name."""
-        statement = self._plan_with_creator_stmt().where(
-            CarbonProject.unit_id == unit_id,
-            CarbonProject.name == name,
-        )
+        """Get a plan project by ID, with the creator name."""
+        statement = self._plan_with_creator_stmt().where(CarbonProject.id == plan_id)
         result = await self.session.execute(statement)
         row = result.first()
         if row is None:
@@ -103,7 +98,7 @@ class CarbonProjectRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
-    async def get_latest_calculator_year(self, unit_id: int) -> Optional[int]:
+    async def get_latest_calculator_year(self, unit_id: int) -> int | None:
         """Year of the unit's most recent Calculator report, or None.
 
         The default factor year of plan years without a reference year.

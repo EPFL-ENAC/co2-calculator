@@ -28,8 +28,8 @@ router = APIRouter()
 
 
 def _with_can_manage(
-    current_user: User, plans: List[SimulatorPlanRead]
-) -> List[SimulatorPlanRead]:
+    current_user: User, plans: list[SimulatorPlanRead]
+) -> list[SimulatorPlanRead]:
     """Stamp the caller's delete rights onto plan payloads for the frontend."""
     for plan in plans:
         plan.can_manage = plan_can_manage(current_user, plan)

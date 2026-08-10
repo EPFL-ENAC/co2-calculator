@@ -6,7 +6,6 @@ Provides append-only versioning with hash chain integrity for any entity type.
 import hashlib
 import json
 from datetime import UTC, datetime
-from sqlite3 import IntegrityError
 from typing import Any
 
 from fastapi import BackgroundTasks

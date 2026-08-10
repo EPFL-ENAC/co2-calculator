@@ -54,7 +54,7 @@ def _to_read(
     project: CarbonProject,
     creator_name: str | None,
     total_tonnes_co2eq: float | None = None,
-    default_factor_year: Optional[int] = None,
+    default_factor_year: int | None = None,
 ) -> SimulatorPlanRead:
     if project.id is None:
         raise ValueError("project must be persisted before use")
@@ -119,11 +119,9 @@ class SimulatorPlanService:
             for plan_id, stats_list in by_plan.items()
         }
 
-    async def get_plan_by_name(
-        self, unit_id: int, name: str
-    ) -> SimulatorPlanRead | None:
-        """Get a plan by unit and name, or None."""
-        row = await self.repo.get_plan_by_name(unit_id, name)
+    async def get_plan(self, plan_id: int) -> SimulatorPlanRead | None:
+        """Get a plan by ID, or None."""
+        row = await self.repo.get_plan_with_creator(plan_id)
         if row is None:
             return None
         project, creator_name = row
@@ -207,9 +205,9 @@ class SimulatorPlanService:
     async def _sync_year_reports(
         self,
         project: CarbonProject,
-        default_reference_year: Optional[int] = None,
+        default_reference_year: int | None = None,
         *,
-        with_year_sections: Optional[bool] = None,
+        with_year_sections: bool | None = None,
     ) -> None:
         """Make the plan's reports match ``start_year..end_year``, one per year.
 
@@ -269,7 +267,7 @@ class SimulatorPlanService:
         await self._sync_grant_report(project, grant_report)
 
     async def _sync_grant_report(
-        self, project: CarbonProject, grant_report: Optional[CarbonReport]
+        self, project: CarbonProject, grant_report: CarbonReport | None
     ) -> None:
         """Make the plan's Project Grant report match ``is_grant_proposal``.
 
@@ -290,7 +288,7 @@ class SimulatorPlanService:
             await self.report_service.create(
                 CarbonReportCreate(
                     unit_id=project.unit_id,
-                    year=project.start_year or datetime.now(timezone.utc).year,
+                    year=project.start_year or datetime.now(UTC).year,
                     carbon_project_id=project.id,
                     is_grant=True,
                 )
@@ -300,9 +298,7 @@ class SimulatorPlanService:
             self.session.add(grant_report)
             await self.session.flush()
 
-    async def list_plan_years(
-        self, plan_id: int
-    ) -> Optional[list[SimulatorPlanYearRead]]:
+    async def list_plan_years(self, plan_id: int) -> list[SimulatorPlanYearRead] | None:
         """List the plan's per-year reports with their modules, by year.
 
         Returns None when the plan does not exist (vs. [] for a plan whose
@@ -322,10 +318,10 @@ class SimulatorPlanService:
         self,
         plan_id: int,
         year: int,
-        reference_year: Optional[int],
+        reference_year: int | None,
         *,
         is_grant: bool = False,
-    ) -> Optional[SimulatorPlanYearRead]:
+    ) -> SimulatorPlanYearRead | None:
         """Set or remove the baseline year of one plan-year report; None if missing.
 
         ``is_grant`` targets the Project Grant report, which shares its year
@@ -511,7 +507,7 @@ class SimulatorPlanService:
         self,
         report: CarbonReport | CarbonReportRead,
         *,
-        ref_report: Optional[CarbonReport] = None,
+        ref_report: CarbonReport | None = None,
     ) -> int:
         """Rebuild the plan's headcount grid from the reference-year members.
 

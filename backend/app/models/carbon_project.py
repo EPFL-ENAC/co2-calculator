@@ -41,7 +41,7 @@ class CarbonProjectBase(SQLModel):
             " (a dedicated grant carbon report) in addition to its year reports"
         ),
     )
-    created_by: Optional[int] = Field(
+    created_by: int | None = Field(
         default=None,
         foreign_key="users.id",
         nullable=True,

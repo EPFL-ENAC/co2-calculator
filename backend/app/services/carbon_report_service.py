@@ -210,7 +210,7 @@ class CarbonReportService:
         carbon_report_id: int,
         budget: float | None,
         budget_currency: str | None,
-    ) -> Optional[CarbonReportRead]:
+    ) -> CarbonReportRead | None:
         """Set a Project Grant report's total budget (#1978); None if missing."""
         report = await self.repo.get(carbon_report_id)
         if report is None:

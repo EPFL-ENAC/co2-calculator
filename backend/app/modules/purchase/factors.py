@@ -33,11 +33,13 @@ class PurchaseCentralizedFactorCreate(FactorCreate):
 
 class PurchaseCentralizedFactorUpdate(FactorUpdate):
     name: str | None = None
+    unit: str | None = None
+    coef_to_kg: float | None = None
     ef_kg_co2eq_per_kg: float | None = None
 
     @field_validator("coef_to_kg", "ef_kg_co2eq_per_kg", mode="after")
     @classmethod
-    def validate_ef(cls, v: float | None) -> float | None:
+    def validate_non_negative(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0:

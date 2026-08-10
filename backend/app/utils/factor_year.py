@@ -1,7 +1,5 @@
 """Factor-year resolution shared by emission computation paths."""
 
-from typing import Optional
-
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_project import CarbonProject
@@ -11,7 +9,7 @@ from app.repositories.carbon_project_repo import CarbonProjectRepository
 
 async def resolve_factor_year(
     session: AsyncSession, report: CarbonReport
-) -> Optional[int]:
+) -> int | None:
     """Return the year whose factors apply to ``report``'s entries.
 
     The reference year wins: Simulator Plan reports source all factors from

@@ -263,7 +263,8 @@ class TestSimulatorReportGate:
     """#1988: reports of a simulator project (Explore/Plan) drop the module
     gate to unit membership; Calculator reports keep the strict per-module
     gate. Exercised through the real policy chain on the check-unique route,
-    which a std user's form calls for modules they hold no permission on."""
+    which a std user's form calls for modules they hold no permission on.
+    """
 
     def test_std_on_calculator_report_denied(self, client, monkeypatch):
         user = _user("11111", [_std(UNIT_IID)])

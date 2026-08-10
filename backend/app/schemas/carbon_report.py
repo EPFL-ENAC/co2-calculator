@@ -11,10 +11,10 @@ class CarbonReportBase(BaseModel):
     year: int
     reference_year: int | None = None
     unit_id: int
-    is_grant: bool = False
-    budget_currency: Optional[str] = None
-    budget: Optional[float] = None
     carbon_project_id: int | None = None
+    is_grant: bool = False
+    budget: float | None = None
+    budget_currency: str | None = None
 
 
 class CarbonReportCreate(CarbonReportBase):
@@ -68,7 +68,7 @@ class CarbonReportModuleRead(BaseModel):
     module_type_id: int
     status: int
     is_active: bool = True
-    budgets: Optional[dict[str, float]] = None
+    budgets: dict[str, float] | None = None
     stats: dict | None = None
 
     class Config:
@@ -99,8 +99,8 @@ class CarbonReportBudgetUpdate(BaseModel):
     currency set; like purchase entries it is not validated server-side.
     """
 
-    budget: Optional[float] = Field(default=None, ge=0)
-    budget_currency: Optional[str] = Field(default=None, min_length=3, max_length=8)
+    budget: float | None = Field(default=None, ge=0)
+    budget_currency: str | None = Field(default=None, min_length=3, max_length=8)
 
 
 class CarbonReportReferencePercentageUpdate(BaseModel):
@@ -116,4 +116,4 @@ class CarbonReportSubmoduleBudgetUpdate(BaseModel):
     """
 
     submodule: str = Field(min_length=1, max_length=100)
-    budget: Optional[float] = Field(default=None, ge=0)
+    budget: float | None = Field(default=None, ge=0)

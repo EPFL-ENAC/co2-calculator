@@ -360,7 +360,7 @@ class CarbonReportModuleService:
 
     async def set_reference_percentage_all(
         self, carbon_report_id: int, module_type_id: int, percentage: float
-    ) -> Optional[int]:
+    ) -> int | None:
         """Set the reference percentage of every snapshot entry of a module.
 
         Backs the grant equipment "global percentage" mode (#1981): one value
@@ -402,7 +402,7 @@ class CarbonReportModuleService:
         module_type_id: int,
         submodule: str,
         budget: float | None,
-    ) -> Optional[CarbonReportModuleRead]:
+    ) -> CarbonReportModuleRead | None:
         """Set a grant submodule's share of the budget (#1978)."""
         logger.info(
             f"Setting report {sanitize(carbon_report_id)} module "

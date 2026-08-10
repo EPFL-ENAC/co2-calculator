@@ -47,14 +47,14 @@ class SimulatorPlanUpdate(BaseModel):
     plan must then be a grant proposal); ``True`` (re)creates them.
     """
 
-    is_grant_proposal: Optional[bool] = None
-    default_reference_year: Optional[int] = Field(default=None, ge=1000, le=9999)
-    with_year_sections: Optional[bool] = None
-    """Reference year for year reports newly created by this range change.
     name: str | None = Field(default=None, min_length=1, max_length=100)
     start_year: int | None = Field(default=None, ge=1000, le=9999)
     end_year: int | None = Field(default=None, ge=1000, le=9999)
     is_viewable_by_unit_members: bool | None = None
+    is_grant_proposal: bool | None = None
+    with_year_sections: bool | None = None
+    default_reference_year: int | None = Field(default=None, ge=1000, le=9999)
+    """Reference year for year reports newly created by this range change.
 
     The workspace year the planner was opened from. Applied (with the usual
     prefill) only to reports the sync creates; existing reports keep theirs.
@@ -78,7 +78,7 @@ class SimulatorPlanReferenceYearUpdate(BaseModel):
     sharing its year (the grant report is anchored to the plan's start year).
     """
 
-    reference_year: Optional[int] = Field(default=None, ge=1000, le=9999)
+    reference_year: int | None = Field(default=None, ge=1000, le=9999)
     is_grant: bool = False
 
 
@@ -92,11 +92,12 @@ class SimulatorPlanRead(BaseModel):
     end_year: int | None = None
     is_viewable_by_unit_members: bool = False
     is_grant_proposal: bool = False
-    default_factor_year: Optional[int] = None
+    default_factor_year: int | None = None
     created_by: int | None = None
     created_at: datetime | None = None
     creator_name: str | None = None
     total_tonnes_co2eq: float | None = None
+    can_manage: bool = False
 
     class Config:
         from_attributes = True
@@ -107,10 +108,10 @@ class SimulatorPlanYearRead(BaseModel):
 
     id: int
     year: int
-    is_grant: bool = False
-    budget: Optional[float] = None
-    budget_currency: Optional[str] = None
     reference_year: int | None = None
+    is_grant: bool = False
+    budget: float | None = None
+    budget_currency: str | None = None
     stats: dict | None = None
     modules: list[CarbonReportModuleRead] = []
 

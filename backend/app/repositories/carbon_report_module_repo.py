@@ -230,7 +230,7 @@ class CarbonReportModuleRepository:
         module_type_id: int,
         submodule: str,
         budget: float | None,
-    ) -> Optional[CarbonReportModule]:
+    ) -> CarbonReportModule | None:
         """Set a grant submodule's share of the budget (#1978).
 
         A null ``budget`` removes the submodule's entry. The dict is

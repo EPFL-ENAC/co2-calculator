@@ -51,7 +51,7 @@ class CarbonReportBase(SQLModel):
             " (anchored to the plan's start year), as opposed to a year report"
         ),
     )
-    budget: Optional[float] = Field(
+    budget: float | None = Field(
         default=None,
         nullable=True,
         description=(
@@ -59,7 +59,7 @@ class CarbonReportBase(SQLModel):
             " checked against the per-submodule budgets (#1978)"
         ),
     )
-    budget_currency: Optional[str] = Field(
+    budget_currency: str | None = Field(
         default=None,
         nullable=True,
         max_length=8,
@@ -154,7 +154,7 @@ class CarbonReportModuleBase(SQLModel):
             " always true for Calculator/Explore modules."
         ),
     )
-    budgets: Optional[dict] = Field(
+    budgets: dict | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
         description=(
