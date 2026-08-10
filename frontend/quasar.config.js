@@ -6,7 +6,7 @@
 // Configuration for your app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js
 
-import { defineConfig } from '#q-app/wrappers';
+import { defineConfig } from '#q-app';
 // import { fileURLToPath } from 'node:url'
 
 import path from 'path';
@@ -16,7 +16,7 @@ import { execSync } from 'node:child_process';
 // Load .env.local into process.env for `quasar dev` / local `quasar build`.
 // Quasar doesn't auto-load .env files into the Node-side config (Vite only
 // exposes VITE_ prefixed vars on the client). This loader makes APP_*
-// variables from .env.local available to build.env below, so devs can put
+// variables from .env.local available to build.defineEnv below, so devs can put
 // their Sentry DSN etc. in a gitignored file instead of shell-exporting
 // every time. Lines like KEY=value (with optional quotes); `#` comments OK.
 (() => {
@@ -111,7 +111,7 @@ export default defineConfig(function () {
 
       publicPath: '/',
       // analyze: true,
-      env: {
+      defineEnv: {
         // Bundle identity (baked into runtime as process.env.APP_VERSION /
         // APP_BUILD_TIME). Sentry release tag keys off APP_VERSION.
         APP_VERSION,
@@ -140,7 +140,7 @@ export default defineConfig(function () {
         APP_EQUIPMENT_POWER_FEEDBACK_EMAIL:
           process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL || '',
       },
-      // rawDefine: {}
+      // define: {}
       // ignorePublicFolder: true,
       minify: true,
       // Source maps disabled in production. Empirically, `sourcemap: true`
@@ -151,7 +151,6 @@ export default defineConfig(function () {
       // the bloat, switch to `'hidden'` (external .map next to .js, no
       // sourceMappingURL comment in the JS) and reinstate the upload step.
       sourcemap: false,
-      // polyfillModulePreload: true,
       // distDir
       sassVariables: 'src/css/quasar.variables.scss',
       // viteVuePluginOptions: {},
@@ -263,8 +262,8 @@ export default defineConfig(function () {
       // ssrPwaHtmlFilename: 'offline.html', // do NOT use index.html as name!
       // will mess up SSR
 
-      // extendSSRWebserverConf (esbuildConf) {},
-      // extendPackageJson (json) {},
+      // extendSSRWebserverConf (rolldownConf) {},
+      // extendSSRPackageJson (json) {},
 
       pwa: false,
 
@@ -282,15 +281,15 @@ export default defineConfig(function () {
     // https://v2.quasar.dev/quasar-cli-vite/developing-pwa/configuring-pwa
     pwa: {
       workboxMode: 'generateSW', // or 'injectManifest'
-      injectPwaMetaTags: true,
+      injectPWAMetaTags: true,
       swFilename: 'sw.js',
       manifestFilename: 'manifest.json',
       useCredentialsForManifestTag: false,
       // useFilenameHashes: true,
-      // extendGenerateSWOptions (cfg) {}
-      // extendInjectManifestOptions (cfg) {},
-      // extendManifestJson (json) {}
-      // extendPWACustomSWConf (esbuildConf) {}
+      // extendPWAGenerateSWOptions (cfg) {}
+      // extendPWAInjectManifestOptions (cfg) {},
+      // extendPWAManifestJson (json) {}
+      // extendPWACustomSWConf (rolldownConf) {}
     },
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-cordova-apps/configuring-cordova
