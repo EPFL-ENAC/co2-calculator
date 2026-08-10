@@ -63,7 +63,13 @@
           </q-expansion-item>
         </template>
       </q-card>
-      <q-card flat bordered>
+      <q-skeleton
+        v-if="!breakdownReady"
+        type="rect"
+        height="200px"
+        class="full-width"
+      />
+      <q-card v-else flat bordered>
         <div class="q-pt-lg q-px-lg">
           <h2 class="text-h3 text-weight-medium">
             {{ $t('simulation_explore_page_results_title') }}
@@ -193,6 +199,9 @@ const defaultThreshold: Threshold = {
 
 const mountPrimaryCharts = ref(false);
 const simulatorReady = ref(false);
+// Gates the results card: until the Explorer's own breakdown is fetched, the
+// shared store still holds the Calculator's data from the workspace guard.
+const breakdownReady = ref(false);
 
 const modules = computed(() => getExploreModules(yearConfigStore.getModule));
 
@@ -253,8 +262,8 @@ onMounted(async () => {
     // so that module table requests don't 404 before the record is created.
     simulatorReady.value = true;
   }
-  await prefetchSubmoduleCounts();
-  await fetchEmissionBreakdown();
+  await Promise.all([prefetchSubmoduleCounts(), fetchEmissionBreakdown()]);
+  breakdownReady.value = true;
 });
 </script>
 

@@ -16,6 +16,10 @@ import {
 } from 'src/stores/yearConfig';
 import { resolveLanguage } from 'src/utils/language';
 import {
+  CARBON_PROJECT,
+  resolveCarbonProject,
+} from 'src/constant/carbon-project';
+import {
   DEFAULT_ROUTE_NAME,
   WORKSPACE_ROUTE_NAME,
 } from 'src/router/routeNames';
@@ -146,9 +150,18 @@ export default async function workspaceGuard(
   // Nothing workspace-relevant changed (e.g. only :module or :language moved) —
   // skip the reload. On first entry `from` has no unit/year, so this differs
   // and the loader runs.
+  //
+  // Leaving a Simulator page (Explorer/Planner) for a Calculator route counts
+  // as a change even on the same unit/year: those pages repoint
+  // `selectedCarbonReport` and the emission breakdown at their own report, and
+  // Calculator pages render straight from the stores without fetching.
+  const returningToCalculator =
+    resolveCarbonProject(to.meta) === CARBON_PROJECT.calculator &&
+    resolveCarbonProject(from.meta) !== CARBON_PROJECT.calculator;
   if (
     to.params.unit === from.params.unit &&
-    to.params.year === from.params.year
+    to.params.year === from.params.year &&
+    !returningToCalculator
   ) {
     return true;
   }
