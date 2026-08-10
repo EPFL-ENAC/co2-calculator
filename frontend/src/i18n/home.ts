@@ -234,7 +234,7 @@ export default {
   },
   planner_table_creator: {
     en: 'Creator',
-    fr: 'Créateur',
+    fr: 'Créateur·rice',
   },
   planner_table_action: {
     en: 'Action',
