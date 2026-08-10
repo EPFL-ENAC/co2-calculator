@@ -589,8 +589,8 @@ export default {
   //   Research Facilities → Commuting → Food → Waste → Embodied Energy
 
   'results-reduction-title': {
-    en: 'This section presents two graphs. The first illustrates the reference "net zero" trajectory for EPFL, aligned with the CO₂ emission reduction targets set by the Swiss Confederation and the Climate Act. The second allows you to simulate the evolution of your unit\'s emissions and adjust each category in order to converge towards this reference trajectory.',
-    fr: "Cette section présente deux graphiques. Le premier illustre la trajectoire « net zéro » de référence pour l'EPFL, alignée sur les objectifs de réduction des émissions de CO₂ fixés par la Confédération et la Loi Climat. Le second vous permet de simuler l'évolution des émissions de votre unité et d'ajuster chaque catégorie afin de converger vers cette trajectoire de référence.",
+    en: 'This section presents two graphs. The first allows you to simulate the evolution of your unit emissions and adjust each category in order to converge towards the net zero trajectory. The second illustrates the reference net zero trajectory for EPFL, aligned with the CO₂ emission reduction targets set by the Swiss Confederation and the Climate Act.',
+    fr: "Cette section présente deux graphiques. Le premier vous permet de simuler l'évolution des émissions de votre unité et d'ajuster chaque catégorie afin de converger vers la trajectoire net zéro. Le deuxième illustre la trajectoire net zéro de référence pour l'EPFL, alignée sur les objectifs de réduction des émissions de CO₂ fixés par la Confédération et la Loi Climat.",
   },
   'results-reduction-process_emissions': { en: '', fr: '' },
   'results-reduction-buildings_energy_combustion': { en: '', fr: '' },
