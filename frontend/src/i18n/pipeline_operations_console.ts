@@ -133,6 +133,19 @@ export default {
     fr: '{n} entrées',
   },
 
+  pipeops_factor_errors_count: {
+    en: '{n} factors could not be recomputed',
+    fr: "{n} facteurs n'ont pas pu être recalculés",
+  },
+  pipeops_factor_errors_title: {
+    en: 'Errors ({n})',
+    fr: 'Erreurs ({n})',
+  },
+  pipeops_factor_errors_show_all: {
+    en: 'Show all',
+    fr: 'Tout afficher',
+  },
+
   pipeops_orphan_tag: { en: '(no pipeline)', fr: '(sans pipeline)' },
 
   // "Type" column — pipeline scope (entity_type).
