@@ -212,7 +212,10 @@
               :dropdown-icon="col.type === 'select' ? 'expand_more' : undefined"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
-              @blur="commitInline(slotProps.row, col)"
+              @blur="col.type !== 'select' && commitInline(slotProps.row, col)"
+              @update:model-value="
+                col.type === 'select' && commitInline(slotProps.row, col)
+              "
             >
               <template v-if="col.type !== 'select'" #append>
                 <q-icon
