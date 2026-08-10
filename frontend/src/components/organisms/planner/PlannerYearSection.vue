@@ -133,12 +133,15 @@
             <!-- Headcount is a fixed SIUS-category grid and Purchases a
                    global-budget XOR per-category grid, not add-row tables
                    (design). Other modules reuse the Calculator tables. -->
-            <planner-headcount-rows
-              v-if="entry.config.module === MODULES.Headcount"
-              :key="`headcount-${yearData.reference_year}`"
-              :carbon-report-id="yearData.id"
-              :disable="entry.module?.is_active === false"
-            />
+            <template v-if="entry.config.module === MODULES.Headcount">
+              <p class="text-body2 text-grey-7 q-px-md q-pt-md q-mb-md">
+                {{ $t('simulation_headcount_fte_hint') }}
+              </p>
+              <planner-headcount-rows
+                :carbon-report-id="yearData.id"
+                :disable="entry.module?.is_active === false"
+              />
+            </template>
             <planner-purchase-rows
               v-else-if="entry.config.module === MODULES.Purchase"
               :key="factorScopedKey(entry.config.module)"

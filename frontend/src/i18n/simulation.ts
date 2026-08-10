@@ -3,6 +3,10 @@ export default {
     en: 'Could not save the headcount value',
     fr: "Impossible d'enregistrer la valeur d'effectif",
   },
+  simulation_headcount_fte_hint: {
+    en: 'Total number of FTEs is used to generate the indicators for the additional categories (Food, Commuting, and Waste).',
+    fr: "Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets).",
+  },
   documentation_editing_rows_simulation_topic: {
     en: 'Simulation',
     fr: 'Simulation',

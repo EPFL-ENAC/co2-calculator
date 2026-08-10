@@ -39,6 +39,12 @@
             <q-separator />
 
             <div class="q-px-lg q-py-md">
+              <p
+                v-if="m.type === MODULES.Headcount"
+                class="text-body2 text-grey-7 q-mb-md"
+              >
+                {{ $t('simulation_headcount_fte_hint') }}
+              </p>
               <div
                 v-for="(sub, subIdx) in m.submodules"
                 :key="`${m.type}-${sub.id}`"
@@ -129,7 +135,11 @@ import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
-import { MODULES_THRESHOLD_TYPES, type Threshold } from 'src/constant/modules';
+import {
+  MODULES,
+  MODULES_THRESHOLD_TYPES,
+  type Threshold,
+} from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
