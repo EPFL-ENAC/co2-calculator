@@ -1,5 +1,46 @@
 # [1.3.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.0.7...v1.3.0) (2026-08-10)
 
+## Key Changes
+
+The headline feature is **Grant proposal mode** for the Simulator/Planner
+(#1976): a plan can now carry a dedicated Project Grant section alongside
+its normal year-by-year sections, purpose-built for writing carbon numbers
+into a grant application.
+
+**Grant proposal mode**
+
+* Checking "Grant proposal" on a plan adds a Project Grant report, rendered
+  before the year sections, that shares the plan's module list but totals
+  emissions over the whole project instead of per year — every table gains
+  a "kgCO₂eq over N years" column alongside the per-year figure (#1979).
+* The section carries a total budget with a currency, and a per-submodule
+  budget on each module, with a live "X of Y distributed, Z remaining"
+  check against overspend (#1978).
+* Research Facilities gets its own grant-mode UI: search and add any
+  platform from the workspace's factor list rather than the standard
+  prefilled table (#1980).
+* Equipment gets a planning-mode toggle — set a reference-year percentage
+  per line, or one global percentage applied to every prefilled line at
+  once (#1981).
+* Results add a Project Grant vs. year-by-year comparison chart, and the
+  PDF export gains a Project Grant summary page after the cover (#1977,
+  first cut — per-module PDF detail pages are deferred).
+
+**Permission model**
+
+* Module permission checks (#1988) now resolve against the report being
+  acted on, not just the owning unit, closing gaps where a unit-level grant
+  would wrongly authorize an action against a specific report.
+
+**Other**
+
+* Purchase factors gained a unit and a kg-conversion coefficient (#1935),
+  Headcount shows an FTE hint (#1999), and the planner now defaults a
+  report's reference year automatically (#1922).
+* CI's Playwright image moved to v1.62.1, and the npm supply-chain cooldown
+  policy dropped from 7 to 3 days.
+
+See the full commit-by-commit list below.
 
 ### Bug Fixes
 
