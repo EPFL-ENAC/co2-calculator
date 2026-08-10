@@ -288,9 +288,6 @@ async def update_carbon_report_module_active(
 
     unit = await db.get(Unit, report.unit_id)
     require_unit_access(current_user, unit)
-    # Plan modules are creator/global-only to edit; shared plans are
-    # read-only for other unit members (same scoping as every other plan
-    # write path).
     await require_plan_scope_for_report(db, current_user, report, "edit")
 
     module_service = CarbonReportModuleService(db)

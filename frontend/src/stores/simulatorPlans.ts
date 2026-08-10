@@ -19,6 +19,7 @@ export interface SimulatorPlan {
   created_at: string | null;
   creator_name: string | null;
   total_tonnes_co2eq: number | null;
+  can_manage: boolean;
 }
 
 export interface SimulatorPlanModule {

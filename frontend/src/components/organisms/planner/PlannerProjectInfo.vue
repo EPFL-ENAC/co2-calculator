@@ -236,6 +236,9 @@ async function saveIfDirty(field: 'name' | 'is_viewable_by_unit_members') {
   saving.value = true;
   try {
     emit('updated', await plansStore.updatePlan(props.plan.id, payload));
+  } catch {
+    nameInput.value = props.plan.name;
+    shareWithLab.value = props.plan.is_viewable_by_unit_members;
   } finally {
     saving.value = false;
   }
