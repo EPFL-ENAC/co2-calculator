@@ -124,7 +124,7 @@ async def test_miss_returns_none():
 
 @pytest.mark.asyncio
 async def test_duplicate_kind_subkind_first_row_wins():
-    """setdefault semantics: two factors share (kind, subkind) → first wins."""
+    """Setdefault semantics: two factors share (kind, subkind) → first wins."""
     factors = [
         _factor(
             1,
@@ -260,7 +260,8 @@ async def test_override_ambiguous_raises_value_error():
 @pytest.mark.asyncio
 async def test_override_code_miss_falls_back_to_kind_average():
     """Code set on entry but absent from factors → fall through to the
-    kind-only average row."""
+    kind-only average row.
+    """
     factors = [
         _factor(10, OVERRIDE_DET, 2025, {_KIND: "FOOD", _OVERRIDE: "FR-001"}),
         _factor(20, OVERRIDE_DET, 2025, {_KIND: "FOOD"}),
@@ -279,7 +280,8 @@ async def test_override_code_miss_falls_back_to_kind_average():
 @pytest.mark.asyncio
 async def test_kind_fallback_requires_single_average_row():
     """No override code on the entry: a single average row for the kind
-    wins; two average rows sharing a kind are ambiguous."""
+    wins; two average rows sharing a kind are ambiguous.
+    """
     single_average = [
         _factor(10, OVERRIDE_DET, 2025, {_KIND: "FOOD", _OVERRIDE: "FR-001"}),
         _factor(20, OVERRIDE_DET, 2025, {_KIND: "FOOD"}),
@@ -307,7 +309,8 @@ async def test_kind_fallback_requires_single_average_row():
 async def test_override_no_code_single_factor_that_carries_code():
     """Single factor row for the kind even though it has an override code is
     authoritative — mirrors _resolve_with_kind_override's 'len(factors)==1'
-    rule (the averages-only filter alone would find zero rows and raise)."""
+    rule (the averages-only filter alone would find zero rows and raise).
+    """
     factors = [
         _factor(10, OVERRIDE_DET, 2025, {_KIND: "FOOD", _OVERRIDE: "FR-001"}),
     ]
@@ -354,7 +357,8 @@ async def test_kind_value_missing_short_circuits_without_bulk_load():
     """A handler with a kind_field but no kind value on the entry resolves
     to None BEFORE the bulk factor load — callers need no gate of their
     own (Strategy-B entries derive the kind at compute time, so it is
-    absent from entry.data on every list/enrichment path)."""
+    absent from entry.data on every list/enrichment path).
+    """
     repo_mock = AsyncMock()
     with patch(
         "app.services.factor_resolver.FactorRepository.list_by_data_entry_type",

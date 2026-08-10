@@ -247,7 +247,6 @@ async def seed_all_factors(session: AsyncSession, year: int = DEFAULT_YEAR) -> N
 
 async def main(years: Iterable[int] = (DEFAULT_YEAR,)) -> None:
     """Main seed function."""
-
     async with SessionLocal() as session:
         for year in years:
             await seed_all_factors(session, year)

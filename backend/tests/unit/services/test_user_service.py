@@ -568,7 +568,8 @@ class TestUpsertUserSync:
         self, db_session
     ):
         """upsert_user resolves institutional_ids to unit.ids
-        and creates associations."""
+        and creates associations.
+        """
         unit_a = _make_unit("CF_A", "CODE_A")
         db_session.add(unit_a)
         await db_session.flush()

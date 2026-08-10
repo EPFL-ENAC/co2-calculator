@@ -233,7 +233,8 @@ def test_plane_create_dto_rejects_invalid_cabin_class():
 
 def test_plane_create_dto_rejects_eco_cabin_class():
     """'eco' (old abbreviation) is not accepted — the backend expects 'economy'.
-    The frontend option value must be 'economy', not 'eco'."""
+    The frontend option value must be 'economy', not 'eco'.
+    """
     with pytest.raises(ValidationError):
         ProfessionalTravelPlaneHandlerCreate(
             data_entry_type_id=DataEntryTypeEnum.plane.value,
@@ -278,7 +279,8 @@ async def test_plane_entry_persisted_with_institutional_id_from_dropdown(
     db_session: AsyncSession,
 ):
     """A plane DataEntry seeded with user_institutional_id from the dropdown
-    is retrievable via the submodule listing."""
+    is retrievable via the submodule listing.
+    """
     from app.repositories.data_entry_repo import DataEntryRepository
 
     hc_module, travel_module = await _seed_report_and_modules(db_session)
@@ -388,7 +390,8 @@ def test_train_create_dto_accepts_row_country_code():
 
 def test_train_create_dto_stores_country_code_verbatim():
     """DataEntryCreate does not validate country_code format — it is stored
-    verbatim and validated downstream by the factor lookup / emission engine."""
+    verbatim and validated downstream by the factor lookup / emission engine.
+    """
     dto = ProfessionalTravelTrainHandlerCreate(
         data_entry_type_id=DataEntryTypeEnum.train.value,
         carbon_report_module_id=1,
@@ -424,7 +427,8 @@ async def test_train_entry_persisted_with_institutional_id_and_country_codes(
     db_session: AsyncSession,
 ):
     """A train DataEntry with user_institutional_id from the dropdown and both
-    country codes is stored correctly and retrievable."""
+    country codes is stored correctly and retrievable.
+    """
     from app.repositories.data_entry_repo import DataEntryRepository
 
     hc_module, travel_module = await _seed_report_and_modules(db_session)
@@ -475,7 +479,8 @@ async def test_dropdown_iid_matches_travel_entry_iid(
 ):
     """The institutional_id returned by the dropdown matches the
     user_institutional_id stored in the travel entry — verifying the end-to-end
-    linking between headcount and travel modules."""
+    linking between headcount and travel modules.
+    """
     hc_module, travel_module = await _seed_report_and_modules(db_session)
     await _seed_member(
         db_session, hc_module.id, institutional_id="33333", name="Charlie"
@@ -534,7 +539,8 @@ async def test_dropdown_iid_matches_travel_entry_iid(
 
 def test_plane_patch_validate_update_with_slash_date():
     """Plane PATCH with a slash-formatted departure_date from existing data must
-    not raise a ValidationError (regression for missing DepartureDateMixin)."""
+    not raise a ValidationError (regression for missing DepartureDateMixin).
+    """
     existing_data = {
         "user_institutional_id": "12345",
         "origin_iata": "GVA",
@@ -559,7 +565,8 @@ def test_plane_patch_validate_update_with_slash_date():
 
 def test_train_patch_validate_update_with_slash_date():
     """Train PATCH with a slash-formatted departure_date from existing data must
-    not raise a ValidationError (regression for missing DepartureDateMixin)."""
+    not raise a ValidationError (regression for missing DepartureDateMixin).
+    """
     existing_data = {
         "user_institutional_id": "12345",
         "origin_name": "Geneva",
@@ -588,7 +595,8 @@ def test_train_patch_validate_update_with_slash_date():
 
 def test_plane_patch_validate_update_no_departure_date():
     """Plane PATCH with no departure_date in the PATCH payload (number_of_trips only)
-    and no departure_date in existing data succeeds without a date error."""
+    and no departure_date in existing data succeeds without a date error.
+    """
     existing_data = {
         "user_institutional_id": "12345",
         "origin_iata": "GVA",
@@ -610,7 +618,8 @@ def test_plane_patch_validate_update_no_departure_date():
 
 def test_plane_patch_produces_valid_data_entry_update():
     """Full PATCH pipeline: validate_update → model_dump → DataEntryUpdate
-    succeeds and the final data dict contains the updated number_of_trips."""
+    succeeds and the final data dict contains the updated number_of_trips.
+    """
     existing_data = {
         "user_institutional_id": "12345",
         "origin_iata": "GVA",

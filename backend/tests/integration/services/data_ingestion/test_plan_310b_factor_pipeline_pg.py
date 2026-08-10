@@ -109,7 +109,8 @@ async def test_upsert_factors_inserts_new_row_with_last_seen_job_id(pg_dsn):
 @pytest.mark.asyncio
 async def test_upsert_factors_updates_existing_row_preserving_id(pg_dsn):
     """Second upsert with same identity key: same id, values updated,
-    last_seen_job_id refreshed."""
+    last_seen_job_id refreshed.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

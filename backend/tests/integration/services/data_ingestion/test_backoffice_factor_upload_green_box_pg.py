@@ -29,7 +29,7 @@ model bug production's psycopg driver silently coerces around; out of
 scope here, see that file's comment for the full story).
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -67,7 +67,8 @@ POLL_INTERVAL_SECONDS = 0.1
 async def pg_app(pg_dsn, monkeypatch, tmp_path):
     """Wire the FastAPI app to the test Postgres + bypass auth + redirect
     file storage to ``tmp_path``. See module docstring for the
-    ``+psycopg`` driver rationale."""
+    ``+psycopg`` driver rationale.
+    """
     psycopg_dsn = pg_dsn.replace("+asyncpg", "+psycopg")
     engine = create_async_engine(psycopg_dsn, future=True)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -118,7 +119,7 @@ async def pg_app(pg_dsn, monkeypatch, tmp_path):
                 year=YEAR,
                 provider=UserProvider.DEFAULT,
                 is_started=False,
-                configuration_completed=datetime.now(timezone.utc),
+                configuration_completed=datetime.now(UTC),
                 config=generate_default_year_config(),
             )
         )
@@ -198,7 +199,8 @@ async def test_factor_csv_upload_dispatches_and_finishes_without_error(
 ):
     """Green-box condition: a valid factor CSV, uploaded and dispatched
     through the real API, runs through the real ``ModulePerYearFactorCSV
-    Provider`` and reaches FINISHED with a non-ERROR result."""
+    Provider`` and reaches FINISHED with a non-ERROR result.
+    """
     factory = pg_app["factory"]
     csv_path: Path = csv_fixture_path("purchases_common", "factors")
 
@@ -273,7 +275,8 @@ async def test_factor_csv_upload_flags_invalid_category_without_aborting_batch(
     py``). One bad row alongside good ones must be recorded as a row
     error and skipped — not silently accepted, and not fatal to the rest
     of the batch — pinning that the pipeline *dispatches* validation
-    failures correctly rather than either ignoring or over-rejecting them."""
+    failures correctly rather than either ignoring or over-rejecting them.
+    """
     factory = pg_app["factory"]
     csv_path: Path = csv_fixture_path("purchases_common", "factors")
     lines = csv_path.read_text().splitlines()

@@ -59,7 +59,8 @@ def mock_user():
 @pytest.fixture(autouse=True)
 def _allow_permissions():
     """Bypass the auth + permission gate; this suite tests download
-    semantics, not the perm path (covered by other suites)."""
+    semantics, not the perm path (covered by other suites).
+    """
     from app.api.deps import get_current_user
 
     fake = MagicMock(spec=User)
@@ -78,7 +79,8 @@ def _allow_permissions():
 
 def _patch_files_store(content: bytes, content_type: str | None):
     """Return a patch context that replaces ``files_store.get_file``
-    with an AsyncMock returning the given body + type."""
+    with an AsyncMock returning the given body + type.
+    """
     return patch.object(
         files_module.files_store,
         "get_file",
@@ -90,7 +92,8 @@ def test_download_sets_content_disposition_attachment_with_filename(client):
     """The load-bearing assertion: ?d=true MUST set
     Content-Disposition: attachment with the path's basename, so the
     browser saves the file with the right name regardless of its
-    ``<a download>`` quirks."""
+    ``<a download>`` quirks.
+    """
     csv_body = b"col1,col2\n1,2\n"
     with _patch_files_store(csv_body, "text/csv"):
         resp = client.get("/api/v1/files/processed/152/equipments_data.csv?d=true")
@@ -113,7 +116,8 @@ def test_inline_branch_omits_disposition_but_sets_content_type(client):
     this branch backs the image-preview use case where the browser
     renders the file inline.  But it MUST set Content-Type so
     browsers don't MIME-sniff a malformed CSV as HTML and run script
-    injection."""
+    injection.
+    """
     with _patch_files_store(b"\x89PNG fake", "image/png"):
         resp = client.get("/api/v1/files/processed/152/preview.png")
 
@@ -143,7 +147,8 @@ def test_download_encodes_non_ascii_filename(client):
     the RFC 5987 ``filename*`` form; the ASCII fallback gets ``?`` for
     non-representable chars (Python's ``encode('ascii', 'replace')``).
     Old clients that don't understand ``filename*`` still see a sane
-    string."""
+    string.
+    """
     with _patch_files_store(b"x", "text/csv"):
         resp = client.get("/api/v1/files/processed/152/équipements.csv?d=true")
 

@@ -198,7 +198,8 @@ def test_equipment_factor_invalid(payload: dict) -> None:
 
 def _compute_kg(entry_data: dict, factor_values: dict) -> float | None:
     """Run the equipment formula the way prepare_create does: ctx wins,
-    factor values are the live default for unset usage hours."""
+    factor values are the live default for unset usage hours.
+    """
     handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum.it)
     entry = SimpleNamespace(
         data_entry_type_id=DataEntryTypeEnum.it.value, data=entry_data
@@ -228,7 +229,8 @@ def test_equipment_formula_user_hours_win_over_factor_defaults() -> None:
 
 def test_equipment_formula_falls_back_to_factor_hours_when_unset() -> None:
     """Unset usage hours track the factor's current suggestion — nothing is
-    seeded into entry.data at ingest any more."""
+    seeded into entry.data at ingest any more.
+    """
     kg = _compute_kg(
         {},  # no hours on the entry
         {

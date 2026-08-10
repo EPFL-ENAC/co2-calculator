@@ -1,8 +1,8 @@
 """DataEntry service for business logic."""
 
 import json
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import BackgroundTasks
 from sqlmodel import col, select
@@ -44,7 +44,7 @@ class DataEntryService:
     def __init__(
         self,
         session: AsyncSession,
-        versioning_service: Optional[AuditDocumentService] = None,
+        versioning_service: AuditDocumentService | None = None,
     ):
         self.session = session
         self.repo = DataEntryRepository(session)
@@ -55,7 +55,7 @@ class DataEntryService:
         carbon_report_module_id: int,
         aggregate_by: str = "data_entry_type_id",
         aggregate_field: str = "fte",
-        data_entry_type_id: Optional[int] = None,
+        data_entry_type_id: int | None = None,
     ) -> dict[str, float | None]:
         """Get module statistics such as total items and submodules."""
         return await self.repo.get_stats(
@@ -70,7 +70,7 @@ class DataEntryService:
         carbon_report_module_id: int,
         uid: str,
         sius_code: str,
-        exclude_id: Optional[int] = None,
+        exclude_id: int | None = None,
     ) -> bool:
         """Check whether (user_institutional_id, sius_code) is unique.
 
@@ -90,7 +90,7 @@ class DataEntryService:
         data_entry_type_id: int,
         field: str,
         value: str,
-        exclude_id: Optional[int] = None,
+        exclude_id: int | None = None,
     ) -> bool:
         """Check whether a JSON data field value is unique within a submodule.
 
@@ -161,10 +161,10 @@ class DataEntryService:
         data_entry_type_id: int,
         user: UserRead,
         data: DataEntryCreate,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
-        source: Optional[int] = None,
-        created_by_id: Optional[int] = None,
+        request_context: dict | None = None,
+        background_tasks: BackgroundTasks | None = None,
+        source: int | None = None,
+        created_by_id: int | None = None,
     ) -> DataEntryResponse:
         logger.info(
             f"Creating data entry for module_id={sanitize(carbon_report_module_id)} "
@@ -224,15 +224,14 @@ class DataEntryService:
     async def bulk_create(
         self,
         data_entries: list[DataEntry],
-        user: Optional[UserRead] = None,
-        request_context: Optional[dict] = None,
-        job_id: Optional[str | int] = None,
-        source: Optional[int] = None,  # DataEntrySourceEnum value
-        created_by_id: Optional[int] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
+        user: UserRead | None = None,
+        request_context: dict | None = None,
+        job_id: str | int | None = None,
+        source: int | None = None,  # DataEntrySourceEnum value
+        created_by_id: int | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> list[DataEntryResponse]:
-        """
-        Bulk create data entries with optional source tracking.
+        """Bulk create data entries with optional source tracking.
 
         Args:
             data_entries: List of data entries to create
@@ -314,8 +313,8 @@ class DataEntryService:
         data_entries: list[DataEntry],
         *,
         job_id: str | int | None,
-        source: Optional[int] = None,
-        created_by_id: Optional[int] = None,
+        source: int | None = None,
+        created_by_id: int | None = None,
     ) -> int:
         """COPY-based bulk insert for the bulk ingest path.
 
@@ -338,9 +337,9 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
         data_entry_type_id: DataEntryTypeEnum,
-        user: Optional[UserRead] = None,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
+        user: UserRead | None = None,
+        request_context: dict | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> None:
         """Bulk delete data entries by module and type."""
         logger.info(
@@ -415,12 +414,11 @@ class DataEntryService:
         carbon_report_module_id: int,
         data_entry_type_id: DataEntryTypeEnum,
         source: int,  # DataEntrySourceEnum value
-        user: Optional[UserRead] = None,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
+        user: UserRead | None = None,
+        request_context: dict | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> None:
-        """
-        Delete entries matching source type with audit trail.
+        """Delete entries matching source type with audit trail.
 
         Args:
             carbon_report_module_id: The module to delete from
@@ -507,10 +505,10 @@ class DataEntryService:
         id: int,
         data: DataEntryUpdate,
         user: UserRead,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
-        source: Optional[int] = None,
-        created_by_id: Optional[int] = None,
+        request_context: dict | None = None,
+        background_tasks: BackgroundTasks | None = None,
+        source: int | None = None,
+        created_by_id: int | None = None,
     ) -> DataEntryResponse:
         """Update an existing record."""
         try:
@@ -571,8 +569,8 @@ class DataEntryService:
         self,
         id: int,
         current_user: UserRead,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
+        request_context: dict | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> bool:
         """Delete a record."""
         # Fetch entry before deletion to capture snapshot
@@ -629,7 +627,7 @@ class DataEntryService:
         offset: int = 0,
         sort_by: str = "id",
         sort_order: str = "asc",
-        filter: Optional[str] = None,
+        filter: str | None = None,
     ) -> list[DataEntryResponse]:
         """Get  record by carbon_report_module_id."""
         entries = await self.repo.get_list(
@@ -640,7 +638,7 @@ class DataEntryService:
     async def get_module_data(
         self,
         carbon_report_module_id: int,
-        travel_institutional_id_filter: Optional[str] = None,
+        travel_institutional_id_filter: str | None = None,
     ) -> ModuleResponse:
         data_entry_types_total_items = await self.repo.get_total_count_by_submodule(
             carbon_report_module_id=carbon_report_module_id,
@@ -662,7 +660,7 @@ class DataEntryService:
         # Create module response
         module_response = ModuleResponse(
             carbon_report_module_id=carbon_report_module_id,
-            retrieved_at=datetime.now(timezone.utc),
+            retrieved_at=datetime.now(UTC),
             data_entry_types_total_items=data_entry_types_total_items,
             stats=None,
             totals=totals,
@@ -678,11 +676,11 @@ class DataEntryService:
         offset: int = 0,
         sort_by: str = "date",
         sort_order: str = "asc",
-        filter: Optional[str] = None,
-        institutional_id_filter: Optional[str] = None,
-        current_user: Optional[UserRead] = None,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
+        filter: str | None = None,
+        institutional_id_filter: str | None = None,
+        current_user: UserRead | None = None,
+        request_context: dict | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> SubmoduleResponse:
         """Get module data for a unit and year."""
         response = await self.repo.get_submodule_data(
@@ -742,7 +740,7 @@ class DataEntryService:
     async def get_professional_travel_trips_map(
         self,
         carbon_report_module_id: int,
-        institutional_id_filter: Optional[str] = None,
+        institutional_id_filter: str | None = None,
     ) -> TripsMapResponse:
         """Return a flat list of plane + train trip legs with coordinates.
 
@@ -771,8 +769,8 @@ class DataEntryService:
         self,
         field_name: str,
         carbon_report_module_id: int,
-        data_entry_type_id: Optional[int],
-    ) -> Optional[float]:
+        data_entry_type_id: int | None,
+    ) -> float | None:
         """Get total sum of a specific field for a given module and data entry type."""
         return await self.repo.get_total_per_field(
             field_name=field_name,
@@ -801,7 +799,7 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
         institutional_id: str,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Look up a headcount member by their institutional ID.
 
         Args:

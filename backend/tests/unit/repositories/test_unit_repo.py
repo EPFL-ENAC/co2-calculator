@@ -208,7 +208,8 @@ async def test_bulk_upsert_postgresql_uses_on_conflict():
     """Postgres backend → bulk_upsert issues an INSERT statement that
     carries ON CONFLICT (institutional_code) DO UPDATE.  Race-safe by
     construction: two concurrent transactions both INSERT, the loser
-    gets the DO UPDATE branch instead of a UniqueViolation."""
+    gets the DO UPDATE branch instead of a UniqueViolation.
+    """
     session = MagicMock()
     session.get_bind.return_value.dialect.name = "postgresql"
 
@@ -246,7 +247,8 @@ async def test_bulk_upsert_sqlite_uses_legacy_select_merge():
     """SQLite test fixture (single-writer) → no race possible, keep the
     legacy SELECT-then-merge path.  Pinned so a refactor doesn't break
     the test fixture by forcing ON CONFLICT (which SQLAlchemy's
-    sqlite dialect supports but the existing tests don't expect)."""
+    sqlite dialect supports but the existing tests don't expect).
+    """
     session = MagicMock()
     session.get_bind.return_value.dialect.name = "sqlite"
 
@@ -285,7 +287,8 @@ async def test_bulk_upsert_sqlite_uses_legacy_select_merge():
 @pytest.mark.asyncio
 async def test_bulk_upsert_empty_input_short_circuits():
     """Defensive — empty input must short-circuit BEFORE the dialect
-    check (no DB queries) so a no-op upsert is free."""
+    check (no DB queries) so a no-op upsert is free.
+    """
     session = MagicMock()
     session.execute = AsyncMock()
     session.exec = AsyncMock()

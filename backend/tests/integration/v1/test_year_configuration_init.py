@@ -65,7 +65,8 @@ def _wire(monkeypatch, factory, *, is_admin: bool) -> None:
     """Real DB, mocked ``is_permitted`` (admin toggle), no-op background
     dispatch — the job ROW is the assertion target, not the sync handler's
     actual Accred call (out of scope: slow integration, per #1403's design
-    doc)."""
+    doc).
+    """
     app.dependency_overrides[deps_module.get_current_user] = _user
 
     async def override_get_db():

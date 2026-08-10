@@ -60,7 +60,8 @@ async def test_two_active_aggregation_jobs_same_scope_raises(
     pg_dsn,
 ):
     """Two NOT_STARTED aggregation rows for the same (module_type_id,
-    year) violate the partial unique index → second insert raises."""
+    year) violate the partial unique index → second insert raises.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
@@ -83,7 +84,8 @@ async def test_finished_does_not_block_new_active(
     """FINISHED rows are outside the dedup window — a NOT_STARTED
     aggregation can be inserted alongside an already-FINISHED one for
     the same scope.  Otherwise historical jobs would permanently block
-    new aggregations."""
+    new aggregations.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
@@ -116,7 +118,8 @@ async def test_different_scopes_both_succeed(pg_dsn):
     """Dedup is per-(module_type_id, year) scope.  Different module
     types or different years run in parallel — covering all three
     cross-product cases (different module, different year, different
-    both)."""
+    both).
+    """
     engine = create_async_engine(pg_dsn, future=True)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
@@ -135,7 +138,8 @@ async def test_non_aggregation_job_type_unaffected(
     pg_dsn,
 ):
     """The partial index is scoped to ``job_type = 'aggregation'``;
-    other job types share the table without dedup interference."""
+    other job types share the table without dedup interference.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:

@@ -39,7 +39,8 @@ from .conftest import ensure_pipeline_for_job
 def _csv_ingest_parent() -> DataIngestionJob:
     """Mirror the production case: a CSV ingest for one (module, det,
     year) combo.  ``state=RUNNING`` because the runner has already
-    claimed it by the time the handler body runs."""
+    claimed it by the time the handler body runs.
+    """
     return DataIngestionJob(
         entity_type=EntityType.MODULE_PER_YEAR,
         module_type_id=5,
@@ -144,7 +145,8 @@ async def test_full_dag_csv_ingest_chains_emission_recalc_chains_aggregation(pg_
         """Mirror run_job's claim → handler → FINISHED-state write
         but against the test's PG engine.  Heartbeat/preemption
         machinery is intentionally absent — the rows we assert on
-        are the chain wiring, not the runner's locking shape."""
+        are the chain wiring, not the runner's locking shape.
+        """
         from app.tasks.registry import get_handler
 
         async with Sf() as job_session:
@@ -238,7 +240,8 @@ async def test_full_dag_csv_ingest_chains_emission_recalc_chains_aggregation(pg_
 def _emission_recalc_parent() -> DataIngestionJob:
     """An ``emission_recalc`` parent already claimed by the runner —
     the handler body is what we drive directly in the WARNING test
-    below.  Mirrors the rows endpoints+poller actually persist."""
+    below.  Mirrors the rows endpoints+poller actually persist.
+    """
     return DataIngestionJob(
         entity_type=EntityType.MODULE_PER_YEAR,
         module_type_id=5,

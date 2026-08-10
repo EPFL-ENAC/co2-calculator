@@ -1,5 +1,4 @@
-"""
-Ultra-fast PostgreSQL COPY seeder for:
+"""Ultra-fast PostgreSQL COPY seeder for:
 
 - data_entries
 - data_entry_emissions
@@ -12,8 +11,8 @@ No ORM inserts.
 import asyncio
 import json
 import random
-from datetime import date, datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, date, datetime
 
 import asyncpg
 from faker import Faker
@@ -535,7 +534,7 @@ def seed_emission_candidates(
 
 def generate_emissions_for_entry(entry_id, data_entry_type_id):
     rows = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # simple placeholder logic for speed — no factor lookup; primary_factor_id
     # stays NULL. Fields mirror ``DataEntryEmissionBase``.

@@ -1,5 +1,3 @@
-from typing import Optional
-
 from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import case, func
 
@@ -86,7 +84,7 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
         if factor_id is None:
             return []
 
-        def _cloud_formula(ctx: dict, factor_values: dict) -> Optional[float]:
+        def _cloud_formula(ctx: dict, factor_values: dict) -> float | None:
             # Get the year to ensure we get the correct exchange rate for the year
             # of the purchase
             year = ctx.get("_year")

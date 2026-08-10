@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.orm import aliased
 from sqlmodel import col, select
@@ -70,8 +70,8 @@ class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
     update_dto: type[DataEntryUpdate]
     response_dto: type[DataEntryResponseGen]
 
-    kind_field: Optional[str] = None
-    subkind_field: Optional[str] = None
+    kind_field: str | None = None
+    subkind_field: str | None = None
     require_subkind_for_factor = False
     require_factor_to_match = False
 
@@ -245,7 +245,8 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
         slice_cache: dict | None,
     ) -> tuple[Any, Any]:
         """Origin/destination ``Location`` from the slice cache, else two
-        per-entry point lookups (single-entry path)."""
+        per-entry point lookups (single-entry path).
+        """
         if slice_cache is not None:
             locations = slice_cache["locations"]
             return locations.get(origin_iata), locations.get(destination_iata)
@@ -318,7 +319,7 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         self,
         data: dict,
         session: Any,
-    ) -> tuple[dict, Optional[str]]:
+    ) -> tuple[dict, str | None]:
         """Resolve ``origin_name`` / ``destination_name`` → ``*_natural_key``.
 
         Train CSVs ship a ``{role}_country_code`` column to disambiguate

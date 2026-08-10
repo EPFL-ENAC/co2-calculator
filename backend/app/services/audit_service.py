@@ -5,8 +5,8 @@ Provides append-only versioning with hash chain integrity for any entity type.
 
 import hashlib
 import json
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import BackgroundTasks
 from fastapi.encoders import jsonable_encoder
@@ -28,8 +28,7 @@ HANDLED_IDS_MAX_LENGTH = (
 
 
 class AuditDocumentService:
-    """
-    Service for managing document versions with audit trail.
+    """Service for managing document versions with audit trail.
 
     This service:
     - Creates immutable version records for any entity
@@ -47,8 +46,8 @@ class AuditDocumentService:
         entity_type: str,
         entity_id: int,
         version: int,
-        data_snapshot: Dict,
-        previous_hash: Optional[str],
+        data_snapshot: dict,
+        previous_hash: str | None,
     ) -> str:
         """Compute SHA-256 hash for version integrity."""
         payload = json.dumps(
@@ -64,9 +63,8 @@ class AuditDocumentService:
         )
         return hashlib.sha256(payload.encode()).hexdigest()
 
-    def _compute_diff(self, old_data: Optional[Dict], new_data: Dict) -> Optional[Dict]:
-        """
-        Compute a simple diff between old and new data.
+    def _compute_diff(self, old_data: dict | None, new_data: dict) -> dict | None:
+        """Compute a simple diff between old and new data.
 
         Returns a dict with:
         - added: keys in new but not in old
@@ -76,7 +74,7 @@ class AuditDocumentService:
         if old_data is None:
             return None
 
-        diff: Dict[str, Any] = {"added": {}, "removed": {}, "changed": {}}
+        diff: dict[str, Any] = {"added": {}, "removed": {}, "changed": {}}
 
         old_keys = set(old_data.keys())
         new_keys = set(new_data.keys())
@@ -102,9 +100,8 @@ class AuditDocumentService:
 
     async def get_current_version(
         self, entity_type: str, entity_id: int
-    ) -> Optional[AuditDocument]:
-        """
-        Get the current (is_current=True) version for an entity.
+    ) -> AuditDocument | None:
+        """Get the current (is_current=True) version for an entity.
         Get current version and lock it (FOR UPDATE)
         to prevent concurrent version creation.
         """
@@ -123,7 +120,7 @@ class AuditDocumentService:
 
     async def get_version(
         self, entity_type: str, entity_id: int, version: int
-    ) -> Optional[AuditDocument]:
+    ) -> AuditDocument | None:
         """Get a specific version of an entity."""
         stmt = select(AuditDocument).where(
             col(AuditDocument.entity_type) == entity_type,
@@ -138,7 +135,7 @@ class AuditDocumentService:
         entity_type: str,
         entity_id: int,
         timestamp: datetime,
-    ) -> Optional[AuditDocument]:
+    ) -> AuditDocument | None:
         """Get the version that was current at a specific timestamp."""
         stmt = (
             select(AuditDocument)
@@ -158,7 +155,7 @@ class AuditDocumentService:
         entity_type: str,
         entity_id: int,
         limit: int = 100,
-    ) -> List[AuditDocument]:
+    ) -> list[AuditDocument]:
         """List all versions for an entity, newest first."""
         stmt = (
             select(AuditDocument)
@@ -176,19 +173,18 @@ class AuditDocumentService:
         self,
         entity_type: str,
         entity_id: int,
-        data_snapshot: Dict,
+        data_snapshot: dict,
         change_type: AuditChangeTypeEnum,
-        changed_by: Optional[int],
+        changed_by: int | None,
         handler_id: str,
-        change_reason: Optional[str] = None,
-        ip_address: Optional[str] = None,
-        route_path: Optional[str] = None,
-        route_payload: Optional[Dict] = None,
-        handled_ids: Optional[List[str]] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
+        change_reason: str | None = None,
+        ip_address: str | None = None,
+        route_path: str | None = None,
+        route_payload: dict | None = None,
+        handled_ids: list[str] | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> AuditDocument:
-        """
-        Create a new version for an entity.
+        """Create a new version for an entity.
 
         Args:
             self.session: Database self.session
@@ -266,7 +262,7 @@ class AuditDocumentService:
             change_type=change_type,
             change_reason=change_reason,
             changed_by=changed_by,
-            changed_at=datetime.now(timezone.utc),
+            changed_at=datetime.now(UTC),
             previous_hash=previous_hash,
             current_hash=current_hash,
             handler_id=handler_id,
@@ -305,11 +301,10 @@ class AuditDocumentService:
     async def bulk_create_versions(
         self,
         entity_type: str,
-        versions_data: List[Dict[str, Any]],
-        background_tasks: Optional[BackgroundTasks] = None,
-    ) -> List[AuditDocument]:
-        """
-        Efficiently bulk create versions for multiple entities.
+        versions_data: list[dict[str, Any]],
+        background_tasks: BackgroundTasks | None = None,
+    ) -> list[AuditDocument]:
+        """Efficiently bulk create versions for multiple entities.
 
         Much more efficient than calling create_version in a loop because:
         - Queries all current versions in a single batch query
@@ -396,7 +391,7 @@ class AuditDocumentService:
                 change_type=version_data["change_type"],
                 change_reason=version_data.get("change_reason"),
                 changed_by=version_data["changed_by"],
-                changed_at=datetime.now(timezone.utc),
+                changed_at=datetime.now(UTC),
                 previous_hash=previous_hash,
                 current_hash=current_hash,
                 handler_id=version_data["handler_id"],
@@ -434,15 +429,14 @@ class AuditDocumentService:
         entity_type: str,
         entity_id: int,
         target_version: int,
-        changed_by: Optional[int],
+        changed_by: int | None,
         handler_id: str,
-        change_reason: Optional[str] = None,
-        ip_address: Optional[str] = None,
-        route_path: Optional[str] = None,
-        route_payload: Optional[Dict] = None,
-    ) -> Optional[AuditDocument]:
-        """
-        Rollback to a previous version by creating a new version with old data.
+        change_reason: str | None = None,
+        ip_address: str | None = None,
+        route_path: str | None = None,
+        route_payload: dict | None = None,
+    ) -> AuditDocument | None:
+        """Rollback to a previous version by creating a new version with old data.
 
         This does NOT delete history - it creates a new version with
         change_type='ROLLBACK' containing the data from the target version.
@@ -475,8 +469,7 @@ class AuditDocumentService:
         )
 
     async def verify_hash_chain(self, entity_type: str, entity_id: int) -> bool:
-        """
-        Verify the hash chain integrity for an entity.
+        """Verify the hash chain integrity for an entity.
 
         Returns True if all hashes are valid, False if tampering detected.
         """
@@ -485,7 +478,7 @@ class AuditDocumentService:
         # Sort by version ascending
         versions = sorted(versions, key=lambda v: v.version)
 
-        previous_hash: Optional[str] = None
+        previous_hash: str | None = None
         for version in versions:
             expected_hash = self._compute_hash(
                 entity_type,
@@ -516,9 +509,8 @@ class AuditDocumentService:
         self,
         factor_id: int,
         computed_at: datetime,
-    ) -> Optional[Dict]:
-        """
-        Get the factor values as they were when an emission was computed.
+    ) -> dict | None:
+        """Get the factor values as they were when an emission was computed.
 
         This is the key method for historical traceability - reconstructs
         what inputs were used for a calculation based on document_versions.
@@ -551,9 +543,8 @@ class AuditDocumentService:
         self,
         emission_factor_id: int,
         computed_at: datetime,
-    ) -> Optional[Dict]:
-        """
-        Get the emission factor (electricity mix, etc.) as it was when computed.
+    ) -> dict | None:
+        """Get the emission factor (electricity mix, etc.) as it was when computed.
 
         Args:
             emission_factor_id: Emission factor ID

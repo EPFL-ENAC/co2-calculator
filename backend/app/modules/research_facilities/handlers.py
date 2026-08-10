@@ -1,7 +1,5 @@
 """Research Facilities module handlers (common + animal)."""
 
-from typing import Optional
-
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -33,7 +31,7 @@ class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
     response_dto = ResearchFacilitiesCommonHandlerResponse
 
     kind_field: str = "researchfacility_id"
-    subkind_field: Optional[str] = None
+    subkind_field: str | None = None
     require_subkind_for_factor = False
 
     sort_map = {
@@ -73,17 +71,14 @@ class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
 
     def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
         """Strategy A — primary_factor_id."""
-
         factor_id = ctx.get("primary_factor_id")
         if factor_id is None:
             return []
 
         def _research_facilities_formula(
             ctx: dict, factor_values: dict
-        ) -> Optional[float]:
-            """
-            Formula: (use / total_use) * kg_co2eq_sum, with unit check on use_unit.
-            """
+        ) -> float | None:
+            """Formula: (use / total_use) * kg_co2eq_sum, checking use_unit."""
             use = ctx.get("use")
             use_unit = ctx.get("use_unit")
             if use is None or use_unit is None:
@@ -167,16 +162,14 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
 
     def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
         """Strategy A — primary_factor_id."""
-
         factor_id = ctx.get("primary_factor_id")
         if factor_id is None:
             return []
 
         def _research_facilities_formula(
             ctx: dict, factor_values: dict
-        ) -> Optional[float]:
-            """
-            Compute emissions based on share of use of the facility compared
+        ) -> float | None:
+            """Compute emissions based on share of use of the facility compared
             to total use.
             Formula: (use / total_use) * kg_co2eq_sum, for each sources,
             with unit check on use_unit.

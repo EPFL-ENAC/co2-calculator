@@ -37,7 +37,7 @@ enforced, like ``results-summary``) so limited users can load their home page
 without tripping the global 403 → ``/unauthorized`` redirect.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -77,7 +77,7 @@ class HomeYearConfiguration(BaseModel):
     """
 
     year: int
-    config: Dict[str, Any]
+    config: dict[str, Any]
     # The frontend's yearConfig store hard-errors on any year-config payload
     # missing this bound (#1204 follow-up), and the workspace guard feeds this
     # slim shape straight into it — so the aggregate must carry it too.
@@ -86,7 +86,7 @@ class HomeYearConfiguration(BaseModel):
 
 async def build_home_year_configuration(
     db: AsyncSession, year: int, provider
-) -> Optional[HomeYearConfiguration]:
+) -> HomeYearConfiguration | None:
     """Slim year-configuration for the home aggregate — no job/recalc enrichment.
 
     Returns the raw stored config (or ``None`` if no row exists for
@@ -115,7 +115,7 @@ class WorkspaceHomeResponse(BaseModel):
     """Minimal aggregate payload the frontend fans out across its stores."""
 
     carbon_report_id: int
-    year_config: Optional[HomeYearConfiguration] = None
+    year_config: HomeYearConfiguration | None = None
     stats: dict
     module_states: list[dict]
     project_plans: list[SimulatorPlanRead] = []

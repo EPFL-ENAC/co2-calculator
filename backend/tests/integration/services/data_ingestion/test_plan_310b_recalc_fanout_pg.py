@@ -44,7 +44,8 @@ from .conftest import ensure_pipeline_for_job
 
 def _multi_type_factor_job() -> DataIngestionJob:
     """Mirrors the production case: a finished, current FACTORS job for
-    the equipments module with no specific data_entry_type set."""
+    the equipments module with no specific data_entry_type set.
+    """
     return DataIngestionJob(
         entity_type=EntityType.MODULE_PER_YEAR,
         module_type_id=ModuleTypeEnum.equipment.value,
@@ -148,7 +149,8 @@ async def test_fanout_creates_one_child_per_det_for_multitype_parent(pg_dsn):
 async def test_fanout_creates_single_child_for_single_type_parent(pg_dsn):
     """Parent factor job with a specific (module, det) → exactly one
     recalc child for that pair.  Bypasses the recalc-status query
-    entirely (parent is still the canonical source of truth here)."""
+    entirely (parent is still the canonical source of truth here).
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

@@ -13,8 +13,7 @@ async def trigger_role_sync_for_user(
     user_id: int,
     force: bool = False,
 ) -> None:
-    """
-    Trigger background role sync for a user.
+    """Trigger background role sync for a user.
 
     This function:
     1. Fetches user from DB to resolve the role provider

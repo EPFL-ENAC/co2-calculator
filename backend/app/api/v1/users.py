@@ -7,8 +7,6 @@ User information is available via GET /v1/session endpoint.
 This file is kept for potential future internal user management needs.
 """
 
-from typing import List
-
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -26,7 +24,7 @@ router = APIRouter()
 # Users are auto-created and updated during OAuth login flow
 
 
-@router.get("/units", response_model=List[UnitWithUserRole])
+@router.get("/units", response_model=list[UnitWithUserRole])
 async def list_user_units(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
@@ -35,8 +33,7 @@ async def list_user_units(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    List units with policy authorization.
+    """List units with policy authorization.
 
     This endpoint
     1. User is authenticated via JWT (handled by dependency)

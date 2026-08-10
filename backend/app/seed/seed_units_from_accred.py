@@ -31,9 +31,9 @@ from app.services.user_service import UserService
 
 
 async def seed_units_accred() -> None:
-    """create a unit provider and call
-    fetch_all_units_from_accred to populate units from accred"""
-
+    """Create a unit provider and call
+    fetch_all_units_from_accred to populate units from accred
+    """
     provider = get_unit_provider(UserProvider.ACCRED)
     role_provider = get_role_provider(UserProvider.ACCRED)
     units_raw, principal_users_raw = await provider.fetch_all_units()

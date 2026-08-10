@@ -111,7 +111,8 @@ async def test_year_level_active_pipelines_returns_running_pipeline_id(pg_app):
     """A single in-flight year-level chain → endpoint returns its
     pipeline_id as the only entry.  This is the canonical case for
     the reload-rehydrate flow: operator triggers a unit-sync, hard
-    reloads the page, the page re-attaches to the live stream."""
+    reloads the page, the page re-attaches to the live stream.
+    """
     Sf = pg_app["factory"]
     pipeline = uuid4()
 
@@ -135,7 +136,8 @@ async def test_year_level_active_pipelines_returns_running_pipeline_id(pg_app):
 async def test_year_level_active_pipelines_omits_finished(pg_app):
     """Finished year-level jobs must NOT appear — the watcher would
     open an SSE stream that immediately resolves to ``stream_closed``,
-    wasting a request and momentarily flickering UI."""
+    wasting a request and momentarily flickering UI.
+    """
     Sf = pg_app["factory"]
 
     async with Sf() as session:
@@ -163,7 +165,8 @@ async def test_year_level_active_pipelines_omits_finished(pg_app):
 async def test_year_level_active_pipelines_filters_by_year(pg_app):
     """A 2024 chain must not surface in 2025's response — guards the
     watcher from cross-year bleed when the operator is viewing one
-    year while a chain runs for another."""
+    year while a chain runs for another.
+    """
     Sf = pg_app["factory"]
 
     async with Sf() as session:
@@ -188,7 +191,8 @@ async def test_year_level_active_pipelines_omits_jobs_without_pipeline_id(pg_app
     not-yet-shipped) must not appear.  Without a pipeline_id the SSE
     stream endpoint has nothing to subscribe to — including these
     would mean the watcher opens a 404 stream.  This is what makes
-    the U1-independence guarantee in the unit's spec hold."""
+    the U1-independence guarantee in the unit's spec hold.
+    """
     Sf = pg_app["factory"]
 
     async with Sf() as session:
@@ -224,7 +228,8 @@ async def test_year_level_active_pipelines_omits_module_scoped(pg_app):
     sibling endpoint's concern — they must NOT leak into the
     year-level endpoint, even when ``year`` matches.  Otherwise the
     watcher would double-subscribe (ModuleConfig.vue already covers
-    these via the per-module endpoint)."""
+    these via the per-module endpoint).
+    """
     Sf = pg_app["factory"]
 
     async with Sf() as session:
@@ -260,7 +265,8 @@ async def test_year_level_active_pipelines_omits_module_scoped(pg_app):
 async def test_year_level_active_pipelines_dedupes_pipeline_ids(pg_app):
     """A pipeline can have multiple jobs sharing one ``pipeline_id``
     (parent + fan-out children).  The endpoint returns each
-    pipeline_id once — the frontend treats the result as a set."""
+    pipeline_id once — the frontend treats the result as a set.
+    """
     Sf = pg_app["factory"]
     shared_pipeline = uuid4()
 
@@ -290,7 +296,8 @@ async def test_year_level_active_pipelines_dedupes_pipeline_ids(pg_app):
 @pytest.mark.asyncio
 async def test_year_level_active_pipelines_returns_empty_when_no_jobs(pg_app):
     """Steady state: no year-level pipelines anywhere → empty list.
-    The watcher idles, no SSE streams open."""
+    The watcher idles, no SSE streams open.
+    """
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://test",

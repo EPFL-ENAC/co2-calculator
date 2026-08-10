@@ -27,7 +27,8 @@ from app.repositories.data_entry_repo import DataEntryRepository
 @pytest.mark.asyncio
 async def test_uncomputed_entry_sorts_and_displays_by_resolved_factor(pg_dsn):
     """Two equipment entries — one WITH emission rows, one without any —
-    must both expose factor-backed columns and sort by them consistently."""
+    must both expose factor-backed columns and sort by them consistently.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:

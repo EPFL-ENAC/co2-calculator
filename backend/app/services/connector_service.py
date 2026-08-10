@@ -5,8 +5,6 @@ Encrypts/decrypts the stored secret, enforces the SSRF guard on
 ``has_secret`` flag is ever returned).
 """
 
-from typing import Optional
-
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.crypto import decrypt_secret, encrypt_secret
@@ -35,7 +33,7 @@ class ConnectorConnectionService:
 
     async def get_by_connector(
         self, connector: ConnectorType
-    ) -> Optional[ConnectorConnection]:
+    ) -> ConnectorConnection | None:
         return await self.repo.get_by_connector(connector)
 
     async def save_connection(

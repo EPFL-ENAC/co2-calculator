@@ -37,7 +37,8 @@ def _member_item_data(sius_code: str) -> dict:
 def _make_workflow_deps():
     """Build the mocked DataEntryService/EmissionService/ModuleService trio
     shared by both tests, mirroring the pattern in
-    test_carbon_report_module_update.py."""
+    test_carbon_report_module_update.py.
+    """
     session = MagicMock()
     session.flush = AsyncMock()
     session.refresh = AsyncMock()
@@ -65,7 +66,8 @@ def _make_workflow_deps():
 @pytest.mark.asyncio
 async def test_create_second_role_for_existing_member_is_accepted():
     """A second role (different sius_code) for an already-registered SCIPER
-    in the same unit must succeed (201), not be rejected as a duplicate."""
+    in the same unit must succeed (201), not be rejected as a duplicate.
+    """
     session, data_entry_service, emission_service, module_service = (
         _make_workflow_deps()
     )
@@ -106,7 +108,8 @@ async def test_create_second_role_for_existing_member_is_accepted():
 @pytest.mark.asyncio
 async def test_create_duplicate_role_for_existing_member_is_rejected():
     """The same (user_institutional_id, sius_code) pair must still be
-    rejected with 422 DUPLICATE_INSTITUTIONAL_ID."""
+    rejected with 422 DUPLICATE_INSTITUTIONAL_ID.
+    """
     session, data_entry_service, emission_service, module_service = (
         _make_workflow_deps()
     )

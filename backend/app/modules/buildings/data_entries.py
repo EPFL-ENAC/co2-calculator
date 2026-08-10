@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.schemas.data_entry import (
@@ -20,32 +18,32 @@ class BuildingRoomResponse(BaseModel):
     building_location: str
     building_name: str
     room_name: str
-    room_type: Optional[str]
-    room_surface_square_meter: Optional[float]
+    room_type: str | None
+    room_surface_square_meter: float | None
 
 
 class BuildingRoomEnergyDefaultsResponse(BaseModel):
-    heating_kwh_per_square_meter: Optional[float] = None
-    cooling_kwh_per_square_meter: Optional[float] = None
-    ventilation_kwh_per_square_meter: Optional[float] = None
-    lighting_kwh_per_square_meter: Optional[float] = None
+    heating_kwh_per_square_meter: float | None = None
+    cooling_kwh_per_square_meter: float | None = None
+    ventilation_kwh_per_square_meter: float | None = None
+    lighting_kwh_per_square_meter: float | None = None
 
 
 class BuildingRoomHandlerResponse(DataEntryResponseGen):
     building_name: str
-    room_name: Optional[str] = None
-    room_type: Optional[str] = None
-    room_surface_square_meter: Optional[float] = None
-    room_allocation_ratio: Optional[float] = None
-    heating_kwh_per_square_meter: Optional[float] = None
-    cooling_kwh_per_square_meter: Optional[float] = None
-    ventilation_kwh_per_square_meter: Optional[float] = None
-    lighting_kwh_per_square_meter: Optional[float] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    room_name: str | None = None
+    room_type: str | None = None
+    room_surface_square_meter: float | None = None
+    room_allocation_ratio: float | None = None
+    heating_kwh_per_square_meter: float | None = None
+    cooling_kwh_per_square_meter: float | None = None
+    ventilation_kwh_per_square_meter: float | None = None
+    lighting_kwh_per_square_meter: float | None = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
-VALID_ROOM_TYPES: list[Optional[str]] = [
+VALID_ROOM_TYPES: list[str | None] = [
     "office",
     "miscellaneous",
     "laboratories",
@@ -60,8 +58,8 @@ class BuildingRoomHandlerCreate(DataEntryCreate):
     building_name: str
     room_name: str
     room_type: str
-    room_allocation_ratio: Optional[float] = None
-    note: Optional[str] = None
+    room_allocation_ratio: float | None = None
+    note: str | None = None
 
     @field_validator("room_type", mode="after")
     @classmethod
@@ -73,22 +71,22 @@ class BuildingRoomHandlerCreate(DataEntryCreate):
 
     @field_validator("room_allocation_ratio", mode="after")
     @classmethod
-    def validate_room_allocation_ratio(cls, v: Optional[float]) -> Optional[float]:
+    def validate_room_allocation_ratio(cls, v: float | None) -> float | None:
         if v is not None and (v < 0 or v > 1):
             raise ValueError("room_allocation_ratio must be between 0 and 1")
         return v
 
 
 class BuildingRoomHandlerUpdate(DataEntryUpdate):
-    building_name: Optional[str] = None
-    room_name: Optional[str] = None
-    room_type: Optional[str] = None
-    room_allocation_ratio: Optional[float] = None
-    note: Optional[str] = None
+    building_name: str | None = None
+    room_name: str | None = None
+    room_type: str | None = None
+    room_allocation_ratio: float | None = None
+    note: str | None = None
 
     @field_validator("room_type", mode="after")
     @classmethod
-    def validate_room_type(cls, v: Optional[str]) -> Optional[str]:
+    def validate_room_type(cls, v: str | None) -> str | None:
         if v is not None and v not in VALID_ROOM_TYPES:
             raise ValueError(
                 f"room_type must be one of: {[r for r in VALID_ROOM_TYPES if r]}"
@@ -97,7 +95,7 @@ class BuildingRoomHandlerUpdate(DataEntryUpdate):
 
     @field_validator("room_allocation_ratio", mode="after")
     @classmethod
-    def validate_room_allocation_ratio(cls, v: Optional[float]) -> Optional[float]:
+    def validate_room_allocation_ratio(cls, v: float | None) -> float | None:
         if v is not None and (v < 0 or v > 1):
             raise ValueError("room_allocation_ratio must be between 0 and 1")
         return v
@@ -105,16 +103,16 @@ class BuildingRoomHandlerUpdate(DataEntryUpdate):
 
 class EnergyCombustionHandlerResponse(DataEntryResponseGen):
     name: str
-    unit: Optional[str] = None
+    unit: str | None = None
     quantity: float
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
 class EnergyCombustionHandlerCreate(DataEntryCreate):
     name: str
     quantity: float
-    note: Optional[str] = None
+    note: str | None = None
 
     @field_validator("quantity", mode="after")
     @classmethod
@@ -125,13 +123,13 @@ class EnergyCombustionHandlerCreate(DataEntryCreate):
 
 
 class EnergyCombustionHandlerUpdate(DataEntryUpdate):
-    name: Optional[str] = None
-    quantity: Optional[float] = None
-    note: Optional[str] = None
+    name: str | None = None
+    quantity: float | None = None
+    note: str | None = None
 
     @field_validator("quantity", mode="after")
     @classmethod
-    def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
+    def validate_quantity(cls, v: float | None) -> float | None:
         if v is not None and v < 0:
             raise ValueError("Quantity must be non-negative")
         return v
@@ -146,4 +144,4 @@ class BuildingEmbodiedEnergyHandlerCreate(DataEntryCreate):
 
 
 class BuildingEmbodiedEnergyHandlerUpdate(DataEntryUpdate):
-    building_name: Optional[str] = None
+    building_name: str | None = None

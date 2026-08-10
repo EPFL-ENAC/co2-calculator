@@ -176,7 +176,8 @@ URL = "/api/v1/carbon-reports/1/modules/headcount/members"
 class TestPermissionScopeEndToEnd:
     def test_principal_on_target_unit_passes(self, client, monkeypatch):
         """principal/0184 hitting unit-with-iid-0184 → 200 (full list).
-        Pins the bug fix: bare-path lookup would have returned 403."""
+        Pins the bug fix: bare-path lookup would have returned 403.
+        """
         user = _user("11111", [_principal(UNIT_IID)])
         _wire(monkeypatch, user, unit_iid=UNIT_IID)
         r = client.get(URL)
@@ -185,7 +186,8 @@ class TestPermissionScopeEndToEnd:
 
     def test_principal_on_other_unit_denied(self, client, monkeypatch):
         """principal/0184 hitting unit-with-iid-9999 → 403. Pins scope
-        enforcement: PR #974 explicitly tightened this."""
+        enforcement: PR #974 explicitly tightened this.
+        """
         user = _user("11111", [_principal(UNIT_IID)])
         _wire(monkeypatch, user, unit_iid=OTHER_IID)
         r = client.get(URL)
@@ -194,7 +196,8 @@ class TestPermissionScopeEndToEnd:
     def test_std_passes_via_travel_view_on_their_unit(self, client, monkeypatch):
         """Std user has only travel + cloud_and_ai, no headcount. The
         list_headcount_members gate accepts when travel.view passes; data
-        layer narrows the result to the user's own record."""
+        layer narrows the result to the user's own record.
+        """
         user = _user("11111", [_std(UNIT_IID)])
         _wire(monkeypatch, user, unit_iid=UNIT_IID)
         r = client.get(URL)
@@ -217,7 +220,8 @@ class TestPermissionScopeEndToEnd:
 
     def test_backoffice_metier_passes_via_global_bypass(self, client, monkeypatch):
         """Backoffice metier has ``GlobalScope`` and no ``modules.*`` perms.
-        The route's ``is_global`` escape hatch lets them through."""
+        The route's ``is_global`` escape hatch lets them through.
+        """
         user = _user("11111", [_backoffice()])
         _wire(monkeypatch, user, unit_iid=UNIT_IID)
         r = client.get(URL)
@@ -238,7 +242,8 @@ class TestPermissionScopeEndToEnd:
             so only the user's own record is returned.
         Verifies that scope-blind acceptance does NOT happen — without
         the iid forwarding, the principal/9999 role would have falsely
-        granted full headcount access on unit 0184."""
+        granted full headcount access on unit 0184.
+        """
         user = _user("11111", [_principal(OTHER_IID), _std(UNIT_IID)])
         _wire(monkeypatch, user, unit_iid=UNIT_IID)
         r = client.get(URL)
@@ -258,7 +263,8 @@ class TestSimulatorReportGate:
     """#1988: reports of a simulator project (Explore/Plan) drop the module
     gate to unit membership; Calculator reports keep the strict per-module
     gate. Exercised through the real policy chain on the check-unique route,
-    which a std user's form calls for modules they hold no permission on."""
+    which a std user's form calls for modules they hold no permission on.
+    """
 
     def test_std_on_calculator_report_denied(self, client, monkeypatch):
         user = _user("11111", [_std(UNIT_IID)])
@@ -448,7 +454,8 @@ def _wire_db(user, factory) -> None:
 
 class TestBackofficeAffiliationScopeEndToEnd:
     """Affiliation-scoped backoffice users only see units inside their scope
-    subtree; GlobalScope keeps full reach (#862)."""
+    subtree; GlobalScope keeps full reach (#862).
+    """
 
     def test_global_backoffice_sees_all_units(self, client, backoffice_db):
         _wire_db(_user("11111", [_superadmin()]), backoffice_db)
@@ -619,7 +626,8 @@ class TestActivePipelinesPerYearGate:
     @pytest.mark.skip(reason="re-enable when the backoffice permission change ships")
     def test_scoped_backoffice_metier_denied(self, client, monkeypatch):
         """Metier holds reporting/users/documentation/ui_texts only — no
-        configuration and no module sync — so it cannot read pipeline status."""
+        configuration and no module sync — so it cannot read pipeline status.
+        """
         user = _user("11111", [_backoffice_scoped("ENAC-SG")])
         _wire_active_pipelines(monkeypatch, user)
         r = client.get(ACTIVE_PIPELINES_URL)
@@ -627,7 +635,8 @@ class TestActivePipelinesPerYearGate:
 
     def test_principal_passes(self, client, monkeypatch):
         """A principal can sync modules (modules.<name>.sync) and therefore may
-        poll their own job/pipeline progress."""
+        poll their own job/pipeline progress.
+        """
         user = _user("11111", [_principal(UNIT_IID)])
         _wire_active_pipelines(monkeypatch, user)
         r = client.get(ACTIVE_PIPELINES_URL)
@@ -698,7 +707,8 @@ def _wire_year_config(monkeypatch, user, factory) -> None:
 class TestYearConfigurationAdminOnlyGate:
     """Only Calco2.backoffice.admin (CO2_SUPERADMIN) may create a year
     configuration; every other role is denied via the same
-    ``backoffice.configuration.edit`` gate."""
+    ``backoffice.configuration.edit`` gate.
+    """
 
     def test_superadmin_creates_year_configuration(self, client, monkeypatch, empty_db):
         user = _user("11111", [_superadmin()])
@@ -708,7 +718,8 @@ class TestYearConfigurationAdminOnlyGate:
 
     def test_backoffice_metier_denied(self, client, monkeypatch, empty_db):
         """Affiliation-scoped metier holds reporting/users/documentation/
-        ui_texts but NOT configuration — Super Admin only (#862)."""
+        ui_texts but NOT configuration — Super Admin only (#862).
+        """
         user = _user("11111", [_backoffice_scoped(ENAC_CF)])
         _wire_year_config(monkeypatch, user, empty_db)
         r = client.post(YEAR_CONFIG_CREATE_URL)

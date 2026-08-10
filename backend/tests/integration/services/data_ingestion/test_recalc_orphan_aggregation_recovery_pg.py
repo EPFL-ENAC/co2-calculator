@@ -34,7 +34,7 @@ C. Same orphan: the reconciler loop, given that result, fires
 Requires Docker — see ``conftest.py``'s ``postgres_container``.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -110,7 +110,7 @@ async def _seed_pipeline_with_recalc_siblings(
             kind="csv_ingest",
             status=pipeline_status,
             expected_recalc=expected_recalc,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         s.add(pipeline)
         await s.flush()

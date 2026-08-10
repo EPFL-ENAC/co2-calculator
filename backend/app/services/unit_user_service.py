@@ -1,7 +1,5 @@
 """UnitUser service for business logic and orchestration."""
 
-from typing import List, Optional
-
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -44,8 +42,7 @@ class UnitUserService:
         user_id: int,
         role: RoleName,
     ) -> UnitUser:
-        """
-        Create or update a UnitUser association with validation.
+        """Create or update a UnitUser association with validation.
 
         Validates:
         - Unit exists
@@ -101,17 +98,15 @@ class UnitUserService:
 
         return unit_user
 
-    async def get_by_unit_and_user(
-        self, unit_id: int, user_id: int
-    ) -> Optional[UnitUser]:
+    async def get_by_unit_and_user(self, unit_id: int, user_id: int) -> UnitUser | None:
         """Get UnitUser association."""
         return await self.unit_user_repo.get_by_unit_and_user(unit_id, user_id)
 
-    async def get_by_user(self, user_id: int) -> List[UnitUser]:
+    async def get_by_user(self, user_id: int) -> list[UnitUser]:
         """Get all units for a user."""
         return await self.unit_user_repo.get_by_user(user_id)
 
-    async def get_by_unit(self, unit_id: int) -> List[UnitUser]:
+    async def get_by_unit(self, unit_id: int) -> list[UnitUser]:
         """Get all users for a unit."""
         return await self.unit_user_repo.get_by_unit(unit_id)
 
@@ -144,6 +139,6 @@ class UnitUserService:
             )
         return count
 
-    async def count(self, filters: Optional[dict] = None) -> int:
+    async def count(self, filters: dict | None = None) -> int:
         """Count UnitUser associations."""
         return await self.unit_user_repo.count(filters)

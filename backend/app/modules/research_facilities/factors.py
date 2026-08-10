@@ -1,7 +1,5 @@
 """Research Facilities factor schemas and handlers (common + animal)."""
 
-from typing import Optional
-
 from pydantic import field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -31,7 +29,7 @@ research_facilities_common_value_fields: list[str] = [
 class ResearchFacilitiesCommonFactorCreate(FactorCreate):
     researchfacility_id: str
     researchfacility_name: str
-    kg_co2eq_sum: Optional[float] = None
+    kg_co2eq_sum: float | None = None
     total_use: float
     use_unit: str
 
@@ -44,22 +42,22 @@ class ResearchFacilitiesCommonFactorCreate(FactorCreate):
 
     @field_validator("kg_co2eq_sum", mode="after")
     @classmethod
-    def validate_kg_co2eq_sum(cls, v: Optional[float]) -> Optional[float]:
+    def validate_kg_co2eq_sum(cls, v: float | None) -> float | None:
         if v is not None and v < 0:
             raise ValueError("kg_co2eq_sum must be non-negative")
         return v
 
 
 class ResearchFacilitiesCommonFactorUpdate(FactorUpdate):
-    researchfacility_id: Optional[str] = None
-    researchfacility_name: Optional[str] = None
-    use_unit: Optional[str] = None
-    kg_co2eq_sum: Optional[float] = None
-    total_use: Optional[float] = None
+    researchfacility_id: str | None = None
+    researchfacility_name: str | None = None
+    use_unit: str | None = None
+    kg_co2eq_sum: float | None = None
+    total_use: float | None = None
 
     @field_validator("total_use", mode="after")
     @classmethod
-    def validate_total_use(cls, v: Optional[float]) -> Optional[float]:
+    def validate_total_use(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0:
@@ -68,11 +66,11 @@ class ResearchFacilitiesCommonFactorUpdate(FactorUpdate):
 
 
 class ResearchFacilitiesCommonFactorResponse(FactorResponseGen):
-    researchfacility_id: Optional[str] = None
+    researchfacility_id: str | None = None
     researchfacility_name: str
     use_unit: str
-    kg_co2eq_sum: Optional[float] = None
-    total_use: Optional[float] = None
+    kg_co2eq_sum: float | None = None
+    total_use: float | None = None
 
 
 class ResearchFacilitiesCommonFactorHandler(BaseFactorHandler):
@@ -126,17 +124,17 @@ class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
     purchases_common_share: float
     purchases_additional_share: float
     equipments_share: float
-    kg_co2eq_sum_processemissions: Optional[float] = None
-    kg_co2eq_sum_building_energycombustions: Optional[float] = None
-    kg_co2eq_sum_building_rooms: Optional[float] = None
-    kg_co2eq_sum_purchases_common: Optional[float] = None
-    kg_co2eq_sum_purchases_additional: Optional[float] = None
-    kg_co2eq_sum_equipments: Optional[float] = None
+    kg_co2eq_sum_processemissions: float | None = None
+    kg_co2eq_sum_building_energycombustions: float | None = None
+    kg_co2eq_sum_building_rooms: float | None = None
+    kg_co2eq_sum_purchases_common: float | None = None
+    kg_co2eq_sum_purchases_additional: float | None = None
+    kg_co2eq_sum_equipments: float | None = None
     total_use: float
 
     @field_validator("researchfacility_id", mode="before")
     @classmethod
-    def _validate_researchfacility_id_response(cls, v: object) -> Optional[str]:
+    def _validate_researchfacility_id_response(cls, v: object) -> str | None:
         if v is None:
             return None
         return str(v)
@@ -173,61 +171,61 @@ class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
         mode="after",
     )
     @classmethod
-    def validate_kg_co2eq_sum(cls, v: Optional[float]) -> Optional[float]:
+    def validate_kg_co2eq_sum(cls, v: float | None) -> float | None:
         if v is not None and v < 0:
             raise ValueError("kg_co2eq_sum values must be non-negative")
         return v
 
 
 class ResearchFacilitiesAnimalFactorUpdate(FactorUpdate):
-    researchfacility_id: Optional[str] = None
-    researchfacility_name: Optional[str] = None
-    researchfacility_type: Optional[str] = None
-    use_unit: Optional[str] = None
-    processemissions_share: Optional[float] = None
-    building_energycombustions_share: Optional[float] = None
-    building_rooms_share: Optional[float] = None
-    purchases_common_share: Optional[float] = None
-    purchases_additional_share: Optional[float] = None
-    equipments_share: Optional[float] = None
-    kg_co2eq_sum_processemissions: Optional[float] = None
-    kg_co2eq_sum_building_energycombustions: Optional[float] = None
-    kg_co2eq_sum_building_rooms: Optional[float] = None
-    kg_co2eq_sum_purchases_common: Optional[float] = None
-    kg_co2eq_sum_purchases_additional: Optional[float] = None
-    kg_co2eq_sum_equipments: Optional[float] = None
-    total_use: Optional[float] = None
+    researchfacility_id: str | None = None
+    researchfacility_name: str | None = None
+    researchfacility_type: str | None = None
+    use_unit: str | None = None
+    processemissions_share: float | None = None
+    building_energycombustions_share: float | None = None
+    building_rooms_share: float | None = None
+    purchases_common_share: float | None = None
+    purchases_additional_share: float | None = None
+    equipments_share: float | None = None
+    kg_co2eq_sum_processemissions: float | None = None
+    kg_co2eq_sum_building_energycombustions: float | None = None
+    kg_co2eq_sum_building_rooms: float | None = None
+    kg_co2eq_sum_purchases_common: float | None = None
+    kg_co2eq_sum_purchases_additional: float | None = None
+    kg_co2eq_sum_equipments: float | None = None
+    total_use: float | None = None
 
     @field_validator("researchfacility_id", mode="before")
     @classmethod
-    def _validate_researchfacility_id_response(cls, v: object) -> Optional[str]:
+    def _validate_researchfacility_id_response(cls, v: object) -> str | None:
         if v is None:
             return None
         return str(v)
 
 
 class ResearchFacilitiesAnimalFactorResponse(FactorResponseGen):
-    researchfacility_id: Optional[str] = None
+    researchfacility_id: str | None = None
     researchfacility_name: str
-    researchfacility_type: Optional[str] = None
+    researchfacility_type: str | None = None
     use_unit: str
-    processemissions_share: Optional[float] = None
-    building_energycombustions_share: Optional[float] = None
-    building_rooms_share: Optional[float] = None
-    purchases_common_share: Optional[float] = None
-    purchases_additional_share: Optional[float] = None
-    equipments_share: Optional[float] = None
-    kg_co2eq_sum_processemissions: Optional[float] = None
-    kg_co2eq_sum_building_energycombustions: Optional[float] = None
-    kg_co2eq_sum_building_rooms: Optional[float] = None
-    kg_co2eq_sum_purchases_common: Optional[float] = None
-    kg_co2eq_sum_purchases_additional: Optional[float] = None
-    kg_co2eq_sum_equipments: Optional[float] = None
-    total_use: Optional[float] = None
+    processemissions_share: float | None = None
+    building_energycombustions_share: float | None = None
+    building_rooms_share: float | None = None
+    purchases_common_share: float | None = None
+    purchases_additional_share: float | None = None
+    equipments_share: float | None = None
+    kg_co2eq_sum_processemissions: float | None = None
+    kg_co2eq_sum_building_energycombustions: float | None = None
+    kg_co2eq_sum_building_rooms: float | None = None
+    kg_co2eq_sum_purchases_common: float | None = None
+    kg_co2eq_sum_purchases_additional: float | None = None
+    kg_co2eq_sum_equipments: float | None = None
+    total_use: float | None = None
 
     @field_validator("researchfacility_id", mode="before")
     @classmethod
-    def _validate_researchfacility_id_response(cls, v: object) -> Optional[str]:
+    def _validate_researchfacility_id_response(cls, v: object) -> str | None:
         if v is None:
             return None
         return str(v)

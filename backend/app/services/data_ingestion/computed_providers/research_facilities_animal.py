@@ -4,7 +4,7 @@ Recomputes the kg_co2eq_sum_* fields on each factor by aggregating
 DataEntryEmission totals from the corresponding Unit's CarbonReport.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -30,7 +30,7 @@ _purchases_all_ids: frozenset[int] = frozenset(
 )
 
 # Mapping: factor value-field source name → frozenset of valid emission_type_ids
-SOURCE_EMISSION_MAP: Dict[str, frozenset[int]] = {
+SOURCE_EMISSION_MAP: dict[str, frozenset[int]] = {
     "processemissions": frozenset(get_subtree_leaves(EmissionType.process_emissions)),
     "building_energycombustions": frozenset(
         get_subtree_leaves(EmissionType.buildings__combustion)
@@ -59,7 +59,7 @@ class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
         factor: Factor,
         year: int,
         session: AsyncSession,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Compute updated kg_co2eq_sum_* values from actual emission data.
 
         Args:
@@ -78,7 +78,7 @@ class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
             ValueError: When the Unit or CarbonReport cannot be found — these
                         are surfaced as errors, not silent skips.
         """
-        researchfacility_id: Optional[str] = factor.classification.get(
+        researchfacility_id: str | None = factor.classification.get(
             "researchfacility_id"
         )
         if not researchfacility_id:
@@ -129,7 +129,7 @@ class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
         # breakdown: list of (emission_type_id, kg_co2eq_sum)
 
         # 4. Aggregate per source using the SOURCE_EMISSION_MAP
-        source_totals: Dict[str, float] = {src: 0.0 for src in SOURCE_EMISSION_MAP}
+        source_totals: dict[str, float] = {src: 0.0 for src in SOURCE_EMISSION_MAP}
         for emission_type_id, kg in breakdown:
             for source, valid_ids in SOURCE_EMISSION_MAP.items():
                 # Compute only sources that have 0 or missing factor.values

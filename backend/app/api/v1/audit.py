@@ -7,8 +7,7 @@ Supports filtering, pagination, sorting, and export.
 import csv
 import io
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -51,7 +50,7 @@ async def _fetch_user_display_names(
     }
 
 
-def _build_message_summary(doc) -> Optional[str]:
+def _build_message_summary(doc) -> str | None:
     """Build a human-readable summary from an audit document."""
     parts = []
     ct = doc.change_type
@@ -72,15 +71,15 @@ def _build_message_summary(doc) -> Optional[str]:
 
 
 def _build_filters(
-    user_id: Optional[int] = None,
-    handler_id: Optional[str] = None,
-    entity_type: Optional[str] = None,
-    entity_id: Optional[int] = None,
-    action: Optional[str] = None,
-    date_from: Optional[datetime] = None,
-    date_to: Optional[datetime] = None,
-    search: Optional[str] = None,
-    module: Optional[str] = None,
+    user_id: int | None = None,
+    handler_id: str | None = None,
+    entity_type: str | None = None,
+    entity_id: int | None = None,
+    action: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    search: str | None = None,
+    module: str | None = None,
 ) -> dict[str, object]:
     """Construct a filters dict from query parameters."""
     filters: dict[str, object] = {}
@@ -126,15 +125,15 @@ ALLOWED_SORT_FIELDS = {
     response_model=AuditLogListResponse,
 )
 async def list_audit_logs(
-    user_id: Optional[int] = Query(None, description="Filter by actor"),
-    handler_id: Optional[str] = Query(None, description="Filter by handler id"),
-    entity_type: Optional[str] = Query(None, description="Filter by entity type"),
-    entity_id: Optional[int] = Query(None, description="Filter by entity ID"),
-    action: Optional[str] = Query(None, description="Filter by change type"),
-    date_from: Optional[datetime] = Query(None, description="Start date (ISO 8601)"),
-    date_to: Optional[datetime] = Query(None, description="End date (ISO 8601)"),
-    search: Optional[str] = Query(None, description="Free-text search"),
-    module: Optional[str] = Query(None, description="Filter by module"),
+    user_id: int | None = Query(None, description="Filter by actor"),
+    handler_id: str | None = Query(None, description="Filter by handler id"),
+    entity_type: str | None = Query(None, description="Filter by entity type"),
+    entity_id: int | None = Query(None, description="Filter by entity ID"),
+    action: str | None = Query(None, description="Filter by change type"),
+    date_from: datetime | None = Query(None, description="Start date (ISO 8601)"),
+    date_to: datetime | None = Query(None, description="End date (ISO 8601)"),
+    search: str | None = Query(None, description="Free-text search"),
+    module: str | None = Query(None, description="Filter by module"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
     sort_by: str = Query("changed_at"),
@@ -204,15 +203,15 @@ async def list_audit_logs(
     response_model=AuditStats,
 )
 async def get_audit_stats(
-    user_id: Optional[int] = Query(None),
-    handler_id: Optional[str] = Query(None),
-    entity_type: Optional[str] = Query(None),
-    entity_id: Optional[int] = Query(None),
-    action: Optional[str] = Query(None),
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
-    search: Optional[str] = Query(None),
-    module: Optional[str] = Query(None),
+    user_id: int | None = Query(None),
+    handler_id: str | None = Query(None),
+    entity_type: str | None = Query(None),
+    entity_id: int | None = Query(None),
+    action: str | None = Query(None),
+    date_from: datetime | None = Query(None),
+    date_to: datetime | None = Query(None),
+    search: str | None = Query(None),
+    module: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("backoffice.logs", "view")),
 ):
@@ -286,15 +285,15 @@ async def get_audit_log_detail(
 
 @router.get("/export")
 async def export_audit_logs(
-    user_id: Optional[int] = Query(None),
-    handler_id: Optional[str] = Query(None),
-    entity_type: Optional[str] = Query(None),
-    entity_id: Optional[int] = Query(None),
-    action: Optional[str] = Query(None),
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
-    search: Optional[str] = Query(None),
-    module: Optional[str] = Query(None),
+    user_id: int | None = Query(None),
+    handler_id: str | None = Query(None),
+    entity_type: str | None = Query(None),
+    entity_id: int | None = Query(None),
+    action: str | None = Query(None),
+    date_from: datetime | None = Query(None),
+    date_to: datetime | None = Query(None),
+    search: str | None = Query(None),
+    module: str | None = Query(None),
     format: str = Query("csv", description="Export format: csv or json"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("backoffice.logs", "view")),
@@ -322,7 +321,7 @@ async def export_audit_logs(
         sort_desc=True,
     )
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
 
     if format == "json":
         # JSON export

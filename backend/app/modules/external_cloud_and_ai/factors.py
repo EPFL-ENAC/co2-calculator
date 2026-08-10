@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import ValidationInfo, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -13,9 +11,7 @@ from app.schemas.factor import (
 )
 
 
-def _validate_non_negative_float(
-    v: Optional[float], field_name: str
-) -> Optional[float]:
+def _validate_non_negative_float(v: float | None, field_name: str) -> float | None:
     if v is None:
         return v
     if v < 0:
@@ -40,8 +36,8 @@ class _ExternalCloudFactorValidationMixin:
     )
     @classmethod
     def validate_factor_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
+        cls, v: float | None, info: ValidationInfo
+    ) -> float | None:
         return _validate_non_negative_float(v, info.field_name or "")
 
     @field_validator("currency", mode="after")
@@ -120,13 +116,13 @@ class ExternalAIFactorCreate(FactorCreate):
 
 
 class ExternalAIFactorUpdate(FactorUpdate):
-    provider: Optional[str] = None
-    usage_type: Optional[str] = None
-    ef_kg_co2eq_per_request: Optional[float] = None
+    provider: str | None = None
+    usage_type: str | None = None
+    ef_kg_co2eq_per_request: float | None = None
 
     @field_validator("ef_kg_co2eq_per_request", mode="after")
     @classmethod
-    def validate_ef(cls, v: Optional[float]) -> Optional[float]:
+    def validate_ef(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0:

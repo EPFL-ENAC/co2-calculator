@@ -176,7 +176,8 @@ def _write_csv(tmp_path: Path, sub: str, body: str) -> str:
 
 async def _read_member_entries(session: AsyncSession, crm_id: int) -> list[DataEntry]:
     """Read every ``headcount.member`` ``DataEntry`` under ``crm_id``.
-    Used after each upload to assert on the post-state."""
+    Used after each upload to assert on the post-state.
+    """
     result = await session.execute(
         select(DataEntry).where(
             col(DataEntry.carbon_report_module_id) == crm_id,
@@ -425,7 +426,8 @@ async def test_factor_reupload_dedup_via_partial_unique_index(pg_dsn):
     async def _fire_one_chain() -> int | None:
         """Open a fresh session, call chain_job, return the child id (or
         None on dedup hit).  Each invocation gets its own session/
-        connection so the two callers can race genuinely."""
+        connection so the two callers can race genuinely.
+        """
         async with Sf() as session:
             row = await session.get(DataIngestionJob, parent_id)
             return await chain_job(

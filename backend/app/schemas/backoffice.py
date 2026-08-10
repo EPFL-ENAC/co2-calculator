@@ -1,7 +1,7 @@
 """Backoffice reporting schemas for API request/response validation."""
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import BaseModel, Field, field_serializer
 
@@ -22,32 +22,32 @@ class UnitReportingData(BaseModel):
     principal_user: str
 
     # Date of last module validation
-    last_update: Optional[datetime] = None
+    last_update: datetime | None = None
 
     # Name of the module with the highest tCO2-eq
-    highest_result_category: Optional[str] = None
+    highest_result_category: str | None = None
 
     # Numeric value for the sum of emissions
     total_carbon_footprint: float = Field(..., description="Total tCO2-eq")
 
     # Aggregated FTE from headcount module data entries
-    total_fte: Optional[float] = Field(None, description="Total FTE")
+    total_fte: float | None = Field(None, description="Total FTE")
 
     # URL or ID for the eye icon action
-    view_url: Optional[str] = None
+    view_url: str | None = None
 
     # Completion data for whole report
-    completion: Optional[ModuleStatus] = None
+    completion: ModuleStatus | None = None
 
     # Progress string from carbon_reports.completion_progress (e.g. "5/7")
-    completion_progress: Optional[str] = None
+    completion_progress: str | None = None
 
     @field_serializer("last_update")
-    def serialize_last_update(self, dt: Optional[datetime]) -> Optional[str]:
+    def serialize_last_update(self, dt: datetime | None) -> str | None:
         if dt is None:
             return None
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt.isoformat()
 
     class Config:
@@ -66,13 +66,13 @@ class PaginationMeta(BaseModel):
 class PaginatedUnitReportingData(BaseModel):
     """Paginated list of unit reporting data."""
 
-    data: List[UnitReportingData]
+    data: list[UnitReportingData]
     pagination: PaginationMeta
     # Merged per-report stats across the filtered units. The frontend reshapes
     # this into the emission/IT breakdown rows the reporting charts consume.
-    stats: Optional[Dict[str, Any]] = None
+    stats: dict[str, Any] | None = None
     validated_units_count: int = 0
     in_progress_units_count: int = 0
     not_started_units_count: int = 0
     total_units_count: int = 0
-    module_status_counts: Optional[Dict[int, int]] = None
+    module_status_counts: dict[int, int] | None = None

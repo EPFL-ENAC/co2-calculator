@@ -1,7 +1,5 @@
 """Carbon project repository for simulator plan database operations."""
 
-from typing import Optional
-
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -29,7 +27,7 @@ class CarbonProjectRepository:
 
     async def list_plans_by_unit(
         self, unit_id: int
-    ) -> list[tuple[CarbonProject, Optional[str]]]:
+    ) -> list[tuple[CarbonProject, str | None]]:
         """List plan projects for a unit with creator names, newest first.
 
         Ordered by id (creation order); created_at is nullable so ordering
@@ -43,7 +41,7 @@ class CarbonProjectRepository:
         result = await self.session.execute(statement)
         return [(project, display_name) for project, display_name in result.all()]
 
-    async def get_plan(self, plan_id: int) -> Optional[CarbonProject]:
+    async def get_plan(self, plan_id: int) -> CarbonProject | None:
         """Get a plan project by ID (non-plan projects are not returned)."""
         statement = select(CarbonProject).where(
             CarbonProject.id == plan_id,
@@ -54,7 +52,7 @@ class CarbonProjectRepository:
 
     async def get_plan_with_creator(
         self, plan_id: int
-    ) -> Optional[tuple[CarbonProject, Optional[str]]]:
+    ) -> tuple[CarbonProject, str | None] | None:
         """Get a plan project by ID, with the creator name."""
         statement = self._plan_with_creator_stmt().where(CarbonProject.id == plan_id)
         result = await self.session.execute(statement)
@@ -83,7 +81,7 @@ class CarbonProjectRepository:
 
     async def get_calculator_report(
         self, unit_id: int, year: int
-    ) -> Optional[CarbonReport]:
+    ) -> CarbonReport | None:
         """Return the unit's Calculator report for a year, or None."""
         statement = (
             select(CarbonReport)
@@ -100,7 +98,7 @@ class CarbonProjectRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
-    async def get_latest_calculator_year(self, unit_id: int) -> Optional[int]:
+    async def get_latest_calculator_year(self, unit_id: int) -> int | None:
         """Year of the unit's most recent Calculator report, or None.
 
         The default factor year of plan years without a reference year.
@@ -121,7 +119,7 @@ class CarbonProjectRepository:
 
     async def list_report_stats_by_project(
         self, project_ids: list[int]
-    ) -> list[tuple[int, Optional[dict]]]:
+    ) -> list[tuple[int, dict | None]]:
         """Return ``(project_id, report.stats)`` for many projects in one query.
 
         Backs the plan totals shown in the home-page planner table: one query

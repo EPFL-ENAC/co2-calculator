@@ -242,7 +242,8 @@ async def test_resolve_handler_and_validate_missing_factor_no_config():
 @pytest.mark.asyncio
 async def test_equipment_with_empty_factors_fails_fast_at_setup(monkeypatch):
     """ModuleTypeEnum.equipment + empty factors_map
-    raises at setup — the per-row loop is never entered."""
+    raises at setup — the per-row loop is never entered.
+    """
     provider = ModulePerYearCSVProvider(
         {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
@@ -275,7 +276,8 @@ async def test_equipment_with_empty_factors_fails_fast_at_setup(monkeypatch):
 @pytest.mark.asyncio
 async def test_purchase_with_empty_factors_fails_fast_at_setup(monkeypatch):
     """ModuleTypeEnum.purchase shares the factor-inferred-DET shape;
-    same guard fires."""
+    same guard fires.
+    """
     provider = ModulePerYearCSVProvider(
         {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
@@ -306,7 +308,8 @@ async def test_non_factor_inferred_module_tolerates_empty_factors(monkeypatch):
     """Modules NOT in ``_FACTOR_INFERRED_MODULES`` (headcount, buildings,
     professional_travel, …) ingest rows even with empty factors — they
     carry the DET in a category column that maps to ``DataEntryTypeEnum``
-    names directly, so empty factors is a legitimate state."""
+    names directly, so empty factors is a legitimate state.
+    """
     provider = ModulePerYearCSVProvider(
         {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
@@ -337,7 +340,8 @@ async def test_setup_raises_when_year_missing(monkeypatch):
 
     Factor lookups key on ``{type}:{year}:{kind}:{subkind}``; a missing
     year silently misses every factor. MODULE_UNIT_SPECIFIC already had
-    this guard — converged into the shared loader."""
+    this guard — converged into the shared loader.
+    """
     provider = ModulePerYearCSVProvider(
         {"file_path": "tmp/test.csv"},  # year deliberately omitted
         data_session=MagicMock(),
@@ -350,7 +354,8 @@ async def test_setup_raises_when_year_missing(monkeypatch):
 
 def test_get_factors_maps_by_type_splits_by_type_prefix():
     """The merged factors_map is split into per-type maps keyed by the
-    ``{type_value}:`` prefix, preserving every entry under its type."""
+    ``{type_value}:`` prefix, preserving every entry under its type.
+    """
     member = DataEntryTypeEnum.member
     scientific = DataEntryTypeEnum.scientific
     setup_result = {
@@ -377,7 +382,8 @@ def test_get_factors_maps_by_type_is_memoised():
     once per type *for every row*, turning a 9.5k-row upload into minutes of
     pure CPU. It depends only on the (year-scoped) factors_map and valid
     entry types — both invariant for the file — so it must be built once and
-    cached on setup_result, not rebuilt per row."""
+    cached on setup_result, not rebuilt per row.
+    """
     member = DataEntryTypeEnum.member
     setup_result = {"factors_map": {f"{member.value}:2026:k:": "f1"}}
 
@@ -392,7 +398,8 @@ def test_get_factors_maps_by_type_is_memoised():
 async def test_resolve_configured_type_accepts_string_id():
     """Regression: job config may carry data_entry_type_id as a string
     (JSON payload). MODULE_UNIT_SPECIFIC cast through int(); MODULE_PER_YEAR
-    did not — converged in the shared resolver."""
+    did not — converged in the shared resolver.
+    """
     provider = ModulePerYearCSVProvider(
         {
             "file_path": "tmp/test.csv",
@@ -433,7 +440,8 @@ async def test_type_inference_is_memoised_per_kind(monkeypatch):
     """The per-row kind→type inference scans the full factors_map; the measured
     cost of a 9.5k-row purchase upload was ~33s spent entirely here. Its result
     is a pure function of (kind, subkind), which repeat across rows, so it must
-    be memoised on setup_result: the same kind is inferred once, not per row."""
+    be memoised on setup_result: the same kind is inferred once, not per row.
+    """
     provider = ModulePerYearCSVProvider(
         {"file_path": "tmp/test.csv"}, data_session=MagicMock()
     )

@@ -16,7 +16,7 @@ Data-only migration (issue #866):
   by enum id and need no change.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 
@@ -32,9 +32,9 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "2c7f5cf1c9de"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = "ca72e51fd409"  # noqa: F841
-branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
-depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
+down_revision: str | Sequence[str] | None = "ca72e51fd409"  # noqa: F841
+branch_labels: str | Sequence[str] | None = None  # noqa: F841
+depends_on: str | Sequence[str] | None = None  # noqa: F841
 
 
 def upgrade() -> None:
@@ -65,7 +65,8 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Restore ``mice`` — the exact inverse; ``rodent`` is unknown to the
-    resolver at the previous revision."""
+    resolver at the previous revision.
+    """
     op.execute(
         sa.text(
             """

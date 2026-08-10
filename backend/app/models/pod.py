@@ -22,7 +22,6 @@ Lifecycle:
 """
 
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import Column
 from sqlalchemy import DateTime as SADateTime
@@ -45,8 +44,8 @@ class Pod(SQLModel, table=True):
     # startup.  Lets the workers view show "this pod is on commit X
     # vs this pod on commit Y" at a glance — the local-vs-stage
     # scenario that surfaced this requirement.
-    git_sha: Optional[str] = Field(default=None, max_length=64)
-    app_version: Optional[str] = Field(default=None, max_length=64)
+    git_sha: str | None = Field(default=None, max_length=64)
+    app_version: str | None = Field(default=None, max_length=64)
     # When this pod first registered.  Differs from
     # ``last_heartbeat_at`` so the UI can show "pod uptime" alongside
     # "heartbeat age".  ``timezone=True`` so asyncpg / psycopg

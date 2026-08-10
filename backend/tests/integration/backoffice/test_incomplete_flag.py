@@ -16,7 +16,7 @@ with every mandatory upload seeded, to pin the "ready to open" *presence*
 case (slice (a) of #1403 covers the *absence* case on a fresh year).
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
@@ -63,7 +63,8 @@ _TRAIN = 21
 
 def test_submodule_missing_factor_flags_incomplete():
     """A module submodule requiring a factor with no ``latest_factor_job``
-    is incomplete, and the reason is surfaced."""
+    is incomplete, and the reason is surfaced.
+    """
     module_val = {
         "enabled": True,
         "submodules": {str(_MEMBER): {"enabled": True, "latest_factor_job": None}},
@@ -78,7 +79,8 @@ def test_submodule_missing_factor_flags_incomplete():
 
 def test_submodule_missing_reference_flags_incomplete():
     """Train requires both factor and reference; factor present, reference
-    missing → still incomplete, reason pinpoints the reference."""
+    missing → still incomplete, reason pinpoints the reference.
+    """
     module_val = {
         "enabled": True,
         "submodules": {
@@ -119,7 +121,8 @@ def test_fully_complete_submodule_clears_incomplete():
 
 def test_disabled_module_forces_incomplete_false_despite_missing_uploads():
     """A disabled module is never "incomplete" — matches the legacy
-    frontend gate (nothing to upload for a module nobody sees)."""
+    frontend gate (nothing to upload for a module nobody sees).
+    """
     module_val = {
         "enabled": False,
         "submodules": {str(_MEMBER): {"enabled": True, "latest_factor_job": None}},
@@ -131,7 +134,8 @@ def test_disabled_module_forces_incomplete_false_despite_missing_uploads():
 
 def test_disabled_submodule_does_not_drive_module_incomplete():
     """An incomplete submodule that is itself disabled must not roll up
-    into the module-level flag — only *enabled* submodules count."""
+    into the module-level flag — only *enabled* submodules count.
+    """
     module_val = {
         "enabled": True,
         "submodules": {
@@ -149,7 +153,8 @@ def test_disabled_submodule_does_not_drive_module_incomplete():
 def test_common_factor_module_needs_module_level_factor_job():
     """Equipment is in ``MODULES_REQUIRING_COMMON_FACTOR``: even with every
     submodule individually satisfied (they're all noFactors), the module
-    stays incomplete until the module-level common factor upload lands."""
+    stays incomplete until the module-level common factor upload lands.
+    """
     assert _EQUIPMENT in MODULES_REQUIRING_COMMON_FACTOR
     module_val = {
         "enabled": True,
@@ -169,7 +174,8 @@ def test_common_factor_module_needs_module_level_factor_job():
 
 def test_common_factor_present_clears_module_incomplete():
     """Same shape as above, but the common factor job is now present —
-    the module clears."""
+    the module clears.
+    """
     module_val = {
         "enabled": True,
         "latest_common_factor_job": {"job_id": 9},
@@ -185,7 +191,8 @@ def test_common_factor_present_clears_module_incomplete():
 def test_common_factor_satisfies_submodule_missing_own_factor():
     """A submodule with ``mandatory_factor=True`` is satisfied by the
     module's common-factor job even without its own — matches the legacy
-    frontend fallback rule (``_submodule_incomplete_reasons`` docstring)."""
+    frontend fallback rule (``_submodule_incomplete_reasons`` docstring).
+    """
     # additional_purchases (67) is the one purchase submodule with its own
     # mandatory_factor=True; the module (purchase=5) is also in
     # MODULES_REQUIRING_COMMON_FACTOR.
@@ -216,7 +223,8 @@ def _seed_jobs_for_full_completion() -> list[DataIngestionJob]:
     """One finished factor/reference job per mandatory (module, det) pair,
     plus a module-level common-factor job for every module in
     ``MODULES_REQUIRING_COMMON_FACTOR`` — enough to satisfy every
-    ``incomplete`` rule across the whole default config."""
+    ``incomplete`` rule across the whole default config.
+    """
     jobs: list[DataIngestionJob] = []
 
     def _job(module_type_id, data_entry_type_id, target_type) -> DataIngestionJob:
@@ -265,7 +273,7 @@ async def db_fully_uploaded_year():
                 year=YEAR,
                 provider=UserProvider.DEFAULT,
                 is_started=False,
-                configuration_completed=datetime.now(timezone.utc),
+                configuration_completed=datetime.now(UTC),
                 config=generate_default_year_config(),
             )
         )
@@ -295,7 +303,8 @@ def test_every_module_reports_complete_once_all_mandatory_uploads_present(
     common) is uploaded, the year-configuration response marks every
     module — and every submodule — ``incomplete=False``. This is the
     signal the Configurator reads to enable "Ouvrir l'année pour les
-    utilisateurs" (the absence case is covered in slice (a))."""
+    utilisateurs" (the absence case is covered in slice (a)).
+    """
     _, factory = db_fully_uploaded_year
 
     def override_get_current_user():

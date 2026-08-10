@@ -1,7 +1,5 @@
 """Repositories for connector connections and datasources (#1552)."""
 
-from typing import Optional
-
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -18,7 +16,7 @@ class ConnectorConnectionRepository:
 
     async def get_by_connector(
         self, connector: ConnectorType
-    ) -> Optional[ConnectorConnection]:
+    ) -> ConnectorConnection | None:
         result = await self.session.exec(
             select(ConnectorConnection).where(
                 col(ConnectorConnection.connector) == connector
@@ -38,8 +36,8 @@ class ConnectorDatasourceRepository:
         self.session = session
 
     async def get_active_for_module(
-        self, module_type_id: int, data_entry_type_id: Optional[int] = None
-    ) -> Optional[ConnectorDatasource]:
+        self, module_type_id: int, data_entry_type_id: int | None = None
+    ) -> ConnectorDatasource | None:
         query = select(ConnectorDatasource).where(
             col(ConnectorDatasource.module_type_id) == module_type_id,
             col(ConnectorDatasource.is_active).is_(True),

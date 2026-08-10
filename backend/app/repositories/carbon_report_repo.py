@@ -1,7 +1,5 @@
 """Carbon report repository for database operations."""
 
-from typing import List, Optional
-
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -47,7 +45,7 @@ class CarbonReportRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get(self, carbon_report_id: int) -> Optional[CarbonReport]:
+    async def get(self, carbon_report_id: int) -> CarbonReport | None:
         """Get a carbon report by ID."""
         statement = select(CarbonReport).where(CarbonReport.id == carbon_report_id)
         result = await self.session.execute(statement)
@@ -71,7 +69,7 @@ class CarbonReportRepository:
 
     async def get_by_unit_and_year(
         self, unit_id: int, year: int
-    ) -> Optional[CarbonReport]:
+    ) -> CarbonReport | None:
         """Get a Calculator carbon report by unit and year."""
         statement = (
             select(CarbonReport)
@@ -93,7 +91,7 @@ class CarbonReportRepository:
         *,
         unit_id: int,
         reference_year: int,
-    ) -> Optional[CarbonReport]:
+    ) -> CarbonReport | None:
         """Get the latest Simulator Explore report for a unit + reference year.
 
         In the new schema, Explore reports store the reference year in the ``year``
@@ -118,7 +116,7 @@ class CarbonReportRepository:
 
     async def update(
         self, carbon_report_id: int, data: CarbonReportUpdate
-    ) -> Optional[CarbonReport]:
+    ) -> CarbonReport | None:
         """Update a carbon report."""
         statement = select(CarbonReport).where(CarbonReport.id == carbon_report_id)
         result = await self.session.execute(statement)
@@ -146,18 +144,17 @@ class CarbonReportRepository:
 
     async def get_reporting_overview(
         self,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
-        path_lvl4: Optional[List[str]] = None,
-        overall_status: Optional[ModuleStatus] = None,
-        search: Optional[str] = None,
-        modules: Optional[List[str]] = None,
-        years: Optional[List[int]] = None,
+        path_lvl2: list[str] | None = None,
+        path_lvl3: list[str] | None = None,
+        path_lvl4: list[str] | None = None,
+        overall_status: ModuleStatus | None = None,
+        search: str | None = None,
+        modules: list[str] | None = None,
+        years: list[int] | None = None,
         page: int = 1,
         page_size: int = 50,
     ) -> list[CarbonReport]:
-        """
-        Retrieves the aggregated reporting data using a Deferred Join strategy.
+        """Retrieves the aggregated reporting data using a Deferred Join strategy.
         First paginates the Units, then calculates footprints ONLY for those 50 units.
         """
         # Reporting is Calculator-only: never surface Simulator Explore/Plan

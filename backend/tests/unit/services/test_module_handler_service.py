@@ -36,7 +36,8 @@ def _make_handler(kind_field="kind", subkind_field="subkind"):
 
 def _purchase_handler():
     """Override-style handler (e.g. purchase): kind_field_override is set,
-    no factor_value_fields declared."""
+    no factor_value_fields declared.
+    """
     return SimpleNamespace(
         kind_field="purchase_institutional_code",
         subkind_field=None,

@@ -78,7 +78,8 @@ async def pg_app(pg_dsn, monkeypatch):
 async def test_post_sync_units_creates_tracked_job(pg_app):
     """POST /v1/sync/units commits a real DataIngestionJob and returns its
     id; the row's enum-typed columns survive the round-trip (specifically
-    target_type=REFERENCE_DATA, the column that tripped production)."""
+    target_type=REFERENCE_DATA, the column that tripped production).
+    """
     pg_dsn = pg_app["dsn"]
 
     # Use httpx.AsyncClient + ASGITransport so the request runs on the same

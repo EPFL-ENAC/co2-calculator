@@ -1,5 +1,3 @@
-from typing import Optional
-
 from sqlalchemy import func
 
 from app.core.config import get_settings
@@ -99,7 +97,7 @@ class EquipmentModuleHandler(BaseModuleHandler):
         if factor_id is None:
             return []
 
-        def _equipment_formula(ctx: dict, factor_values: dict) -> Optional[float]:
+        def _equipment_formula(ctx: dict, factor_values: dict) -> float | None:
             # Usage hours are a live default: the user's value wins, an
             # unset field tracks the factor's current suggestion (nothing
             # is seeded into entry.data any more).
@@ -140,7 +138,7 @@ class EquipmentModuleHandler(BaseModuleHandler):
         primary_factor = data.get("primary_factor", {})
         is_new = bool(data.get("is_new", False))
 
-        def _displayed_usage(field: str) -> Optional[float]:
+        def _displayed_usage(field: str) -> float | None:
             entered = data.get(field)
             if entered is not None or is_new:
                 return entered

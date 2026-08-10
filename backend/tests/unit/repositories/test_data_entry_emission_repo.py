@@ -934,7 +934,8 @@ async def test_get_validated_totals_by_unit_excludes_non_calculator_projects(
     db_session: AsyncSession,
 ):
     """Unit totals are Calculator-only: a Simulator Plan report of the same
-    unit, even with a validated module, must not leak into the totals."""
+    unit, even with a validated module, must not leak into the totals.
+    """
     repo = DataEntryEmissionRepository(db_session)
 
     unit = Unit(id=80002, institutional_code="MIX-TEST", name="Mixed Unit", level=1)

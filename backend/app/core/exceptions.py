@@ -2,8 +2,7 @@
 
 
 class PermissionDeniedError(Exception):
-    """
-    Base exception for permission-related access denials.
+    """Base exception for permission-related access denials.
 
     Attributes:
         required_permission: The permission path that was required
@@ -18,8 +17,7 @@ class PermissionDeniedError(Exception):
         action: str,
         message: str,
     ):
-        """
-        Initialize PermissionDeniedError.
+        """Initialize PermissionDeniedError.
 
         Args:
             required_permission: The permission path that was required
@@ -33,8 +31,7 @@ class PermissionDeniedError(Exception):
 
 
 class InsufficientScopeError(PermissionDeniedError):
-    """
-    Exception raised when user has the required permission but insufficient scope.
+    """Exception raised when user has the required permission but insufficient scope.
 
     This occurs when a user has the permission but their scope (global/unit/own)
     doesn't allow access to the requested resource. For example, a user with
@@ -56,8 +53,7 @@ class InsufficientScopeError(PermissionDeniedError):
         user_scope: str | None = None,
         required_scope: str | None = None,
     ):
-        """
-        Initialize InsufficientScopeError.
+        """Initialize InsufficientScopeError.
 
         Args:
             required_permission: The permission path that was required
@@ -72,8 +68,7 @@ class InsufficientScopeError(PermissionDeniedError):
 
 
 class RecordAccessDeniedError(PermissionDeniedError):
-    """
-    Exception raised when user has permission but business rules deny record access.
+    """Exception raised when user has permission but business rules deny record access.
 
     This occurs when a user has the required permission but specific business
     rules prevent access to a particular record. For example, API-synced trips
@@ -95,8 +90,7 @@ class RecordAccessDeniedError(PermissionDeniedError):
         record_id: str | int | None = None,
         reason: str | None = None,
     ):
-        """
-        Initialize RecordAccessDeniedError.
+        """Initialize RecordAccessDeniedError.
 
         Args:
             required_permission: The permission path that was required

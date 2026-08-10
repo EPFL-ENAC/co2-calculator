@@ -157,7 +157,8 @@ async def test_get_module_id_for_unit_year_returns_int():
 @pytest.mark.asyncio
 async def test_get_module_id_for_unit_year_maps_valueerror_to_http_404():
     """The service raises ValueError when no module exists; the combine loop
-    catches only HTTPException, so this helper must translate it (else 500)."""
+    catches only HTTPException, so this helper must translate it (else 500).
+    """
     db = MagicMock()
     service = MagicMock()
     service.get_carbon_report_by_year_and_unit = AsyncMock(
@@ -285,7 +286,8 @@ async def test_list_headcount_members_std_user_sees_only_own():
 @pytest.mark.asyncio
 async def test_list_headcount_members_principal_other_unit_sees_only_own():
     """Principal of unit B accessing unit A sees only their own record
-    (role priority)."""
+    (role priority).
+    """
     user = _user("11111", [_principal("99999"), _std(UNIT_IID)])
     db = _mock_db(UNIT_IID)
     members = [
@@ -318,7 +320,8 @@ async def test_list_headcount_members_principal_other_unit_sees_only_own():
 @pytest.mark.asyncio
 async def test_list_headcount_members_404_when_unit_missing():
     """Missing unit row raises 404 — the gate needs the unit's institutional_id
-    to scope the permission lookup, so we can't continue without it."""
+    to scope the permission lookup, so we can't continue without it.
+    """
     user = _user("11111", [_principal(UNIT_IID)])
     db = _mock_db(unit_found=False)
 

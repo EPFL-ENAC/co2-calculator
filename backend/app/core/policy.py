@@ -1,6 +1,6 @@
 """Policy evaluation module for authorization decisions."""
 
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -26,8 +26,7 @@ logger = get_logger(__name__)
 
 
 async def _evaluate_permission_policy(input_data: dict) -> dict:
-    """
-    Evaluate permission check policy.
+    """Evaluate permission check policy.
 
     Args:
         input_data: Dictionary containing:
@@ -122,8 +121,7 @@ async def _evaluate_permission_policy(input_data: dict) -> dict:
 
 
 async def _evaluate_resource_access_policy(input_data: dict) -> dict:
-    """
-    Evaluate resource-level access policy for specific resources.
+    """Evaluate resource-level access policy for specific resources.
 
     Checks if a user can access/edit a specific resource based on:
     - Resource type and properties (e.g., provider, created_by)
@@ -239,8 +237,7 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
 
 
 async def _evaluate_data_filter_policy(input_data: dict) -> dict:
-    """
-    Evaluate data filtering policy based on user's role scope.
+    """Evaluate data filtering policy based on user's role scope.
 
     Determines filter criteria based on user's roles:
     - Global scope (backoffice admin): No filters (can see all)
@@ -366,8 +363,7 @@ async def _evaluate_data_filter_policy(input_data: dict) -> dict:
 
 
 async def query_policy(policy_name: str, input_data: dict) -> dict:
-    """
-    Query policy engine for authorization decisions.
+    """Query policy engine for authorization decisions.
 
     Supports multiple policy types:
     - "authz/permission/check": Permission-based authorization
@@ -410,9 +406,8 @@ async def query_policy(policy_name: str, input_data: dict) -> dict:
     }
 
 
-def _get_module_permission_path(module_name: str | None) -> Optional[str]:
-    """
-    Map module name to permission path.
+def _get_module_permission_path(module_name: str | None) -> str | None:
+    """Map module name to permission path.
 
     Args:
         module_name: Module name (e.g., "professional-travel")
@@ -438,11 +433,10 @@ async def get_module_permission_decision(
     module_id: str | int,
     action: str = "view",
     *,
-    institutional_id: Optional[str] = None,
+    institutional_id: str | None = None,
     any_scope: bool = False,
 ) -> dict:
-    """
-    Get permission decision for a specific module and action.
+    """Get permission decision for a specific module and action.
 
     Args:
         user: Current user
@@ -485,11 +479,10 @@ async def is_module_permitted(
     module_id: str | int,
     action: str = "view",
     *,
-    institutional_id: Optional[str] = None,
+    institutional_id: str | None = None,
     any_scope: bool = False,
 ) -> bool:
-    """
-    Check if user has permission for a specific module and action.
+    """Check if user has permission for a specific module and action.
 
     Args:
         user: Current user
@@ -518,11 +511,10 @@ async def check_module_permission(
     module_id: str | int,
     action: str,
     *,
-    institutional_id: Optional[str] = None,
+    institutional_id: str | None = None,
     any_scope: bool = False,
 ) -> None:
-    """
-    Check if user has permission for the module.
+    """Check if user has permission for the module.
 
     Args:
         user: Current user.

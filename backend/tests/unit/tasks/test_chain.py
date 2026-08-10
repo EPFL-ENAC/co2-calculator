@@ -58,7 +58,8 @@ def _make_repo_for_chain(parent: MagicMock) -> MagicMock:
 async def test_chain_job_inherits_pipeline_id_and_fires_run_job():
     """Child created NOT_STARTED, inherits parent's pipeline_id,
     run_job scheduled via fire_and_forget.  Phase 5B retired
-    ``parent_job_id`` from meta — see assertion below."""
+    ``parent_job_id`` from meta — see assertion below.
+    """
     parent = _make_parent(job_id=100)
     parent.pipeline_id = uuid4()
 
@@ -118,7 +119,8 @@ async def test_chain_job_generates_pipeline_id_when_parent_has_none():
     """Parent without pipeline_id → chain_job generates a UUID and
     persists it on the parent BEFORE creating the child, so
     pod-crash-then-recovery of the parent doesn't generate a different
-    pipeline_id and orphan the child."""
+    pipeline_id and orphan the child.
+    """
     parent = _make_parent(job_id=100)
     parent.pipeline_id = None
 
@@ -206,7 +208,8 @@ async def test_chain_job_overrides_apply():
 async def test_chain_job_dedup_active_returns_new_id_on_success():
     """``dedup_active=True`` and the partial unique index does not
     block: ``_insert_child_with_dedup`` returns the new id, chain_job
-    fires run_job, and the function returns the same id."""
+    fires run_job, and the function returns the same id.
+    """
     parent = _make_parent(job_id=100)
     parent.pipeline_id = uuid4()
 
@@ -248,7 +251,8 @@ async def test_chain_job_dedup_active_returns_new_id_on_success():
 async def test_chain_job_dedup_active_returns_none_on_collision():
     """``dedup_active=True`` and the index already covers an active
     row: ``_insert_child_with_dedup`` returns None.  chain_job must
-    return None too AND must NOT fire run_job (no new work to dispatch)."""
+    return None too AND must NOT fire run_job (no new work to dispatch).
+    """
     parent = _make_parent(job_id=100)
     parent.pipeline_id = uuid4()
 
@@ -292,7 +296,8 @@ async def test_chain_job_dedup_active_false_uses_orm_path():
     """The default ``dedup_active=False`` path is unchanged: it goes
     through ``DataIngestionRepository.create_ingestion_job``, not the
     raw INSERT helper.  Pinned so a future refactor of the dedup path
-    can't silently swap the legacy callers onto it."""
+    can't silently swap the legacy callers onto it.
+    """
     parent = _make_parent(job_id=100)
     parent.pipeline_id = uuid4()
 
@@ -365,7 +370,8 @@ async def test_chain_job_dedup_active_raises_when_year_none():
     """Same contract as the module_type_id case but the NULL is on
     ``year`` — the explicit ``IS NULL`` pre-check handling covers the
     SQL side, but the partial unique index won't catch the duplicate
-    either.  Refuse at chain_job entry."""
+    either.  Refuse at chain_job entry.
+    """
     parent = _make_parent(job_id=100)
     parent.pipeline_id = uuid4()
     parent.module_type_id = 11
@@ -389,7 +395,8 @@ async def test_chain_job_no_dedup_does_not_require_scope_keys():
     """The scope-keys guard only fires when ``dedup_active=True`` —
     the legacy non-dedup path has always tolerated NULL keys (single-
     step jobs, manual recalcs).  Pin that contract so the new guard
-    doesn't accidentally tighten the legacy API."""
+    doesn't accidentally tighten the legacy API.
+    """
     parent = _make_parent(job_id=100)
     parent.pipeline_id = uuid4()
     parent.module_type_id = None
@@ -493,7 +500,8 @@ async def test_chain_job_defers_dispatch_when_context_initialised():
 async def test_drain_pending_dispatches_fires_queued_children():
     """``drain_pending_dispatches`` fires every queued child id via
     ``fire_and_forget``.  Called by the runner after
-    ``data_session.commit()``."""
+    ``data_session.commit()``.
+    """
     chain_mod.reset_pending_dispatches()
     pending = chain_mod._PENDING_DISPATCHES.get()
     assert pending is not None
@@ -517,7 +525,8 @@ async def test_drain_pending_dispatches_fires_queued_children():
 @pytest.mark.asyncio
 async def test_discard_pending_dispatches_clears_without_firing():
     """On handler failure / preempt the runner calls this to drop the
-    queue — children must NOT run on a rolled-back parent's data."""
+    queue — children must NOT run on a rolled-back parent's data.
+    """
     chain_mod.reset_pending_dispatches()
     pending = chain_mod._PENDING_DISPATCHES.get()
     assert pending is not None
@@ -540,7 +549,8 @@ async def test_chain_job_fallback_fires_immediately_when_no_context():
     """When the deferred-dispatch context is NOT initialised (ad-hoc
     callers / legacy tests that haven't migrated), ``chain_job`` falls
     back to immediate fire so the legacy contract is preserved.  Logs
-    a warning so the fallback is visible in operational logs."""
+    a warning so the fallback is visible in operational logs.
+    """
     parent = _make_parent()
     parent.pipeline_id = uuid4()
     repo = _make_repo_for_chain(parent)

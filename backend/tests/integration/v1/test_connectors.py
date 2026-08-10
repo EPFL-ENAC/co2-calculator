@@ -226,7 +226,8 @@ async def test_test_endpoint_records_audit_without_secret(
     client, db_factory, monkeypatch
 ):
     """A connection test is audited (PRD): an audit row is persisted with the
-    connector + boolean outcome, and no secret material leaks into it."""
+    connector + boolean outcome, and no secret material leaks into it.
+    """
     from app.models.connector import ConnectorConnection, ConnectorType
     from app.services.data_ingestion.api_providers.professional_travel_api_provider import (  # noqa: E501
         ProfessionalTravelApiProvider,

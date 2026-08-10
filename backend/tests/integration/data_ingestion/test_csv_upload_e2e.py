@@ -14,6 +14,7 @@ Known limitations requiring future work:
 - Some tests may need database seeding with production-like data
 """
 
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -142,7 +143,7 @@ class TestCSVUploadBasic:
         # #1234-followup: dispatch now gates on year_configuration
         # .configuration_completed; seed a ready year so the endpoint
         # passes the precondition.
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from app.models.year_configuration import YearConfiguration
 
@@ -150,7 +151,7 @@ class TestCSVUploadBasic:
             YearConfiguration(
                 year=2025,
                 is_started=True,
-                configuration_completed=datetime.now(timezone.utc),
+                configuration_completed=datetime.now(UTC),
             )
         )
         await db_session.flush()

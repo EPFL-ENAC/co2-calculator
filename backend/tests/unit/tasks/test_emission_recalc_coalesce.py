@@ -52,7 +52,8 @@ async def _seed_pipeline(
 
 def _parent(*, pipeline_id) -> DataIngestionJob:
     """Parent ingest job — Phase 5B: no ``recalc_jobs_chained`` meta
-    (it's on ``pipelines.expected_recalc`` now)."""
+    (it's on ``pipelines.expected_recalc`` now).
+    """
     return DataIngestionJob(
         entity_type=EntityType.MODULE_PER_YEAR,
         module_type_id=4,
@@ -71,7 +72,8 @@ def _parent(*, pipeline_id) -> DataIngestionJob:
 
 def _recalc(*, pipeline_id, data_entry_type_id: int = 10) -> DataIngestionJob:
     """Recalc child — Phase 5B: no ``parent_job_id`` meta (root is
-    identifiable by lowest-id job in the pipeline)."""
+    identifiable by lowest-id job in the pipeline).
+    """
     return DataIngestionJob(
         entity_type=EntityType.MODULE_PER_YEAR,
         module_type_id=4,
@@ -167,7 +169,8 @@ async def test_legacy_pipeline_without_expected_recalc_falls_back_to_true(
 ):
     """Pipeline row exists but ``expected_recalc`` is NULL (e.g. legacy
     pre-Phase-5A pipelines) → coalesce gate falls back to True so the
-    aggregation chain still fires (preserves prior behavior)."""
+    aggregation chain still fires (preserves prior behavior).
+    """
     pid = uuid4()
     await _seed_pipeline(db_session, pipeline_id=pid, expected_recalc=None)
     db_session.add(_parent(pipeline_id=pid))
@@ -183,7 +186,8 @@ async def test_legacy_no_pipeline_row_falls_back_to_true(
     db_session: AsyncSession,
 ):
     """Pipeline row missing entirely (pre-Phase-1 legacy / dropped row)
-    → gate falls back to True so the aggregation chain still fires."""
+    → gate falls back to True so the aggregation chain still fires.
+    """
     pid = uuid4()
     # NO _seed_pipeline call — Pipeline row absent.
     db_session.add(_parent(pipeline_id=pid))
@@ -244,7 +248,8 @@ from app.tasks.emission_recalculation_tasks import (  # noqa: E402
 @pytest.mark.asyncio
 async def test_scope_config_unions_own_and_siblings(db_session: AsyncSession):
     """Last sibling's own affected_module_ids (from local stats) + siblings'
-    finished contributions → full union in the aggregation config."""
+    finished contributions → full union in the aggregation config.
+    """
     pid = uuid4()
     await _seed_pipeline(db_session, pipeline_id=pid, expected_recalc=3)
     db_session.add(_parent(pipeline_id=pid))
@@ -279,7 +284,8 @@ async def test_scope_config_returns_empty_list_when_all_empty(
 ):
     """Siblings exist but all reported empty affected; own also empty →
     returns {"affected_module_ids": []} (precise 'nothing to do', NOT
-    the legacy fallback)."""
+    the legacy fallback).
+    """
     pid = uuid4()
     await _seed_pipeline(db_session, pipeline_id=pid, expected_recalc=2)
     db_session.add(_parent(pipeline_id=pid))
@@ -300,7 +306,8 @@ async def test_scope_config_returns_empty_list_when_all_empty(
 @pytest.mark.asyncio
 async def test_scope_config_returns_none_when_no_info(db_session: AsyncSession):
     """No siblings, no own ids, no pipeline_id → returns None so the
-    aggregation falls back to the full slice (legacy behavior)."""
+    aggregation falls back to the full slice (legacy behavior).
+    """
     me = _recalc(pipeline_id=None, data_entry_type_id=10)
     me.meta = {}
     db_session.add(me)
@@ -319,7 +326,8 @@ async def test_scope_config_uses_only_own_when_no_real_pipeline(
 ):
     """Mock-style pipeline_id (not a real UUID) → helper short-circuits
     using just the caller's local affected_module_ids. Keeps mock-driven
-    unit tests off the real SessionLocal path in production code."""
+    unit tests off the real SessionLocal path in production code.
+    """
     me = _recalc(pipeline_id=None)  # pipeline_id=None → same code path
     db_session.add(me)
     await db_session.flush()

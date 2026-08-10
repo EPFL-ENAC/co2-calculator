@@ -1,6 +1,6 @@
 """Data entry emission repository for database operations."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from psycopg.types.json import Json
 from sqlalchemy import ColumnElement, Integer, Select, bindparam, case, literal
@@ -173,7 +173,7 @@ class DataEntryEmissionRepository:
         carbon_report_module_id,
         aggregate_by: str = "emission_type_id",
         aggregate_field: str = "kg_co2eq",
-    ) -> Dict[str, Optional[float]]:
+    ) -> dict[str, float | None]:
         """Aggregate DataEntryEmission data by emission_type_id
                 SELECT
             dee.*
@@ -208,7 +208,7 @@ class DataEntryEmissionRepository:
         rows = result.all()
 
         # 3. Format the results
-        aggregation: Dict[str, Optional[float]] = {}
+        aggregation: dict[str, float | None] = {}
         for key, total_count in rows:
             label = str(key) if key is not None else "unknown"
             aggregation[label] = total_count
@@ -218,7 +218,7 @@ class DataEntryEmissionRepository:
     async def get_stats_pair_many(
         self,
         carbon_report_module_ids: list[int],
-    ) -> Dict[int, tuple[Dict[str, float | None], Dict[str, float | None]]]:
+    ) -> dict[int, tuple[dict[str, float | None], dict[str, float | None]]]:
         """``get_stats_pair`` for a whole module set in ONE grouped query.
 
         Returns {module_id: (by_emission_type kg_co2eq, additional_value)}.
@@ -244,7 +244,7 @@ class DataEntryEmissionRepository:
             )
         )
         rows = (await self.session.execute(query)).all()
-        result: Dict[int, tuple[Dict[str, float | None], Dict[str, float | None]]] = {}
+        result: dict[int, tuple[dict[str, float | None], dict[str, float | None]]] = {}
         for module_id, emission_type_id, primary_total, secondary_total in rows:
             by_primary, by_secondary = result.setdefault(module_id, ({}, {}))
             key = str(emission_type_id)
@@ -262,7 +262,7 @@ class DataEntryEmissionRepository:
         aggregate_by: str = "emission_type_id",
         primary_field: str = "kg_co2eq",
         secondary_field: str = "additional_value",
-    ) -> tuple[Dict[str, float | None], Dict[str, float | None]]:
+    ) -> tuple[dict[str, float | None], dict[str, float | None]]:
         """Aggregate DataEntryEmission data by a field and sum two numeric columns.
 
         Returns:
@@ -286,8 +286,8 @@ class DataEntryEmissionRepository:
         result = await self.session.execute(query)
         rows = result.all()
 
-        by_primary: Dict[str, float | None] = {}
-        by_secondary: Dict[str, float | None] = {}
+        by_primary: dict[str, float | None] = {}
+        by_secondary: dict[str, float | None] = {}
         for key, primary_total, secondary_total in rows:
             label = str(key) if key is not None else "unknown"
             by_primary[label] = (
@@ -304,7 +304,7 @@ class DataEntryEmissionRepository:
         unit_id: int,
         *,
         validated_only: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Aggregate validated emission totals by year for a unit.
 
         Joins CarbonReport → CarbonReportModule → DataEntry → DataEntryEmission
@@ -373,7 +373,6 @@ class DataEntryEmissionRepository:
         Returns:
             [(building_name, sum_kg_co2eq), ...] sorted by building name.
         """
-
         building_name_expr = DataEntry.data["building_name"].as_string()
         query: Select[Any] = (
             select(
@@ -538,10 +537,8 @@ class DataEntryEmissionRepository:
     async def get_travel_stats_by_class(
         self,
         carbon_report_module_id: int,
-    ) -> List[Dict[str, Any]]:
-        """
-        Aggregate travel emissions by data entry type and cabin_class.
-        """
+    ) -> list[dict[str, Any]]:
+        """Aggregate travel emissions by data entry type and cabin_class."""
         category_expr = col(DataEntry.data_entry_type_id)
         class_expr = DataEntry.data["cabin_class"].as_string()
 
@@ -570,7 +567,7 @@ class DataEntryEmissionRepository:
         rows = result.all()
 
         # Group by category, aggregate by class
-        data_dict: Dict[str, Dict[str, float]] = {}
+        data_dict: dict[str, dict[str, float]] = {}
         for row in rows:
             if row.category == DataEntryTypeEnum.plane.value:
                 category = "plane"
@@ -601,7 +598,7 @@ class DataEntryEmissionRepository:
         # Build treemap format
         total_kg_co2eq = sum(sum(classes.values()) for classes in data_dict.values())
 
-        result_list: List[Dict[str, Any]] = []
+        result_list: list[dict[str, Any]] = []
         for category, classes in data_dict.items():
             category_total = sum(classes.values())
             children = []
@@ -629,14 +626,14 @@ class DataEntryEmissionRepository:
 
     async def get_top_class_breakdown(
         self,
-        carbon_report_module_ids: List[int],
-        data_entry_types: List[DataEntryTypeEnum],
+        carbon_report_module_ids: list[int],
+        data_entry_types: list[DataEntryTypeEnum],
         group_by_field: str,
         top_n: int = 3,
         label_field: str | None = None,
         report_year: int | None = None,
-        emission_type_ids: List[int] | None = None,
-    ) -> List[Dict[str, Any]]:
+        emission_type_ids: list[int] | None = None,
+    ) -> list[dict[str, Any]]:
         """Aggregate emissions by data entry type and a grouping field.
 
         Generic method that works for any module. Groups emissions within each
@@ -736,7 +733,7 @@ class DataEntryEmissionRepository:
 
         rows = (await self.session.execute(query)).all()
 
-        data_dict: Dict[int, Dict[str, Any]] = {}
+        data_dict: dict[int, dict[str, Any]] = {}
         for row in rows:
             entry = data_dict.setdefault(
                 row.category,

@@ -3,7 +3,7 @@ import csv
 import io
 import urllib.parse
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, TypedDict
+from typing import Any, TypedDict
 
 from pydantic import ValidationError
 
@@ -64,7 +64,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         user: User | None = None,
         job_session: Any = None,
         data_session: Any = None,
@@ -130,21 +130,21 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             logger.error(f"Failed to validate CSV file: {str(e)}")
             return False
 
-    async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         return []
 
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         return raw_data
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         return {"inserted": 0, "skipped": 0, "errors": 0}
 
     async def ingest(
         self,
-        filters: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         try:
             await self._update_job(
                 status_message="processing",
@@ -168,7 +168,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             logger.error(f"CSV ingestion failed: {str(e)}")
             raise
 
-    async def process_csv_in_batches(self) -> Dict[str, Any]:
+    async def process_csv_in_batches(self) -> dict[str, Any]:
         try:
             setup_result = await self._setup_and_validate()
 
@@ -190,7 +190,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             # as stale via last_seen_job_id.
 
             copy_batch_size = get_settings().INGEST_COPY_BATCH_SIZE
-            batch: List[Factor] = []
+            batch: list[Factor] = []
             csv_reader = csv.DictReader(io.StringIO(setup_result["csv_text"]))
 
             for row_idx, row in enumerate(csv_reader, start=1):
@@ -253,7 +253,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 )
             raise
 
-    async def _setup_and_validate(self) -> Dict[str, Any]:
+    async def _setup_and_validate(self) -> dict[str, Any]:
         if self.year is None:
             raise ValueError("year is required for factor CSV ingestion")
         if self.job_id is not None:
@@ -343,9 +343,9 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
     async def _process_row(
         self,
-        row: Dict[str, str],
+        row: dict[str, str],
         row_idx: int,
-        setup_result: Dict[str, Any],
+        setup_result: dict[str, Any],
         stats: FactorStatsDict,
         max_row_errors: int,
         factor_service: FactorService,
@@ -362,7 +362,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
             # Build classification with explicit None for missing fields
             # (like seed_generic_factors.py - don't rely on validated DTO)
-            classification: Dict[str, Any] = {}
+            classification: dict[str, Any] = {}
             for field_name in handler.classification_fields:
                 value = row.get(field_name)
                 classification[field_name] = (
@@ -370,7 +370,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 )
 
             # Build values with type conversion, filtering empty values
-            values: Dict[str, Any] = {}
+            values: dict[str, Any] = {}
             for field_name in handler.value_fields:
                 value = row.get(field_name)
                 if value and str(value).strip():
@@ -389,7 +389,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
             # Validate the payload (ensures data types are correct)
             # but use our manually built classification/values dicts
-            validation_payload: Dict[str, Any] = {
+            validation_payload: dict[str, Any] = {
                 **classification,
                 **values,
                 "data_entry_type_id": data_entry_type.value,
@@ -430,14 +430,13 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
     def _resolve_data_entry_type(
         self,
-        row: Dict[str, str],
-        setup_result: Dict[str, Any],
+        row: dict[str, str],
+        setup_result: dict[str, Any],
         row_idx: int,
         stats: FactorStatsDict,
         max_row_errors: int,
     ) -> DataEntryTypeEnum | None:
-        """
-        Resolve data_entry_type with priority:
+        """Resolve data_entry_type with priority:
         1. Configured data_entry_type_id
         2. Handler's category_field (e.g., equipment_category)
         """
@@ -477,7 +476,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
     async def _process_batch(
         self,
-        batch: List[Factor],
+        batch: list[Factor],
         factor_service: FactorService,
     ) -> None:
         # Legacy path retained for subclasses that override (notably
@@ -488,7 +487,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
     async def _upsert_batch(
         self,
-        batch: List[Factor],
+        batch: list[Factor],
         factor_repo: FactorRepository,
     ) -> int:
         """Upsert one batch keyed on the factor identity index.
@@ -510,8 +509,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         return reported
 
     def _compute_ingestion_result(self, stats: FactorStatsDict) -> IngestionResult:
-        """
-        Compute ingestion result based on success rate.
+        """Compute ingestion result based on success rate.
 
         Rules:
         - SUCCESS: rows_skipped == 0 (100% processed)
@@ -537,12 +535,12 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
     async def _finalize_and_commit(
         self,
-        batch: List[Factor],
+        batch: list[Factor],
         factor_service: FactorService,
         stats: FactorStatsDict,
-        setup_result: Dict[str, Any],
+        setup_result: dict[str, Any],
         factor_repo: FactorRepository,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if batch:
             upserted = await self._upsert_batch(batch, factor_repo)
             stats["factors_upserted"] += upserted
@@ -556,7 +554,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             stats["factors_deleted"] = await self._delete_stale_factors(factor_repo)
 
         processing_path = setup_result["processing_path"]
-        metadata_update: Dict[str, Any] = {
+        metadata_update: dict[str, Any] = {
             "processed_file_path": await self._move_to_processed(processing_path)
         }
 
@@ -595,7 +593,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             "stats": stats,
         }
 
-    async def _derive_dependent_factors(self, result: Dict[str, Any]) -> None:
+    async def _derive_dependent_factors(self, result: dict[str, Any]) -> None:
         """Refresh factors that are averages of the ones this upload carried.
 
         The planner's purchase factors are one such: they exist so a plan can
@@ -645,7 +643,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         )
 
     @abstractmethod
-    async def _setup_handlers_and_context(self) -> Dict[str, Any]:
+    async def _setup_handlers_and_context(self) -> dict[str, Any]:
         pass
 
     @staticmethod

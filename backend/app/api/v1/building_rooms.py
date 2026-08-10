@@ -1,7 +1,5 @@
 """Building rooms lookup API endpoints."""
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,13 +20,12 @@ router = APIRouter()
     response_model=list[BuildingRoomBuildingResponse | BuildingRoomResponse],
 )
 async def get_building_rooms(
-    building_location: Optional[str] = Query(default=None),
-    building_name: Optional[str] = Query(default=None),
+    building_location: str | None = Query(default=None),
+    building_name: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     _current_user: User = Depends(get_current_active_user),
 ) -> list[BuildingRoomBuildingResponse | BuildingRoomResponse]:
     """Return buildings and rooms for the Buildings module dropdowns."""
-
     building_room_service = BuildingRoomService(db)
 
     if building_location or building_name:

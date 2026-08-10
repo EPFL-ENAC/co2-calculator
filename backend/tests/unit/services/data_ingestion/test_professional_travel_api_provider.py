@@ -535,7 +535,6 @@ class TestLoadDataKgCo2eqHandling:
         itself is path-independent and would also pass under the
         async path; this test specifically pins the override carrier.
         """
-
         # Patch ``get_settings`` on the provider module so the gate
         # in ``_load_data`` sees BULK_PATH_PURE_ASYNC=False without
         # needing to clear the lru_cache.  The other settings reads

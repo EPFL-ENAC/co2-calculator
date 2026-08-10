@@ -1,7 +1,5 @@
 """Location service for business logic."""
 
-from typing import List, Optional
-
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -28,9 +26,8 @@ class LocationService:
         query: str,
         transport_mode: TransportModeEnum,
         limit: int = 10,
-    ) -> List[LocationRead]:
-        """
-        Search locations by name with relevance ordering.
+    ) -> list[LocationRead]:
+        """Search locations by name with relevance ordering.
 
         Args:
             query: Search query string
@@ -69,9 +66,8 @@ class LocationService:
         # Convert to DTOs
         return [LocationRead.model_validate(location) for location in locations]
 
-    async def get_location_by_natural_key(self, natural_key: str) -> Optional[Location]:
-        """
-        Get location by natural_key.
+    async def get_location_by_natural_key(self, natural_key: str) -> Location | None:
+        """Get location by natural_key.
 
         natural_key is unique per location, so this lookup is always unambiguous.
 
@@ -84,9 +80,8 @@ class LocationService:
         """
         return await self.repo.get_by_natural_key(natural_key)
 
-    async def get_location_by_iata(self, iata_code: str) -> Optional[Location]:
-        """
-        Get location by IATA code.
+    async def get_location_by_iata(self, iata_code: str) -> Location | None:
+        """Get location by IATA code.
 
         Args:
             iata_code: IATA code
@@ -96,7 +91,7 @@ class LocationService:
         """
         return await self.repo.get_by_iata(iata_code)
 
-    async def get_locations_by_iata(self, iata_codes: List[str]) -> List[Location]:
+    async def get_locations_by_iata(self, iata_codes: list[str]) -> list[Location]:
         """Bulk-fetch locations for many IATA codes in one query.
 
         Used by the plane recalc slice to resolve all airports up front.
@@ -107,7 +102,7 @@ class LocationService:
         self,
         name: str,
         country_code: str,
-    ) -> tuple[Optional[Location], str]:
+    ) -> tuple[Location | None, str]:
         """Resolve a train station name to a single ``Location`` for CSV ingest.
 
         Train CSVs ship ``origin_name`` / ``destination_name`` plus a required
@@ -133,9 +128,8 @@ class LocationService:
             return None, f"ambiguous: {len(matches)} matches in {country_code}"
         return matches[0], "ok"
 
-    async def get_location_by_id(self, location_id: int) -> Optional[Location]:
-        """
-        Get location by ID.
+    async def get_location_by_id(self, location_id: int) -> Location | None:
+        """Get location by ID.
 
         Args:
             location_id: Location ID
@@ -152,8 +146,7 @@ class LocationService:
         transport_mode: TransportModeEnum,
         number_of_trips: int = 1,
     ) -> dict[str, float]:
-        """
-        Calculate distance between two locations based on location transport mode.
+        """Calculate distance between two locations based on location transport mode.
 
         For flights: Haversine distance + 95 km (airport approaches, routing, taxiing)
         For trains: Haversine distance × 1.2 (track routing, curves, detours)
@@ -242,8 +235,7 @@ class LocationService:
     def _validate_and_correct_coordinates(
         self, location: Location, location_type: str
     ) -> tuple[float, float]:
-        """
-        Validate and correct coordinates for a location.
+        """Validate and correct coordinates for a location.
 
         Checks if coordinates are swapped (common data issue) and corrects them.
 

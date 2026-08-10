@@ -13,7 +13,6 @@ only contain the work itself.
 """
 
 import time
-from typing import Optional
 from uuid import UUID
 
 from sqlmodel import select
@@ -208,7 +207,7 @@ async def _build_aggregation_scope_config(
     my_affected_module_ids: list[int],
     *,
     helper_session: AsyncSession | None = None,
-) -> Optional[dict]:
+) -> dict | None:
     """4A.4 — build the chain config for the trailing aggregation job.
 
     The last recalc sibling chains the aggregation BEFORE the runner
@@ -243,7 +242,8 @@ async def _build_aggregation_scope_config(
 
     async def _gather(helper: AsyncSession) -> bool:
         """Returns True if at least one FINISHED sibling was seen
-        (so we know an empty union means 'truly nothing to do')."""
+        (so we know an empty union means 'truly nothing to do').
+        """
         siblings = (
             (
                 await helper.execute(
@@ -365,7 +365,7 @@ async def emission_recalc_handler(
     # 20-row upload doesn't recompute the whole (det, year) slice.
     config = (job.meta or {}).get("config") or {}
     raw_scope = config.get("carbon_report_module_ids")
-    module_scope: Optional[list[int]] = None
+    module_scope: list[int] | None = None
     if isinstance(raw_scope, list):
         module_scope = [int(i) for i in raw_scope if isinstance(i, int)]
 

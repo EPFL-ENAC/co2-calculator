@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import field_validator, model_validator
 
@@ -24,29 +24,29 @@ REQUESTS_FREQUENCY_MAP: dict[str, float] = {
 
 
 class ExternalCloudHandlerResponse(DataEntryResponseGen):
-    service_type: Optional[str] = None
-    provider: Optional[str] = None
-    spent_amount: Optional[float] = None
-    currency: Optional[str] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    service_type: str | None = None
+    provider: str | None = None
+    spent_amount: float | None = None
+    currency: str | None = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
 class ExternalAIHandlerResponse(DataEntryResponseGen):
-    provider: Optional[str] = None
-    usage_type: Optional[str] = None
-    requests_per_user_per_day: Optional[str] = None
-    fte_count: Optional[float] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    provider: str | None = None
+    usage_type: str | None = None
+    requests_per_user_per_day: str | None = None
+    fte_count: float | None = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
 class ExternalCloudHandlerCreate(DataEntryCreate):
     service_type: str
     provider: str
     spent_amount: float
-    currency: Optional[str] = None
-    note: Optional[str] = None
+    currency: str | None = None
+    note: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -70,7 +70,7 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
 
     @field_validator("currency", mode="after")
     @classmethod
-    def validate_currency(cls, v: Optional[str]) -> str:
+    def validate_currency(cls, v: str | None) -> str:
         if v is None:
             return "eur"
         normalized_v = v.strip().lower()
@@ -85,7 +85,7 @@ class ExternalAIHandlerCreate(DataEntryCreate):
     usage_type: str
     requests_per_user_per_day: str
     fte_count: float
-    note: Optional[str] = None
+    note: str | None = None
     #  __kg_co2eq_override__ for kg_co2eq
 
     @field_validator("requests_per_user_per_day", mode="after")
@@ -108,15 +108,15 @@ class ExternalAIHandlerCreate(DataEntryCreate):
 
 
 class ExternalCloudHandlerUpdate(DataEntryUpdate):
-    service_type: Optional[str] = None
-    provider: Optional[str] = None
-    spent_amount: Optional[float] = None
-    currency: Optional[str] = None
-    note: Optional[str] = None
+    service_type: str | None = None
+    provider: str | None = None
+    spent_amount: float | None = None
+    currency: str | None = None
+    note: str | None = None
 
     @field_validator("spent_amount", mode="after")
     @classmethod
-    def validate_spent_amount(cls, v: Optional[float]) -> Optional[float]:
+    def validate_spent_amount(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0:
@@ -125,7 +125,7 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
 
     @field_validator("currency", mode="after")
     @classmethod
-    def validate_currency(cls, v: Optional[str]) -> Optional[str]:
+    def validate_currency(cls, v: str | None) -> str | None:
         if v is None:
             return v
         normalized_v = v.strip().lower()
@@ -136,15 +136,15 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
 
 
 class ExternalAIHandlerUpdate(DataEntryUpdate):
-    provider: Optional[str] = None
-    usage_type: Optional[str] = None
-    requests_per_user_per_day: Optional[str] = None
-    fte_count: Optional[float] = None
-    note: Optional[str] = None
+    provider: str | None = None
+    usage_type: str | None = None
+    requests_per_user_per_day: str | None = None
+    fte_count: float | None = None
+    note: str | None = None
 
     @field_validator("requests_per_user_per_day", mode="after")
     @classmethod
-    def validate_frequency(cls, v: Optional[str]) -> Optional[str]:
+    def validate_frequency(cls, v: str | None) -> str | None:
         if v is None:
             return v
         normalized = v.strip()
@@ -157,7 +157,7 @@ class ExternalAIHandlerUpdate(DataEntryUpdate):
 
     @field_validator("fte_count", mode="after")
     @classmethod
-    def validate_fte_count(cls, v: Optional[float]) -> Optional[float]:
+    def validate_fte_count(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0.1:

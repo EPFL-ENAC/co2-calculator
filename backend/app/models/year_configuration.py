@@ -1,7 +1,7 @@
 """Year configuration model for annual administrative settings."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import Column
 from sqlalchemy import DateTime as SADateTime
@@ -18,7 +18,7 @@ class YearConfigurationBase(SQLModel):
         default=False,
         description="If true, data entry is open for users for this year",
     )
-    configuration_completed: Optional[datetime] = Field(
+    configuration_completed: datetime | None = Field(
         default=None,
         sa_column=Column(SADateTime(timezone=True), nullable=True),
         description=(

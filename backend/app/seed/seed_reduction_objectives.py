@@ -13,9 +13,10 @@ storage-path helpers so the two can't drift.
 import asyncio
 import copy
 import shutil
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Sequence
+from typing import Any
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -39,14 +40,14 @@ INPUT_DATA_FOLDER = Path(__file__).parent.parent.parent / "INPUT_DATA"
 
 # Category → source CSV.  Categories are the ``FileCategory`` literals the
 # upload endpoint accepts.
-CSV_BY_CATEGORY: Dict[str, Path] = {
+CSV_BY_CATEGORY: dict[str, Path] = {
     "footprint": INPUT_DATA_FOLDER / "reduction_obj_epfl_footprint(in).csv",
     "population": INPUT_DATA_FOLDER / "reduction_obj_population_forecast(in).csv",
     "scenarios": INPUT_DATA_FOLDER / "reduction_obj_unit_scenarios_reduction(in).csv",
 }
 
 # Same mapping the upload endpoint applies before writing into the config.
-CONFIG_KEY_BY_CATEGORY: Dict[str, str] = {
+CONFIG_KEY_BY_CATEGORY: dict[str, str] = {
     "footprint": "institutional_footprint",
     "population": "population_projections",
     "scenarios": "unit_scenarios",
@@ -65,7 +66,7 @@ DEFAULT_GOALS: list[ReductionObjectiveGoal] = [
 ]
 
 
-def _store_file(source: Path, category: str) -> Dict[str, str]:
+def _store_file(source: Path, category: str) -> dict[str, str]:
     """Copy a CSV into the files store under the endpoint's own layout.
 
     Returns the ``{path, filename, uploaded_at}`` metadata dict that
@@ -113,7 +114,7 @@ async def seed_reduction_objectives(
                 f"configuration year ({year})"
             )
 
-    config: Dict[str, Any] = copy.deepcopy(row.config)
+    config: dict[str, Any] = copy.deepcopy(row.config)
     objectives = config.setdefault("reduction_objectives", {})
     files = objectives.setdefault("files", {})
 

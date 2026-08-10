@@ -34,7 +34,8 @@ from app.services.data_ingestion.base_csv_provider import (
 class _DummyDataEntryPayload(BaseModel):
     """Minimal model used to trigger a real ``pydantic.ValidationError``
     (float/date parsing failures) the same way a real handler's
-    ``create_dto`` would, without depending on a concrete handler."""
+    ``create_dto`` would, without depending on a concrete handler.
+    """
 
     amount: float
     date: datetime.date
@@ -283,7 +284,7 @@ async def test_process_csv_with_blank_rows_does_not_raise_value_error(monkeypatc
 
 def _drive_member_csv(
     db_session: AsyncSession, module_id: int, rows_data: list[dict]
-) -> "ConcreteCSVProvider":
+) -> ConcreteCSVProvider:
     """Build a provider that feeds ``rows_data`` through the real row loop.
 
     ``_process_row`` is stubbed to skip CSV parsing/validation (out of scope
@@ -338,7 +339,8 @@ async def test_csv_batch_accepts_same_member_different_sius_code(
     db_session: AsyncSession,
 ):
     """Same unit + user_institutional_id, different sius_code (multi-role
-    member) — both rows must be ingested, no DUPLICATE_INSTITUTIONAL_ID."""
+    member) — both rows must be ingested, no DUPLICATE_INSTITUTIONAL_ID.
+    """
     module = CarbonReportModule(
         carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
     )
@@ -360,7 +362,8 @@ async def test_csv_batch_accepts_same_member_different_sius_code(
 @pytest.mark.asyncio
 async def test_csv_batch_rejects_true_duplicate_member_role(db_session: AsyncSession):
     """Same unit + user_institutional_id + sius_code (true duplicate) — the
-    second row is rejected with DUPLICATE_INSTITUTIONAL_ID."""
+    second row is rejected with DUPLICATE_INSTITUTIONAL_ID.
+    """
     module = CarbonReportModule(
         carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
     )
@@ -385,7 +388,8 @@ async def test_csv_batch_rejects_role_already_persisted(db_session: AsyncSession
     """A (user_institutional_id, sius_code) already in the DB for the module
     (e.g. a manual entry surviving the bulk replace) rejects the CSV row via
     the pre-seeded set — ONE bulk prefetch instead of a per-row SELECT
-    (stage 2026-07-17: the per-row check ran at 14 rows/s)."""
+    (stage 2026-07-17: the per-row check ran at 14 rows/s).
+    """
     module = CarbonReportModule(
         carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
     )
@@ -688,7 +692,8 @@ def _build_stats() -> StatsDict:
 async def test_process_row_success_with_unit_mapping(monkeypatch):
     """_process_row builds the data entry from the row alone: no factor is
     matched, seeded, or stamped at ingest — factor defaults are derived at
-    compute/display time."""
+    compute/display time.
+    """
     config = {"file_path": "tmp/test.csv", "year": 2025}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
@@ -861,7 +866,8 @@ async def test_process_row_validation_error_records_error(monkeypatch):
 async def test_process_row_pydantic_validation_error_bad_float():
     """A bad-float CSV value produces a readable ``field: reason (got
     value)`` message instead of pydantic's raw multi-line dump (issue
-    #659), for the data-entry CSV path."""
+    #659), for the data-entry CSV path.
+    """
     config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
@@ -913,7 +919,8 @@ async def test_process_row_pydantic_validation_error_bad_float():
 @pytest.mark.asyncio
 async def test_process_row_pydantic_validation_error_bad_date():
     """An invalid date CSV value produces a readable per-field message
-    (issue #659), for the data-entry CSV path."""
+    (issue #659), for the data-entry CSV path.
+    """
     config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
@@ -1071,7 +1078,8 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
 @pytest.mark.asyncio
 async def test_process_row_with_no_kg_co2eq_returns_none_override():
     """Rows without a kg_co2eq column produce a None override — not an
-    error, not a side effect on DataEntry.data."""
+    error, not a side effect on DataEntry.data.
+    """
     config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42, "year": 2025}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
@@ -1286,7 +1294,8 @@ async def test_process_batch_skips_emissions_when_pure_async():
     ``_process_batch`` writes data_entries but does NOT write
     data_entry_emissions; the runner-driven ``emission_recalc`` chain
     owns those writes via the ``csv_ingest_handler`` post-success
-    fan-out."""
+    fan-out.
+    """
     data_session = MagicMock()
     data_session.commit = AsyncMock()
     config = {"file_path": "tmp/test.csv"}
@@ -1325,7 +1334,8 @@ async def test_process_batch_skips_emissions_when_pure_async():
 async def test_recompute_module_stats_skips_when_pure_async():
     """Plan 310-D — ``_recompute_module_stats`` is a no-op under
     ``BULK_PATH_PURE_ASYNC=True``; the runner-driven ``aggregation``
-    handler owns the stats write."""
+    handler owns the stats write.
+    """
     from app.services.carbon_report_module_service import CarbonReportModuleService
 
     config = {"file_path": "tmp/test.csv"}
@@ -1495,7 +1505,8 @@ async def test_finalize_and_commit_warning_includes_reupload_hint():
 async def test_finalize_and_commit_all_skipped_error_includes_reupload_hint():
     """Issue #1398 — the ERROR case reachable through _finalize_and_commit
     (every row skipped, nothing processed) also needs the re-upload hint,
-    not just WARNING."""
+    not just WARNING.
+    """
     from app.models.data_ingestion import IngestionResult
 
     config = {"file_path": "tmp/test.csv", "job_id": 7}
@@ -1537,7 +1548,8 @@ async def test_finalize_and_commit_all_skipped_error_includes_reupload_hint():
 async def test_process_csv_in_batches_failure_includes_reupload_hint():
     """A hard stop before _finalize_and_commit (crash/timeout during setup
     or row processing) must still tell the user to re-upload — not leave a
-    bare exception string that implies recalculation would help."""
+    bare exception string that implies recalculation would help.
+    """
     from app.models.data_ingestion import IngestionResult
 
     config = {"file_path": "tmp/test.csv", "job_id": 7}
@@ -1562,7 +1574,8 @@ async def test_ingest_mid_stream_failure_includes_reupload_hint():
     """The terminal message actually persisted for a mid-stream failure is
     written by ingest()'s exception handler (it runs after, and overwrites,
     process_csv_in_batches()'s own handler) — it must carry the same
-    re-upload wording."""
+    re-upload wording.
+    """
     from app.models.data_ingestion import IngestionResult
 
     config = {"file_path": "tmp/test.csv", "job_id": 7}

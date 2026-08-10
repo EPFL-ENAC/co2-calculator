@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
@@ -14,8 +14,7 @@ logger = get_logger(__name__)
 
 
 class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
-    """
-    CSV provider for MODULE_UNIT_SPECIFIC entity type.
+    """CSV provider for MODULE_UNIT_SPECIFIC entity type.
 
     Handles unit-specific data like equipment per carbon report module.
     Requires a single data_entry_type and associated carbon_report_module_id.
@@ -25,9 +24,8 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
     def entity_type(self) -> EntityType:
         return EntityType.MODULE_UNIT_SPECIFIC
 
-    async def _setup_handlers_and_factors(self) -> Dict[str, Any]:
-        """
-        Setup handlers and factors for MODULE_UNIT_SPECIFIC.
+    async def _setup_handlers_and_factors(self) -> dict[str, Any]:
+        """Setup handlers and factors for MODULE_UNIT_SPECIFIC.
 
         Single handler for the configured data_entry_type, with strict
         required-column validation derived from the handler's DTO.
@@ -56,15 +54,14 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
 
     async def _resolve_handler_and_validate(
         self,
-        filtered_row: Dict[str, str],
+        filtered_row: dict[str, str],
         factor: Any | None,
         stats: StatsDict,
         row_idx: int,
         max_row_errors: int,
-        setup_result: Dict[str, Any],
-    ) -> tuple[DataEntryTypeEnum | None, "ModuleHandler | None", str | None]:
-        """
-        Resolve handler and validate for MODULE_UNIT_SPECIFIC.
+        setup_result: dict[str, Any],
+    ) -> tuple[DataEntryTypeEnum | None, ModuleHandler | None, str | None]:
+        """Resolve handler and validate for MODULE_UNIT_SPECIFIC.
 
         Logic:
         - Priority 1/2 (configured data_entry_type_id, then the handler's

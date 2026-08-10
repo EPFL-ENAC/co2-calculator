@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 from sqlalchemy import Column, DateTime, Integer
 from sqlmodel import JSON, Field, SQLModel
@@ -65,8 +64,7 @@ class DataEntryTypeEnum(int, Enum):
 
 
 class DataEntrySourceEnum(int, Enum):
-    """
-    Enum representing the source of a data entry.
+    """Enum representing the source of a data entry.
 
     Used to track how data entries were created, enabling selective deletion
     and audit trails for different upload methods.
@@ -115,7 +113,7 @@ class DataEntryBase(SQLModel):
         description="Dynamic JSON storage for module-specific data",
     )
 
-    status: Optional[DataEntryStatusEnum] = Field(
+    status: DataEntryStatusEnum | None = Field(
         default=DataEntryStatusEnum.PENDING,
         description="Optional status field for additional state tracking",
     )
@@ -135,8 +133,7 @@ class DataEntryBase(SQLModel):
 
 
 class DataEntry(DataEntryBase, table=True):
-    """
-    Generic module table for storing data across different module types.
+    """Generic module table for storing data across different module types.
 
     This table provides a flexible storage mechanism where:
     - module_type_id defines the category (headcount, equipment, travel)
@@ -153,7 +150,7 @@ class DataEntry(DataEntryBase, table=True):
 
     __tablename__ = "data_entries"
 
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: int | None = Field(default=None, primary_key=True, index=True)
 
     # Denormalized scope columns (source of truth is
     # carbon_report_module → carbon_report).  Carried on the row so
@@ -161,24 +158,24 @@ class DataEntry(DataEntryBase, table=True):
     # delete in CSV ingest — can filter by year/unit without resolving
     # the module tree.  Stamped by the bulk ingest paths; immutable
     # facts of an entry (entries never move between modules).
-    year: Optional[int] = Field(
+    year: int | None = Field(
         default=None,
         description="Denormalized report year (from carbon_report)",
         sa_column=Column(Integer, nullable=True, index=True),
     )
-    unit_id: Optional[int] = Field(
+    unit_id: int | None = Field(
         default=None,
         description="Denormalized unit id (from carbon_report.unit_id)",
         sa_column=Column(Integer, nullable=True, index=True),
     )
 
     # Source tracking fields
-    source: Optional[int] = Field(
+    source: int | None = Field(
         default=None,
         description="Entry source: user manual, CSV upload, API, etc.",
         sa_column=Column(Integer, nullable=True, index=True),
     )
-    created_by_id: Optional[int] = Field(
+    created_by_id: int | None = Field(
         default=None,
         index=True,
         description="Creator ID: user.id or data_ingestion_job.id",

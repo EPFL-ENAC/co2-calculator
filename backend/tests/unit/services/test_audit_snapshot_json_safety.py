@@ -8,7 +8,7 @@ encoder now runs once inside ``create_version`` so the invariant no
 longer lives in N call sites.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -26,7 +26,7 @@ async def test_create_version_accepts_datetime_carrying_snapshot(
         entity_type="DataIngestionJob",
         entity_id=1,
         data_snapshot={
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
             "pipeline_id": uuid4(),
             "state": 2,
         },

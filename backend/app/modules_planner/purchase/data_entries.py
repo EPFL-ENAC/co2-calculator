@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import Field, field_validator
 
 from app.modules_planner.purchase.emissions import PLANNER_PURCHASE_EMISSIONS
@@ -22,14 +20,14 @@ def _validate_category(v: str) -> str:
 class PlannerPurchaseResponse(DataEntryResponseGen):
     purchase_category: str
     amount_eur: float
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
 class PlannerPurchaseCreate(DataEntryCreate):
     purchase_category: str
     amount_eur: float = Field(ge=0)
-    note: Optional[str] = None
+    note: str | None = None
 
     @field_validator("purchase_category", mode="after")
     @classmethod
@@ -38,13 +36,13 @@ class PlannerPurchaseCreate(DataEntryCreate):
 
 
 class PlannerPurchaseUpdate(DataEntryUpdate):
-    purchase_category: Optional[str] = None
-    amount_eur: Optional[float] = Field(default=None, ge=0)
-    note: Optional[str] = None
+    purchase_category: str | None = None
+    amount_eur: float | None = Field(default=None, ge=0)
+    note: str | None = None
 
     @field_validator("purchase_category", mode="after")
     @classmethod
-    def validate_category(cls, v: Optional[str]) -> Optional[str]:
+    def validate_category(cls, v: str | None) -> str | None:
         if v is None:
             return v
         return _validate_category(v)
@@ -52,15 +50,15 @@ class PlannerPurchaseUpdate(DataEntryUpdate):
 
 class PlannerPurchaseBudgetResponse(DataEntryResponseGen):
     amount_eur: float
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
 class PlannerPurchaseBudgetCreate(DataEntryCreate):
     amount_eur: float = Field(ge=0)
-    note: Optional[str] = None
+    note: str | None = None
 
 
 class PlannerPurchaseBudgetUpdate(DataEntryUpdate):
-    amount_eur: Optional[float] = Field(default=None, ge=0)
-    note: Optional[str] = None
+    amount_eur: float | None = Field(default=None, ge=0)
+    note: str | None = None

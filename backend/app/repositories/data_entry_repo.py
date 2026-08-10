@@ -1,7 +1,7 @@
 """Data entry repository for database operations."""
 
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any
 
 from psycopg.types.json import Json
 from pydantic import BaseModel, ValidationError
@@ -79,7 +79,7 @@ class DataEntryRepository:
                 # Already detached or session-state edge case — nothing to do.
                 pass
 
-    async def get(self, id: int) -> Optional[DataEntry]:
+    async def get(self, id: int) -> DataEntry | None:
         statement = select(DataEntry).where(DataEntry.id == id)
         result = await self.session.exec(statement)
         return result.one_or_none()
@@ -178,8 +178,7 @@ class DataEntryRepository:
         data_entry_type_id: DataEntryTypeEnum,
         source: int,  # DataEntrySourceEnum value
     ) -> None:
-        """
-        Bulk delete data entries by module, type, and source.
+        """Bulk delete data entries by module, type, and source.
 
         Args:
             carbon_report_module_id: The module to delete from
@@ -238,7 +237,7 @@ class DataEntryRepository:
 
     async def update(
         self, id: int, data: DataEntryUpdate, user_id: int
-    ) -> Optional[DataEntry]:
+    ) -> DataEntry | None:
         # POTENTIAL OPTIMIZATION: Use SQLAlchemy's update() for direct updates
         # 1. Fetch the existing record
 
@@ -314,7 +313,7 @@ class DataEntryRepository:
         carbon_report_module_id: int,
         data_entry_type_id: int,
         fields: dict[str, str],
-        exclude_id: Optional[int] = None,
+        exclude_id: int | None = None,
     ) -> bool:
         """Check whether a set of JSON data field values is unique within a submodule.
 
@@ -356,7 +355,7 @@ class DataEntryRepository:
         offset,
         sort_by,
         sort_order,
-        filter: Optional[str] = None,
+        filter: str | None = None,
     ) -> list[DataEntry]:
         # TODO: check if it's safe to expunge the returned rows here for
         # symmetry with get_submodule_data. Some callers (delete flows in
@@ -398,7 +397,7 @@ class DataEntryRepository:
         self,
         data_entry_type_id: DataEntryTypeEnum,
         year: int,
-        carbon_report_module_ids: Optional[list[int]] = None,
+        carbon_report_module_ids: list[int] | None = None,
     ) -> list[DataEntry]:
         """Fetch all DataEntries for a given data_entry_type and report year.
 
@@ -442,7 +441,7 @@ class DataEntryRepository:
 
     async def get_module_type_id_for_carbon_report_module(
         self, carbon_report_module_id: int
-    ) -> Optional[int]:
+    ) -> int | None:
         return await self.carbon_report_module_repo.get_module_type(
             carbon_report_module_id
         )
@@ -450,10 +449,9 @@ class DataEntryRepository:
     async def get_total_count_by_submodule(
         self,
         carbon_report_module_id: int,
-        travel_institutional_id_filter: Optional[str] = None,
-    ) -> Dict[int, int]:
-        """
-        Docstring for get_total_count_by_submodule
+        travel_institutional_id_filter: str | None = None,
+    ) -> dict[int, int]:
+        """Docstring for get_total_count_by_submodule
 
         :param self: Description
         :param carbon_report_module_id: Description
@@ -503,7 +501,7 @@ class DataEntryRepository:
             )
         result = await self.session.execute(query)
         rows = list(result.all())
-        aggregation: Dict[int, int] = {
+        aggregation: dict[int, int] = {
             data_entry_type_id: int(total_count)
             for data_entry_type_id, total_count in rows
         }
@@ -515,9 +513,8 @@ class DataEntryRepository:
 
         return aggregation
 
-    def _apply_name_filter(self, statement, filter: Optional[str], filter_map: dict):
-        """
-        Applies a filter to the given SQLAlchemy statement using the
+    def _apply_name_filter(self, statement, filter: str | None, filter_map: dict):
+        """Applies a filter to the given SQLAlchemy statement using the
         caller-prepared (possibly lateral-adapted) filter_map.
         """
         filter_pattern = ""
@@ -640,9 +637,10 @@ class DataEntryRepository:
 
     async def _equipment_module_scope(
         self, carbon_report_module_id: int
-    ) -> Optional[tuple[int, int]]:
+    ) -> tuple[int, int] | None:
         """Return ``(unit_id, year)`` for an Equipment module, or ``None`` when
-        the module has no equipment entries to derive them from."""
+        the module has no equipment entries to derive them from.
+        """
         meta = (
             await self.session.execute(
                 select(DataEntry.unit_id, DataEntry.year)
@@ -663,7 +661,8 @@ class DataEntryRepository:
         """Count equipment that is new vs the previous year (issue #259) yet is
         still missing usage data (active or standby hours). Returns ``0`` for
         non-equipment modules and for units with no prior-year equipment data,
-        so it is safe to call unconditionally on any module."""
+        so it is safe to call unconditionally on any module.
+        """
         scope = await self._equipment_module_scope(carbon_report_module_id)
         if scope is None:
             return 0
@@ -697,8 +696,8 @@ class DataEntryRepository:
         offset: int,
         sort_by: str,
         sort_order: str,
-        filter: Optional[str] = None,
-        institutional_id_filter: Optional[str] = None,
+        filter: str | None = None,
+        institutional_id_filter: str | None = None,
     ) -> SubmoduleResponse:
         is_travel_entry = data_entry_type_id in (
             DataEntryTypeEnum.plane.value,
@@ -1219,7 +1218,7 @@ class DataEntryRepository:
     async def get_professional_travel_trip_legs(
         self,
         carbon_report_module_id: int,
-        institutional_id_filter: Optional[str] = None,
+        institutional_id_filter: str | None = None,
         max_rows: int = 10000,
     ) -> tuple[list[dict[str, Any]], int]:
         """Fetch raw plane + train legs (one row per DataEntry, no GROUP BY)
@@ -1376,7 +1375,7 @@ class DataEntryRepository:
         self,
         field_name: str,
         carbon_report_module_id: int,
-        data_entry_type_id: Optional[int] = None,
+        data_entry_type_id: int | None = None,
     ) -> float:
         """Get total sum for a specific field across data entries.
 
@@ -1407,8 +1406,8 @@ class DataEntryRepository:
         carbon_report_module_id,
         aggregate_by: str = "data_entry_type_id",
         aggregate_field: str = "fte",
-        data_entry_type_id: Optional[int] = None,
-    ) -> Dict[str, Optional[float]]:
+        data_entry_type_id: int | None = None,
+    ) -> dict[str, float | None]:
         """Aggregate DataEntry data by submodule or function.
                 SELECT
             dee.*
@@ -1449,7 +1448,7 @@ class DataEntryRepository:
         rows = result.all()
 
         # 3. Format the results
-        aggregation: Dict[str, Optional[float]] = {}
+        aggregation: dict[str, float | None] = {}
         for key, total_count in rows:
             label = str(key) if key is not None else "unknown"
             if label not in aggregation:
@@ -1493,7 +1492,7 @@ class DataEntryRepository:
         self,
         carbon_report_module_id: int,
         institutional_id: str,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Fetch the member entry whose user_institutional_id matches.
 
         Args:

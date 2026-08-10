@@ -46,7 +46,8 @@ def test_empty_factors_raises_when_handler_requires_match():
 def test_empty_factors_ok_when_no_handler_requires_match():
     """Modules with ``require_factor_to_match=False`` (purchase,
     buildings, headcount, …) tolerate an empty map — the guard must
-    not block them."""
+    not block them.
+    """
     _guard_factors_required(
         factors_map={},
         handlers=[_handler(False)],
@@ -57,7 +58,8 @@ def test_empty_factors_ok_when_no_handler_requires_match():
 
 def test_populated_factors_ok_even_when_required():
     """The happy path — at least one factor present is enough; the
-    per-row loop will pick up scope mismatches if any."""
+    per-row loop will pick up scope mismatches if any.
+    """
     _guard_factors_required(
         factors_map={"10:2026:foo:None": object()},
         handlers=[_handler(True)],
@@ -70,7 +72,8 @@ def test_mixed_handlers_any_requires_triggers_guard():
     """MODULE_PER_YEAR loads handlers for every valid data_entry_type;
     if even one of them requires a factor match, the guard must fire
     on an empty map.  (Otherwise the multi-handler module would
-    silently produce per-row errors for the strict subtype.)"""
+    silently produce per-row errors for the strict subtype.)
+    """
     with pytest.raises(ValueError):
         _guard_factors_required(
             factors_map={},
@@ -82,7 +85,8 @@ def test_mixed_handlers_any_requires_triggers_guard():
 
 def test_year_none_message_degrades_cleanly():
     """Defensive: if for some reason ``self.year`` is None the message
-    must still be readable — no ``year=None`` text bleeding through."""
+    must still be readable — no ``year=None`` text bleeding through.
+    """
     with pytest.raises(ValueError) as exc:
         _guard_factors_required(
             factors_map={},
@@ -107,7 +111,8 @@ def test_factor_inferred_modules_set_contains_equipment_and_purchase():
     """Both 'common' upload module types must be in the set — these are
     the empirical cases the user hit (50 000 rows of identical
     'no matching factor' errors).  If a third such module appears,
-    add it to the set in the same PR as the new handler."""
+    add it to the set in the same PR as the new handler.
+    """
     from app.models.module_type import ModuleTypeEnum
     from app.services.data_ingestion.csv_providers.module_per_year import (
         _FACTOR_INFERRED_MODULES,

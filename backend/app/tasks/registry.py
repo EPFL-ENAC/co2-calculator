@@ -18,7 +18,8 @@ registry has no callers until Tier 2 wires up the runner and existing tasks.
 """
 
 import inspect
-from typing import Any, Callable, Coroutine
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 

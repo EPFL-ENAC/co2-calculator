@@ -53,7 +53,8 @@ def test_resolve_handler_valid():
 @pytest.mark.asyncio
 async def test_store_in_year_config_reads_provider_from_config_when_no_user():
     """Runner path: ``user=None`` but ``config["provider"]`` is the job's
-    provider. The SELECT must filter by that provider; no ValueError."""
+    provider. The SELECT must filter by that provider; no ValueError.
+    """
     provider = _make_provider(
         reduction_objective_type_id=0,
         provider=UserProvider.TEST,
@@ -84,7 +85,8 @@ async def test_store_in_year_config_reads_provider_from_config_when_no_user():
 @pytest.mark.asyncio
 async def test_store_in_year_config_falls_back_to_user_provider():
     """Endpoint-driven path: ``config["provider"]`` absent but
-    ``self.user.provider`` is set. Fallback must work."""
+    ``self.user.provider`` is set. Fallback must work.
+    """
     provider = _make_provider(reduction_objective_type_id=0)
     user = MagicMock()
     user.provider = UserProvider.ACCRED
@@ -110,7 +112,8 @@ async def test_store_in_year_config_falls_back_to_user_provider():
 async def test_store_in_year_config_raises_when_provider_missing_everywhere():
     """Neither ``config["provider"]`` nor ``self.user`` available — must
     raise so callers see the bug instead of silently writing to a
-    DEFAULT-scoped row."""
+    DEFAULT-scoped row.
+    """
     provider = _make_provider(reduction_objective_type_id=0)
     provider.user = None
     provider.data_session = MagicMock()

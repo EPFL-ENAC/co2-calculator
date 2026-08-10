@@ -25,7 +25,7 @@ culprits (report-stats/stat-bucket computation, or a frontend gate) are
 outside this file's scope and remain #1433's to chase down.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -59,7 +59,8 @@ def _finished_job(
     *, module_type_id: int, data_entry_type_id: int, target_type: TargetType
 ) -> DataIngestionJob:
     """A FINISHED+SUCCESS upload job — what a "data already uploaded"
-    submodule looks like in the ``latest_*_job`` enrichment."""
+    submodule looks like in the ``latest_*_job`` enrichment.
+    """
     return DataIngestionJob(
         entity_type=EntityType.MODULE_PER_YEAR,
         module_type_id=module_type_id,
@@ -80,7 +81,8 @@ async def db_with_multi_module_uploads():
     (member), Equipment (scientific), Purchase (scientific_equipment) and
     Process Emissions — one representative submodule per module — so the
     year-configuration response has real "data uploaded" state to compare
-    across a Headcount enable/disable toggle."""
+    across a Headcount enable/disable toggle.
+    """
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:", echo=False, future=True
     )
@@ -95,7 +97,7 @@ async def db_with_multi_module_uploads():
                 year=YEAR,
                 provider=UserProvider.DEFAULT,
                 is_started=False,
-                configuration_completed=datetime.now(timezone.utc),
+                configuration_completed=datetime.now(UTC),
                 config=generate_default_year_config(),
             )
         )
@@ -183,7 +185,8 @@ def _wire(monkeypatch, db_factory) -> None:
 def _module_snapshot(config: dict, module_type_id: int) -> dict:
     """Extract the comparable, job-derived fields for one module (drop
     ``enabled``/``incomplete`` — those are expected to change; the point is
-    the *upload* fields must not)."""
+    the *upload* fields must not).
+    """
     module = config["modules"][str(module_type_id)]
     return {
         sub_key: {
@@ -201,7 +204,8 @@ def test_deactivating_headcount_does_not_alter_sibling_modules(
     """#1433 regression pin: disabling Headcount must leave Equipment,
     Purchase and Process Emissions' uploaded-data state byte-for-byte
     unchanged in the year-configuration response — the same response the
-    Configurator screen renders module cards from."""
+    Configurator screen renders module cards from.
+    """
     _, factory = db_with_multi_module_uploads
     _wire(monkeypatch, factory)
 
@@ -233,7 +237,8 @@ def test_reactivating_module_preserves_previously_uploaded_data(
 ):
     """Disable then re-enable Headcount: its own member submodule's
     ``latest_data_job`` must still be there — the toggle only flips a bool
-    in ``config``, it never touches the ``DataIngestionJob`` rows."""
+    in ``config``, it never touches the ``DataIngestionJob`` rows.
+    """
     _, factory = db_with_multi_module_uploads
     _wire(monkeypatch, factory)
 
@@ -256,7 +261,8 @@ def test_submodule_activation_persists_in_config(
     client, monkeypatch, db_with_multi_module_uploads
 ):
     """Toggling a sub-module's ``enabled`` flag persists in
-    ``YearConfiguration.config`` and survives a re-fetch."""
+    ``YearConfiguration.config`` and survives a re-fetch.
+    """
     _, factory = db_with_multi_module_uploads
     _wire(monkeypatch, factory)
 

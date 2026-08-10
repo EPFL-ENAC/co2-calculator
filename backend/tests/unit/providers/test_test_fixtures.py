@@ -27,7 +27,7 @@ def test_backoffice_metier_scope_is_a_unit_cf():
 
 
 def test_scope_anchor_resolves_to_descendant_units():
-    """cf -> institutional_code -> path_institutional_code must match >=1 unit.
+    """Cf -> institutional_code -> path_institutional_code must match >=1 unit.
 
     Mirrors the reporting scope resolver: the anchor's institutional_code must
     appear as a path token in its own and its descendants' path, since

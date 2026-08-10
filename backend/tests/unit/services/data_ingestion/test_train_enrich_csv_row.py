@@ -18,7 +18,8 @@ from app.modules.professional_travel import (
 
 class _ForbiddenSession:
     """Sentinel session: any attribute access means the resolver wrongly
-    reached the DB instead of rejecting the row on the missing country_code."""
+    reached the DB instead of rejecting the row on the missing country_code.
+    """
 
     def __getattr__(self, name: str):
         raise AssertionError(
@@ -69,7 +70,8 @@ async def test_train_enrich_normalizes_country_code_case_for_lookup(
     """The seed stores ISO-2 country codes uppercase (``FR``) and the station
     lookup matches ``country_code`` exactly, so the resolver must canonicalize
     the CSV value to uppercase — otherwise a lowercase ``de`` silently fails
-    to resolve and the row persists without emission."""
+    to resolve and the row persists without emission.
+    """
     captured: dict[str, str] = {}
 
     class _FakeStation:

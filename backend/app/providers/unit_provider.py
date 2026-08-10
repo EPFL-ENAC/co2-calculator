@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
 
 import httpx
 from sqlmodel import Session, col, select
@@ -42,9 +41,8 @@ class UnitProvider(ABC):
         raise NotImplementedError("map_api_unit must be implemented by subclasses")
 
     @abstractmethod
-    async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
-        """
-        Get units, optionally filtered by unit_ids.
+    async def get_units(self, unit_ids: list[str] | None = None) -> list[Unit]:
+        """Get units, optionally filtered by unit_ids.
 
         Args:
             unit_ids: Optional list of unit IDs to filter by. If None, return all.
@@ -54,9 +52,8 @@ class UnitProvider(ABC):
         """
         pass
 
-    async def get_unit_by_id(self, unit_id: str) -> Optional[Unit]:
-        """
-        Get a single unit by ID, here the unit_id is the institutional_id.
+    async def get_unit_by_id(self, unit_id: str) -> Unit | None:
+        """Get a single unit by ID, here the unit_id is the institutional_id.
 
         Args:
             unit_id: Unit ID to fetch
@@ -75,7 +72,7 @@ class DatabaseUnitProvider(UnitProvider):
     def __init__(self, db_session: Session | AsyncSession):
         self.db_session = db_session
 
-    async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
+    async def get_units(self, unit_ids: list[str] | None = None) -> list[Unit]:
         from sqlmodel.ext.asyncio.session import AsyncSession
 
         statement = select(Unit)
@@ -183,7 +180,7 @@ class AccredUnitProvider(UnitProvider):
             "ancestors", []
         )  # already ordered root→leaf, excludes self
 
-        def get_parent_institutional_id(level: int, unit_raw: dict) -> Optional[str]:
+        def get_parent_institutional_id(level: int, unit_raw: dict) -> str | None:
             if level <= 1:
                 return None
             return unit_raw.get(
@@ -216,7 +213,7 @@ class AccredUnitProvider(UnitProvider):
             is_active=unit_raw.get("enddate", "") == "0001-01-01T00:00:00Z",
         )
 
-    async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
+    async def get_units(self, unit_ids: list[str] | None = None) -> list[Unit]:
         """Fetch units from EPFL Accred API.
 
         Args:
@@ -264,7 +261,7 @@ class AccredUnitProvider(UnitProvider):
                 return []
 
             # Map API response to Unit objects
-            units: List[Unit] = []
+            units: list[Unit] = []
             for unit_data in unit_data_list:
                 # Extract principal information from responsible object
                 # responsible_info = unit_data.get("responsible", {})
@@ -315,7 +312,7 @@ class TestUnitProvider(UnitProvider):
 
     type: UserProvider = UserProvider.TEST
 
-    async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
+    async def get_units(self, unit_ids: list[str] | None = None) -> list[Unit]:
         """Return test units, filtered by institutional_id when unit_ids given."""
         if unit_ids:
             return [

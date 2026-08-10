@@ -1,13 +1,11 @@
 # codeql[py/unused-global-variable]
-"""
-
-Revision ID: dd2ce8461139
+"""Revision ID: dd2ce8461139
 Revises:
 Create Date: 2026-06-15 13:07:57.987606
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 import sqlmodel
@@ -25,9 +23,9 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "dd2ce8461139"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = None  # noqa: F841
-branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
-depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
+down_revision: str | Sequence[str] | None = None  # noqa: F841
+branch_labels: str | Sequence[str] | None = None  # noqa: F841
+depends_on: str | Sequence[str] | None = None  # noqa: F841
 
 
 def upgrade() -> None:

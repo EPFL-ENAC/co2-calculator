@@ -1,7 +1,5 @@
 """Unit API endpoints."""
 
-from typing import List
-
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -18,7 +16,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("", response_model=List[UnitRead])
+@router.get("", response_model=list[UnitRead])
 async def list_units(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
@@ -27,8 +25,7 @@ async def list_units(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    List units with policy authorization.
+    """List units with policy authorization.
 
     This endpoint
     1. User is authenticated via JWT (handled by dependency)
@@ -55,8 +52,7 @@ async def get_unit(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Get a specific resource by ID.
+    """Get a specific resource by ID.
 
     Returns 403 if user is not authorized to access this resource.
     Returns 404 if resource does not exist.

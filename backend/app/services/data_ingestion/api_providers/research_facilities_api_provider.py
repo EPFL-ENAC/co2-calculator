@@ -5,7 +5,7 @@ research facilities Tableau datasource and persists them as
 ``research_facilities`` data entries.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from app.core.logging import get_logger
 from app.models.connector import ConnectorType
@@ -56,9 +56,9 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
     ]
 
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        transformed: List[Dict[str, Any]] = []
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        transformed: list[dict[str, Any]] = []
         year = str(self.config["year"])
         for record in raw_data:
             if record.get(self.CAPTION_CLIENT_TYPE) != self.INTERNAL_CLIENT_TYPE:
@@ -107,7 +107,7 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
         )
 
     def _build_data_entry(
-        self, record: Dict[str, Any], carbon_report_module_id: int
+        self, record: dict[str, Any], carbon_report_module_id: int
     ) -> DataEntry:
         return DataEntry(
             carbon_report_module_id=carbon_report_module_id,
@@ -121,9 +121,10 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
             },
         )
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         """Bulk-insert facility entries. Emission writes are owned by the
-        runner-driven recalc chain (plan 310-D), same as the travel path."""
+        runner-driven recalc chain (plan 310-D), same as the travel path.
+        """
         entries = []
         for item in data:
             carbon_report_module_id = item.get("carbon_report_module_id")

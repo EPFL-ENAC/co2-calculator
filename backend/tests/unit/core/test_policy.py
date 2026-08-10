@@ -236,7 +236,8 @@ class TestCheckModulePermission:
         self, mock_query_policy
     ):
         """institutional_id kwarg must reach the policy via input_data so the
-        scoped permission key (modules.X/iid) can be matched."""
+        scoped permission key (modules.X/iid) can be matched.
+        """
         user = MagicMock()
         user.id = "user-123"
         user.email = "test@example.com"
@@ -590,7 +591,8 @@ class TestQueryPolicyLegacy:
 
 class TestRequirePlanAccess:
     """Simulator Plan scoping: shared plans are editable by unit members,
-    deletion stays creator-only."""
+    deletion stays creator-only.
+    """
 
     @staticmethod
     def _user(user_id: int, *, is_global: bool = False):
@@ -696,7 +698,8 @@ class TestRequirePlanScopeForReport:
 
 class TestCheckModulePermissionForReport:
     """Explore reports drop the module gate to unit membership (#1988);
-    Plan and Calculator reports delegate to the strict per-module gate."""
+    Plan and Calculator reports delegate to the strict per-module gate.
+    """
 
     @staticmethod
     def _report(project_id=5, unit_id=1):

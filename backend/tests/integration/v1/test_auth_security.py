@@ -60,7 +60,6 @@ def override_db():
 @pytest.fixture
 def mock_user_lookup(monkeypatch):
     """Make UserService.get_by_institutional_id_and_provider return a user."""
-
     user = MagicMock(
         id=42,
         email="resolved@example.org",
@@ -159,7 +158,8 @@ def test_jwt_tampered_signature_rejected(client, override_db):
 def test_jwt_with_swapped_institutional_id_rejected(client, override_db):
     """Editing the JWT payload (e.g. impersonating another institutional_id)
     must fail signature verification — pins the boundary the user's manual
-    reproducer crossed via source edit."""
+    reproducer crossed via source edit.
+    """
     good = _valid_access_token(institutional_id="123456")
     header, payload, sig = good.split(".")
 
@@ -200,7 +200,8 @@ def test_jwt_expired_rejected(client, override_db, mock_user_lookup):
 
 def test_refresh_rejects_access_token_in_refresh_cookie(client, override_db):
     """`POST /session` must check JWT `type == "refresh"`. An access token
-    submitted as the refresh cookie is a token-type confusion attack."""
+    submitted as the refresh cookie is a token-type confusion attack.
+    """
     access = _valid_access_token()  # type == "access"
 
     response = client.post(f"{API_PREFIX}/session", cookies={"refresh_token": access})
@@ -211,7 +212,8 @@ def test_me_rejects_refresh_token_in_auth_cookie(client, override_db):
     """Symmetric to the /refresh case: `GET /session` must reject a refresh JWT
     presented as `auth_token`. Closes the inverse type-confusion vector
     flagged by Copilot — get_current_user (used by many protected
-    endpoints) also enforces `expected_token_type="access"`."""
+    endpoints) also enforces `expected_token_type="access"`.
+    """
     refresh = create_refresh_token(
         data={
             "sub": "abc",
@@ -294,7 +296,8 @@ def test_me_rejects_unknown_provider_int(client, override_db):
 
 def test_me_rejects_legacy_user_id_only_token(client, override_db):
     """Tokens carrying only `user_id` (no institutional_id/provider) must 401.
-    Pins the legacy-token rejection at security.py:113-122 / auth.py:544-568."""
+    Pins the legacy-token rejection at security.py:113-122 / auth.py:544-568.
+    """
     token = create_access_token(
         data={"sub": "abc", "type": "access", "user_id": 7},
         expires_delta=timedelta(minutes=10),
@@ -332,7 +335,8 @@ def test_login_test_registration_matches_debug_flag():
 def test_login_test_returns_404_in_prod_build(client):
     """Concrete behaviour the previous 403-gate did not provide: an
     unauthenticated GET in a non-DEBUG build sees the route as absent
-    (404), not as forbidden (403)."""
+    (404), not as forbidden (403).
+    """
     if auth_module.settings.DEBUG:
         pytest.skip("This test asserts non-DEBUG behaviour; DEBUG is True.")
     response = client.get(f"{API_PREFIX}/auth/login-test", follow_redirects=False)
@@ -347,7 +351,8 @@ def test_login_test_returns_404_in_prod_build(client):
 
 def _patch_callback_chain(monkeypatch, *, user_id: int = 1):
     """Wire OAuth + role provider + UserService mocks so /auth/callback
-    runs end-to-end and writes an AuthExchangeCode through ``db.add``."""
+    runs end-to-end and writes an AuthExchangeCode through ``db.add``.
+    """
     userinfo = {
         "sub": "subject-x",
         "email": "real@example.org",
@@ -428,7 +433,8 @@ def test_callback_sets_cookies_and_redirects_to_frontend(
     client, override_db, monkeypatch
 ):
     """Pin the simplified flow: /auth/callback sets auth cookies directly on
-    the 302 response and redirects to FRONTEND_URL, not to /auth/complete."""
+    the 302 response and redirects to FRONTEND_URL, not to /auth/complete.
+    """
     monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", False)
     _patch_callback_chain(monkeypatch, user_id=1)
 
@@ -449,7 +455,8 @@ def test_callback_sets_cookies_and_redirects_to_frontend(
 @pytest.mark.asyncio
 async def test_audit_event_failure_logs_error_with_marker(monkeypatch, caplog):
     """Pins F7: when the audit DB call fails, `_log_auth_audit_event` logs at
-    ERROR with a structured `audit_failure` marker so alerting can fire."""
+    ERROR with a structured `audit_failure` marker so alerting can fire.
+    """
     fake_request = MagicMock()
     fake_request.url.path = "/v1/session"
     fake_request.headers = {}
@@ -488,7 +495,8 @@ async def test_audit_event_failure_logs_error_with_marker(monkeypatch, caplog):
 async def test_audit_event_must_succeed_propagates_failure(monkeypatch):
     """Pins F7: when `must_succeed=True` (only the /auth/callback success path
     opts in), an audit failure re-raises so the caller can refuse to mint
-    the session."""
+    the session.
+    """
     fake_request = MagicMock()
     fake_request.url.path = "/v1/auth/callback"
     fake_request.headers = {}
@@ -549,7 +557,8 @@ def test_callback_binds_session_to_idp_institutional_id(
 ):
     """The institutional_id in the session cookie must come from the role
     provider's ``get_user_id(userinfo)`` derivation of the OAuth claims, not
-    from the request envelope or any client-supplied value."""
+    from the request envelope or any client-supplied value.
+    """
     userinfo = {
         "sub": "subject-x",
         "email": "real@example.org",

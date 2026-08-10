@@ -181,7 +181,8 @@ async def _seed_unit_module(
 
 async def _initial_compute(session: AsyncSession, entry_id: int) -> list[Any]:
     """Run ``DataEntryEmissionService.upsert_by_data_entry`` for an
-    entry and return the persisted emission rows."""
+    entry and return the persisted emission rows.
+    """
     entry = (
         await session.execute(select(DataEntry).where(col(DataEntry.id) == entry_id))
     ).scalar_one()
@@ -204,7 +205,8 @@ async def _initial_compute(session: AsyncSession, entry_id: int) -> list[Any]:
 
 async def _read_emissions(pg_dsn: str, entry_id: int) -> list[DataEntryEmission]:
     """Read emissions for an entry on a fresh engine — proves cross-
-    connection commit visibility, same shape as the Strategy-B file."""
+    connection commit visibility, same shape as the Strategy-B file.
+    """
     verify_engine = create_async_engine(pg_dsn, future=True)
     Vf = async_sessionmaker(verify_engine, class_=AsyncSession, expire_on_commit=False)
     try:

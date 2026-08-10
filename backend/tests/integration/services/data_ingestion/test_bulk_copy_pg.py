@@ -125,7 +125,8 @@ async def test_year_delete_replaces_only_matching_source_and_year(
     CSV per-year AND API sync (stage incident 2026-07-17: surviving API
     rows mass-skipped a CSV re-upload as DUPLICATE_INSTITUTIONAL_ID) —
     via the denormalized ``year`` column, leaving manual entries and
-    other years untouched."""
+    other years untouched.
+    """
     from app.models.data_entry import BULK_PER_YEAR_SOURCES, DataEntrySourceEnum
 
     module = await _seed_module(
