@@ -425,7 +425,7 @@
                 :show-reference-columns="
                   entry.config.behavior === 'prefilled' && hasReferenceYear
                 "
-                :project-years-count="grantYearsCountFor(entry.config.module)"
+                :project-years-count="grantYearsCount"
                 :percentage-locked="isGlobalEquipment(entry.config.module)"
                 :show-grant-budgets="
                   yearData.is_grant && !isGlobalEquipment(entry.config.module)

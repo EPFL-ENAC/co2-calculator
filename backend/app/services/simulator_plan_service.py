@@ -120,18 +120,18 @@ class SimulatorPlanService:
             for plan_id, stats_list in by_plan.items()
         }
 
-    async def get_plan_by_name(
-        self, unit_id: int, name: str
-    ) -> Optional[SimulatorPlanRead]:
-        """Get a plan by unit and name, or None."""
-        row = await self.repo.get_plan_by_name(unit_id, name)
+    async def get_plan(self, plan_id: int) -> Optional[SimulatorPlanRead]:
+        """Get a plan by ID, or None."""
+        row = await self.repo.get_plan_with_creator(plan_id)
         if row is None:
             return None
         project, creator_name = row
         return _to_read(
             project,
             creator_name,
-            default_factor_year=await self.repo.get_latest_calculator_year(unit_id),
+            default_factor_year=await self.repo.get_latest_calculator_year(
+                project.unit_id
+            ),
         )
 
     async def create_plan(
@@ -318,7 +318,12 @@ class SimulatorPlanService:
         return [await self._year_read(report) for report in reports]
 
     async def set_reference_year(
-        self, plan_id: int, year: int, reference_year: Optional[int], *, is_grant: bool = False
+        self,
+        plan_id: int,
+        year: int,
+        reference_year: Optional[int],
+        *,
+        is_grant: bool = False,
     ) -> Optional[SimulatorPlanYearRead]:
         """Set or remove the baseline year of one plan-year report; None if missing.
 
@@ -718,7 +723,7 @@ class SimulatorPlanService:
         default_factor_year = await self.repo.get_latest_calculator_year(
             project.unit_id
         )
-        row = await self.repo.get_plan_by_name(project.unit_id, project.name or "")
+        row = await self.repo.get_plan_with_creator(project.id or -1)
         if row is None:
             return _to_read(project, None, default_factor_year=default_factor_year)
         refreshed, creator_name = row

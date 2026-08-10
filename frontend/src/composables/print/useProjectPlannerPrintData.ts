@@ -354,17 +354,8 @@ export function useProjectPlannerPrintData() {
   async function fetchAllData(): Promise<void> {
     loading.value = true;
     try {
-      const unitId = workspaceStore.selectedUnit?.id;
-      if (unitId == null) {
-        notFound.value = true;
-        return;
-      }
-
       try {
-        plan.value = await plansStore.getPlanByName(
-          unitId,
-          String(route.params.name),
-        );
+        plan.value = await plansStore.getPlan(Number(route.params.planId));
       } catch {
         notFound.value = true;
         return;

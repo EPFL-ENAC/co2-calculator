@@ -52,14 +52,11 @@ class CarbonProjectRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
-    async def get_plan_by_name(
-        self, unit_id: int, name: str
+    async def get_plan_with_creator(
+        self, plan_id: int
     ) -> Optional[tuple[CarbonProject, Optional[str]]]:
-        """Get a plan project by unit and name, with the creator name."""
-        statement = self._plan_with_creator_stmt().where(
-            CarbonProject.unit_id == unit_id,
-            CarbonProject.name == name,
-        )
+        """Get a plan project by ID, with the creator name."""
+        statement = self._plan_with_creator_stmt().where(CarbonProject.id == plan_id)
         result = await self.session.execute(statement)
         row = result.first()
         if row is None:

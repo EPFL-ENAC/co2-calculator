@@ -102,18 +102,15 @@ async def create_simulator_plan(
     return _with_can_manage(current_user, [result])[0]
 
 
-@router.get("/unit/{unit_id}/by-name/{name}", response_model=SimulatorPlanRead)
-async def get_simulator_plan_by_name(
-    unit_id: int,
-    name: str,
+@router.get("/{plan_id}", response_model=SimulatorPlanRead)
+async def get_simulator_plan(
+    plan_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get a simulator plan of a unit by its name."""
-    unit = await db.get(Unit, unit_id)
-    require_unit_access(current_user, unit)
-    service = SimulatorPlanService(db)
-    result = await service.get_plan_by_name(unit_id, name)
+    """Get a simulator plan by ID."""
+    service = await _require_plan_unit_access(db, current_user, plan_id, "view")
+    result = await service.get_plan(plan_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Plan not found")
     require_plan_access(current_user, result, "view")

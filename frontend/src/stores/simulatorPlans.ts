@@ -121,12 +121,9 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     return plan;
   }
 
-  async function getPlanByName(
-    unitId: number,
-    name: string,
-  ): Promise<SimulatorPlan> {
+  async function getPlan(planId: number): Promise<SimulatorPlan> {
     return api
-      .get(`project-plans/unit/${unitId}/by-name/${encodeURIComponent(name)}`, {
+      .get(`project-plans/${planId}`, {
         skipErrorCodes: [404],
       })
       .json<SimulatorPlan>();
@@ -354,7 +351,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     setPlans,
     markPlansStale,
     createPlan,
-    getPlanByName,
+    getPlan,
     updatePlan,
     renamePlan,
     fetchPlanYears,

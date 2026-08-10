@@ -272,7 +272,7 @@ function downloadReport() {
       language: locale.value.split('-')[0],
       unit: route.params.unit,
       year: route.params.year,
-      name: route.params.name,
+      planId: route.params.planId,
     },
   }).href;
   window.open(url, '_blank');
@@ -285,27 +285,15 @@ const referenceYearOptions = computed(() =>
     .map((year) => ({ label: String(year), value: year })),
 );
 
-async function onPlanUpdated(updated: SimulatorPlan) {
-  const previous = plan.value;
-  const renamed = previous !== null && previous.name !== updated.name;
-  plan.value = updated;
+function onPlanUpdated(updated: SimulatorPlan) {
   // Section-affecting updates (year range, grant flag, year sections) are
   // refetched by the store's updatePlan, no extra refetch needed here.
-  if (renamed) {
-    // Param-only replace keeps this component instance mounted.
-    await router.replace({
-      name: 'project-planner',
-      params: { ...route.params, name: updated.name },
-    });
-  }
+  plan.value = updated;
 }
 
 onMounted(async () => {
   try {
-    plan.value = await plansStore.getPlanByName(
-      unitId.value,
-      String(route.params.name),
-    );
+    plan.value = await plansStore.getPlan(Number(route.params.planId));
   } catch {
     notFound.value = true;
     return;

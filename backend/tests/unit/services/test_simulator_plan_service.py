@@ -103,20 +103,19 @@ async def test_create_plan_explicit_name_collision_raises(async_session, user):
         await service.create_plan(unit_id=1, user=user, name="my-plan")
 
 
-# ── get_plan_by_name / list_plans ─────────────────────────────────────────────
+# ── get_plan / list_plans ─────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_get_plan_by_name(async_session, user):
+async def test_get_plan(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="my-plan")
-    fetched = await service.get_plan_by_name(1, "my-plan")
+    fetched = await service.get_plan(created.id)
 
     assert fetched is not None
     assert fetched.id == created.id
     assert fetched.creator_name == "Ada Lovelace"
-    assert await service.get_plan_by_name(1, "unknown") is None
-    assert await service.get_plan_by_name(2, "my-plan") is None
+    assert await service.get_plan(9999) is None
 
 
 @pytest.mark.asyncio
@@ -144,8 +143,9 @@ async def test_rename_plan(async_session, user):
     assert renamed is not None
     assert renamed.name == "new-name"
     assert renamed.creator_name == "Ada Lovelace"
-    assert await service.get_plan_by_name(1, "old-name") is None
-    assert await service.get_plan_by_name(1, "new-name") is not None
+    refetched = await service.get_plan(created.id)
+    assert refetched is not None
+    assert refetched.name == "new-name"
 
 
 @pytest.mark.asyncio
@@ -204,7 +204,7 @@ async def test_delete_plan(async_session, user):
     created = await service.create_plan(unit_id=1, user=user, name="doomed")
 
     assert await service.delete_plan(created.id) is True
-    assert await service.get_plan_by_name(1, "doomed") is None
+    assert await service.get_plan(created.id) is None
     assert await service.delete_plan(created.id) is False
 
 

@@ -61,10 +61,6 @@ class SimulatorPlanUpdate(BaseModel):
     prefill) only to reports the sync creates; existing reports keep theirs.
     """
 
-    The workspace year the planner was opened from. Applied (with the usual
-    prefill) only to reports the sync creates; existing reports keep theirs.
-    """
-
     @field_validator("name")
     @classmethod
     def validate_name(cls, value: Optional[str]) -> Optional[str]:
@@ -76,18 +72,15 @@ class SimulatorPlanUpdate(BaseModel):
 class SimulatorPlanReferenceYearUpdate(BaseModel):
     """Schema for setting the baseline year of one plan-year report.
 
-    reference_year: Optional[int] = Field(default=None, ge=1000, le=9999)
-    """
     ``None`` removes the reference year: the prefilled modules are emptied
     (same wipe as a change) and the year becomes manual-input.
-    """
-    is_grant: bool = False
-    """
+
     ``is_grant`` disambiguates the Project Grant report from the year report
     sharing its year (the grant report is anchored to the plan's start year).
     """
 
     reference_year: Optional[int] = Field(default=None, ge=1000, le=9999)
+    is_grant: bool = False
 
 
 class SimulatorPlanRead(BaseModel):
@@ -99,6 +92,7 @@ class SimulatorPlanRead(BaseModel):
     start_year: Optional[int] = None
     end_year: Optional[int] = None
     is_viewable_by_unit_members: bool = False
+    is_grant_proposal: bool = False
     default_factor_year: Optional[int] = None
     created_by: Optional[int] = None
     created_at: Optional[datetime] = None
