@@ -695,8 +695,8 @@ class TestRequirePlanScopeForReport:
 
 
 class TestCheckModulePermissionForReport:
-    """Simulator reports drop the module gate to unit membership (#1988);
-    Calculator reports delegate to the strict per-module gate unchanged."""
+    """Explore reports drop the module gate to unit membership (#1988);
+    Plan and Calculator reports delegate to the strict per-module gate."""
 
     @staticmethod
     def _report(project_id=5, unit_id=1):
@@ -750,18 +750,31 @@ class TestCheckModulePermissionForReport:
         assert result is unit
 
     @pytest.mark.asyncio
-    async def test_plan_report_passes_for_std_unit_member(self):
+    async def test_plan_report_delegates_to_unit_gate(self):
         from app.models.carbon_report import CarbonReportType
 
         unit = self._unit("0184")
-        result = await check_module_permission_for_report(
-            current_user=self._std_user("0184"),
+        user = self._std_user("0184")
+        db = self._db(CarbonReportType.SIMULATOR_PLAN, unit)
+        with patch(
+            "app.core.policy.check_module_permission_for_unit",
+            AsyncMock(return_value=unit),
+        ) as delegate:
+            result = await check_module_permission_for_report(
+                current_user=user,
+                module_id="equipment",
+                action="edit",
+                db=db,
+                report=self._report(unit_id=7),
+            )
+        assert result is unit
+        delegate.assert_awaited_once_with(
+            current_user=user,
             module_id="equipment",
             action="edit",
-            db=self._db(CarbonReportType.SIMULATOR_PLAN, unit),
-            report=self._report(),
+            db=db,
+            unit_id=7,
         )
-        assert result is unit
 
     @pytest.mark.asyncio
     async def test_explore_report_denies_std_of_other_unit(self):
