@@ -37,6 +37,25 @@ async def get_class_subclass_map(
     )
 
 
+@router.get("/{data_entry_type}/list", response_model=list[dict])
+async def list_factors(
+    data_entry_type: DataEntryTypeEnum,
+    year: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """List every factor of a type for a year, classification + values merged.
+
+    Backs the Project Grant research-facilities grid, which offers the
+    reference year's whole platform list for selection (#1980).
+    """
+    factors = await FactorService(db).list_by_data_entry_type(data_entry_type, year)
+    return [
+        {"factor_id": f.id, **(f.classification or {}), **(f.values or {})}
+        for f in factors
+    ]
+
+
 # example of call
 #
 # http://localhost:9000/api/v1/factors/scientific/classes/Milling%20machine/values

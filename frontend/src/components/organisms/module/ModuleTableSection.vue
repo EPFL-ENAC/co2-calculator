@@ -16,6 +16,11 @@
           :factor-year="factorYear"
           :carbon-report-id="carbonReportId"
           :show-reference-columns="showReferenceColumns"
+          :project-years-count="projectYearsCount"
+          :percentage-locked="percentageLocked"
+          :show-grant-budget="showGrantBudgets"
+          :grant-budget="grantBudgets?.[sub.id] ?? null"
+          :grant-budget-currency="grantBudgetCurrency"
           :threshold="currentModuleConfig.threshold || defaultThreshold"
         />
       </template>
@@ -53,6 +58,16 @@ const props = defineProps<{
   carbonReportId?: number;
   /** Planner prefilled: show the reference-kg column + % slider. */
   showReferenceColumns?: boolean;
+  /** Planner Project Grant: plan year count for the "× project years" column. */
+  projectYearsCount?: number | null;
+  /** Grant equipment global mode: per-row % controls read-only (#1981). */
+  percentageLocked?: boolean;
+  /** Planner Project Grant: show a budget field above each submodule table. */
+  showGrantBudgets?: boolean;
+  /** Grant submodule budgets of this module, keyed by submodule id (#1978). */
+  grantBudgets?: Record<string, number> | null;
+  /** Currency code of the grant budget, shown on the budget fields. */
+  grantBudgetCurrency?: string | null;
   /**
    * Replaces the Calculator MODULES_CONFIG entry — the Simulator Plan
    * renders planner-specific submodules (see constant/planner-module-config).

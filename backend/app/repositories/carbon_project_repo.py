@@ -52,14 +52,11 @@ class CarbonProjectRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
-    async def get_plan_by_name(
-        self, unit_id: int, name: str
+    async def get_plan_with_creator(
+        self, plan_id: int
     ) -> Optional[tuple[CarbonProject, Optional[str]]]:
-        """Get a plan project by unit and name, with the creator name."""
-        statement = self._plan_with_creator_stmt().where(
-            CarbonProject.unit_id == unit_id,
-            CarbonProject.name == name,
-        )
+        """Get a plan project by ID, with the creator name."""
+        statement = self._plan_with_creator_stmt().where(CarbonProject.id == plan_id)
         result = await self.session.execute(statement)
         row = result.first()
         if row is None:
@@ -129,12 +126,19 @@ class CarbonProjectRepository:
 
         Backs the plan totals shown in the home-page planner table: one query
         for the whole unit instead of one per plan.
+
+        Project Grant reports are excluded: how grant results combine with the
+        per-year results is still open (#1977), and summing both would count
+        the same project twice.
         """
         if not project_ids:
             return []
         statement = select(
             col(CarbonReport.carbon_project_id), col(CarbonReport.stats)
-        ).where(col(CarbonReport.carbon_project_id).in_(project_ids))
+        ).where(
+            col(CarbonReport.carbon_project_id).in_(project_ids),
+            col(CarbonReport.is_grant).is_(False),
+        )
         result = await self.session.execute(statement)
         return [(project_id, stats) for project_id, stats in result.all()]
 

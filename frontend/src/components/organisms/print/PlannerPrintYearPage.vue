@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ReportPage from 'src/components/organisms/ReportPage.vue';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
@@ -20,6 +21,16 @@ interface Props {
 
 const props = defineProps<Props>();
 
+const { t } = useI18n();
+
+// The same page prints the Project Grant summary, titled by name rather
+// than by its anchor year (#1977).
+const pageTitle = computed(() =>
+  props.year.is_grant
+    ? t('planner_project_grant_title')
+    : String(props.year.year),
+);
+
 // Inactive modules are excluded from the year's sums and charts, so the report
 // names them: a reader seeing a low total needs to know what was left out.
 const inactiveModules = computed(() =>
@@ -33,12 +44,8 @@ const inactiveModules = computed(() =>
 </script>
 
 <template>
-  <ReportPage
-    :title="String(year.year)"
-    :scope="scope"
-    :page-number="pageNumber"
-  >
-    <h2 class="text-h5 q-mt-none">{{ year.year }}</h2>
+  <ReportPage :title="pageTitle" :scope="scope" :page-number="pageNumber">
+    <h2 class="text-h5 q-mt-none">{{ pageTitle }}</h2>
     <div class="text-body2 text-secondary">
       {{ $t('planner_print_year_subtitle', { name: planName }) }}
     </div>
@@ -74,7 +81,7 @@ const inactiveModules = computed(() =>
     <section class="q-mt-md">
       <ModuleCarbonFootprintChart
         :breakdown-data="breakdown"
-        :title="$t('planner_print_year_chart_title', { year: year.year })"
+        :title="$t('planner_print_year_chart_title', { year: pageTitle })"
         :print-mode="true"
       />
     </section>

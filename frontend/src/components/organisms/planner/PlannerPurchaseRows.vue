@@ -59,7 +59,26 @@
           </label>
           <div class="planner-purchase-table__kg text-body2 text-grey-7">
             <template v-if="row.kg !== null">
-              {{ formatTonnesCO2(row.kg / 1000) }} {{ $t('tco2eq') }}
+              <template v-if="projectYearsCount != null">
+                {{
+                  $t('planner_purchase_kg_per_year', {
+                    value: formatTonnesCO2(row.kg / 1000),
+                  })
+                }}
+                <span class="text-weight-medium q-ml-sm">
+                  {{
+                    $t('planner_purchase_kg_project', {
+                      value: formatTonnesCO2(
+                        (row.kg * projectYearsCount) / 1000,
+                      ),
+                      years: projectYearsCount,
+                    })
+                  }}
+                </span>
+              </template>
+              <template v-else>
+                {{ formatTonnesCO2(row.kg / 1000) }} {{ $t('tco2eq') }}
+              </template>
             </template>
           </div>
           <q-input
@@ -184,6 +203,8 @@ interface SubmoduleItem {
 const props = defineProps<{
   carbonReportId: number;
   disable: boolean;
+  /** Set in the Project Grant section: multiply kg over the plan's years. */
+  projectYearsCount?: number | null;
 }>();
 
 const $q = useQuasar();

@@ -31,6 +31,38 @@
     </template>
     <q-separator />
     <q-card-section class="q-pa-none">
+      <!-- The submodule's share of the grant budget, reconciled against the
+           total in the Project Grant section header (#1978). -->
+      <template v-if="showGrantBudget">
+        <div class="q-mx-lg q-my-lg">
+          <div class="text-weight-medium q-mb-sm">
+            {{ $t('planner_budget_section_title') }}
+          </div>
+          <q-input
+            v-model.number="grantBudgetInput"
+            class="grant-budget-input"
+            type="number"
+            outlined
+            dense
+            hide-bottom-space
+            min="0"
+            :suffix="currencyLabel(grantBudgetCurrency)"
+            :label="
+              $t('planner_submodule_budget_label', {
+                submodule: submoduleName,
+              })
+            "
+            :loading="savingGrantBudget"
+            :disable="disable"
+            @blur="saveGrantBudget"
+            @keyup.enter="saveGrantBudget"
+          />
+          <div class="text-body2 text-grey-7 q-mt-sm">
+            {{ $t('planner_submodule_budget_hint') }}
+          </div>
+        </div>
+        <q-separator />
+      </template>
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
           :module-fields="submodule.moduleFields"
@@ -39,6 +71,8 @@
           :factor-year="factorYear"
           :carbon-report-id="carbonReportId"
           :show-reference-columns="showReferenceColumns"
+          :project-years-count="projectYearsCount"
+          :percentage-locked="percentageLocked"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -116,6 +150,38 @@
     </q-card-section>
     <q-separator />
     <q-card-section class="q-pa-none">
+      <!-- The submodule's share of the grant budget, reconciled against the
+           total in the Project Grant section header (#1978). -->
+      <template v-if="showGrantBudget">
+        <div class="q-mx-lg q-my-lg">
+          <div class="text-weight-medium q-mb-sm">
+            {{ $t('planner_budget_section_title') }}
+          </div>
+          <q-input
+            v-model.number="grantBudgetInput"
+            class="grant-budget-input"
+            type="number"
+            outlined
+            dense
+            hide-bottom-space
+            min="0"
+            :suffix="currencyLabel(grantBudgetCurrency)"
+            :label="
+              $t('planner_submodule_budget_label', {
+                submodule: submoduleName,
+              })
+            "
+            :loading="savingGrantBudget"
+            :disable="disable"
+            @blur="saveGrantBudget"
+            @keyup.enter="saveGrantBudget"
+          />
+          <div class="text-body2 text-grey-7 q-mt-sm">
+            {{ $t('planner_submodule_budget_hint') }}
+          </div>
+        </div>
+        <q-separator />
+      </template>
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
           :module-fields="submodule.moduleFields"
@@ -124,6 +190,8 @@
           :factor-year="factorYear"
           :carbon-report-id="carbonReportId"
           :show-reference-columns="showReferenceColumns"
+          :project-years-count="projectYearsCount"
+          :percentage-locked="percentageLocked"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -183,8 +251,11 @@ import type {
   EnumSubmoduleType,
   Module,
 } from 'src/constant/modules';
+import { currencyLabel } from 'src/constant/currencies';
 import { enumSubmodule, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
+import { getModuleTypeId } from 'src/constant/moduleStates';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 import { submitCreateItem } from 'src/utils/submitCreateItem';
@@ -243,6 +314,16 @@ type CommonProps = {
   carbonReportId?: number;
   /** Planner prefilled: show the reference-kg column + % slider. */
   showReferenceColumns?: boolean;
+  /** Planner Project Grant: plan year count for the "× project years" column. */
+  projectYearsCount?: number | null;
+  /** Grant equipment global mode: per-row % controls read-only (#1981). */
+  percentageLocked?: boolean;
+  /** Planner Project Grant: show this submodule's budget field (#1978). */
+  showGrantBudget?: boolean;
+  /** The submodule's saved share of the grant budget. */
+  grantBudget?: number | null;
+  /** Currency code of the grant budget, shown as the field's suffix. */
+  grantBudgetCurrency?: string | null;
   threshold: Threshold;
   disable: boolean;
   isExplorer?: boolean;
@@ -266,6 +347,11 @@ const props = withDefaults(
     carbonReportId: undefined,
     factorYear: undefined,
     showReferenceColumns: undefined,
+    projectYearsCount: null,
+    percentageLocked: false,
+    showGrantBudget: false,
+    grantBudget: null,
+    grantBudgetCurrency: null,
   },
 );
 const authStore = useAuthStore();
@@ -273,6 +359,48 @@ const authStore = useAuthStore();
 const submoduleKey = computed(() => {
   return props.submodule.id;
 });
+
+// Grant submodule budget (#1978): seeded from the saved value once; the
+// Project Grant header's check line reads the store, so it moves on save.
+const plansStore = useSimulatorPlansStore();
+
+// The table titles embed a count ("Rooms ({count})"); translating with a
+// plural count and stripping the parenthetical yields the bare name the
+// budget label needs ("Rooms budget").
+const submoduleName = computed(() =>
+  props.submodule.tableNameKey
+    ? t(props.submodule.tableNameKey, { count: 2 }).replace(
+        /\s*\([^)]*\)\s*$/,
+        '',
+      )
+    : '',
+);
+const grantBudgetInput = ref<number | null>(props.grantBudget);
+const savingGrantBudget = ref(false);
+
+async function saveGrantBudget() {
+  if (props.carbonReportId === undefined || savingGrantBudget.value) return;
+  const raw = grantBudgetInput.value;
+  const value =
+    typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : null;
+  if (value === (props.grantBudget ?? null)) return;
+  savingGrantBudget.value = true;
+  try {
+    await plansStore.setSubmoduleBudget(
+      props.carbonReportId,
+      getModuleTypeId(props.moduleType),
+      props.submodule.id,
+      value,
+    );
+  } catch {
+    Notify.create({
+      type: 'negative',
+      message: t('planner_grant_budget_error'),
+    });
+  } finally {
+    savingGrantBudget.value = false;
+  }
+}
 
 const submoduleColor = computed(() =>
   getSubmoduleIconColor(props.submodule.id, props.moduleType),
@@ -463,5 +591,11 @@ async function submitForm(payload: Record<string, FieldValue>) {
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+}
+
+/* A budget field holds one amount; a bounded box keeps it from stretching
+   across the section like a text field would. */
+.grant-budget-input {
+  max-width: 240px;
 }
 </style>

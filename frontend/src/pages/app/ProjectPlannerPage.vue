@@ -62,6 +62,7 @@
           :default-factor-year="plan.default_factor_year"
           :reference-year-options="referenceYearOptions"
           :expanded-keys="expandedKeys"
+          :project-years-count="projectYearsCount"
           @toggle-module="onToggleModule"
         />
 
@@ -80,7 +81,44 @@
                separator but never at the card edges). Still a grid, because
                BigNumber sizes itself against its row. -->
           <div class="results-blocks">
+            <!-- Grant results sit beside the year-by-year results, never
+                 summed together — the two views count the same project
+                 (#1977). -->
+            <div
+              v-if="plan.is_grant_proposal && hasYearSections"
+              class="row items-stretch no-wrap"
+            >
+              <BigNumber
+                class="col"
+                :title="$t('planner_results_grant_total_title')"
+                :number="formatTonnesCO2(grantTotalTonnes)"
+                comparison=""
+                color="info"
+                compact
+                :bordered="false"
+              />
+              <q-separator vertical />
+              <BigNumber
+                class="col"
+                :title="$t('planner_results_years_total_title')"
+                :number="formatTonnesCO2(totalTonnesCo2eq)"
+                comparison=""
+                color="info"
+                compact
+                :bordered="false"
+              />
+            </div>
             <BigNumber
+              v-else-if="plan.is_grant_proposal"
+              :title="$t('planner_results_grant_total_title')"
+              :number="formatTonnesCO2(grantTotalTonnes)"
+              comparison=""
+              color="info"
+              compact
+              :bordered="false"
+            />
+            <BigNumber
+              v-else
               :title="$t('planner_results_total_tonnes_co2eq')"
               :number="formatTonnesCO2(totalTonnesCo2eq)"
               comparison=""
@@ -91,7 +129,28 @@
 
             <q-separator />
 
+            <PlannerGrantComparisonChart
+              v-if="plan.is_grant_proposal && hasYearSections"
+              :title="
+                $t('planner_results_comparison_chart_title', {
+                  name: plan.name,
+                })
+              "
+              :grant-breakdown="grantBreakdown"
+              :years-breakdown="breakdown"
+            />
             <ModuleCarbonFootprintChart
+              v-else-if="plan.is_grant_proposal"
+              :breakdown-data="grantBreakdown"
+              :title="
+                $t('planner_results_comparison_chart_title', {
+                  name: plan.name,
+                })
+              "
+              :bordered="false"
+            />
+            <ModuleCarbonFootprintChart
+              v-else
               :breakdown-data="breakdown"
               :title="$t('planner_results_chart_title', { name: plan.name })"
               :bordered="false"
@@ -132,6 +191,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
+import PlannerGrantComparisonChart from 'src/components/charts/results/PlannerGrantComparisonChart.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import PlannerProjectInfo from 'src/components/organisms/planner/PlannerProjectInfo.vue';
 import PlannerYearSection from 'src/components/organisms/planner/PlannerYearSection.vue';
@@ -178,13 +238,32 @@ function onToggleModule({
   expandedKeys.value = open ? [...others, key] : others;
 }
 
+// Grant tables multiply per-year kgCO₂eq over the plan's duration (#1979).
+const projectYearsCount = computed(() =>
+  plan.value?.start_year != null && plan.value?.end_year != null
+    ? plan.value.end_year - plan.value.start_year + 1
+    : null,
+);
+
+const hasYearSections = computed(() =>
+  plansStore.planYears.some((y) => !y.is_grant),
+);
+
 const breakdown = computed(() =>
   plansStore.aggregateStats
     ? toEmissionBreakdown(plansStore.aggregateStats)
     : null,
 );
 
+const grantBreakdown = computed(() =>
+  plansStore.grantStats ? toEmissionBreakdown(plansStore.grantStats) : null,
+);
+
 const totalTonnesCo2eq = computed(() => sumBreakdownTonnes(breakdown.value));
+
+const grantTotalTonnes = computed(() =>
+  sumBreakdownTonnes(grantBreakdown.value),
+);
 
 function downloadReport() {
   const url = router.resolve({
@@ -193,7 +272,7 @@ function downloadReport() {
       language: locale.value.split('-')[0],
       unit: route.params.unit,
       year: route.params.year,
-      name: route.params.name,
+      planId: route.params.planId,
     },
   }).href;
   window.open(url, '_blank');
@@ -206,35 +285,15 @@ const referenceYearOptions = computed(() =>
     .map((year) => ({ label: String(year), value: year })),
 );
 
-async function onPlanUpdated(updated: SimulatorPlan) {
-  const previous = plan.value;
-  const renamed = previous !== null && previous.name !== updated.name;
-  const rangeChanged =
-    previous !== null &&
-    (previous.start_year !== updated.start_year ||
-      previous.end_year !== updated.end_year);
+function onPlanUpdated(updated: SimulatorPlan) {
+  // Section-affecting updates (year range, grant flag, year sections) are
+  // refetched by the store's updatePlan, no extra refetch needed here.
   plan.value = updated;
-  // The year range drives the backend year-report sync; refetch so the
-  // per-year sections reflect the new range without a page reload.
-  if (rangeChanged) {
-    await plansStore.fetchPlanYears(updated.id);
-    await plansStore.fetchAggregateStats(updated.id);
-  }
-  if (renamed) {
-    // Param-only replace keeps this component instance mounted.
-    await router.replace({
-      name: 'project-planner',
-      params: { ...route.params, name: updated.name },
-    });
-  }
 }
 
 onMounted(async () => {
   try {
-    plan.value = await plansStore.getPlanByName(
-      unitId.value,
-      String(route.params.name),
-    );
+    plan.value = await plansStore.getPlan(Number(route.params.planId));
   } catch {
     notFound.value = true;
     return;

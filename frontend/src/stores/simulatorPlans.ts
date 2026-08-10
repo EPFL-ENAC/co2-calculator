@@ -18,6 +18,7 @@ export interface SimulatorPlan {
   /** Latest Calculator report year of the unit; factor fallback when a plan
    * year has no reference year (backend-derived, read-only). */
   default_factor_year: number | null;
+  is_grant_proposal: boolean;
   created_by: number | null;
   created_at: string | null;
   creator_name: string | null;
@@ -31,14 +32,22 @@ export interface SimulatorPlanModule {
   module_type_id: number;
   status: number;
   is_active: boolean;
+  /** Grant submodule budgets, keyed by submodule id (#1978). */
+  budgets: Record<string, number> | null;
   stats: Record<string, unknown> | null;
 }
 
-/** One plan-year carbon report with its modules. */
+/**
+ * One plan carbon report with its modules: a year of the range, or the
+ * Project Grant report (`is_grant`, anchored to the start year).
+ */
 export interface SimulatorPlanYear {
   id: number;
   year: number;
   reference_year: number | null;
+  is_grant: boolean;
+  budget: number | null;
+  budget_currency: string | null;
   stats: Record<string, unknown> | null;
   modules: SimulatorPlanModule[];
 }
@@ -51,6 +60,9 @@ export interface SimulatorPlanUpdatePayload {
   /** Reference year defaulted onto (and prefilled into) year reports newly
    * created by this range change; send the current workspace year. */
   default_reference_year?: number;
+  is_grant_proposal?: boolean;
+  /** Not persisted: opts the plan out of (or back into) per-year sections. */
+  with_year_sections?: boolean;
 }
 
 export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
@@ -67,6 +79,9 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
   // mutations.
   const activePlanId = ref<number | null>(null);
   const aggregateStats = ref<ReportStats | null>(null);
+  // The Project Grant report's own stats — charted beside the year
+  // aggregate, never summed into it (#1977).
+  const grantStats = ref<ReportStats | null>(null);
   const aggregateLoading = ref(false);
 
   const plansStale = ref(false);
@@ -106,12 +121,9 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     return plan;
   }
 
-  async function getPlanByName(
-    unitId: number,
-    name: string,
-  ): Promise<SimulatorPlan> {
+  async function getPlan(planId: number): Promise<SimulatorPlan> {
     return api
-      .get(`project-plans/unit/${unitId}/by-name/${encodeURIComponent(name)}`, {
+      .get(`project-plans/${planId}`, {
         skipErrorCodes: [404],
       })
       .json<SimulatorPlan>();
@@ -119,8 +131,9 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
 
   /**
    * PATCH the plan (name / year range / lab visibility). Changing the year
-   * range syncs the plan's per-year reports server-side, so the years list
-   * is refetched afterwards.
+   * range, grant flag or year-sections flag syncs the plan's reports
+   * server-side, so the years list and the results aggregate are refetched
+   * afterwards.
    */
   async function updatePlan(
     planId: number,
@@ -138,8 +151,13 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
       .json<SimulatorPlan>();
 
     markPlansStale();
-    if (rangeChange) {
+    if (
+      rangeChange ||
+      payload.is_grant_proposal !== undefined ||
+      payload.with_year_sections !== undefined
+    ) {
       await fetchPlanYears(planId);
+      await refreshAggregateIfActive();
     }
     return plan;
   }
@@ -167,9 +185,11 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     activePlanId.value = planId;
     aggregateLoading.value = true;
     try {
-      aggregateStats.value = await api
+      const payload = await api
         .get(`project-plans/${planId}/aggregate-stats`)
-        .json<ReportStats>();
+        .json<{ years: ReportStats; grant: ReportStats | null }>();
+      aggregateStats.value = payload.years;
+      grantStats.value = payload.grant;
     } finally {
       aggregateLoading.value = false;
     }
@@ -184,22 +204,28 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
   function clearAggregate(): void {
     activePlanId.value = null;
     aggregateStats.value = null;
+    grantStats.value = null;
   }
 
-  /** Set or remove (null) the reference (baseline) year of one plan-year report. */
+  /**
+   * Set or remove (null) the reference (baseline) year of one plan-year report. `isGrant`
+   * targets the Project Grant report, which shares its year with the
+   * start-year report.
+   */
   async function setReferenceYear(
     planId: number,
     year: number,
     referenceYear: number | null,
+    isGrant = false,
   ): Promise<SimulatorPlanYear> {
     const updated = await api
       .patch(`project-plans/${planId}/years/${year}`, {
-        json: { reference_year: referenceYear },
+        json: { reference_year: referenceYear, is_grant: isGrant },
         timeout: 300000, // 5 minutes; TODO: backend to make a background task instead!
       })
       .json<SimulatorPlanYear>();
     planYears.value = planYears.value.map((y) =>
-      y.year === updated.year ? updated : y,
+      y.id === updated.id ? updated : y,
     );
     await refreshAggregateIfActive();
     return updated;
@@ -239,6 +265,65 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     return updated;
   }
 
+  /** Set the Project Grant report's total budget and its currency (#1978). */
+  async function setGrantBudget(
+    carbonReportId: number,
+    budget: number | null,
+    budgetCurrency: string | null,
+  ): Promise<void> {
+    const updated = await api
+      .patch(`carbon-reports/${carbonReportId}/budget`, {
+        json: { budget, budget_currency: budgetCurrency },
+      })
+      .json<{ budget: number | null; budget_currency: string | null }>();
+    planYears.value = planYears.value.map((y) =>
+      y.id === carbonReportId
+        ? {
+            ...y,
+            budget: updated.budget,
+            budget_currency: updated.budget_currency,
+          }
+        : y,
+    );
+  }
+
+  /**
+   * Apply one reference percentage to every prefilled line of a grant
+   * module — the equipment "global percentage" mode (#1981).
+   */
+  async function setModuleReferencePercentage(
+    carbonReportId: number,
+    moduleTypeId: number,
+    percentage: number,
+  ): Promise<void> {
+    await api
+      .patch(
+        `carbon-reports/${carbonReportId}/modules/${moduleTypeId}/reference-percentage`,
+        { json: { percentage } },
+      )
+      .json();
+    await refreshAggregateIfActive();
+  }
+
+  /** Set a grant submodule's share of the budget (#1978). */
+  async function setSubmoduleBudget(
+    carbonReportId: number,
+    moduleTypeId: number,
+    submodule: string,
+    budget: number | null,
+  ): Promise<SimulatorPlanModule> {
+    const updated = await api
+      .patch(
+        `carbon-reports/${carbonReportId}/modules/${moduleTypeId}/budget`,
+        {
+          json: { submodule, budget },
+        },
+      )
+      .json<SimulatorPlanModule>();
+    replaceModuleInYear(carbonReportId, updated);
+    return updated;
+  }
+
   async function duplicatePlan(planId: number): Promise<SimulatorPlan> {
     const plan = await api
       .post(`project-plans/${planId}/duplicate`)
@@ -259,13 +344,14 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     planYearsLoading,
     activePlanId,
     aggregateStats,
+    grantStats,
     aggregateLoading,
     plansStale,
     fetchPlans,
     setPlans,
     markPlansStale,
     createPlan,
-    getPlanByName,
+    getPlan,
     updatePlan,
     renamePlan,
     fetchPlanYears,
@@ -274,6 +360,9 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     clearAggregate,
     setReferenceYear,
     setModuleActive,
+    setModuleReferencePercentage,
+    setGrantBudget,
+    setSubmoduleBudget,
     duplicatePlan,
     deletePlan,
   };

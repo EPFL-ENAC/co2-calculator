@@ -207,6 +207,22 @@ class CarbonReportService:
         await self.module_service.create_all_modules_for_report(carbon_report_read.id)
         return carbon_report_read
 
+    async def set_budget(
+        self,
+        carbon_report_id: int,
+        budget: float | None,
+        budget_currency: str | None,
+    ) -> Optional[CarbonReportRead]:
+        """Set a Project Grant report's total budget (#1978); None if missing."""
+        report = await self.repo.get(carbon_report_id)
+        if report is None:
+            return None
+        report.budget = budget
+        report.budget_currency = budget_currency
+        self.session.add(report)
+        await self.session.flush()
+        return CarbonReportRead.model_validate(report)
+
     async def get_explore(
         self,
         *,

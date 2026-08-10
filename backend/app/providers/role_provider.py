@@ -567,8 +567,11 @@ class AccredRoleProvider(RoleProvider):
                     continue
 
                 accred_unit_institutional_code = auth.get("accredunitid")
-                accred_unit_institutional_id = (
-                    auth.get("reason").get("resource").get("cf")
+                # Prod Accred exposes the unit cf as resource.cf; api-test's
+                # newer schema renamed it to resource.altname.
+                resource = auth.get("reason").get("resource")
+                accred_unit_institutional_id = resource.get("cf") or resource.get(
+                    "altname"
                 )
                 if not accred_unit_institutional_code:
                     logger.warning(

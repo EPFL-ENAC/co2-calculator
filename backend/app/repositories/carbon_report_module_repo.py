@@ -224,6 +224,37 @@ class CarbonReportModuleRepository:
         await self.session.refresh(db_obj)
         return db_obj
 
+    async def update_submodule_budget(
+        self,
+        carbon_report_id: int,
+        module_type_id: int,
+        submodule: str,
+        budget: float | None,
+    ) -> Optional[CarbonReportModule]:
+        """Set a grant submodule's share of the budget (#1978).
+
+        A null ``budget`` removes the submodule's entry. The dict is
+        reassigned (not mutated) so SQLAlchemy detects the JSON change.
+        """
+        statement = select(CarbonReportModule).where(
+            col(CarbonReportModule.carbon_report_id) == carbon_report_id,
+            col(CarbonReportModule.module_type_id) == module_type_id,
+        )
+        result = await self.session.execute(statement)
+        db_obj = result.scalar_one_or_none()
+        if not db_obj:
+            return None
+        budgets = dict(db_obj.budgets or {})
+        if budget is None:
+            budgets.pop(submodule, None)
+        else:
+            budgets[submodule] = budget
+        db_obj.budgets = budgets or None
+        self.session.add(db_obj)
+        await self.session.flush()
+        await self.session.refresh(db_obj)
+        return db_obj
+
     async def delete(self, carbon_report_module_id: int) -> bool:
         """Delete a carbon report module by ID."""
         statement = select(CarbonReportModule).where(

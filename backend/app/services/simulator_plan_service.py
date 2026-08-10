@@ -66,6 +66,7 @@ def _to_read(
         start_year=project.start_year,
         end_year=project.end_year,
         is_viewable_by_unit_members=project.is_viewable_by_unit_members,
+        is_grant_proposal=project.is_grant_proposal,
         created_by=project.created_by,
         created_at=project.created_at,
         creator_name=creator_name,
@@ -119,18 +120,18 @@ class SimulatorPlanService:
             for plan_id, stats_list in by_plan.items()
         }
 
-    async def get_plan_by_name(
-        self, unit_id: int, name: str
-    ) -> Optional[SimulatorPlanRead]:
-        """Get a plan by unit and name, or None."""
-        row = await self.repo.get_plan_by_name(unit_id, name)
+    async def get_plan(self, plan_id: int) -> Optional[SimulatorPlanRead]:
+        """Get a plan by ID, or None."""
+        row = await self.repo.get_plan_with_creator(plan_id)
         if row is None:
             return None
         project, creator_name = row
         return _to_read(
             project,
             creator_name,
-            default_factor_year=await self.repo.get_latest_calculator_year(unit_id),
+            default_factor_year=await self.repo.get_latest_calculator_year(
+                project.unit_id
+            ),
         )
 
     async def create_plan(
@@ -182,6 +183,8 @@ class SimulatorPlanService:
             project.name = update.name
         if update.is_viewable_by_unit_members is not None:
             project.is_viewable_by_unit_members = update.is_viewable_by_unit_members
+        if update.is_grant_proposal is not None:
+            project.is_grant_proposal = update.is_grant_proposal
         if update.start_year is not None:
             project.start_year = update.start_year
         if update.end_year is not None:
@@ -194,7 +197,9 @@ class SimulatorPlanService:
             raise ValueError("start_year must be <= end_year")
         project = await self._flush_guarded(self.repo.create(project))
         await self._sync_year_reports(
-            project, default_reference_year=update.default_reference_year
+            project,
+            default_reference_year=update.default_reference_year,
+            with_year_sections=update.with_year_sections,
         )
         return await self._read_with_creator(project)
 
@@ -202,25 +207,46 @@ class SimulatorPlanService:
         self,
         project: CarbonProject,
         default_reference_year: Optional[int] = None,
+        *,
+        with_year_sections: Optional[bool] = None,
     ) -> None:
         """Make the plan's reports match ``start_year..end_year``, one per year.
 
         Out-of-range reports are deleted together with their entries
         (destructive by design — the user shrank the range deliberately).
-        No-op until both bounds are set.
+        Until both bounds are set, only the grant report is synced.
 
         Newly created year reports default their reference year to
         ``default_reference_year`` (the workspace year the range was set
         from) and are prefilled from it, exactly as if the user had picked
         it in the dialog. Existing reports keep their reference year.
+
+        ``with_year_sections`` opts the plan out of (or back into) per-year
+        reports; ``None`` keeps the plan's current shape, derived from its
+        existing non-grant reports (a plan with no reports yet gets them).
+        A plan must keep either its year sections or its grant proposal.
         """
-        if project.start_year is None or project.end_year is None:
-            return
         if project.id is None:
             raise ValueError("project must be persisted before use")
-        target_years = set(range(project.start_year, project.end_year + 1))
+        reports = await self.repo.list_reports_for_project(project.id)
+        grant_report = next((r for r in reports if r.is_grant), None)
+        if project.start_year is None or project.end_year is None:
+            await self._sync_grant_report(project, grant_report)
+            return
+        want_years = with_year_sections
+        if want_years is None:
+            want_years = not reports or any(not r.is_grant for r in reports)
+        if not want_years and not project.is_grant_proposal:
+            raise ValueError("A plan needs year-by-year sections or a grant proposal")
+        target_years = (
+            set(range(project.start_year, project.end_year + 1))
+            if want_years
+            else set()
+        )
         existing_years: set[int] = set()
-        for report in await self.repo.list_reports_for_project(project.id):
+        for report in reports:
+            if report.is_grant:
+                continue
             if report.year in target_years:
                 existing_years.add(report.year)
             elif report.id is not None:
@@ -239,6 +265,39 @@ class SimulatorPlanService:
                 # the report rollup is missing (no other entries exist yet).
                 await self._prefill_reference_modules(report_read)
                 await self.report_service.recompute_report_stats(report_read.id)
+        await self._sync_grant_report(project, grant_report)
+
+    async def _sync_grant_report(
+        self, project: CarbonProject, grant_report: Optional[CarbonReport]
+    ) -> None:
+        """Make the plan's Project Grant report match ``is_grant_proposal``.
+
+        Unchecking the checkbox deletes the grant report together with its
+        entries (destructive by design, like shrinking the year range). The
+        report is anchored to the plan's start year — or the current year
+        until one is set: when the range moves (or arrives) it follows,
+        keeping its data — grant entries resolve their factors from the
+        reference year, not the report year.
+        """
+        if not project.is_grant_proposal:
+            if grant_report is not None and grant_report.id is not None:
+                await self.report_service.delete(grant_report.id)
+            return
+        if project.id is None:
+            return
+        if grant_report is None:
+            await self.report_service.create(
+                CarbonReportCreate(
+                    unit_id=project.unit_id,
+                    year=project.start_year or datetime.now(timezone.utc).year,
+                    carbon_project_id=project.id,
+                    is_grant=True,
+                )
+            )
+        elif project.start_year is not None and grant_report.year != project.start_year:
+            grant_report.year = project.start_year
+            self.session.add(grant_report)
+            await self.session.flush()
 
     async def list_plan_years(
         self, plan_id: int
@@ -253,15 +312,23 @@ class SimulatorPlanService:
             return None
         if project.id is None:
             raise ValueError("project must be persisted before use")
-        years: list[SimulatorPlanYearRead] = []
-        for report in await self.repo.list_reports_for_project(project.id):
-            years.append(await self._year_read(report))
-        return years
+        reports = await self.repo.list_reports_for_project(project.id)
+        # The Project Grant section renders before the year sections.
+        reports.sort(key=lambda r: (not r.is_grant, r.year))
+        return [await self._year_read(report) for report in reports]
 
     async def set_reference_year(
-        self, plan_id: int, year: int, reference_year: Optional[int]
+        self,
+        plan_id: int,
+        year: int,
+        reference_year: Optional[int],
+        *,
+        is_grant: bool = False,
     ) -> Optional[SimulatorPlanYearRead]:
         """Set or remove the baseline year of one plan-year report; None if missing.
+
+        ``is_grant`` targets the Project Grant report, which shares its year
+        with the start-year report.
 
         Destructive: every prefilled module of the plan-year is emptied and,
         when a baseline is set, rebuilt from it at 100% — the percentages,
@@ -274,7 +341,9 @@ class SimulatorPlanService:
         lookup follows the reference year.
         """
         reports = await self.repo.list_reports_for_project(plan_id)
-        report = next((r for r in reports if r.year == year), None)
+        report = next(
+            (r for r in reports if r.year == year and r.is_grant == is_grant), None
+        )
         if report is None:
             return None
         if report.reference_year != reference_year:
@@ -313,6 +382,11 @@ class SimulatorPlanService:
         if ref_report is None:
             return
         for module_type_id in sorted(m.module_type_id for m in prefilled):
+            # The grant RF grid starts from the reference year's platform
+            # list, not from copied entries (#1980) — cleared above, left
+            # empty for the user's own selection.
+            if report.is_grant and module_type_id == ModuleTypeEnum.research_facilities:
+                continue
             if module_type_id == ModuleTypeEnum.headcount:
                 await self.prefill_headcount_from_reference(
                     report, ref_report=ref_report
@@ -343,6 +417,9 @@ class SimulatorPlanService:
             id=report.id,
             year=report.year,
             reference_year=report.reference_year,
+            is_grant=report.is_grant,
+            budget=report.budget,
+            budget_currency=report.budget_currency,
             stats=report.stats,
             modules=modules,
         )
@@ -395,6 +472,18 @@ class SimulatorPlanService:
         entry_repo = DataEntryRepository(self.session)
         await entry_repo.bulk_delete_by_modules([plan_module.id])
 
+        src_entries = await entry_repo.list_by_module(ref_module.id)
+        if not src_entries:
+            await self.report_service.module_service.recompute_stats_many(
+                [plan_module.id]
+            )
+            return 0
+        # Grant equipment plans from scratch: every prefilled line starts at
+        # 0% and the user raises what the project actually uses (#1981).
+        # Everywhere else the snapshot starts as a full copy of the baseline.
+        default_percentage = (
+            0 if report.is_grant and module_type_id == ModuleTypeEnum.equipment else 100
+        )
         copies: list[DataEntry] = []
         for src in await entry_repo.list_by_module(ref_module.id):
             copy = DataEntry(
@@ -405,7 +494,7 @@ class SimulatorPlanService:
                 source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
                 data={
                     **src.data,
-                    "percentage_of_reference_year": 100,
+                    "percentage_of_reference_year": default_percentage,
                     "source_data_entry_id": src.id,
                 },
             )
@@ -593,11 +682,19 @@ class SimulatorPlanService:
             end_year=source.end_year,
             name=new_name,
             is_viewable_by_unit_members=source.is_viewable_by_unit_members,
+            is_grant_proposal=source.is_grant_proposal,
             created_by=user.id,
             created_at=datetime.now(timezone.utc),
         )
         copy = await self._flush_guarded(self.repo.create(copy))
-        await self._sync_year_reports(copy)
+        # The copy has no reports yet, so its shape (with or without per-year
+        # sections) cannot be derived from itself — carry the source's over.
+        source_reports = await self.repo.list_reports_for_project(plan_id)
+        await self._sync_year_reports(
+            copy,
+            with_year_sections=not source_reports
+            or any(not r.is_grant for r in source_reports),
+        )
         return _to_read(
             copy,
             user.display_name,
@@ -626,7 +723,7 @@ class SimulatorPlanService:
         default_factor_year = await self.repo.get_latest_calculator_year(
             project.unit_id
         )
-        row = await self.repo.get_plan_by_name(project.unit_id, project.name or "")
+        row = await self.repo.get_plan_with_creator(project.id or -1)
         if row is None:
             return _to_read(project, None, default_factor_year=default_factor_year)
         refreshed, creator_name = row

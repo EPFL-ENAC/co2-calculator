@@ -50,7 +50,6 @@ PLANNER_PREFILLED_MODULE_TYPES: set[ModuleTypeEnum] = {
     ModuleTypeEnum.external_cloud_and_ai,
 }
 
-
 # corresponding data_entry_type enum for each module type
 
 MODULE_TYPE_TO_DATA_ENTRY_TYPES = {

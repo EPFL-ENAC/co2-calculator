@@ -81,7 +81,7 @@ async function onStartProject() {
     const plan = await plansStore.createPlan(unitId.value);
     await router.push({
       name: 'project-planner',
-      params: { ...route.params, name: plan.name },
+      params: { ...route.params, planId: plan.id },
     });
   } finally {
     creating.value = false;
@@ -96,7 +96,7 @@ async function onDuplicate(row: SimulatorPlan) {
 function onEdit(row: SimulatorPlan) {
   void router.push({
     name: 'project-planner',
-    params: { ...route.params, name: row.name },
+    params: { ...route.params, planId: row.id },
   });
 }
 

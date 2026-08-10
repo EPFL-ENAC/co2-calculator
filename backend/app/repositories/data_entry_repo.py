@@ -1174,11 +1174,11 @@ class DataEntryRepository:
             try:
                 items.append(handler.to_response(data_entry, enriched_data))
             except ValidationError as exc:
-                logger.warning(
-                    f"Skipping data_entry id={data_entry.id} "
-                    f"(type={data_entry_type_id}) in submodule listing: "
-                    f"stored data does not match the response schema: {exc}"
-                )
+                raise ValueError(
+                    f"data_entry id={data_entry.id} "
+                    f"(type={data_entry_type_id}) does not match the "
+                    f"response schema"
+                ) from exc
 
         response = SubmoduleResponse(
             id=data_entry_type_id,

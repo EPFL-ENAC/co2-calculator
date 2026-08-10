@@ -1,3 +1,4 @@
+import { CURRENCY_OPTIONS } from 'src/constant/currencies';
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { formatTonnesCO2 } from 'src/utils/number';
 import {
@@ -81,44 +82,7 @@ const purchaseFields: ModuleField[] = [
     ratio: '1/4',
     columnSize: 'xs',
 
-    options: [
-      {
-        value: 'aud',
-        label: 'AUD',
-      },
-      {
-        value: 'cad',
-        label: 'CAD',
-      },
-      {
-        value: 'chf',
-        label: 'CHF',
-      },
-      {
-        value: 'cny',
-        label: 'CNY',
-      },
-      {
-        value: 'eur',
-        label: 'EUR',
-      },
-      {
-        value: 'gbp',
-        label: 'GBP',
-      },
-      {
-        value: 'jpy',
-        label: 'JPY',
-      },
-      {
-        value: 'sek',
-        label: 'SEK',
-      },
-      {
-        value: 'usd',
-        label: 'USD',
-      },
-    ],
+    options: CURRENCY_OPTIONS,
   },
   {
     id: 'kg_co2eq',
