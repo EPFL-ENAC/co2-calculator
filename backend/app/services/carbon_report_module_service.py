@@ -29,6 +29,8 @@ from app.schemas.carbon_report import (
     CarbonReportModuleRead,
     CarbonReportRead,
 )
+from app.schemas.data_entry import DataEntryResponse
+from app.services.data_entry_emission_service import DataEntryEmissionService
 
 logger = get_logger(__name__)
 
@@ -357,6 +359,44 @@ class CarbonReportModuleService:
         if carbon_report_module is None:
             return None
         return CarbonReportModuleRead.model_validate(carbon_report_module)
+
+    async def set_reference_percentage_all(
+        self, carbon_report_id: int, module_type_id: int, percentage: float
+    ) -> Optional[int]:
+        """Set the reference percentage of every snapshot entry of a module.
+
+        Backs the grant equipment "global percentage" mode (#1981): one value
+        applied to every prefilled line at once. Hand-added entries carry no
+        ``source_data_entry_id`` and keep their own values. Emissions are
+        recomputed per entry, then the module stats. Returns the number of
+        entries updated, or None when the module does not exist.
+        """
+        logger.info(
+            f"Setting report {sanitize(carbon_report_id)} module "
+            f"{sanitize(module_type_id)} reference percentage to "
+            f"{sanitize(percentage)} on all snapshot entries"
+        )
+        module = await self.get_module(carbon_report_id, module_type_id)
+        if module is None:
+            return None
+        entry_repo = DataEntryRepository(self.session)
+        entries = await entry_repo.list_by_module(module.id)
+        snapshots = [
+            entry
+            for entry in entries
+            if entry.data.get("source_data_entry_id") is not None
+        ]
+        for entry in snapshots:
+            entry.data = {**entry.data, "percentage_of_reference_year": percentage}
+            self.session.add(entry)
+        await self.session.flush()
+        emission_service = DataEntryEmissionService(self.session)
+        for entry in snapshots:
+            await emission_service.upsert_by_data_entry(
+                DataEntryResponse.model_validate(entry)
+            )
+        await self.recompute_stats_many([module.id])
+        return len(snapshots)
 
     async def update_submodule_budget(
         self,

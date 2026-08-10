@@ -467,6 +467,18 @@ class SimulatorPlanService:
         entry_repo = DataEntryRepository(self.session)
         await entry_repo.bulk_delete_by_modules([plan_module.id])
 
+        src_entries = await entry_repo.list_by_module(ref_module.id)
+        if not src_entries:
+            await self.report_service.module_service.recompute_stats_many(
+                [plan_module.id]
+            )
+            return 0
+        # Grant equipment plans from scratch: every prefilled line starts at
+        # 0% and the user raises what the project actually uses (#1981).
+        # Everywhere else the snapshot starts as a full copy of the baseline.
+        default_percentage = (
+            0 if report.is_grant and module_type_id == ModuleTypeEnum.equipment else 100
+        )
         copies: list[DataEntry] = []
         for src in await entry_repo.list_by_module(ref_module.id):
             copy = DataEntry(
@@ -477,7 +489,7 @@ class SimulatorPlanService:
                 source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
                 data={
                     **src.data,
-                    "percentage_of_reference_year": 100,
+                    "percentage_of_reference_year": default_percentage,
                     "source_data_entry_id": src.id,
                 },
             )

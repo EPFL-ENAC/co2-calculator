@@ -3,7 +3,7 @@ status: in-progress
 issue: 1976
 last_updated: 2026-08-05
 title: "Simulator Plan — Grant proposal mode (first increment)"
-summary: "Plans gain a persisted Grant proposal checkbox and, when checked, a Project Grant section (a dedicated grant carbon report) rendered before the year sections; Equipment cannot be excluded from it. Grant tables carry a kgCO₂eq-over-project-years column (#1979 first cut), the section carries a total grant budget plus per-submodule budgets with a distribution check (#1978), and Research Facilities render a custom platform-selection grid (#1980). The custom Equipment module (#1981) and grant results (#1977) are follow-ups."
+summary: "Plans gain a persisted Grant proposal checkbox and, when checked, a Project Grant section (a dedicated grant carbon report) rendered before the year sections. Grant tables carry a kgCO₂eq-over-project-years column (#1979), the section carries a total grant budget with currency plus per-submodule budgets and a distribution check (#1978), Research Facilities render a platform-selection grid (#1980), Equipment gets a per-line vs global-percentage planning toggle (#1981), and results show a grant vs year-by-year comparison chart plus a grant page in the PDF (#1977)."
 ---
 
 # Simulator Plan — Grant proposal mode (first increment)
@@ -44,11 +44,10 @@ Grant section renders **before** (not instead of) the year sections.
   together — summing both would count the project twice (#1977). The
   home-table plan totals (`list_report_stats_by_project`) stay years-only
   for the same reason.
-- `PATCH /carbon-reports/{id}/modules/{module_type_id}/active` rejects (409)
-  deactivating Equipment on a grant report (`GRANT_LOCKED_MODULE_TYPES`): a
-  grant proposal is first and foremost about the equipment it funds.
-  Research Facilities left the locked set once their opt-in platform grid
-  shipped (#1980) — an unselected platform list already means "not used".
+- Every grant module's Active checkbox is toggleable. An earlier iteration
+  locked Equipment/RF on (`GRANT_LOCKED_MODULE_TYPES`); the lock was removed
+  once both modules got their own grant-mode UIs (#1980/#1981) — the
+  machinery was deleted, not kept dormant.
 
 ### Frontend
 
@@ -59,16 +58,15 @@ Grant section renders **before** (not instead of) the year sections.
   the checkbox; the PATCH carries `is_grant_proposal`.
 - `PlannerYearSection` handles both section kinds: grant sections title
   "Project Grant" instead of the year, use a `grant-` expansion-key prefix
-  (the year prefix would collide with the start-year section), pass
-  `is_grant` on reference-year updates, and disable the Active checkbox for
-  Equipment and Research Facilities with a dedicated tooltip.
-- For now the grant section reuses the standard planner module list
-  unchanged (same reference-year gate, same prefilled behavior).
+  (the year prefix would collide with the start-year section), and pass
+  `is_grant` on reference-year updates.
+- The grant section reuses the standard planner module list (same
+  reference-year gate) except where #1980/#1981 swap in custom UIs below.
 
 ### #1979 first cut: kgCO₂eq over the project's years
 
-- In grant tables only (not year sections, not the grant-locked
-  Equipment, not headcount), the kgCO₂eq column is relabeled
+- In grant tables only (not year sections, not headcount), the kgCO₂eq
+  column is relabeled
   "kgCO₂eq / year" and a "kgCO₂eq over {n} years" column follows it —
   same `kg_co2eq` field multiplied by the plan's year count in
   `ModuleTable` (presentation only, no stored derived value). The
@@ -144,14 +142,29 @@ Grant section renders **before** (not instead of) the year sections.
   reused with a name title instead of the anchor year. Grant module
   detail pages in the PDF remain open.
 
+### #1981: grant-mode Equipment module
+
+- In the Project Grant section only, Equipment carries a "Planning mode"
+  toggle: **Manual entry per line** (each prefilled line has its own
+  reference-year percentage — grant prefill starts at 0% instead of the
+  planner's usual 100%) vs **Global percentage** (one value applied to all
+  prefilled lines at once). Adding an equipment through the usual form
+  stays available in both modes; hand-added lines are untouched by the
+  global value.
+- Global mode: `PATCH
+/carbon-reports/{id}/modules/{module_type_id}/reference-percentage`
+  (`{percentage: 0..100}`, grant reports only) updates every snapshot
+  entry (`source_data_entry_id` set), recomputes their emissions and the
+  stats; the table remounts to refetch its rows. Per-row % controls are
+  read-only in global mode (`percentageLocked` prop chain).
+- Budgets follow the mode: per-submodule budget fields in per-line mode,
+  one module-level budget (key `equipment`) in global mode. Values saved
+  in one mode keep counting in the distribution check when the other mode
+  is shown.
+
 ## Deferred to follow-up issues
 
-- **#1979 remainder**: the over-project-years column for Equipment once its
-  custom grant module lands (planner headcount is already manual, so the
-  "not prefilled" requirement holds by construction; the RF grid shows the
-  over-project values inline).
-- **#1981 Equipment**: the custom grant-mode equipment module (manual
-  per-row percentages, global percentage toggle, add via dropdown). Until
-  then it renders the standard planner table but cannot be excluded.
+- Grant module detail pages in the PDF (#1977 remainder): the grant is
+  still a summary page only.
 - Cosmetic: the reference-year dialog wording says "Planned year {year}"
   for the grant section (it shows the start year).

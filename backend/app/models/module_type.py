@@ -50,15 +50,6 @@ PLANNER_PREFILLED_MODULE_TYPES: set[ModuleTypeEnum] = {
     ModuleTypeEnum.external_cloud_and_ai,
 }
 
-# Modules a Project Grant report always counts: a grant proposal is first and
-# foremost about the equipment it funds, so its Active checkbox is locked on
-# (#1976). Research facilities left the set with their opt-in platform grid
-# (#1980). Mirrors the frontend PlannerYearSection GRANT_LOCKED_MODULES set.
-GRANT_LOCKED_MODULE_TYPES: set[ModuleTypeEnum] = {
-    ModuleTypeEnum.equipment,
-}
-
-
 # corresponding data_entry_type enum for each module type
 
 MODULE_TYPE_TO_DATA_ENTRY_TYPES = {

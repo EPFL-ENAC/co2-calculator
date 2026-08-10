@@ -247,10 +247,6 @@ export default {
     en: 'Could not create the project sections',
     fr: 'Impossible de créer les sections du projet',
   },
-  planner_module_grant_locked_tooltip: {
-    en: 'Equipment always counts in a grant proposal.',
-    fr: 'Les équipements comptent toujours dans une demande de financement.',
-  },
   planner_no_years_hint: {
     en: 'Set a start and end year to plan your project — one section per year will appear here.',
     fr: 'Définissez une année de début et de fin pour planifier votre projet — une section par année apparaîtra ici.',
@@ -374,6 +370,42 @@ export default {
   planner_submodule_budget_hint: {
     en: 'The part of the grant budget planned here.',
     fr: 'La part du budget du financement prévue ici.',
+  },
+  planner_equipment_mode_title: {
+    en: 'Planning mode',
+    fr: 'Mode de planification',
+  },
+  planner_equipment_mode_per_line: {
+    en: 'Manual entry per line',
+    fr: 'Saisie manuelle par ligne',
+  },
+  planner_equipment_mode_global: {
+    en: 'Global percentage',
+    fr: 'Pourcentage global',
+  },
+  planner_equipment_mode_per_line_hint: {
+    en: 'Each prefilled equipment gets its own percentage of the reference year, starting at 0%.',
+    fr: "Chaque équipement prérempli reçoit son propre pourcentage de l'année de référence, à 0% au départ.",
+  },
+  planner_equipment_mode_global_hint: {
+    en: 'One percentage of the reference year is applied to every prefilled line at once.',
+    fr: "Un pourcentage de l'année de référence est appliqué à toutes les lignes préremplies en une fois.",
+  },
+  planner_equipment_global_error: {
+    en: 'Could not apply the percentage',
+    fr: "Impossible d'appliquer le pourcentage",
+  },
+  planner_equipment_switch_to_global_message: {
+    en: 'The percentages entered per line and the budgets per equipment type will be reset so one global percentage can be used instead. Equipment added by hand keeps its values.',
+    fr: "Les pourcentages saisis par ligne et les budgets par type d'équipement seront réinitialisés afin d'utiliser un pourcentage global. Les équipements ajoutés à la main conservent leurs valeurs.",
+  },
+  planner_equipment_switch_to_per_line_message: {
+    en: 'The global percentage and the equipment budget will be reset so each line can be planned on its own. Equipment added by hand keeps its values.',
+    fr: 'Le pourcentage global et le budget équipements seront réinitialisés afin de planifier chaque ligne individuellement. Les équipements ajoutés à la main conservent leurs valeurs.',
+  },
+  planner_equipment_switch_error: {
+    en: 'Could not switch the planning mode.',
+    fr: 'Impossible de changer le mode de planification.',
   },
   planner_rf_hint: {
     en: "Add the platforms the project will use and enter the planned use in each platform's own metric (budget, hours, CPU, housing).",

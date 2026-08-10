@@ -290,6 +290,24 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     );
   }
 
+  /**
+   * Apply one reference percentage to every prefilled line of a grant
+   * module — the equipment "global percentage" mode (#1981).
+   */
+  async function setModuleReferencePercentage(
+    carbonReportId: number,
+    moduleTypeId: number,
+    percentage: number,
+  ): Promise<void> {
+    await api
+      .patch(
+        `carbon-reports/${carbonReportId}/modules/${moduleTypeId}/reference-percentage`,
+        { json: { percentage } },
+      )
+      .json();
+    await refreshAggregateIfActive();
+  }
+
   /** Set a grant submodule's share of the budget (#1978). */
   async function setSubmoduleBudget(
     carbonReportId: number,
@@ -345,6 +363,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     clearAggregate,
     setReferenceYear,
     setModuleActive,
+    setModuleReferencePercentage,
     setGrantBudget,
     setSubmoduleBudget,
     duplicatePlan,

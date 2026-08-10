@@ -281,7 +281,7 @@
                 :min="REFERENCE_PERCENTAGE_MIN"
                 :max="REFERENCE_PERCENTAGE_MAX"
                 :step="5"
-                :disable="isDisabled"
+                :disable="isDisabled || percentageLocked"
                 color="negative"
                 class="col"
                 @update:model-value="
@@ -298,7 +298,7 @@
                   type="number"
                   :min="REFERENCE_PERCENTAGE_MIN"
                   :max="REFERENCE_PERCENTAGE_MAX"
-                  :disable="isDisabled"
+                  :disable="isDisabled || percentageLocked"
                   :aria-label="$t('planner_percentage_col')"
                   :style="percentageFieldWidth(slotProps.row)"
                   dense
@@ -865,6 +865,11 @@ type CommonProps = {
    * it (#1979). Null everywhere else.
    */
   projectYearsCount?: number | null;
+  /**
+   * Grant equipment "global percentage" mode: the per-row % controls are
+   * driven by the module-level value and stay read-only (#1981).
+   */
+  percentageLocked?: boolean;
   threshold: Threshold;
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
@@ -884,6 +889,7 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
   factorYear: undefined,
   showReferenceColumns: false,
   projectYearsCount: null,
+  percentageLocked: false,
   moduleColor: undefined,
   moduleColorLighter: undefined,
 });

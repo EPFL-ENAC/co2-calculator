@@ -17,6 +17,7 @@
           :carbon-report-id="carbonReportId"
           :show-reference-columns="showReferenceColumns"
           :project-years-count="projectYearsCount"
+          :percentage-locked="percentageLocked"
           :show-grant-budget="showGrantBudgets"
           :grant-budget="grantBudgets?.[sub.id] ?? null"
           :grant-budget-currency="grantBudgetCurrency"
@@ -59,6 +60,8 @@ const props = defineProps<{
   showReferenceColumns?: boolean;
   /** Planner Project Grant: plan year count for the "× project years" column. */
   projectYearsCount?: number | null;
+  /** Grant equipment global mode: per-row % controls read-only (#1981). */
+  percentageLocked?: boolean;
   /** Planner Project Grant: show a budget field above each submodule table. */
   showGrantBudgets?: boolean;
   /** Grant submodule budgets of this module, keyed by submodule id (#1978). */

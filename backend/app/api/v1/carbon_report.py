@@ -14,7 +14,6 @@ from app.core.policy import (
     require_unit_access,
 )
 from app.db import SessionLocal
-from app.models.module_type import GRANT_LOCKED_MODULE_TYPES
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import (
@@ -24,6 +23,7 @@ from app.schemas.carbon_report import (
     CarbonReportModuleRead,
     CarbonReportModuleUpdate,
     CarbonReportRead,
+    CarbonReportReferencePercentageUpdate,
     CarbonReportSubmoduleBudgetUpdate,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
@@ -293,13 +293,6 @@ async def update_carbon_report_module_active(
     require_unit_access(current_user, unit)
     await require_plan_scope_for_report(db, current_user, report, "edit")
 
-    if report.is_grant and not update.is_active:
-        if module_type_id in GRANT_LOCKED_MODULE_TYPES:
-            raise HTTPException(
-                status_code=409,
-                detail="Equipment always counts in a grant proposal",
-            )
-
     module_service = CarbonReportModuleService(db)
     result = await module_service.update_is_active(
         carbon_report_id, module_type_id, update.is_active
@@ -360,6 +353,43 @@ async def update_carbon_report_budget(
         raise HTTPException(status_code=404, detail="Carbon report not found")
     await db.commit()
     return result
+
+
+@router.patch(
+    "/{carbon_report_id}/modules/{module_type_id}/reference-percentage",
+    response_model=dict,
+)
+async def update_carbon_report_module_reference_percentage(
+    carbon_report_id: int,
+    module_type_id: int,
+    update: CarbonReportReferencePercentageUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Apply one reference percentage to every snapshot entry of a module.
+
+    Backs the grant equipment "global percentage" mode (#1981): the
+    calculator's prefilled lines are kept and one percentage prices them
+    all. Only Project Grant reports carry this mode.
+    """
+    report_service = await _require_grant_report_edit(
+        db, current_user, carbon_report_id
+    )
+    module_service = CarbonReportModuleService(db)
+    updated = await module_service.set_reference_percentage_all(
+        carbon_report_id, module_type_id, update.percentage
+    )
+    if updated is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Module type {module_type_id} not found for "
+                f"carbon report {carbon_report_id}"
+            ),
+        )
+    await report_service.recompute_report_stats(carbon_report_id)
+    await db.commit()
+    return {"updated_entries": updated}
 
 
 @router.patch(

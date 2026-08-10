@@ -105,6 +105,12 @@ class CarbonReportBudgetUpdate(BaseModel):
     budget_currency: Optional[str] = Field(default=None, min_length=3, max_length=8)
 
 
+class CarbonReportReferencePercentageUpdate(BaseModel):
+    """Schema for the grant equipment global percentage (#1981)."""
+
+    percentage: float = Field(ge=0, le=100)
+
+
 class CarbonReportSubmoduleBudgetUpdate(BaseModel):
     """Schema for setting a grant submodule's share of the budget (#1978).
 

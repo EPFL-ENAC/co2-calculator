@@ -166,18 +166,14 @@
                   size="sm"
                   dense
                   :disable="
-                    !entry.module ||
-                    togglingModuleId === entry.module.id ||
-                    isGrantLocked(entry.config.module)
+                    !entry.module || togglingModuleId === entry.module.id
                   "
                   @update:model-value="
                     (active: boolean) => onToggleActive(entry, active)
                   "
                 >
                   <q-tooltip>{{
-                    isGrantLocked(entry.config.module)
-                      ? $t('planner_module_grant_locked_tooltip')
-                      : $t('planner_module_active_tooltip')
+                    $t('planner_module_active_tooltip')
                   }}</q-tooltip>
                 </q-checkbox>
               </div>
@@ -245,7 +241,7 @@
               v-else-if="entry.config.module === MODULES.Purchase"
               :key="factorScopedKey(entry.config.module)"
               :carbon-report-id="yearData.id"
-              :project-years-count="grantYearsCountFor(entry.config.module)"
+              :project-years-count="grantYearsCount"
               :disable="entry.module?.is_active === false"
             />
             <!-- Grant proposals plan RF use from the reference year's whole
@@ -261,27 +257,184 @@
               :budget-currency="yearData.budget_currency"
               :disable="entry.module?.is_active === false"
             />
-            <module-table-section
-              v-else
-              :key="factorScopedKey(entry.config.module)"
-              :type="entry.config.module"
-              :config-override="getPlannerModuleConfig(entry.config.module)"
-              :data="moduleStore.state.data"
-              :loading="moduleStore.state.loading"
-              :error="moduleStore.state.error"
-              :unit-id="unitId"
-              :year="yearData.year"
-              :factor-year="factorYear"
-              :carbon-report-id="yearData.id"
-              :show-reference-columns="
-                entry.config.behavior === 'prefilled' && hasReferenceYear
-              "
-              :project-years-count="grantYearsCountFor(entry.config.module)"
-              :show-grant-budgets="yearData.is_grant"
-              :grant-budgets="entry.module?.budgets ?? null"
-              :grant-budget-currency="yearData.budget_currency"
-              :disable="entry.module?.is_active === false"
-            />
+            <template v-else>
+              <!-- Grant equipment plans either line by line or with one
+                   global percentage over all prefilled lines (#1981); adding
+                   an equipment stays available in both modes. -->
+              <div
+                v-if="isGrantEquipmentModule(entry.config.module)"
+                class="q-mb-lg"
+              >
+                <div class="text-weight-medium q-mb-sm">
+                  {{ $t('planner_equipment_mode_title') }}
+                </div>
+                <div class="row items-center no-wrap">
+                  <button
+                    type="button"
+                    class="planner-mode__label text-body1"
+                    :class="
+                      equipmentMode === 'per_line'
+                        ? 'text-weight-medium'
+                        : 'text-grey-6'
+                    "
+                    :aria-pressed="equipmentMode === 'per_line'"
+                    :disabled="equipmentModeControlsDisabled(entry)"
+                    @click="onEquipmentModeRequest('per_line')"
+                  >
+                    {{ $t('planner_equipment_mode_per_line') }}
+                  </button>
+                  <q-toggle
+                    :model-value="equipmentMode === 'global'"
+                    color="info"
+                    keep-color
+                    size="lg"
+                    :disable="equipmentModeControlsDisabled(entry)"
+                    @update:model-value="
+                      (on: boolean) =>
+                        onEquipmentModeRequest(on ? 'global' : 'per_line')
+                    "
+                  />
+                  <button
+                    type="button"
+                    class="planner-mode__label text-body1"
+                    :class="
+                      equipmentMode === 'global'
+                        ? 'text-weight-medium'
+                        : 'text-grey-6'
+                    "
+                    :aria-pressed="equipmentMode === 'global'"
+                    :disabled="equipmentModeControlsDisabled(entry)"
+                    @click="onEquipmentModeRequest('global')"
+                  >
+                    {{ $t('planner_equipment_mode_global') }}
+                  </button>
+                </div>
+                <div class="text-body2 text-grey-7 q-mt-xs">
+                  {{
+                    equipmentMode === 'global'
+                      ? $t('planner_equipment_mode_global_hint')
+                      : $t('planner_equipment_mode_per_line_hint')
+                  }}
+                </div>
+                <!-- One budget for the whole module in global mode; the
+                     per-submodule fields carry it in per-line mode (#1981). -->
+                <template v-if="equipmentMode === 'global'">
+                  <q-separator class="planner-equipment-separator q-my-md" />
+                  <div class="text-weight-medium q-mb-sm">
+                    {{ $t('planner_budget_section_title') }}
+                  </div>
+                  <q-input
+                    v-model.number="gridBudgetInputs[entry.config.module]"
+                    class="grant-budget-input"
+                    type="number"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    min="0"
+                    :suffix="currencyLabel(yearData.budget_currency)"
+                    :label="
+                      $t('planner_submodule_budget_label', {
+                        submodule: $t(entry.config.module),
+                      })
+                    "
+                    :loading="savingGridBudgetModule === entry.config.module"
+                    :disable="entry.module?.is_active === false"
+                    @blur="saveGridBudget(entry)"
+                    @keyup.enter="saveGridBudget(entry)"
+                  />
+                  <div class="text-body2 text-grey-7 q-mt-sm">
+                    {{ $t('planner_submodule_budget_hint') }}
+                  </div>
+                  <q-separator class="planner-equipment-separator q-my-md" />
+                  <div
+                    class="planner-equipment-global-row row items-center no-wrap"
+                  >
+                    <label
+                      for="equipment-global-percentage"
+                      class="col text-body2 text-weight-medium"
+                    >
+                      {{ $t('planner_equipment_mode_global') }}
+                    </label>
+                    <q-input
+                      v-model.number="globalPercentage"
+                      for="equipment-global-percentage"
+                      class="planner-equipment-global-row__input"
+                      type="number"
+                      :min="0"
+                      :max="100"
+                      outlined
+                      dense
+                      hide-bottom-space
+                      suffix="%"
+                      :loading="applyingGlobalPercentage"
+                      :disable="
+                        entry.module?.is_active === false ||
+                        switchingEquipmentMode
+                      "
+                      @blur="applyGlobalPercentage"
+                      @keyup.enter="applyGlobalPercentage"
+                    />
+                  </div>
+                </template>
+                <q-dialog
+                  v-model="equipmentSwitchDialogOpen"
+                  :persistent="switchingEquipmentMode"
+                >
+                  <q-card style="min-width: 420px">
+                    <q-card-section class="text-h4 text-weight-medium">
+                      {{ $t('planner_purchase_switch_dialog_title') }}
+                    </q-card-section>
+                    <q-card-section class="text-body2 text-grey-8 q-pt-none">
+                      {{ $t(equipmentSwitchMessageKey) }}
+                    </q-card-section>
+                    <q-card-actions class="q-px-md q-pb-md">
+                      <q-btn
+                        :label="$t('common_validate_short')"
+                        :loading="switchingEquipmentMode"
+                        color="info"
+                        unelevated
+                        no-caps
+                        class="text-weight-medium"
+                        @click="confirmEquipmentSwitch"
+                      />
+                      <q-btn
+                        v-close-popup
+                        :label="$t('common_cancel')"
+                        :disable="switchingEquipmentMode"
+                        color="primary"
+                        unelevated
+                        outline
+                        no-caps
+                        class="text-weight-medium"
+                      />
+                    </q-card-actions>
+                  </q-card>
+                </q-dialog>
+              </div>
+              <module-table-section
+                :key="moduleMountKey(entry.config.module)"
+                :type="entry.config.module"
+                :config-override="getPlannerModuleConfig(entry.config.module)"
+                :data="moduleStore.state.data"
+                :loading="moduleStore.state.loading"
+                :error="moduleStore.state.error"
+                :unit-id="unitId"
+                :year="yearData.year"
+                :factor-year="factorYear"
+                :carbon-report-id="yearData.id"
+                :show-reference-columns="
+                  entry.config.behavior === 'prefilled' && hasReferenceYear
+                "
+                :project-years-count="grantYearsCountFor(entry.config.module)"
+                :percentage-locked="isGlobalEquipment(entry.config.module)"
+                :show-grant-budgets="
+                  yearData.is_grant && !isGlobalEquipment(entry.config.module)
+                "
+                :grant-budgets="entry.module?.budgets ?? null"
+                :grant-budget-currency="yearData.budget_currency"
+                :disable="entry.module?.is_active === false"
+              />
+            </template>
           </div>
         </q-expansion-item>
       </template>
@@ -307,7 +460,11 @@ import {
 } from 'src/constant/planner-module-config';
 import { getPlannerModuleConfig } from 'src/constant/planner-module-config/module-configs';
 import { getModuleTypeId } from 'src/constant/moduleStates';
-import { MODULES, type Module } from 'src/constant/modules';
+import {
+  MODULES,
+  SUBMODULE_EQUIPMENT_TYPES,
+  type Module,
+} from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { factorMountKey } from 'src/utils/factor-year';
 import {
@@ -472,30 +629,187 @@ function isGrantRfModule(module: Module): boolean {
   return props.yearData.is_grant && module === MODULES.ResearchFacilities;
 }
 
+/** Grant equipment gets the per-line / global percentage toggle (#1981). */
+function isGrantEquipmentModule(module: Module): boolean {
+  return props.yearData.is_grant && module === MODULES.Equipment;
+}
+
+// Grant equipment modes: per-line keeps the row sliders; global applies one
+// percentage to every prefilled line at once (#1981). View state only, the
+// entries are the same either way.
+const equipmentMode = ref<'per_line' | 'global'>('per_line');
+const globalPercentage = ref(0);
+const appliedGlobalPercentage = ref<number | null>(null);
+const applyingGlobalPercentage = ref(false);
+// Bumped after a global apply: the table remounts and refetches its
+// submodule rows, whose percentages all changed server-side.
+const equipmentTableTick = ref(0);
+
+const equipmentSwitchDialogOpen = ref(false);
+const pendingEquipmentMode = ref<'per_line' | 'global' | null>(null);
+const switchingEquipmentMode = ref(false);
+
+const EQUIPMENT_PER_LINE_BUDGET_KEYS: string[] = Object.values(
+  SUBMODULE_EQUIPMENT_TYPES,
+);
+
+const equipmentSwitchMessageKey = computed(() =>
+  equipmentMode.value === 'per_line'
+    ? 'planner_equipment_switch_to_global_message'
+    : 'planner_equipment_switch_to_per_line_message',
+);
+
+function equipmentEntry(): ModuleEntry | undefined {
+  return moduleEntries.value.find((e) => e.config.module === MODULES.Equipment);
+}
+
+function abandonedBudgetKeys(mode: 'per_line' | 'global'): string[] {
+  return mode === 'per_line'
+    ? EQUIPMENT_PER_LINE_BUDGET_KEYS
+    : [MODULES.Equipment];
+}
+
+// The loaded table totals when they belong to this module, the plan-year
+// stats otherwise (the module store slot is shared across expanded modules).
+function equipmentTotalKg(entry: ModuleEntry): number {
+  const data = moduleStore.state.data;
+  if (
+    entry.module &&
+    data?.carbon_report_module_id === entry.module.id &&
+    typeof data.totals?.total_kg_co2eq === 'number'
+  ) {
+    return data.totals.total_kg_co2eq;
+  }
+  const total = entry.module?.stats?.total;
+  return typeof total === 'number' ? total : 0;
+}
+
+// Prefilled lines all at 0% produce no kg, so an untouched module switches
+// silently; budgets of the mode being left count as data too.
+function equipmentHasDataToLose(entry: ModuleEntry): boolean {
+  const budgets = entry.module?.budgets ?? {};
+  if (
+    abandonedBudgetKeys(equipmentMode.value).some((key) => budgets[key] != null)
+  ) {
+    return true;
+  }
+  return equipmentTotalKg(entry) > 0;
+}
+
+function equipmentModeControlsDisabled(entry: ModuleEntry): boolean {
+  return (
+    switchingEquipmentMode.value ||
+    applyingGlobalPercentage.value ||
+    savingGridBudgetModule.value === MODULES.Equipment ||
+    entry.module?.is_active === false
+  );
+}
+
+function onEquipmentModeRequest(next: 'per_line' | 'global') {
+  if (next === equipmentMode.value || switchingEquipmentMode.value) return;
+  const entry = equipmentEntry();
+  if (entry && equipmentHasDataToLose(entry)) {
+    pendingEquipmentMode.value = next;
+    equipmentSwitchDialogOpen.value = true;
+    return;
+  }
+  equipmentMode.value = next;
+  globalPercentage.value = 0;
+  appliedGlobalPercentage.value = null;
+}
+
+async function confirmEquipmentSwitch() {
+  const next = pendingEquipmentMode.value;
+  const entry = equipmentEntry();
+  if (next === null || !entry?.module) return;
+  switchingEquipmentMode.value = true;
+  try {
+    await plansStore.setModuleReferencePercentage(
+      props.yearData.id,
+      entry.module.module_type_id,
+      0,
+    );
+    const budgets = entry.module.budgets ?? {};
+    for (const key of abandonedBudgetKeys(equipmentMode.value)) {
+      if (budgets[key] == null) continue;
+      await plansStore.setSubmoduleBudget(
+        props.yearData.id,
+        entry.module.module_type_id,
+        key,
+        null,
+      );
+    }
+    if (equipmentMode.value === 'global') {
+      gridBudgetInputs.value[MODULES.Equipment] = null;
+    }
+    equipmentMode.value = next;
+    pendingEquipmentMode.value = null;
+    equipmentSwitchDialogOpen.value = false;
+    globalPercentage.value = 0;
+    appliedGlobalPercentage.value = 0;
+    await refreshExpandedModule(MODULES.Equipment);
+    equipmentTableTick.value += 1;
+  } catch {
+    $q.notify({
+      type: 'negative',
+      message: t('planner_equipment_switch_error'),
+    });
+  } finally {
+    switchingEquipmentMode.value = false;
+  }
+}
+
+function isGlobalEquipment(module: Module): boolean {
+  return isGrantEquipmentModule(module) && equipmentMode.value === 'global';
+}
+
+function moduleMountKey(module: Module): string {
+  const base = factorScopedKey(module);
+  return module === MODULES.Equipment
+    ? `${base}-${equipmentTableTick.value}`
+    : base;
+}
+
+async function applyGlobalPercentage() {
+  const value = Math.min(100, Math.max(0, Number(globalPercentage.value)));
+  if (!Number.isFinite(value)) return;
+  globalPercentage.value = value;
+  if (applyingGlobalPercentage.value || value === appliedGlobalPercentage.value)
+    return;
+  applyingGlobalPercentage.value = true;
+  try {
+    await plansStore.setModuleReferencePercentage(
+      props.yearData.id,
+      getModuleTypeId(MODULES.Equipment),
+      value,
+    );
+    appliedGlobalPercentage.value = value;
+    // The rows' percentages and kg changed; refresh totals and remount the
+    // table so its rows refetch.
+    await refreshExpandedModule(MODULES.Equipment);
+    equipmentTableTick.value += 1;
+  } catch {
+    $q.notify({
+      type: 'negative',
+      message: t('planner_equipment_global_error'),
+    });
+  } finally {
+    applyingGlobalPercentage.value = false;
+  }
+}
+
 /** Grid stripes run edge to edge, so these blocks carry no outer padding. */
 function isEdgeToEdge(module: Module): boolean {
   return isGridModule(module) || isGrantRfModule(module);
 }
 
-// A grant proposal is first and foremost about the equipment it funds, so it
-// always counts (#1976); research facilities left the set with their opt-in
-// platform grid (#1980). Mirrors the backend GRANT_LOCKED_MODULE_TYPES set,
-// which rejects the toggle server-side.
-const GRANT_LOCKED_MODULES: Module[] = [MODULES.Equipment];
-
-function isGrantLocked(module: Module): boolean {
-  return props.yearData.is_grant && GRANT_LOCKED_MODULES.includes(module);
-}
-
 /**
  * Grant tables show kgCO₂eq per year and multiplied over the project's years
- * (#1979). Year sections never do, and grant-locked Equipment waits for its
- * custom grant UI (#1981); the RF grid shows the pair on its own rows.
+ * (#1979). Year sections never do; the RF grid shows the pair on its own rows.
  */
-function grantYearsCountFor(module: Module): number | null {
-  if (!props.yearData.is_grant || isGrantLocked(module)) return null;
-  return props.projectYearsCount ?? null;
-}
+const grantYearsCount = computed<number | null>(() =>
+  props.yearData.is_grant ? (props.projectYearsCount ?? null) : null,
+);
 
 const moduleEntries = computed<ModuleEntry[]>(() =>
   PLANNER_MODULES.map((config) => ({
@@ -636,6 +950,33 @@ async function onToggleActive(entry: ModuleEntry, active: boolean) {
 .grant-budget-input {
   max-width: 240px;
   flex: 1;
+}
+
+// Both equipment modes are named on either side of the switch; the one not
+// in use reads as unavailable rather than disappearing (purchase pattern).
+.planner-mode__label {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.planner-equipment-global-row {
+  &__input {
+    width: tokens.$planner-grid-amount-input-width;
+
+    :deep(.q-field__suffix) {
+      font-size: tokens.$text-size-sm;
+      color: tokens.$color-text-muted;
+    }
+  }
+}
+
+// The block sits in the q-pa-md module body; these bleed to its edges.
+.planner-equipment-separator {
+  margin-left: -16px;
+  margin-right: -16px;
 }
 
 .grant-budget-currency {

@@ -120,10 +120,7 @@
         :loading="generatingSections"
         @click="generateSections"
       />
-      <div
-        v-if="!sectionTypeSelected"
-        class="text-body2 text-negative q-mt-sm"
-      >
+      <div v-if="!sectionTypeSelected" class="text-body2 text-negative q-mt-sm">
         {{ $t('planner_sections_need_one') }}
       </div>
       <div class="text-body2 text-grey-7 q-mt-sm">
