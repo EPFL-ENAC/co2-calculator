@@ -469,7 +469,7 @@ class SimulatorPlanService:
                 continue
             try:
                 fte = float(src.data.get("fte") or 0)
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 logger.warning(
                     "Skipping headcount entry %r with non-numeric fte=%r",
                     src.id,
