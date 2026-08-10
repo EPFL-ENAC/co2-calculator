@@ -136,11 +136,13 @@
                    (design). Other modules reuse the Calculator tables. -->
             <planner-headcount-rows
               v-if="entry.config.module === MODULES.Headcount"
+              :key="factorScopedKey(entry.config.module)"
               :carbon-report-id="yearData.id"
               :disable="entry.module?.is_active === false"
             />
             <planner-purchase-rows
               v-else-if="entry.config.module === MODULES.Purchase"
+              :key="factorScopedKey(entry.config.module)"
               :carbon-report-id="yearData.id"
               :disable="entry.module?.is_active === false"
             />
