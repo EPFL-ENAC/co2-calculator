@@ -205,8 +205,8 @@ export default {
     fr: 'Planificateur de projet CO₂',
   },
   co2_project_planner_description: {
-    en: "Choose your path either to explore and quickly assess the carbon impact of individual items or actions or to plan and forecast emissions for your next project using your unit's previous year's carbon report.",
-    fr: "Choisissez votre approche : explorer et évaluer rapidement l'impact carbone d'éléments ou d'actions, ou planifier et prévoir les émissions de votre prochain projet à partir du rapport carbone de l'année précédente de votre unité.",
+    en: 'The CO₂ Project Planner, which is accessible after completing the CO₂ calculator, allows you to simulate various projects—whether past, current, or future—and estimate their carbon footprint based on the results from the previous year.',
+    fr: 'Le Planificateur de projet CO₂, accessible après avoir complété le calculateur CO₂, permet de simuler différents projets et d’en estimer l’empreinte carbone, qu’ils soient passés, en cours ou futurs, en s’appuyant sur les résultats obtenus l’année précédente.',
   },
   co2_project_planner_btn: {
     en: 'Start a project',
