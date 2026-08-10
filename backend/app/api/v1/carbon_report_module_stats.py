@@ -17,7 +17,6 @@ from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
-from app.core.policy import require_unit_access
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.module_type import ModuleTypeEnum
@@ -157,65 +156,17 @@ async def get_module_stats(
     return stats
 
 
-# Declared before the ``/{carbon_report_id}/...`` dynamic routes so the literal
-# ``unit`` segment is matched first and never captured as a carbon_report_id.
-@router.get("/unit/{unit_id}/multi-year-report-stats", response_model=dict)
-async def get_multi_year_breakdown(
-    unit_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """Return per-year emission breakdown (by module and by scope) for a unit.
-
-    Feeds the "Compare Years" pop-up: one entry per year with stat-bucket
-    totals (``modules``) and scope totals (``scopes``) in tonnes CO2eq, read
-    straight off each report's persisted stats.
-
-    Returns:
-        {"years": [{"year": 2023, "total_tonnes_co2eq": 61.7,
-                    "modules": {...}, "scopes": {...}}, ...]}
-    """
-    logger.info(f"GET multi-year breakdown: unit_id={sanitize(unit_id)}")
-
-    unit = await db.get(Unit, unit_id)
-    require_unit_access(current_user, unit)
-
-    reports = await CarbonReportRepository(db).list_by_unit(unit_id)
-
-    # A unit can own more than one Calculator project, and uniqueness is on
-    # (carbon_project_id, year) -- not (unit_id, year) -- so a year may map to
-    # several reports. Fold them into one aggregate of the same stats shape.
-    stats_by_year: dict[int, list[dict]] = {}
-    for report in reports:
-        if report.stats:
-            stats_by_year.setdefault(report.year, []).append(report.stats)
-
-    years = []
-    for year in sorted(stats_by_year):
-        stats_list = stats_by_year[year]
-        stats = (
-            stats_list[0] if len(stats_list) == 1 else merge_report_stats(stats_list)
-        )
-        years.append({"year": year, **build_year_comparison(stats)})
-
-    return {"years": years}
-
-
-async def _authorize_and_resolve_reports(
+async def _authorize_unit_ids(
     db: AsyncSession,
     current_user: User,
     unit_ids: list[int],
-    year: int,
-) -> list[CarbonReport]:
-    """Resolve the CALCULATOR report of each requested unit, for one year.
+) -> list[int]:
+    """Validate requested units against the caller's allow-list, deduped.
 
     Every unit must be one the caller may see, per the same allow-list the
     workspace switcher is built from. A unit outside it yields 404 rather than
     403: the frontend turns any 403 into a hard redirect to /unauthorized, so a
     forged id must look like "not found", not trip that redirect.
-
-    Units with no report for ``year`` are skipped, so the aggregate simply
-    covers the units that do have one.
     """
     if not unit_ids:
         raise HTTPException(
@@ -237,13 +188,73 @@ async def _authorize_and_resolve_reports(
             detail=f"Unit(s) not found: {', '.join(str(u) for u in unknown)}",
         )
 
+    return list(dict.fromkeys(unit_ids))
+
+
+async def _authorize_and_resolve_reports(
+    db: AsyncSession,
+    current_user: User,
+    unit_ids: list[int],
+    year: int,
+) -> list[CarbonReport]:
+    """Resolve the CALCULATOR report of each requested unit, for one year.
+
+    Units with no report for ``year`` are skipped, so the aggregate simply
+    covers the units that do have one.
+    """
+    authorized_unit_ids = await _authorize_unit_ids(db, current_user, unit_ids)
+
     report_repo = CarbonReportRepository(db)
     reports: list[CarbonReport] = []
-    for unit_id in dict.fromkeys(unit_ids):
+    for unit_id in authorized_unit_ids:
         report = await report_repo.get_by_unit_and_year(unit_id=unit_id, year=year)
         if report is not None:
             reports.append(report)
     return reports
+
+
+@router.get("/merged/multi-year-report-stats", response_model=dict)
+async def get_merged_multi_year_breakdown(
+    unit_ids: list[int] = Query(default_factory=list),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return per-year emission breakdown summed over the requested units.
+
+    Feeds the "Compare Years" pop-up: one entry per year with stat-bucket
+    totals (``modules``) and scope totals (``scopes``) in tonnes CO2eq, read
+    straight off each report's persisted stats. Units with no reports simply
+    contribute nothing; no report at all yields ``{"years": []}``.
+
+    Returns:
+        {"years": [{"year": 2023, "total_tonnes_co2eq": 61.7,
+                    "modules": {...}, "scopes": {...}}, ...]}
+    """
+    logger.info(f"GET merged multi-year breakdown: unit_ids={sanitize(unit_ids)}")
+
+    authorized_unit_ids = await _authorize_unit_ids(db, current_user, unit_ids)
+
+    # A unit can own more than one Calculator project, and uniqueness is on
+    # (carbon_project_id, year) -- not (unit_id, year) -- so a year may map to
+    # several reports, on top of one report per requested unit. Fold them into
+    # one aggregate of the same stats shape.
+    report_repo = CarbonReportRepository(db)
+    stats_by_year: dict[int, list[dict]] = {}
+    for unit_id in authorized_unit_ids:
+        reports = await report_repo.list_by_unit(unit_id)
+        for report in reports:
+            if report.stats:
+                stats_by_year.setdefault(report.year, []).append(report.stats)
+
+    years = []
+    for year in sorted(stats_by_year):
+        stats_list = stats_by_year[year]
+        stats = (
+            stats_list[0] if len(stats_list) == 1 else merge_report_stats(stats_list)
+        )
+        years.append({"year": year, **build_year_comparison(stats)})
+
+    return {"years": years}
 
 
 @router.get("/merged/report-stats", response_model=dict)

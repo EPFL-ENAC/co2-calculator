@@ -92,16 +92,16 @@ export default {
     fr: 'Objectif',
   },
   results_compare_years_gap_label: {
-    en: 'Missing to reach {year} target',
-    fr: 'Manque pour atteindre l’objectif {year}',
+    en: 'Reduction needed to reach {year} target',
+    fr: 'Réduction nécessaire pour atteindre l’objectif {year}',
   },
   results_compare_years_gap_beaten_label: {
     en: 'Below {year} target',
     fr: 'Sous l’objectif {year}',
   },
   results_compare_years_gap_target: {
-    en: 'target {value}',
-    fr: 'cible {value}',
+    en: '{year} target: {value}',
+    fr: 'Objectif pour {year} : {value}',
   },
   results_compare_years_by_module: {
     en: 'Emissions by category',
