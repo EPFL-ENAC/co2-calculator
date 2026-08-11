@@ -344,12 +344,12 @@ export default {
     fr: 'Saisissez le budget total du financement, puis répartissez-le dans les sections ci-dessous.',
   },
   planner_grant_budget_distribution: {
-    en: '{distributed} {currency} of {total} allocated. {remaining} remaining to allocate in the categories below.',
-    fr: '{distributed} {currency} sur {total} alloués. {remaining} restants à allouer dans les catégories ci-dessous.',
+    en: '{distributed} {currency} of {total} {currency} allocated. {remaining} {currency} remaining to allocate in the categories below.',
+    fr: '{distributed} {currency} sur {total} {currency} alloués. {remaining} {currency} restants à allouer dans les catégories ci-dessous.',
   },
   planner_grant_budget_over: {
-    en: 'The distributed budgets exceed the total budget by {amount}.',
-    fr: 'Les budgets répartis dépassent le budget total de {amount}.',
+    en: 'The distributed budgets exceed the total budget by {amount} {currency}.',
+    fr: 'Les budgets répartis dépassent le budget total de {amount} {currency}.',
   },
   planner_grant_budget_error: {
     en: 'Could not save the budget',
