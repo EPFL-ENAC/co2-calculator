@@ -14,7 +14,11 @@ from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.module_type import PLANNER_PREFILLED_MODULE_TYPES, ModuleTypeEnum
+from app.models.module_type import (
+    PLANNER_PREFILLED_MODULE_TYPES,
+    PLANNER_REFERENCE_SCOPED_MODULE_TYPES,
+    ModuleTypeEnum,
+)
 from app.models.user import User
 from app.repositories.carbon_project_repo import CarbonProjectRepository
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -327,8 +331,9 @@ class SimulatorPlanService:
         ``is_grant`` targets the Project Grant report, which shares its year
         with the start-year report.
 
-        Destructive: every prefilled module of the plan-year is emptied and,
-        when a baseline is set, rebuilt from it at 100% — the percentages,
+        Destructive: every reference-scoped module of the plan-year is emptied
+        and, when a baseline is set, the prefilled ones are rebuilt from it at
+        100% (purchase stays empty) — the percentages,
         edits and hand-added rows made under the previous reference year are
         lost. Removing the baseline (``reference_year=None``) empties them
         the same way and leaves the year manual-input. The dialog warns
@@ -354,23 +359,30 @@ class SimulatorPlanService:
     async def _prefill_reference_modules(
         self, report: CarbonReport | CarbonReportRead
     ) -> None:
-        """Rebuild every prefilled-behavior module from the reference year.
+        """Empty every reference-scoped module and rebuild the prefilled ones.
 
         Runs on reference-year set/change/removal (there is no manual prefill
         trigger). The modules are emptied first, so a module never mixes two
         baselines; on removal the wipe is all that happens and the year
-        becomes manual-input. When the reference year has no Calculator
-        report for the unit there is nothing to copy and they stay empty —
-        showing the previous baseline's rows under a new reference year
+        becomes manual-input. Purchase is wiped without a rebuild — it is
+        manual input, but its classes and factors come from the reference
+        year, so its rows do not survive a new baseline (#1920). When the reference year
+        has no Calculator report for the unit there is nothing to copy and they stay
+        empty —  showing the previous baseline's rows under a new reference year
         would be a lie.
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
         modules = await self.report_service.module_service.list_modules(report.id)
-        prefilled = [
-            m for m in modules if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
+        scoped = [
+            m
+            for m in modules
+            if m.module_type_id in PLANNER_REFERENCE_SCOPED_MODULE_TYPES
         ]
-        await self._clear_module_entries([m.id for m in prefilled if m.id is not None])
+        prefilled = [
+            m for m in scoped if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
+        ]
+        await self._clear_module_entries([m.id for m in scoped if m.id is not None])
         if report.reference_year is None:
             return
         ref_report = await self.repo.get_calculator_report(

@@ -49,6 +49,13 @@ PLANNER_PREFILLED_MODULE_TYPES: set[ModuleTypeEnum] = {
     ModuleTypeEnum.external_cloud_and_ai,
 }
 
+# Simulator Plan modules emptied when a plan-year's reference year changes.
+# The prefilled ones are rebuilt from the new baseline; purchase is manual
+# input whose classes and factors are resolved against the reference year, so
+PLANNER_REFERENCE_SCOPED_MODULE_TYPES: set[ModuleTypeEnum] = (
+    PLANNER_PREFILLED_MODULE_TYPES | {ModuleTypeEnum.purchase}
+)
+
 # corresponding data_entry_type enum for each module type
 
 MODULE_TYPE_TO_DATA_ENTRY_TYPES = {

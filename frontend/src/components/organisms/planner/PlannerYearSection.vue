@@ -233,6 +233,7 @@
                 {{ $t('simulation_headcount_fte_hint') }}
               </p>
               <planner-headcount-rows
+                :key="factorScopedKey(entry.config.module)"
                 :carbon-report-id="yearData.id"
                 :disable="entry.module?.is_active === false"
               />
