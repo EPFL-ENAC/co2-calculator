@@ -156,7 +156,7 @@ export default {
     fr: 'Année par année',
   },
   planner_results_grant_total_title: {
-    en: 'Project Grant carbon footprint',
+    en: 'Grant proposal carbon footprint',
     fr: 'Empreinte carbone du financement du projet',
   },
   planner_results_years_total_title: {
@@ -212,15 +212,15 @@ export default {
     fr: 'Demande de financement',
   },
   planner_grant_proposal_hint: {
-    en: 'Adds a Project Grant section covering the whole project.',
+    en: 'Adds a grant proposalt section covering the whole project.',
     fr: 'Ajoute une section Financement du projet couvrant tout le projet.',
   },
   planner_project_grant_title: {
-    en: 'Project Grant',
+    en: 'Grant proposal',
     fr: 'Financement du projet',
   },
   planner_year_by_year_checkbox: {
-    en: 'Ongoing Project',
+    en: 'Ongoing project',
     fr: 'Projet en cours',
   },
   planner_year_by_year_hint: {

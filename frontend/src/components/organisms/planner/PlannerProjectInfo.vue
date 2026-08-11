@@ -26,9 +26,6 @@
     <q-separator />
 
     <q-card-section>
-      <div class="text-weight-medium q-mb-sm">
-        {{ $t('planner_grant_proposal_label') }}
-      </div>
       <q-checkbox
         v-model="grantProposalInput"
         :label="$t('planner_grant_proposal_checkbox')"
@@ -42,9 +39,6 @@
     <q-separator />
 
     <q-card-section>
-      <div class="text-weight-medium q-mb-sm">
-        {{ $t('planner_year_selection_label') }}
-      </div>
       <q-checkbox
         v-model="yearByYearChecked"
         :label="$t('planner_year_by_year_checkbox')"
