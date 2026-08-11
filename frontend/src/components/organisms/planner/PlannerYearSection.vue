@@ -551,6 +551,7 @@ const budgetCheckText = computed(() => {
   if (overDistributed.value) {
     return t('planner_grant_budget_over', {
       amount: n(distributedBudget.value - total),
+      currency: currencyLabel(props.yearData.budget_currency),
     });
   }
   return t('planner_grant_budget_distribution', {
