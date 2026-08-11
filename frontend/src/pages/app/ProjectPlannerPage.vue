@@ -138,6 +138,8 @@
               "
               :grant-breakdown="grantBreakdown"
               :years-breakdown="breakdown"
+              :effective-start-year="effectiveYearRange.start"
+              :effective-end-year="effectiveYearRange.end"
             />
             <ModuleCarbonFootprintChart
               v-else-if="plan.is_grant_proposal"
@@ -248,6 +250,29 @@ const projectYearsCount = computed(() =>
 const hasYearSections = computed(() =>
   plansStore.planYears.some((y) => !y.is_grant),
 );
+
+// The "Effective" range charted beside the grant proposal: the span of
+// years that actually carry data, falling back to the full plan range when
+// none do (e.g. a freshly created range with nothing entered yet).
+const effectiveYearRange = computed(() => {
+  const filledYears = plansStore.planYears
+    .filter((y) => !y.is_grant)
+    .filter((y) => {
+      const total = (y.stats as { total?: number } | null)?.total;
+      return typeof total === 'number' && total > 0;
+    })
+    .map((y) => y.year);
+  if (filledYears.length) {
+    return {
+      start: Math.min(...filledYears),
+      end: Math.max(...filledYears),
+    };
+  }
+  return {
+    start: plan.value?.start_year ?? null,
+    end: plan.value?.end_year ?? null,
+  };
+});
 
 const breakdown = computed(() =>
   plansStore.aggregateStats

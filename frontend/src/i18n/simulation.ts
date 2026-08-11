@@ -152,8 +152,8 @@ export default {
     fr: 'Empreinte carbone de {name}',
   },
   planner_results_series_years: {
-    en: 'Year by year',
-    fr: 'Année par année',
+    en: 'Effective ({start} > {end})',
+    fr: 'Effectif ({start} > {end})',
   },
   planner_results_grant_total_title: {
     en: 'Grant proposal carbon footprint',

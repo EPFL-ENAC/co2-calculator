@@ -76,6 +76,8 @@ const props = defineProps<{
   title: string;
   grantBreakdown: EmissionBreakdownResponse | null;
   yearsBreakdown: EmissionBreakdownResponse | null;
+  effectiveStartYear: number | null;
+  effectiveEndYear: number | null;
 }>();
 
 use([
@@ -197,7 +199,15 @@ const YEARS_DECAL = {
 };
 
 const grantLabel = computed(() => t('planner_project_grant_title'));
-const yearsLabel = computed(() => t('planner_results_series_years'));
+// effectiveStartYear/EndYear are only null if the plan itself has no year
+// range yet, which never happens while this chart is mounted (it requires
+// at least one year section, which requires a range).
+const yearsLabel = computed(() =>
+  t('planner_results_series_years', {
+    start: props.effectiveStartYear,
+    end: props.effectiveEndYear,
+  }),
+);
 
 function totalsOf(view: 'grant' | 'years'): number[] {
   const breakdown =
