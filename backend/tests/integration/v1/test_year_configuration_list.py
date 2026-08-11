@@ -176,7 +176,8 @@ def test_non_admin_only_sees_started_years(client, monkeypatch, db_with_two_year
 
 def test_admin_also_only_sees_started_years(client, monkeypatch, db_with_two_years):
     """Backoffice data managers must NOT see the closed (is_started=False)
-    year either — the list endpoint always reflects globally-open years."""
+    year either — the list endpoint always reflects globally-open years.
+    """
     _, factory = db_with_two_years
     _wire(monkeypatch, factory, is_admin=True)
 

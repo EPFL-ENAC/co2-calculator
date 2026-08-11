@@ -1,8 +1,14 @@
 <template>
-  <div class="q-pa-lg">
+  <div :class="isPrintMode ? 'q-pa-none' : 'q-pa-lg'">
     <div class="row items-center justify-between q-mb-md">
-      <div class="text-h5 text-weight-medium">{{ title }}</div>
+      <div
+        class="text-weight-medium"
+        :class="isPrintMode ? 'text-body1' : 'text-h5'"
+      >
+        {{ title }}
+      </div>
       <q-checkbox
+        v-if="!isPrintMode"
         v-model="showAdditional"
         :label="$t('results_module_carbon_toggle_additional_data')"
         size="sm"
@@ -12,10 +18,11 @@
     <v-chart
       ref="chartRef"
       class="planner-grant-comparison-chart"
+      :class="{ 'planner-grant-comparison-chart--print': isPrintMode }"
       :option="chartOption"
       autoresize
     />
-    <div class="row q-gutter-sm q-mt-sm">
+    <div v-if="!isPrintMode" class="row q-gutter-sm q-mt-sm">
       <q-btn
         outline
         no-caps
@@ -57,6 +64,7 @@ import {
 } from 'src/constant/charts';
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 
 /**
  * Project Grant vs year-by-year results, two bars per category (#1977).
@@ -87,6 +95,7 @@ use([
 ]);
 
 const { t } = useI18n();
+const isPrintMode = usePrintMode();
 
 const showAdditional = ref(false);
 
@@ -367,5 +376,9 @@ const downloadCSV = () => {
 .planner-grant-comparison-chart {
   width: 100%;
   height: 420px;
+
+  &--print {
+    height: 360px;
+  }
 }
 </style>

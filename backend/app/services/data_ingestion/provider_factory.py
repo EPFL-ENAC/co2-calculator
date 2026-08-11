@@ -1,5 +1,3 @@
-from typing import Optional
-
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -33,7 +31,8 @@ from app.services.data_ingestion.csv_providers import (
 
 class ProviderFactory:
     """Factory to create the right provider based on module + provider
-    type + entity type"""
+    type + entity type
+    """
 
     # Registry of CSV/API providers.
     # Key: (module_type, ingestion_method, target_type, entity_type)
@@ -149,22 +148,19 @@ class ProviderFactory:
     @staticmethod
     def get_provider_class(
         provider_class_name: str,
-    ) -> Optional[type[DataIngestionProvider]]:
-        """
-        Get the appropriate provider class.
-        """
+    ) -> type[DataIngestionProvider] | None:
+        """Get the appropriate provider class."""
         return ProviderFactory.PROVIDERS_BY_CLASS_NAME.get(provider_class_name)
 
     @staticmethod
     def get_provider_by_keys(
-        module_type_id: Optional[ModuleTypeEnum],
+        module_type_id: ModuleTypeEnum | None,
         ingestion_method: IngestionMethod,
         target_type: TargetType,
         entity_type: EntityType,
         data_entry_type_id: DataEntryTypeEnum | int | None = None,
-    ) -> Optional[type[DataIngestionProvider]]:
-        """
-        Get the appropriate provider class by routing keys.
+    ) -> type[DataIngestionProvider] | None:
+        """Get the appropriate provider class by routing keys.
 
         For computed providers, a 5-tuple lookup using data_entry_type is
         attempted first; falls back to the 4-tuple PROVIDERS dict for CSV/API
@@ -199,11 +195,10 @@ class ProviderFactory:
         target_type: TargetType,
         config: dict,
         user: User,
-        job_session: Optional[AsyncSession] = None,
-        data_session: Optional[AsyncSession] = None,
-    ) -> Optional[DataIngestionProvider]:
-        """
-        Create the appropriate provider instance.
+        job_session: AsyncSession | None = None,
+        data_session: AsyncSession | None = None,
+    ) -> DataIngestionProvider | None:
+        """Create the appropriate provider instance.
 
         Determines entity_type from config (carbon_report_module_id presence)
         and uses it to select the correct provider class.

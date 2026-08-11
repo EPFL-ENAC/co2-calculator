@@ -23,9 +23,8 @@ mirrors what a real dispatch + provider would have written, minus:
   re-downloads from the repo if needed).
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from sqlmodel import col, update
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -45,7 +44,7 @@ async def create_seed_stub_job(
     session: AsyncSession,
     *,
     module_type_id: int,
-    data_entry_type_id: Optional[int],
+    data_entry_type_id: int | None,
     year: int,
     target_type: TargetType,
     job_type: str,
@@ -100,7 +99,7 @@ async def create_seed_stub_job(
         .values(is_current=False)
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     filename = file_path.name
     job = DataIngestionJob(
         entity_type=EntityType.MODULE_PER_YEAR,

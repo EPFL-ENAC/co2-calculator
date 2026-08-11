@@ -24,7 +24,7 @@ These tests pin:
 Requires Docker — ``conftest.py``'s ``postgres_container``.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -115,7 +115,7 @@ async def _seed_pipeline_with_jobs(
                 id=pid,
                 kind="csv_ingest",
                 status=PipelineStatus.RUNNING,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
         )
         # Flush the pipeline row before the children — autoflush

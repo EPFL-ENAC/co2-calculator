@@ -64,7 +64,8 @@ _job_semaphore: asyncio.Semaphore | None = None
 
 def _get_job_semaphore() -> asyncio.Semaphore:
     """Return the process-wide job-concurrency semaphore, creating it
-    on first use from the current ``MAX_CONCURRENT_JOBS`` setting."""
+    on first use from the current ``MAX_CONCURRENT_JOBS`` setting.
+    """
     global _job_semaphore
     if _job_semaphore is None:
         _job_semaphore = asyncio.Semaphore(get_settings().MAX_CONCURRENT_JOBS)

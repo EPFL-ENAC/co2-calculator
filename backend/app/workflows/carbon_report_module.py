@@ -23,9 +23,7 @@ logger = get_logger(__name__)
 
 
 class CarbonReportModuleWorkflow:
-    """
-    Base workflow for processing data entries and calculating emissions.
-    """
+    """Base workflow for processing data entries and calculating emissions."""
 
     def __init__(self, session: AsyncSession):
         self.session = session

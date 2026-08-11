@@ -316,7 +316,8 @@ class TestEdgeCases:
 def _satisfy_all_mandatory(config: dict) -> None:
     """Mutate a freshly-generated config so every mandatory factor/
     reference is 'present' — the shape ``_enrich_config_with_jobs`` would
-    produce once every required upload has landed."""
+    produce once every required upload has landed.
+    """
     for module_key, module_val in config["modules"].items():
         module_id = int(module_key)
         for sub_key, sub_val in module_val["submodules"].items():
@@ -333,7 +334,8 @@ class TestFreshDefaultYearConfiguration:
     """Checklist: "All modules show Incomplete on the config homepage
     with no data uploaded." A freshly generated config (no jobs at all)
     must mark every real module ``incomplete=True`` — this is exactly the
-    shape ``create_year_configuration`` enriches before returning (#867)."""
+    shape ``create_year_configuration`` enriches before returning (#867).
+    """
 
     def test_every_module_incomplete_with_no_jobs(self):
         config = generate_default_year_config()
@@ -348,7 +350,8 @@ class TestOpenYearForUsersGate:
     (``yearConfig.ts``): ``any(module.incomplete for module in
     config.modules)``. Blocks "Ouvrir l'année pour les utilisateurs" while
     any module lacks its mandatory uploads; clears only once every module
-    has them."""
+    has them.
+    """
 
     def test_blocks_while_any_module_incomplete(self):
         config = generate_default_year_config()

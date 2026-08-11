@@ -1,7 +1,7 @@
 """Database configuration and session management."""
 
 import json
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -72,16 +72,14 @@ Base = declarative_base()
 
 
 async def get_db_session() -> AsyncSession:
-    """
-    Utility to get a single AsyncSession (not as a dependency).
+    """Utility to get a single AsyncSession (not as a dependency).
     Use for internal checks like health endpoints.
     """
     return SessionLocal()
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Dependency to get database session.
+async def get_db() -> AsyncGenerator[AsyncSession]:
+    """Dependency to get database session.
 
     Yields:
         Database session

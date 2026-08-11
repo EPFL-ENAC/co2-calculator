@@ -6,9 +6,10 @@ import json
 import os
 import tempfile
 import zipfile
-from datetime import datetime, timezone
+from collections.abc import Generator
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Generator, List, NamedTuple, Optional
+from typing import Any, NamedTuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -74,48 +75,48 @@ router = APIRouter()
 class BackofficeFilters(NamedTuple):
     """Unified filter parameters for all backoffice reporting endpoints."""
 
-    path_affiliation: Optional[List[str]]
-    path_lvl4: Optional[List[str]]
-    overall_status: Optional[ModuleStatus]
-    search: Optional[str]
-    modules: Optional[List[str]]
-    years: Optional[List[int]]
+    path_affiliation: list[str] | None
+    path_lvl4: list[str] | None
+    overall_status: ModuleStatus | None
+    search: str | None
+    modules: list[str] | None
+    years: list[int] | None
 
 
 def get_backoffice_filters(
-    path_affiliation: Optional[List[str]] = Query(
+    path_affiliation: list[str] | None = Query(
         None,
         description=(
             "Filter by affiliations (Faculties, Services, Institutes). "
             "Returns all descendant units of selected affiliations."
         ),
     ),
-    path_lvl4: Optional[List[str]] = Query(
+    path_lvl4: list[str] | None = Query(
         None,
         description=(
             "Filter by specific unit names or IDs (Level 4). "
             "Returns exact matches only (not descendants)."
         ),
     ),
-    overall_status: Optional[ModuleStatus] = Query(
+    overall_status: ModuleStatus | None = Query(
         None,
         description=(
             "Filter by report overall status: NOT_STARTED (0), IN_PROGRESS (1), "
             "VALIDATED (2)"
         ),
     ),
-    search: Optional[str] = Query(
+    search: str | None = Query(
         None,
         description="Search in unit name, affiliation path, or principal user name",
     ),
-    modules: Optional[List[str]] = Query(
+    modules: list[str] | None = Query(
         None,
         description=(
             "Filter by module states, format: 'module_name:state' "
             "(e.g., 'headcount:validated')"
         ),
     ),
-    years: Optional[List[int]] = Query(
+    years: list[int] | None = Query(
         None, description="Filter by specific years (e.g., [2024, 2025])"
     ),
 ) -> BackofficeFilters:
@@ -132,15 +133,15 @@ def get_backoffice_filters(
 
 def get_module_status(module_data: dict | str) -> str:
     """Extract status from module data
-    (handles both old string format and new object format)."""
+    (handles both old string format and new object format).
+    """
     if isinstance(module_data, dict):
         return module_data.get("status", "not_started")
     return module_data if isinstance(module_data, str) else "not_started"
 
 
 def get_module_outlier_values(module_data: dict | str) -> int:
-    """
-    Extract outlier_values from module data
+    """Extract outlier_values from module data
     (handles both old string format and new object format).
     """
     if isinstance(module_data, dict):
@@ -168,8 +169,7 @@ def _get_year_keys(completion: dict) -> list[str]:
 def _get_years_to_process(
     completion: dict, years: list[str] | None = None
 ) -> list[str]:
-    """
-    Get list of years to process
+    """Get list of years to process
     defaulting to all available years if none specified.
     """
     if years:
@@ -179,8 +179,7 @@ def _get_years_to_process(
 
 
 def get_completion_for_years(completion: dict, years: list[str] | None = None) -> dict:
-    """
-    Extract completion data for selected years.
+    """Extract completion data for selected years.
     If years is None or empty, returns all years aggregated.
     If completion is old format (no years), returns it as-is.
     """
@@ -235,7 +234,7 @@ async def list_backoffice_units(
         le=MAX_PAGE_SIZE_UNITS,
         description="Number of items per page (0 for all items)",
     ),
-    sort_by: Optional[str] = Query(
+    sort_by: str | None = Query(
         None,
         description=(
             "Field to sort by: unit_name, affiliation, validation_status, "
@@ -243,16 +242,14 @@ async def list_backoffice_units(
             "total_carbon_footprint"
         ),
     ),
-    sort_order: Optional[str] = Query(
+    sort_order: str | None = Query(
         None,
         description="Sort order: 'asc' for ascending, 'desc' for descending",
     ),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    List units with their reporting completion status and outlier values.
-    """
+    """List units with their reporting completion status and outlier values."""
     is_global, affiliations = gate_backoffice(current_user, "view")
     # Scoped caller with no granted affiliations → nothing to see.
     if not is_global and not affiliations:
@@ -359,7 +356,7 @@ async def export_reporting(
         current_user=current_user,
         db=db,
     )
-    today = datetime.now(timezone.utc).strftime(EXPORT_CSV_DATE_FORMAT)
+    today = datetime.now(UTC).strftime(EXPORT_CSV_DATE_FORMAT)
 
     if format == "json":
         # JSON export
@@ -415,8 +412,7 @@ async def get_available_years(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get all available years from CarbonReport records in the database,
+    """Get all available years from CarbonReport records in the database,
     sorted in descending order (latest first).
 
     Affiliation-scoped backoffice users see only the years where reports
@@ -475,7 +471,7 @@ async def report_usage(
             # Invalid filter values or other issues in query parameters
             raise HTTPException(status_code=400, detail=str(exc))
 
-    timestamp = datetime.now(timezone.utc).strftime(EXPORT_CSV_TIMESTAMP_FORMAT)
+    timestamp = datetime.now(UTC).strftime(EXPORT_CSV_TIMESTAMP_FORMAT)
     if format == "json":
         content = json.dumps(data, indent=2, default=str)
         return StreamingResponse(
@@ -527,7 +523,7 @@ async def report_detailed(
     is_global, affiliations = gate_backoffice(current_user, "export")
     scoped_caller_no_affiliations = not is_global and not affiliations
 
-    timestamp = datetime.now(timezone.utc).strftime(EXPORT_CSV_TIMESTAMP_FORMAT)
+    timestamp = datetime.now(UTC).strftime(EXPORT_CSV_TIMESTAMP_FORMAT)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
@@ -584,7 +580,7 @@ async def report_detailed(
             os.unlink(zip_path)
             raise
 
-    def _stream_and_cleanup() -> Generator[bytes, None, None]:
+    def _stream_and_cleanup() -> Generator[bytes]:
         try:
             with open(zip_path, "rb") as f:
                 while chunk := f.read(65536):
@@ -630,7 +626,7 @@ async def report_results(
             # Invalid filter values or other issues in query parameters
             raise HTTPException(status_code=400, detail=str(exc))
 
-    timestamp = datetime.now(timezone.utc).strftime(EXPORT_CSV_TIMESTAMP_FORMAT)
+    timestamp = datetime.now(UTC).strftime(EXPORT_CSV_TIMESTAMP_FORMAT)
     if format == "json":
         content = json.dumps(data, indent=2, default=str)
         return StreamingResponse(

@@ -192,7 +192,8 @@ async def test_stale_sweep_skipped_unless_full_success(rows_processed, rows_skip
     """A partial (WARNING) or failed (ERROR) upload must NOT delete stale
     factors: the rows that failed to re-ingest would take their factors
     (and, via FK cascade, their emissions) with them on operator error.
-    Only a 100%-processed upload replaces its scope."""
+    Only a 100%-processed upload replaces its scope.
+    """
     provider = _sweep_provider()
     mock_factor_repo = MagicMock()
     mock_factor_repo.upsert_factors = AsyncMock(return_value=0)

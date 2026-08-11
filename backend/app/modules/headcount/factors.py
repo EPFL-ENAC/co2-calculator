@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import ValidationInfo, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -24,9 +22,7 @@ headcount_value_fields: list[str] = [
 ]
 
 
-def _validate_non_negative_float(
-    v: Optional[float], field_name: str
-) -> Optional[float]:
+def _validate_non_negative_float(v: float | None, field_name: str) -> float | None:
     if v is None:
         return v
     if v < 0:
@@ -40,8 +36,8 @@ class _HeadcountFactorValidationMixin:
     @field_validator("number_of_unit_per_fte", "ef_kg_co2eq_per_unit", mode="after")
     @classmethod
     def validate_factor_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
+        cls, v: float | None, info: ValidationInfo
+    ) -> float | None:
         return _validate_non_negative_float(v, info.field_name or "")
 
 
@@ -50,7 +46,7 @@ class HeadcountBaseFactor:
 
     headcount_category: str
     headcount_class: str
-    headcount_subclass: Optional[str]
+    headcount_subclass: str | None
     number_of_unit_per_fte: float
     ef_kg_co2eq_per_unit: float
     unit: str
@@ -61,7 +57,7 @@ class HeadcountFactorCreate(
 ):
     """Schema for creating a headcount factor."""
 
-    headcount_subclass: Optional[str] = None
+    headcount_subclass: str | None = None
 
 
 class HeadcountFactorUpdate(
@@ -69,18 +65,18 @@ class HeadcountFactorUpdate(
 ):
     """Schema for updating a headcount factor."""
 
-    headcount_category: Optional[str] = None
-    headcount_class: Optional[str] = None
-    headcount_subclass: Optional[str] = None
-    number_of_unit_per_fte: Optional[float] = None
-    ef_kg_co2eq_per_unit: Optional[float] = None
-    unit: Optional[str] = None
+    headcount_category: str | None = None
+    headcount_class: str | None = None
+    headcount_subclass: str | None = None
+    number_of_unit_per_fte: float | None = None
+    ef_kg_co2eq_per_unit: float | None = None
+    unit: str | None = None
 
 
 class HeadcountFactorResponse(FactorResponseGen, HeadcountBaseFactor):
     """Response schema for headcount factors."""
 
-    headcount_subclass: Optional[str] = None
+    headcount_subclass: str | None = None
 
 
 class HeadcountMemberFactorHandler(BaseFactorHandler):

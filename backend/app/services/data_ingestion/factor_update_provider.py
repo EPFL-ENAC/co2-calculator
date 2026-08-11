@@ -1,7 +1,7 @@
 """Abstract base provider for recomputing factor values from existing emissions."""
 
 from abc import abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -48,17 +48,17 @@ class BaseFactorUpdateProvider(DataIngestionProvider):
         """Always valid — no external connection required."""
         return True
 
-    async def fetch_data(self, filters: Dict[str, Any]) -> list[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         """Not used; ingest is overridden directly."""
         return []
 
     async def transform_data(
-        self, raw_data: list[Dict[str, Any]]
-    ) -> list[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Not used; ingest is overridden directly."""
         return raw_data
 
-    async def _load_data(self, data: list[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         """Not used; ingest is overridden directly."""
         return {"inserted": 0, "skipped": 0, "errors": 0}
 
@@ -68,7 +68,7 @@ class BaseFactorUpdateProvider(DataIngestionProvider):
         factor: Factor,
         year: int,
         session: AsyncSession,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Compute an updated values dict for a single factor.
 
         Args:
@@ -89,8 +89,8 @@ class BaseFactorUpdateProvider(DataIngestionProvider):
 
     async def ingest(
         self,
-        filters: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Walk all factors for (data_entry_type_id, year) and recompute values.
 
         For each factor, calls ``compute_factor_values`` and merges the result
@@ -135,7 +135,7 @@ class BaseFactorUpdateProvider(DataIngestionProvider):
             extra_metadata={"message": f"Found {len(factors)} factors to process"},
         )
 
-        stats: Dict[str, Any] = {
+        stats: dict[str, Any] = {
             "updated": 0,
             "skipped": 0,
             "errors": 0,

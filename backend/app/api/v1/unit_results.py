@@ -66,8 +66,7 @@ async def get_unit_totals(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Get total carbon footprint metrics for a unit across all modules.
+    """Get total carbon footprint metrics for a unit across all modules.
 
     Returns:
         Dict with:

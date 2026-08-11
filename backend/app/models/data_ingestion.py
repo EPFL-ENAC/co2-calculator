@@ -1,6 +1,5 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import JSON, Column, ForeignKey, Index, Integer, String, text
@@ -18,8 +17,7 @@ from app.models.user import UserProvider
 # 0. ENUMERATIONS
 # ==========================================
 class EntityType(int, Enum):
-    """
-    Docstring for EntityType
+    """Docstring for EntityType
 
     Enum integer values are part of the persisted ABI: jobs serialise
     ``entity_type.value`` into ``DataIngestionJob.meta["config"]`` and
@@ -44,8 +42,7 @@ class EntityType(int, Enum):
 
 
 class FactorType(int, Enum):
-    """
-    Docstring for FactorType
+    """Docstring for FactorType
 
     :var EMISSION_FACTOR: Description
     :vartype EMISSION_FACTOR: Literal[0]
@@ -58,8 +55,7 @@ class FactorType(int, Enum):
 
 
 class IngestionMethod(int, Enum):
-    """
-    Docstring for IngestionMethod
+    """Docstring for IngestionMethod
 
     :var api: Description
     :vartype api: Literal[0]
@@ -83,8 +79,7 @@ class IngestionMethod(int, Enum):
 
 
 class TargetType(int, Enum):
-    """
-    Docstring for TargetType
+    """Docstring for TargetType
 
     :var DATA_ENTRIES: Description
     :vartype DATA_ENTRIES: Literal[0]
@@ -121,9 +116,7 @@ class IngestionResult(int, Enum):
 
 
 class DataIngestionJobBase(SQLModel):
-    """
-    Shared fields. Required when creating a new record.
-    """
+    """Shared fields. Required when creating a new record."""
 
     _entity_type_comment = (
         "Type of job: module_per_year, module_unit_specific (EnumInt)"
@@ -137,7 +130,7 @@ class DataIngestionJobBase(SQLModel):
     )
 
     _entity_id_comment = "NULLABLE: FK carbon_report_modules.id if module_unit_specific"
-    entity_id: Optional[int] = Field(
+    entity_id: int | None = Field(
         default=None,
         description=_entity_id_comment,
         sa_column=Column(
@@ -148,21 +141,21 @@ class DataIngestionJobBase(SQLModel):
 
     # consider changing to ModuleTypeEnum with setter getter conversion
     _module_type_id_comment = "NULLABLE: ModuleTypeEnum the job is for "
-    module_type_id: Optional[int] = Field(
+    module_type_id: int | None = Field(
         default=None,
         description=_module_type_id_comment,
         sa_column=Column(Integer, nullable=True),
     )
 
     _data_entry_type_id_comment = "NULLABLE: DataEntryTypeEnum the job is for"
-    data_entry_type_id: Optional[int] = Field(
+    data_entry_type_id: int | None = Field(
         default=None,
         description=_data_entry_type_id_comment,
         sa_column=Column(Integer, nullable=True),
     )
 
     _year_comment = "NULLABLE: Year the job is for if applicable"
-    year: Optional[int] = Field(
+    year: int | None = Field(
         default=None,
         description=_year_comment,
         sa_column=Column(Integer, nullable=True),
@@ -170,7 +163,7 @@ class DataIngestionJobBase(SQLModel):
 
     """ could be Whatever new Enum we create later, like users or units"""
     _target_type_comment = "NULLABLE: Target type: data_entries or factors _ EnumInt"
-    target_type: Optional[TargetType] = Field(
+    target_type: TargetType | None = Field(
         default=None,
         sa_column=Column(
             SAEnum(TargetType, name="target_type_enum", native_enum=True),
@@ -200,7 +193,7 @@ class DataIngestionJobBase(SQLModel):
     )
 
     _state_comment = "Lifecycle state of the ingestion job (IngestionState)"
-    state: Optional[IngestionState] = Field(
+    state: IngestionState | None = Field(
         default=None,
         sa_column=Column(
             SAEnum(IngestionState, name="ingestion_state_enum", native_enum=True),
@@ -213,7 +206,7 @@ class DataIngestionJobBase(SQLModel):
         "NULLABLE: Outcome result of the ingestion job"
         " (only valid when state is FINISHED)"
     )
-    result: Optional[IngestionResult] = Field(
+    result: IngestionResult | None = Field(
         default=None,
         sa_column=Column(
             SAEnum(IngestionResult, name="ingestion_result_enum", native_enum=True),
@@ -223,13 +216,13 @@ class DataIngestionJobBase(SQLModel):
     )
 
     _status_message_comment = "NULLABLE: Detailed status or error message"
-    status_message: Optional[str] = Field(
+    status_message: str | None = Field(
         default=None,
         description=_status_message_comment,
     )
 
     _meta_comment = "NULLABLE: Additional metadata as json"
-    meta: Optional[dict] = Field(
+    meta: dict | None = Field(
         default_factory=dict,
         sa_column=Column(JSON),
         description=_meta_comment,
@@ -244,7 +237,7 @@ class DataIngestionJobBase(SQLModel):
 class DataIngestionJob(DataIngestionJobBase, table=True):
     __tablename__ = "data_ingestion_jobs"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     is_current: bool = Field(
         default=False,
         description=(
@@ -254,23 +247,23 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
     )
 
     # Claiming (Plan 310A)
-    locked_by: Optional[str] = Field(
+    locked_by: str | None = Field(
         default=None,
         sa_column=Column(String(255)),
         description="Pod ID that atomically claimed this job",
     )
-    locked_at: Optional[datetime] = Field(
+    locked_at: datetime | None = Field(
         default=None,
         sa_column=Column(SADateTime(timezone=True)),
         description="Timestamp of the most recent successful claim",
     )
 
     # Observability (Plan 310C)
-    created_at: Optional[datetime] = Field(
+    created_at: datetime | None = Field(
         # Python-side stamp (repo convention) so the ORM never sends an
         # explicit NULL past the server_default; the server_default remains
         # for the migration backfill of pre-existing rows.
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         sa_column=Column(SADateTime(timezone=True), server_default=text("now()")),
         description=(
             "Timestamp the job row was created.  created_at → started_at is "
@@ -278,7 +271,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
             "is execution — the ops console shows both."
         ),
     )
-    started_at: Optional[datetime] = Field(
+    started_at: datetime | None = Field(
         default=None,
         sa_column=Column(SADateTime(timezone=True)),
         description=(
@@ -287,7 +280,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
             "finished_at gives true total wall-clock duration."
         ),
     )
-    finished_at: Optional[datetime] = Field(
+    finished_at: datetime | None = Field(
         default=None,
         sa_column=Column(SADateTime(timezone=True)),
         description="Timestamp the job reached state=FINISHED",
@@ -304,7 +297,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
         sa_column=Column(Integer, nullable=False, server_default="3"),
         description="Maximum number of attempts before giving up",
     )
-    run_after: Optional[datetime] = Field(
+    run_after: datetime | None = Field(
         default=None,
         sa_column=Column(SADateTime(timezone=True)),
         description="Earliest time the job may be claimed (NULL = immediately)",
@@ -314,7 +307,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
     # FK to pipelines.id enforced by migration ``c4d5e6f7a8b9`` (#1236 Phase 2)
     # — declared here so SQLAlchemy's schema view matches Postgres.  Index is
     # explicit because Postgres does not auto-index the referencing column.
-    pipeline_id: Optional[UUID] = Field(
+    pipeline_id: UUID | None = Field(
         default=None,
         sa_column=Column(
             SAUUID,
@@ -323,7 +316,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
         ),
         description="UUID grouping jobs belonging to the same multi-step pipeline run",
     )
-    job_type: Optional[str] = Field(
+    job_type: str | None = Field(
         default=None,
         sa_column=Column(String(100)),
         description="Job type identifier (csv_ingest, factor_ingest, etc.)",
@@ -482,20 +475,20 @@ class Pipeline(SQLModel, table=True):
 
     id: UUID = Field(sa_column=Column(SAUUID, primary_key=True))
     # = parent job_type (csv_ingest / factor_ingest / unit_sync / …)
-    kind: Optional[str] = Field(default=None, sa_column=Column(String(100)))
+    kind: str | None = Field(default=None, sa_column=Column(String(100)))
     status: str = Field(
         default=PipelineStatus.NOT_STARTED.value,
         sa_column=Column(String(32), nullable=False, server_default="NOT_STARTED"),
     )
     # scope / provenance — int-enum values mirrored from the parent job
-    entity_type: Optional[int] = Field(default=None)
-    ingestion_method: Optional[int] = Field(default=None)
-    module_type_id: Optional[int] = Field(default=None)
-    year: Optional[int] = Field(default=None)
+    entity_type: int | None = Field(default=None)
+    ingestion_method: int | None = Field(default=None)
+    module_type_id: int | None = Field(default=None)
+    year: int | None = Field(default=None)
     # owned recalc count (was meta.recalc_jobs_chained) — kept for the
     # Phase-3 console; the last-child oracle uses compute_pipeline_progress,
     # not this counter.
-    expected_recalc: Optional[int] = Field(default=None)
+    expected_recalc: int | None = Field(default=None)
     job_count: int = Field(
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
@@ -504,14 +497,14 @@ class Pipeline(SQLModel, table=True):
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
     )
-    started_at: Optional[datetime] = Field(
+    started_at: datetime | None = Field(
         default=None, sa_column=Column(SADateTime(timezone=True))
     )
-    finished_at: Optional[datetime] = Field(
+    finished_at: datetime | None = Field(
         default=None, sa_column=Column(SADateTime(timezone=True))
     )
-    last_error: Optional[str] = Field(default=None, sa_column=Column(String))
-    created_at: Optional[datetime] = Field(
+    last_error: str | None = Field(default=None, sa_column=Column(String))
+    created_at: datetime | None = Field(
         default=None,
         sa_column=Column(
             SADateTime(timezone=True),
@@ -519,7 +512,7 @@ class Pipeline(SQLModel, table=True):
             server_default=text("CURRENT_TIMESTAMP"),
         ),
     )
-    updated_at: Optional[datetime] = Field(
+    updated_at: datetime | None = Field(
         default=None,
         sa_column=Column(
             SADateTime(timezone=True),

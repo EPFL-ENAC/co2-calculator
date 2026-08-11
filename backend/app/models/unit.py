@@ -1,7 +1,5 @@
 """Unit model for CO2 calculation."""
 
-from typing import Optional
-
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Column, Field, SQLModel
 
@@ -100,8 +98,7 @@ class UnitBase(SQLModel):
 
 
 class Unit(UnitBase, table=True):
-    """
-    Unit model representing organizational units for CO2 reporting.
+    """Unit model representing organizational units for CO2 reporting.
 
     Synced from third-party providers (accred, default, test).
 
@@ -112,7 +109,7 @@ class Unit(UnitBase, table=True):
     """
 
     __tablename__ = "units"
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: int | None = Field(default=None, primary_key=True, index=True)
 
     def __repr__(self) -> str:
         return f"<Unit {self.id} ({self.institutional_id}): {self.name}>"

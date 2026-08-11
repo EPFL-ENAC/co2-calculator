@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -13,7 +11,7 @@ from app.schemas.factor import (
 
 ## PURCHASE FACTOR HANDLERS
 
-# --- Additional Purchases ---
+# --- Centralized Purchases ---
 
 purchase_additional_classification_fields: list[str] = ["name", "unit"]
 purchase_additional_value_fields: list[str] = ["coef_to_kg", "ef_kg_co2eq_per_kg"]
@@ -34,14 +32,14 @@ class PurchaseCentralizedFactorCreate(FactorCreate):
 
 
 class PurchaseCentralizedFactorUpdate(FactorUpdate):
-    name: Optional[str] = None
-    unit: Optional[str] = None
-    coef_to_kg: Optional[float] = None
-    ef_kg_co2eq_per_kg: Optional[float] = None
+    name: str | None = None
+    unit: str | None = None
+    coef_to_kg: float | None = None
+    ef_kg_co2eq_per_kg: float | None = None
 
     @field_validator("coef_to_kg", "ef_kg_co2eq_per_kg", mode="after")
     @classmethod
-    def validate_non_negative(cls, v: Optional[float]) -> Optional[float]:
+    def validate_non_negative(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0:
@@ -85,8 +83,8 @@ purchase_common_value_fields: list[str] = [
 class PurchaseCommonFactorCreate(FactorCreate):
     currency: str
     purchase_institutional_code: str
-    translation_key: Optional[str] = None
-    purchase_additional_code: Optional[str] = None
+    translation_key: str | None = None
+    purchase_additional_code: str | None = None
     ef_kg_co2eq_per_currency: float
     # purchase_category: str  # only for upload Mandatory (checked in csv upload)
     # purchase_category is the routing column (picks the correct data_entry_type).
@@ -113,19 +111,19 @@ class PurchaseCommonFactorCreate(FactorCreate):
 
 
 class PurchaseCommonFactorUpdate(FactorUpdate):
-    purchase_institutional_code: Optional[str] = None
-    purchase_additional_code: Optional[str] = None
-    currency: Optional[str] = None
-    ef_kg_co2eq_per_currency: Optional[float] = None
-    translation_key: Optional[str] = None
+    purchase_institutional_code: str | None = None
+    purchase_additional_code: str | None = None
+    currency: str | None = None
+    ef_kg_co2eq_per_currency: float | None = None
+    translation_key: str | None = None
 
 
 class PurchaseCommonFactorResponse(FactorResponseGen):
     purchase_institutional_code: str
-    purchase_additional_code: Optional[str] = None
+    purchase_additional_code: str | None = None
     currency: str
-    ef_kg_co2eq_per_currency: Optional[float] = None
-    translation_key: Optional[str] = None
+    ef_kg_co2eq_per_currency: float | None = None
+    translation_key: str | None = None
 
 
 class PurchaseCommonFactorHandler(BaseFactorHandler):

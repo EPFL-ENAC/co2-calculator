@@ -1,5 +1,4 @@
-"""
-Ultra-fast PostgreSQL COPY seeder for:
+"""Ultra-fast PostgreSQL COPY seeder for:
 
 - carbon_reports
 - carbon_report_modules

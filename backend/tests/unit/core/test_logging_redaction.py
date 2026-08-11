@@ -72,7 +72,8 @@ def test_redact_preserves_non_sensitive_params():
 
 def test_redact_filter_never_raises():
     """If args contain something un-string-able, filter must return True
-    rather than dropping the log line."""
+    rather than dropping the log line.
+    """
     f = _RedactSensitiveQueryStringFilter()
     record = _make_record("normal message", args=(object(), 1, None))
     assert f.filter(record) is True

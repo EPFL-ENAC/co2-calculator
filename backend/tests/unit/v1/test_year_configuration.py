@@ -67,7 +67,8 @@ class TestBuildJobLookup:
     def test_skips_unit_specific_data_job(self):
         """A MODULE_UNIT_SPECIFIC data-entry upload must not occupy the
         per-year ``latest_data_job`` slot — it neither surfaces nor
-        masks the module-level (MODULE_PER_YEAR) job."""
+        masks the module-level (MODULE_PER_YEAR) job.
+        """
         unit_specific = _fake_job(
             id=7,
             target_type=SimpleNamespace(value=0),  # DATA_ENTRIES
@@ -89,7 +90,8 @@ class TestBuildJobLookup:
 
     def test_unit_specific_does_not_mask_per_year(self):
         """Both jobs share the (module, det, DATA_ENTRIES, CSV) key;
-        only the per-year one survives regardless of list order."""
+        only the per-year one survives regardless of list order.
+        """
         per_year = _fake_job(
             id=8,
             target_type=SimpleNamespace(value=0),

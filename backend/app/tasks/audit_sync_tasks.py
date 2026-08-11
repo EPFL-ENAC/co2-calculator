@@ -4,7 +4,7 @@ Implements periodic sync of pending audit records and retry of failed records.
 Uses FastAPI's BackgroundTasks for scheduled operations.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import BackgroundTasks
 
@@ -15,9 +15,8 @@ from app.services.audit_sync_service import AuditSyncService
 logger = get_logger(__name__)
 
 
-async def sync_pending_audit_records_task() -> Dict[str, Any]:
-    """
-    Background task to sync pending audit records with Elasticsearch.
+async def sync_pending_audit_records_task() -> dict[str, Any]:
+    """Background task to sync pending audit records with Elasticsearch.
 
     This task should be scheduled to run periodically (e.g., every 5 minutes).
     """
@@ -35,9 +34,8 @@ async def sync_pending_audit_records_task() -> Dict[str, Any]:
         return {"error": str(e)}
 
 
-async def retry_failed_audit_records_task(max_retries: int = 3) -> Dict[str, Any]:
-    """
-    Background task to retry failed audit records with Elasticsearch.
+async def retry_failed_audit_records_task(max_retries: int = 3) -> dict[str, Any]:
+    """Background task to retry failed audit records with Elasticsearch.
 
     This task should be scheduled to run less frequently (e.g., every hour).
     """
@@ -59,9 +57,8 @@ async def retry_failed_audit_records_task(max_retries: int = 3) -> Dict[str, Any
 
 async def sync_audit_records_with_elasticsearch(
     background_tasks: BackgroundTasks,
-) -> Dict[str, Any]:
-    """
-    Main entry point for syncing audit records with Elasticsearch.
+) -> dict[str, Any]:
+    """Main entry point for syncing audit records with Elasticsearch.
 
     This function can be called from API endpoints or scheduled tasks.
     """

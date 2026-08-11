@@ -9,7 +9,7 @@
 
 ## Summary
 
-This branch adds a 4th hierarchy level (8-digit WW codes) to `EmissionType` for room-type granularity in buildings (office, laboratories, archives, libraries, auditoriums, miscellaneous), fuel-type granularity for combustion, and an `ln2` subcategory for additional purchases. It also refactors chart keys from display strings to snake_case identifiers, aligning frontend and backend naming.
+This branch adds a 4th hierarchy level (8-digit WW codes) to `EmissionType` for room-type granularity in buildings (office, laboratories, archives, libraries, auditoriums, miscellaneous), fuel-type granularity for combustion, and an `ln2` subcategory for centralized purchases. It also refactors chart keys from display strings to snake_case identifiers, aligning frontend and backend naming.
 
 ---
 

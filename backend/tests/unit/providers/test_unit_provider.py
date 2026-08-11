@@ -342,7 +342,8 @@ class TestTestUnitProvider:
     async def test_fetch_all_units_returns_fixtures_round_trippable(self):
         """``unit_sync_handler`` calls ``fetch_all_units`` then maps each
         raw dict through ``map_api_unit``. The pair must round-trip TEST
-        fixtures back into ``Unit`` instances with ``provider=TEST``."""
+        fixtures back into ``Unit`` instances with ``provider=TEST``.
+        """
         from app.models.user import UserProvider as _UP
         from app.providers.test_fixtures import TEST_UNITS
 
@@ -386,7 +387,8 @@ class TestGetUnitProvider:
     def test_database_requires_session_via_override(self):
         """Override param also accepts a persisted UserProvider value (e.g.
         DataIngestionJob.provider), used by background sync to re-resolve
-        units from an entity's original source."""
+        units from an entity's original source.
+        """
         with pytest.raises(ValueError, match="requires a database session"):
             get_unit_provider(UserProvider.DEFAULT, db_session=None)
 
@@ -433,7 +435,8 @@ class TestGetUnitProvider:
 
     def test_factory_no_longer_reads_provider_plugin(self):
         """Regression: the factory must read UNIT_PROVIDER_TYPE, not the
-        removed PROVIDER_PLUGIN setting."""
+        removed PROVIDER_PLUGIN setting.
+        """
         with patch("app.providers.unit_provider.settings") as mock_settings:
             mock_settings.UNIT_PROVIDER_TYPE = UnitProviderType.TEST
             # A stray PROVIDER_PLUGIN would only be read by legacy code; the

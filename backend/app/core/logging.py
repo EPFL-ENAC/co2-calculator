@@ -5,7 +5,7 @@ import logging
 import re
 import sys
 from datetime import UTC, datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 
@@ -87,7 +87,7 @@ class JsonFormatter(logging.Formatter):
     }
 
     def format(self, record: logging.LogRecord) -> str:
-        log: Dict[str, Any] = {
+        log: dict[str, Any] = {
             "timestamp": datetime.now(UTC),
             "level": record.levelname,
             "logger": record.name,
@@ -119,8 +119,8 @@ class LokiHandler(logging.Handler):
     def __init__(
         self,
         loki_url: str,
-        tenant_id: Optional[str] = None,
-        default_labels: Optional[Dict[str, str]] = None,
+        tenant_id: str | None = None,
+        default_labels: dict[str, str] | None = None,
         timeout: float = 2.0,
         level: int = logging.INFO,
     ):
@@ -238,7 +238,7 @@ def _sanitize_for_log(value):
     return str(value).replace("\n", "").replace("\r", "")
 
 
-def _sanitize_extra(extra: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def _sanitize_extra(extra: dict[str, Any] | None) -> dict[str, Any] | None:
     """Recursively sanitize all values in the extra dictionary."""
     if extra is None:
         return None

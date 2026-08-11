@@ -136,7 +136,8 @@ async def test_heartbeat_loop_arms_abort_on_lost_lock(monkeypatch):
     """A heartbeat returning 0 rows (lock preempted / state left RUNNING)
     must ARM the abort, not just stop heartbeating — otherwise the handler
     runs to completion and its pre-CAS data commits + chained children
-    duplicate the new owner's work (code-review finding, 2026-07-17)."""
+    duplicate the new owner's work (code-review finding, 2026-07-17).
+    """
     settings_mock = MagicMock()
     settings_mock.STALE_JOB_TIMEOUT_MINUTES = 1
     monkeypatch.setattr(runner_mod, "get_settings", lambda: settings_mock)
@@ -168,7 +169,8 @@ async def test_heartbeat_loop_arms_abort_on_lost_lock(monkeypatch):
 @pytest.mark.asyncio
 async def test_heartbeat_loop_resets_counter_on_success(monkeypatch):
     """A successful heartbeat between failures resets the counter,
-    so the loop tolerates intermittent DB blips below the threshold."""
+    so the loop tolerates intermittent DB blips below the threshold.
+    """
     settings_mock = MagicMock()
     settings_mock.STALE_JOB_TIMEOUT_MINUTES = 1  # 4 attempts to abort
     monkeypatch.setattr(runner_mod, "get_settings", lambda: settings_mock)

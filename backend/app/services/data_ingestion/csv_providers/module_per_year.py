@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
@@ -33,8 +33,7 @@ _FACTOR_INFERRED_MODULES: set[ModuleTypeEnum] = {
 
 
 class ModulePerYearCSVProvider(BaseCSVProvider):
-    """
-    CSV provider for MODULE_PER_YEAR entity type.
+    """CSV provider for MODULE_PER_YEAR entity type.
 
     Handles module-level data like travel or headcount per year.
     Determines data_entry_type from the factor (kind/subkind) found in the row.
@@ -44,9 +43,8 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
     def entity_type(self) -> EntityType:
         return EntityType.MODULE_PER_YEAR
 
-    async def _setup_handlers_and_factors(self) -> Dict[str, Any]:
-        """
-        Setup handlers and factors for MODULE_PER_YEAR.
+    async def _setup_handlers_and_factors(self) -> dict[str, Any]:
+        """Setup handlers and factors for MODULE_PER_YEAR.
 
         Loads handlers/factors for all valid data_entry_types of the
         module (or just the configured one), then assembles the shared
@@ -115,9 +113,9 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
 
     @staticmethod
     def _get_factors_maps_by_type(
-        setup_result: Dict[str, Any],
-        valid_entry_types: List[DataEntryTypeEnum],
-    ) -> Dict[DataEntryTypeEnum, Dict[str, Any]]:
+        setup_result: dict[str, Any],
+        valid_entry_types: list[DataEntryTypeEnum],
+    ) -> dict[DataEntryTypeEnum, dict[str, Any]]:
         """Split the merged factors_map into per-type maps, computed once.
 
         Factor-map keys are prefixed ``{type_value}:``. The split depends only
@@ -129,7 +127,7 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
             return cached
 
         original_map = setup_result["factors_map"]
-        factors_maps_by_type: Dict[DataEntryTypeEnum, Dict[str, Any]] = {
+        factors_maps_by_type: dict[DataEntryTypeEnum, dict[str, Any]] = {
             entry_type: {} for entry_type in valid_entry_types
         }
         prefixes = [(f"{t.value}:", t) for t in valid_entry_types]
@@ -144,15 +142,14 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
 
     async def _resolve_handler_and_validate(
         self,
-        filtered_row: Dict[str, str],
+        filtered_row: dict[str, str],
         factor: Any | None,
         stats: StatsDict,
         row_idx: int,
         max_row_errors: int,
-        setup_result: Dict[str, Any],
-    ) -> tuple[DataEntryTypeEnum | None, "ModuleHandler | None", str | None]:
-        """
-        Resolve handler and validate for MODULE_PER_YEAR.
+        setup_result: dict[str, Any],
+    ) -> tuple[DataEntryTypeEnum | None, ModuleHandler | None, str | None]:
+        """Resolve handler and validate for MODULE_PER_YEAR.
 
         Logic:
         - Priority 1/2 (configured data_entry_type_id, then the handler's
@@ -195,7 +192,7 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
             # ~33s here). The result is a pure function of (kind, subkind), and
             # those repeat heavily across rows, so memoise per file:
             # O(rows × factors) → O(distinct kinds × factors).
-            type_cache: Dict[tuple[str, str | None], DataEntryTypeEnum | None] = (
+            type_cache: dict[tuple[str, str | None], DataEntryTypeEnum | None] = (
                 setup_result.setdefault("type_by_kind_cache", {})
             )
             cache_key = (kind_value, subkind_value)

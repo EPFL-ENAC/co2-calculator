@@ -16,7 +16,7 @@ the job.  Endpoints stamp the matching ``job_type`` so the runner's
 registry lookup hits the right handler.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -182,7 +182,7 @@ async def factor_ingest_handler(
 _STATUS_MESSAGE_REASON_CAP = 200
 
 
-def _sample_row_error_reason(row_errors: list) -> Optional[str]:
+def _sample_row_error_reason(row_errors: list) -> str | None:
     """Pick a representative reason from ``stats.row_errors`` (#1236).
 
     Row errors are recorded in order; the first one is usually
@@ -544,7 +544,7 @@ async def _chain_emission_recalc_for_data_ingest(
     # full-slice recalc is their contract.
     parent_config = (job.meta or {}).get("config") or {}
     raw_module_id = parent_config.get("carbon_report_module_id")
-    child_config: Optional[dict[str, Any]] = None
+    child_config: dict[str, Any] | None = None
     if raw_module_id is not None:
         try:
             child_config = {"carbon_report_module_ids": [int(raw_module_id)]}

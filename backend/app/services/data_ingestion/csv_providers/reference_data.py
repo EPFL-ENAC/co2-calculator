@@ -22,7 +22,7 @@ clears the rest of the table.
 import csv
 import io
 import urllib.parse
-from typing import Any, Dict, List
+from typing import Any
 
 import psycopg
 from sqlalchemy.engine.url import make_url
@@ -82,7 +82,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         user: User | None = None,
         job_session: Any = None,
         data_session: Any = None,
@@ -134,18 +134,18 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             logger.error(f"Failed to validate reference CSV: {exc}")
             return False
 
-    async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         return []
 
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         return raw_data
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         return {"inserted": 0, "skipped": 0, "errors": 0}
 
-    async def ingest(self, filters: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    async def ingest(self, filters: dict[str, Any] | None = None) -> dict[str, Any]:
         try:
             await self._update_job(
                 status_message="processing",
@@ -258,7 +258,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
 
     async def _ingest_locations(
         self, csv_text: str, det: DataEntryTypeEnum
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """COPY into a staging temp table, then REPLACE the ``locations`` of
         this upload's mode.
 
@@ -292,7 +292,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         if url.drivername.split("+")[0] != "postgresql":
             return await self._ingest_locations_sqlite(rows, det)
 
-        conn_kwargs: Dict[str, Any] = {
+        conn_kwargs: dict[str, Any] = {
             "host": url.host,
             "port": url.port or 5432,
             "dbname": url.database,
@@ -376,9 +376,9 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         }
 
     @staticmethod
-    def _parse_locations_rows(csv_text: str, det: DataEntryTypeEnum) -> List[List[str]]:
+    def _parse_locations_rows(csv_text: str, det: DataEntryTypeEnum) -> list[list[str]]:
         target_mode = det.name  # "plane" or "train"
-        rows: List[List[str]] = []
+        rows: list[list[str]] = []
         reader = csv.DictReader(io.StringIO(csv_text))
         for raw in reader:
             mode = (raw.get("transport_mode") or "").strip().lower()
@@ -401,8 +401,8 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         return rows
 
     async def _ingest_locations_sqlite(
-        self, rows: List[List[str]], det: DataEntryTypeEnum
-    ) -> Dict[str, Any]:
+        self, rows: list[list[str]], det: DataEntryTypeEnum
+    ) -> dict[str, Any]:
         """SQLite fallback for tests: ORM upsert keyed on natural_key.
 
         Production runs against PostgreSQL via the COPY+UPSERT path above;
@@ -491,7 +491,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             "rows_inserted": inserted,
         }
 
-    async def _ingest_building_rooms(self, csv_text: str) -> Dict[str, Any]:
+    async def _ingest_building_rooms(self, csv_text: str) -> dict[str, Any]:
         """Delete and re-insert all building rooms (matches seed semantics).
 
         Uploading a partial CSV will wipe everything outside it; the
@@ -503,7 +503,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             BUILDING_ROOMS_EXPECTED_COLUMNS,
         )
 
-        rooms: List[BuildingRoom] = []
+        rooms: list[BuildingRoom] = []
         skipped = 0
         reader = csv.DictReader(io.StringIO(csv_text))
         for raw in reader:

@@ -72,7 +72,8 @@ def test_parent_only_snapshot_does_not_prematurely_complete():
 def test_recalc_chained_zero_completes_after_parent():
     """Intentional edge: every recalc target dedup-skipped (owned by an
     earlier pipeline) or unknown module → recalc_jobs_chained == 0 ⇒
-    phases 2/3 vacuously satisfied once the parent is done."""
+    phases 2/3 vacuously satisfied once the parent is done.
+    """
     p = compute_pipeline_progress([_parent(S.FINISHED, recalc_chained=0)])
     assert p["phase"] == 3
     assert p["done"] is True
@@ -93,7 +94,8 @@ def test_two_recalc_partial_is_not_done():
 
 def test_zombie_recalc_keeps_pipeline_unfinished():
     """A recalc child stuck RUNNING forever (the zombie) must keep the
-    pipeline reported as in-progress — never falsely 'done'."""
+    pipeline reported as in-progress — never falsely 'done'.
+    """
     jobs = [
         _parent(S.FINISHED, recalc_chained=1),
         _recalc(2, S.RUNNING),  # zombie
@@ -132,7 +134,8 @@ def test_full_success_is_done():
 def test_recalc_with_no_aggregation_chained_still_completes():
     """A recalc that didn't chain an aggregation (dedup-skip / WARNING
     with module known but agg already pending) records
-    ``aggregation_job_id=None`` — phase 3 must not wait on it."""
+    ``aggregation_job_id=None`` — phase 3 must not wait on it.
+    """
     jobs = [
         _parent(S.FINISHED, recalc_chained=1),
         _recalc(2, S.FINISHED, agg_id=None),
@@ -150,7 +153,8 @@ def test_parent_error_is_terminal():
 
 def test_recalc_error_is_terminal_even_without_aggregation():
     """Recalc FINISHED+ERROR → no aggregation chained; pipeline is
-    done-with-error, UI must stop the spinner and show failure."""
+    done-with-error, UI must stop the spinner and show failure.
+    """
     jobs = [
         _parent(S.FINISHED, recalc_chained=1),
         _recalc(2, S.FINISHED, result=R.ERROR),
@@ -162,7 +166,8 @@ def test_recalc_error_is_terminal_even_without_aggregation():
 
 def test_legacy_no_counter_falls_back_to_present_children():
     """Non-ingest / legacy root without ``recalc_jobs_chained``: done
-    when every recalc row present is FINISHED (best-effort)."""
+    when every recalc row present is FINISHED (best-effort).
+    """
     parent = _job(1, "factor_ingest", S.FINISHED, meta={})
     jobs = [parent, _recalc(2, S.FINISHED, agg_id=None)]
     p = compute_pipeline_progress(jobs)
@@ -227,7 +232,8 @@ def test_pipeline_status_partial_marks_done_and_has_error():
 def test_pipeline_status_running_keeps_not_done_even_if_jobs_all_finished():
     """Inverse race: snapshot all FINISHED, ``pipelines.status`` not yet
     advanced (the runner's isolated write hasn't landed; the next sweep
-    will heal it).  The table is authoritative — keep the spinner."""
+    will heal it).  The table is authoritative — keep the spinner.
+    """
     jobs = [
         _parent(S.FINISHED, recalc_chained=1),
         _recalc(2, S.FINISHED, agg_id=10),
@@ -240,7 +246,8 @@ def test_pipeline_status_running_keeps_not_done_even_if_jobs_all_finished():
 
 def test_pipeline_none_falls_back_to_legacy_job_derived():
     """Orphans never minted a Pipeline row — pipeline=None keeps the
-    legacy oracle so the badge still works for them."""
+    legacy oracle so the badge still works for them.
+    """
     jobs = [_parent(S.FINISHED, recalc_chained=0)]
     p = compute_pipeline_progress(jobs, pipeline=None)
     # phase 2 vacuously satisfied (0 expected); phase 3 satisfied (no aggs).
@@ -251,7 +258,8 @@ def test_pipeline_none_falls_back_to_legacy_job_derived():
 def test_pipeline_phase_still_job_derived_when_row_passed():
     """``phase`` is UX granularity, not bound to ``pipelines.status`` —
     even when the table says RUNNING, ``phase`` reflects which step is
-    actually mid-flight per the jobs."""
+    actually mid-flight per the jobs.
+    """
     jobs = [
         _parent(S.FINISHED, recalc_chained=2),
         _recalc(2, S.FINISHED, agg_id=10),
@@ -266,7 +274,8 @@ def test_kind_sourced_from_pipeline_when_present():
     """``progress.kind`` reflects ``pipeline.kind`` (the parent job_type)
     so frontend cards can scope the phase indicator to the matching
     target.  A factor_ingest pipeline must NOT surface its phase on
-    the data card."""
+    the data card.
+    """
     jobs = [_parent(S.RUNNING)]
     p = compute_pipeline_progress(
         jobs,
@@ -279,7 +288,8 @@ def test_kind_falls_back_to_root_job_type_when_no_pipeline_row():
     """Orphans / pre-Phase-1 pipelines that lack a Pipeline row still
     get ``kind`` from the root job's ``job_type``.  Otherwise the
     UI's card-scoping would default to 'unknown kind' and either show
-    everywhere (noisy) or nowhere (regression)."""
+    everywhere (noisy) or nowhere (regression).
+    """
     parent = _job(1, "csv_ingest", S.RUNNING)
     p = compute_pipeline_progress([parent], pipeline=None)
     assert p["kind"] == "csv_ingest"
@@ -287,6 +297,7 @@ def test_kind_falls_back_to_root_job_type_when_no_pipeline_row():
 
 def test_kind_none_when_no_root_and_no_pipeline():
     """Defensive: empty / unidentifiable input → kind=None.  Frontend
-    treats None as 'don't scope' (i.e., show on no card)."""
+    treats None as 'don't scope' (i.e., show on no card).
+    """
     p = compute_pipeline_progress([], pipeline=None)
     assert p["kind"] is None

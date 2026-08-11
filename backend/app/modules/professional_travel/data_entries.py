@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, field_validator
 
@@ -13,7 +13,7 @@ from app.schemas.data_entry import (
 class TrainCabinClassValidationMixin:
     @field_validator("cabin_class", mode="after")
     @classmethod
-    def validate_cabin_class(cls, v: Optional[str]) -> Optional[str]:
+    def validate_cabin_class(cls, v: str | None) -> str | None:
         valid_classes = ["first", "second"]
         if v is not None and v.lower() not in valid_classes:
             raise ValueError(
@@ -25,7 +25,7 @@ class TrainCabinClassValidationMixin:
 class PlaneCabinClassValidationMixin:
     @field_validator("cabin_class", mode="after")
     @classmethod
-    def validate_cabin_class(cls, v: Optional[str]) -> Optional[str]:
+    def validate_cabin_class(cls, v: str | None) -> str | None:
         valid_classes = ["first", "business", "economy"]
         if v is not None and v.lower() not in valid_classes:
             raise ValueError(
@@ -39,7 +39,7 @@ class DepartureDateMixin(BaseModel):
 
     @field_validator("departure_date", mode="before", check_fields=False)
     @classmethod
-    def parse_departure_date(cls, v: Any) -> Optional[date]:
+    def parse_departure_date(cls, v: Any) -> date | None:
         if v is None:
             return None
         if isinstance(v, date) and not isinstance(v, datetime):
@@ -61,30 +61,30 @@ class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryRespon
     user_institutional_id: str
     origin_iata: str
     destination_iata: str
-    cabin_class: Optional[str] = None
-    departure_date: Optional[date] = None
+    cabin_class: str | None = None
+    departure_date: date | None = None
     number_of_trips: int = 1
-    origin: Optional[str] = None
-    destination: Optional[str] = None
-    origin_name: Optional[str] = None
-    destination_name: Optional[str] = None
-    distance_km: Optional[float] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    origin: str | None = None
+    destination: str | None = None
+    origin_name: str | None = None
+    destination_name: str | None = None
+    distance_km: float | None = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
 class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
     user_institutional_id: str
     origin_name: str
     destination_name: str
-    cabin_class: Optional[str] = None
-    departure_date: Optional[date] = None
+    cabin_class: str | None = None
+    departure_date: date | None = None
     number_of_trips: int = 1
-    origin: Optional[str] = None
-    destination: Optional[str] = None
-    distance_km: Optional[float] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    origin: str | None = None
+    destination: str | None = None
+    distance_km: float | None = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
 class ProfessionalTravelPlaneHandlerCreate(
@@ -93,10 +93,10 @@ class ProfessionalTravelPlaneHandlerCreate(
     origin_iata: str  ## IATA code
     destination_iata: str  ## IATA code
     user_institutional_id: str
-    departure_date: Optional[date] = None
+    departure_date: date | None = None
     number_of_trips: int = 1
     cabin_class: str
-    note: Optional[str] = None
+    note: str | None = None
     # __kg_co2eq_override__ for kg_co2eq
 
     @field_validator("number_of_trips", mode="after")
@@ -114,8 +114,8 @@ class ProfessionalTravelTrainHandlerCreate(
     origin_name: str
     destination_name: str
     # check if necessary after migration to new reference location for train
-    origin_natural_key: Optional[str] = None
-    destination_natural_key: Optional[str] = None
+    origin_natural_key: str | None = None
+    destination_natural_key: str | None = None
     # Required for CSV rows lacking a precomputed ``*_natural_key``: the
     # ingest-time resolver uses them to scope same-name stations to one
     # country (e.g. Bern, CH vs Berne, DE). Optional at the schema level
@@ -123,10 +123,10 @@ class ProfessionalTravelTrainHandlerCreate(
     # resolver (``enrich_csv_row``) rejects rows that supply neither.
     origin_country_code: str
     destination_country_code: str
-    departure_date: Optional[date] = None
+    departure_date: date | None = None
     number_of_trips: int = 1
     cabin_class: str
-    note: Optional[str] = None
+    note: str | None = None
     # __kg_co2eq_override__ for kg_co2eq
 
     @field_validator("number_of_trips", mode="after")
@@ -140,22 +140,22 @@ class ProfessionalTravelTrainHandlerCreate(
 class ProfessionalTravelPlaneHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
     # traveler_name: Optional[str] = None
     # traveler_id: Optional[int] = None
-    origin_iata: Optional[str] = None
-    destination_iata: Optional[str] = None
-    cabin_class: Optional[str] = None
-    departure_date: Optional[date] = None
-    number_of_trips: Optional[int] = None
-    note: Optional[str] = None
+    origin_iata: str | None = None
+    destination_iata: str | None = None
+    cabin_class: str | None = None
+    departure_date: date | None = None
+    number_of_trips: int | None = None
+    note: str | None = None
 
 
 class ProfessionalTravelTrainHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
     # traveler_name: Optional[str] = None
     # traveler_id: Optional[int] = None
-    origin_name: Optional[str] = None
-    destination_name: Optional[str] = None
-    origin_natural_key: Optional[str] = None
-    destination_natural_key: Optional[str] = None
-    cabin_class: Optional[str] = None
-    departure_date: Optional[date] = None
-    number_of_trips: Optional[int] = None
-    note: Optional[str] = None
+    origin_name: str | None = None
+    destination_name: str | None = None
+    origin_natural_key: str | None = None
+    destination_natural_key: str | None = None
+    cabin_class: str | None = None
+    departure_date: date | None = None
+    number_of_trips: int | None = None
+    note: str | None = None

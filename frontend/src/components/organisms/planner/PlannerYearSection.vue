@@ -233,6 +233,7 @@
                 {{ $t('simulation_headcount_fte_hint') }}
               </p>
               <planner-headcount-rows
+                :key="factorScopedKey(entry.config.module)"
                 :carbon-report-id="yearData.id"
                 :disable="entry.module?.is_active === false"
               />
@@ -551,6 +552,7 @@ const budgetCheckText = computed(() => {
   if (overDistributed.value) {
     return t('planner_grant_budget_over', {
       amount: n(distributedBudget.value - total),
+      currency: currencyLabel(props.yearData.budget_currency),
     });
   }
   return t('planner_grant_budget_distribution', {

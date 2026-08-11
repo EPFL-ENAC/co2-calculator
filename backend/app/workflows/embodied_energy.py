@@ -10,9 +10,7 @@ from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 
 
 class EmbodiedEnergyWorkflow:
-    """
-    Workflow to calculate embodied energy emissions for a data entry.
-    """
+    """Workflow to calculate embodied energy emissions for a data entry."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -25,9 +23,7 @@ class EmbodiedEnergyWorkflow:
         request_context: dict,
         background_tasks: BackgroundTasks,
     ) -> None:
-        """
-        Post-process the created data entry to calculate embodied energy emissions.
-        """
+        """Post-process the created data entry to calculate embodied energy."""
         data_entry_type = DataEntryTypeEnum(data_entry.data_entry_type_id)
 
         if data_entry_type == DataEntryTypeEnum.building:

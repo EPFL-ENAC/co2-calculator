@@ -1,6 +1,6 @@
 """Timezone-aware datetime helpers shared across API and repository layers."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def as_utc(dt: datetime) -> datetime:
@@ -12,4 +12,4 @@ def as_utc(dt: datetime) -> datetime:
     (``create_all`` doesn't ALTER existing tables). Writers in this
     codebase always produce UTC, so treating naive as UTC is exact.
     """
-    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)

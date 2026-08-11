@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import ValidationInfo, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -11,9 +9,7 @@ from app.schemas.factor import (
 )
 
 
-def _validate_non_negative_float(
-    v: Optional[float], field_name: str
-) -> Optional[float]:
+def _validate_non_negative_float(v: float | None, field_name: str) -> float | None:
     if v is None:
         return v
     if v < 0:
@@ -35,8 +31,8 @@ class _ProcessEmissionsFactorValidationMixin:
     @field_validator("ef_kg_co2eq_per_unit", mode="after")
     @classmethod
     def validate_ef_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
+        cls, v: float | None, info: ValidationInfo
+    ) -> float | None:
         return _validate_non_negative_float(v, info.field_name or "")
 
 
@@ -44,7 +40,7 @@ class ProcessEmissionsFactorCreate(
     _ProcessEmissionsFactorValidationMixin, FactorCreate
 ):
     category: str
-    subcategory: Optional[str] = None
+    subcategory: str | None = None
     unit: str
     ef_kg_co2eq_per_unit: float
 
@@ -52,15 +48,15 @@ class ProcessEmissionsFactorCreate(
 class ProcessEmissionsFactorUpdate(
     _ProcessEmissionsFactorValidationMixin, FactorUpdate
 ):
-    category: Optional[str] = None
-    subcategory: Optional[str] = None
-    unit: Optional[str] = None
-    ef_kg_co2eq_per_unit: Optional[float] = None
+    category: str | None = None
+    subcategory: str | None = None
+    unit: str | None = None
+    ef_kg_co2eq_per_unit: float | None = None
 
 
 class ProcessEmissionsFactorResponse(FactorResponseGen):
     category: str
-    subcategory: Optional[str] = None
+    subcategory: str | None = None
     unit: str
     ef_kg_co2eq_per_unit: float
 

@@ -14,8 +14,7 @@ from typing import Protocol
 
 
 class EmissionType(int, Enum):
-    """
-    Parent metadata is derived from the enum path below.
+    """Parent metadata is derived from the enum path below.
 
     The integer values use a positional scheme (kept for DB compatibility):
       6-digit: XX YY ZZ  (XX = category, YY = subcategory, ZZ = item)
@@ -196,7 +195,7 @@ class EmissionType(int, Enum):
     # -------------------------------------------------------------------------
 
     @property
-    def parent(self) -> "EmissionType | None":
+    def parent(self) -> EmissionType | None:
         pv = _PARENT_MAP.get(self.value)
         return EmissionType(pv) if pv is not None else None
 

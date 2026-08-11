@@ -216,9 +216,7 @@ async def test_get_explore_returns_existing_report(async_session):
 
 @pytest.mark.asyncio
 async def test_get_explore_does_not_cross_units(async_session):
-    """
-    get_explore for a different unit returns None even if another unit has a report.
-    """
+    """get_explore for another unit returns None even if that unit has a report."""
     service = CarbonReportService(async_session)
     await service.create_explore(unit_id=1, reference_year=2024)
     result = await service.get_explore(unit_id=2, reference_year=2024)

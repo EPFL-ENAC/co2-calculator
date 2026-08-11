@@ -1,7 +1,6 @@
 """User schemas for API request/response validation."""
 
 from datetime import datetime
-from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, computed_field
 
@@ -18,14 +17,14 @@ class UserRead(UserBase):
     """
 
     id: int
-    display_name: Optional[str] = None
+    display_name: str | None = None
     email: EmailStr
-    last_login: Optional[datetime] = None
+    last_login: datetime | None = None
     provider: UserProvider
     institutional_id: str
 
     @computed_field
-    def is_user_test(self) -> Optional[bool]:
+    def is_user_test(self) -> bool | None:
         """Indicates if user is a test user (from test login endpoint).
 
         Computed from the provider field - returns True if provider is TEST,
@@ -60,8 +59,8 @@ class SessionRead(BaseModel):
     """
 
     user: UserRead
-    units: List[UnitWithUserRole]
-    configured_years: List[YearConfigurationListItem]
+    units: list[UnitWithUserRole]
+    configured_years: list[YearConfigurationListItem]
     min_configurable_year: int
 
 
@@ -70,13 +69,13 @@ class UserCreate(BaseModel):
 
     id: str
     email: EmailStr
-    display_name: Optional[str] = None
-    roles: Optional[List[Role]] = None
+    display_name: str | None = None
+    roles: list[Role] | None = None
     provider: UserProvider = UserProvider.DEFAULT
 
 
 class UserUpdate(BaseModel):
     """Schema for updating a user in backoffice."""
 
-    display_name: Optional[str] = None
-    roles: Optional[List[Role]] = None
+    display_name: str | None = None
+    roles: list[Role] | None = None

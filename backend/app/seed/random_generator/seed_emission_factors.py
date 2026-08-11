@@ -62,7 +62,7 @@ async def seed_power_factors(session: AsyncSession) -> None:
     current_submodule = None
     # current_sub_category = None
 
-    with open(csv_path, "r", encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             # Track submodule and sub-category (they persist across rows when empty)

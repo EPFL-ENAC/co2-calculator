@@ -1,5 +1,3 @@
-from typing import Optional
-
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -38,8 +36,8 @@ class PurchaseModuleHandler(BaseModuleHandler):
     kind_field: str = "purchase_institutional_code"
     # purchase_additional_code is optional on entries but is the primary
     # factor key when present: it overrides the institutional-code match.
-    kind_field_override: Optional[str] = "purchase_additional_code"
-    subkind_field: Optional[str] = ""
+    kind_field_override: str | None = "purchase_additional_code"
+    subkind_field: str | None = ""
     # Required non-empty on create; update rejects present-but-blank/null
     # (key-absent means "not updating"). CSV omits the key entirely when the
     # cell is empty, so entries can still lack it — matching stays optional.
@@ -99,7 +97,7 @@ class PurchaseModuleHandler(BaseModuleHandler):
         if factor_id is None:
             return []
 
-        def _purchase_formula(ctx: dict, factor_values: dict) -> Optional[float]:
+        def _purchase_formula(ctx: dict, factor_values: dict) -> float | None:
             # Get the year to ensure we get the correct exchange rate for the year
             # of the purchase
             year = ctx.get("_year")
@@ -155,7 +153,7 @@ class PurchaseCentralizedModuleHandler(BaseModuleHandler):
     response_dto = PurchaseCentralizedHandlerResponse
 
     kind_field: str = "name"
-    subkind_field: Optional[str] = ""
+    subkind_field: str | None = ""
 
     sort_map = {
         "id": DataEntry.id,

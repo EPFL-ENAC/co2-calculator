@@ -53,7 +53,7 @@ class FactorResolver:
 
     async def resolve(
         self,
-        handler: "ModuleHandler",
+        handler: ModuleHandler,
         data: dict,
         data_entry_type: DataEntryTypeEnum,
         year: int,
@@ -137,7 +137,8 @@ def _build_override_maps(
     factors: list[Factor], kind_field: str, override_field: str
 ) -> tuple[dict[str, list[tuple[int, str]]], dict[str, list[tuple[int, str | None]]]]:
     """override_code → [(factor_id, kind_value)] and kind_value →
-    [(factor_id, override_code | None)], for the override-key-first lookup."""
+    [(factor_id, override_code | None)], for the override-key-first lookup.
+    """
     override_lookup: dict[str, list[tuple[int, str]]] = {}
     kind_lookup: dict[str, list[tuple[int, str | None]]] = {}
     for factor in factors:
@@ -159,7 +160,8 @@ def _build_kind_subkind_map(
 ) -> dict[tuple[str, str | None], int]:
     """(kind, subkind) → factor_id, first writer wins on duplicate keys —
     matches the recalc's in-memory dict build (Phase 2 makes duplicates
-    impossible)."""
+    impossible).
+    """
     by_kind_subkind: dict[tuple[str, str | None], int] = {}
     for factor in factors:
         if factor.id is None:
@@ -249,7 +251,8 @@ def _pick_override_match(
     code: str,
 ) -> int:
     """A single override-code match wins outright; several are disambiguated
-    by the entry's kind; still-ambiguous data raises."""
+    by the entry's kind; still-ambiguous data raises.
+    """
     if len(matches) == 1:
         return matches[0][0]
     same_kind = [fid for fid, kv in matches if kv == kind]
@@ -267,7 +270,8 @@ def _pick_kind_average(
 ) -> int | None:
     """No override code on the entry: a single row for the kind wins
     outright; several rows narrow to the "average" rows (no override
-    code) — there must be exactly one."""
+    code) — there must be exactly one.
+    """
     if not kind_matches:
         return None
     if len(kind_matches) == 1:

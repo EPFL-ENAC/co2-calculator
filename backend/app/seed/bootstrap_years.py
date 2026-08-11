@@ -18,8 +18,8 @@ Use ``make seed-generic-data`` if you want rows too.
 
 import argparse
 import asyncio
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Sequence
 from uuid import uuid4
 
 from sqlmodel import col, select

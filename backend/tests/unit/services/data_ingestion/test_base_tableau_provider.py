@@ -152,7 +152,8 @@ async def test_ensure_credentials_raises_without_datasource(session):
 async def test_test_connection_undecryptable_secret_returns_generic(session):
     """A rotated/corrupt secret must not 500: the Fernet decrypt now runs
     inside ``test_connection``'s try, so a garbage ``secret_value_encrypted``
-    yields ``(False, <generic detail>)`` with no exception text leaked."""
+    yields ``(False, <generic detail>)`` with no exception text leaked.
+    """
     conn = ConnectorConnection(
         connector=ConnectorType.EPFL_TABLEAU,
         label="EPFL Tableau",

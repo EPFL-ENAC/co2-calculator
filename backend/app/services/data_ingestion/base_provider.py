@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 class DataIngestionProvider(ABC):
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         user: User | None = None,
         job_session: AsyncSession | None = None,
         *,
@@ -34,8 +34,8 @@ class DataIngestionProvider(ABC):
         self.user = user
         self.job_session = job_session  # For job status updates (frequent commits)
         self.data_session = data_session  # For data operations (atomic commit)
-        self.job_id: Optional[int] = None
-        self.job: Optional[DataIngestionJob] = None
+        self.job_id: int | None = None
+        self.job: DataIngestionJob | None = None
         # Plan 310-C: when the runner drives dispatch, it owns the
         # FINISHED transition (so finished_at, the preempt-check, and
         # factor_ingest's chain-job fan-out all happen in the right
@@ -112,17 +112,17 @@ class DataIngestionProvider(ABC):
         pass
 
     @abstractmethod
-    async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         pass
 
     async def create_job(
@@ -130,11 +130,11 @@ class DataIngestionProvider(ABC):
         ingestion_method: IngestionMethod,
         entity_type: EntityType,
         target_type: TargetType,
-        module_type_id: Optional[ModuleTypeEnum] = None,
-        data_entry_type_id: Optional[int] = None,
-        year: Optional[int] = None,
+        module_type_id: ModuleTypeEnum | None = None,
+        data_entry_type_id: int | None = None,
+        year: int | None = None,
         factor_type_id: FactorType | None = None,
-        config: Dict[str, Any] | None = None,
+        config: dict[str, Any] | None = None,
         db: AsyncSession | None = None,
         request_context: dict | None = None,
     ) -> int:
@@ -219,8 +219,8 @@ class DataIngestionProvider(ABC):
 
     async def ingest(
         self,
-        filters: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         try:
             await self._update_job(
                 status_message="processing",
@@ -270,8 +270,8 @@ class DataIngestionProvider(ABC):
         self,
         status_message: str,
         extra_metadata: dict | None = None,
-        state: Optional[IngestionState] = None,
-        result: Optional[IngestionResult] = None,
+        state: IngestionState | None = None,
+        result: IngestionResult | None = None,
     ):
         # Only store essential config fields to avoid recursive nesting
         # (self.config may contain snapshots of previous meta, causing
@@ -309,7 +309,7 @@ class DataIngestionProvider(ABC):
         write_state = state
         write_result = result
         write_completed_at: datetime | None = (
-            datetime.now(timezone.utc) if state in (IngestionState.FINISHED,) else None
+            datetime.now(UTC) if state in (IngestionState.FINISHED,) else None
         )
         if self.defer_finalize and state == IngestionState.FINISHED:
             write_state = None
@@ -346,11 +346,10 @@ class DataIngestionProvider(ABC):
         status_message: str,
         metadata: dict | None = None,
         completed_at: datetime | None = None,
-        state: Optional[IngestionState] = None,
-        result: Optional[IngestionResult] = None,
-    ) -> Optional[DataIngestionJob]:
-        """
-        Update ingestion job and keep self.job in sync.
+        state: IngestionState | None = None,
+        result: IngestionResult | None = None,
+    ) -> DataIngestionJob | None:
+        """Update ingestion job and keep self.job in sync.
         Use when working with an existing repository/session
         (e.g., in self.data_session).
         Returns the updated job object.

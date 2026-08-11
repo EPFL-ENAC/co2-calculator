@@ -1,6 +1,6 @@
 import enum
-from datetime import datetime, timedelta, timezone
-from typing import List, Literal, Optional, TypedDict, cast
+from datetime import UTC, datetime, timedelta
+from typing import Literal, TypedDict, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import and_, func, or_
@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 
 def stale_job_cutoff(stale_timeout_minutes: int) -> datetime:
     """The instant before which an unrefreshed lock heartbeat counts as stale."""
-    return datetime.now(timezone.utc) - timedelta(minutes=stale_timeout_minutes)
+    return datetime.now(UTC) - timedelta(minutes=stale_timeout_minutes)
 
 
 def stale_running_clause(cutoff: datetime):
@@ -106,10 +106,10 @@ class DataIngestionRepository:
         job_id: int,
         status_message: str,
         metadata: dict,
-        completed_at: Optional[datetime] = None,
-        state: Optional[IngestionState] = None,
-        result: Optional[IngestionResult] = None,
-    ) -> Optional[DataIngestionJob]:
+        completed_at: datetime | None = None,
+        state: IngestionState | None = None,
+        result: IngestionResult | None = None,
+    ) -> DataIngestionJob | None:
         """Update ingestion job's status_message, state, result, and metadata.
 
         ``state == FINISHED`` also auto-stamps the top-level ``finished_at``
@@ -155,7 +155,7 @@ class DataIngestionRepository:
                     completed_at.isoformat()
                     if completed_at
                     else (
-                        datetime.now(timezone.utc).isoformat()
+                        datetime.now(UTC).isoformat()
                         if state in (IngestionState.FINISHED,)
                         else None
                     )
@@ -172,7 +172,7 @@ class DataIngestionRepository:
                 history.append(
                     {
                         "message": status_message,
-                        "ts": datetime.now(timezone.utc).isoformat(),
+                        "ts": datetime.now(UTC).isoformat(),
                     }
                 )
                 # Cap to last N to bound the meta payload. 50 covers
@@ -191,8 +191,8 @@ class DataIngestionRepository:
         job_id: int,
         pod_id: str,
         result: IngestionResult,
-        status_message: Optional[str] = None,
-        metadata: Optional[dict] = None,
+        status_message: str | None = None,
+        metadata: dict | None = None,
     ) -> bool:
         """Atomic compare-and-set transition to ``FINISHED`` for the owning pod.
 
@@ -257,7 +257,7 @@ class DataIngestionRepository:
             merged_meta = {
                 **self.sanitize_for_json(existing_meta),
                 **self.sanitize_for_json(metadata),
-                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "completed_at": datetime.now(UTC).isoformat(),
             }
             values["meta"] = merged_meta
 
@@ -337,7 +337,7 @@ class DataIngestionRepository:
             .values(started_at=func.now())
         )
 
-    async def get_job_by_id(self, job_id: int) -> Optional[DataIngestionJob]:
+    async def get_job_by_id(self, job_id: int) -> DataIngestionJob | None:
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
         exec_result = await self.session.execute(stmt)
         job = exec_result.scalar_one_or_none()
@@ -345,7 +345,7 @@ class DataIngestionRepository:
             await self.session.refresh(job)
         return job
 
-    async def get_jobs_by_year(self, year: int) -> List[DataIngestionJob]:
+    async def get_jobs_by_year(self, year: int) -> list[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.year == year)
         stmt = stmt.order_by(col(DataIngestionJob.id).desc())
         exec_result = await self.session.execute(stmt)
@@ -353,7 +353,7 @@ class DataIngestionRepository:
 
     async def list_jobs_by_pipeline_id(
         self, pipeline_id: UUID
-    ) -> List[DataIngestionJob]:
+    ) -> list[DataIngestionJob]:
         """Return every job that shares the given ``pipeline_id``.
 
         Plan 310C — backs the ``GET /sync/pipelines/{pipeline_id}`` endpoint
@@ -382,17 +382,17 @@ class DataIngestionRepository:
     async def list_pipelines_paginated(
         self,
         *,
-        pipeline_status: Optional[PipelineStatus] = None,
-        job_type: Optional[str] = None,
-        module_type_id: Optional[int] = None,
-        year: Optional[int] = None,
-        has_errors: Optional[bool] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        q: Optional[str] = None,
+        pipeline_status: PipelineStatus | None = None,
+        job_type: str | None = None,
+        module_type_id: int | None = None,
+        year: int | None = None,
+        has_errors: bool | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        q: str | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[list["PipelineGroup"], int]:
+    ) -> tuple[list[PipelineGroup], int]:
         """Paginated, filtered list of pipelines for the ops console (#1234).
 
         The pagination unit is the *pipeline* (one ``pipeline_id`` = a
@@ -445,8 +445,8 @@ class DataIngestionRepository:
         # set of pipeline_ids whose ``pipelines.status`` matches the
         # caller's filter.  Cheap (indexed on status) and short-circuits
         # the rest of the query when no pipeline qualifies.
-        status_pids: Optional[set[UUID]] = None
-        error_pids: Optional[set[UUID]] = None
+        status_pids: set[UUID] | None = None
+        error_pids: set[UUID] | None = None
         if pipeline_status is not None:
             pst_stmt = select(Pipeline.id).where(
                 col(Pipeline.status) == pipeline_status.value
@@ -498,7 +498,7 @@ class DataIngestionRepository:
             orphan_ids = [r[0] for r in (await self.session.execute(orphan_stmt)).all()]
 
         # Merge + order newest-first by latest id, then paginate.
-        merged: list[tuple[int, Optional[UUID], int]] = []
+        merged: list[tuple[int, UUID | None, int]] = []
         for pid, latest_id in grouped:
             if status_pids is not None and pid not in status_pids:
                 continue
@@ -568,7 +568,7 @@ class DataIngestionRepository:
                 )
         return groups, total
 
-    async def get_pipeline_by_id(self, pipeline_id: UUID) -> Optional[Pipeline]:
+    async def get_pipeline_by_id(self, pipeline_id: UUID) -> Pipeline | None:
         """Phase 3 read-flip (#1236): fetch the ``pipelines`` row by id.
 
         ``compute_pipeline_progress`` uses this for authoritative
@@ -590,11 +590,11 @@ class DataIngestionRepository:
         self,
         pipeline_id: UUID,
         *,
-        kind: Optional[str] = None,
-        entity_type: Optional[int] = None,
-        ingestion_method: Optional[int] = None,
-        module_type_id: Optional[int] = None,
-        year: Optional[int] = None,
+        kind: str | None = None,
+        entity_type: int | None = None,
+        ingestion_method: int | None = None,
+        module_type_id: int | None = None,
+        year: int | None = None,
     ) -> None:
         """Idempotently create the `pipelines` row (#1236 Phase 1).
 
@@ -628,7 +628,7 @@ class DataIngestionRepository:
             # A concurrent creator won the race — idempotent no-op.
             pass
 
-    async def recompute_pipeline_status(self, pipeline_id: UUID) -> Optional[str]:
+    async def recompute_pipeline_status(self, pipeline_id: UUID) -> str | None:
         """Recompute-and-store the pipeline's authoritative status (#1236).
 
         The single source of truth is the pure
@@ -710,7 +710,7 @@ class DataIngestionRepository:
         # NOT "Success"; fall back to the first errored only if every
         # one is uninformative. (Phase 2 backfill reuses this logic
         # across all history — must not write "last_error: Success".)
-        last_error: Optional[str] = None
+        last_error: str | None = None
         if errored:
             informative = [
                 j
@@ -855,8 +855,8 @@ class DataIngestionRepository:
     async def get_current_pipeline_id_for_module(
         self,
         module_type_id: int,
-        year: Optional[int] = None,
-    ) -> Optional[UUID]:
+        year: int | None = None,
+    ) -> UUID | None:
         """Return the most recent active pipeline whose any-job touches
         the given ``module_type_id`` (and optionally ``year``).
 
@@ -913,7 +913,7 @@ class DataIngestionRepository:
 
     async def get_current_pipeline_ids_for_modules(
         self,
-        module_type_ids: List[int],
+        module_type_ids: list[int],
         year: int,
     ) -> dict[int, UUID]:
         """Bulk-fetch sibling of ``get_current_pipeline_id_for_module``.
@@ -1248,7 +1248,7 @@ class DataIngestionRepository:
 
     async def recover_job(
         self, job_id: int, stale_timeout_minutes: int
-    ) -> Optional[DataIngestionJob]:
+    ) -> DataIngestionJob | None:
         """Reset a job stuck in RUNNING (pod crash) back to NOT_STARTED.
 
         Atomic UPDATE — safe under concurrent claim/recover.  Only succeeds
@@ -1296,9 +1296,8 @@ class DataIngestionRepository:
             .limit(limit)
         )
 
-    async def get_latest_jobs_by_year(self, year: int) -> List[DataIngestionJob]:
-        """
-        Get the current job for each (module_type_id, target_type) combination.
+    async def get_latest_jobs_by_year(self, year: int) -> list[DataIngestionJob]:
+        """Get the current job for each (module_type_id, target_type) combination.
 
         Args:
             year: The year to filter jobs by
@@ -1321,8 +1320,7 @@ class DataIngestionRepository:
         return list(exec_result.scalars().all())
 
     async def mark_job_as_current(self, job: DataIngestionJob) -> None:
-        """
-        Mark a job as current, unsetting any previous current job.
+        """Mark a job as current, unsetting any previous current job.
 
         This must be called within a transaction to ensure atomicity.
         # TODO: change that. jobs that have started processing can be marked as current,
@@ -1462,7 +1460,7 @@ class DataIngestionRepository:
         if not non_terminal:
             return []
 
-        now_dt = datetime.now(timezone.utc)
+        now_dt = datetime.now(UTC)
         aborted_at_iso = now_dt.isoformat()
         message = f"Aborted by {user_email}"
         for job in non_terminal:
@@ -1509,8 +1507,7 @@ class DataIngestionRepository:
     async def _get_jobs_by_state(
         self, states: list[IngestionState], negate: bool = False
     ) -> list[DataIngestionJob]:
-        """
-        Helper method to fetch jobs filtered by state.
+        """Helper method to fetch jobs filtered by state.
 
         Args:
             states: List of IngestionState values to filter by
@@ -1533,21 +1530,18 @@ class DataIngestionRepository:
         return list(exec_result.scalars().all())
 
     async def get_finished_jobs(self) -> list[DataIngestionJob]:
-        """
-        Get all jobs that are in a finished state.
-        """
+        """Get all jobs that are in a finished state."""
         return await self._get_jobs_by_state([IngestionState.FINISHED])
 
     async def get_active_jobs(self) -> list[DataIngestionJob]:
-        """
-        Get all jobs that are not in a finished state.
+        """Get all jobs that are not in a finished state.
         Used for SSE streaming of job updates.
         """
         return await self._get_jobs_by_state([IngestionState.FINISHED], negate=True)
 
     async def get_recalculation_status_by_year(
         self, year: int
-    ) -> list["RecalculationStatusRow"]:
+    ) -> list[RecalculationStatusRow]:
         """Derive per-(module_type_id, data_entry_type_id) recalculation status.
 
         For each combination, compares the latest is_current FACTORS job ID
@@ -1641,8 +1635,8 @@ class DataIngestionRepository:
         # factor table is small (curated reference data, not per-row CSV
         # data), so loading meta for just these jobs stays cheap.
         factor_job_ids = [r.max_factor_job_id for r in rows]
-        factor_job_result_by_id: dict[int, Optional[IngestionResult]] = {}
-        factor_job_error_count_by_id: dict[int, Optional[int]] = {}
+        factor_job_result_by_id: dict[int, IngestionResult | None] = {}
+        factor_job_error_count_by_id: dict[int, int | None] = {}
         if factor_job_ids:
             fj_stmt = select(
                 col(DataIngestionJob.id),
@@ -1687,7 +1681,7 @@ class DataIngestionRepository:
 
     async def find_stale_aggregations(
         self, threshold_minutes: int
-    ) -> list["StaleStatsRow"]:
+    ) -> list[StaleStatsRow]:
         """Return one row per ``(module_type_id, year)`` whose aggregation is
         stale or missing.
 
@@ -1729,7 +1723,7 @@ class DataIngestionRepository:
             Unsorted list of stale entries.  The endpoint stamps the HTTP
             response shape; the repo stays Pydantic-free.
         """
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=threshold_minutes)
+        cutoff = datetime.now(UTC) - timedelta(minutes=threshold_minutes)
 
         # Latest aggregation row per (module_type_id, year), regardless of
         # state — pending rows must be visible alongside finished ones.
@@ -1859,7 +1853,7 @@ class DataIngestionRepository:
         return out
 
     async def list_module_type_year_scopes(
-        self, year: Optional[int] = None, module_type_id: Optional[int] = None
+        self, year: int | None = None, module_type_id: int | None = None
     ) -> list[tuple[int, int]]:
         """Distinct ``(module_type_id, year)`` pairs that have at least one
         ``carbon_report_module``.
@@ -1924,7 +1918,7 @@ class DataIngestionRepository:
 
     async def create_root_aggregation_job(
         self, module_type_id: int, year: int, provider: UserProvider
-    ) -> Optional[int]:
+    ) -> int | None:
         """Dispatch a parentless, full-recompute ``aggregation`` job.
 
         Unlike the recalc-chained aggregation (``chain_job`` with
@@ -2002,11 +1996,11 @@ class RecalculationStatusRow(TypedDict):
     data_entry_type_id: int
     year: int
     needs_recalculation: bool
-    last_factor_job_id: Optional[int]
-    last_factor_job_result: Optional[IngestionResult]
-    last_factor_job_error_count: Optional[int]
-    last_recalculation_job_id: Optional[int]
-    last_recalculation_job_result: Optional[IngestionResult]
+    last_factor_job_id: int | None
+    last_factor_job_result: IngestionResult | None
+    last_factor_job_error_count: int | None
+    last_recalculation_job_id: int | None
+    last_recalculation_job_result: IngestionResult | None
 
 
 WhyStaleLiteral = Literal[
@@ -2026,9 +2020,9 @@ class StaleStatsRow(TypedDict):
 
     module_type_id: int
     year: int
-    last_finished_aggregation_at: Optional[datetime]
+    last_finished_aggregation_at: datetime | None
     why_stale: WhyStaleLiteral
-    last_aggregation_job_id: Optional[int]
+    last_aggregation_job_id: int | None
 
 
 class PipelineGroup(TypedDict):
@@ -2043,7 +2037,7 @@ class PipelineGroup(TypedDict):
     done/has_error; ``None`` for orphans.
     """
 
-    pipeline_id: Optional[UUID]
+    pipeline_id: UUID | None
     is_orphan: bool
     jobs: list[DataIngestionJob]
-    pipeline: Optional[Pipeline]
+    pipeline: Pipeline | None

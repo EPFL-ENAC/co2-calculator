@@ -41,7 +41,8 @@ from app.services.data_ingestion.base_provider import DataIngestionProvider
 
 class _StubProvider(DataIngestionProvider):
     """Concrete subclass with no-op abstract methods so we can construct
-    one in a unit test."""
+    one in a unit test.
+    """
 
     async def validate_connection(self) -> bool:
         return True
@@ -60,7 +61,8 @@ def _make_provider_with_mocked_session(
     *, defer_finalize: bool
 ) -> tuple[_StubProvider, MagicMock]:
     """Build a stub provider wired to a MagicMock job_session whose repo
-    we can inspect.  Returns (provider, captured_repo_mock)."""
+    we can inspect.  Returns (provider, captured_repo_mock).
+    """
     job_session = MagicMock()
     job_session.commit = AsyncMock()
 
@@ -93,7 +95,8 @@ def _make_provider_with_mocked_session(
 async def test_default_provider_writes_finished_state_through():
     """defer_finalize=False (legacy) → provider writes FINISHED + result
     + completed_at as before.  Locks the legacy contract so we don't
-    accidentally regress callers that still depend on it."""
+    accidentally regress callers that still depend on it.
+    """
     provider, repo_mock = _make_provider_with_mocked_session(defer_finalize=False)
 
     await provider._update_job(
@@ -116,7 +119,8 @@ async def test_default_provider_writes_finished_state_through():
 async def test_defer_finalize_strips_finished_state_from_write():
     """defer_finalize=True → state, result, and completed_at are stripped
     so the runner remains the single FINISHED authority.  The
-    status_message and metadata still land for SSE consumers."""
+    status_message and metadata still land for SSE consumers.
+    """
     provider, repo_mock = _make_provider_with_mocked_session(defer_finalize=True)
 
     await provider._update_job(
@@ -143,7 +147,8 @@ async def test_defer_finalize_strips_finished_state_from_write():
 async def test_defer_finalize_lets_running_state_through():
     """defer_finalize=True → state=RUNNING (progress updates) still
     write through unchanged.  Only the FINISHED transition is deferred,
-    so SSE consumers keep getting ``processing``/``transforming`` ticks."""
+    so SSE consumers keep getting ``processing``/``transforming`` ticks.
+    """
     provider, repo_mock = _make_provider_with_mocked_session(defer_finalize=True)
 
     await provider._update_job(
@@ -167,7 +172,8 @@ async def test_defer_finalize_strips_finished_error_state_too():
     """defer_finalize=True covers BOTH success and error FINISHED writes.
     Provider error branches ``raise`` after calling ``_update_job(
     state=FINISHED, result=ERROR)``; the runner's exception handler then
-    writes the authoritative FINISHED+ERROR with the exception message."""
+    writes the authoritative FINISHED+ERROR with the exception message.
+    """
     provider, repo_mock = _make_provider_with_mocked_session(defer_finalize=True)
 
     await provider._update_job(
@@ -189,7 +195,8 @@ def test_chain_job_no_longer_importable_from_runner():
     flagged on PR #1050 (alerts #644/#645/#646: ``ingestion_tasks →
     runner → bootstrap → ingestion_tasks``).  Pin the new location so a
     future refactor that puts chain_job back in runner.py would re-open
-    the cycle and fail this test loudly."""
+    the cycle and fail this test loudly.
+    """
     import app.tasks._chain as chain_mod
     import app.tasks.runner as runner_mod
 

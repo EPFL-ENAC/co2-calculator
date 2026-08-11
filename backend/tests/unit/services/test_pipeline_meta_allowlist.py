@@ -123,7 +123,8 @@ def test_pipeline_job_list_entry_serializes_state_as_name():
     """``PipelineJobListEntry.state`` and ``result`` must serialize as
     the enum NAME (string), not the int VALUE.  Frontend code compares
     against string names; the int default would silently break the
-    Jobs column count + the job-color rendering in the DAG."""
+    Jobs column count + the job-color rendering in the DAG.
+    """
     import json
 
     from app.api.v1.data_sync import PipelineJobListEntry
@@ -157,7 +158,8 @@ def test_pipeline_job_list_entry_serializes_none_as_null():
 
 def test_pipeline_job_response_serializes_state_as_name():
     """``PipelineJobResponse`` (single-pipeline endpoint) shares the
-    same contract — same serializer, same expectation."""
+    same contract — same serializer, same expectation.
+    """
     import json
 
     from app.api.v1.data_sync import PipelineJobResponse

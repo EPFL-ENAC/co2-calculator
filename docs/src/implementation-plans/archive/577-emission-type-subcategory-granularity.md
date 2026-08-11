@@ -43,7 +43,7 @@ All subcategories are **scope 1**:
 
 ## 2. Purchases — New Category
 
-- Add a new category **Additional Purchases** with a subcategory of **LN2**
+- Add a new category **Centralized Purchases** with a subcategory of **LN2**
 
 ## 3. Requirements
 

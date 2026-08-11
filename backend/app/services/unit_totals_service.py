@@ -1,7 +1,5 @@
 """Service for calculating unit-wide totals across all modules."""
 
-from typing import Optional
-
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,8 +22,7 @@ class UnitTotalsService:
         self.session = session
 
     async def _calculate_totals_for_year(self, unit_id: int, year: int, user) -> float:
-        """
-        Calculate totals for a specific year without recursion.
+        """Calculate totals for a specific year without recursion.
 
         Returns:
             Total kg CO2eq
@@ -62,9 +59,8 @@ class UnitTotalsService:
 
     async def get_unit_totals(
         self, unit_id: int, year: int, user
-    ) -> dict[str, Optional[float]]:
-        """
-        Get total carbon footprint metrics for a unit across all modules.
+    ) -> dict[str, float | None]:
+        """Get total carbon footprint metrics for a unit across all modules.
 
         Args:
             unit_id: Unit identifier

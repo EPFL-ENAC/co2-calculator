@@ -7,7 +7,6 @@ Secrets are never returned: routes only ever emit the Read schemas, whose
 """
 
 import time
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -48,7 +47,7 @@ _require_edit = require_permission("backoffice.configuration", "edit")
 # Minimal in-process per-user cooldown for /test (no rate-limiter dependency
 # exists in this app). Module-level so it survives across requests.
 TEST_COOLDOWN_SECONDS = 30.0
-_last_test_at: dict[Optional[int], float] = {}
+_last_test_at: dict[int | None, float] = {}
 
 
 @router.get("", response_model=list[ConnectorSpecRead])
@@ -63,12 +62,12 @@ async def get_connectors(
     ]
 
 
-@router.get("/{connector}/connection", response_model=Optional[ConnectorConnectionRead])
+@router.get("/{connector}/connection", response_model=ConnectorConnectionRead | None)
 async def get_connection(
     connector: ConnectorType,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(_require_edit),
-) -> Optional[ConnectorConnectionRead]:
+) -> ConnectorConnectionRead | None:
     service = ConnectorConnectionService(db)
     conn = await service.get_by_connector(connector)
     return service.to_read(conn) if conn else None

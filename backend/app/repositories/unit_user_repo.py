@@ -3,8 +3,6 @@
 This repository handles the many-to-many relationship between Units and Users.
 """
 
-from typing import List, Optional
-
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -18,9 +16,7 @@ class UnitUserRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_unit_and_user(
-        self, unit_id: int, user_id: int
-    ) -> Optional[UnitUser]:
+    async def get_by_unit_and_user(self, unit_id: int, user_id: int) -> UnitUser | None:
         """Get UnitUser association by unit ID and user ID."""
         result = await self.session.exec(
             select(UnitUser).where(
@@ -29,14 +25,14 @@ class UnitUserRepository:
         )
         return result.one_or_none()
 
-    async def get_by_user(self, user_id: int) -> List[UnitUser]:
+    async def get_by_user(self, user_id: int) -> list[UnitUser]:
         """Get all unit associations for a specific user."""
         result = await self.session.exec(
             select(UnitUser).where(UnitUser.user_id == user_id)
         )
         return list(result.all())
 
-    async def get_by_unit(self, unit_id: int) -> List[UnitUser]:
+    async def get_by_unit(self, unit_id: int) -> list[UnitUser]:
         """Get all user associations for a specific unit."""
         result = await self.session.exec(
             select(UnitUser).where(UnitUser.unit_id == unit_id)
@@ -72,7 +68,7 @@ class UnitUserRepository:
                 (UnitUser.user_id == user_id) & (UnitUser.unit_id == unit_id)
             )
         )
-        entity: Optional[UnitUser] = result.one_or_none()
+        entity: UnitUser | None = result.one_or_none()
         if not entity:
             raise ValueError("UnitUser association not found")
 
@@ -115,7 +111,8 @@ class UnitUserRepository:
 
     async def delete_by_user_id(self, user_id: int) -> int:
         """Delete all UnitUser associations for a user.
-        Returns count of deleted rows."""
+        Returns count of deleted rows.
+        """
         result = await self.session.exec(
             select(UnitUser).where(UnitUser.user_id == user_id)
         )
@@ -127,7 +124,7 @@ class UnitUserRepository:
             await self.session.flush()
         return count
 
-    async def count(self, filters: Optional[dict] = None) -> int:
+    async def count(self, filters: dict | None = None) -> int:
         """Count UnitUser associations with optional filters."""
         query = select(func.count()).select_from(UnitUser)
 

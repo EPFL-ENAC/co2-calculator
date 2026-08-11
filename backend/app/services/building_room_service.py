@@ -1,7 +1,5 @@
 """Building room service for business logic orchestration."""
 
-from typing import Optional
-
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.building_room import BuildingRoom
@@ -18,7 +16,7 @@ class BuildingRoomService:
     async def get_room(
         self,
         room_name: str,
-    ) -> Optional[BuildingRoom]:
+    ) -> BuildingRoom | None:
         """Get room by name, optionally filtered by building."""
         return await self.repo.get_room(
             room_name=room_name,
@@ -30,8 +28,8 @@ class BuildingRoomService:
 
     async def list_rooms(
         self,
-        building_location: Optional[str] = None,
-        building_name: Optional[str] = None,
+        building_location: str | None = None,
+        building_name: str | None = None,
     ) -> list[BuildingRoom]:
         """Return rooms, optionally filtered by building."""
         return await self.repo.list_rooms(

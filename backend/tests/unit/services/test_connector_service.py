@@ -49,7 +49,8 @@ async def test_save_encrypts_blank_keeps_and_read_hides_secret(db_session, monke
 @pytest.mark.asyncio
 async def test_save_connection_advances_updated_at(db_session, monkeypatch):
     """The ``onupdate`` hook must bump ``updated_at`` on every save so the
-    column stops being frozen at first-write time."""
+    column stops being frozen at first-write time.
+    """
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
     monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "epfl.ch")

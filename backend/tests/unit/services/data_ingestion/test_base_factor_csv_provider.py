@@ -16,7 +16,8 @@ from app.services.data_ingestion.base_factor_csv_provider import BaseFactorCSVPr
 class _DummyFactorPayload(BaseModel):
     """Minimal model used to trigger a real ``pydantic.ValidationError``
     (float/date parsing failures) the same way ``BaseFactorHandler``'s real
-    ``create_dto`` would, without depending on the concrete handler."""
+    ``create_dto`` would, without depending on the concrete handler.
+    """
 
     co2_factor: float
     date: datetime.date
@@ -265,7 +266,8 @@ async def test_process_row_validation_error_records_error(monkeypatch):
 @pytest.mark.asyncio
 async def test_process_row_pydantic_validation_error_bad_float(monkeypatch):
     """A bad-float value produces a readable ``field: reason (got value)``
-    message instead of pydantic's raw multi-line dump (issue #659)."""
+    message instead of pydantic's raw multi-line dump (issue #659).
+    """
     handler = MagicMock()
     handler.category_field = "data_entry_type"
     handler.classification_fields = ["kind"]
@@ -548,7 +550,8 @@ async def test_upsert_batch_raises_when_job_id_missing():
     with ``last_seen_job_id``.  If the job_id was never set (e.g. the
     seed-script path that bypasses DataIngestionJob creation), raise
     eagerly rather than persist factors with a NULL pointer to "current
-    factor job."""
+    factor job.
+    """
     provider = ConcreteFactorProvider(
         {"file_path": "tmp/test.csv", "data_entry_type_id": 1},
         data_session=MagicMock(),
@@ -565,10 +568,11 @@ async def test_upsert_batch_raises_when_job_id_missing():
 
 @pytest.mark.asyncio
 async def test_upsert_batch_falls_back_to_batch_size_when_rowcount_negative():
-    """asyncpg returns rowcount=-1 for executemany ON CONFLICT statements
+    """Asyncpg returns rowcount=-1 for executemany ON CONFLICT statements
     where it can't tally the result reliably.  ``_upsert_batch`` should
     fall back to the input batch size so operator-visible stats don't
-    show a confusing -1."""
+    show a confusing -1.
+    """
     provider = ConcreteFactorProvider(
         {"file_path": "tmp/test.csv", "data_entry_type_id": 1},
         data_session=MagicMock(),

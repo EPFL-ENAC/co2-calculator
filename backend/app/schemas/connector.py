@@ -7,7 +7,6 @@ as the update payload — a blank/omitted value keeps the stored secret;
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -23,12 +22,12 @@ class ConnectorSpecRead(BaseModel):
 class ConnectorConnectionCreate(BaseModel):
     label: str = Field(max_length=255)
     server_url: str = Field(max_length=2048)
-    site_content_url: Optional[str] = Field(default=None, max_length=255)
+    site_content_url: str | None = Field(default=None, max_length=255)
     username: str = Field(max_length=255)
     client_id: str = Field(max_length=255)
     secret_id: str = Field(max_length=255)
     # required on create; blank keeps on update
-    secret_value: Optional[str] = Field(default=None, max_length=4096)
+    secret_value: str | None = Field(default=None, max_length=4096)
 
 
 class ConnectorConnectionRead(BaseModel):
@@ -36,7 +35,7 @@ class ConnectorConnectionRead(BaseModel):
     connector: ConnectorType
     label: str
     server_url: str
-    site_content_url: Optional[str]
+    site_content_url: str | None
     username: str
     client_id: str
     secret_id: str
@@ -48,7 +47,7 @@ class ConnectorConnectionRead(BaseModel):
 
 class ConnectorDatasourceCreate(BaseModel):
     module_type_id: int
-    data_entry_type_id: Optional[int] = None
+    data_entry_type_id: int | None = None
     connector_luid: str = Field(max_length=255)
     label: str = Field(max_length=255)
 
@@ -57,7 +56,7 @@ class ConnectorDatasourceRead(BaseModel):
     id: int
     connection_id: int
     module_type_id: int
-    data_entry_type_id: Optional[int]
+    data_entry_type_id: int | None
     connector_luid: str
     label: str
     is_active: bool

@@ -26,8 +26,8 @@ list-only contract it drives the new deletion path and asserts:
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 import pytest
 from sqlalchemy.exc import MultipleResultsFound
@@ -97,7 +97,8 @@ def _seed_factor_job(
     is_current: bool,
 ) -> DataIngestionJob:
     """Mirrors a finished is_current FACTORS CSV job — referenced by
-    ``last_seen_job_id`` on the upserted factor rows."""
+    ``last_seen_job_id`` on the upserted factor rows.
+    """
     return DataIngestionJob(
         entity_type=EntityType.MODULE_PER_YEAR,
         module_type_id=module_type_id,

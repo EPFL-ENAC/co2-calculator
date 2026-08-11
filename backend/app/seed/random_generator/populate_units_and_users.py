@@ -1,5 +1,4 @@
-"""
-Ultra-fast PostgreSQL COPY seeder
+"""Ultra-fast PostgreSQL COPY seeder
 
 Sized for scale testing. NUM_UNITS × YEARS (3) × ALL_MODULE_TYPE_IDS (8) ×
 entries_per_module drives the data_entries row count; tune ENTRIES_PER_MODULE

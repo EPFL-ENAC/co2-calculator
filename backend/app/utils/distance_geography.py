@@ -4,8 +4,6 @@ This module provides functions for calculating distances between locations
 and determining travel categories based on distance.
 """
 
-from typing import Optional
-
 from haversine import Unit, haversine
 
 from app.models.factor import Factor
@@ -16,8 +14,7 @@ TRAIN_ROUTING_FACTOR: float = 1.2
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
-    """
-    Calculate great circle distance between two points using Haversine formula.
+    """Calculate great circle distance between two points using Haversine formula.
 
     Uses the haversine library for accurate distance calculation.
 
@@ -52,8 +49,7 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> in
 
 
 def calculate_plane_distance(origin_airport: Location, dest_airport: Location) -> int:
-    """
-    Calculate plane travel distance between two airports.
+    """Calculate plane travel distance between two airports.
 
     Formula: Haversine distance + 95 km (to account for airport approaches,
     routing, and taxiing).
@@ -77,8 +73,7 @@ def calculate_plane_distance(origin_airport: Location, dest_airport: Location) -
 
 
 def calculate_train_distance(origin_station: Location, dest_station: Location) -> int:
-    """
-    Calculate train travel distance between two stations.
+    """Calculate train travel distance between two stations.
 
     Formula: Haversine distance * 1.2 (to account for track routing,
     curves, and detours that trains take compared to straight-line distance).
@@ -146,8 +141,7 @@ def _plane_haul_bands_from_factors(
 
 
 def get_haul_category(distance_km: float, factors: list[Factor]) -> str | None:
-    """
-    Determine plane haul category from uploaded factor distance bands.
+    """Determine plane haul category from uploaded factor distance bands.
 
     Args:
         distance_km: Distance in kilometers
@@ -168,9 +162,8 @@ def resolve_flight_factor(
     origin: Location,
     dest: Location,
     factors: list[Factor],
-) -> tuple[int, Optional[Factor]]:
-    """
-    Compute flight distance and select the matching factor by haul category.
+) -> tuple[int, Factor | None]:
+    """Compute flight distance and select the matching factor by haul category.
 
     Distance is an intermediary value: it determines the haul category,
     which in turn selects the correct factor from the candidates.
@@ -195,8 +188,7 @@ def resolve_flight_factor(
 
 
 def _determine_train_countrycode(origin: Location, dest: Location) -> str:
-    """
-    Determine which country's impact factor to use for a train trip.
+    """Determine which country's impact factor to use for a train trip.
 
     Rule: Use CH factor only if BOTH origin AND destination are in Switzerland.
     Otherwise, prefer the non-CH country's factor (destination first, then origin).
@@ -223,9 +215,8 @@ def resolve_train_factor(
     origin: Location,
     dest: Location,
     factors: list[Factor],
-) -> tuple[int, Optional[Factor]]:
-    """
-    Compute train distance and select the matching factor by country.
+) -> tuple[int, Factor | None]:
+    """Compute train distance and select the matching factor by country.
 
     Uses the country selection rule from issue #357: CH factor is used
     only when both origin and destination are in Switzerland. Otherwise,

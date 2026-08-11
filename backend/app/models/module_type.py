@@ -7,8 +7,7 @@ from app.models.data_entry import DataEntryTypeEnum
 
 # enum - used in other files
 class ModuleTypeEnum(IntEnum):
-    """
-    How the data entered the system.
+    """How the data entered the system.
 
     Current:
     - api: direct API call
@@ -49,6 +48,13 @@ PLANNER_PREFILLED_MODULE_TYPES: set[ModuleTypeEnum] = {
     ModuleTypeEnum.research_facilities,
     ModuleTypeEnum.external_cloud_and_ai,
 }
+
+# Simulator Plan modules emptied when a plan-year's reference year changes.
+# The prefilled ones are rebuilt from the new baseline; purchase is manual
+# input whose classes and factors are resolved against the reference year, so
+PLANNER_REFERENCE_SCOPED_MODULE_TYPES: set[ModuleTypeEnum] = (
+    PLANNER_PREFILLED_MODULE_TYPES | {ModuleTypeEnum.purchase}
+)
 
 # corresponding data_entry_type enum for each module type
 
@@ -107,6 +113,7 @@ def get_data_entry_types_for_module_type(
 
     Args:
         module_type: The module type to get data entry types for.
+
     Returns:
         List of data entry types associated with the given module type.
     """
@@ -120,6 +127,7 @@ def get_module_type_for_data_entry_type(
 
     Args:
         data_entry_type: The data entry type to get the module type for.
+
     Returns:
         The module type associated with the given data entry type, or None if not found.
     """

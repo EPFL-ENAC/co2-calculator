@@ -30,7 +30,8 @@ from app.tasks.registry import _REGISTRY, get_handler
 @pytest.fixture(autouse=True)
 def _registry_snapshot():
     """Snapshot+restore the registry so test order doesn't matter once
-    Tier-2 PRs add more registrations next to the runner suite."""
+    Tier-2 PRs add more registrations next to the runner suite.
+    """
     snapshot = dict(_REGISTRY)
     yield
     _REGISTRY.clear()
@@ -126,7 +127,8 @@ async def test_emission_recalc_handler_chains_aggregation_with_dedup_on_success(
     """Plan 310-D — the handler no longer calls ``recompute_stats``
     inline; it chains the runner-driven ``aggregation`` handler with
     ``dedup_config=AGGREGATION_DEDUP`` so a fan-out of N siblings
-    collapses into one aggregation pass per (module, year)."""
+    collapses into one aggregation pass per (module, year).
+    """
     job = _make_job()
     job_session = MagicMock()
     job_session.commit = AsyncMock()
@@ -185,7 +187,8 @@ async def test_emission_recalc_handler_chains_aggregation_on_warning():
     one entry flips ``result`` to WARNING; if we skipped the chain
     here ``carbon_reports.stats`` would stay stale forever even
     though 9999 entries were recomputed.  Aligns with the
-    ``module_emission_recalc_handler`` gate (``!= ERROR``)."""
+    ``module_emission_recalc_handler`` gate (``!= ERROR``).
+    """
     job = _make_job()
     job_session = MagicMock()
     job_session.commit = AsyncMock()
@@ -227,7 +230,8 @@ async def test_emission_recalc_handler_chains_aggregation_on_warning():
 @pytest.mark.asyncio
 async def test_emission_recalc_handler_warning_when_errors_present():
     """``errors > 0`` flips the result to WARNING (per-entry isolation
-    means the run still finished; some rows just failed)."""
+    means the run still finished; some rows just failed).
+    """
     job = _make_job()
     job_session = MagicMock()
     job_session.commit = AsyncMock()
@@ -261,7 +265,8 @@ async def test_emission_recalc_handler_warning_when_errors_present():
 @pytest.mark.asyncio
 async def test_emission_recalc_handler_raises_on_missing_scope():
     """Missing ``data_entry_type_id`` or ``year`` → ValueError so the
-    runner records FINISHED+ERROR with a clear message."""
+    runner records FINISHED+ERROR with a clear message.
+    """
     job = _make_job(data_entry_type_id=None)
     with pytest.raises(ValueError, match="missing data_entry_type_id or year"):
         await recalc_mod.emission_recalc_handler(job, MagicMock(), MagicMock())
@@ -333,7 +338,8 @@ async def test_module_emission_recalc_iterates_all_types():
 @pytest.mark.asyncio
 async def test_module_emission_recalc_partial_failure_returns_warning():
     """One type fails entirely (savepoint rollback) → WARNING; remaining
-    types continue."""
+    types continue.
+    """
     job = _make_job(
         job_type="module_emission_recalc",
         data_entry_type_id=None,
@@ -473,7 +479,8 @@ async def test_unit_sync_handler_runs_full_chain_and_returns_summary():
 async def test_unit_sync_handler_falls_back_to_job_year_when_config_missing():
     """Plan 310-B's poller branch reads ``meta.config.target_year``;
     when ``meta`` doesn't carry one, fall back to ``job.year`` so
-    legacy callers keep working."""
+    legacy callers keep working.
+    """
     job = _make_job(job_type="unit_sync", meta={}, year=2024)
     job_session = MagicMock()
     job_session.commit = AsyncMock()
@@ -530,7 +537,8 @@ async def test_unit_sync_handler_raises_when_no_target_year_anywhere():
 @pytest.mark.asyncio
 async def test_unit_sync_handler_rejects_default_provider():
     """UserProvider.DEFAULT has no unit source (no API, no fixture).
-    The handler must fail loudly rather than silently fall through."""
+    The handler must fail loudly rather than silently fall through.
+    """
     from app.models.user import UserProvider
 
     job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2025}})
@@ -542,7 +550,8 @@ async def test_unit_sync_handler_rejects_default_provider():
 @pytest.mark.asyncio
 async def test_unit_sync_handler_passes_job_provider_to_factories():
     """The handler must resolve unit/role providers from ``job.provider``,
-    not a hardcoded constant — otherwise TEST users see ACCRED units."""
+    not a hardcoded constant — otherwise TEST users see ACCRED units.
+    """
     from app.models.user import UserProvider
 
     job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2025}})
@@ -603,7 +612,8 @@ async def test_unit_sync_handler_passes_job_provider_to_factories():
 def _stub_unit_sync_deps():
     """Minimal stub bundle to drive ``unit_sync_handler`` through to
     completion in a test — same shape as the full-chain test above,
-    pared down so the lock tests stay focused on the lock SQL."""
+    pared down so the lock tests stay focused on the lock SQL.
+    """
     unit_provider = MagicMock()
     unit_provider.fetch_all_units = AsyncMock(return_value=([], []))
     unit_provider.map_api_unit = MagicMock(side_effect=lambda u: MagicMock())
@@ -640,7 +650,8 @@ async def test_unit_sync_acquires_advisory_lock_on_postgres():
     ``pg_advisory_xact_lock(_AGGREGATION_LOCK_CATEGORY, year)`` BEFORE
     any carbon_reports write.  Shared category with the aggregation
     handler (same number, 1236) so the two mutually exclude on the
-    same year key."""
+    same year key.
+    """
     job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2026}})
     job_session = MagicMock()
     job_session.commit = AsyncMock()
@@ -694,7 +705,8 @@ async def test_unit_sync_acquires_advisory_lock_on_postgres():
 async def test_unit_sync_skips_advisory_lock_on_non_postgres():
     """SQLite / other → no advisory-lock attempt (single-writer model
     serialises tests; lock is a no-op).  Mirrors the aggregation
-    handler's dialect-gate."""
+    handler's dialect-gate.
+    """
     job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2026}})
     job_session = MagicMock()
     job_session.commit = AsyncMock()
@@ -733,7 +745,8 @@ async def test_unit_sync_skips_advisory_lock_on_non_postgres():
 def test_unit_sync_lock_category_matches_aggregation():
     """Pin the invariant: unit_sync and aggregation MUST share the same
     category number, otherwise their advisory locks live in disjoint
-    keyspaces and the mutual exclusion is silently broken."""
+    keyspaces and the mutual exclusion is silently broken.
+    """
     from app.tasks import aggregation_tasks
 
     assert (
@@ -754,7 +767,8 @@ async def test_unit_sync_acquires_global_lock_before_per_year_lock():
 
     This test pins the order (global → per-year) and the category
     distinctness so a refactor can't silently break the mutual
-    exclusion."""
+    exclusion.
+    """
     job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2026}})
     job_session = MagicMock()
     job_session.commit = AsyncMock()
@@ -812,7 +826,8 @@ async def test_unit_sync_acquires_global_lock_before_per_year_lock():
 def test_unit_sync_global_lock_category_distinct_from_aggregation():
     """Global unit_sync lock MUST live in a different category from the
     per-year aggregation lock — they protect different invariants and
-    must not partition each other's keyspace."""
+    must not partition each other's keyspace.
+    """
     assert (
         unit_sync_mod._UNIT_SYNC_GLOBAL_LOCK_CATEGORY
         != unit_sync_mod._AGGREGATION_LOCK_CATEGORY

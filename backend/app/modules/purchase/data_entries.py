@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import field_validator, model_validator
 
@@ -11,34 +11,34 @@ from app.schemas.data_entry import (
 
 class PurchaseHandlerResponse(DataEntryResponseGen):
     name: str
-    supplier: Optional[str] = None
-    quantity: Optional[float] = None
+    supplier: str | None = None
+    quantity: float | None = None
     total_spent_amount: float
-    currency: Optional[str] = None
-    purchase_institutional_code: Optional[str] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    currency: str | None = None
+    purchase_institutional_code: str | None = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
 class PurchaseCentralizedHandlerResponse(DataEntryResponseGen):
     name: str
-    unit: Optional[str] = None
+    unit: str | None = None
     annual_consumption: float
     coef_to_kg: float
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
+    note: str | None = None
+    kg_co2eq: float | None = None
 
 
 class PurchaseHandlerCreate(DataEntryCreate):
     name: str
-    supplier: Optional[str] = None
-    quantity: Optional[float] = None
+    supplier: str | None = None
+    quantity: float | None = None
     total_spent_amount: float
-    currency: Optional[str] = None  # doc say mandatory, but with default -> optional
+    currency: str | None = None  # doc say mandatory, but with default -> optional
     purchase_institutional_code: str
-    purchase_institutional_description: Optional[str] = None
-    purchase_additional_code: Optional[str] = None
-    note: Optional[str] = None
+    purchase_institutional_description: str | None = None
+    purchase_additional_code: str | None = None
+    note: str | None = None
     # __kg_co2eq_override__ is used to override the kg_co2eq calculation
 
     @model_validator(mode="before")
@@ -56,7 +56,7 @@ class PurchaseHandlerCreate(DataEntryCreate):
 
     @field_validator("quantity", mode="after")
     @classmethod
-    def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
+    def validate_quantity(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0:
@@ -81,7 +81,7 @@ class PurchaseHandlerCreate(DataEntryCreate):
 
     @field_validator("currency", mode="after")
     @classmethod
-    def validate_currency(cls, v: Optional[str]) -> str:
+    def validate_currency(cls, v: str | None) -> str:
         if v is None:
             return "chf"
         normalized_v = v.strip().lower()
@@ -106,7 +106,7 @@ class PurchaseCentralizedHandlerCreate(DataEntryCreate):
     unit: str
     annual_consumption: float
     coef_to_kg: float
-    note: Optional[str] = None
+    note: str | None = None
 
     @field_validator("annual_consumption", "coef_to_kg", mode="after")
     @classmethod
@@ -117,18 +117,18 @@ class PurchaseCentralizedHandlerCreate(DataEntryCreate):
 
 
 class PurchaseHandlerUpdate(DataEntryUpdate):
-    name: Optional[str] = None
-    supplier: Optional[str] = None
-    quantity: Optional[float] = None
-    total_spent_amount: Optional[float] = None
-    currency: Optional[str] = None
-    purchase_institutional_code: Optional[str] = None
-    purchase_additional_code: Optional[str] = None
-    note: Optional[str] = None
+    name: str | None = None
+    supplier: str | None = None
+    quantity: float | None = None
+    total_spent_amount: float | None = None
+    currency: str | None = None
+    purchase_institutional_code: str | None = None
+    purchase_additional_code: str | None = None
+    note: str | None = None
 
     @field_validator("quantity", mode="after")
     @classmethod
-    def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
+    def validate_quantity(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0:
@@ -137,7 +137,7 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
 
     @field_validator("total_spent_amount", mode="after")
     @classmethod
-    def validate_total_spent_amount(cls, v: Optional[float]) -> Optional[float]:
+    def validate_total_spent_amount(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0:
@@ -146,7 +146,7 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
 
     @field_validator("currency", mode="after")
     @classmethod
-    def validate_currency(cls, v: Optional[str]) -> Optional[str]:
+    def validate_currency(cls, v: str | None) -> str | None:
         if v is None:
             return v
         normalized_v = v.strip().lower()
@@ -187,7 +187,7 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
 
     @field_validator("purchase_institutional_code", mode="after")
     @classmethod
-    def validate_purchase_institutional_code(cls, v: Optional[str]) -> Optional[str]:
+    def validate_purchase_institutional_code(cls, v: str | None) -> str | None:
         # None here can only be the key-absent default (explicit null is
         # rejected in the before-validator above); a blank/whitespace value
         # provided on purpose must fail loudly here rather than silently
@@ -200,15 +200,15 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
 
 
 class PurchaseCentralizedHandlerUpdate(DataEntryUpdate):
-    name: Optional[str] = None
-    unit: Optional[str] = None
-    annual_consumption: Optional[float] = None
-    coef_to_kg: Optional[float] = None
-    note: Optional[str] = None
+    name: str | None = None
+    unit: str | None = None
+    annual_consumption: float | None = None
+    coef_to_kg: float | None = None
+    note: str | None = None
 
     @field_validator("annual_consumption", "coef_to_kg", mode="after")
     @classmethod
-    def validate_positive(cls, v: Optional[float]) -> Optional[float]:
+    def validate_positive(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0:

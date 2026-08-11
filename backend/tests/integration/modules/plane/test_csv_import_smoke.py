@@ -55,7 +55,8 @@ from app.services.data_ingestion.base_csv_provider import BaseCSVProvider
 
 class _MinimalPlaneCSVProvider(BaseCSVProvider):
     """Just enough of a CSV provider to drive ``_process_batch`` against
-    a real DB. Skips the file-store / job-row / setup machinery."""
+    a real DB. Skips the file-store / job-row / setup machinery.
+    """
 
     @property
     def entity_type(self) -> EntityType:

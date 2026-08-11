@@ -65,7 +65,8 @@ def _make_fake_emission() -> DataEntryEmission:
 @pytest.mark.asyncio
 async def test_upsert_passes_data_through_unchanged():
     """upsert_by_data_entry must forward the response to prepare_create
-    without mutating its data dict (no stale-kg_co2eq workaround anymore)."""
+    without mutating its data dict (no stale-kg_co2eq workaround anymore).
+    """
     service = _make_service()
     fake_emission = _make_fake_emission()
     service.repo.bulk_create = AsyncMock(return_value=[fake_emission])
@@ -119,7 +120,8 @@ async def test_upsert_deletes_then_creates_emissions():
 @pytest.mark.asyncio
 async def test_upsert_returns_none_and_flushes_when_no_emissions():
     """When prepare_create yields nothing, existing emissions are cleared
-    and None returned."""
+    and None returned.
+    """
     service = _make_service()
 
     data_entry = _make_data_entry_response({"number_of_trips": 1})
@@ -149,8 +151,8 @@ async def test_upsert_returns_none_and_flushes_when_no_emissions():
 async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
     """When kg_co2eq_override is set, the formula path is bypassed and a
     single emission with the override value (and primary_factor_id=None) is
-    returned — even when the data dict has no kg_co2eq key."""
-
+    returned — even when the data dict has no kg_co2eq key.
+    """
     service = _make_service()
 
     factor = MagicMock(spec=Factor)
@@ -196,8 +198,8 @@ async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
 @pytest.mark.asyncio
 async def test_prepare_create_does_not_read_kg_co2eq_from_data():
     """A kg_co2eq value sitting in data_entry.data must NOT be picked up as
-    an override — the channel is exclusively the kg_co2eq_override param."""
-
+    an override — the channel is exclusively the kg_co2eq_override param.
+    """
     service = _make_service()
 
     factor = MagicMock(spec=Factor)
@@ -1495,7 +1497,6 @@ class TestPrepareCreateRollup:
     @pytest.mark.asyncio
     async def test_non_building_gets_no_rollup_row(self):
         """Entry types without a rollup mapping must not get a rollup row."""
-
         service = _make_service()
 
         data_entry = DataEntryResponse(
@@ -1698,7 +1699,8 @@ class TestPrepareCreateResolvesFactorDynamically:
     async def test_prepare_create_resolves_factor_from_classification(self):
         """No primary_factor_id in data — the classification fields
         (kind/subkind) resolve the factor via FactorResolver, and its id is
-        what the produced emission rows carry."""
+        what the produced emission rows carry.
+        """
         service = _make_service()
 
         factor = MagicMock(spec=Factor)
@@ -1743,7 +1745,8 @@ class TestPrepareCreateResolvesFactorDynamically:
     async def test_prepare_create_ignores_stale_stored_id(self):
         """A legacy row's stored primary_factor_id (999) must never win over
         the resolver's classification-based match (7) — the resolver result
-        always wins, the stored value is dead weight."""
+        always wins, the stored value is dead weight.
+        """
         service = _make_service()
 
         factor = MagicMock(spec=Factor)
@@ -1794,7 +1797,8 @@ class TestPrepareCreateResolvesFactorDynamically:
         classification.energy_type selects the single heating leaf (#1575)
         end to end through resolve -> _get_building_energy_type ->
         resolve_emission_types (mirrors the #1575 rollup test, minus the
-        stored id)."""
+        stored id).
+        """
         service = _make_service()
 
         factor = MagicMock(spec=Factor)
@@ -1849,7 +1853,8 @@ class TestPrepareCreateResolvesFactorDynamically:
 
 class TestFetchFactorsStrategyBCache:
     """Strategy B hits the DB per computation; a slice-scoped query cache
-    collapses the per-entry N+1 that dominated headcount recalc."""
+    collapses the per-entry N+1 that dominated headcount recalc.
+    """
 
     def _comp(self):
         from app.models.data_entry_emission import (

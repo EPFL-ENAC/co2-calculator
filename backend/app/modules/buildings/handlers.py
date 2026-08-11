@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from sqlmodel import func
 
@@ -70,7 +70,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
     }
 
     async def pre_compute(self, data_entry: Any, session: Any) -> dict:
-        """call RoomService to get room surface by room_name"""
+        """Call RoomService to get room surface by room_name"""
         room_name = data_entry.data.get("room_name")
         building_name = data_entry.data.get("building_name")
         if not room_name or not building_name:
@@ -286,8 +286,8 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
     update_dto = BuildingEmbodiedEnergyHandlerUpdate
     response_dto = BuildingEmbodiedEnergyHandlerResponse
 
-    kind_field: Optional[str] = None
-    subkind_field: Optional[str] = None
+    kind_field: str | None = None
+    subkind_field: str | None = None
     require_subkind_for_factor = False
     require_factor_to_match = False
 

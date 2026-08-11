@@ -4,8 +4,6 @@ Provides helper functions to extract IP address, route information,
 and payload from FastAPI Request objects for audit logging.
 """
 
-from typing import Optional
-
 from fastapi import Request
 
 from app.core.logging import get_logger
@@ -14,8 +12,7 @@ logger = get_logger(__name__)
 
 
 def extract_ip_address(request: Request) -> str:
-    """
-    Extract client IP address from request.
+    """Extract client IP address from request.
 
     Prioritizes X-Forwarded-For header (for proxy/load balancer scenarios)
     then falls back to direct client host.
@@ -41,9 +38,8 @@ def extract_ip_address(request: Request) -> str:
     return "unknown"
 
 
-async def extract_route_payload(request: Request) -> Optional[dict]:
-    """
-    Extract route payload from request.
+async def extract_route_payload(request: Request) -> dict | None:
+    """Extract route payload from request.
 
     Combines query parameters and request body (if JSON) into a single dict.
 
@@ -75,9 +71,8 @@ async def extract_route_payload(request: Request) -> Optional[dict]:
     return payload if payload else None
 
 
-def extract_route_info(request: Request) -> tuple[str, Optional[dict]]:
-    """
-    Extract route path and basic info from request (synchronous version).
+def extract_route_info(request: Request) -> tuple[str, dict | None]:
+    """Extract route path and basic info from request (synchronous version).
 
     Note: This does NOT extract the body. Use extract_route_payload for that.
 

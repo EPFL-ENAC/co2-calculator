@@ -10,7 +10,7 @@ store, so seeded rows are indistinguishable from uploaded ones.
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -75,7 +75,7 @@ class LocalReferenceCSVProvider(ReferenceDataCSVProvider):
         on this.
     """
 
-    def __init__(self, config: Dict[str, Any], data_session: AsyncSession):
+    def __init__(self, config: dict[str, Any], data_session: AsyncSession):
         super().__init__(
             config=config,
             user=None,
@@ -106,8 +106,8 @@ class LocalReferenceCSVProvider(ReferenceDataCSVProvider):
         self,
         status_message: str,
         extra_metadata: dict | None = None,
-        state: Optional[IngestionState] = None,
-        result: Optional[IngestionResult] = None,
+        state: IngestionState | None = None,
+        result: IngestionResult | None = None,
     ) -> None:
         # Local seed runs do not persist ingestion jobs.
         logger.debug(

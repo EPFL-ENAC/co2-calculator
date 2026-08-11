@@ -355,7 +355,8 @@ async def test_equipment_factor_values_change_propagates(
     emission_type,
 ):
     """Equipment (it / scientific / other) — JSON-link, ef change doubles
-    kg_co2eq via the bulk-prefetch + ``upsert_by_data_entry`` path."""
+    kg_co2eq via the bulk-prefetch + ``upsert_by_data_entry`` path.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
@@ -396,7 +397,8 @@ async def test_equipment_factor_values_change_propagates(
 )
 async def test_purchase_factor_values_change_propagates(pg_dsn, det, emission_type):
     """Purchase (common / additional) — JSON-link, kind=purchase_institutional_code.
-    Doubling ef doubles kg_co2eq."""
+    Doubling ef doubles kg_co2eq.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:

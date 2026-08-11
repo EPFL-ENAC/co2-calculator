@@ -68,7 +68,8 @@ class TestUserBaseCalculatePermissions:
 
         CO2_BACKOFFICE_METIER is sub-perimeter-bound: reporting is
         affiliation-scoped while users/documentation/ui_texts are scope-less
-        (#862). Combined with CO2_USER_STD it also yields the std module key."""
+        (#862). Combined with CO2_USER_STD it also yields the std module key.
+        """
         user_base = UserBase()
         user_base.roles = [
             Role(

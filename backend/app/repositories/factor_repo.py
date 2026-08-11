@@ -1,7 +1,5 @@
 """Repository for generic factors."""
 
-from typing import Dict, List, Optional
-
 from psycopg.types.json import Json
 from sqlalchemy import or_, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -78,7 +76,7 @@ class FactorRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get(self, id: int) -> Optional[Factor]:
+    async def get(self, id: int) -> Factor | None:
         """Get factor by ID."""
         stmt = select(Factor).where(col(Factor.id) == id)
         result = await self.session.exec(stmt)
@@ -89,9 +87,8 @@ class FactorRepository:
         emission_type_id: EmissionType,
         data_entry_type_id: DataEntryTypeEnum,
         year: int,
-    ) -> Optional[Factor]:
-        """
-        Get the current (valid_to IS NULL) factor for given criteria.
+    ) -> Factor | None:
+        """Get the current (valid_to IS NULL) factor for given criteria.
 
         Args:
             emission_type_id: Emission type filter
@@ -116,7 +113,7 @@ class FactorRepository:
         await self.session.refresh(factor)
         return factor
 
-    async def bulk_create(self, factors: List[Factor]) -> List[Factor]:
+    async def bulk_create(self, factors: list[Factor]) -> list[Factor]:
         """Bulk create factors."""
         self.session.add_all(factors)
         await self.session.flush()
@@ -126,8 +123,8 @@ class FactorRepository:
 
     async def upsert_factors(
         self,
-        factors: List[Factor],
-        current_job_id: Optional[int],
+        factors: list[Factor],
+        current_job_id: int | None,
     ) -> int:
         """Insert-or-update factors keyed on the identity index.
 
@@ -156,8 +153,8 @@ class FactorRepository:
 
         # Non-psycopg drivers (asyncpg test fixtures): VALUES-based
         # upsert, partitioned by year-presence.
-        with_year: List[Factor] = []
-        no_year: List[Factor] = []
+        with_year: list[Factor] = []
+        no_year: list[Factor] = []
         for f in factors:
             if f.year is not None:
                 with_year.append(f)
@@ -177,8 +174,8 @@ class FactorRepository:
 
     async def _upsert_via_copy(
         self,
-        factors: List[Factor],
-        current_job_id: Optional[int],
+        factors: list[Factor],
+        current_job_id: int | None,
     ) -> int:
         """COPY → staging → ``INSERT … SELECT … ON CONFLICT`` upsert.
 
@@ -225,8 +222,8 @@ class FactorRepository:
 
     async def _upsert_subset(
         self,
-        factors: List[Factor],
-        current_job_id: Optional[int],
+        factors: list[Factor],
+        current_job_id: int | None,
         *,
         year_present: bool,
     ) -> int:
@@ -289,7 +286,7 @@ class FactorRepository:
         self,
         year: int,
         *,
-        det_ids: List[int],
+        det_ids: list[int],
         threshold_job_id: int,
     ) -> int:
         """Delete factors superseded by the factor CSV upsert just run.
@@ -324,7 +321,7 @@ class FactorRepository:
         # narrower Result[Any] type Pyright infers from session.execute.
         return getattr(result, "rowcount", 0) or 0
 
-    async def update(self, factor_id: int, update_data: Dict) -> Optional[Factor]:
+    async def update(self, factor_id: int, update_data: dict) -> Factor | None:
         """Update an existing factor."""
         factor = await self.get(factor_id)
         if not factor:
@@ -361,8 +358,8 @@ class FactorRepository:
     async def list_id_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,
-        year: Optional[int] = None,
-    ) -> List[int]:
+        year: int | None = None,
+    ) -> list[int]:
         """List all factors for a data entry type.
 
         Args:
@@ -384,7 +381,7 @@ class FactorRepository:
         self,
         data_entry_type_id: DataEntryTypeEnum,
         year: int,
-    ) -> List[int]:
+    ) -> list[int]:
         """List factor IDs for data entry type and specific year.
 
         Args:
@@ -425,8 +422,8 @@ class FactorRepository:
     async def list_by_emission_type(
         self,
         emission_type: EmissionType,
-        year: Optional[int] = None,
-    ) -> List[Factor]:
+        year: int | None = None,
+    ) -> list[Factor]:
         """List all factors for a given emission type.
 
         Args:
@@ -446,8 +443,8 @@ class FactorRepository:
     async def list_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,
-        year: Optional[int] = None,
-    ) -> List[Factor]:
+        year: int | None = None,
+    ) -> list[Factor]:
         """List all factors for a data entry type.
 
         Args:
@@ -471,9 +468,8 @@ class FactorRepository:
         kind_field: str,
         subkind_field: str,
         year: int,
-    ) -> Dict[str, List[str]]:
-        """
-        Return a mapping of equipment_class -> list of subclasses.
+    ) -> dict[str, list[str]]:
+        """Return a mapping of equipment_class -> list of subclasses.
 
         Args:
             data_entry_type: The data entry type to filter on
@@ -492,7 +488,7 @@ class FactorRepository:
         result = await self.session.exec(stmt)
         factors = result.all()
 
-        mapping: Dict[str, List[str]] = {}
+        mapping: dict[str, list[str]] = {}
 
         for factor in factors:
             equipment_class = factor[0]
@@ -517,9 +513,9 @@ class FactorRepository:
         self,
         data_entry_type: DataEntryTypeEnum,
         kind: str,
-        subkind: Optional[str] = None,
-        year: Optional[int] = None,
-    ) -> Optional[Factor]:
+        subkind: str | None = None,
+        year: int | None = None,
+    ) -> Factor | None:
         """Get factor by classification with year filtering.
 
         Args:
@@ -581,10 +577,10 @@ class FactorRepository:
     async def get_factors(
         self,
         data_entry_type: DataEntryTypeEnum,
-        fallbacks: Optional[dict[str, str]] = None,
-        year: Optional[int] = None,
+        fallbacks: dict[str, str] | None = None,
+        year: int | None = None,
         **classification: str,
-    ) -> List[Factor]:
+    ) -> list[Factor]:
         """Generic factor lookup with dynamic classification filters and year support.
 
         Args:

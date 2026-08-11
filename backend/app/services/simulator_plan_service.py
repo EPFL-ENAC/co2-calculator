@@ -5,8 +5,7 @@ A "plan" (project planner project) is a ``CarbonProject`` row with
 shown in the project planner routes.
 """
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -15,7 +14,11 @@ from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.module_type import PLANNER_PREFILLED_MODULE_TYPES, ModuleTypeEnum
+from app.models.module_type import (
+    PLANNER_PREFILLED_MODULE_TYPES,
+    PLANNER_REFERENCE_SCOPED_MODULE_TYPES,
+    ModuleTypeEnum,
+)
 from app.models.user import User
 from app.repositories.carbon_project_repo import CarbonProjectRepository
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -53,9 +56,9 @@ def _next_suffixed_name(base: str, existing: set[str]) -> str:
 
 def _to_read(
     project: CarbonProject,
-    creator_name: Optional[str],
-    total_tonnes_co2eq: Optional[float] = None,
-    default_factor_year: Optional[int] = None,
+    creator_name: str | None,
+    total_tonnes_co2eq: float | None = None,
+    default_factor_year: int | None = None,
 ) -> SimulatorPlanRead:
     if project.id is None:
         raise ValueError("project must be persisted before use")
@@ -120,7 +123,7 @@ class SimulatorPlanService:
             for plan_id, stats_list in by_plan.items()
         }
 
-    async def get_plan(self, plan_id: int) -> Optional[SimulatorPlanRead]:
+    async def get_plan(self, plan_id: int) -> SimulatorPlanRead | None:
         """Get a plan by ID, or None."""
         row = await self.repo.get_plan_with_creator(plan_id)
         if row is None:
@@ -135,7 +138,7 @@ class SimulatorPlanService:
         )
 
     async def create_plan(
-        self, *, unit_id: int, user: User, name: Optional[str] = None
+        self, *, unit_id: int, user: User, name: str | None = None
     ) -> SimulatorPlanRead:
         """Create a plan for a unit, owned by ``user``.
 
@@ -153,7 +156,7 @@ class SimulatorPlanService:
             carbon_report_type=CarbonReportType.SIMULATOR_PLAN,
             name=name,
             created_by=user.id,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         project = await self._flush_guarded(self.repo.create(project))
         return _to_read(
@@ -164,7 +167,7 @@ class SimulatorPlanService:
 
     async def update_plan(
         self, plan_id: int, update: SimulatorPlanUpdate
-    ) -> Optional[SimulatorPlanRead]:
+    ) -> SimulatorPlanRead | None:
         """Apply a PATCH to a plan; returns None if the plan does not exist.
 
         Renaming to the current name is a no-op; a collision with another
@@ -206,9 +209,9 @@ class SimulatorPlanService:
     async def _sync_year_reports(
         self,
         project: CarbonProject,
-        default_reference_year: Optional[int] = None,
+        default_reference_year: int | None = None,
         *,
-        with_year_sections: Optional[bool] = None,
+        with_year_sections: bool | None = None,
     ) -> None:
         """Make the plan's reports match ``start_year..end_year``, one per year.
 
@@ -268,7 +271,7 @@ class SimulatorPlanService:
         await self._sync_grant_report(project, grant_report)
 
     async def _sync_grant_report(
-        self, project: CarbonProject, grant_report: Optional[CarbonReport]
+        self, project: CarbonProject, grant_report: CarbonReport | None
     ) -> None:
         """Make the plan's Project Grant report match ``is_grant_proposal``.
 
@@ -289,7 +292,7 @@ class SimulatorPlanService:
             await self.report_service.create(
                 CarbonReportCreate(
                     unit_id=project.unit_id,
-                    year=project.start_year or datetime.now(timezone.utc).year,
+                    year=project.start_year or datetime.now(UTC).year,
                     carbon_project_id=project.id,
                     is_grant=True,
                 )
@@ -299,9 +302,7 @@ class SimulatorPlanService:
             self.session.add(grant_report)
             await self.session.flush()
 
-    async def list_plan_years(
-        self, plan_id: int
-    ) -> Optional[list[SimulatorPlanYearRead]]:
+    async def list_plan_years(self, plan_id: int) -> list[SimulatorPlanYearRead] | None:
         """List the plan's per-year reports with their modules, by year.
 
         Returns None when the plan does not exist (vs. [] for a plan whose
@@ -321,17 +322,18 @@ class SimulatorPlanService:
         self,
         plan_id: int,
         year: int,
-        reference_year: Optional[int],
+        reference_year: int | None,
         *,
         is_grant: bool = False,
-    ) -> Optional[SimulatorPlanYearRead]:
+    ) -> SimulatorPlanYearRead | None:
         """Set or remove the baseline year of one plan-year report; None if missing.
 
         ``is_grant`` targets the Project Grant report, which shares its year
         with the start-year report.
 
-        Destructive: every prefilled module of the plan-year is emptied and,
-        when a baseline is set, rebuilt from it at 100% — the percentages,
+        Destructive: every reference-scoped module of the plan-year is emptied
+        and, when a baseline is set, the prefilled ones are rebuilt from it at
+        100% (purchase stays empty) — the percentages,
         edits and hand-added rows made under the previous reference year are
         lost. Removing the baseline (``reference_year=None``) empties them
         the same way and leaves the year manual-input. The dialog warns
@@ -357,23 +359,30 @@ class SimulatorPlanService:
     async def _prefill_reference_modules(
         self, report: CarbonReport | CarbonReportRead
     ) -> None:
-        """Rebuild every prefilled-behavior module from the reference year.
+        """Empty every reference-scoped module and rebuild the prefilled ones.
 
         Runs on reference-year set/change/removal (there is no manual prefill
         trigger). The modules are emptied first, so a module never mixes two
         baselines; on removal the wipe is all that happens and the year
-        becomes manual-input. When the reference year has no Calculator
-        report for the unit there is nothing to copy and they stay empty —
-        showing the previous baseline's rows under a new reference year
+        becomes manual-input. Purchase is wiped without a rebuild — it is
+        manual input, but its classes and factors come from the reference
+        year, so its rows do not survive a new baseline (#1920). When the reference year
+        has no Calculator report for the unit there is nothing to copy and they stay
+        empty —  showing the previous baseline's rows under a new reference year
         would be a lie.
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
         modules = await self.report_service.module_service.list_modules(report.id)
-        prefilled = [
-            m for m in modules if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
+        scoped = [
+            m
+            for m in modules
+            if m.module_type_id in PLANNER_REFERENCE_SCOPED_MODULE_TYPES
         ]
-        await self._clear_module_entries([m.id for m in prefilled if m.id is not None])
+        prefilled = [
+            m for m in scoped if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
+        ]
+        await self._clear_module_entries([m.id for m in scoped if m.id is not None])
         if report.reference_year is None:
             return
         ref_report = await self.repo.get_calculator_report(
@@ -429,7 +438,7 @@ class SimulatorPlanService:
         report: CarbonReport | CarbonReportRead,
         module_type_id: int,
         *,
-        ref_report: Optional[CarbonReport] = None,
+        ref_report: CarbonReport | None = None,
     ) -> int:
         """Rebuild a plan module from the reference-year Calculator entries.
 
@@ -510,7 +519,7 @@ class SimulatorPlanService:
         self,
         report: CarbonReport | CarbonReportRead,
         *,
-        ref_report: Optional[CarbonReport] = None,
+        ref_report: CarbonReport | None = None,
     ) -> int:
         """Rebuild the plan's headcount grid from the reference-year members.
 
@@ -663,7 +672,7 @@ class SimulatorPlanService:
 
     async def duplicate_plan(
         self, plan_id: int, user: User
-    ) -> Optional[SimulatorPlanRead]:
+    ) -> SimulatorPlanRead | None:
         """Duplicate a plan as ``<name>-2`` (then ``-3``, ...); None if missing.
 
         The project row and its year range are copied, and the copy's per-year
@@ -684,7 +693,7 @@ class SimulatorPlanService:
             is_viewable_by_unit_members=source.is_viewable_by_unit_members,
             is_grant_proposal=source.is_grant_proposal,
             created_by=user.id,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         copy = await self._flush_guarded(self.repo.create(copy))
         # The copy has no reports yet, so its shape (with or without per-year

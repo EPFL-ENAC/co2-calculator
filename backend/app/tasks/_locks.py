@@ -22,8 +22,6 @@ serialises any concurrent writers, so the lock is unnecessary and the
 ``pg_advisory_xact_lock`` function doesn't exist there anyway.
 """
 
-from typing import Optional
-
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -49,8 +47,8 @@ def _encode_module_year_key(module_type_id: int, year: int) -> int:
 async def acquire_factor_recalc_lock(
     data_session: AsyncSession,
     *,
-    module_type_id: Optional[int],
-    year: Optional[int],
+    module_type_id: int | None,
+    year: int | None,
     handler_label: str,
 ) -> None:
     """Acquire the per-``(module, year)`` mutex for the duration of the

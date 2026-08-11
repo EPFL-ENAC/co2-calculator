@@ -105,8 +105,7 @@ async def get_module_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, float | None]:
-    """
-    Get module statistics such as total items and submodules.
+    """Get module statistics such as total items and submodules.
 
     Args:
         module_id: Module identifier
@@ -387,8 +386,7 @@ async def get_results_summary(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """
-    Get results summary for a carbon report, broken down by module.
+    """Get results summary for a carbon report, broken down by module.
 
     Returns unit-wide totals and per-module results including:
     - total_tonnes_co2eq, total_fte, tonnes_co2eq_per_fte

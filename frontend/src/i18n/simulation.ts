@@ -344,12 +344,12 @@ export default {
     fr: 'Saisissez le budget total du financement, puis répartissez-le dans les sections ci-dessous.',
   },
   planner_grant_budget_distribution: {
-    en: '{distributed} {currency} of {total} allocated. {remaining} remaining to allocate in the categories below.',
-    fr: '{distributed} {currency} sur {total} alloués. {remaining} restants à allouer dans les catégories ci-dessous.',
+    en: '{distributed} {currency} of {total} {currency} allocated. {remaining} {currency} remaining to allocate in the categories below.',
+    fr: '{distributed} {currency} sur {total} {currency} alloués. {remaining} {currency} restants à allouer dans les catégories ci-dessous.',
   },
   planner_grant_budget_over: {
-    en: 'The distributed budgets exceed the total budget by {amount}.',
-    fr: 'Les budgets répartis dépassent le budget total de {amount}.',
+    en: 'The distributed budgets exceed the total budget by {amount} {currency}.',
+    fr: 'Les budgets répartis dépassent le budget total de {amount} {currency}.',
   },
   planner_grant_budget_error: {
     en: 'Could not save the budget',
@@ -439,10 +439,6 @@ export default {
     en: 'Could not save the platform use',
     fr: "Impossible d'enregistrer l'utilisation de la plateforme",
   },
-  planner_module_prefilled_badge: {
-    en: 'Prefilled from reference year',
-    fr: "Prérempli depuis l'année de référence",
-  },
   planner_purchase_amount_label: {
     en: 'Amount (EUR)',
     fr: 'Montant (EUR)',
@@ -524,8 +520,8 @@ export default {
     fr: 'Autres achats',
   },
   'planner_purchase_category.purchases_centralized': {
-    en: 'Additional purchases',
-    fr: 'Achats supplémentaires',
+    en: 'Centralized purchases ',
+    fr: 'Achats centralisés',
   },
   'planner_traveler_category.internal': {
     en: 'Internal',
@@ -559,10 +555,6 @@ export default {
     en: 'Planned figures are estimates: each year draws its emission factors from its reference year. Inactive modules are excluded from every total and chart.',
     fr: "Les chiffres planifiés sont des estimations : chaque année tire ses facteurs d'émission de son année de référence. Les modules inactifs sont exclus de tous les totaux et graphiques.",
   },
-  planner_print_incomplete_note: {
-    en: 'Some tables could not be loaded and are missing from this report: {modules}.',
-    fr: 'Certains tableaux n’ont pas pu être chargés et manquent dans ce rapport : {modules}.',
-  },
   planner_print_year_subtitle: {
     en: 'Planned carbon footprint — {name}',
     fr: 'Empreinte carbone planifiée — {name}',
@@ -586,6 +578,30 @@ export default {
   planner_print_module_subtitle: {
     en: 'Planned data {year}',
     fr: 'Données planifiées {year}',
+  },
+  planner_print_emission_types_title: {
+    en: 'Emissions per type',
+    fr: 'Émissions par type',
+  },
+  planner_print_emission_types_subtitle: {
+    en: 'Total per emission type, {report}',
+    fr: "Total par type d'émission, {report}",
+  },
+  planner_print_emission_types_col: {
+    en: 'Emission type',
+    fr: "Type d'émission",
+  },
+  planner_print_quantity_col: {
+    en: 'Quantity',
+    fr: 'Quantité',
+  },
+  planner_print_tonnes_col: {
+    en: 't CO₂-eq',
+    fr: 't CO₂-éq',
+  },
+  planner_print_total_col: {
+    en: 'Total',
+    fr: 'Total',
   },
   planner_headcount_table_title: {
     en: 'Planned FTE per category',

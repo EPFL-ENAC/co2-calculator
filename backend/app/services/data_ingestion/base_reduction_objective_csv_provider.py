@@ -8,8 +8,8 @@ import csv
 import io
 import urllib.parse
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import Any, Dict, List, TypedDict
+from datetime import UTC, datetime
+from typing import Any, TypedDict
 
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import col, select
@@ -49,7 +49,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         user: User | None = None,
         job_session: Any = None,
         data_session: Any = None,
@@ -114,15 +114,15 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
     # DataIngestionProvider abstract stubs (not used for this flow)
     # ------------------------------------------------------------------
 
-    async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         return []
 
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         return raw_data
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         return {"inserted": 0, "skipped": 0, "errors": 0}
 
     # ------------------------------------------------------------------
@@ -153,8 +153,8 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
 
     async def ingest(
         self,
-        filters: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Override ingest to use the reduction-objective CSV flow."""
         try:
             await self._update_job(
@@ -179,7 +179,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
             logger.error(f"Reduction-objective CSV ingestion failed: {str(e)}")
             raise
 
-    async def _process_csv(self) -> Dict[str, Any]:
+    async def _process_csv(self) -> dict[str, Any]:
         """Setup → validate rows → store JSON → finalize."""
         try:
             setup = await self._setup_and_validate()
@@ -244,7 +244,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
     # Setup
     # ------------------------------------------------------------------
 
-    async def _setup_and_validate(self) -> Dict[str, Any]:
+    async def _setup_and_validate(self) -> dict[str, Any]:
         """Download CSV, move to processing/, resolve handler, validate headers."""
         if not self.job and self.job_id:
             self.job = await self.repo.get_job_by_id(self.job_id)
@@ -406,7 +406,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         ] = {
             "path": processed_path or "",
             "filename": filename,
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "uploaded_at": datetime.now(UTC).isoformat(),
             "rows_processed": rows_processed
             if rows_processed is not None
             else len(validated_rows),
@@ -435,8 +435,8 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
     async def _finalize(
         self,
         stats: ReductionObjectiveStatsDict,
-        setup: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        setup: dict[str, Any],
+    ) -> dict[str, Any]:
         """Move file to processed/, update job to FINISHED."""
         processing_path = setup["processing_path"]
         await self._move_to_processed(processing_path)

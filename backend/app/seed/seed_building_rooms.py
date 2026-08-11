@@ -3,7 +3,6 @@
 import asyncio
 import csv
 from pathlib import Path
-from typing import Optional
 
 from sqlmodel import delete
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -19,7 +18,7 @@ CSV_PATH = (
 )
 
 
-def _to_float(value: Optional[str]) -> Optional[float]:
+def _to_float(value: str | None) -> float | None:
     """Best-effort float conversion for CSV values."""
     if value is None:
         return None
@@ -37,7 +36,7 @@ async def seed_building_rooms(session: AsyncSession) -> None:
     await session.exec(delete(BuildingRoom))
 
     rooms: list[BuildingRoom] = []
-    with open(CSV_PATH, mode="r") as csvfile:
+    with open(CSV_PATH) as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             room = BuildingRoom(

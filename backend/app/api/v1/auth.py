@@ -35,7 +35,7 @@ a session from a query-string ``role``. Its only gate is
 
 import traceback
 from datetime import timedelta
-from typing import Any, Optional
+from typing import Any
 
 from authlib.integrations.base_client.errors import MismatchingStateError
 from authlib.integrations.starlette_client import OAuth
@@ -104,8 +104,7 @@ def _set_auth_cookies(
     institutional_id: str,
     provider: str,
 ) -> None:
-    """
-    Helper function to create and set authentication cookies.
+    """Helper function to create and set authentication cookies.
 
     Creates both access and refresh tokens and sets them as httpOnly cookies.
     Uses stable identity fields (institutional_id, provider) instead of DB primary key.
@@ -153,7 +152,7 @@ def _set_auth_cookies(
     )
 
 
-def _sanitize_route_payload(payload: Optional[dict]) -> Optional[dict]:
+def _sanitize_route_payload(payload: dict | None) -> dict | None:
     if not payload:
         return payload
 
@@ -201,10 +200,10 @@ async def _log_auth_audit_event(
     change_type: AuditChangeTypeEnum,
     change_reason: str,
     handler_id: str,
-    changed_by: Optional[int],
-    data_snapshot: Optional[dict] = None,
-    handled_ids: Optional[list[str]] = None,
-    entity_id: Optional[int] = None,
+    changed_by: int | None,
+    data_snapshot: dict | None = None,
+    handled_ids: list[str] | None = None,
+    entity_id: int | None = None,
     must_succeed: bool = False,
 ) -> None:
     """Record an auth audit event.
@@ -349,8 +348,7 @@ async def login_test(
 
 @oauth_router.get("/login", name="oauth_login")
 async def oauth_login(request: Request):
-    """
-    Initiate OAuth2 login flow.
+    """Initiate OAuth2 login flow.
 
     Redirects to Entra ID for authentication.
     """
@@ -556,11 +554,10 @@ if settings.DEBUG:
 
 @session_router.get("", response_model=SessionRead, response_model_exclude_none=True)
 async def get_session(
-    auth_token: Optional[str] = Cookie(None),
+    auth_token: str | None = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Return the current session bootstrap payload (whoami + workspace context).
+    """Return the current session bootstrap payload (whoami + workspace context).
 
     Requires a valid ``auth_token`` cookie. Resolves user by stable
     identity (institutional_id, provider) from JWT. Uses cached DB
@@ -570,7 +567,6 @@ async def get_session(
     the globally-configured years, so the frontend hydrates its whole auth/
     workspace context in a single request instead of three.
     """
-
     if not auth_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -617,12 +613,11 @@ async def get_session(
 async def refresh_session(
     request: Request,
     background_tasks: BackgroundTasks,
-    refresh_token: Optional[str] = Cookie(None),
+    refresh_token: str | None = Cookie(None),
     response: Response = Response(),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Refresh access token using refresh token.
+    """Refresh access token using refresh token.
 
     Client should call this when access token expires.
     Returns new access token in cookie.
@@ -710,11 +705,10 @@ async def refresh_session(
 async def delete_session(
     response: Response,
     request: Request,
-    auth_token: Optional[str] = Cookie(None),
+    auth_token: str | None = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Logout the current user.
+    """Logout the current user.
 
     Clears both auth_token and refresh_token cookies.
     Note: This does not log out from Entra ID SSO session.

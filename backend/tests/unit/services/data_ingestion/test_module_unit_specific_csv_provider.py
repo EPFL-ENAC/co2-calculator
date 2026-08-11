@@ -99,7 +99,8 @@ async def test_setup_handlers_and_factors_raises_when_year_missing():
 async def test_setup_handlers_and_factors_raises_when_year_is_zero():
     """Sibling regression: ``year=0`` is also invalid. The guard uses
     ``if not self.year`` (matching the MODULE_PER_YEAR sibling's pattern)
-    so falsy years are rejected the same as ``None``."""
+    so falsy years are rejected the same as ``None``.
+    """
     provider = ModuleUnitSpecificCSVProvider(
         {
             "file_path": "tmp/test.csv",
@@ -175,7 +176,8 @@ async def test_resolve_handler_and_validate_configured_type_missing_factor():
     """Converged with MODULE_PER_YEAR: a configured data_entry_type with an
     empty factors_map passes row resolution — factor lookup and validation
     happen later via ModuleHandlerService. The early is_in_factors_map
-    rejection was a fork and is gone."""
+    rejection was a fork and is gone.
+    """
     provider = ModuleUnitSpecificCSVProvider(
         {
             "file_path": "tmp/test.csv",

@@ -15,7 +15,7 @@ from the right row.
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import httpx
@@ -129,7 +129,7 @@ async def _seed_four_buckets(Sf) -> dict[str, int | None]:
     Returns a dict mapping bucket key → expected ``last_aggregation_job_id``
     (None for the no-aggregation-ever scope).
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expected: dict[str, int | None] = {}
 
     async with Sf() as s:
@@ -224,7 +224,8 @@ async def _seed_four_buckets(Sf) -> dict[str, int | None]:
 async def test_stale_stats_classifies_each_why_stale_bucket(pg_app):
     """End-to-end: seed all four ``why_stale`` shapes plus a fresh
     control, hit the endpoint, assert each entry has the correct
-    classification + the correct ``last_aggregation_job_id``."""
+    classification + the correct ``last_aggregation_job_id``.
+    """
     Sf = pg_app["factory"]
     expected = await _seed_four_buckets(Sf)
 
@@ -283,7 +284,8 @@ async def test_stale_stats_returns_403_for_user_without_permission(pg_dsn, monke
 
     Bypasses ``pg_app`` (which monkeypatches ``is_permitted`` to True) so
     the real permission check fires.  Mirrors the pattern in
-    ``test_factors_stale_endpoint_pg.py``."""
+    ``test_factors_stale_endpoint_pg.py``.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -327,7 +329,8 @@ async def test_stale_stats_returns_empty_list_with_no_modules(pg_app):
     The endpoint's seed is the modules table; if no module declares a
     scope, there's nothing to be stale about — even if orphan aggregation
     rows exist for unrelated module types.  Validates that the LEFT JOIN
-    starts from modules and not from jobs."""
+    starts from modules and not from jobs.
+    """
     Sf = pg_app["factory"]
 
     # Seed a stuck aggregation row WITHOUT a matching CarbonReportModule.
@@ -356,7 +359,8 @@ async def test_stale_stats_returns_empty_list_with_no_modules(pg_app):
 async def test_stale_stats_rejects_zero_threshold(pg_app):
     """``older_than_minutes`` is range-checked (``ge=1``).  Calling with
     0 must 422 — guards against a misconfigured scrape job sending the
-    default and getting back the entire universe."""
+    default and getting back the entire universe.
+    """
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://test",

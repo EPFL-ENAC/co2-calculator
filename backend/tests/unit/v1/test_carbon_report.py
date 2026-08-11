@@ -1,6 +1,6 @@
 """Unit tests for carbon_report API endpoints."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -314,7 +314,7 @@ async def test_update_status_value_error_raises_400():
 async def test_get_simulator_explore_found_fresh_no_refresh():
     """Found, within TTL → return report, no background refresh scheduled."""
     db = _db()
-    fresh_ts = int(datetime.now(timezone.utc).timestamp())
+    fresh_ts = int(datetime.now(UTC).timestamp())
     report = MagicMock()
     report.id = 42
     report.last_updated = fresh_ts
@@ -367,7 +367,7 @@ async def test_get_simulator_explore_not_found_raises_404():
 async def test_get_simulator_explore_expired_schedules_background_refresh():
     """Stale report (>24 h) → returned immediately, background refresh queued."""
     db = _db()
-    stale_ts = int(datetime.now(timezone.utc).timestamp()) - (25 * 60 * 60)
+    stale_ts = int(datetime.now(UTC).timestamp()) - (25 * 60 * 60)
     report = MagicMock()
     report.id = 99
     report.last_updated = stale_ts

@@ -1,7 +1,5 @@
 """Building room repository for database operations."""
 
-from typing import Optional
-
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,7 +15,7 @@ class BuildingRoomRepository:
     async def get_room(
         self,
         room_name: str,
-    ) -> Optional[BuildingRoom]:
+    ) -> BuildingRoom | None:
         """Get room by name, optionally filtered by building."""
         stmt = select(BuildingRoom).where(
             col(BuildingRoom.room_name) == room_name,
@@ -43,8 +41,8 @@ class BuildingRoomRepository:
 
     async def list_rooms(
         self,
-        building_location: Optional[str] = None,
-        building_name: Optional[str] = None,
+        building_location: str | None = None,
+        building_name: str | None = None,
     ) -> list[BuildingRoom]:
         """Return rooms, optionally filtered by building."""
         stmt = select(BuildingRoom).order_by(
@@ -61,7 +59,7 @@ class BuildingRoomRepository:
 
     async def get_room_by_names(
         self, building_name: str, room_name: str
-    ) -> Optional[BuildingRoom]:
+    ) -> BuildingRoom | None:
         """Return a single room by building_name and room_name."""
         stmt = select(BuildingRoom).where(
             col(BuildingRoom.building_name) == building_name,

@@ -159,7 +159,8 @@ _HEADCOUNT_LEAVES: list[tuple[str, str, EmissionType, float, float]] = [
 def _seeded_factors(data_entry_type: DataEntryTypeEnum, year: int) -> list[Factor]:
     """Build the 3 Strategy B headcount factors for ``data_entry_type``,
     covering food / waste / commuting (the three roots in
-    ``MODULE_TYPE_TO_EMISSION_ROOTS[headcount]``)."""
+    ``MODULE_TYPE_TO_EMISSION_ROOTS[headcount]``).
+    """
     return [
         Factor(
             emission_type_id=emission.value,
@@ -179,7 +180,8 @@ def _expected_kg_per_leaf(fte: float) -> dict[int, float]:
     """``{emission_type_id: fte × multiplier × ef}`` for every leaf in
     ``_HEADCOUNT_LEAVES`` — matches the headcount handler's
     ``EmissionComputation`` (formula_key=ef, quantity_key=fte,
-    multiplier_key=number_of_unit_per_fte)."""
+    multiplier_key=number_of_unit_per_fte).
+    """
     return {
         emission.value: fte * mult * ef
         for _, _, emission, ef, mult in _HEADCOUNT_LEAVES

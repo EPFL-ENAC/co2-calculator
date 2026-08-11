@@ -132,7 +132,8 @@ async def test_dedup_releases_after_first_recalc_finishes(pg_dsn):
     """Once the first emission_recalc transitions to FINISHED, the
     partial index releases the (module, det, year) slot and a follow-up
     chain creates a new row.  Each fan-out batch gets one recalc;
-    subsequent batches are not blocked by historical jobs."""
+    subsequent batches are not blocked by historical jobs.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -192,7 +193,8 @@ async def test_dedup_does_not_collide_across_dets_or_years(pg_dsn):
     data_entry_type_id, year)`` — three chains differing in det,
     year, or both all succeed.  Without per-det keying, a multi-det
     factor reupload would serialize into one recalc instead of one
-    per det."""
+    per det.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -243,7 +245,8 @@ async def test_dedup_does_not_collide_across_dets_or_years(pg_dsn):
 async def test_dedup_skips_run_job_dispatch_on_collision(pg_dsn):
     """``fire_and_forget(run_job(...))`` must NOT be called on the
     dedup'd path — the existing pending row will run; a redundant
-    dispatch would race-claim the same row."""
+    dispatch would race-claim the same row.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -296,7 +299,8 @@ async def test_dedup_config_rejects_null_scope_keys(pg_dsn):
     scope column would be NULL on the child row.  PG treats NULLs as
     distinct in unique indexes, so a NULL would silently bypass dedup
     at the index level — we'd rather raise than create a half-broken
-    row."""
+    row.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
