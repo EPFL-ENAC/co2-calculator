@@ -10,6 +10,7 @@ import {
   getChartSubcategoryColor,
   CHART_CATEGORY_COLOR_SCALES,
   RESULTS_CATEGORY_LABEL_KEYS,
+  RESULTS_SUBCATEGORY_LABEL_KEYS,
 } from 'src/constant/charts';
 import {
   TooltipComponent,
@@ -44,74 +45,6 @@ import { usePrintMode } from 'src/composables/print/usePrintMode';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
 
 const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
-
-const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
-  co2: 'process-emissions.category.co2',
-  ch4: 'process-emissions.category.ch4',
-  n2o: 'process-emissions.category.n2o',
-  refrigerants: 'process-emissions.category.refrigerants',
-  refrigerant: 'process-emissions.category.refrigerants',
-  lighting: 'charts-lighting-subcategory',
-  cooling: 'charts-cooling-subcategory',
-  ventilation: 'charts-ventilation-subcategory',
-  heating_electric: 'charts-heating-elec-subcategory',
-  heating_thermal: 'charts-heating-thermal-subcategory',
-  laboratories: 'charts-laboratories-subcategory',
-  office: 'charts-office-subcategory',
-  archives: 'charts-archives-subcategory',
-  libraries: 'charts-libraries-subcategory',
-  auditoriums: 'charts-auditoriums-subcategory',
-  miscellaneous: 'charts-miscellaneous-subcategory',
-  combustion: 'charts-energy-combustion-subcategory',
-  natural_gas: 'charts-natural-gas-subcategory',
-  propane: 'charts-propane-subcategory',
-  heating_oil: 'charts-heating-oil-subcategory',
-  biomethane: 'charts-biomethane-subcategory',
-  pellets: 'charts-pellets-subcategory',
-  forest_chips: 'charts-forest-chips-subcategory',
-  wood_logs: 'charts-wood-logs-subcategory',
-  scientific: 'charts-scientific-subcategory',
-  it: 'charts-equipment-it',
-  other: 'charts-other-equipment-subcategory',
-  scientific_equipment: 'charts-scientific-subcategory',
-  it_equipment: 'charts-equipment-it',
-  consumable_accessories: 'charts-consumables-subcategory',
-  biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
-  services: 'charts-services-subcategory',
-  vehicles: 'charts-vehicles-subcategory',
-  centralized: 'charts-purchases-centralized-subcategory',
-  other_purchases: 'charts-other-purchases-subcategory',
-  goods_and_services: 'charts-global-budget-subcategory',
-  plane: 'charts-plane-subcategory',
-  train: 'charts-train-subcategory',
-  class_1: 'charts-class-1-subcategory',
-  class_2: 'charts-class-2-subcategory',
-  clouds: 'charts-clouds-subcategory',
-  ai: 'charts-ai-subcategory',
-  provider: 'charts-ai-provider-subcategory',
-  ai_provider: 'charts-ai-provider-subcategory',
-  provider_google: 'charts-ai-provider-google-subcategory',
-  provider_openai: 'charts-ai-provider-openai-subcategory',
-  provider_anthropic: 'charts-ai-provider-anthropic-subcategory',
-  provider_mistral_ai: 'charts-ai-provider-mistral-ai-subcategory',
-  provider_cohere: 'charts-ai-provider-cohere-subcategory',
-  provider_others: 'charts-ai-provider-others-subcategory',
-  stockage: 'charts-stockage-subcategory',
-  virtualisation: 'charts-virtualisation-subcategory',
-  calcul: 'charts-calcul-subcategory',
-  facilities: 'charts-research-facilities-subcategory',
-  it_facilities: 'charts-research-it-facilities-subcategory',
-  animal: 'charts-research-animal-subcategory',
-  animal_facilities: 'charts-research-animal-subcategory',
-  rodent: 'charts-animal-rodent-subcategory',
-  fish: 'charts-animal-fish-subcategory',
-  rest: 'charts-rest-subcategory',
-  'new-env': 'charts-new-env-subcategory',
-  'new-tech': 'charts-new-tech-subcategory',
-  'ren-env': 'charts-ren-env-subcategory',
-  'ren-tech': 'charts-ren-tech-subcategory',
-  demolition: 'charts-demolition-subcategory',
-};
 
 export interface TopClassBreakdownItem {
   name: string;
@@ -332,7 +265,7 @@ function translateSubcategory(key: string): string {
   // Top-class mode uses numeric segment keys with label overrides
   const override = segmentLabelOverrides.get(key);
   if (override) {
-    const i18nKey = SUBCATEGORY_LABEL_MAP[override];
+    const i18nKey = RESULTS_SUBCATEGORY_LABEL_KEYS[override];
     if (i18nKey) return t(i18nKey);
     return te(override) ? t(override) : override;
   }
@@ -340,7 +273,7 @@ function translateSubcategory(key: string): string {
   // `key` is a dataset dimension name. To keep segment dimensions unique across
   // categories we build it as `${categoryKey}_${subcategoryKey}` (e.g. `process_emissions_co2`).
   // The i18n map only contains `subcategoryKey` (e.g. `co2`), so we strip the category prefix.
-  const directI18nKey = SUBCATEGORY_LABEL_MAP[key];
+  const directI18nKey = RESULTS_SUBCATEGORY_LABEL_KEYS[key];
   if (directI18nKey) return t(directI18nKey);
 
   const categoryPrefix = categoryKeyPrefixes.find((catKey) =>
@@ -349,7 +282,7 @@ function translateSubcategory(key: string): string {
   if (!categoryPrefix) return key;
 
   const subcategoryKey = key.slice(categoryPrefix.length + 1);
-  const i18nKey = SUBCATEGORY_LABEL_MAP[subcategoryKey];
+  const i18nKey = RESULTS_SUBCATEGORY_LABEL_KEYS[subcategoryKey];
   if (i18nKey) return t(i18nKey);
   return te(subcategoryKey) ? t(subcategoryKey) : subcategoryKey;
 }
@@ -357,7 +290,7 @@ function translateSubcategory(key: string): string {
 function translateBar(categoryKey: string, barName: string): string {
   const baseName =
     String(barName ?? '').split('__')[0] ?? String(barName ?? '');
-  const subKey = SUBCATEGORY_LABEL_MAP[baseName];
+  const subKey = RESULTS_SUBCATEGORY_LABEL_KEYS[baseName];
   if (subKey) return t(subKey);
   const catKey = CATEGORY_LABEL_MAP[baseName];
   if (catKey) return t(catKey);
