@@ -11,7 +11,7 @@ from app.schemas.factor import (
 
 ## PURCHASE FACTOR HANDLERS
 
-# --- Additional Purchases ---
+# --- Centralized Purchases ---
 
 purchase_additional_classification_fields: list[str] = ["name", "unit"]
 purchase_additional_value_fields: list[str] = ["coef_to_kg", "ef_kg_co2eq_per_kg"]

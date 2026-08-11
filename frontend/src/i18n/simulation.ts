@@ -520,8 +520,8 @@ export default {
     fr: 'Autres achats',
   },
   'planner_purchase_category.purchases_centralized': {
-    en: 'Additional purchases',
-    fr: 'Achats supplémentaires',
+    en: 'Centralized purchases ',
+    fr: 'Achats centralisés',
   },
   'planner_traveler_category.internal': {
     en: 'Internal',
