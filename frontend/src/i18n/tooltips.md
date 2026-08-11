@@ -107,6 +107,6 @@ Each module is divided into sub-sections. Use the **Slug** column exactly as wri
 | Purchase            | Services                  | `services`                            |
 | Purchase            | Vehicles                  | `vehicles`                            |
 | Purchase            | Other purchases           | `other_purchases`                     |
-| Purchase            | Additional purchases      | `additional_purchases`                |
+| Purchase            | Centralized purchases     | `additional_purchases`                |
 | Research Facilities | Research facilities       | `research-facilities`                 |
 | Research Facilities | Animal facilities         | `mice_and_fish_animal_facilities`     |
