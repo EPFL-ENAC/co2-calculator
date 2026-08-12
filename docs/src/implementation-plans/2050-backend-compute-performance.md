@@ -3,7 +3,7 @@ status: in-progress
 issue: 2050
 last_updated: 2026-08-12
 title: "Backend compute performance — pod stability, worker split, request-path profiling"
-summary: "Three-track plan against the dev-platform slowness and the intermittent 504s. Tracks A and B are implemented in draft PR #2081 (perf/2050-track-a-b-availability): /ready's DB check is bounded with asyncio.timeout so it can never outlive its own k8s probe deadline (the confirmed 504 cause — reproduced on stage with no deployment in progress, /healthz answering 200 throughout), the Accred check moved off the readiness path to /health/deps, rollout strategy and CPU requests corrected, and job dispatch now runs through a DISPATCH_JOBS_INLINE-gated helper so a worker.enabled Helm split can move job execution off API pods without a misconfigurable dead state. Track C's measurement phase is complete: musl costs ~11-20% and is only partly recoverable via jemalloc (kept on Alpine — a real Trivy scan confirmed the CVE rationale still holds); the recalc workflow is ~77% factor-resolution time, not Pydantic overhead; and the simulator-plan reference-year PATCH has a confirmed O(entries) N+1 (a per-entry SELECT+DELETE that should be one set-based statement, 50% of all statements at N=8000) with fixes and a regression test ready to implement. Both findings argue against a language rewrite: the bottleneck is round-trip count, not CPU cycles."
+summary: "Three-track plan against the dev-platform slowness and the intermittent 504s. Tracks A and B are implemented in draft PR #2081 (perf/2050-track-a-b-availability, ready for review): /ready's DB check is bounded with asyncio.timeout so it can never outlive its own k8s probe deadline (the confirmed 504 cause — reproduced on stage with no deployment in progress, /healthz answering 200 throughout), the Accred check moved off the readiness path to /health/deps, rollout strategy and CPU requests corrected, and job dispatch now runs through a DISPATCH_JOBS_INLINE-gated helper (kept separate from RUN_BACKGROUND_POLLER since the test suite already depends on that flag meaning something else) so a worker.enabled Helm split can move job execution off API pods without a misconfigurable dead state. Track C: musl costs ~11-20% and is only partly recoverable via jemalloc (kept on Alpine — a real Trivy scan confirmed the CVE rationale still holds); the recalc workflow's prepare stage (~77% of wall time) turned out to be ~94% ORM/Pydantic object construction on rows never individually persisted, not DB round trips as first assumed — a concrete, unimplemented follow-up target; and the simulator-plan reference-year PATCH's N+1 is fixed on branch perf/2050-simulator-plan-n1-fix — two distinct per-entry query patterns (a SELECT-then-DELETE, and a percentage-override lookup discovered only once the first fix's regression test still showed O(N) scaling), both now O(1) per recalc call, with an equivalence test and the full unit suite green. All three tracks argue against a language rewrite: the bottlenecks are round-trip count and object-construction overhead in the ORM layer, not raw arithmetic."
 ---
 
 # Backend compute performance (#2050)
@@ -368,6 +368,39 @@ not a raw-arithmetic cost — a Rust or Go rewrite of the _formula_ layer
 does nothing for `prepare`'s share, since the time is spent waiting on and
 issuing DB round trips, not computing. See the closing section.
 
+#### Status: refined — `prepare`'s cost is object construction, not queries
+
+A follow-up pass instrumented `prepare_create`'s actual internal seams
+(`resolve`, `emission_types`, `pre_compute`, `resolve_computations`,
+`fetch_factors`, `apply_formula`, plus row-build) against the same
+member/2025 slice. Every DB-adjacent stage was cheap and confirmed O(1)
+per call, exactly as the cache/slice design intends —
+`fetch_factors` (Strategy B, `factor_query_cache` hit): 0.13s / 417,100
+calls; `pre_compute`: 0.01s total (headcount's handler is a no-op, no
+per-entry query slipped through); `resolver.resolve`: 0.01s (short-circuits
+instantly — headcount has no `kind_field`).
+
+**Constructing the `DataEntryEmission(...)` row object itself
+(`data_entry_emission_service.py:566-583`, once per factor × emission type
+— ~25×/entry for headcount) is ~94% of `prepare`'s internal time and
+~65-67% of total recalc wall clock** — 28.87s of 33.4s, ~69µs/call.
+`DataEntryEmission` is `table=True` (a full SQLAlchemy-mapped +
+Pydantic-validated model), and that construction/validation tax is paid on
+every row even though `bulk_replace_for_entries` never `session.add()`s
+these individual objects — they only feed a later bulk DELETE+COPY. So the
+77%/22% `prepare`/`remainder` split from the first pass was accurate, but
+the *composition* assumed inside `prepare` (DB round trips) was wrong —
+it's Python/ORM object-instantiation overhead, not waiting on Postgres.
+
+**Not implemented, follow-up target**: accumulate a lightweight
+dataclass/dict of column values in the hot loop instead of a real
+`DataEntryEmission`, and only materialize the ORM/`table=True` model where
+a row is actually persisted individually (the single-entry API path, which
+does `session.add()` a real object and must keep doing so) — mirroring how
+`factor_query_cache`/`slice_cache` already moved cost out of this loop for
+the query side. Bulk callers (`bulk_replace_for_entries`'s COPY path) never
+need the ORM identity at all.
+
 **Side finding, not part of this plan:** `backend/app/seed/random_generator/
 seed_carbon_reports.py` has two `ON CONFLICT (col, col) DO NOTHING` clauses
 targeting columns with no matching unique constraint (`carbon_projects` only
@@ -473,6 +506,50 @@ prepare`-shaped and the delete/insert round trips confirmed at 50% of
 - If the request stays long after the above, move it behind the job runner
   (Track B) and return a job id rather than a synchronous result.
 
+#### Status: fixed — branch `perf/2050-simulator-plan-n1-fix`
+
+The shared-resolver + set-based-delete fix above landed as planned, but
+implementing it surfaced a **second, distinct per-entry N+1** that the
+static reading behind finding (1) didn't catch — the regression test
+written to pin the fix (N=200→8000) still showed a 36–39× statement ratio
+after the planned fix alone, not the expected O(1).
+
+**Root cause of the residual scaling**: every plan-year entry recalculated
+by `_recalculate_report_emissions` is a prefill copy, and
+`prefill_module_from_reference` stamps each copy's `data` with
+`percentage_of_reference_year` and `source_data_entry_id` (finding 2's own
+subject). `prepare_create` → `_get_percentage_override_kg` reads those
+fields **per entry, per emission type**, on a completely separate path from
+`factor_resolver`/`factor_query_cache`/`slice_cache` — the fix for finding
+(1) never touched it. Its `source_data_entry_id` fast path costs one
+`session.get(DataEntry, ...)` PK fetch + one `_sum_entry_emissions` sum
+query per call; for headcount-shaped module types with several emission
+types per entry this multiplies further. (The report-level lookup in the
+same method was already safe — `DataEntryEmissionService.__init__` memoizes
+`_get_report_for_data_entry` by `carbon_report_module_id` for the instance's
+lifetime, so it was never the bottleneck.)
+
+**Fix**: `DataEntryEmissionService.prefetch_percentage_override_cache(
+entries, unit_id=...)`, called once per `_recalculate_report_emissions`
+call (mirroring `factor_query_cache`/`slice_cache`'s existing shape). One
+`SELECT ... WHERE id IN (:source_ids)` plus one `GROUP BY (data_entry_id,
+emission_type_id)` sum query replace the per-entry PK fetch + sum for every
+entry whose source belongs to the same unit (the existing cross-unit
+ownership gate is preserved — sources are filtered against `report.
+unit_id` before the cache is built; unit mismatches, an edge case, still
+fall through to the original per-entry path, which re-checks and correctly
+rejects them). `prepare_create` takes the resulting map as a new optional
+`override_cache` param and checks it before hitting the DB.
+
+**Measured after both fixes**: N=200→8000 statement ratio ~1.0 (222→222
+non-INSERT statements; INSERT count scales 200→8000 but that is a SQLite-
+only artifact — `DataEntryEmissionRepository.bulk_copy` falls back to
+`session.add_all`+flush, one INSERT per row, off the `psycopg` COPY path;
+production Postgres issues a single `COPY FROM STDIN` regardless of N, so
+this doesn't reproduce there). A dedicated equivalence test asserts the
+cached and uncached paths compute identical kg values, not just fewer
+statements. Full backend unit suite (1974 tests) green.
+
 ## Priority order
 
 C1, C2, and C3's measurement phase are all now done (2026-08-12); this
@@ -485,42 +562,61 @@ investigation order.
    independent of everything else; still open, ship whenever.
 3. ~~**A2, A3** — rollout strategy, replica count, CPU requests.~~ **Done**
    — draft PR #2081.
-4. **C3** — implement the confirmed fixes (shared `FactorResolver` +
+4. ~~**C3** — implement the confirmed fixes (shared `FactorResolver` +
    set-based delete in `_recalculate_report_emissions`, drop the duplicate
-   `list_by_module`, add the yield, bring the regression test over). No
-   longer speculative — this is the largest confirmed lever in the whole
-   plan: O(N) round trips per PATCH, 50% of statements at N=8000 being a
-   single avoidable SELECT+DELETE-per-entry pattern. **Not started.**
+   `list_by_module`, add the yield, bring the regression test over).~~
+   **Done** — branch `perf/2050-simulator-plan-n1-fix`. Was the largest
+   confirmed lever in the plan: O(N) round trips per PATCH, 50% of
+   statements at N=8000 being a single avoidable SELECT+DELETE-per-entry
+   pattern, plus a second per-entry N+1 (percentage-override lookup) found
+   only once the first fix's own regression test still showed O(N) scaling
+   — see C3's status note above.
 5. ~~**B** — worker split (also resolves A4).~~ **Implemented, disabled by
    default** — draft PR #2081 ships `worker.enabled=false`; flipping it on
    any real environment is a separate follow-up.
-6. **C2's finding informs, but doesn't gate, anything further** — see
-   below; no additional compute work is indicated by the measurement.
+6. **C2's follow-up finding is a new, concrete lever, not just informative**
+   — ~65-67% of recalc wall clock is `DataEntryEmission(...)` ORM/Pydantic
+   construction on rows that are never individually persisted. Unimplemented;
+   lower priority than C3 (C3 blocked a synchronous request path and held a
+   DB connection, this doesn't), but worth its own follow-up issue rather
+   than being dropped as "no additional compute work indicated."
 
 A0 runs alongside 1–3 as verification.
 
 ## On rewriting in another language
 
 **The measurements argue against this more strongly than originally
-anticipated, not less.** C2 found `prepare` (factor resolution / DB round
-trips) dominates recalc at ~77% of wall time, with `validate`
-(pure-Python Pydantic construction) under 1%. C3 found the request-path
-cost is a round-trip count problem (O(N) SELECT+DELETE pairs), not a
-compute problem. Neither is the "hot pure-Python loop" shape a language
-rewrite helps with — a Rust or Go recalc engine would still issue the same
-DB round trips at the same latency, because the bottleneck was never CPU
-cycles spent computing; it was query count and connection-pool contention,
-both of which C3's fix and Track B resolve without touching the formula
-layer at all.
+anticipated, not less — but the reasoning changed with C2's follow-up
+pass.** `prepare` dominates recalc at ~77% of wall time, with `validate`
+(pure-Python Pydantic construction) under 1% — but `prepare`'s own cost
+turned out to be ~94% ORM/Pydantic **object construction**
+(`DataEntryEmission(...)`, `table=True`), not DB round trips as first
+assumed; every DB-adjacent stage inside it (`fetch_factors`, `pre_compute`,
+`resolver.resolve`) measured as cheap and O(1), confirming the existing
+cache/slice design works as intended. C3 separately found the request-path
+cost is a round-trip count problem (O(N) SELECT+DELETE pairs plus, once
+found, an O(N) percentage-override lookup) — a genuine compute problem, not
+a hot pure-Python loop.
+
+That object-construction cost **is** CPU-bound Python/framework overhead —
+the kind a rewrite generically helps with. But porting it isn't the
+indicated fix: the objects being expensively constructed are never
+individually persisted (`bulk_replace_for_entries` COPYs them), so the
+actual fix is architectural — stop building the full SQLAlchemy-mapped
+model in the hot loop, keep it only where the API path truly
+`session.add()`s one — not a language port of the formula layer. That
+targeted fix, still unimplemented (see C2's status note above), is
+strictly cheaper than a rewrite and doesn't touch — let alone risk
+duplicating — the formula source of truth.
 
 Pure-Python compute is typically 10–50× slower than Rust or Go for actual
 CPU-bound arithmetic, but that gain applies to a share of the total time
-that these measurements now show is small. Against that: reimplementing
-the formula layer either duplicates the source of truth — the
-drifted-published-number failure this project fears most — or means
-porting all of it. **Closed, not just deferred**, unless a future profile
-on a _different_ workload shows a genuinely compute-bound hot path this
-plan didn't cover.
+that these measurements now show is small, and is better captured by the
+targeted fix above than by porting the formula layer. Reimplementing it
+either duplicates the source of truth — the drifted-published-number
+failure this project fears most — or means porting all of it. **Closed,
+not just deferred**, unless a future profile on a _different_ workload
+shows a genuinely compute-bound hot path this plan didn't cover.
 
 Expected stacking: A1 alone ends the 504s; C1's jemalloc line recovers
 ~11 percentage points of the alloc-churn gap for one line of Dockerfile;
