@@ -50,7 +50,7 @@ from app.repositories.data_ingestion import (
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.services.pipeline_progress import PhaseLabel, compute_pipeline_progress
-from app.tasks._background import fire_and_forget
+from app.tasks._background import fire_and_forget_or_defer_to_poller
 from app.tasks.runner import run_job
 from app.tasks.unit_sync_tasks import SyncUnitRequest
 from app.utils.datetime_utc import as_utc
@@ -891,7 +891,7 @@ async def sync_module_data_entries(
     )
     await db.commit()
 
-    fire_and_forget(run_job(job_id), name=f"run_job-{job_id}")
+    fire_and_forget_or_defer_to_poller(run_job(job_id), name=f"run_job-{job_id}")
 
     return {
         "job_id": job_id,
@@ -987,7 +987,7 @@ async def sync_module_factors(
     )
     await db.commit()
 
-    fire_and_forget(run_job(job_id), name=f"run_job-{job_id}")
+    fire_and_forget_or_defer_to_poller(run_job(job_id), name=f"run_job-{job_id}")
 
     return {
         "job_id": job_id,
@@ -1912,7 +1912,9 @@ async def recalculate_emissions_for_type(
             detail="Failed to create recalculation job",
         )
 
-    fire_and_forget(run_job(created_job.id), name=f"run_job-{created_job.id}")
+    fire_and_forget_or_defer_to_poller(
+        run_job(created_job.id), name=f"run_job-{created_job.id}"
+    )
     return SyncStatusResponse(
         job_id=created_job.id,
         state=IngestionState.NOT_STARTED,
@@ -2011,7 +2013,9 @@ async def recalculate_emissions_for_module(
             detail="Failed to create recalculation job",
         )
 
-    fire_and_forget(run_job(created_job.id), name=f"run_job-{created_job.id}")
+    fire_and_forget_or_defer_to_poller(
+        run_job(created_job.id), name=f"run_job-{created_job.id}"
+    )
     n = len(det_ids)
     return SyncStatusResponse(
         job_id=created_job.id,
@@ -2068,7 +2072,7 @@ async def sync_units_from_accred(
     # cutover: dispatch goes through the unified ``run_job`` runner —
     # the registered ``unit_sync_handler`` reads ``meta.config.target_year``
     # (set above) so the legacy ``SyncUnitRequest``-passing call is gone.
-    fire_and_forget(
+    fire_and_forget_or_defer_to_poller(
         run_job(created.id),
         name=f"run_job-{created.id}",
     )
@@ -2256,8 +2260,13 @@ async def recompute_stats(
             job_ids.append(job_id)
             jobs_by_year.setdefault(scope_year, []).append(job_id)
 
+    # On an API pod this defers to the poller, which dispatches each job
+    # independently rather than sequentially — still safe: per the
+    # docstring above, same-year jobs already serialize behind each
+    # other's advisory lock, so independent dispatch only trades an
+    # explicit await chain for lock-wait time, not a correctness change.
     for scope_year, year_job_ids in jobs_by_year.items():
-        fire_and_forget(
+        fire_and_forget_or_defer_to_poller(
             _run_jobs_sequentially(year_job_ids),
             name=f"recompute-stats-{scope_year}",
         )

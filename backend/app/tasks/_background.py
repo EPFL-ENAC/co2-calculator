@@ -21,6 +21,7 @@ for any background work whose return value the caller doesn't await.
 import asyncio
 from collections.abc import Coroutine
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -40,6 +41,32 @@ def fire_and_forget(coro: Coroutine, *, name: str | None = None) -> asyncio.Task
     _BACKGROUND_TASKS.add(task)
     task.add_done_callback(_on_done)
     return task
+
+
+def fire_and_forget_or_defer_to_poller(
+    coro: Coroutine, *, name: str | None = None
+) -> asyncio.Task | None:
+    """Dispatch immediately if this pod inline-dispatches; else defer to the poller.
+
+    Plan #2050 Track B: job execution moves off API pods so a running job
+    never competes with request traffic — including health probes — for
+    the DB pool. Gated on ``DISPATCH_JOBS_INLINE``, not
+    ``RUN_BACKGROUND_POLLER`` — the two are orthogonal (the test suite
+    disables the poller everywhere while still expecting inline dispatch
+    to fire), and a worker-split API pod needs both off together, a
+    pairing the Helm chart must enforce since no single pod can detect it.
+
+    When ``DISPATCH_JOBS_INLINE`` is false, ``coro`` is closed unstarted
+    rather than awaited — the caller has already committed the
+    NOT_STARTED job row, and the worker pod's safety poller
+    (``app/tasks/_poller.py``) picks it up within
+    ``POLLER_INTERVAL_SECONDS``, same claim/heartbeat/preempt path either
+    way.
+    """
+    if not get_settings().DISPATCH_JOBS_INLINE:
+        coro.close()
+        return None
+    return fire_and_forget(coro, name=name)
 
 
 async def wait_for_background_tasks(timeout: float = 600.0) -> None:

@@ -1,38 +1,39 @@
-{{- if .Values.backend.enabled }}
+{{- if .Values.worker.enabled }}
+# Plan #2050 Track B — poller-only worker: executes background jobs
+# (recalc, ingestion, sync) so they never compete with API request
+# traffic — including health probes — for the DB pool. No Service, no
+# ingress, no readiness/startup probe (nothing routes traffic here);
+# liveness only, so a hung pod still gets recycled.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "co2-calculator.fullname" . }}-backend
+  name: {{ include "co2-calculator.fullname" . }}-worker
   labels:
     {{- include "co2-calculator.labels" . | nindent 4 }}
-    app.kubernetes.io/component: backend
+    app.kubernetes.io/component: worker
 spec:
   revisionHistoryLimit: 2
 
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      # #2050 A2: maxSurge:0/maxUnavailable:1 made every rollout a
-      # guaranteed outage window on a single-replica deployment (dev) and
-      # a capacity dip on multi-replica ones (stage). A new pod comes up
-      # before an old one leaves instead.
       maxSurge: 1
       maxUnavailable: 0
 
-  replicas: {{ .Values.backend.replicaCount }}
+  replicas: {{ .Values.worker.replicaCount }}
   selector:
     matchLabels:
       {{- include "co2-calculator.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: backend
+      app.kubernetes.io/component: worker
   template:
     metadata:
       annotations:
-        {{- with .Values.backend.podAnnotations }}
+        {{- with .Values.worker.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
         {{- include "co2-calculator.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: backend
+        app.kubernetes.io/component: worker
     spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -67,44 +68,36 @@ spec:
             {{- toYaml .Values.backend.initContainers.waitForPostgres.resources | nindent 12 }}
         {{- end }}
       containers:
-        - name: backend
+        # Same image as the backend deployment — this is the same app
+        # process, just with RUN_BACKGROUND_POLLER/DISPATCH_JOBS_INLINE
+        # flipped on and no port exposed via a Service.
+        - name: worker
           securityContext:
             {{- toYaml .Values.backend.securityContext | nindent 12 }}
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
-          {{- with .Values.backend.command }}
-          command: {{ . | toYaml | nindent 12 }}
-          {{- end }}
-          {{- with .Values.backend.args }}
-          args: {{ . | toYaml | nindent 12 }}
-          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.backend.service.targetPort }}
               protocol: TCP
           env:
             {{- include "co2-calculator.backendSecretEnv" . | nindent 12 }}
-            {{- range $key, $value := .Values.backend.env }}
+            {{- range $key, $value := .Values.worker.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
-            {{- if .Values.worker.enabled }}
-            # #2050 Track B: worker.enabled is the single switch — API pods
-            # stop executing jobs themselves the moment a worker exists to
-            # pick them up. These override backend.env's static values
-            # above (last entry with a given name wins), so the pairing
-            # can't drift out of sync between the two Deployments.
+            # Unconditional: this template only renders when worker.enabled
+            # is true, and that's the pod whose whole job is to poll and
+            # inline-dispatch. Not exposed via worker.env — see the
+            # matching override in backend-deployment.yaml.
             - name: RUN_BACKGROUND_POLLER
-              value: "false"
+              value: "true"
             - name: DISPATCH_JOBS_INLINE
-              value: "false"
-            {{- end }}
+              value: "true"
           livenessProbe:
-            {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
-          readinessProbe:
-            {{- toYaml .Values.backend.readinessProbe | nindent 12 }}
+            {{- toYaml .Values.worker.livenessProbe | nindent 12 }}
           resources:
-            {{- toYaml .Values.backend.resources | nindent 12 }}
+            {{- toYaml .Values.worker.resources | nindent 12 }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -115,15 +108,15 @@ spec:
           emptyDir: {}
         {{- include "co2-calculator.backendSecretVolume" . | nindent 8 }}
 
-      {{- with .Values.backend.nodeSelector }}
+      {{- with .Values.worker.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.backend.affinity }}
+      {{- with .Values.worker.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.backend.tolerations }}
+      {{- with .Values.worker.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
