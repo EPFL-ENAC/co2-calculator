@@ -17,6 +17,9 @@ backend:
     tag: "latest"
     pullPolicy: IfNotPresent
 
+  command: []
+  args: []
+  
   service:
     type: ClusterIP
     port: 8000
