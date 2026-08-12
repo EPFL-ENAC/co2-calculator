@@ -14,6 +14,7 @@ from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.module_type import (
     PLANNER_PREFILLED_MODULE_TYPES,
     PLANNER_REFERENCE_SCOPED_MODULE_TYPES,
@@ -33,6 +34,7 @@ from app.schemas.simulator_plan import (
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.factor_resolver import FactorResolver
+from app.utils.factor_year import resolve_factor_year
 from app.utils.report_stats import merge_report_stats
 
 logger = get_logger(__name__)
@@ -655,24 +657,88 @@ class SimulatorPlanService:
 
         Factor lookup follows the reference year, so every entry of the report
         has to be recomputed when it changes.
+
+        Batched like ``_persist_prefill_entries`` and the recalc workflow —
+        see ``_prepare_recalc_emissions`` — instead of the old per-entry
+        ``upsert_by_data_entry`` loop, measured at 39x more SQL statements
+        for a 40x entry-count increase (plan #2050 section C3).
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
         entries = await DataEntryRepository(self.session).list_by_carbon_report(
             report.id
         )
+        if not entries:
+            # No per-entry compute to batch, but the report-level rollup
+            # still needs a refresh — a report that just lost its last entry
+            # must not keep stale stats/completion_progress (matches the
+            # unconditional recompute_report_stats the old per-entry loop
+            # always ran, unlike the module-stats call it gated on entries).
+            await self.report_service.recompute_report_stats(report.id)
+            return
+
+        # Pure function of ``report`` (reference year wins) — same value for
+        # every entry below, so it is computed once instead of once per entry.
+        year = await resolve_factor_year(self.session, report)
+        entry_ids, prepared_emissions = await self._prepare_recalc_emissions(
+            entries, year=year, unit_id=report.unit_id
+        )
         emission_svc = DataEntryEmissionService(self.session)
-        module_ids: set[int] = set()
-        for entry in entries:
-            await emission_svc.upsert_by_data_entry(
-                DataEntryResponse.model_validate(entry)
-            )
-            module_ids.add(entry.carbon_report_module_id)
-        if module_ids:
-            await self.report_service.module_service.recompute_stats_many(
-                sorted(module_ids)
-            )
+        await emission_svc.bulk_replace_for_entries(entry_ids, prepared_emissions)
+
+        module_ids = {entry.carbon_report_module_id for entry in entries}
+        await self.report_service.module_service.recompute_stats_many(
+            sorted(module_ids)
+        )
         await self.report_service.recompute_report_stats(report.id)
+
+    async def _prepare_recalc_emissions(
+        self, entries: list[DataEntry], *, year: int | None, unit_id: int | None
+    ) -> tuple[list[int], list[DataEntryEmission]]:
+        """Compute emissions for ``entries``, sharing resolver/cache/slice state.
+
+        Groups by ``data_entry_type_id`` (a report mixes module types, each
+        with its own handler and ``prefetch_slice``) so an N-entry report
+        costs one shared ``FactorResolver`` + factor-query cache and one
+        ``prefetch_slice`` per type, not one factor lookup per entry.
+
+        Plan-year entries are prefill copies and so all carry
+        ``percentage_of_reference_year`` + ``source_data_entry_id`` — also
+        prefetch the override sums for the whole batch up front instead of
+        one PK fetch + one sum query per entry (plan #2050 section C3).
+        """
+        emission_svc = DataEntryEmissionService(self.session)
+        factor_resolver = FactorResolver(self.session)
+        factor_query_cache: dict = {}
+        override_cache = await emission_svc.prefetch_percentage_override_cache(
+            entries, unit_id=unit_id
+        )
+
+        by_type: dict[int, list[DataEntry]] = {}
+        for entry in entries:
+            by_type.setdefault(entry.data_entry_type_id, []).append(entry)
+
+        entry_ids: list[int] = []
+        prepared_emissions: list[DataEntryEmission] = []
+        for data_entry_type_id, group in by_type.items():
+            handler = BaseModuleHandler.get_by_type(
+                DataEntryTypeEnum(data_entry_type_id)
+            )
+            slice_cache = await handler.prefetch_slice(group, self.session, year=year)
+            for entry in group:
+                if entry.id is not None:
+                    entry_ids.append(entry.id)
+                prepared_emissions.extend(
+                    await emission_svc.prepare_create(
+                        DataEntryResponse.model_validate(entry),
+                        year=year,
+                        factor_resolver=factor_resolver,
+                        factor_query_cache=factor_query_cache,
+                        slice_cache=slice_cache,
+                        override_cache=override_cache,
+                    )
+                )
+        return entry_ids, prepared_emissions
 
     async def duplicate_plan(
         self, plan_id: int, user: User
