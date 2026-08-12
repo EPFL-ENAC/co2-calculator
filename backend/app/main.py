@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
@@ -414,7 +415,10 @@ async def health_deps():
 
     Not a Kubernetes probe target — Accred availability must never gate
     pod readiness (#2050 A1); a blip there is EPFL's incident, not ours.
-    This reports the same signal for humans/monitoring instead.
+    This reports the same signal for humans/monitoring instead, via a
+    real status code (503 on failure) so alerting can key off it directly
+    instead of parsing the body — safe here specifically because nothing
+    routes this endpoint's status into a probe or the Service.
     """
     details = {}
     role_provider_status = "skipped"
@@ -428,8 +432,6 @@ async def health_deps():
         if settings.ACCRED_API_USERNAME is None or settings.ACCRED_API_KEY is None:
             raise ValueError("ACCRED_API_USERNAME and ACCRED_API_KEY must be set")
         try:
-            import httpx
-
             async with httpx.AsyncClient(timeout=2) as client:
                 resp = await client.get(
                     settings.ACCRED_AUTHORIZATION_HEALTHCHECK_URL,
@@ -443,8 +445,12 @@ async def health_deps():
             role_provider_status = "error"
             details["role_provider_error"] = str(e)
 
+    is_healthy = role_provider_status in ("skipped", "ok")
+    status_code = (
+        status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+    )
     return JSONResponse(
-        status_code=status.HTTP_200_OK,
+        status_code=status_code,
         content={"role_provider": role_provider_status, "details": details},
     )
 

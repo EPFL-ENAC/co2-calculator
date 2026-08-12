@@ -104,6 +104,7 @@ async def test_health_deps_role_provider_skipped(monkeypatch):
     monkeypatch.setattr(main.settings, "UNIT_PROVIDER_TYPE", UnitProviderType.DATABASE)
     resp = await main.health_deps()
     assert b"skipped" in resp.body
+    assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -125,6 +126,7 @@ async def test_health_deps_role_provider_ok(monkeypatch):
     with patch("httpx.AsyncClient", return_value=mock_client):
         resp = await main.health_deps()
         assert b"ok" in resp.body
+        assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -145,6 +147,33 @@ async def test_health_deps_role_provider_error(monkeypatch):
     with patch("httpx.AsyncClient", return_value=mock_client):
         resp = await main.health_deps()
         assert b"error" in resp.body
+        assert resp.status_code == 503, (
+            "health_deps must return 503 on a real dependency failure so "
+            "monitoring can key off status code, not just parse the body"
+        )
+
+
+@pytest.mark.asyncio
+async def test_health_deps_role_provider_non_200_response(monkeypatch):
+    # Accred responds, but with a non-200 status - distinct from the
+    # exception path above, same 503 contract.
+    monkeypatch.setattr(main.settings, "ROLE_PROVIDER_TYPE", RoleProviderType.ACCRED)
+    monkeypatch.setattr(main.settings, "UNIT_PROVIDER_TYPE", UnitProviderType.DATABASE)
+    monkeypatch.setattr(
+        main.settings, "ACCRED_AUTHORIZATION_HEALTHCHECK_URL", "http://fake"
+    )
+    monkeypatch.setattr(main.settings, "ACCRED_API_USERNAME", "u")
+    monkeypatch.setattr(main.settings, "ACCRED_API_KEY", "k")
+
+    mock_resp = MagicMock(status_code=500)
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.get.return_value = mock_resp
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        resp = await main.health_deps()
+        assert b"error (500)" in resp.body
+        assert resp.status_code == 503
 
 
 def test_main_block(monkeypatch):
