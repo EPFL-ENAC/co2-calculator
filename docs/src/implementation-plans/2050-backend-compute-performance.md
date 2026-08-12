@@ -3,7 +3,7 @@ status: in-progress
 issue: 2050
 last_updated: 2026-08-12
 title: "Backend compute performance — pod stability, worker split, request-path profiling"
-summary: "Three-track plan against the dev-platform slowness and the intermittent 504s. Tracks A and B are implemented in draft PR #2081 (perf/2050-track-a-b-availability, ready for review): /ready's DB check is bounded with asyncio.timeout so it can never outlive its own k8s probe deadline (the confirmed 504 cause — reproduced on stage with no deployment in progress, /healthz answering 200 throughout), the Accred check moved off the readiness path to /health/deps, rollout strategy and CPU requests corrected, and job dispatch now runs through a DISPATCH_JOBS_INLINE-gated helper (kept separate from RUN_BACKGROUND_POLLER since the test suite already depends on that flag meaning something else) so a worker.enabled Helm split can move job execution off API pods without a misconfigurable dead state. Track C: musl costs ~11-20% and is only partly recoverable via jemalloc (kept on Alpine — a real Trivy scan confirmed the CVE rationale still holds); the recalc workflow's prepare stage (~77% of wall time) turned out to be ~94% ORM/Pydantic object construction on rows never individually persisted, not DB round trips as first assumed — a concrete, unimplemented follow-up target; and the simulator-plan reference-year PATCH's N+1 is fixed on branch perf/2050-simulator-plan-n1-fix — two distinct per-entry query patterns (a SELECT-then-DELETE, and a percentage-override lookup discovered only once the first fix's regression test still showed O(N) scaling), both now O(1) per recalc call, with an equivalence test and the full unit suite green. All three tracks argue against a language rewrite: the bottlenecks are round-trip count and object-construction overhead in the ORM layer, not raw arithmetic."
+summary: "Three-track plan against the dev-platform slowness and the intermittent 504s, investigation now fully closed out. Tracks A and B are implemented in draft PR #2081 (perf/2050-track-a-b-availability, ready for review): /ready's DB check is bounded with asyncio.timeout so it can never outlive its own k8s probe deadline (the confirmed 504 cause), the Accred check moved off the readiness path, rollout strategy and CPU requests corrected, and job dispatch runs through a DISPATCH_JOBS_INLINE-gated helper so a worker.enabled Helm split can move job execution off API pods. Track C: musl costs ~11-24% and is only partly recoverable via jemalloc (kept on Alpine — a real Trivy scan confirmed the CVE rationale); the recalc workflow's prepare stage (~77% of wall time) turned out to be ~94% ORM/Pydantic object construction on rows never individually persisted, not DB round trips as first assumed (unimplemented follow-up target); the simulator-plan reference-year PATCH's N+1 is fixed on PR #2083 (perf/2050-simulator-plan-n1-fix) — two distinct per-entry query patterns, both now O(1) per recalc call; and a rerun with a real OTel on/off test matrix found instrumentation alone costs this app ~37% throughput and +58-94% latency — a bigger single lever than musl vs glibc, doesn't change the Alpine call, but merits its own follow-up issue. All findings argue against a language rewrite: the bottlenecks are round-trip count, ORM object-construction overhead, and OTel span cost, not raw arithmetic."
 ---
 
 # Backend compute performance (#2050)
@@ -329,6 +329,54 @@ below — so far neither is).
 Action: land the two-line jemalloc `Dockerfile` change alongside Track A
 (it's independent, cheap, and already fully measured).
 
+**Rerun with an OTel on/off test matrix (bare uvicorn vs
+`opentelemetry-instrument uvicorn`)** — the production CMD wraps every
+request in OTel auto-instrumentation, which every benchmark above ran
+without. Real endpoint (`PATCH /api/v1/project-plans/{id}/years/{year}`,
+local uvicorn against the seeded Postgres, 3×20s runs at concurrency 8):
+
+| Variant                       | rps   | p50     | p95     | p99     | CPU% |
+| ------------------------------ | ----- | ------- | ------- | ------- | ---- |
+| A — bare uvicorn                | 471.4 | 16.68ms | 21.42ms | 26.66ms | ~79% |
+| B — OTel, exporters=none        | 295.6 | 26.27ms | 34.79ms | 51.85ms | ~77% |
+| C — OTel, full OTLP export      | 292.5 | 25.37ms | 37.35ms | 42.85ms | ~80% |
+
+**B vs A: −37% throughput, +58–94% latency across p50–p99 — this app's own
+OTel tax lands in the "30%+, investigate" bucket, not the "negligible"
+range generic FastAPI writeups suggest.** C vs B is ~1%: the cost is
+almost entirely instrumentation (spans + context propagation +
+per-SQL-statement spans via SQLAlchemy auto-instrumentation), not
+network/exporter overhead. CPU% stays flat across all three, meaning the
+single event-loop core is already saturated everywhere — B/C aren't
+waiting more, they're doing ~60% more work per request. One caveat: the
+PATCH body used always matched the plan's current reference year, so
+`set_reference_year`'s early-return (`report.reference_year !=
+reference_year`) skipped the O(N) prefill/recalc path C3 fixes — this
+measures routing + auth + Pydantic + a light DB read, a real endpoint but
+not the heavy path.
+
+Because the tax scales with SQL statement count (one span per statement),
+it was partly inflated by exactly the N+1s C3 fixed — expect it to shrink
+somewhat as a side effect of that fix, not just the raw round-trip count
+dropping.
+
+**Does this change the musl-vs-glibc call?** >5% threshold triggered, so
+re-checked: `bench_alloc.py`'s allocation-churn workload wrapped in a real
+(no-export) `TracerProvider` span per iteration, alpine vs slim:
+
+| Workload             | alpine (musl) | slim (glibc) | ratio |
+| --------------------- | ------------- | ------------ | ----- |
+| alloc, no OTel         | 1.07 M/s      | 1.40 M/s     | 1.31× |
+| alloc + OTel span tax  | 0.104 M/s     | 0.130 M/s    | 1.25× |
+
+Same direction, same rough magnitude — **the alpine-vs-glibc conclusion
+above holds.** OTel's own tax (37% rps) dwarfs musl vs glibc (11–24%,
+jemalloc recovers about half) as a lever; it deserves its own follow-up
+issue (tuning `OTEL_PYTHON_EXCLUDED_URLS`, sampling, or scoping which
+libraries get auto-instrumented) rather than staying folded into C1.
+Caveats: measured on macOS arm64, not a k8s x86 alpine container — same
+directional-not-absolute caveat the rest of C1 carries.
+
 ### C2. Recalc workflow profile
 
 **Status: done**, on a local seed (`random_generator.seed_all`: 500 units,
@@ -580,6 +628,15 @@ investigation order.
    lower priority than C3 (C3 blocked a synchronous request path and held a
    DB connection, this doesn't), but worth its own follow-up issue rather
    than being dropped as "no additional compute work indicated."
+7. **C1's OTel rerun found a bigger, separate lever than musl vs glibc** —
+   instrumentation alone costs this app ~37% throughput / +58-94% latency
+   (span-per-SQL-statement overhead, not export cost). Doesn't change the
+   Alpine decision, but deserves its own follow-up issue (scoping which
+   libraries get auto-instrumented, sampling, `OTEL_PYTHON_EXCLUDED_URLS`)
+   — a bigger single lever than C1's jemalloc line or C2's ORM-construction
+   finding on its own, and — since the tax scales with SQL statement count
+   — one that C3's fix already shrinks as a side effect on the endpoint it
+   touches, without anyone having to tune OTel to get that partial win.
 
 A0 runs alongside 1–3 as verification.
 
