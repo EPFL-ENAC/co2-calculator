@@ -20,6 +20,7 @@ from app.models.module_type import (
     ModuleTypeEnum,
 )
 from app.models.user import User
+from app.modules_planner.headcount import PLANNER_STUDENT_CODE
 from app.repositories.carbon_project_repo import CarbonProjectRepository
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportCreate, CarbonReportRead
@@ -525,8 +526,8 @@ class SimulatorPlanService:
 
         Not a one-to-one copy like the other prefilled modules: the Calculator
         holds one row per person, the planner grid one row per SIUS category,
-        so the members' FTE are summed by category (students carry no category
-        and stay out of the grid). Each row starts at the reference year's full
+        so the members' FTE are summed by category, and the student entries into
+        the grid's own students row. Each row starts at the reference year's full
         FTE, for the user to lower to the project's share; a category nobody
         staffed gets no row, leaving its input blank. Destructive and
         idempotent — the grid is emptied first. Returns the rows created.
@@ -560,9 +561,12 @@ class SimulatorPlanService:
 
         fte_by_code: dict[str, float] = {}
         for src in await entry_repo.list_by_module(ref_module.id):
-            if src.data_entry_type_id != DataEntryTypeEnum.member:
+            if src.data_entry_type_id == DataEntryTypeEnum.member:
+                code = src.data.get("sius_code")
+            elif src.data_entry_type_id == DataEntryTypeEnum.student:
+                code = PLANNER_STUDENT_CODE
+            else:
                 continue
-            code = src.data.get("sius_code")
             if not code:
                 continue
             try:

@@ -5,6 +5,7 @@ from app.models.data_entry_emission import EmissionComputation, FactorQuery
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions import EmissionType
 from app.modules_planner.headcount.data_entries import (
+    PLANNER_STUDENT_CODE,
     PlannerHeadCountCreate,
     PlannerHeadCountResponse,
     PlannerHeadCountUpdate,
@@ -18,6 +19,8 @@ class PlannerHeadcountModuleHandler(BaseModuleHandler):
     Emissions reuse the Calculator's generic member factors
     (``FactorQuery(data_entry_type=member)``) — the SIUS category is a
     breakdown dimension, not a factor key, exactly as in the Calculator.
+    The students row carries no SIUS code and resolves against the
+    Calculator's student factors instead.
     """
 
     module_type: ModuleTypeEnum = ModuleTypeEnum.headcount
@@ -42,12 +45,17 @@ class PlannerHeadcountModuleHandler(BaseModuleHandler):
     def resolve_computations(
         self, data_entry: DataEntry, emission_type: EmissionType, ctx: dict
     ) -> list:
+        factor_type = (
+            DataEntryTypeEnum.student
+            if data_entry.data.get("sius_code") == PLANNER_STUDENT_CODE
+            else DataEntryTypeEnum.member
+        )
 
         return [
             EmissionComputation(
                 emission_type=emission_type,
                 factor_query=FactorQuery(
-                    data_entry_type=DataEntryTypeEnum.member,
+                    data_entry_type=factor_type,
                     emission_type=emission_type,
                     kind=None,
                     subkind=None,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { PlannerHeadcountRow } from 'src/composables/print/useProjectPlannerPrintData';
+import { plannerHeadcountLabelKey } from 'src/constant/planner-headcount';
 
 const props = defineProps<{ rows: PlannerHeadcountRow[] }>();
 
@@ -22,7 +23,7 @@ const totalFte = computed(() =>
     </thead>
     <tbody>
       <tr v-for="row in rows" :key="row.sius_code">
-        <td>{{ $t(row.sius_code) }}</td>
+        <td>{{ $t(plannerHeadcountLabelKey(row.sius_code)) }}</td>
         <td class="align-right">
           {{ $nOrDash(row.fte, { options: { maximumFractionDigits: 1 } }) }}
         </td>
