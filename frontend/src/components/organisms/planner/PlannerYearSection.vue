@@ -6,11 +6,32 @@
     >
       <template #header>
         <q-item-section>
-          {{
-            yearData.is_grant
-              ? $t('planner_project_grant_title')
-              : yearData.year
-          }}
+          <div class="flex items-center">
+            <span>
+              {{
+                yearData.is_grant
+                  ? $t('planner_project_grant_title')
+                  : yearData.year
+              }}
+            </span>
+            <q-icon
+              v-if="sectionTooltip"
+              :name="outlinedInfo"
+              size="16px"
+              color="grey-6"
+              class="cursor-pointer q-ml-sm"
+              :aria-label="$t('module-info-label')"
+              @click.stop
+            >
+              <q-tooltip
+                anchor="center right"
+                self="top right"
+                class="u-tooltip"
+              >
+                {{ sectionTooltip }}
+              </q-tooltip>
+            </q-icon>
+          </div>
         </q-item-section>
       </template>
 
@@ -155,6 +176,23 @@
                 <div class="text-h5 text-weight-medium">
                   {{ $t(entry.config.module) }}
                 </div>
+                <q-icon
+                  v-if="moduleTooltip(entry.config.module)"
+                  :name="outlinedInfo"
+                  size="16px"
+                  color="grey-6"
+                  class="cursor-pointer q-ml-sm"
+                  :aria-label="$t('module-info-label')"
+                  @click.stop
+                >
+                  <q-tooltip
+                    anchor="center right"
+                    self="top right"
+                    class="u-tooltip"
+                  >
+                    {{ moduleTooltip(entry.config.module) }}
+                  </q-tooltip>
+                </q-icon>
               </div>
             </q-item-section>
             <q-item-section side @click.stop>
@@ -434,6 +472,7 @@
                 :grant-budgets="entry.module?.budgets ?? null"
                 :grant-budget-currency="yearData.budget_currency"
                 :disable="entry.module?.is_active === false"
+                :tooltip-scope="tooltipScope"
               />
             </template>
           </div>
@@ -450,6 +489,8 @@ import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import { moduleTooltipKey, type TooltipScope } from 'src/utils/tooltipScope';
 import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
 import PlannerPurchaseRows from 'src/components/organisms/planner/PlannerPurchaseRows.vue';
 import PlannerResearchFacilityRows from 'src/components/organisms/planner/PlannerResearchFacilityRows.vue';
@@ -809,6 +850,24 @@ function isEdgeToEdge(module: Module): boolean {
  * Grant tables show kgCO₂eq per year and multiplied over the project's years
  * (#1979). Year sections never do; the RF grid shows the pair on its own rows.
  */
+// The Grant section and the project-year sections carry their own guidance
+// texts, so the tooltip set follows the section kind (tooltips.ts).
+const tooltipScope = computed<TooltipScope>(() =>
+  props.yearData.is_grant ? 'planner-grant' : 'planner-year',
+);
+
+const sectionTooltip = computed(() =>
+  t(
+    props.yearData.is_grant
+      ? 'planner-grant-section-title'
+      : 'planner-year-section-title',
+  ),
+);
+
+function moduleTooltip(module: Module): string {
+  return t(moduleTooltipKey(tooltipScope.value, module));
+}
+
 const grantYearsCount = computed<number | null>(() =>
   props.yearData.is_grant ? (props.projectYearsCount ?? null) : null,
 );

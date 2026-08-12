@@ -6,6 +6,12 @@
   line-height: tokens.$tooltip-line-height;
 }
 
+// Guidance tooltips are written as paragraphs in tooltips.ts; keep their line
+// breaks instead of collapsing them into one block of text.
+.u-tooltip {
+  white-space: pre-line;
+}
+
 .sidebar-tooltip {
   padding: tokens.$sidebar-tooltip-padding-y tokens.$sidebar-tooltip-padding-x;
   font-size: tokens.$sidebar-tooltip-font-size;
