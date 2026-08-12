@@ -54,6 +54,14 @@ export const runtimeConfig = {
     injected.APP_ACCESS_MANAGEMENT_PROVIDER_URL ||
     process.env.APP_ACCESS_MANAGEMENT_PROVIDER_URL ||
     '',
+  accessManagementProviderAboutUrl:
+    injected.APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL ||
+    process.env.APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL ||
+    '',
+  // Documentation page explaining the calculator's roles, linked from the same
+  // popover. Per-pod so another institution can point at its own doc site.
+  rolesDocUrl:
+    injected.APP_ROLES_DOC_URL || process.env.APP_ROLES_DOC_URL || '',
   // Recipient for the Equipment "power feedback" mailto (issue #266). The address
   // can depend on the institution, so it is configurable per-pod via
   // APP_EQUIPMENT_POWER_FEEDBACK_EMAIL on /injectEnv.js rather than hardcoded.
