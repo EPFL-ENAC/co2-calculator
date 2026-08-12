@@ -33,6 +33,23 @@
                 <div class="text-h5 text-weight-medium">
                   {{ $t(m.type) }}
                 </div>
+                <q-icon
+                  v-if="moduleTooltip(m.type)"
+                  :name="outlinedInfo"
+                  size="16px"
+                  color="grey-6"
+                  class="cursor-pointer q-ml-sm"
+                  :aria-label="$t('module-info-label')"
+                  @click.stop
+                >
+                  <q-tooltip
+                    anchor="center right"
+                    self="top right"
+                    class="u-tooltip"
+                  >
+                    {{ moduleTooltip(m.type) }}
+                  </q-tooltip>
+                </q-icon>
               </div>
             </template>
 
@@ -56,6 +73,7 @@
                   :module-type="m.type"
                   :disable="false"
                   :is-explorer="true"
+                  tooltip-scope="explorer"
                   :submodule-type="sub.type"
                   :data="null"
                   :loading="false"
@@ -135,11 +153,14 @@ import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import {
   MODULES,
   MODULES_THRESHOLD_TYPES,
+  type Module,
   type Threshold,
 } from 'src/constant/modules';
+import { moduleTooltipKey } from 'src/utils/tooltipScope';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
@@ -150,7 +171,7 @@ import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarb
 
 const router = useRouter();
 const route = useRoute();
-const { locale } = useI18n();
+const { t, locale } = useI18n();
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
@@ -190,6 +211,10 @@ const simulatorReady = ref(false);
 const breakdownReady = ref(false);
 
 const modules = computed(() => getExploreModules(yearConfigStore.getModule));
+
+function moduleTooltip(module: Module): string {
+  return t(moduleTooltipKey('explorer', module));
+}
 
 const expandedModules = reactive<Record<string, boolean>>({});
 

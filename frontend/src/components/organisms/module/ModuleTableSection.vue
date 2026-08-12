@@ -22,6 +22,7 @@
           :grant-budget="grantBudgets?.[sub.id] ?? null"
           :grant-budget-currency="grantBudgetCurrency"
           :threshold="currentModuleConfig.threshold || defaultThreshold"
+          :tooltip-scope="tooltipScope"
         />
       </template>
     </div>
@@ -39,6 +40,7 @@ import { MODULES_THRESHOLD_TYPES, type Threshold } from 'src/constant/modules';
 
 import { Module } from 'src/constant/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import type { TooltipScope } from 'src/utils/tooltipScope';
 
 const props = defineProps<{
   type: Module;
@@ -66,6 +68,8 @@ const props = defineProps<{
   showGrantBudgets?: boolean;
   /** Grant submodule budgets of this module, keyed by submodule id (#1978). */
   grantBudgets?: Record<string, number> | null;
+  /** Which space these tables render in; selects the tooltip text set. */
+  tooltipScope?: TooltipScope;
   /** Currency code of the grant budget, shown on the budget fields. */
   grantBudgetCurrency?: string | null;
   /**
