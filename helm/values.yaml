@@ -239,6 +239,8 @@ frontend:
     # No code default: if unset the popover CTA/label is hidden.
     APP_ACCESS_MANAGEMENT_PROVIDER_NAME: "ACCRED"
     APP_ACCESS_MANAGEMENT_PROVIDER_URL: "https://access-management.example.com"
+    APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL: "https://access-management.example.com/about"
+    APP_ROLES_DOC_URL: "https://docs.example.com/roles/"
     APP_EQUIPMENT_POWER_FEEDBACK_EMAIL: "test@epfl.ch"
 
   podAnnotations: {}
