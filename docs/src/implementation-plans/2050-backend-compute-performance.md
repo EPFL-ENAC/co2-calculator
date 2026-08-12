@@ -3,7 +3,7 @@ status: in-progress
 issue: 2050
 last_updated: 2026-08-12
 title: "Backend compute performance — pod stability, worker split, request-path profiling"
-summary: "Three-track plan against the dev-platform slowness and the intermittent 504s. Track A fixes availability: the 504s are caused by /ready blocking on a DB pool checkout for up to DB_POOL_TIMEOUT (30 s) inside a probe with a 3 s deadline — confirmed by a readiness timeout on stage with no deployment in progress and /healthz answering 200 throughout. It is bounded with asyncio.timeout, the external Accred call leaves readiness, and rollout strategy and CPU requests are corrected. Track B moves job execution off the API pods onto a poller-only worker Deployment, using the RUN_BACKGROUND_POLLER gate that already exists, removing the job-vs-request contention for the same 20 pooled connections. Track C profiles the synchronous request path — starting with the simulator-plan reference-year PATCH, which re-runs per-entry factor resolution the recalc workflow already eliminated — and records the measurements needed before anyone argues for a language change."
+summary: "Three-track plan against the dev-platform slowness and the intermittent 504s. Track A fixes availability: the 504s are caused by /ready blocking on a DB pool checkout for up to DB_POOL_TIMEOUT (30 s) inside a probe with a 3 s deadline — confirmed by a readiness timeout on stage with no deployment in progress and /healthz answering 200 throughout. It is bounded with asyncio.timeout, the external Accred call leaves readiness, and rollout strategy and CPU requests are corrected. Track B moves job execution off the API pods onto a poller-only worker Deployment, using the RUN_BACKGROUND_POLLER gate that already exists, removing the job-vs-request contention for the same 20 pooled connections. Track C's measurement phase is complete: musl costs ~11-20% and is only partly recoverable via jemalloc (one-line Dockerfile fix, kept on Alpine — a real Trivy scan confirmed the CVE rationale for staying on Alpine still holds); the recalc workflow is ~77% factor-resolution time, not Pydantic overhead; and the simulator-plan reference-year PATCH has a confirmed O(entries) N+1 (a per-entry SELECT+DELETE that should be one set-based statement, 50% of all statements at N=8000) with fixes and a regression test ready to implement. Both findings argue against a language rewrite: the bottleneck is round-trip count, not CPU cycles."
 ---
 
 # Backend compute performance (#2050)
@@ -212,59 +212,131 @@ Priority 3, but it is the prerequisite for any "make it faster" decision,
 including a language change. **Nothing in this track is an optimisation
 until a measurement backs it.**
 
-### C1. musl vs glibc (owner: lead, in progress)
+### C1. musl vs glibc — measured, decided
 
-The runtime image is `python:3.14-alpine`. musl's `mallocng` is materially
-slower than glibc's malloc under allocation churn, and per-entry
-`DataEntryResponse.model_validate` across thousands of entries is exactly
-that. Reported penalties on allocation-heavy Python workloads range 1.5–3×.
+**Status: done.** Two rounds of benchmarking (Docker Desktop / macOS
+arm64 — direction should transfer to the k8s x86 nodes, magnitude may not;
+worth a one-off rerun on a `dev`/`dev2` pod before treating the numbers
+below as final) plus a real Trivy scan of the actual `backend/Dockerfile`
+against a Debian/glibc mirror of it.
 
-The key property: **musl is orthogonal to the `dev`/`dev2` gap** — the same
-image runs on both, so it cancels out of that comparison — **but it may be
-a flat multiplier on every row of the table above.** Also verify how the
-local ~384 rows/s figure was obtained: if that was native macOS via `uv`
-rather than the container, alpine is untested everywhere and part of the
-local-vs-k8s gap may be musl too.
+**Round 1 — is there a real effect, or is it noise?** `bench_alloc.py`
+(arithmetic control + allocation-churn workload proxying
+`model_validate`-shaped Pydantic construction), alpine vs slim, 5
+iterations each:
 
-Test: run the existing CPU benchmark script on the same dev node in
-`python:3.14-slim` and in the current backend image.
+| Workload                | alpine (musl) | slim (glibc) | ratio |
+| ----------------------- | ------------- | ------------ | ----- |
+| arith (control)         | 52.3 M/s      | 62.4 M/s     | 1.19× |
+| alloc (Pydantic-shaped) | 1.09 M/s      | 1.44 M/s     | 1.32× |
 
-Both pods must land on the same node for the comparison to mean anything
-(pin with `--overrides` nodeSelector, or start each with a long-running
-`sleep` and `kubectl exec -i … python - < bench.py` into it).
+The alloc ratio being higher than the control ratio confirms a real,
+allocation-specific effect — not just noise or a generic arch difference.
 
-Note the benchmark's `x += j` loop allocates a new int object per
-iteration above the small-int cache, so it does exercise the allocator —
-but a Pydantic-shaped microbenchmark would be a closer proxy. If slim wins
-meaningfully, two branches:
+**Round 2 — does an allocator swap fix it, or is it musl/libc itself?**
+Median of 3 fresh runs per variant, alpine-default vs `LD_PRELOAD`
+jemalloc vs `LD_PRELOAD` mimalloc vs slim:
 
-- Switch the runtime base to `debian-slim`. Cost: the CVE-surface reduction
-  the Dockerfile comment explicitly bought (perl, util-linux and friends
-  return).
-- Keep alpine and `LD_PRELOAD` a faster allocator (jemalloc is packaged for
-  Alpine; verify mimalloc availability before committing to it). Two-line
-  Dockerfile change, keeps the CVE posture.
+| Variant                   | arith vs slim | alloc vs slim |
+| ------------------------- | ------------- | ------------- |
+| alpine, default allocator | −15%          | −22%          |
+| alpine + jemalloc         | −19%          | **−11%**      |
+| alpine + mimalloc         | −17%          | −15%          |
+| slim (glibc), baseline    | —             | —             |
+
+**Answer: no, not primarily a malloc problem.** jemalloc recovers roughly
+half the allocation-churn deficit (22%→11%); mimalloc about a third. The
+arithmetic-loop gap (~15–19%, no allocation involved) is untouched by
+_any_ allocator swap — that portion is musl/libc itself (`memcpy`, string
+functions, dynamic linker / threading primitives), not `malloc`. Neither
+allocator gets within striking distance of full parity. (Caveat: Alpine's
+packaged mimalloc symlinks to the hardened/guard-page build, so upstream
+mimalloc could do somewhat better than shown; single-run noise was
+non-trivial — treat these as directional ratios, not absolutes.)
+
+**Is the Dockerfile's CVE rationale still true?** Built the real
+`backend/Dockerfile` as-is and a Debian/glibc mirror of it (same uv/
+opentelemetry-bootstrap/appuser steps, `apt-get install git` in place of
+`apk add git`; builds cleanly, no compatibility issues), ran
+`trivy image --severity HIGH,CRITICAL` on both:
+
+- **alpine (current): 0 findings**, 30 OS packages.
+- **slim (mirror): 23 findings (19 HIGH / 4 CRITICAL)**, 87 OS packages,
+  collapsing to ~6 distinct CVEs — all 4 CRITICALs in `perl-base`
+  (regex miscompile, `Archive::Tar` symlink traversal, `Storable`
+  integer overflow, heap overflow), the rest in the util-linux family
+  (one CVE, `libblkid` partition-parser integer overflow) and ncurses
+  (one CVE). **Fixed Version is empty on essentially every row** — this
+  isn't a one-time triage, it stays red indefinitely without an ongoing
+  `.trivyignore`.
+- None of these packages are installed by, run by, or reachable from this
+  headless FastAPI container (no perl scripts, no partition/mount
+  operations, no interactive terminal). The Dockerfile comment's original
+  reasoning holds verbatim.
+
+**Decision: stay on Alpine, add jemalloc via `LD_PRELOAD`.** One-line
+`ENV` change (`apk add --no-cache jemalloc`,
+`ENV LD_PRELOAD=/usr/lib/libjemalloc.so.2`), recovers about half the
+allocation-churn gap, zero CVE cost. Full parity with slim is not
+achievable through allocator choice alone — closing the rest would require
+the base-image switch, which buys a _permanent_ CVE-scan liability (23
+always-red HIGH/CRITICAL findings needing a maintained suppression list)
+against packages the app never touches. Per this project's own
+no-silent-fallbacks stance, a perpetually-suppressed scan is worse than
+the current honest zero. **Not revisiting the base-image question unless
+C3's fix plus jemalloc still leaves the `<80ms`/`<400ms` budget missed for
+reasons the profile shows are compute-bound**, not query-bound (see C2/C3
+below — so far neither is).
+
+Action: land the two-line jemalloc `Dockerfile` change alongside Track A
+(it's independent, cheap, and already fully measured).
 
 ### C2. Recalc workflow profile
 
-`EmissionRecalculationWorkflow` already emits the measurement:
+**Status: done**, on a local seed (`random_generator.seed_all`: 500 units,
+12,000 modules, 804,798 data entries; factors seeded for 2025 only —
+2023/2024 slices bail out with zero emissions and were excluded as
+non-representative after being caught and re-run). Two valid measurements,
+both headcount types (the only ones whose seeded `data` blobs matched
+seeded factor classification codes closely enough to compute real
+emissions — `process_emissions`, `plane`, `it` all produced 0-row bail-outs
+against this seed and are excluded, not because they're cheap):
 
 ```
-Recalc profile <TYPE>/<year>: N entries in Xs (Y ms/entry) |
-  validate=… prepare=… remainder=…
+Recalc profile member/2025:  16684 entries in 38.9s (2.33 ms/entry) | validate=0.1 prepare=29.9 remainder=8.8
+Recalc profile student/2025: 16862 entries in 40.7s (2.42 ms/entry) | validate=0.2 prepare=31.7 remainder=8.8
 ```
 
-Pull this line from a dev run and record it here. It discriminates three
-different problems:
+**`prepare` dominates — ~77% of wall time in both.** `validate`
+(Pydantic `model_validate`) is under 1%; `remainder` (bulk DELETE+COPY
+writes) is a steady ~22%. This settles the three-way split the section
+originally posed:
 
-- **`validate` dominates** → per-entry `DataEntryResponse.model_validate`.
-  Cheapest available win: avoid the round trip through the response schema
-  in the loop, or use `model_construct`. No rewrite, no new pattern.
-- **`prepare` dominates** → factor resolution / handler `pre_compute`.
-  Already heavily memoised by plans 1661 and 310D; remaining wins are
-  per-handler.
-- **`remainder` dominates** → bulk writes, and the DB is partly the
-  bottleneck after all.
+- ~~`validate` dominates~~ — ruled out. Skipping the Pydantic round-trip
+  in the loop is **not** the win the plan speculated it might be.
+- **`prepare` dominates, confirmed** — factor resolution / handler
+  `pre_compute` inside `prepare_create` is the primary cost, even with the
+  slice-scoped `factor_query_cache` memo from plans 1661/310D already in
+  place. Headcount fans out ~25 emission rows per entry (member/student
+  wrote 417,100 and 421,550 rows respectively) — this may be close to a
+  worst case rather than representative of every module type; one more
+  data point from a non-headcount, non-bail-out combo would confirm that,
+  but isn't blocking.
+- ~~`remainder` dominates~~ — secondary but real at ~22%; not the primary
+  lever.
+
+**Implication for "another language":** this is a query/round-trip cost,
+not a raw-arithmetic cost — a Rust or Go rewrite of the _formula_ layer
+does nothing for `prepare`'s share, since the time is spent waiting on and
+issuing DB round trips, not computing. See the closing section.
+
+**Side finding, not part of this plan:** `backend/app/seed/random_generator/
+seed_carbon_reports.py` has two `ON CONFLICT (col, col) DO NOTHING` clauses
+targeting columns with no matching unique constraint (`carbon_projects` only
+has partial unique indexes; `carbon_reports` has none on
+`(carbon_project_id, year)`) — throws `InvalidColumnReferenceError` on a
+fresh DB. Worked around locally to unblock seeding, not fixed here. Worth
+its own small issue.
 
 ### C3. Profile the synchronous request path — `set_reference_year`
 
@@ -288,97 +360,130 @@ PATCH /api/v1/project-plans/2221/years/2027
 
 Reproduce locally against the seeded DB.
 
-#### Static findings to confirm by measurement
+#### Findings — all four confirmed by measurement
 
-These come from reading `app/services/simulator_plan_service.py`; the
-profile must confirm or refute each before anything is changed.
+Written against `app/services/simulator_plan_service.py`; measured with a
+pytest suite (`backend/tests/unit/services/test_simulator_plan_reference_year_perf.py`,
+not yet on this branch — written in an agent's disposable worktree, to be
+brought over with the fix) using a `before_cursor_execute` statement
+counter against an in-memory sqlite fixture. Statement counts are portable
+evidence of the _shape_ of the bug (O(N) vs O(1) round trips); absolute
+wall-clock numbers on sqlite don't transfer to pooled Postgres and aren't
+cited as such below.
 
-1. **`_recalculate_report_emissions` (line 649) is an N+1 per entry.** It
-   calls `upsert_by_data_entry` in a loop, and that calls `prepare_create()`
-   with **no** `factor_resolver`, **no** `factor_query_cache` and **no**
-   `slice_cache` — so every entry re-runs the full factor SELECT plus its
-   Strategy-B classification queries, then issues a DELETE and an INSERT of
-   its own. This is precisely the pattern plans 1661 and 310D removed from
-   the recalc workflow; this call site was never migrated. Expected to
-   dominate the request.
+1. **`_recalculate_report_emissions` (line 649) is an N+1 per entry —
+   confirmed, and it is O(entries), not O(1).** Isolated to this method
+   alone: N=10→50 gave a 3.22× statement-count ratio; at production scale,
+   N=200→8000 (a 40× entry increase) gave a **39.42× statement ratio** —
+   essentially perfectly linear (40× would be exact). The `_recalculate_
+report_emissions` in-loop `prepare_create()` call passes **no**
+   `factor_resolver`, **no** `factor_query_cache`, **no** `slice_cache` —
+   confirmed as the root cause, exactly the pattern plans 1661/310D removed
+   from the recalc workflow but never migrated here.
 
-2. **`prefill_module_from_reference` queries the same rows twice.**
-   `entry_repo.list_by_module(ref_module.id)` runs at line 484 (result used
-   only for the emptiness check) and again at line 497 for the copy loop.
-   One of the two is pure waste.
+   **Exact mechanism identified** (this is the concrete answer to "it's
+   always the delete that pauses"): `upsert_by_data_entry` calls
+   `DataEntryEmissionRepository.delete_by_data_entry_id` per entry, which
+   **SELECTs the entry's existing emissions, then lets the ORM issue their
+   DELETE separately** — two round trips per entry — rather than the
+   set-based `delete_by_data_entry_ids` (plural) that `bulk_replace_for_
+entries` already uses elsewhere in this same file. At N=8000, emission
+   SELECT+DELETE alone is **50% of all statements issued**. Confirmed
+   generic, not `process_emissions`-specific: reproduces identically
+   against `purchase`/`scientific_equipment` entries (ratio 3.55 at
+   N=10→50).
 
-3. **`_prefill_reference_modules` (line 359) fans out per module type**, each
-   doing its own delete / fetch / compute / `recompute_stats_many`.
+2. **`prefill_module_from_reference` queries the same rows twice —
+   confirmed exactly.** Call-count instrumentation on `list_by_module`:
+   2 calls for one `prefill_module_from_reference` invocation, matching
+   the line-484 (emptiness check) / line-497 (copy loop) citation exactly.
 
-4. **`_sync_year_reports` (line 209) is the worst case on the `update_plan`
-   path**, not the one named above: it loops over _years_, calling
-   `_prefill_reference_modules` and `recompute_report_stats` per year.
-   Setting a 10-year range with a reference year multiplies everything in
-   (1)–(3) by ten inside a single PATCH. Profile this second.
+3. **`_prefill_reference_modules` (line 359) fans out per module type** —
+   not separately measured; subsumed by (1)'s per-entry cost across every
+   module it touches.
 
-#### Method
+4. **`_sync_year_reports` (line 209) fans out per year — confirmed,
+   near-perfectly linear.** 2 years → 288 statements, 5 years → 711
+   statements; ratio 2.47 vs. 2.5 for an exactly linear year-count
+   multiplier. Setting a multi-year range with a reference year multiplies
+   (1)–(3) by year count inside one PATCH, as predicted.
 
-Lazy and mirrors what the repo already does — no new dependency, no
-profiling harness:
+#### Fixes — confirmed, ready to implement
 
-1. **A pytest that calls the service directly** against the local seeded DB,
-   wrapping the call in a SQLAlchemy `before_cursor_execute` event listener
-   that counts statements, plus a `perf_counter`. Report: wall time, query
-   count, query count per entry.
-
-   This doubles as the regression test the guardrails require — assert the
-   query count does **not** scale with entry count. It fails today and
-   passes after the fix, which is exactly the shape a bug-fix test must
-   have.
-
-2. **A segment-timing log line in `set_reference_year`**, mirroring the
-   `seg{}` / `perf_counter` block the recalc workflow already carries:
-   `prefill=… recalc=… read=…`. Ships to production, so a slow plan year is
-   measured rather than guessed. Mirror the existing pattern; do not invent
-   a new one.
-
-3. Only if (1) and (2) fail to localise the cost: `cProfile` around the
-   service call in the same test. No new runtime dependency.
-
-#### Expected fixes (do not implement before measuring)
+No longer "expected" — each is now backed by a measurement above:
 
 - Give `_recalculate_report_emissions` the same shared `FactorResolver`,
   `factor_query_cache`, `prefetch_slice` and bulk replace that
   `_persist_prefill_entries` (line 599) and the recalc workflow already use.
   The batched version exists a few lines above in the same file — this is
-  reuse, not new code.
-- Drop the duplicate `list_by_module` call.
+  reuse, not new code. This is the primary fix; (1) above is ~77%-of-`
+prepare`-shaped and the delete/insert round trips confirmed at 50% of
+  statements at N=8000.
+- Route the emission replace through the existing set-based
+  `delete_by_data_entry_ids` (plural) instead of per-entry
+  `delete_by_data_entry_id` — this is the specific fix for the confirmed
+  SELECT+DELETE-per-entry mechanism above.
+- Drop the duplicate `list_by_module` call (finding 2).
 - Add the wall-time `asyncio.sleep(0)` yield used by the recalc workflow and
   `base_csv_provider.py:969`, so a long plan-year PATCH cannot starve
-  `/healthz` and `/ready`.
+  `/healthz` and `/ready`. Directly relevant given A1/A4 — a
+  `_recalculate_report_emissions` call currently holds the pooled
+  connection and the event loop for its entire O(N) duration.
+- Bring `test_simulator_plan_reference_year_perf.py` onto this branch as the
+  regression test — it is written to fail today (proves the bug) and pass
+  once the fixes land.
 - If the request stays long after the above, move it behind the job runner
   (Track B) and return a job id rather than a synchronous result.
 
 ## Priority order
 
+C1, C2, and C3's measurement phase are all now done (2026-08-12); this
+reorders the remaining implementation work by confirmed value instead of
+investigation order.
+
 1. **A1** — bound `/ready`, drop Accred from it. Confirmed cause of the
    504s; availability, not throughput. Ship alone, ahead of everything.
-2. **A2, A3** — rollout strategy, replica count, CPU requests.
-3. **C1** — musl benchmark (10 minutes; may reorder everything below).
-4. **C3** — profile and fix the `set_reference_year` request path.
+2. **C1's jemalloc `Dockerfile` line** — fully measured, zero risk,
+   independent of everything else; ship alongside A1.
+3. **A2, A3** — rollout strategy, replica count, CPU requests.
+4. **C3** — implement the confirmed fixes (shared `FactorResolver` +
+   set-based delete in `_recalculate_report_emissions`, drop the duplicate
+   `list_by_module`, add the yield, bring the regression test over). No
+   longer speculative — this is the largest confirmed lever in the whole
+   plan: O(N) round trips per PATCH, 50% of statements at N=8000 being a
+   single avoidable SELECT+DELETE-per-entry pattern.
 5. **B** — worker split (also resolves A4).
-6. **C2** — recalc profile, then targeted compute work.
+6. **C2's finding informs, but doesn't gate, anything further** — see
+   below; no additional compute work is indicated by the measurement.
 
-A0 runs alongside 1–2 as verification.
+A0 runs alongside 1–3 as verification.
 
 ## On rewriting in another language
 
-Explicitly last, and gated on C2/C3. Pure-Python compute is typically
-10–50× slower than Rust or Go, but end-to-end gain is capped by the share
-of time that is not compute (DB reads, COPY writes, deserialisation you
-still have to do) — realistically 3–10×, and only if the profile shows
-compute dominating **after** Tracks A, B and C1.
+**The measurements argue against this more strongly than originally
+anticipated, not less.** C2 found `prepare` (factor resolution / DB round
+trips) dominates recalc at ~77% of wall time, with `validate`
+(pure-Python Pydantic construction) under 1%. C3 found the request-path
+cost is a round-trip count problem (O(N) SELECT+DELETE pairs), not a
+compute problem. Neither is the "hot pure-Python loop" shape a language
+rewrite helps with — a Rust or Go recalc engine would still issue the same
+DB round trips at the same latency, because the bottleneck was never CPU
+cycles spent computing; it was query count and connection-pool contention,
+both of which C3's fix and Track B resolve without touching the formula
+layer at all.
 
-Against that: reimplementing the formula layer either duplicates the source
-of truth — the drifted-published-number failure this project fears most —
-or means porting all of it. Do not open this until the profile justifies it.
+Pure-Python compute is typically 10–50× slower than Rust or Go for actual
+CPU-bound arithmetic, but that gain applies to a share of the total time
+that these measurements now show is small. Against that: reimplementing
+the formula layer either duplicates the source of truth — the
+drifted-published-number failure this project fears most — or means
+porting all of it. **Closed, not just deferred**, unless a future profile
+on a _different_ workload shows a genuinely compute-bound hot path this
+plan didn't cover.
 
-Expected stacking without it: A alone ends the 504s; A3 + B on a properly
-requested worker brings `dev` to roughly `dev2` throughput (~2.4×); C1, if
-confirmed, adds ~1.5–2× everywhere including local; C3 removes an N+1 whose
-cost is currently unmeasured but structurally O(entries) in round trips.
+Expected stacking: A1 alone ends the 504s; C1's jemalloc line recovers
+~11 percentage points of the alloc-churn gap for one line of Dockerfile;
+A3 + B on a properly requested worker brings `dev` toward `dev2`
+throughput (~2.4×); C3's fix removes an O(N)-round-trip N+1 that was 50%
+avoidable SELECT+DELETE traffic at production scale — this is now the
+single largest confirmed win in the plan.
