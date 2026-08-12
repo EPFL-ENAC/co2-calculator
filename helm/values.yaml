@@ -56,6 +56,14 @@ backend:
     ELASTICSEARCH_TIMEOUT: "30" # Key in the existing secret for Elasticsearch timeout
     ELASTICSEARCH_MAX_RETRIES: "3" # Key in the existing secret for Elasticsearch max retries
     ELASTICSEARCH_RETRY_ON_TIMEOUT: "true" # Key in the existing secret for Elasticsearch retry on timeout
+    # SQLAlchemy/psycopg auto-instrumentation creates one span per SQL
+    # statement, which measured as ~2/3 of the total OTel tax on this app
+    # (plan #2050 C1 follow-up: -33% throughput with it on, -16% with it
+    # off — sampling ratio barely moves it either way once this is off).
+    # HTTP-level spans (FastAPI/Starlette) stay on. Unset this (empty
+    # string) in an environment-specific override if SQL-level traces are
+    # needed for active debugging — the cost is worth it there, not always-on.
+    OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "sqlalchemy,psycopg"
 
   secrets:
     # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
