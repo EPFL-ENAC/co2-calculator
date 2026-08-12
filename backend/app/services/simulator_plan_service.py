@@ -669,6 +669,12 @@ class SimulatorPlanService:
             report.id
         )
         if not entries:
+            # No per-entry compute to batch, but the report-level rollup
+            # still needs a refresh — a report that just lost its last entry
+            # must not keep stale stats/completion_progress (matches the
+            # unconditional recompute_report_stats the old per-entry loop
+            # always ran, unlike the module-stats call it gated on entries).
+            await self.report_service.recompute_report_stats(report.id)
             return
 
         # Pure function of ``report`` (reference year wins) — same value for

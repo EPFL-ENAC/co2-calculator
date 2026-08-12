@@ -342,21 +342,24 @@ async def _seed_process_emissions_factor(async_session, *, year: int = 2024) -> 
 async def test_recalculate_report_emissions_large_n_delete_breakdown(
     engine, async_session, user
 ):
-    """Production-scale confirmation: does the fix hold at N=8000, and is
-    the per-entry SELECT-then-DELETE gone (matching "it's always the
-    delete that pauses" from production profiling)?
+    """Larger-N confirmation: does the fix hold well past the small-N
+    tests above, and is the per-entry SELECT-then-DELETE gone (matching
+    "it's always the delete that pauses" from production profiling)?
 
     A matching Factor is seeded (see ``_seed_process_emissions_factor``) so
     entries actually compute and persist emissions on the first pass; the
     *second* ``_recalculate_report_emissions`` call is the one measured, so
     there are real existing emission rows to replace — the production
     shape (a reference year that already has computed emissions, changed
-    again). 8000 entries is the production-scale number reported; kept
+    again). 8000 was the original production-scale number the bug was
+    measured at (see the historical 39.4x ratio cited below); this test
+    uses 2000 — a 10x jump from the N=200 baseline is still decisive for
+    an O(1)-vs-O(N) statement-count check, and keeps this file's runtime
+    reasonable since it lives in ``tests/unit`` (default suite). Kept
     in-memory/sqlite here since this is a statement-count profile, not a
     wall-clock benchmark — sqlite ORM overhead differs from pooled
     Postgres, so only the ratio and the per-entry statement shape
-    transfer, not the absolute wall time. Slow (~seconds) by design —
-    it exercises 8000 real entries end to end.
+    transfer, not the absolute wall time.
     """
     service = SimulatorPlanService(async_session)
     await _seed_process_emissions_factor(async_session)
@@ -381,27 +384,29 @@ async def test_recalculate_report_emissions_large_n_delete_breakdown(
         return log
 
     small = await isolated_recalc(200, unit_id=21)
-    large = await isolated_recalc(8000, unit_id=22)
+    large = await isolated_recalc(2000, unit_id=22)
 
     print("\n[large-N delete breakdown, second pass over already-computed entries]")
     print(f"N=200   {small.breakdown()}")
-    print(f"N=8000  {large.breakdown()}")
+    print(f"N=2000  {large.breakdown()}")
     print(
-        f"ratio non_insert_total(8000)/non_insert_total(200) = "
+        f"ratio non_insert_total(2000)/non_insert_total(200) = "
         f"{large.non_insert_total / small.non_insert_total:.2f}  "
         "(1.0 == O(1) round trips)"
     )
 
-    # The regression test: before the fix this ratio was ~39.4 (near-40,
-    # i.e. perfectly linear in N). A batched, set-based replace costs a
-    # small constant number of round trips regardless of entry count.
+    # The regression test: before the fix, N=200->8000 (a 40x entry
+    # increase, production scale) measured a ~39.4x statement ratio — near-
+    # perfectly linear. This test uses a smaller 10x jump (200->2000) for
+    # CI runtime; a batched, set-based replace costs a small constant
+    # number of round trips regardless of entry count either way.
     # Excludes INSERTs: SQLite's bulk_copy fallback writes one row per
     # INSERT (see ``non_insert_total``'s docstring), production Postgres
     # doesn't — that part of the ratio isn't this fix's concern.
     assert large.non_insert_total < small.non_insert_total * 2, (
         f"non-insert statement count scales with entry count on a second "
         f"(delete-heavy) pass ({small.non_insert_total} -> "
-        f"{large.non_insert_total} for 200 -> 8000 entries): finding #1 "
+        f"{large.non_insert_total} for 200 -> 2000 entries): finding #1 "
         "regressed at production scale — the per-entry SELECT-then-DELETE "
         "or percentage-override lookup is back"
     )
@@ -478,6 +483,44 @@ async def test_percentage_override_cache_matches_uncached_path(async_session, us
         )
         nonzero_seen = nonzero_seen or bool(cached_kg)
     assert nonzero_seen, "expected at least one non-zero override kg to compare"
+
+
+@pytest.mark.asyncio
+async def test_recalculate_report_emissions_empty_still_refreshes_report_stats(
+    async_session, user, monkeypatch: pytest.MonkeyPatch
+):
+    """Regression: the empty-entries early return must not skip the
+    report-level stats refresh.
+
+    The old per-entry loop called ``recompute_report_stats`` unconditionally
+    at the end — only the module-level ``recompute_stats_many`` was gated on
+    there being entries (``if module_ids:``). The batched rewrite's
+    early-return-when-empty optimization (added for this same fix) initially
+    skipped both, which would leave a report that just lost its last entry
+    with stale ``stats``/``completion_progress``.
+    """
+    service = SimulatorPlanService(async_session)
+    plan = await _plan_with_year(service, user, "empty-report", year=2027, unit_id=51)
+    reports = await service.repo.list_reports_for_project(plan.id)
+    report = reports[0]
+
+    calls: list[int] = []
+    original = service.report_service.recompute_report_stats
+
+    async def counting_recompute(report_id: int):
+        calls.append(report_id)
+        return await original(report_id)
+
+    monkeypatch.setattr(
+        service.report_service, "recompute_report_stats", counting_recompute
+    )
+
+    await service._recalculate_report_emissions(report)  # noqa: SLF001
+
+    assert calls == [report.id], (
+        f"expected recompute_report_stats(report.id) to run even with no "
+        f"entries, got {calls}"
+    )
 
 
 # ── Finding #2: prefill_module_from_reference queries the same rows twice ─────
