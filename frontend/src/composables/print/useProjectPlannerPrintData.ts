@@ -4,8 +4,8 @@ import { api } from 'src/api/http';
 import { getModuleTypeId } from 'src/constant/moduleStates';
 import { MODULES } from 'src/constant/modules';
 import {
+  PLANNER_HEADCOUNT_CODES,
   PLANNER_HEADCOUNT_SUBMODULE,
-  PLANNER_SIUS_CODES,
 } from 'src/constant/planner-headcount';
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
 import {
@@ -222,7 +222,7 @@ export function useProjectPlannerPrintData() {
     // A blank category is the plan saying "nobody here"; dropping it once means
     // neither the page list nor the table has to ask again what is filled in.
     const rows: PlannerHeadcountRow[] = [];
-    for (const code of PLANNER_SIUS_CODES) {
+    for (const code of PLANNER_HEADCOUNT_CODES) {
       const fte = byCode.get(code)?.fte;
       if (fte != null) rows.push({ sius_code: code, fte });
     }

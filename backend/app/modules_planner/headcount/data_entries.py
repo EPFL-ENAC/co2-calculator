@@ -7,10 +7,13 @@ from app.schemas.data_entry import (
     DataEntryUpdate,
 )
 
+PLANNER_STUDENT_CODE = "student"
+PLANNER_HEADCOUNT_CODE_VALUES = SIUS_CODE_VALUES | {PLANNER_STUDENT_CODE}
+
 
 def _validate_sius_code(v: str) -> str:
-    if v not in SIUS_CODE_VALUES:
-        allowed_values = ", ".join(sorted(SIUS_CODE_VALUES))
+    if v not in PLANNER_HEADCOUNT_CODE_VALUES:
+        allowed_values = ", ".join(sorted(PLANNER_HEADCOUNT_CODE_VALUES))
         raise ValueError(f"sius_code must be one of: {allowed_values}")
     return v
 

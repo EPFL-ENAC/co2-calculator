@@ -619,4 +619,8 @@ export default {
     en: 'Total FTE',
     fr: 'Total EPT',
   },
+  planner_headcount_student_category: {
+    en: 'Students',
+    fr: 'Étudiant-e-s',
+  },
 };
