@@ -1319,8 +1319,13 @@ function renderCell(
   if (col.field === 'traveler_name') {
     const user_institutional_id = row['user_institutional_id'] as
       string | undefined;
-    if (user_institutional_id != null) {
-      return headcountMembersMap.value.get(user_institutional_id) ?? '-';
+    if (user_institutional_id == null) return '-';
+    const member = headcountMembersMap.value.get(user_institutional_id);
+    if (member) return member;
+    const categoryKey = `planner_traveler_category.${user_institutional_id}`;
+    if ($te(categoryKey)) return $t(categoryKey);
+    if (user_institutional_id === authStore.user?.institutional_id) {
+      return authStore.displayName;
     }
     return '-';
   }

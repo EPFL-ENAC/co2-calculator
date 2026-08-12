@@ -164,6 +164,29 @@ async def _get_professional_travel_institutional_id_filter(
     return current_user.institutional_id
 
 
+def _hide_planner_snapshots_for_viewer(
+    report: CarbonReportRead,
+    module_type: ModuleTypeEnum,
+    current_user: User,
+    unit: Unit | None,
+) -> bool:
+    """Whether the reference-year prefill is hidden from this viewer (#1983).
+
+    Grant Proposal reports only: standard users get the input forms but not
+    the unit's reference-year snapshot rows. Professional travel is the
+    exception — its own-rows filter already narrows the snapshot to the
+    caller's own trips, which they are meant to see.
+    """
+    return (
+        bool(report.is_grant)
+        and module_type != ModuleTypeEnum.professional_travel
+        and not _has_global_or_principal_access_for_unit(
+            current_user=current_user,
+            unit=unit,
+        )
+    )
+
+
 def _has_global_or_principal_access_for_unit(
     current_user: User,
     unit: Unit | None,
@@ -281,10 +304,14 @@ async def get_module(
             unit=unit,
         ):
             travel_institutional_id_filter = current_user.institutional_id
+    exclude_planner_snapshots = _hide_planner_snapshots_for_viewer(
+        report, ModuleTypeEnum[module_key], current_user, unit
+    )
 
     module_data = await DataEntryService(db).get_module_data(
         carbon_report_module_id=carbon_report_module_id,
         travel_institutional_id_filter=travel_institutional_id_filter,
+        exclude_planner_snapshots=exclude_planner_snapshots,
     )
 
     # if headcount compute FTE here
@@ -311,6 +338,7 @@ async def get_module(
     else:
         module_data.stats = await DataEntryEmissionService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,
+            exclude_planner_snapshots=exclude_planner_snapshots,
         )
 
         total_kg_co2eq = (
@@ -678,7 +706,7 @@ async def get_submodule(
     report, module = await resolve_report_module(
         carbon_report_id, module_id, db, current_user
     )
-    await check_module_permission_for_report(
+    unit = await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
@@ -711,6 +739,9 @@ async def get_submodule(
         current_user=current_user,
         data_entry_type_id=DataEntryTypeEnum(data_entry_type_id),
     )
+    exclude_planner_snapshots = _hide_planner_snapshots_for_viewer(
+        report, _module_type_from_slug(module_id), current_user, unit
+    )
 
     submodule_data = await DataEntryService(db).get_submodule_data(
         carbon_report_module_id=module.id,
@@ -721,6 +752,7 @@ async def get_submodule(
         sort_order=sort_order,
         filter=filter,
         institutional_id_filter=institutional_id_filter,
+        exclude_planner_snapshots=exclude_planner_snapshots,
         current_user=UserRead.model_validate(current_user),
         request_context=await get_request_context(request),
         background_tasks=background_tasks,

@@ -13,6 +13,7 @@ import {
   type SimulatorPlan,
   type SimulatorPlanYear,
 } from 'src/stores/simulatorPlans';
+import { useAuthStore } from 'src/stores/auth';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { sumBreakdownTonnes } from 'src/utils/breakdownTotal';
@@ -48,6 +49,7 @@ export type PlannerPrintSheet =
 
 export function useProjectPlannerPrintData() {
   const route = useRoute();
+  const authStore = useAuthStore();
   const workspaceStore = useWorkspaceStore();
   const plansStore = useSimulatorPlansStore();
   const yearConfigStore = useYearConfigStore();
@@ -247,7 +249,12 @@ export function useProjectPlannerPrintData() {
 
       await Promise.all(
         planYears.value
-          .filter((year) => isHeadcountActive(year))
+          .filter(
+            (year) =>
+              isHeadcountActive(year) &&
+              (year.is_grant ||
+                authStore.canUserAccessModule(MODULES.Headcount)),
+          )
           .map(async (year) => {
             try {
               headcountRows.value[year.id] = await fetchHeadcountRows(year.id);
