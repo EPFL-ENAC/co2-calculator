@@ -3,7 +3,7 @@ status: in-progress
 issue: 2050
 last_updated: 2026-08-12
 title: "Backend compute performance — pod stability, worker split, request-path profiling"
-summary: "Three-track plan against the dev-platform slowness and the intermittent 504s. Track A fixes availability: the 504s are caused by /ready blocking on a DB pool checkout for up to DB_POOL_TIMEOUT (30 s) inside a probe with a 3 s deadline — confirmed by a readiness timeout on stage with no deployment in progress and /healthz answering 200 throughout. It is bounded with asyncio.timeout, the external Accred call leaves readiness, and rollout strategy and CPU requests are corrected. Track B moves job execution off the API pods onto a poller-only worker Deployment, using the RUN_BACKGROUND_POLLER gate that already exists, removing the job-vs-request contention for the same 20 pooled connections. Track C's measurement phase is complete: musl costs ~11-20% and is only partly recoverable via jemalloc (one-line Dockerfile fix, kept on Alpine — a real Trivy scan confirmed the CVE rationale for staying on Alpine still holds); the recalc workflow is ~77% factor-resolution time, not Pydantic overhead; and the simulator-plan reference-year PATCH has a confirmed O(entries) N+1 (a per-entry SELECT+DELETE that should be one set-based statement, 50% of all statements at N=8000) with fixes and a regression test ready to implement. Both findings argue against a language rewrite: the bottleneck is round-trip count, not CPU cycles."
+summary: "Three-track plan against the dev-platform slowness and the intermittent 504s. Tracks A and B are implemented in draft PR #2081 (perf/2050-track-a-b-availability): /ready's DB check is bounded with asyncio.timeout so it can never outlive its own k8s probe deadline (the confirmed 504 cause — reproduced on stage with no deployment in progress, /healthz answering 200 throughout), the Accred check moved off the readiness path to /health/deps, rollout strategy and CPU requests corrected, and job dispatch now runs through a DISPATCH_JOBS_INLINE-gated helper so a worker.enabled Helm split can move job execution off API pods without a misconfigurable dead state. Track C's measurement phase is complete: musl costs ~11-20% and is only partly recoverable via jemalloc (kept on Alpine — a real Trivy scan confirmed the CVE rationale still holds); the recalc workflow is ~77% factor-resolution time, not Pydantic overhead; and the simulator-plan reference-year PATCH has a confirmed O(entries) N+1 (a per-entry SELECT+DELETE that should be one set-based statement, 50% of all statements at N=8000) with fixes and a regression test ready to implement. Both findings argue against a language rewrite: the bottleneck is round-trip count, not CPU cycles."
 ---
 
 # Backend compute performance (#2050)
@@ -47,7 +47,9 @@ itself. See A1.
 
 ## Track A — stop the 504s
 
-Priority 1. Three independent causes, all cheap, all worth doing.
+**Status: implemented, draft PR #2081** (`perf/2050-track-a-b-availability`).
+A1–A3 below all shipped as written. Priority 1, three independent causes,
+all cheap, all worth doing.
 
 ### A1. `/ready` can block longer than its own probe timeout
 
@@ -180,31 +182,67 @@ them here.
 
 ## Track B — move job execution off the API pods
 
-Priority 2. This is the structural fix; after it, API responsiveness is
-decoupled from recalc entirely and the 50 ms yield becomes belt-and-braces
-rather than load-bearing.
+**Status: implemented, draft PR #2081** (`perf/2050-track-a-b-availability`,
+alongside Track A). Corrected from the original design below during
+implementation — kept here for the record.
 
-Most of the infrastructure exists already: the unified runner
+Most of the infrastructure already existed: the unified runner
 (`app/tasks/runner.py`), DB-polling dispatch (`_poller.py`), pod heartbeats,
 claim/preempt, advisory locks, and the `RUN_BACKGROUND_POLLER` settings gate
 (`app/core/config.py:452`).
 
-What is missing:
+**Design correction: a second, dedicated setting, not `RUN_BACKGROUND_
+POLLER` reused.** The original plan below said "API pods set
+`RUN_BACKGROUND_POLLER=false`" — building it exposed why that's wrong: the
+test suite's autouse `disable_poller` fixture already sets
+`RUN_BACKGROUND_POLLER=False` for *every* test, while dozens of `_pg.py`
+integration tests assert that `fire_and_forget(run_job(...))` still fires
+inline. Reusing that flag for dispatch gating would have made every one of
+those tests silently no-op. Production also needs the same split: worker
+pods want (poller **on**, dispatch **on**); a post-split API pod wants
+(poller **off**, dispatch **off**) — a different pairing than the test
+suite's (poller off, dispatch on). Three of four combinations are
+legitimately in use, so it's two axes, not one. Shipped as a new
+`DISPATCH_JOBS_INLINE` setting instead (default `true`, preserving current
+behavior everywhere untouched).
 
-1. The four direct-dispatch sites in `app/api/v1/data_sync.py` (lines 894,
-   990, 1915, 2014) call `fire_and_forget(run_job(job_id))`, which runs the
-   job on whichever API pod took the request. Gate them: API pods create the
-   job row and return; the worker's poller picks it up.
-2. A second Deployment — same image, `RUN_BACKGROUND_POLLER=true`, no
-   Service, no ingress, liveness on `/healthz` only, generous CPU and
-   memory.
-3. API pods set `RUN_BACKGROUND_POLLER=false`.
+**Misconfiguration guard:** `DISPATCH_JOBS_INLINE=false` with no pod
+running the poller leaves every job row `NOT_STARTED` forever — a silent
+fallback the guardrails explicitly ban. Fixed at the Helm layer, not the
+app layer: `worker.enabled` is the *only* knob a deployer sets. When true,
+`backend-deployment.yaml` appends an override pair
+(`RUN_BACKGROUND_POLLER=false`, `DISPATCH_JOBS_INLINE=false` — last
+same-named env entry wins in k8s) on top of `backend.env`'s static
+defaults, and the worker Deployment sets both `true` unconditionally. The
+dead combination can't be expressed in `values.yaml`.
+
+Implementation:
+
+1. All 6 (not 4 — two more direct-dispatch sites turned up at
+   `data_sync.py:2075,2269` during implementation) `fire_and_forget(
+   run_job(...))` call sites now route through
+   `fire_and_forget_or_defer_to_poller()` (`app/tasks/_background.py`),
+   which either dispatches immediately or closes the coroutine unstarted
+   and leaves the already-committed `NOT_STARTED` row for the poller.
+2. `helm/templates/backend-worker-deployment.yaml` — new Deployment, same
+   image, `worker.enabled=false` by default, no Service/ingress/readiness
+   probe, liveness only, generous CPU/memory (`values.yaml`'s
+   `worker.resources`).
+3. The ~160-line secretKeyRef env block and the ES-CA volume/mount were
+   extracted from `backend-deployment.yaml` into `_helpers.tpl`
+   (`backendSecretEnv`, `backendSecretVolume(Mount)`) so backend and
+   worker can't drift out of sync — necessary once a second Deployment
+   needed the identical credential set.
 
 Chained child jobs (`_chain.py:106,387`) fire in the process where the
-parent ran, so they follow the parent onto the worker with no change.
+parent ran, so they follow the parent onto the worker with no change —
+confirmed correct, untouched.
 
 Cost: enqueue-to-pickup latency of one `POLLER_INTERVAL_SECONDS`. Accept it
 or lower the interval; do not reintroduce direct dispatch.
+
+`worker.enabled` stays `false` in this PR — enabling the split on any real
+environment is a separate, explicit follow-up change.
 
 ## Track C — profile the actual compute
 
@@ -441,18 +479,21 @@ C1, C2, and C3's measurement phase are all now done (2026-08-12); this
 reorders the remaining implementation work by confirmed value instead of
 investigation order.
 
-1. **A1** — bound `/ready`, drop Accred from it. Confirmed cause of the
-   504s; availability, not throughput. Ship alone, ahead of everything.
+1. ~~**A1** — bound `/ready`, drop Accred from it.~~ **Done** — draft PR
+   #2081.
 2. **C1's jemalloc `Dockerfile` line** — fully measured, zero risk,
-   independent of everything else; ship alongside A1.
-3. **A2, A3** — rollout strategy, replica count, CPU requests.
+   independent of everything else; still open, ship whenever.
+3. ~~**A2, A3** — rollout strategy, replica count, CPU requests.~~ **Done**
+   — draft PR #2081.
 4. **C3** — implement the confirmed fixes (shared `FactorResolver` +
    set-based delete in `_recalculate_report_emissions`, drop the duplicate
    `list_by_module`, add the yield, bring the regression test over). No
    longer speculative — this is the largest confirmed lever in the whole
    plan: O(N) round trips per PATCH, 50% of statements at N=8000 being a
-   single avoidable SELECT+DELETE-per-entry pattern.
-5. **B** — worker split (also resolves A4).
+   single avoidable SELECT+DELETE-per-entry pattern. **Not started.**
+5. ~~**B** — worker split (also resolves A4).~~ **Implemented, disabled by
+   default** — draft PR #2081 ships `worker.enabled=false`; flipping it on
+   any real environment is a separate follow-up.
 6. **C2's finding informs, but doesn't gate, anything further** — see
    below; no additional compute work is indicated by the measurement.
 
