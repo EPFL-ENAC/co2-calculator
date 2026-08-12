@@ -1784,7 +1784,7 @@ function isCompletePurchase(row: ModuleRow) {
 }
 
 function isCompletePurchaseAdditional(row: ModuleRow) {
-  const required = ['name', 'annual_consumption', 'coef_to_kg'];
+  const required = ['name', 'unit', 'annual_consumption', 'coef_to_kg'];
   return required.every(
     (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
   );

@@ -13,44 +13,38 @@ from app.schemas.factor import (
 
 # --- Centralized Purchases ---
 
-purchase_additional_classification_fields: list[str] = ["name", "unit"]
-purchase_additional_value_fields: list[str] = ["coef_to_kg", "ef_kg_co2eq_per_kg"]
+purchase_additional_classification_fields: list[str] = ["name"]
+purchase_additional_value_fields: list[str] = ["ef_kg_co2eq_per_kg"]
 
 
 class PurchaseCentralizedFactorCreate(FactorCreate):
     name: str
-    unit: str
-    coef_to_kg: float
     ef_kg_co2eq_per_kg: float
 
-    @field_validator("coef_to_kg", "ef_kg_co2eq_per_kg", mode="after")
+    @field_validator("ef_kg_co2eq_per_kg", mode="after")
     @classmethod
-    def validate_non_negative(cls, v: float) -> float:
+    def validate_ef(cls, v: float) -> float:
         if v < 0:
-            raise ValueError("Value must be non-negative")
+            raise ValueError("ef_kg_co2eq_per_kg must be non-negative")
         return v
 
 
 class PurchaseCentralizedFactorUpdate(FactorUpdate):
     name: str | None = None
-    unit: str | None = None
-    coef_to_kg: float | None = None
     ef_kg_co2eq_per_kg: float | None = None
 
-    @field_validator("coef_to_kg", "ef_kg_co2eq_per_kg", mode="after")
+    @field_validator("ef_kg_co2eq_per_kg", mode="after")
     @classmethod
-    def validate_non_negative(cls, v: float | None) -> float | None:
+    def validate_ef(cls, v: float | None) -> float | None:
         if v is None:
             return v
         if v < 0:
-            raise ValueError("Value must be non-negative")
+            raise ValueError("ef_kg_co2eq_per_kg must be non-negative")
         return v
 
 
 class PurchaseCentralizedFactorResponse(FactorResponseGen):
     name: str
-    unit: str
-    coef_to_kg: float
     ef_kg_co2eq_per_kg: float
 
 
