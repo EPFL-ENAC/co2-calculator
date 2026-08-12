@@ -26,7 +26,7 @@ const equipmentIdField: ModuleField = {
   label: 'Equipment ID',
   labelKey: `${MODULES.Equipment}.inputs.equipment_id`,
   type: 'text',
-  required: false,
+  required: true,
   sortable: false,
   align: 'left',
   readOnly: false,
