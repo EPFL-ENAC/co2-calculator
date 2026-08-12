@@ -90,7 +90,7 @@
             >
               <BigNumber
                 class="col"
-                :title="$t('planner_results_grant_total_title')"
+                :title="grantTotalTitle"
                 :number="formatTonnesCO2(grantTotalTonnes)"
                 comparison=""
                 color="info"
@@ -100,7 +100,7 @@
               <q-separator vertical />
               <BigNumber
                 class="col"
-                :title="$t('planner_results_years_total_title')"
+                :title="yearsTotalTitle"
                 :number="formatTonnesCO2(totalTonnesCo2eq)"
                 comparison=""
                 color="info"
@@ -110,7 +110,7 @@
             </div>
             <BigNumber
               v-else-if="plan.is_grant_proposal"
-              :title="$t('planner_results_grant_total_title')"
+              :title="grantTotalTitle"
               :number="formatTonnesCO2(grantTotalTonnes)"
               comparison=""
               color="info"
@@ -138,6 +138,8 @@
               "
               :grant-breakdown="grantBreakdown"
               :years-breakdown="breakdown"
+              :grant-year-range="grantYearRange"
+              :effective-year-range="effectiveYearRange"
             />
             <ModuleCarbonFootprintChart
               v-else-if="plan.is_grant_proposal"
@@ -204,10 +206,15 @@ import { useYearConfigStore } from 'src/stores/yearConfig';
 import { sumBreakdownTonnes } from 'src/utils/breakdownTotal';
 import { toEmissionBreakdown } from 'src/utils/emissionStatsAdapter';
 import { formatTonnesCO2 } from 'src/utils/number';
+import {
+  filledYearRange,
+  formatYearRange,
+  withYearRange,
+} from 'src/utils/plannerYearRange';
 
 const route = useRoute();
 const router = useRouter();
-const { locale } = useI18n();
+const { locale, t } = useI18n();
 const workspaceStore = useWorkspaceStore();
 const plansStore = useSimulatorPlansStore();
 const yearConfigStore = useYearConfigStore();
@@ -260,6 +267,24 @@ const grantBreakdown = computed(() =>
 );
 
 const totalTonnesCo2eq = computed(() => sumBreakdownTonnes(breakdown.value));
+
+// The Grant Proposal view spans the whole plan; the effective view spans
+// only the years that hold data.
+const grantYearRange = computed(() =>
+  formatYearRange(plan.value?.start_year, plan.value?.end_year),
+);
+const effectiveYearRange = computed(() =>
+  filledYearRange(plansStore.planYears),
+);
+const grantTotalTitle = computed(() =>
+  withYearRange(t('planner_results_grant_total_title'), grantYearRange.value),
+);
+const yearsTotalTitle = computed(() =>
+  withYearRange(
+    t('planner_results_years_total_title'),
+    effectiveYearRange.value,
+  ),
+);
 
 const grantTotalTonnes = computed(() =>
   sumBreakdownTonnes(grantBreakdown.value),

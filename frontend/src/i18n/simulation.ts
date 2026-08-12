@@ -152,16 +152,16 @@ export default {
     fr: 'Empreinte carbone de {name}',
   },
   planner_results_series_years: {
-    en: 'Year by year',
-    fr: 'Année par année',
+    en: 'Effective',
+    fr: 'Effectif',
   },
   planner_results_grant_total_title: {
-    en: 'Project Grant carbon footprint',
-    fr: 'Empreinte carbone du financement du projet',
+    en: 'Grant Proposal carbon footprint',
+    fr: 'Empreinte carbone de la demande de financement',
   },
   planner_results_years_total_title: {
-    en: 'Year-by-year carbon footprint',
-    fr: 'Empreinte carbone année par année',
+    en: 'Effective carbon footprint',
+    fr: 'Empreinte carbone effective',
   },
   planner_results_download_title: {
     en: 'Your Project Report',
@@ -212,15 +212,15 @@ export default {
     fr: 'Demande de financement',
   },
   planner_grant_proposal_hint: {
-    en: 'Adds a Project Grant section covering the whole project.',
-    fr: 'Ajoute une section Financement du projet couvrant tout le projet.',
+    en: 'Adds a Grant proposal section covering the whole project.',
+    fr: 'Ajoute une section Demande de financement couvrant tout le projet.',
   },
   planner_project_grant_title: {
-    en: 'Project Grant',
-    fr: 'Financement du projet',
+    en: 'Grant proposal',
+    fr: 'Demande de financement',
   },
   planner_year_by_year_checkbox: {
-    en: 'Ongoing Project',
+    en: 'Ongoing project',
     fr: 'Projet en cours',
   },
   planner_year_by_year_hint: {
@@ -236,8 +236,8 @@ export default {
     fr: 'Créer les sections du projet',
   },
   planner_generate_sections_hint: {
-    en: 'Creates the selected sections: one editable section per year between the start and end year for an ongoing project, plus the Project Grant section when the project is a grant proposal.',
-    fr: 'Crée les sections sélectionnées : une section modifiable par année entre les années de début et de fin pour un projet en cours, ainsi que la section Financement du projet si le projet est une demande de financement.',
+    en: 'Creates the selected sections: one editable section per year between the start and end year for an ongoing project, plus the grant proposal section when the project is a grant proposal.',
+    fr: 'Crée les sections sélectionnées : une section modifiable par année entre les années de début et de fin pour un projet en cours, ainsi que la section Demande de financement si le projet est une demande de financement.',
   },
   planner_sections_generated: {
     en: 'Project sections updated',

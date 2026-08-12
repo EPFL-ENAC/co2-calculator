@@ -64,14 +64,15 @@ import {
 } from 'src/constant/charts';
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
+import { withYearRange } from 'src/utils/plannerYearRange';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
 
 /**
- * Project Grant vs year-by-year results, two bars per category (#1977).
- * The two views count the same project, so they sit side by side and are
- * never summed together. Each bar keeps the Results chart's look: the
- * category's color, cut into subcategory segments by shade; the
- * year-by-year bars carry a hatch decal to tell the pair apart.
+ * Grant Proposal vs effective (year-by-year) results, two bars per
+ * category (#1977). The two views count the same project, so they sit side
+ * by side and are never summed together. Each bar keeps the Results chart's
+ * look: the category's color, cut into subcategory segments by shade; the
+ * effective bars carry a hatch decal to tell the pair apart.
  */
 
 type CategoryRow = Record<string, unknown> & {
@@ -84,6 +85,10 @@ const props = defineProps<{
   title: string;
   grantBreakdown: EmissionBreakdownResponse | null;
   yearsBreakdown: EmissionBreakdownResponse | null;
+  /** The plan's full range, shown after the Grant Proposal label. */
+  grantYearRange?: string;
+  /** The filled-years range, shown after the Effective label. */
+  effectiveYearRange?: string;
 }>();
 
 use([
@@ -205,8 +210,15 @@ const YEARS_DECAL = {
   color: 'rgba(255, 255, 255, 0.7)',
 };
 
-const grantLabel = computed(() => t('planner_project_grant_title'));
-const yearsLabel = computed(() => t('planner_results_series_years'));
+const grantLabel = computed(() =>
+  withYearRange(t('planner_project_grant_title'), props.grantYearRange ?? ''),
+);
+const yearsLabel = computed(() =>
+  withYearRange(
+    t('planner_results_series_years'),
+    props.effectiveYearRange ?? '',
+  ),
+);
 
 function totalsOf(view: 'grant' | 'years'): number[] {
   const breakdown =
@@ -343,7 +355,7 @@ const chartRef = ref<InstanceType<typeof VChart>>();
 const downloadPNG = () =>
   downloadEchartAsPng(chartRef.value?.chart, 'planner-grant-comparison');
 
-/** One CSV per view — a grant file and a year-by-year file. */
+/** One CSV per view — a grant-proposal file and an effective file. */
 const downloadCSV = () => {
   const escape = (v: unknown) => {
     const s = String(v ?? '');
@@ -351,8 +363,8 @@ const downloadCSV = () => {
   };
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const files: { name: string; view: 'grant' | 'years' }[] = [
-    { name: `project-grant-${stamp}.csv`, view: 'grant' },
-    { name: `year-by-year-${stamp}.csv`, view: 'years' },
+    { name: `grant-proposal-${stamp}.csv`, view: 'grant' },
+    { name: `effective-${stamp}.csv`, view: 'years' },
   ];
   const labels = categoryKeys.value.map((key) =>
     t(RESULTS_CATEGORY_LABEL_KEYS[key]),
