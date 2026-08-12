@@ -453,6 +453,22 @@ class Settings(BaseSettings):
         default=True,
         description="Whether to run the in-process safety poller",
     )
+    DISPATCH_JOBS_INLINE: bool = Field(
+        default=True,
+        description=(
+            "Whether HTTP endpoints execute the job they just created "
+            "(fire_and_forget_or_defer_to_poller) or leave it NOT_STARTED "
+            "for a poller elsewhere to pick up (#2050 Track B). Separate "
+            "from RUN_BACKGROUND_POLLER on purpose: the test suite already "
+            "disables the poller everywhere while still asserting inline "
+            "dispatch fires, and a worker-split deployment needs the "
+            "opposite pairing on its API pods (dispatch off, and no "
+            "poller of its own either). False with no other pod running "
+            "the poller leaves jobs stuck NOT_STARTED forever — the Helm "
+            "chart's worker.enabled must gate both flags together so that "
+            "combination can't be expressed."
+        ),
+    )
     POLLER_INTERVAL_SECONDS: int = Field(
         default=2,
         ge=1,

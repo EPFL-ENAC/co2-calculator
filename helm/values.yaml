@@ -90,7 +90,11 @@ backend:
     limits:
       memory: 512Mi
     requests:
-      cpu: 100m
+      # #2050 A3: 100m gave this pod roughly a tenth of a busy node's CPU
+      # share under contention (no limit means no throttling, but CFS
+      # shares are proportional to the request) — stacked on top of a
+      # slower node this was a meaningful chunk of the dev/dev2 gap.
+      cpu: 1
       memory: 128Mi
 
   livenessProbe:
@@ -203,6 +207,48 @@ backend:
         requests:
           cpu: 50m
           memory: 64Mi
+
+# #2050 Track B — poller-only worker deployment. Disabled by default (the
+# app runs as a single backend deployment, as it always has); set
+# enabled=true to split job execution off the API pods. Reuses
+# backend.image / backend.securityContext / backend.existingSecret — this
+# is the same app process, not a separate build. See
+# templates/backend-worker-deployment.yaml and
+# templates/_helpers.tpl#backendSecretEnv.
+worker:
+  enabled: false
+  replicaCount: 1
+
+  env: {}
+  # RUN_BACKGROUND_POLLER and DISPATCH_JOBS_INLINE are set unconditionally
+  # by the template, not here — see backend-worker-deployment.yaml.
+
+  podAnnotations: {}
+
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      # Generous on purpose: this pod runs the CPU-heavy recalc/ingestion
+      # work the API deployment no longer has to. No neighbours to be
+      # fair to on a dedicated job pod.
+      cpu: 2
+      memory: 256Mi
+
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 5
+  # No readinessProbe/startupProbe/Service: this pod receives no traffic,
+  # so nothing gates on its readiness — only liveness recycles a hung pod.
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
 frontend:
   enabled: true

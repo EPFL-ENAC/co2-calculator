@@ -346,33 +346,77 @@ async def healthz():
     return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "ok"})
 
 
+# Plan #2050 A1 — /ready must never outlive its own k8s probe deadline
+# (helm/values.yaml readinessProbe.timeoutSeconds, 3s by default). Without
+# a bound, a saturated DB pool makes the checkout wait up to
+# DB_POOL_TIMEOUT (30s default) — ten times the probe's timeout — which
+# takes an otherwise-healthy pod out of Service rotation. This is well
+# under any realistic probe timeout so it fails fast instead of hanging.
+READY_DB_TIMEOUT_SECONDS = 2
+
+
 @app.get("/ready", response_class=JSONResponse)
 async def ready():
     """Readiness check endpoint.
 
-    Performs database connectivity check and external provider health check.
-    Returns 200 if ready, 503 if not ready.
-    Logs only on failure to reduce log noise.
-    Used by Kubernetes readinessProbe.
+    Database connectivity only, bounded so this can never block longer
+    than READY_DB_TIMEOUT_SECONDS. Returns 200 if ready, 503 if not.
+    Logs only on failure to reduce log noise. Used by Kubernetes
+    readinessProbe.
+
+    External provider health (Accred) moved to /health/deps (#2050 A1):
+    it never gated readiness here (only db_status did) but the httpx call
+    could still stall the response past the probe deadline — an external
+    dependency has no business being on this path at all.
     """
-    details = {}
-
-    # Database check
     db_status = "ok"
+    db_error: str | None = None
     try:
-        from app.db import get_db_session
+        async with asyncio.timeout(READY_DB_TIMEOUT_SECONDS):
+            from app.db import get_db_session
 
-        async with await get_db_session() as session:
-            from sqlmodel import text
+            async with await get_db_session() as session:
+                from sqlmodel import text
 
-            await session.execute(text("SELECT 1"))
+                await session.execute(text("SELECT 1"))
     except Exception as e:
         db_status = "error"
-        details["db_error"] = str(e)
+        db_error = str(e)
 
-    # Role/unit provider health check — runs whenever either provider is
-    # configured to use Accred, since ACCRED_AUTHORIZATION_HEALTHCHECK_URL
-    # covers the shared Accred integration, not one provider specifically.
+    healthy = db_status == "ok"
+    status_code = status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+
+    # Log only on failure to reduce log noise
+    if not healthy:
+        logger.warning(
+            "Readiness check failed",
+            extra={
+                "healthy": healthy,
+                "database_status": db_status,
+                "db_error": db_error,
+            },
+        )
+
+    # db_error stays in the log above — returning it would leak stack
+    # traces / connection strings to unauthenticated callers.
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if healthy else "unhealthy",
+            "database": db_status,
+        },
+    )
+
+
+@app.get("/health/deps", response_class=JSONResponse)
+async def health_deps():
+    """Operator-facing external-dependency health (Accred).
+
+    Not a Kubernetes probe target — Accred availability must never gate
+    pod readiness (#2050 A1); a blip there is EPFL's incident, not ours.
+    This reports the same signal for humans/monitoring instead.
+    """
+    details = {}
     role_provider_status = "skipped"
     uses_accred = (
         settings.ROLE_PROVIDER_TYPE == RoleProviderType.ACCRED
@@ -399,30 +443,9 @@ async def ready():
             role_provider_status = "error"
             details["role_provider_error"] = str(e)
 
-    healthy = db_status == "ok"
-    status_code = status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
-
-    # Log only on failure to reduce log noise
-    if not healthy:
-        logger.warning(
-            "Health check failed",
-            extra={
-                "healthy": healthy,
-                "database_status": db_status,
-                "role_provider": role_provider_status,
-                "details": details,
-            },
-        )
-
-    # Exception details stay in the log above — returning them would leak
-    # stack traces / connection strings to unauthenticated callers.
     return JSONResponse(
-        status_code=status_code,
-        content={
-            "status": "healthy" if healthy else "unhealthy",
-            "database": db_status,
-            "role_provider": role_provider_status,
-        },
+        status_code=status.HTTP_200_OK,
+        content={"role_provider": role_provider_status, "details": details},
     )
 
 
