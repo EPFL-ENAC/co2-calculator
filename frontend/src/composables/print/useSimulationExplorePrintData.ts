@@ -7,6 +7,10 @@ import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { sumBreakdownTonnes } from 'src/utils/breakdownTotal';
 import { getExploreModules } from 'src/utils/exploreModules';
+import {
+  fetchPlannerHeadcountRows,
+  type PlannerHeadcountRow,
+} from 'src/utils/plannerHeadcountRows';
 import { fetchAllSubmoduleRows } from 'src/utils/printSubmoduleRows';
 import type { PrintRow } from 'src/utils/printTable';
 
@@ -47,6 +51,7 @@ export function useSimulationExplorePrintData() {
 
   const submoduleRows = ref<Record<string, PrintRow[]>>({});
   const headcountMembers = ref<Map<string, string>>(new Map());
+  const plannerHeadcountRows = ref<PlannerHeadcountRow[]>([]);
 
   async function initWorkspaceFromRoute() {
     workspaceStore.setSelectedParams({
@@ -95,6 +100,20 @@ export function useSimulationExplorePrintData() {
       ];
 
       for (const m of exploreModules.value) {
+        // Headcount is the Planner's fixed SIUS-category grid (#2070), not
+        // the Calculator submodule tables.
+        if (m.type === MODULES.Headcount) {
+          tasks.push(
+            fetchPlannerHeadcountRows(carbonReportId)
+              .then((rows) => {
+                plannerHeadcountRows.value = rows;
+              })
+              .catch(() => {
+                plannerHeadcountRows.value = [];
+              }),
+          );
+          continue;
+        }
         for (const sub of m.submodules) {
           tasks.push(
             fetchAllSubmoduleRows(m.type, sub.id, carbonReportId).then(
@@ -141,6 +160,7 @@ export function useSimulationExplorePrintData() {
     exploreModules,
     submoduleRows,
     headcountMembers,
+    plannerHeadcountRows,
     initWorkspaceFromRoute,
     fetchAllData,
   };

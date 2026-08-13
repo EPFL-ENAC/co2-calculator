@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import ReportPage from 'src/components/organisms/ReportPage.vue';
+import PlannerPrintHeadcountTable from 'src/components/organisms/print/PlannerPrintHeadcountTable.vue';
 import PrintModuleTable from 'src/components/organisms/print/PrintModuleTable.vue';
+import { MODULES } from 'src/constant/modules';
 import type { ExploreModule } from 'src/utils/exploreModules';
+import type { PlannerHeadcountRow } from 'src/utils/plannerHeadcountRows';
 import type { PrintRow } from 'src/utils/printTable';
 
 interface Props {
@@ -10,6 +13,7 @@ interface Props {
   currentYear: number;
   submoduleRows: Record<string, PrintRow[]>;
   headcountMembers: Map<string, string>;
+  plannerHeadcountRows: PlannerHeadcountRow[];
 }
 
 defineProps<Props>();
@@ -24,29 +28,42 @@ defineProps<Props>();
       {{ $t('simulation_explore_print_subtitle', { year: currentYear }) }}
     </div>
 
-    <section
-      v-for="sub in module.submodules"
-      :key="sub.id"
-      class="submodule-section"
-    >
-      <h3 v-if="sub.tableNameKey" class="text-body1 submodule-title">
-        {{
-          $t(sub.tableNameKey, {
-            count: (submoduleRows[sub.id] ?? []).length,
-          })
-        }}
-      </h3>
-      <PrintModuleTable
-        v-if="(submoduleRows[sub.id] ?? []).length"
-        :submodule="sub"
-        :module-config="module.config"
-        :rows="submoduleRows[sub.id] ?? []"
-        :headcount-members="headcountMembers"
+    <!-- Headcount is the Planner's fixed SIUS-category grid (#2070), not
+         the Calculator submodule tables. -->
+    <section v-if="module.type === MODULES.Headcount" class="submodule-section">
+      <PlannerPrintHeadcountTable
+        v-if="plannerHeadcountRows.length"
+        :rows="plannerHeadcountRows"
       />
       <div v-else class="text-body2 text-secondary">
         {{ $t('common_no_data_available') }}
       </div>
     </section>
+    <template v-else>
+      <section
+        v-for="sub in module.submodules"
+        :key="sub.id"
+        class="submodule-section"
+      >
+        <h3 v-if="sub.tableNameKey" class="text-body1 submodule-title">
+          {{
+            $t(sub.tableNameKey, {
+              count: (submoduleRows[sub.id] ?? []).length,
+            })
+          }}
+        </h3>
+        <PrintModuleTable
+          v-if="(submoduleRows[sub.id] ?? []).length"
+          :submodule="sub"
+          :module-config="module.config"
+          :rows="submoduleRows[sub.id] ?? []"
+          :headcount-members="headcountMembers"
+        />
+        <div v-else class="text-body2 text-secondary">
+          {{ $t('common_no_data_available') }}
+        </div>
+      </section>
+    </template>
   </ReportPage>
 </template>
 
