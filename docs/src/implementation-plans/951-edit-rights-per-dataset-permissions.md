@@ -614,6 +614,33 @@ DTO + uniqueness-check work AND a richer inline component (see the
 deferred origin/destination note above; Traveler is itself an autocomplete
 select in the create form, not a plain text box). Tracked as a follow-up.
 
+## Manual QA finding: locked option-label cells lost their translation (2026-08-13)
+
+Enabling `editableInline` on `sius_code` (headcount Position) surfaced a
+pre-existing rendering gap: the read-only fallback span for a locked
+`editableInline` cell (`isRowConditionallyReadOnly` — pre-existing — or
+`isRowFieldPolicyLocked` — this plan) read the raw stored value directly
+(`slotProps.row[col.field]`), bypassing `renderCell()` — the one place
+that translates option-coded values (`headcount_factor.ts` sius_code
+labels, `optionLabelPrefix`, `optionLabelKey`, taxonomy kind labels). Every
+row went through `renderCell()` before this plan (nothing was
+`editableInline` + policy-lockable for headcount), so the gap was
+invisible; imported rows now hit the un-translated span while manually-
+created rows render through the real `QSelect` (which does translate),
+producing exactly the "works for form-created rows, not imported ones"
+split reported in manual QA.
+
+Fixed at the shared rendering function, not the one caller: added
+`renderReadOnlyInlineCell()`, which delegates to `renderCell()` (honoring
+`col.readOnlyDisplayField` by swapping the target field first) instead of
+reading the row directly. One source of truth for cell formatting/
+translation regardless of which of the three rendering branches (editable
+input, read-only-locked span, always-read-only span) a column takes.
+
+No automated test — `ModuleTable.vue` (2400+ lines) has no component-test
+harness (noted earlier in this plan); verified via `make type-check` +
+manual QA only.
+
 ## Second code-review round (2026-08-13, post-commit)
 
 Six findings on the committed backend+frontend diff; four fixed, two

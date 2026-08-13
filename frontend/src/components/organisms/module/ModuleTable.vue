@@ -163,9 +163,7 @@
                 isRowFieldPolicyLocked(slotProps.row, col)
               "
             >
-              <span>{{
-                slotProps.row[col.readOnlyDisplayField ?? col.field] ?? ''
-              }}</span>
+              <span>{{ renderReadOnlyInlineCell(slotProps.row, col) }}</span>
             </template>
             <module-inline-select
               v-else-if="
@@ -1408,6 +1406,19 @@ function renderCell(
   }
   console.warn('Unexpected cell value type', val);
   return String(val);
+}
+
+// The read-only fallback for a normally-editableInline cell (locked by
+// readOnlyWhen or #951 policy) used to read the raw stored value directly —
+// correct for plain text/numbers, but silently un-translated for
+// option-label fields (e.g. headcount sius_code stores "57", not "Personnel
+// administratif"). Reuses renderCell so every rendering path shares one
+// formatting/translation source of truth.
+function renderReadOnlyInlineCell(row: ModuleRow, col: TableViewColumn) {
+  const targetCol = col.readOnlyDisplayField
+    ? { ...col, field: col.readOnlyDisplayField }
+    : col;
+  return renderCell(row, targetCol);
 }
 
 function getItemName(row: ModuleRow): string {
