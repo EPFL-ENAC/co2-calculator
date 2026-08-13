@@ -455,65 +455,23 @@ class TestQueryPolicyResourceAccess:
     """Tests for query_policy with resource access policy."""
 
     @pytest.mark.asyncio
-    async def test_query_policy_resource_access_api_provider_denied(self):
-        """Test resource access denies edit for API trips."""
-        input_data = {
-            "user": {
-                "id": 1,
-                "email": "user@example.com",
-                "roles": [
-                    {
-                        "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"kind": "unit", "institutional_id": "123"},
-                    }
-                ],
-            },
-            "resource_type": "professional_travel",
-            "resource": {
-                "id": 100,
-                "provider": "api",
-                "unit_id": "123",
-            },
-        }
-
-        result = await query_policy("authz/resource/access", input_data)
-
-        assert result["allow"] is False
-        assert "read-only" in result["reason"]
-
-    @pytest.mark.asyncio
-    async def test_query_policy_resource_access_global_scope_allow(self):
-        """Test resource access allows for global scope admin."""
-        input_data = {
-            "user": {
-                "id": 1,
-                "email": "admin@example.com",
-                "roles": [
-                    {"role": RoleName.CO2_SUPERADMIN.value, "on": {"kind": "global"}}
-                ],
-            },
-            "resource_type": "professional_travel",
-            "resource": {
-                "id": 100,
-                "provider": "manual",
-                "created_by": 999,
-                "unit_id": "456",
-            },
-        }
-
-        result = await query_policy("authz/resource/access", input_data)
-
-        assert result["allow"] is True
-        assert "Global scope" in result["reason"]
-
-    @pytest.mark.asyncio
-    async def test_query_policy_resource_access_owner_allow(self):
-        """Test resource access allows user to edit their own resource."""
+    async def test_query_policy_resource_access_professional_travel_denied_by_default(
+        self,
+    ):
+        """professional_travel's bespoke rule (API read-only, unit/owner
+        allow) was retired for #951 — the imported-branch lock in
+        app.core.data_entry_permissions supersedes it. It now falls through
+        to the same deny-by-default as any other unhandled resource_type,
+        even for an owner/global-scope caller who'd have been allowed
+        before.
+        """
         input_data = {
             "user": {
                 "id": 123,
                 "email": "user@example.com",
-                "roles": [],
+                "roles": [
+                    {"role": RoleName.CO2_SUPERADMIN.value, "on": {"kind": "global"}}
+                ],
             },
             "resource_type": "professional_travel",
             "resource": {
@@ -526,8 +484,8 @@ class TestQueryPolicyResourceAccess:
 
         result = await query_policy("authz/resource/access", input_data)
 
-        assert result["allow"] is True
-        assert "Owner access" in result["reason"]
+        assert result["allow"] is False
+        assert "No policy defined" in result["reason"]
 
     @pytest.mark.asyncio
     async def test_query_policy_resource_access_missing_resource(self):

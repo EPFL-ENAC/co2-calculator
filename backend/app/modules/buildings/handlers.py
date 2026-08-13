@@ -178,6 +178,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
+                "source": data_entry.source,
                 **d,
                 "room_type": d.get("room_type"),
                 "heating_kwh_per_square_meter": primary_factor.get(
@@ -265,6 +266,7 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
+                "source": data_entry.source,
                 **d,
                 "name": primary_factor.get("kind") or d.get("name"),
                 "unit": primary_factor.get("unit") or d.get("unit"),
@@ -318,6 +320,7 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
+                "source": data_entry.source,
                 **d,
                 "building_name": d.get("building_name"),
             }

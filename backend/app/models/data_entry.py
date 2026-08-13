@@ -68,6 +68,15 @@ class DataEntrySourceEnum(int, Enum):
 
     Used to track how data entries were created, enabling selective deletion
     and audit trails for different upload methods.
+
+    #951: which values bucket into the "user" edit-rights branch is
+    hardcoded in TWO places that must move together — there is no shared
+    source of truth for this specific bucketing (accepted tradeoff, see
+    docs/src/implementation-plans/951-edit-rights-per-dataset-permissions.md):
+      - backend: app.core.data_entry_permissions._USER_BRANCH_SOURCES
+      - frontend: src/utils/dataEntryPolicy.ts USER_BRANCH_SOURCES
+    Adding a new member here that should read as "user" (like
+    PLANNER_SNAPSHOT) means updating both.
     """
 
     USER_MANUAL = 0  # Manual entry via UI

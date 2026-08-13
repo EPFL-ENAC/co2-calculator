@@ -98,6 +98,7 @@ class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
+                "source": data_entry.source,
                 **data,
             }
         )

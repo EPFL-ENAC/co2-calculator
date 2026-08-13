@@ -20,6 +20,23 @@ class SubmoduleSummary(BaseModel):
     total_kg_co2eq: float | None = Field(None, description="Total annual CO2 emissions")
 
 
+class RowPolicy(BaseModel):
+    """#951: edit rights for one data-entry provenance branch."""
+
+    create: bool = Field(..., description="Whether this branch may add new rows")
+    delete: bool = Field(..., description="Whether a row on this branch may be deleted")
+    editable_fields: list[str] = Field(
+        ..., description="Field names updatable on a row of this branch"
+    )
+
+
+class DataEntryPolicies(BaseModel):
+    """#951: both provenance branches for one submodule."""
+
+    user: RowPolicy
+    imported: RowPolicy
+
+
 class SubmoduleResponse[T: BaseModel](BaseModel):
     """Submodule data with items and summary."""
 
@@ -30,6 +47,13 @@ class SubmoduleResponse[T: BaseModel](BaseModel):
     )
     summary: SubmoduleSummary = Field(..., description="Submodule summary")
     has_more: bool = Field(False, description="Whether more items are available")
+    # #951: user/imported edit-rights for this submodule, keyed on row
+    # provenance (each row already carries its own ``source``). None for
+    # types the data-entry permission layer doesn't cover (planner, embodied
+    # energy) — see app.core.data_entry_permissions.submodule_policies.
+    data_entry_policies: DataEntryPolicies | None = Field(
+        None, description="Edit rights per row provenance (user/imported)"
+    )
 
 
 class ModuleTotals(BaseModel):

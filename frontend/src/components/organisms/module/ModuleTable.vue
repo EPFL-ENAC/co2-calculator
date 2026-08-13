@@ -157,10 +157,13 @@
           :style="getColumnStyle(col)"
         >
           <template v-if="col.editableInline">
-            <template v-if="isRowConditionallyReadOnly(slotProps.row, col)">
-              <span>{{
-                slotProps.row[col.readOnlyDisplayField ?? col.field] ?? ''
-              }}</span>
+            <template
+              v-if="
+                isRowConditionallyReadOnly(slotProps.row, col) ||
+                isRowFieldPolicyLocked(slotProps.row, col)
+              "
+            >
+              <span>{{ renderReadOnlyInlineCell(slotProps.row, col) }}</span>
             </template>
             <module-inline-select
               v-else-if="
@@ -250,10 +253,29 @@
               </q-tooltip>
             </q-btn>
             <q-btn
+              v-if="isProfessionalTravelModule && canEditRows"
+              icon="o_edit"
+              color="black"
+              :disable="
+                isDisabled ||
+                !isRowFieldEditable(slotProps.row, 'departure_date')
+              "
+              unelevated
+              no-caps
+              dense
+              flat
+              class="action-btn"
+              @click="openTravelEditDialog(slotProps.row)"
+            >
+              <q-tooltip class="tooltip action-tooltip" :offset="[0, 8]">
+                {{ $t('common_edit') }}
+              </q-tooltip>
+            </q-btn>
+            <q-btn
               v-if="showTableRowActions && canEditRows && hasModuleUpload"
               icon="o_delete"
               color="black"
-              :disable="isDisabled"
+              :disable="isDisabled || !isRowPolicyDeletable(slotProps.row)"
               unelevated
               no-caps
               dense
@@ -361,13 +383,15 @@
         />
       </q-card-section>
       <q-separator />
-      <q-card-section class="q-pa-none">
+      <q-card-section v-if="isEquipmentModule" class="q-pa-none">
         <div class="q-pa-md text-body2 text-grey-7">
           {{
             $t('equipment_edit_disclaimer') ||
             "Pensez à mettre à jour votre inventaire : si vous ajoutez un élément manuellement cette année, il ne sera pas repris l’année prochaine, sauf si vous l’avez intégré dans votre inventaire. Your change won't be reflected in the DB. If you change power, contact us."
           }}
         </div>
+      </q-card-section>
+      <q-card-section class="q-pa-none">
         <module-form
           :fields="editInputs"
           :row-data="editRowData"
@@ -524,6 +548,7 @@ import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import { formatRowErrorLines } from 'src/utils/rowErrors';
+import { isFieldEditable, isRowDeletable } from 'src/utils/dataEntryPolicy';
 import {
   clampReferencePercentage,
   REFERENCE_PERCENTAGE_MAX,
@@ -588,6 +613,12 @@ const workspaceStore = useWorkspaceStore();
 const isEquipmentModule = computed(
   () => props.moduleType === MODULES.Equipment,
 );
+// #951: From/To need the create form's autocomplete (pairs the display name
+// with its IATA code / natural key) — no safe plain-text inline equivalent,
+// so Professional Travel rows get an edit-dialog trigger instead.
+const isProfessionalTravelModule = computed(
+  () => props.moduleType === MODULES.ProfessionalTravel,
+);
 const powerFeedbackDialogOpen = ref(false);
 const powerFeedbackRow = ref<{
   equipmentName: string;
@@ -605,6 +636,21 @@ const powerFeedbackRow = ref<{
 const powerFeedbackUnitName = computed(
   () => workspaceStore.selectedUnit?.name ?? String(props.unitId),
 );
+
+// #951: opens the (shared, previously-unwired) edit dialog for Professional
+// Travel rows — From/To need the create form's DirectionInput autocomplete,
+// which already supports edit mode (pre-fills from origin_iata/origin_name,
+// resolves the right paired fields on selection) once given rowData.
+function openTravelEditDialog(row: ModuleRow) {
+  ItemName.value = getItemName(row);
+  editInputs.value = props.moduleFields;
+  const rowData: Record<string, FieldValue> = {};
+  Object.entries(row).forEach(([key, value]) => {
+    rowData[key] = value === undefined ? null : value;
+  });
+  editRowData.value = rowData;
+  editDialogOpen.value = true;
+}
 
 function openNoteDialog(row: ModuleRow) {
   noteDialogRowId.value = getRowId(row);
@@ -1002,6 +1048,37 @@ const tableAccess = computed<ModuleTableAccess>(() => ({
 
 const isDisabled = computed(() => isModuleTableDisabled(tableAccess.value));
 
+// #951: null for submodules the policy layer doesn't cover (planner,
+// embodied energy) — isFieldEditable/isRowDeletable treat null as ungated.
+const dataEntryPolicies = computed(
+  () =>
+    moduleStore.state.dataSubmodule[props.submoduleType]?.data_entry_policies ??
+    null,
+);
+
+function isRowFieldPolicyLocked(row: ModuleRow, col: { field: string }) {
+  return !isFieldEditable(
+    dataEntryPolicies.value,
+    row.source as number | null | undefined,
+    col.field,
+  );
+}
+
+function isRowFieldEditable(row: ModuleRow, fieldId: string) {
+  return isFieldEditable(
+    dataEntryPolicies.value,
+    row.source as number | null | undefined,
+    fieldId,
+  );
+}
+
+function isRowPolicyDeletable(row: ModuleRow) {
+  return isRowDeletable(
+    dataEntryPolicies.value,
+    row.source as number | null | undefined,
+  );
+}
+
 const canEditRows = computed(() => hasRowEditPermission(tableAccess.value));
 
 const showTableRowActions = computed(
@@ -1379,6 +1456,19 @@ function renderCell(
   }
   console.warn('Unexpected cell value type', val);
   return String(val);
+}
+
+// The read-only fallback for a normally-editableInline cell (locked by
+// readOnlyWhen or #951 policy) used to read the raw stored value directly —
+// correct for plain text/numbers, but silently un-translated for
+// option-label fields (e.g. headcount sius_code stores "57", not "Personnel
+// administratif"). Reuses renderCell so every rendering path shares one
+// formatting/translation source of truth.
+function renderReadOnlyInlineCell(row: ModuleRow, col: TableViewColumn) {
+  const targetCol = col.readOnlyDisplayField
+    ? { ...col, field: col.readOnlyDisplayField }
+    : col;
+  return renderCell(row, targetCol);
 }
 
 function getItemName(row: ModuleRow): string {

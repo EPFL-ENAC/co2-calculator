@@ -8,6 +8,7 @@ from fastapi import BackgroundTasks
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.data_entry_permissions import submodule_policies
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.audit import AuditChangeTypeEnum
@@ -697,6 +698,10 @@ class DataEntryService:
             institutional_id_filter=institutional_id_filter,
             exclude_planner_snapshots=exclude_planner_snapshots,
         )
+        if response is not None:
+            response.data_entry_policies = submodule_policies(
+                DataEntryTypeEnum(data_entry_type_id)
+            )
 
         if (
             (current_user is not None and current_user.id is not None)
