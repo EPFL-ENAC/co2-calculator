@@ -39,10 +39,20 @@ configured rate. This plan removes that last per-request I/O: `/ready` and
   100ms) only ever surfaces in `/healthz`'s body / monitoring.
 - `/health/deps` (Accred) is untouched — stays a live, on-demand,
   operator-facing check, never gates a probe.
-- No helm changes: `RUN_DB_HEALTH_POLLER`, `DB_HEALTH_CHECK_INTERVAL_
-SECONDS`, `DB_HEALTH_SLOW_THRESHOLD_MS` all default correctly in code,
-  same precedent as `RUN_POD_HEARTBEAT`/`RUN_PIPELINE_RECONCILER`
-  (neither appears in `values.yaml` either).
+- No helm changes for the settings themselves: `RUN_DB_HEALTH_POLLER`,
+  `DB_HEALTH_CHECK_INTERVAL_SECONDS`, `DB_HEALTH_SLOW_THRESHOLD_MS` all
+  default correctly in code, same precedent as
+  `RUN_POD_HEARTBEAT`/`RUN_PIPELINE_RECONCILER` (neither appears in
+  `values.yaml` either).
+- One helm change followed from the endpoints working, though: the
+  worker deployment (Track B) gained a `readinessProbe` on `/ready`.
+  It has no `Service`, so this never gated traffic, but it does gate
+  `RollingUpdate` progress — without it, a new worker counted as ready
+  the instant its container started, so
+  `maxSurge: 1`/`maxUnavailable: 0` would swap in a worker that
+  couldn't reach the DB. No `startupProbe` added: the existing
+  `wait-for-postgres` init container already blocks the worker's main
+  container from starting until Postgres is reachable.
 
 ## Footgun, documented not coded around
 
