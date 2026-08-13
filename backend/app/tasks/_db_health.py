@@ -83,9 +83,7 @@ async def _check_once(settings: Settings) -> None:
             async with SessionLocal() as session:
                 await session.execute(text("SELECT 1"))
         latency_ms = (time.monotonic() - start) * 1000
-        status: Literal["ok", "slow", "down"] = (
-            "slow" if latency_ms >= settings.DB_HEALTH_SLOW_THRESHOLD_MS else "ok"
-        )
+        status = "slow" if latency_ms >= settings.DB_HEALTH_SLOW_THRESHOLD_MS else "ok"
         error = None
     except asyncio.CancelledError:
         raise
