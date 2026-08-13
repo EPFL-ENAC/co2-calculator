@@ -519,6 +519,15 @@ submodule)` in the module registry has both `USER` and `IMPORTED` entries;
    full-replace ingest deletes imported rows wholesale
    (`bulk_delete_by_source`) — assumed exempt from delete gating (system
    operation). Confirm.
+4. **Research Facilities has zero manual-entry support today** — every
+   field is `hideIn: {form: true}` and both submodules set
+   `hasTableAction: false`, so `hasModuleUpload` is false: no Add form, no
+   CSV upload toolbar, no delete icon, regardless of provenance. Predates
+   #951 (built upload-only). Blocked on a product decision for
+   `researchfacility_id`, a required Create-DTO field with no UI input
+   today (reuse the name as the ID? add a separate ID field? see
+   2026-08-13 discussion). Explicitly deferred to a follow-up issue, not
+   in this plan's scope.
 
 Resolved 2026-08-13 (kept for record): Centralized Purchases keeps its
 distinct 2-field shape; NULL-source rows get no backfill (fix forward);
@@ -567,19 +576,40 @@ backend now allows, per module):
 - Professional Travel: `departure_date` only (see below — origin/
   destination deferred).
 
-**Deferred — Professional Travel `origin_iata`/`origin_name` +
-`destination_iata`/`destination_name`.** Backend already allows these for
-USER rows, but the CREATE form resolves them via a `direction-input`/
-autocomplete component (pairing the display name with an IATA code or
-`origin_natural_key`/`destination_natural_key`), while `ModuleTable.vue`'s
-generic inline-editable branch only supports plain `QInput`/`QSelect` or
-the `module-inline-select` kind/subkind component. Flipping
-`editableInline: true` on a bare text field would let a user edit the
-display name inline while leaving its paired code/natural_key stale —
-exactly the desync the backend explicitly grants both fields together to
-avoid (see PERMISSIONS comment on train's fields). Needs either a proper
-inline autocomplete component or a decision that this pair is edit-dialog-
-only; not done in this pass.
+**Professional Travel From/To — resolved via the edit dialog, not inline
+(2026-08-13, same session).** Backend already allows `origin_iata`/
+`destination_iata` (plane) and `origin_name`/`destination_name` (train) for
+USER rows, but the CREATE form resolves them via a `direction-input`
+autocomplete (pairing the display name with an IATA code or
+`origin_natural_key`/`destination_natural_key`) — `ModuleTable.vue`'s
+generic inline-editable branch has no equivalent, and a bare text field
+would let the display name drift from its paired code (exactly what the
+backend grants both fields together to avoid — see the PERMISSIONS
+comment on train's fields).
+
+Investigating turned up that `ModuleForm.vue` already had full edit-mode
+support for `direction-input` — `init()` pre-populates `form.origin`/
+`form.destination` from `origin_iata`/`origin_name` when `rowData` is
+passed, and `buildPayload()` already forwards whatever
+`origin_iata`/`origin_name`/`*_natural_key` the location picker resolves.
+The modal (`editDialogOpen`/`editInputs`/`editRowData` in
+`ModuleTable.vue`) was built for this, just never wired to an open
+trigger anywhere in the app. Wired one: a new "edit" action-column icon,
+shown only for Professional Travel rows, disabled per policy (checks
+`isFieldEditable(..., 'departure_date')` as a stand-in for "is this row
+locked at all" — plane/train are all-or-nothing, unlike Equipment's
+partial unlock, so one representative field is sufficient). On click it
+populates the modal with the row's data and the submodule's own
+`moduleFields` (identical to what the create form uses) and opens it — no
+new submission logic needed, `onFormSubmit`'s existing edit branch
+(`isEdit ? patchItem : postItem`) already handled it correctly. Also
+gated the modal's disclaimer text (hardcoded Equipment-specific wording)
+to `isEquipmentModule` so Travel doesn't show a nonsensical message.
+
+Not extended in this pass: "Traveler" (`user_institutional_id`) is echoed
+back unchanged by the modal but stays Create-only on the DTO (silently
+dropped by the backend on PATCH, matching pre-existing behavior) — same
+follow-up noted in the SCIPER section above.
 
 ## SCIPER (user_institutional_id) made updatable on a user's own Headcount row (2026-08-13)
 
