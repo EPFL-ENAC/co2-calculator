@@ -598,6 +598,15 @@ the row was user-created, reversing this plan's earlier framing of it as
   user's own row.
 - Frontend: `editableInline: true` (plain text field, no autocomplete
   complexity, unlike Traveler below).
+- **Follow-up call (same session): `HeadCountCreate.user_institutional_id`
+  made optional too** (`str` → `str | None = None`, same non-empty-when-
+  provided validator as Update). A manually-added member may not have a
+  known SCIPER yet — now fillable later since the field is editable. The
+  create()-time uniqueness check was already conditioned on the field
+  being present (`.get("user_institutional_id")` truthy), so omitting it
+  just skips the check, no change needed there. The frontend create form
+  never marked this field `required` in the first place — it was the
+  backend DTO alone that was stricter than the UI already assumed.
 
 **Not extended to Prof. Travel's "Traveler"** (same underlying
 `user_institutional_id` field, same matrix wording) — it needs the same

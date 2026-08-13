@@ -24,7 +24,9 @@ class HeadCountStudentResponse(DataEntryResponseGen):
 class HeadCountCreate(DataEntryCreate):
     name: str
     sius_code: str
-    user_institutional_id: str
+    # #951: optional — a manually-added member may not have a known SCIPER
+    # yet; it's editable later on their own row (see PERMISSIONS).
+    user_institutional_id: str | None = None
     fte: float
     note: str | None = None
 
@@ -37,7 +39,9 @@ class HeadCountCreate(DataEntryCreate):
 
     @field_validator("user_institutional_id", mode="before")
     @classmethod
-    def validate_user_institutional_id(cls, v: str) -> str:
+    def validate_user_institutional_id(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
         if not v.strip():
             raise ValueError("User institutional ID cannot be empty")
         # doc says numbers only but user can use letters as well (test-412424 e.g)
