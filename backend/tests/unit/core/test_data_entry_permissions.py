@@ -32,6 +32,20 @@ class TestProvenanceOf:
     def test_user_manual_is_user(self):
         assert provenance_of(DataEntrySourceEnum.USER_MANUAL.value) == Provenance.USER
 
+    def test_planner_snapshot_is_user(self):
+        """Simulator Plan prefill copies a reference-year row into a plan
+        module using the SAME data_entry_type_id (e.g. `building`,
+        `energy_combustion`, equipment kinds) — not a planner-kind type, so
+        is_policy_exempt() alone doesn't cover it. A plan row is the user's
+        own editable data (percentage slider, deletable), not something
+        externally imported — must resolve to USER, not IMPORTED, or every
+        prefilled plan module's rows lock up (#951 regression, code review
+        2026-08-13).
+        """
+        assert (
+            provenance_of(DataEntrySourceEnum.PLANNER_SNAPSHOT.value) == Provenance.USER
+        )
+
     @pytest.mark.parametrize(
         "source",
         [

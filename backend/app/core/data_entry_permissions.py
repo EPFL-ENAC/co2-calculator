@@ -14,7 +14,7 @@ level whitelists per the literal #951 issue table, confirmed 2026-08-13.
 
 from enum import Enum
 
-from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import (
     MODULE_TYPE_TO_DATA_ENTRY_TYPES,
     ModuleTypeEnum,
@@ -22,14 +22,26 @@ from app.models.module_type import (
 )
 from app.schemas.data_entry import BaseModuleHandler
 
+# Sources that resolve to the USER branch: manual entry, and Simulator Plan
+# prefill. A plan-prefilled row (SimulatorPlanService.prefill_module_from_reference)
+# reuses the SAME data_entry_type_id as the regular calculator module
+# (building, energy_combustion, equipment kinds, ...) — it is NOT a
+# planner-kind type (80+) and is_policy_exempt() doesn't catch it. It's the
+# user's own plan data (percentage slider, deletable), not externally
+# imported — must resolve to USER (code review 2026-08-13, real regression:
+# every prefilled plan module's rows were locking up under IMPORTED).
+_USER_BRANCH_SOURCES = frozenset(
+    {DataEntrySourceEnum.USER_MANUAL.value, DataEntrySourceEnum.PLANNER_SNAPSHOT.value}
+)
+
 
 class Provenance(str, Enum):
-    USER = "user"  # source is None or USER_MANUAL
+    USER = "user"  # source is None, USER_MANUAL, or PLANNER_SNAPSHOT
     IMPORTED = "imported"  # any CSV_* / API_* / EXTERNAL_INTEGRATION
 
 
 def provenance_of(source: int | None) -> Provenance:
-    if source is None or source == 0:  # DataEntrySourceEnum.USER_MANUAL == 0
+    if source is None or source in _USER_BRANCH_SOURCES:
         return Provenance.USER
     return Provenance.IMPORTED
 

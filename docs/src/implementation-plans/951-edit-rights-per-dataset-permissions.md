@@ -157,6 +157,28 @@ NULL`, indistinguishable from a manual row. Decision 2026-08-13: no
   #951 matrix. Same exemption as planner:
   `SYSTEM_MANAGED_TYPES = {DataEntryTypeEnum.building_embodied_energy}`,
   checked alongside `is_planner_kind`.
+- **GOTCHA — Simulator Plan prefill reuses the regular `data_entry_type`,
+  not a planner-kind one, and was missed by both exemptions above (found by
+  code review after initial implementation, 2026-08-13).**
+  `SimulatorPlanService.prefill_module_from_reference`
+  (`backend/app/services/simulator_plan_service.py:500-514`) copies a
+  reference-year row into a plan module with the SAME
+  `data_entry_type_id` — `building`, `energy_combustion`, an equipment
+  kind, etc. — stamped `source=DataEntrySourceEnum.PLANNER_SNAPSHOT`
+  (value `6`, a source enum member this plan's "Verified codebase facts"
+  section had not accounted for). Only headcount prefill uses a true
+  planner-kind type (`planner_headcount`, already exempt); every other
+  prefilled module (`PLANNER_PREFILLED_MODULE_TYPES` in
+  `module_type.py`: process_emissions, buildings, equipment,
+  research_facilities, external_cloud_and_ai) shares its type with real
+  calculator rows, so `is_policy_exempt()` (keyed on type) can't catch it —
+  `provenance_of()` was silently resolving these to `IMPORTED`, locking and
+  making non-deletable every prefilled plan row app-wide (the "% of
+  reference year" slider, equipment usage, etc.) — the opposite of the
+  intended behavior; a plan row is the user's own editable data, not
+  externally imported. Fixed in `provenance_of()`:
+  `PLANNER_SNAPSHOT` resolves to `Provenance.USER`, same as `USER_MANUAL`
+  and `None`.
 - **Create DTOs are already the create-field authority.** Cross-checked every
   module's `*Create` DTO against its matrix row: Purchase requires
   `purchase_institutional_code`, Purchase Centralized requires `unit` +

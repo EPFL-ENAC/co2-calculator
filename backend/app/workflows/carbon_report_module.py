@@ -285,8 +285,9 @@ class CarbonReportModuleWorkflow:
             )
         if not is_policy_exempt(data_entry_type):
             module_type = ModuleTypeEnum(carbon_report_module.module_type_id)
-            entry_source = existing_entry.source if existing_entry else None
-            provenance = provenance_of(entry_source)
+            # DataEntryService.get() (line 226) always raises on a missing
+            # entry, never returns None — existing_entry is guaranteed here.
+            provenance = provenance_of(existing_entry.source)
             allowed = (
                 editable_fields(module_type, data_entry_type, provenance)
                 | ALWAYS_WRITABLE_FIELDS
