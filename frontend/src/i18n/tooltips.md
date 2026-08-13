@@ -29,16 +29,17 @@ Replace `{module}`, `{submodule}`, `{column}`, etc. with the slug from the table
 
 The CO₂ calculator, the CO₂ project planner and the CO₂ explorer show the same modules, but each space has its own guidance text. The key patterns above (starting with `module-`) apply to the **calculator** only. The other spaces repeat the same two patterns behind their own prefix:
 
-| Where you see the (ℹ) icon in the app                   | Key pattern                                           |
-| ------------------------------------------------------- | ----------------------------------------------------- |
-| Header of the "Project Grant" section (project planner) | `planner-grant-section-title`                         |
-| Header of a project-year section (project planner)      | `planner-year-section-title`                          |
-| Next to a module title, Project Grant section           | `planner-grant-module-{module}-title`                 |
-| Next to a sub-section title, Project Grant section      | `planner-grant-module-{module}-submodule-{submodule}` |
-| Next to a module title, project-year section            | `planner-year-module-{module}-title`                  |
-| Next to a sub-section title, project-year section       | `planner-year-module-{module}-submodule-{submodule}`  |
-| Next to a module title, CO₂ explorer                    | `explorer-module-{module}-title`                      |
-| Next to a sub-section title, CO₂ explorer               | `explorer-module-{module}-submodule-{submodule}`      |
+| Where you see the (ℹ) icon in the app                     | Key pattern                                           |
+| --------------------------------------------------------- | ----------------------------------------------------- |
+| Header of the "Project information" box (project planner) | `planner-project-info-section-title`                  |
+| Header of the "Project Grant" section (project planner)   | `planner-grant-section-title`                         |
+| Header of a project-year section (project planner)        | `planner-year-section-title`                          |
+| Next to a module title, Project Grant section             | `planner-grant-module-{module}-title`                 |
+| Next to a sub-section title, Project Grant section        | `planner-grant-module-{module}-submodule-{submodule}` |
+| Next to a module title, project-year section              | `planner-year-module-{module}-title`                  |
+| Next to a sub-section title, project-year section         | `planner-year-module-{module}-submodule-{submodule}`  |
+| Next to a module title, CO₂ explorer                      | `explorer-module-{module}-title`                      |
+| Next to a sub-section title, CO₂ explorer                 | `explorer-module-{module}-submodule-{submodule}`      |
 
 The module and sub-section slugs are the same in every space. Leaving `en` and `fr` empty hides the icon in that space only, so the calculator text is never affected by an edit made for the planner or the explorer.
 
