@@ -228,6 +228,42 @@ async def test_update_purchase_user_row_institutional_code_succeeds():
 
 
 @pytest.mark.asyncio
+async def test_update_purchase_kind_change_clears_locked_dependent_field():
+    """Pinned behavior (code review 2026-08-13, product decision: allow):
+    changing purchase_institutional_code (the handler's kind_field, allowed
+    on a user row) triggers clear_dependent_fields_on_kind_change() to null
+    purchase_additional_code (kind_field_override, #951-locked) as a
+    data-integrity cascade — the stale secondary code no longer applies to
+    the new classification. This is intentionally NOT checked as a locked-
+    field violation: the user never submitted purchase_additional_code
+    themselves, the system is invalidating a now-stale dependent value as a
+    consequence of an edit they ARE authorized to make. If this behavior
+    ever needs to change (e.g. block the update instead), this test is the
+    one to update alongside the workflow comment explaining the decision.
+    """
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        _EXISTING_PURCHASE_DATA, source=None
+    )
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        await workflow.update(
+            carbon_report_module=SimpleNamespace(id=18036, module_type_id=5),
+            data_entry_type_id=DataEntryTypeEnum.services.value,
+            item_id=1,
+            item_data={"purchase_institutional_code": "51100001"},
+            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            request_context={},
+            background_tasks=MagicMock(),
+        )
+
+    persisted = data_entry_service.update.call_args.kwargs["data"].data
+    assert persisted["purchase_institutional_code"] == "51100001"
+    assert persisted["purchase_additional_code"] is None
+
+
+@pytest.mark.asyncio
 async def test_update_purchase_user_row_additional_code_is_403():
     """purchase_additional_code is NOT named in the #951 matrix — locked even
     on a user's own row.

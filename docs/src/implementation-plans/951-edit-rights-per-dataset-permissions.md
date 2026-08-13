@@ -536,3 +536,61 @@ caught by `ty`, not by mocked unit tests. `openapi.d.ts` was already ~4
 weeks / 44 backend commits stale before this change; regenerating it is a
 separate follow-up, not bundled here — this plan's own frontend types are
 hand-written (see Frontend gating), not generated-schema-dependent.
+
+## Second code-review round (2026-08-13, post-commit)
+
+Six findings on the committed backend+frontend diff; four fixed, two
+rejected with reasoning kept here rather than silently dropped:
+
+1. **Fixed — kind-change side effect on a locked field wasn't checked.**
+   `clear_dependent_fields_on_kind_change()` (pre-existing, not #951's)
+   nulls Purchase's `purchase_additional_code` when
+   `purchase_institutional_code` (the kind field, USER-editable) changes —
+   my value-diff only inspected the caller's literal `item_data`, never the
+   post-mutation `update_payload`, so this null wasn't policy-checked.
+   Empirically confirmed the field really does get nulled and persisted.
+   Decision: **allow it** — a stale dependent code invalidated by its own
+   permitted primary-field change is a data-integrity cascade, not a user
+   attempting to write a locked field; blocking it would make
+   `purchase_institutional_code` uneditable on any row that already has an
+   additional code, breaking the very editability this round confirmed.
+   Documented at the check site and pinned with
+   `test_update_purchase_kind_change_clears_locked_dependent_field`.
+2. **Fixed — `None` from `submodule_policies()` conflated two different
+   meanings.** Exempt-submodule (deliberate, "no #951 gating") and a
+   hypothetical future registry gap (a `DataEntryTypeEnum` member never
+   added to `MODULE_TYPE_TO_DATA_ENTRY_TYPES`) both silently returned
+   `None` — the frontend can't tell them apart, and a real gap would render
+   every field editable / delete enabled until the backend's own
+   enforcement rejected the submit. Added `find_uncovered_types()` +
+   folded into `_validate_registry()`: any enum member that's neither
+   policy-exempt nor registered now fails at import, not silently.
+3. **Not changed, strengthened comments instead — frontend hardcodes the
+   backend's source→branch bucketing.** Already a deliberate, user-approved
+   tradeoff (reuse `source`, no new API field). Real drift risk if a future
+   `DataEntrySourceEnum` member is added without updating both sides — now
+   cross-referenced explicitly in both `data_entry.py`'s docstring and
+   `dataEntryPolicy.ts`'s comment, so the next editor is pointed at the
+   pair.
+4. **Fixed — `data_entry_policies` was a loose `dict[str, dict[str,
+object]]`, not a typed schema.** Added `RowPolicy`/`DataEntryPolicies`
+   Pydantic models in `schemas/carbon_report_response.py`;
+   `submodule_policies()` now returns the typed model. Wire shape (JSON)
+   is unchanged, so this didn't touch the frontend contract.
+5. **Rejected — `_validate_registry()` runs at import time instead of a
+   FastAPI lifespan check.** The guardrail this echoes (boot-time checks
+   belong in the lifespan, not Settings validators) was about
+   environment-dependent validation failing unpredictably per-process
+   (the migration Job incident, PR #1775). This check has no such
+   dependency: it's a pure function of hardcoded data (the PERMISSIONS
+   dict, the module registry, each handler's static DTO fields) that
+   either always passes or always fails, identically, regardless of which
+   process imports it. Fail-fast-everywhere is the correct behavior for a
+   deterministic check like this, not a problem to route through the
+   lifespan.
+6. **Rejected — `delete()` does two DB round-trips (fetch for the policy
+   check, then `DataEntryService.delete()`'s own internal fetch).** Already
+   an explicitly accepted tradeoff in this plan's original enforcement-point
+   design (see "Backend enforcement points" above) — a rarely-hit path, not
+   worth the added complexity of threading a pre-fetched entry through
+   `DataEntryService.delete()`.

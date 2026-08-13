@@ -17,12 +17,13 @@ from app.core.data_entry_permissions import (
     can_create,
     can_delete,
     editable_fields,
+    find_uncovered_types,
     is_policy_exempt,
     provenance_of,
     submodule_policies,
 )
 from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.module_type import ModuleTypeEnum
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 
 
 class TestProvenanceOf:
@@ -297,7 +298,8 @@ def test_note_is_always_writable_and_not_in_any_matrix_entry():
 class TestSubmodulePolicies:
     def test_equipment_carries_both_branches(self):
         policies = submodule_policies(DataEntryTypeEnum.scientific)
-        assert policies == {
+        assert policies is not None
+        assert policies.model_dump() == {
             "user": {
                 "create": True,
                 "delete": True,
@@ -331,3 +333,30 @@ class TestSubmodulePolicies:
     def test_exempt_type_returns_none(self):
         assert submodule_policies(DataEntryTypeEnum.planner_purchase) is None
         assert submodule_policies(DataEntryTypeEnum.building_embodied_energy) is None
+
+
+class TestFindUncoveredTypes:
+    """submodule_policies() returns None for two different reasons —
+    legitimately exempt, and a registry gap (a type in DataEntryTypeEnum
+    with no entry in MODULE_TYPE_TO_DATA_ENTRY_TYPES) — and the frontend
+    can't tell them apart (code review 2026-08-13). find_uncovered_types()
+    is the self-check that catches the second case at import time instead
+    of it silently reading as "no gating needed" downstream.
+    """
+
+    def test_real_registry_has_no_gaps(self):
+        assert find_uncovered_types(MODULE_TYPE_TO_DATA_ENTRY_TYPES) == []
+
+    def test_a_type_missing_from_the_registry_is_reported(self):
+        # member is real and not exempt; drop it from a copy of the map.
+        incomplete = {
+            module_type: [t for t in types if t != DataEntryTypeEnum.member]
+            for module_type, types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items()
+        }
+        assert DataEntryTypeEnum.member in find_uncovered_types(incomplete)
+
+    def test_exempt_types_are_never_reported_even_if_unregistered(self):
+        assert (
+            find_uncovered_types({})  # empty registry: nothing is registered
+            == [t for t in DataEntryTypeEnum if not is_policy_exempt(t)]
+        )

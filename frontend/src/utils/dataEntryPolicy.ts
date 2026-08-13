@@ -21,10 +21,13 @@ export interface DataEntryPolicies {
 
 export type DataEntryBranch = 'user' | 'imported';
 
-// Mirrors the DataEntrySourceEnum values app.core.data_entry_permissions.
-// provenance_of() buckets into the "user" branch: USER_MANUAL (0) and
-// PLANNER_SNAPSHOT (6, Simulator Plan prefill — the user's own plan row,
-// not externally imported data).
+// Mirrors backend/app/models/data_entry.py DataEntrySourceEnum values that
+// app.core.data_entry_permissions._USER_BRANCH_SOURCES buckets into the
+// "user" branch: USER_MANUAL (0) and PLANNER_SNAPSHOT (6, Simulator Plan
+// prefill — the user's own plan row, not externally imported data). No
+// shared source of truth for this bucketing (accepted tradeoff, see the
+// #951 plan doc) — a new backend member meant to read as "user" needs this
+// set updated too.
 const USER_BRANCH_SOURCES = new Set([0, 6]);
 
 export function branchOf(source: number | null | undefined): DataEntryBranch {

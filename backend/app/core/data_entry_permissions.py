@@ -20,6 +20,7 @@ from app.models.module_type import (
     ModuleTypeEnum,
     get_module_type_for_data_entry_type,
 )
+from app.schemas.carbon_report_response import DataEntryPolicies, RowPolicy
 from app.schemas.data_entry import BaseModuleHandler
 
 # Sources that resolve to the USER branch: manual entry, and Simulator Plan
@@ -262,7 +263,7 @@ def editable_fields(
 
 def submodule_policies(
     data_entry_type: DataEntryTypeEnum,
-) -> dict[str, dict[str, object]] | None:
+) -> DataEntryPolicies | None:
     """Both provenance branches for one submodule, for the frontend
     (``SubmoduleResponse.data_entry_policies``). ``None`` for exempt types —
     #951 policy doesn't apply to them.
@@ -272,29 +273,56 @@ def submodule_policies(
     module_type = get_module_type_for_data_entry_type(data_entry_type)
     if module_type is None:
         return None
-    return {
-        provenance.value: {
-            "create": can_create(provenance),
-            "delete": can_delete(provenance),
+    branches = {
+        provenance.value: RowPolicy(
+            create=can_create(provenance),
+            delete=can_delete(provenance),
             # note is always writable but isn't in any matrix entry (it's
             # metadata, not part of the module data) — union it in here so
             # the frontend's editability check is a plain membership test,
             # no separate "note is special" rule to duplicate.
-            "editable_fields": sorted(
+            editable_fields=sorted(
                 editable_fields(module_type, data_entry_type, provenance)
                 | ALWAYS_WRITABLE_FIELDS
             ),
-        }
+        )
         for provenance in Provenance
     }
+    return DataEntryPolicies(user=branches["user"], imported=branches["imported"])
+
+
+def find_uncovered_types(
+    registry: dict[ModuleTypeEnum, list[DataEntryTypeEnum]],
+) -> list[DataEntryTypeEnum]:
+    """DataEntryTypeEnum members that are neither policy-exempt nor present
+    in ``registry`` — i.e. ``get_module_type_for_data_entry_type()`` would
+    return None for them, and ``submodule_policies()`` would then return
+    None the same way it does for a legitimately exempt type. The frontend
+    can't tell "no gating needed" from "registry gap" apart (code review
+    2026-08-13) — this makes the gap itself impossible to ship silently.
+    """
+    registered = {t for types in registry.values() for t in types}
+    return [
+        t for t in DataEntryTypeEnum if t not in registered and not is_policy_exempt(t)
+    ]
 
 
 def _validate_registry() -> None:
     """Import-time self-check: every non-exempt (module, submodule) in the
-    real module registry must resolve for both provenances, and every field
-    name granted must be a real field on that submodule's update DTO — a
-    coverage gap or a typo'd field name fails at import, not in production.
+    real module registry must resolve for both provenances, every field
+    name granted must be a real field on that submodule's update DTO, and
+    every DataEntryTypeEnum member must be covered (exempt or registered)
+    — a coverage gap or a typo'd field name fails at import, not in
+    production.
     """
+    uncovered = find_uncovered_types(MODULE_TYPE_TO_DATA_ENTRY_TYPES)
+    if uncovered:
+        raise ValueError(
+            f"data_entry_permissions: DataEntryTypeEnum member(s) "
+            f"{uncovered} are neither policy-exempt nor in "
+            f"MODULE_TYPE_TO_DATA_ENTRY_TYPES — submodule_policies() would "
+            f"silently return None (no gating) for them"
+        )
     for module_type, data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items():
         for data_entry_type in data_entry_types:
             if is_policy_exempt(data_entry_type):

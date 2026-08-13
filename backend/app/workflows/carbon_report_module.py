@@ -292,6 +292,15 @@ class CarbonReportModuleWorkflow:
                 editable_fields(module_type, data_entry_type, provenance)
                 | ALWAYS_WRITABLE_FIELDS
             )
+            # Diffs the caller's literal item_data, not update_payload — the
+            # latter can carry dependent-field resets from
+            # clear_dependent_fields_on_kind_change() (e.g. Purchase's
+            # purchase_additional_code nulled when purchase_institutional_code
+            # changes). Those are data-integrity cascades of an ALLOWED edit,
+            # not a user attempting to write a locked field directly, and are
+            # intentionally not checked here (decision 2026-08-13, code
+            # review; see test_update_purchase_kind_change_clears_locked_
+            # dependent_field for the pinned behavior).
             changed_locked_fields = [
                 field
                 for field, value in item_data.items()
