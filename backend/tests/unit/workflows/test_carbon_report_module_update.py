@@ -39,7 +39,9 @@ async def test_update_partial_patch_retains_persisted_classification():
     captured: dict = {}
 
     data_entry_service = MagicMock()
-    data_entry_service.get = AsyncMock(return_value=SimpleNamespace(data=existing_data))
+    data_entry_service.get = AsyncMock(
+        return_value=SimpleNamespace(data=existing_data, source=None)
+    )
 
     async def _capture_update(*, id, data, user, request_context, background_tasks):
         captured["data"] = data
@@ -107,7 +109,9 @@ async def test_update_blank_purchase_institutional_code_rejected():
     item_data = {"purchase_institutional_code": ""}
 
     data_entry_service = MagicMock()
-    data_entry_service.get = AsyncMock(return_value=SimpleNamespace(data=existing_data))
+    data_entry_service.get = AsyncMock(
+        return_value=SimpleNamespace(data=existing_data, source=None)
+    )
     data_entry_service.update = AsyncMock()
 
     # clearing is a pure staticmethod (real); validation (real, unmocked)

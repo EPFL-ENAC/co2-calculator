@@ -505,6 +505,10 @@ async def test_get_submodule_data(db_session: AsyncSession):
     assert result.id == DataEntryTypeEnum.plane.value
     assert result.count == 3
     assert result.summary.total_items == 3
+    # #951: submodule response carries both provenance branches' edit rights.
+    assert result.data_entry_policies["imported"]["delete"] is False
+    assert result.data_entry_policies["user"]["delete"] is True
+    assert "origin_iata" in result.data_entry_policies["user"]["editable_fields"]
 
 
 # ======================================================================

@@ -2,9 +2,17 @@ from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.data_entry_permissions import (
+    ALWAYS_WRITABLE_FIELDS,
+    can_delete,
+    editable_fields,
+    is_policy_exempt,
+    provenance_of,
+)
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.schemas.data_entry import (
@@ -155,6 +163,8 @@ class CarbonReportModuleWorkflow:
                 data=data_entry_create,
                 request_context=request_context,
                 background_tasks=background_tasks,
+                source=DataEntrySourceEnum.USER_MANUAL.value,
+                created_by_id=current_user.id,
             )
             if item is None:
                 raise HTTPException(
@@ -273,6 +283,27 @@ class CarbonReportModuleWorkflow:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Current user ID is required to update item",
             )
+        if not is_policy_exempt(data_entry_type):
+            module_type = ModuleTypeEnum(carbon_report_module.module_type_id)
+            entry_source = existing_entry.source if existing_entry else None
+            provenance = provenance_of(entry_source)
+            allowed = (
+                editable_fields(module_type, data_entry_type, provenance)
+                | ALWAYS_WRITABLE_FIELDS
+            )
+            changed_locked_fields = [
+                field
+                for field, value in item_data.items()
+                if field not in allowed and existing_data.get(field) != value
+            ]
+            if changed_locked_fields:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "code": "FIELD_NOT_EDITABLE",
+                        "fields": changed_locked_fields,
+                    },
+                )
         try:
             item = await DataEntryService(self.session).update(
                 id=item_id,
@@ -318,6 +349,20 @@ class CarbonReportModuleWorkflow:
         request_context: dict,
         background_tasks: BackgroundTasks,
     ) -> None:
+        try:
+            entry = await DataEntryService(self.session).get(id=data_entry_id)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
+            ) from e
+        data_entry_type = DataEntryTypeEnum(entry.data_entry_type_id)
+        if not is_policy_exempt(data_entry_type) and not can_delete(
+            provenance_of(entry.source)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "ROW_NOT_DELETABLE"},
+            )
         await DataEntryService(self.session).delete(
             id=data_entry_id,
             current_user=current_user,

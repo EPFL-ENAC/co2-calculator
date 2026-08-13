@@ -91,6 +91,10 @@ class DataEntryResponse(DataEntryBase):
 
     id: int
     data: dict
+    # #951: provenance for the data-entry permission layer (see
+    # app.core.data_entry_permissions). Not module-specific, so it belongs on
+    # the generic response, unlike DataEntryResponseGen's own copy below.
+    source: int | None = None
 
 
 class DataEntryResponseGen(DataEntryBase):

@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.user import UserProvider
 from app.schemas.data_entry import DataEntryResponse
 from app.schemas.user import UserRead
@@ -143,3 +143,44 @@ async def test_create_duplicate_role_for_existing_member_is_rejected():
     assert exc_info.value.status_code == 422
     assert exc_info.value.detail == "DUPLICATE_INSTITUTIONAL_ID"
     data_entry_service.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_stamps_source_manual_and_created_by_id():
+    """Manual creates must stamp source=USER_MANUAL and created_by_id —
+    #951: without this, manual rows are indistinguishable from imported rows
+    with source=NULL, and data-entry permission enforcement can't tell them
+    apart.
+    """
+    session, data_entry_service, emission_service, module_service = (
+        _make_workflow_deps()
+    )
+    data_entry_service.check_member_role_unique = AsyncMock(return_value=True)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with (
+        patch(
+            "app.workflows.carbon_report_module.DataEntryService",
+            return_value=data_entry_service,
+        ),
+        patch(
+            "app.workflows.carbon_report_module.DataEntryEmissionService",
+            return_value=emission_service,
+        ),
+        patch(
+            "app.workflows.carbon_report_module.CarbonReportModuleService",
+            return_value=module_service,
+        ),
+    ):
+        await workflow.create(
+            carbon_report_module=MagicMock(id=42, module_type_id=1),
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            item_data=_member_item_data("54"),
+            current_user=_CURRENT_USER,
+            request_context={},
+            background_tasks=MagicMock(),
+        )
+
+    call_kwargs = data_entry_service.create.call_args.kwargs
+    assert call_kwargs["source"] == DataEntrySourceEnum.USER_MANUAL.value
+    assert call_kwargs["created_by_id"] == _CURRENT_USER.id
