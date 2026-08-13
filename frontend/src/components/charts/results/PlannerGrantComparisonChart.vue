@@ -102,7 +102,7 @@ use([
 const { t } = useI18n();
 const isPrintMode = usePrintMode();
 
-const showAdditional = ref(false);
+const showAdditional = ref(isPrintMode.value);
 
 // The Results charts' categories, in their shared order.
 const MAIN_CATEGORY_KEYS = [
