@@ -26,10 +26,13 @@ from app.db import SessionLocal
 
 logger = get_logger(__name__)
 
-# Bare constant, not a Settings field — same precedent as main.py's
-# READY_DB_TIMEOUT_SECONDS. Bounds each check so a saturated pool can't
-# make an iteration hang; a timeout here surfaces as status "down", same
-# as any other DB failure.
+# Bare constant, not a Settings field — this PR's own /ready rewrite
+# deleted the equivalent per-request constant from main.py
+# (READY_DB_TIMEOUT_SECONDS), so there's no live symbol to point to
+# anymore; kept as a constant since it never needs per-environment
+# tuning. Bounds each check so a saturated pool can't make an iteration
+# hang; a timeout here surfaces as status "down", same as any other DB
+# failure.
 DB_HEALTH_CHECK_TIMEOUT_SECONDS = 1
 
 # A cached verdict older than this multiple of the check interval means
@@ -90,7 +93,10 @@ async def _check_once(settings: Settings) -> None:
     except Exception as e:
         latency_ms = (time.monotonic() - start) * 1000
         status = "down"
-        error = str(e)
+        # str(e) is empty for some exceptions (notably bare TimeoutError,
+        # which asyncio.timeout() raises) — fall back to the type name so
+        # the /ready failure log always has something to show.
+        error = str(e) or type(e).__name__
 
     _state = DBHealthState(
         status=status,

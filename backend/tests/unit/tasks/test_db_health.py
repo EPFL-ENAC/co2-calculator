@@ -46,7 +46,7 @@ class _Session:
 
 @pytest.mark.asyncio
 async def test_check_once_marks_ok_under_threshold(monkeypatch):
-    monkeypatch.setattr(_db_health, "SessionLocal", lambda: _Session())
+    monkeypatch.setattr(_db_health, "SessionLocal", _Session)
     settings = get_settings()
     monkeypatch.setattr(settings, "DB_HEALTH_SLOW_THRESHOLD_MS", 10_000)
     await _db_health._check_once(settings)
@@ -57,7 +57,7 @@ async def test_check_once_marks_ok_under_threshold(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_check_once_marks_slow_over_threshold(monkeypatch):
-    monkeypatch.setattr(_db_health, "SessionLocal", lambda: _Session())
+    monkeypatch.setattr(_db_health, "SessionLocal", _Session)
     settings = get_settings()
     monkeypatch.setattr(settings, "DB_HEALTH_SLOW_THRESHOLD_MS", 0)
     await _db_health._check_once(settings)
