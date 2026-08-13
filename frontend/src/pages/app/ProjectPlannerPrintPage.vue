@@ -11,6 +11,11 @@ import PlannerPrintYearPage from 'src/components/organisms/print/PlannerPrintYea
 import PrintReportShell from 'src/components/organisms/print/PrintReportShell.vue';
 import { useProjectPlannerPrintData } from 'src/composables/print/useProjectPlannerPrintData';
 import { formatTonnesCO2 } from 'src/utils/number';
+import {
+  filledYearRange,
+  formatYearRange,
+  withYearRange,
+} from 'src/utils/plannerYearRange';
 import { toPrintDocumentTitle } from 'src/utils/unitPerimeterLabel';
 
 const { t } = useI18n();
@@ -47,6 +52,25 @@ const createdAtLabel = computed(() => {
 // on the comparison chart the planner page shows (#1977).
 const showComparison = computed(
   () => plan.value?.is_grant_proposal === true && planYears.value.length > 0,
+);
+
+// The Grant Proposal view spans the whole plan; the effective view spans
+// only the years that hold data, falling back to the plan's full range
+// while every year is still empty.
+const grantYearRange = computed(() =>
+  formatYearRange(plan.value?.start_year, plan.value?.end_year),
+);
+const effectiveYearRange = computed(
+  () => filledYearRange(planYears.value) || grantYearRange.value,
+);
+const grantTotalTitle = computed(() =>
+  withYearRange(t('planner_results_grant_total_title'), grantYearRange.value),
+);
+const yearsTotalTitle = computed(() =>
+  withYearRange(
+    t('planner_results_years_total_title'),
+    effectiveYearRange.value,
+  ),
 );
 
 onMounted(async () => {
@@ -104,14 +128,14 @@ onMounted(async () => {
         <div v-if="showComparison" class="row items-stretch no-wrap q-mt-md">
           <BigNumber
             class="col"
-            :title="$t('planner_results_grant_total_title')"
+            :title="grantTotalTitle"
             :number="formatTonnesCO2(grantTotalTonnes)"
             color="info"
             :print-mode="true"
           />
           <BigNumber
             class="col q-ml-md"
-            :title="$t('planner_results_years_total_title')"
+            :title="yearsTotalTitle"
             :number="formatTonnesCO2(totalTonnesCo2eq)"
             :comparison="
               $t('planner_print_total_over_years', {
@@ -124,7 +148,7 @@ onMounted(async () => {
         </div>
         <div v-else-if="plan.is_grant_proposal" class="q-mt-md">
           <BigNumber
-            :title="$t('planner_results_grant_total_title')"
+            :title="grantTotalTitle"
             :number="formatTonnesCO2(grantTotalTonnes)"
             color="info"
             :print-mode="true"
@@ -155,6 +179,8 @@ onMounted(async () => {
               "
               :grant-breakdown="grantBreakdown"
               :years-breakdown="planBreakdown"
+              :grant-year-range="grantYearRange"
+              :effective-year-range="effectiveYearRange"
             />
           </q-card>
           <ModuleCarbonFootprintChart
