@@ -668,23 +668,23 @@ export default {
     en: 'This module automatically displays the main staff categories. Please manually enter the total FTE for a project year. The total number of FTEs is used to generate indicators for additional categories (Scope 3: Food, Commuting, and Waste).\n\nThe methodology used is documented on the Documentation pages.',
     fr: "Ce module affiche automatiquement les grandes catégories de personnel. Veuillez ajouter manuellement les EPT total pour une année de projet. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Scope 3 : Alimentation, Pendularité et Déchets).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
   },
-  'planner-grant-module-headcount-submodule-member': { 
-    en: 'Please enter project members, including their role and activity percentage in the Full-Time Equivalent (FTE) field.', 
+  'planner-grant-module-headcount-submodule-member': {
+    en: 'Please enter project members, including their role and activity percentage in the Full-Time Equivalent (FTE) field.',
     fr: "Veuillez saisir les membres avec leur fonction et pourcentage d'activité sous le champ équivalent plein-temps (EPT).",
   },
-  
-  'planner-grant-module-headcount-submodule-student': { 
-    en: 'Please enter the number of students in Full-Time Equivalents (FTE).', 
+
+  'planner-grant-module-headcount-submodule-student': {
+    en: 'Please enter the number of students in Full-Time Equivalents (FTE).',
     fr: "Veuillez saisir le nombre d'étudiantes et étudiants en équivalent plein-temps (EPT).",
   },
 
   'planner-grant-module-process-emissions-title': {
     en: 'This module allows you to estimate the carbon footprint of the greenhouse gases generated during your project-specific laboratory activities (e.g., Scope 1 CO₂ emissions from certain laboratory activities, SF₆ emissions when SF₆ is used as a refrigerant).\n\nThe methodology used is documented on the Documentation pages.',
-    fr: "Ce module permet d’estimer l’empreinte carbone des gaz à effet de serre générés lors de vos activités de laboratoire spécifique à votre projet (e.g. émissions de CO₂ Scope 1 dans certaines activités de laboratoire, émissions de SF₆ quand celui-ci est utilisé en tant que fluide frigorigène).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
+    fr: 'Ce module permet d’estimer l’empreinte carbone des gaz à effet de serre générés lors de vos activités de laboratoire spécifique à votre projet (e.g. émissions de CO₂ Scope 1 dans certaines activités de laboratoire, émissions de SF₆ quand celui-ci est utilisé en tant que fluide frigorigène).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.',
   },
   'planner-grant-module-process-emissions-submodule-process_emissions': {
     en: 'Please note that the budget associated with your unit’s process emissions is, in most cases, zero. Indeed, these emissions are either included in your purchases, in which case the corresponding budget should be allocated to the purchases category, or funded by central services, in which case they do not fall within your unit scope.',
-    fr: "Veuillez noter que le budget associé aux émissions de procédés de votre unité est, dans la plupart des cas, égal à zéro. En effet, ces émissions sont soit incluses dans vos achats, et leur budget doit alors être comptabilisé dans cette catégorie, soit financées par les services centraux, auquel cas elles ne font pas partie du périmètre de votre unité.",
+    fr: 'Veuillez noter que le budget associé aux émissions de procédés de votre unité est, dans la plupart des cas, égal à zéro. En effet, ces émissions sont soit incluses dans vos achats, et leur budget doit alors être comptabilisé dans cette catégorie, soit financées par les services centraux, auquel cas elles ne font pas partie du périmètre de votre unité.',
   },
 
   'planner-grant-module-buildings-title': {
@@ -799,14 +799,14 @@ export default {
     en: 'This module uses the CO₂ Calculator data for the selected year. Please enter the percentage of staff involved in the project. The total number of FTEs (Full-Time Equivalents) is used to calculate indicators for additional categories (Food, Commuting, and Waste) (Scope 3), as well as the total carbon footprint per FTE for your project within your organizational unit.',
     fr: "Ce module considère les données du calculateur CO₂ pour l'année considérée. Veuillez saisir le pourcentage de personnel impliqué dans le projet. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets) (Scope 3), ainsi que l'empreinte carbone totale par EPT pour votre projet dans votre unité.",
   },
-  'planner-year-module-headcount-submodule-member': { 
-    en: 'Please enter the percentage of team members involved in the project, along with their role and percentage of effort under the Full-Time Equivalent (FTE) field.', 
+  'planner-year-module-headcount-submodule-member': {
+    en: 'Please enter the percentage of team members involved in the project, along with their role and percentage of effort under the Full-Time Equivalent (FTE) field.',
     fr: "Veuillez saisir le pourcentage des  membres impliqué dans le projet avec leur fonction et pourcentage d'activité sous le champ Équivalent plein-temps (EPT).",
   },
-  
-  'planner-year-module-headcount-submodule-student': { 
-    en: 'Please enter the percentage of students involved in the project in terms of Full-Time Equivalent (FTE) field.', 
-    fr: "Veuillez saisir  le pourcentage des étudiantes et étudiants impliqués dans le projet en Équivalent plein-temps (EPT).", 
+
+  'planner-year-module-headcount-submodule-student': {
+    en: 'Please enter the percentage of students involved in the project in terms of Full-Time Equivalent (FTE) field.',
+    fr: 'Veuillez saisir  le pourcentage des étudiantes et étudiants impliqués dans le projet en Équivalent plein-temps (EPT).',
   },
 
   'planner-year-module-process-emissions-title': {
@@ -815,7 +815,7 @@ export default {
   },
   'planner-year-module-process-emissions-submodule-process_emissions': {
     en: 'Please note that the budget associated with your unit’s process emissions is, in most cases, zero. Indeed, these emissions are either included in your purchases, in which case the corresponding budget should be allocated to the purchases category, or funded by central services, in which case they do not fall within your unit’s scope.',
-    fr: "Veuillez noter que le budget associé aux émissions de procédés de votre unité est, dans la plupart des cas, égal à zéro. En effet, ces émissions sont soit incluses dans vos achats, et leur budget doit alors être comptabilisé dans cette catégorie, soit financées par les services centraux, auquel cas elles ne font pas partie du périmètre de votre unité.",
+    fr: 'Veuillez noter que le budget associé aux émissions de procédés de votre unité est, dans la plupart des cas, égal à zéro. En effet, ces émissions sont soit incluses dans vos achats, et leur budget doit alors être comptabilisé dans cette catégorie, soit financées par les services centraux, auquel cas elles ne font pas partie du périmètre de votre unité.',
   },
 
   'planner-year-module-buildings-title': {
@@ -919,7 +919,7 @@ export default {
 
   'explorer-module-headcount-title': {
     en: 'This module uses staff data to generate indicators for additional categories (Food, Commuting, and Waste) (Scope 3).\n\nThe methodology used is documented in the Documentation pages.',
-    fr: "Ce module considère les données du personnel afin de générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets) (Scope 3).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
+    fr: 'Ce module considère les données du personnel afin de générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets) (Scope 3).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.',
   },
   'explorer-module-headcount-submodule-member': {
     en: 'Members sub-module: Please enter project members, including their role and activity percentage in the Full-Time Equivalent (FTE) field.',

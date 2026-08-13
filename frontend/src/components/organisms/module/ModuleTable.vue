@@ -502,6 +502,7 @@ import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { PermissionAction } from 'src/stores/auth';
 import { getTemplateFileName } from 'src/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
+import { resolveTravelerName } from 'src/constant/module-config/traveler-options';
 import type {
   Module,
   ConditionalSubmoduleProps,
@@ -1315,19 +1316,19 @@ function renderCell(
     const iata = row['destination_iata'] as string | undefined;
     return iata ? `${name ?? iata} (${iata})` : (name ?? '-');
   }
-  // Resolve traveler name from loaded headcount members (user_institutional_id is the source of truth)
+  // Resolve traveler name from loaded headcount members (user_institutional_id
+  // is the source of truth). Sentinels and unmatched SCIPERs are handled by the
+  // shared resolver (issue #1153).
   if (col.field === 'traveler_name') {
     const user_institutional_id = row['user_institutional_id'] as
       string | undefined;
     if (user_institutional_id == null) return '-';
     const member = headcountMembersMap.value.get(user_institutional_id);
     if (member) return member;
-    const categoryKey = `planner_traveler_category.${user_institutional_id}`;
-    if ($te(categoryKey)) return $t(categoryKey);
     if (user_institutional_id === authStore.user?.institutional_id) {
       return authStore.displayName;
     }
-    return '-';
+    return resolveTravelerName(user_institutional_id, undefined, $t);
   }
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';

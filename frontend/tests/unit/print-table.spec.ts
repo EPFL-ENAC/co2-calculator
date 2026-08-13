@@ -13,6 +13,10 @@ const translations: Record<string, string> = {
   'field.power': 'Power ({unit})',
   'option.laptop': 'Laptop',
   'process-emissions.category.fuel': 'Fuel',
+  'professional-travel-field-traveler-other-internal':
+    'Other traveler (internal)',
+  'professional-travel-field-traveler-other-external':
+    'Other traveler (external)',
 };
 
 const t = (key: string, params?: Record<string, unknown>) => {
@@ -144,8 +148,11 @@ test('renderPrintCell resolves traveler names from headcount members', () => {
     'Ada Lovelace',
   );
   expect(renderPrintCell({ user_institutional_id: '999999' }, col, ctx)).toBe(
-    '-',
+    'Other traveler (internal)',
   );
+  expect(
+    renderPrintCell({ user_institutional_id: '__other_external__' }, col, ctx),
+  ).toBe('Other traveler (external)');
   expect(renderPrintCell({}, col, ctx)).toBe('-');
 });
 

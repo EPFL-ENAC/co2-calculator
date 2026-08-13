@@ -1,5 +1,11 @@
 import { MODULES, Module } from 'src/constant/modules';
 import { MODULES_ORDER } from 'src/constant/timelineItems';
+import {
+  TRAVELER_OTHER_EXTERNAL,
+  TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
+  TRAVELER_OTHER_INTERNAL,
+  TRAVELER_OTHER_INTERNAL_LABEL_KEY,
+} from 'src/constant/module-config/traveler-options';
 
 /**
  * How a module behaves inside the Simulator Plan (PRD #1555):
@@ -14,10 +20,10 @@ export interface PlannerModuleConfig {
   module: Module;
   behavior: PlannerBehavior;
   /**
-   * Traveler dropdown categories replacing headcount names (the planner
-   * has no per-person roster). Values land in `user_institutional_id`.
+   * Traveler dropdown options replacing headcount names (the planner has no
+   * per-person roster). Values land in `user_institutional_id`.
    */
-  travelerCategories?: string[];
+  travelerOptions?: Array<{ value: string; labelKey: string }>;
 }
 
 /**
@@ -34,7 +40,16 @@ export const PLANNER_MODULE_CONFIG: Partial<
   [MODULES.ProfessionalTravel]: {
     module: MODULES.ProfessionalTravel,
     behavior: 'empty',
-    travelerCategories: ['internal', 'external_epfl', 'internal_epfl'],
+    travelerOptions: [
+      {
+        value: TRAVELER_OTHER_INTERNAL,
+        labelKey: TRAVELER_OTHER_INTERNAL_LABEL_KEY,
+      },
+      {
+        value: TRAVELER_OTHER_EXTERNAL,
+        labelKey: TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
+      },
+    ],
   },
   [MODULES.ProcessEmissions]: {
     module: MODULES.ProcessEmissions,
