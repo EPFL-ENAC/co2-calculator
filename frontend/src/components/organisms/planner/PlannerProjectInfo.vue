@@ -5,6 +5,18 @@
       <span class="text-h5 text-weight-medium">
         {{ $t('planner_project_info_title') }}
       </span>
+      <q-icon
+        v-if="sectionTooltip"
+        :name="outlinedInfo"
+        size="16px"
+        color="grey-6"
+        class="cursor-pointer"
+        :aria-label="$t('module-info-label')"
+      >
+        <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+          {{ sectionTooltip }}
+        </q-tooltip>
+      </q-icon>
     </q-card-section>
     <q-separator />
 
@@ -129,6 +141,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import { useRoute } from 'vue-router';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 
 import {
   useSimulatorPlansStore,
@@ -145,6 +158,8 @@ const $q = useQuasar();
 const route = useRoute();
 const plansStore = useSimulatorPlansStore();
 const yearConfigStore = useYearConfigStore();
+
+const sectionTooltip = computed(() => t('planner-project-info-section-title'));
 
 const nameInput = ref(props.plan.name);
 const startYearInput = ref<number | null>(props.plan.start_year ?? null);

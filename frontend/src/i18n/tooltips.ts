@@ -654,6 +654,11 @@ export default {
   // The project-year sections below have their own separate texts, and the
   // Calculator keeps the `module-…` texts further up in this file.
 
+  'planner-project-info-section-title': {
+    en: 'Select whether you want to estimate a project carbon footprint in line with a grant application and/or for a past, ongoing, or future project. Estimations for ongoing projects may not be accessible to all members of your unit. If you want to grant access to these project estimates to other members of your unit, please designate them as Primary Users at https://accred.epfl.ch/.',
+    fr: "Sélectionnez si vous voulez estimer l'empreinte d'un projet en lien avec une demande de financement et/ou pour un projet passé, en cours, ou futur. L'estimation des projets en cours ne peut pas être accessible à toutes et tous les membres de votre unité. Si vous voulez donner accès à l'estimation de ces projets à d'autres membres de votre unité, veuillez les accréditer comme Utilisateur Principal dans https://accred.epfl.ch/.",
+  },
+
   'planner-grant-section-title': {
     en: 'This section allows you to gather information related to a research project’s carbon footprint as requested by funding agencies. Please contact co2calculator@epfl.ch if the agencies ask for information that you cannot find here.',
     fr: "Cet espace vous permet de collecter les informations liées à l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter co2calculator@epfl.ch si les agences vous demandent des informations que vous ne retrouvez pas ici.",
@@ -663,8 +668,14 @@ export default {
     en: 'This module automatically displays the main staff categories. Please manually enter the total FTE for a project year. The total number of FTEs is used to generate indicators for additional categories (Scope 3: Food, Commuting, and Waste), as well as the total carbon footprint per FTE for your project within your unit.\n\nThe methodology used is documented on the Documentation pages.',
     fr: "Ce module affiche automatiquement les grandes catégories de personnel. Veuillez ajouter manuellement les EPT total pour une année de projet. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Scope 3 : Alimentation, Pendularité et Déchets), ainsi que l'empreinte carbone totale par EPT pour votre projet dans votre unité.\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
   },
-  'planner-grant-module-headcount-submodule-member': { en: '', fr: '' },
-  'planner-grant-module-headcount-submodule-student': { en: '', fr: '' },
+  'planner-grant-module-headcount-submodule-member': {
+    en: 'Members sub-module: Please enter project members, including their role and activity percentage in the Full-Time Equivalent (FTE) field.',
+    fr: "Sous-module Membre : Veuillez saisir les membres avec leur fonction et pourcentage d'activité sous le champ Équivalent plein-temps (EPT).",
+  },
+  'planner-grant-module-headcount-submodule-student': {
+    en: 'Students sub-module: Please enter the number of students in Full-Time Equivalents (FTE).',
+    fr: 'Sous-module Étudiant.es : Veuillez saisir le nombre d’étudiantes et étudiants en Équivalent plein-temps (EPT).',
+  },
 
   'planner-grant-module-process-emissions-title': {
     en: 'This module allows you to estimate the carbon footprint of the greenhouse gases generated during your project-specific laboratory activities (e.g., Scope 1 CO₂ emissions from certain laboratory activities, SF₆ emissions when SF₆ is used as a refrigerant).\n\nThe methodology used is documented on the Documentation pages.',
@@ -779,24 +790,30 @@ export default {
   // data of that year.
 
   'planner-year-section-title': {
-    en: 'View and complete the estimated carbon impact data by project year here. This data comes from the CO₂ calculator.',
-    fr: "Retrouvez et complétez ici les données d'impact carbone estimé par année de projet. Ces données remontent de l'espace calculateur CO₂.",
+    en: 'This space allows you to collect information related to the carbon footprint of an ongoing research project. Here, you can review and complete the estimated carbon impact data for each project year. This data is automatically imported from the CO₂ Calculator workspace.\n\nIf you would like to grant access to this space to other members of your unit, please assign them the Primary User role in the EPFL accreditation system: https://accred.epfl.ch/.',
+    fr: "Cet espace vous permet de collecter les informations liées à l'empreinte carbone d'un projet de recherche en cours. Retrouvez et complétez ici les données d'impact carbone estimé par année de projet. Ces données remontent de l'espace calculateur CO₂.\n\nSi vous voulez donner accès à cet espace à d'autres membres de votre unité, veuillez les accréditer comme Utilisateur Principal dans https://accred.epfl.ch/.",
   },
 
   'planner-year-module-headcount-title': {
     en: 'This module uses the CO₂ Calculator data for the selected year. Please enter the percentage of staff involved in the project.\n\nThe total number of FTEs (Full-Time Equivalents) is used to calculate indicators for additional categories (Food, Commuting, and Waste) (Scope 3), as well as the total carbon footprint per FTE for your project within your organizational unit.',
     fr: "Ce module considère les données du calculateur CO₂ pour l'année considérée. Veuillez saisir le pourcentage de personnel impliqué dans le projet. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets) (Scope 3), ainsi que l'empreinte carbone totale par EPT pour votre projet dans votre unité.",
   },
-  'planner-year-module-headcount-submodule-member': { en: '', fr: '' },
-  'planner-year-module-headcount-submodule-student': { en: '', fr: '' },
+  'planner-year-module-headcount-submodule-member': {
+    en: 'Members sub-module: Please enter the percentage of team members involved in the project, along with their role and percentage of effort under the Full-Time Equivalent (FTE) field.',
+    fr: "Sous-module Membre : Veuillez saisir le pourcentage des membres impliqué dans le projet avec leur fonction et pourcentage d'activité sous le champ Équivalent plein-temps (EPT).",
+  },
+  'planner-year-module-headcount-submodule-student': {
+    en: 'Students sub-module: Please enter the percentage of students involved in the project in terms of Full-Time Equivalent (FTE) field.',
+    fr: 'Sous-module Étudiant.es : Veuillez saisir le pourcentage des étudiantes et étudiants impliqués dans le projet en Équivalent plein-temps (EPT).',
+  },
 
   'planner-year-module-process-emissions-title': {
     en: 'This module allows you to estimate the carbon footprint of greenhouse gas emissions generated by laboratory activities specific to your project (e.g., Scope 1 CO₂ emissions from certain laboratory activities, or SF₆ emissions when used as a refrigerant).\n\nTo do so, please enter the percentage of process emissions attributable to the project based on the data entered in the CO₂ Calculator.\n\nThe methodology used is documented in the Documentation pages.',
     fr: "Ce module permet d’estimer l’empreinte carbone des gaz à effet de serre générés lors de vos activités de laboratoire spécifique à votre projet (e.g. émissions de CO₂ Scope 1 dans certaines activités de laboratoire, émissions de SF₆ quand celui-ci est utilisé en tant que fluide frigorigène). Pour cela, veuillez saisir le pourcentage d'émissions de procédés impliqué dans le projet venant des données saisies dans le calculateur CO₂.\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
   },
   'planner-year-module-process-emissions-submodule-process_emissions': {
-    en: '',
-    fr: '',
+    en: 'Process Emissions sub-module: Please note that the budget associated with your unit’s process emissions is, in most cases, zero. Indeed, these emissions are either included in your purchases, in which case the corresponding budget should be allocated to the purchases category, or funded by central services, in which case they do not fall within your unit’s scope.',
+    fr: 'Sous-module Émissions de procédés : Veuillez noter que le budget associé aux émissions de procédés de votre unité est, dans la plupart des cas, égal à zéro. En effet, ces émissions sont soit incluses dans vos achats, et leur budget doit alors être comptabilisé dans cette catégorie, soit financées par les services centraux, auquel cas elles ne font pas partie du périmètre de votre unité.',
   },
 
   'planner-year-module-buildings-title': {
