@@ -175,6 +175,14 @@ async def lifespan(app: FastAPI):
             await heartbeat_task
         except asyncio.CancelledError:
             logger.info("Pod heartbeat cancelled successfully")
+    db_health_task = getattr(app.state, "db_health_task", None)
+    if db_health_task:
+        logger.info("Cancelling DB health poller")
+        db_health_task.cancel()
+        try:
+            await db_health_task
+        except asyncio.CancelledError:
+            logger.info("DB health poller cancelled successfully")
 
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 
