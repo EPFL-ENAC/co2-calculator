@@ -157,7 +157,12 @@
           :style="getColumnStyle(col)"
         >
           <template v-if="col.editableInline">
-            <template v-if="isRowConditionallyReadOnly(slotProps.row, col)">
+            <template
+              v-if="
+                isRowConditionallyReadOnly(slotProps.row, col) ||
+                isRowFieldPolicyLocked(slotProps.row, col)
+              "
+            >
               <span>{{
                 slotProps.row[col.readOnlyDisplayField ?? col.field] ?? ''
               }}</span>
@@ -253,7 +258,7 @@
               v-if="showTableRowActions && canEditRows && hasModuleUpload"
               icon="o_delete"
               color="black"
-              :disable="isDisabled"
+              :disable="isDisabled || !isRowPolicyDeletable(slotProps.row)"
               unelevated
               no-caps
               dense
@@ -524,6 +529,7 @@ import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import { formatRowErrorLines } from 'src/utils/rowErrors';
+import { isFieldEditable, isRowDeletable } from 'src/utils/dataEntryPolicy';
 import {
   clampReferencePercentage,
   REFERENCE_PERCENTAGE_MAX,
@@ -1001,6 +1007,29 @@ const tableAccess = computed<ModuleTableAccess>(() => ({
 }));
 
 const isDisabled = computed(() => isModuleTableDisabled(tableAccess.value));
+
+// #951: null for submodules the policy layer doesn't cover (planner,
+// embodied energy) — isFieldEditable/isRowDeletable treat null as ungated.
+const dataEntryPolicies = computed(
+  () =>
+    moduleStore.state.dataSubmodule[props.submoduleType]?.data_entry_policies ??
+    null,
+);
+
+function isRowFieldPolicyLocked(row: ModuleRow, col: { field: string }) {
+  return !isFieldEditable(
+    dataEntryPolicies.value,
+    row.source as number | null | undefined,
+    col.field,
+  );
+}
+
+function isRowPolicyDeletable(row: ModuleRow) {
+  return isRowDeletable(
+    dataEntryPolicies.value,
+    row.source as number | null | undefined,
+  );
+}
 
 const canEditRows = computed(() => hasRowEditPermission(tableAccess.value));
 

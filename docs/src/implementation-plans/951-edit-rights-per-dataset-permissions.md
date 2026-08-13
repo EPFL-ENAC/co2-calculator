@@ -470,12 +470,42 @@ submodule)` in the module registry has both `USER` and `IMPORTED` entries;
       `check_resource_access`/other resource types — still legitimately
       reusable; only removed the professional_travel-specific rule and its
       4 now-obsolete tests in `test_policy.py`).
-- [ ] Frontend: policy types + `branchOf`/`isFieldEditable`; `ModuleTable.vue`
-      per-row delete/inline gating; `ModuleForm.vue` disabled/hidden fields +
-      Add button gating.
+- [x] Frontend: `utils/dataEntryPolicy.ts` (`DataEntryPolicies`, `RowPolicy`,
+      `branchOf`, `isFieldEditable`, `isRowDeletable`); `ModuleItem.source` +
+      `Submodule.data_entry_policies` types; `ModuleTable.vue` per-row delete
+      button and inline-cell gating (reuses the existing
+      `isRowConditionallyReadOnly` read-only-span rendering path — no new
+      visual state introduced).
 - [x] Backend tests (matrix coverage, enforcement, submodule-response
       wiring, retired-policy regression) — all green, `ruff`/`ty` clean.
-- [ ] Frontend tests per strategy above.
+- [x] Frontend tests: `dataEntryPolicy.spec.ts` (27 assertions × 3
+      browsers) for the pure helpers; full `test-ct` suite (348 specs)
+      green after the `ModuleTable.vue` wiring.
+
+**Deferred, not done in this pass:**
+
+- **Modal `<module-form>` edit dialog per-field disabling.** The dialog at
+  `ModuleTable.vue:344` (`editDialogOpen`/`editInputs`/`editRowData`) has no
+  traceable open-trigger in the current code — those refs are declared and
+  reset to `null` but never assigned a value anywhere found. Likely
+  vestigial or gated behind a flow not exercised in this pass (possibly
+  superseded by `EquipmentPowerFeedbackDialog`, the actual #266 power-request
+  UI). Wiring `disabledFields` into a dialog whose trigger is unconfirmed
+  risked guessing at dead code; flagged for the next PR that touches it
+  rather than guessed at here.
+- **`ModuleForm.vue` Add-button `policies.user.create` gating.** `can_create`
+  is a provenance constant, always `true` for every module today (no #951
+  row has a create exception) — wiring a prop for a value that never
+  varies is pure speculative complexity right now. Trivial one-line addition
+  if a future module ever needs `create=false`.
+- **Component-level test for `ModuleTable.vue`'s new gating** (mounting the
+  component and asserting the delete icon/inline cell actually render
+  disabled). No existing component-test file covers `ModuleTable.vue` at
+  all (2432 lines, no CT harness for it yet) — the pure logic
+  (`isFieldEditable`/`isRowDeletable`) is fully unit-tested; the two-line
+  template wiring that calls it is not independently exercised through the
+  DOM. Building a `ModuleTable.vue` CT harness from scratch is a
+  significant, separate undertaking, not a #951-sized addition.
 
 ## Open questions (need sign-off)
 

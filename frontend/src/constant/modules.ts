@@ -1,4 +1,5 @@
 import { MODULES_ORDER } from 'src/constant/timelineItems';
+import type { DataEntryPolicies } from 'src/utils/dataEntryPolicy';
 
 export const MODULES = {
   Headcount: 'headcount',
@@ -233,6 +234,8 @@ export interface ModuleItem {
   status?: string;
   is_new?: boolean;
   id?: number;
+  /** #951: row provenance — see utils/dataEntryPolicy branchOf/isFieldEditable. */
+  source?: number | null;
 }
 
 export interface Submodule {
@@ -245,6 +248,10 @@ export interface Submodule {
     annual_consumption_kwh: number;
     total_kg_co2eq: number;
   };
+  /** #951: edit rights per row provenance. Null for submodules the policy
+   * layer doesn't cover (planner, embodied energy) — see
+   * utils/dataEntryPolicy. */
+  data_entry_policies?: DataEntryPolicies | null;
 }
 
 export interface Totals {
