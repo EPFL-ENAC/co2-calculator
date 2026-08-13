@@ -231,6 +231,10 @@ class SimulatorPlanService:
         reports; ``None`` keeps the plan's current shape, derived from its
         existing non-grant reports (a plan with no reports yet gets them).
         A plan must keep either its year sections or its grant proposal.
+
+        A plan that ends up with per-year sections is also forced back to
+        private (``is_viewable_by_unit_members = False``): those sections
+        carry the unit's real annual data, which only the creator may see.
         """
         if project.id is None:
             raise ValueError("project must be persisted before use")
@@ -271,6 +275,10 @@ class SimulatorPlanService:
                 # the report rollup is missing (no other entries exist yet).
                 await self._prefill_reference_modules(report_read)
                 await self.report_service.recompute_report_stats(report_read.id)
+        if want_years and project.is_viewable_by_unit_members:
+            project.is_viewable_by_unit_members = False
+            self.session.add(project)
+            await self.session.flush()
         await self._sync_grant_report(project, grant_report)
 
     async def _sync_grant_report(
