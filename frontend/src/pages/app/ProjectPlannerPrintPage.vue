@@ -189,12 +189,14 @@ onMounted(async () => {
             :title="
               $t('planner_results_comparison_chart_title', { name: plan.name })
             "
+            :view-additional-data="true"
             :print-mode="true"
           />
           <ModuleCarbonFootprintChart
             v-else
             :breakdown-data="planBreakdown"
             :title="$t('planner_results_chart_title', { name: plan.name })"
+            :view-additional-data="true"
             :print-mode="true"
           />
         </section>
