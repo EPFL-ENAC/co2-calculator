@@ -692,12 +692,12 @@ export default {
     fr: "Ce module permet d'estimer l'empreinte carbone liée aux Bâtiments (émissions de combustion d'énergie et locaux) (Scope 1 et 2) spécifique à votre projet.\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
   },
   'planner-grant-module-buildings-submodule-building': {
-    en: 'Use the slider to specify the percentage of rooms usage based on the CO₂ calculator’s results in order to estimate their impact within the context of your project (Scope 1). You can also add other rooms used as part of your project.',
-    fr: "À l'aide du curseur, indiquez le pourcentage d'utilisation des locaux spécifique à votre projet par rapport aux résultats du calculateur CO₂ afin d'estimer leur impact (Scope 1). Il est également possible d'ajouter d'autres locaux utilisés dans le cadre de votre projet.",
+    en: 'Indicate the use of rooms specific to your project in order to estimate their impact (Scope 1).',
+    fr: "Indiquez  l'utilisation des locaux spécifique à votre projet  afin d'estimer leur impact (Scope 1). ",
   },
   'planner-grant-module-buildings-submodule-energy_combustion': {
-    en: 'Use the slider to specify the percentage of energy combustion emissions relative to the CO₂ calculator’s results in order to estimate their impact within the context of your project (Scope 1). You can also add other sources of energy combustion used in your project.',
-    fr: "À l'aide du curseur, indiquez le pourcentage d'émissions liées à la combustion d'énergie spécifique à votre projet par rapport aux résultats du calculateur CO₂ afin d'estimer leur impact (Scope 1). Il est également possible d'ajouter d'autres sources de combustion d'énergie utilisées dans le cadre de votre projet.",
+    en: 'Enter the emissions related to energy combustion specific to your project in order to estimate their impact (Scope 1).',
+    fr: "Saisissez les émissions liées à la combustion d'énergie spécifique à votre projet  afin d'estimer leur impact (Scope 1). ",
   },
 
   'planner-grant-module-equipment-title': {
@@ -705,16 +705,16 @@ export default {
     fr: "Ce module permet d'estimer l'empreinte carbone liée à la consommation électrique des équipements (Équipements scientifiques, Équipements IT, Autres équipements) spécifique à votre projet (Scope 2).Vous pouvez indiquer un pourcentage global, qui est appliqué sur le resultat du module Equipements dans le calculateur selon l'annee de référence choisie. Par exemple, si votre unite consomme 50% des equipements pour un de vos projets de financement, veuillez indiquer 50% dans le pourcentage global.\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
   },
   'planner-grant-module-equipment-submodule-scientific': {
-    en: 'Using the slider, indicate the percentage of electricity consumption attributable to scientific equipment relative to the results of the CO₂ calculator in order to estimate its impact within the scope of your project (Scope 2). It is also possible to add other equipment used as part of your project.',
-    fr: "À l'aide du curseur, indiquez le pourcentage de consommation électrique des équipements scientifiques par rapport aux résultats du calculateur CO₂ afin d'estimer leur impact dans le cadre de votre projet (Scope 2). Il est également possible d'ajouter d'autres équipements utilisés dans le cadre de votre projet.",
+    en: 'Indicate the scientific equipment used in order to estimate its impact within your project (Scope 2).',
+    fr: " Indiquez les équipements scientifiques utilisés afin d'estimer leur impact dans le cadre de votre projet (Scope 2). ",
   },
   'planner-grant-module-equipment-submodule-it': {
-    en: 'Using the slider, indicate the percentage of electricity consumption attributable to IT equipment relative to the results of the CO₂ calculator in order to estimate its impact within the scope of your project (Scope 2). It is also possible to add other equipment used as part of your project.',
-    fr: "À l'aide du curseur, indiquez le pourcentage de consommation électrique des équipements informatiques spécifique à votre projet par rapport aux résultats du calculateur CO₂ afin d'estimer leur impact (Scope 2). Il est également possible d'ajouter d'autres équipements utilisés dans le cadre de votre projet.",
+    en: 'Indicate the IT equipment used in order to estimate its impact within your project (Scope 2).',
+    fr: "Indiquez les équipements informatiques utilisés afin d'estimer leur impact dans le cadre de votre projet (Scope 2). ",
   },
   'planner-grant-module-equipment-submodule-other': {
-    en: 'Using the slider, indicate the percentage of electricity consumption attributable to other equipment relative to the results of the CO₂ calculator in order to estimate its impact within the scope of your project (Scope 2). It is also possible to add other equipment used as part of your project.',
-    fr: "À l'aide du curseur, indiquez le pourcentage de consommation électrique des autres équipements spécifique à votre projet par rapport aux résultats du calculateur CO₂ afin d'estimer leur impact (Scope 2). Il est également possible d'ajouter d'autres équipements utilisés dans le cadre de votre projet.",
+    en: 'Indicate the other types of equipment used in order to estimate their impact within your project (Scope 2).',
+    fr: "Indiquez les autres types d' équipements  utilisés afin d'estimer leur impact dans le cadre de votre projet (Scope 2). ",
   },
 
   'planner-grant-module-external-cloud-and-ai-title': {
@@ -722,12 +722,12 @@ export default {
     fr: "Ce module permet d'estimer l'empreinte carbone liée aux services de clouds externes et d'IAs externes spécifique à votre projet (Scope 3).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
   },
   'planner-grant-module-external-cloud-and-ai-submodule-external_clouds': {
-    en: 'Using the slider, indicate the percentage of external cloud service usage relative to the data entered in the CO₂ calculator in order to estimate their impact within the scope of your project for the reference year (Scope 3). It is also possible to add data related to external cloud services.',
-    fr: "À l'aide du curseur, indiquez le pourcentage d'utilisation des services de cloud externes spécifique à votre projet par rapport aux données saisies dans le calculateur CO₂ afin d'estimer leur impact (Scope 3). Il est également possible d'ajouter des données relatives aux services de cloud externes.",
+    en: 'Indicate the use of external cloud services in order to estimate their impact within your project (Scope 3).',
+    fr: "Indiquez l'utilisation des services de clouds externes  afin d'estimer leur impact dans le cadre de votre projet (Scope 3).",
   },
   'planner-grant-module-external-cloud-and-ai-submodule-external_ai': {
-    en: 'Using the slider, indicate the percentage of external AI service usage relative to the data entered in the CO₂ calculator in order to estimate their impact within the scope of your project for the reference year (Scope 3). It is also possible to add data related to external AI services.',
-    fr: "À l'aide du curseur, indiquez le pourcentage d'utilisation des services d'IA externes spécifique à votre projet par rapport aux données saisies dans le calculateur CO₂ afin d'estimer leur impact (Scope 3). Il est également possible d'ajouter des données relatives aux services d'IA externes.",
+    en: 'Indicate the use of external AI services in order to estimate their impact within your project (Scope 3).',
+    fr: "Indiquez l'utilisation des services d'IAs  externes  afin d'estimer leur impact dans le cadre de votre projet (Scope 3). ",
   },
 
   'planner-grant-module-professional-travel-title': {
