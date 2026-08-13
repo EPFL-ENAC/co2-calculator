@@ -17,6 +17,7 @@ from app.core.exceptions import (
     RecordAccessDeniedError,
 )
 from app.core.logging import get_logger, setup_logging
+from app.tasks._db_health import DBHealthState, get_db_health_state, is_fresh
 
 # Setup logging
 setup_logging()
@@ -136,6 +137,17 @@ async def lifespan(app: FastAPI):
         )
         app.state.pod_heartbeat_task = asyncio.create_task(pod_heartbeat_loop())
 
+    # Start the background DB health poller (#2049) — /ready and /healthz
+    # read its cached verdict instead of doing their own DB I/O.
+    if settings.RUN_DB_HEALTH_POLLER:
+        from app.tasks._db_health import db_health_check_loop
+
+        logger.info(
+            "Starting DB health poller (every %ss)",
+            settings.DB_HEALTH_CHECK_INTERVAL_SECONDS,
+        )
+        app.state.db_health_task = asyncio.create_task(db_health_check_loop())
+
     yield
 
     # Cancel background tasks on shutdown
@@ -163,6 +175,14 @@ async def lifespan(app: FastAPI):
             await heartbeat_task
         except asyncio.CancelledError:
             logger.info("Pod heartbeat cancelled successfully")
+    db_health_task = getattr(app.state, "db_health_task", None)
+    if db_health_task:
+        logger.info("Cancelling DB health poller")
+        db_health_task.cancel()
+        try:
+            await db_health_task
+        except asyncio.CancelledError:
+            logger.info("DB health poller cancelled successfully")
 
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 
@@ -336,65 +356,69 @@ def root():
     }
 
 
+def _fresh_db_state() -> DBHealthState | None:
+    """Cached DB health verdict from the background poller (#2049), or
+    None if it's never checked yet or gone stale (poller not ticking).
+    Shared so /healthz and /ready can't drift on what "fresh" means.
+    """
+    state = get_db_health_state()
+    if state is None or not is_fresh(
+        state, interval_seconds=settings.DB_HEALTH_CHECK_INTERVAL_SECONDS
+    ):
+        return None
+    return state
+
+
+_DB_STATUS_DISPLAY = {"ok": "ok", "slow": "sluggish", "down": "unresponsive"}
+
+
 @app.get("/healthz")
 async def healthz():
     """Lightweight liveness check endpoint.
 
-    Returns 200 OK if the process is alive.
-    No external calls, no database access, no logging on success.
-    Used by Kubernetes livenessProbe.
+    Always 200 — liveness answers "is the process alive", not "is a
+    dependency up" (#2049). The database field is informational only,
+    read from the background DB health poller's cache: zero I/O on this
+    path either way. Used by Kubernetes livenessProbe.
     """
-    return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "ok"})
-
-
-# Plan #2050 A1 — /ready must never outlive its own k8s probe deadline
-# (helm/values.yaml readinessProbe.timeoutSeconds, 3s by default). Without
-# a bound, a saturated DB pool makes the checkout wait up to
-# DB_POOL_TIMEOUT (30s default) — ten times the probe's timeout — which
-# takes an otherwise-healthy pod out of Service rotation. This is well
-# under any realistic probe timeout so it fails fast instead of hanging.
-READY_DB_TIMEOUT_SECONDS = 2
+    state = _fresh_db_state()
+    content: dict[str, object] = {
+        "status": "ok",
+        "database": _DB_STATUS_DISPLAY.get(state.status if state else "", "unknown"),
+    }
+    if state is not None:
+        content["database_latency_ms"] = round(state.latency_ms, 1)
+    return JSONResponse(status_code=status.HTTP_200_OK, content=content)
 
 
 @app.get("/ready", response_class=JSONResponse)
 async def ready():
     """Readiness check endpoint.
 
-    Database connectivity only, bounded so this can never block longer
-    than READY_DB_TIMEOUT_SECONDS. Returns 200 if ready, 503 if not.
-    Logs only on failure to reduce log noise. Used by Kubernetes
-    readinessProbe.
+    #2049: reads the background DB health poller's cached verdict — zero
+    I/O of its own, so a saturated pool can no longer make this endpoint
+    itself hang (#2050 A1 bounded that per-request check; this removes
+    it). 503 when the DB is down, unchecked, or the poller has gone
+    stale; 200 otherwise. A merely *slow* DB still passes — DB latency is
+    shared state, so gating readiness on it would take every pod unready
+    at once, turning "slow" into the very outage this endpoint exists to
+    prevent. Used by Kubernetes readinessProbe.
 
-    External provider health (Accred) moved to /health/deps (#2050 A1):
-    it never gated readiness here (only db_status did) but the httpx call
-    could still stall the response past the probe deadline — an external
-    dependency has no business being on this path at all.
+    External provider health (Accred) lives in /health/deps (#2050 A1):
+    it must never gate readiness — a blip there is EPFL's incident, not
+    ours.
     """
-    db_status = "ok"
-    db_error: str | None = None
-    try:
-        async with asyncio.timeout(READY_DB_TIMEOUT_SECONDS):
-            from app.db import get_db_session
-
-            async with await get_db_session() as session:
-                from sqlmodel import text
-
-                await session.execute(text("SELECT 1"))
-    except Exception as e:
-        db_status = "error"
-        db_error = str(e)
-
-    healthy = db_status == "ok"
+    state = _fresh_db_state()
+    healthy = state is not None and state.status != "down"
     status_code = status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
 
-    # Log only on failure to reduce log noise
     if not healthy:
         logger.warning(
             "Readiness check failed",
             extra={
                 "healthy": healthy,
-                "database_status": db_status,
-                "db_error": db_error,
+                "database_status": state.status if state else "unknown",
+                "db_error": state.error if state else None,
             },
         )
 
@@ -404,7 +428,7 @@ async def ready():
         status_code=status_code,
         content={
             "status": "healthy" if healthy else "unhealthy",
-            "database": db_status,
+            "database": state.status if state else "unknown",
         },
     )
 

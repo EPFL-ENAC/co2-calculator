@@ -1,4 +1,4 @@
-import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -6,8 +6,27 @@ from fastapi.testclient import TestClient
 
 import app.main as main
 from app.core.config import RoleProviderType, UnitProviderType
+from app.tasks._db_health import DBHealthState
 
 client = TestClient(main.app)
+
+
+def _state(
+    status: str,
+    *,
+    age_seconds: float = 0.0,
+    latency_ms: float = 5.0,
+    error: str | None = None,
+) -> DBHealthState:
+    """Build a DBHealthState as if the background poller had just ticked
+    (or, with age_seconds, gone stale a while ago).
+    """
+    return DBHealthState(
+        status=status,
+        latency_ms=latency_ms,
+        checked_at_monotonic=time.monotonic() - age_seconds,
+        error=error,
+    )
 
 
 def test_root_endpoint():
@@ -20,81 +39,96 @@ def test_root_endpoint():
 
 
 @pytest.mark.asyncio
-async def test_healthz():
-    """Test lightweight liveness check endpoint."""
+async def test_healthz_never_checked_is_still_200(monkeypatch):
+    """#2049: liveness never gates on DB state — only the body changes."""
+    monkeypatch.setattr("app.main.get_db_health_state", lambda: None)
     resp = await main.healthz()
     assert resp.status_code == 200
-    assert resp.body
-    data = resp.body
-    assert b'"status": "ok"' in data or b'"status":"ok"' in data
+    assert b'"database": "unknown"' in resp.body
+
+
+@pytest.mark.asyncio
+async def test_healthz_reflects_db_status_without_flipping_status_code(monkeypatch):
+    """Body content changes with DB state; the 200 never does (#2049)."""
+    for internal, display in [
+        ("ok", "ok"),
+        ("slow", "sluggish"),
+        ("down", "unresponsive"),
+    ]:
+        monkeypatch.setattr(
+            "app.main.get_db_health_state", lambda internal=internal: _state(internal)
+        )
+        resp = await main.healthz()
+        assert resp.status_code == 200
+        assert display.encode() in resp.body
+
+
+@pytest.mark.asyncio
+async def test_healthz_stale_state_reported_as_unknown(monkeypatch):
+    """A poller that stopped ticking must not report trusted-but-old data."""
+    monkeypatch.setattr(
+        "app.main.get_db_health_state",
+        lambda: _state(
+            "ok", age_seconds=main.settings.DB_HEALTH_CHECK_INTERVAL_SECONDS * 10
+        ),
+    )
+    resp = await main.healthz()
+    assert resp.status_code == 200
+    assert b'"database": "unknown"' in resp.body
 
 
 @pytest.mark.asyncio
 async def test_ready_db_ok(monkeypatch):
-    # Mock get_db_session to simulate DB OK
-    class DummySession:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            pass
-
-        async def execute(self, *a, **k):
-            return None
-
-    monkeypatch.setattr("app.db.get_db_session", AsyncMock(return_value=DummySession()))
+    monkeypatch.setattr("app.main.get_db_health_state", lambda: _state("ok"))
     resp = await main.ready()
     assert resp.status_code == 200
-    assert resp.body
     assert b"healthy" in resp.body
 
 
 @pytest.mark.asyncio
-async def test_ready_db_error(monkeypatch):
-    # Mock get_db_session to raise error
-    async def raise_exc():
-        raise Exception("db fail")
+async def test_ready_db_slow_still_passes(monkeypatch):
+    """Slow must not fail readiness (#2049): DB latency is shared state,
+    so gating on it would take every pod unready at once.
+    """
+    monkeypatch.setattr("app.main.get_db_health_state", lambda: _state("slow"))
+    resp = await main.ready()
+    assert resp.status_code == 200
 
-    monkeypatch.setattr("app.db.get_db_session", raise_exc)
+
+@pytest.mark.asyncio
+async def test_ready_db_down(monkeypatch):
+    monkeypatch.setattr(
+        "app.main.get_db_health_state",
+        lambda: _state("down", error="connection refused"),
+    )
     resp = await main.ready()
     assert resp.status_code == 503
     assert b"unhealthy" in resp.body
 
 
 @pytest.mark.asyncio
-async def test_ready_db_timeout_is_bounded(monkeypatch):
-    """A hung DB check must not outlive READY_DB_TIMEOUT_SECONDS (#2050 A1).
-
-    Regression test: before the fix, /ready awaited get_db_session()'s
-    query with no bound, so a saturated pool (DB_POOL_TIMEOUT defaults to
-    30s) could make /ready hang past the k8s probe's own timeoutSeconds,
-    taking a healthy pod out of Service rotation. Simulates that hang and
-    asserts ready() resolves on its own well under the bound, with a 503
-    — not that the test's own outer timeout fires first.
+async def test_ready_never_checked_is_unhealthy(monkeypatch):
+    """Cold-start window before the poller's first tick must fail closed
+    (no-silent-fallbacks), not default to ready.
     """
-
-    class HangingSession:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            pass
-
-        async def execute(self, *a, **k):
-            await asyncio.sleep(main.READY_DB_TIMEOUT_SECONDS + 5)
-
-    monkeypatch.setattr(
-        "app.db.get_db_session", AsyncMock(return_value=HangingSession())
-    )
-
-    start = asyncio.get_event_loop().time()
-    resp = await asyncio.wait_for(
-        main.ready(), timeout=main.READY_DB_TIMEOUT_SECONDS + 2
-    )
-    elapsed = asyncio.get_event_loop().time() - start
-
+    monkeypatch.setattr("app.main.get_db_health_state", lambda: None)
+    resp = await main.ready()
     assert resp.status_code == 503
-    assert elapsed < main.READY_DB_TIMEOUT_SECONDS + 1
+
+
+@pytest.mark.asyncio
+async def test_ready_stale_state_is_unhealthy(monkeypatch):
+    """A poller that stopped ticking must not leave /ready trusting old
+    'ok' data forever (#2049).
+    """
+    monkeypatch.setattr(
+        "app.main.get_db_health_state",
+        lambda: _state(
+            "ok", age_seconds=main.settings.DB_HEALTH_CHECK_INTERVAL_SECONDS * 10
+        ),
+    )
+    resp = await main.ready()
+    assert resp.status_code == 503
 
 
 @pytest.mark.asyncio

@@ -2,8 +2,11 @@
 # Plan #2050 Track B — poller-only worker: executes background jobs
 # (recalc, ingestion, sync) so they never compete with API request
 # traffic — including health probes — for the DB pool. No Service, no
-# ingress, no readiness/startup probe (nothing routes traffic here);
-# liveness only, so a hung pod still gets recycled.
+# ingress, no startup probe (nothing routes traffic here, and the
+# wait-for-postgres init container already gates startup). #2049 added
+# a readinessProbe anyway — it gates RollingUpdate progress even
+# without a Service, so a new worker can't swap in before it can reach
+# the DB.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -106,6 +109,8 @@ spec:
               value: "true"
           livenessProbe:
             {{- toYaml .Values.worker.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.worker.readinessProbe | nindent 12 }}
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}
           volumeMounts:

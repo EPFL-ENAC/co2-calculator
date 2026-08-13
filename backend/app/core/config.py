@@ -553,6 +553,40 @@ class Settings(BaseSettings):
             "30s = dead pods drop off the live list within ~1 minute."
         ),
     )
+    # #2049 — background DB health poller, so /ready and /healthz do zero
+    # I/O of their own (#2050 A1 bounded the per-request check; this
+    # removes it entirely).
+    RUN_DB_HEALTH_POLLER: bool = Field(
+        default=True,
+        description=(
+            "Whether to run the in-process DB health poller. Mainly a "
+            "test/diagnostic kill-switch, not a real production lever: "
+            "/ready has no other source of DB status, so leaving this "
+            "off on a pod that serves /ready makes it permanently 503 "
+            "(fail-closed, by design — not something to work around with "
+            "a fallback check)."
+        ),
+    )
+    DB_HEALTH_CHECK_INTERVAL_SECONDS: int = Field(
+        default=1,
+        ge=1,
+        description=(
+            "Seconds between background SELECT 1 checks. /ready and "
+            "/healthz read the cached result of the last check rather "
+            "than querying the DB themselves."
+        ),
+    )
+    DB_HEALTH_SLOW_THRESHOLD_MS: int = Field(
+        default=100,
+        ge=1,
+        description=(
+            "SELECT 1 latency above this is reported as 'sluggish' in "
+            "/healthz's body. Does not affect /ready — a slow-but-"
+            "reachable DB still serves traffic; failing readiness on "
+            "shared DB latency would take every pod unready at once."
+        ),
+    )
+
     # Build provenance — populated by CI on deploy.  Optional in dev.
     GIT_SHA: str | None = Field(
         default=None,
