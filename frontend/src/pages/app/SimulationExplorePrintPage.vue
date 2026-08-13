@@ -16,6 +16,7 @@ const {
   exploreModules,
   submoduleRows,
   headcountMembers,
+  plannerHeadcountRows,
   initWorkspaceFromRoute,
   fetchAllData,
 } = useSimulationExplorePrintData();
@@ -63,6 +64,7 @@ onMounted(async () => {
       :current-year="currentYear"
       :submodule-rows="submoduleRows"
       :headcount-members="headcountMembers"
+      :planner-headcount-rows="plannerHeadcountRows"
     />
   </PrintReportShell>
 </template>

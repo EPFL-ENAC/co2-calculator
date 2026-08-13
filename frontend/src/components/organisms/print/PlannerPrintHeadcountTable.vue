@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { PlannerHeadcountRow } from 'src/composables/print/useProjectPlannerPrintData';
+import type { PlannerHeadcountRow } from 'src/utils/plannerHeadcountRows';
 import { plannerHeadcountLabelKey } from 'src/constant/planner-headcount';
 
 const props = defineProps<{ rows: PlannerHeadcountRow[] }>();

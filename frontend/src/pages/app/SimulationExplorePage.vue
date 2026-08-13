@@ -55,13 +55,17 @@
 
             <q-separator />
 
-            <div class="q-px-lg q-py-md">
-              <p
-                v-if="m.type === MODULES.Headcount"
-                class="text-body2 text-grey-7 q-mb-md"
-              >
+            <template v-if="m.type === MODULES.Headcount">
+              <p class="text-body2 text-grey-7 q-px-lg q-pt-md q-mb-md">
                 {{ $t('simulation_headcount_fte_hint') }}
               </p>
+              <PlannerHeadcountRows
+                v-if="carbonReportId != null"
+                :carbon-report-id="carbonReportId"
+                :disable="false"
+              />
+            </template>
+            <div v-else class="q-px-lg q-py-md">
               <div
                 v-for="(sub, subIdx) in m.submodules"
                 :key="`${m.type}-${sub.id}`"
@@ -152,6 +156,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
+import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
 import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import {
@@ -194,6 +199,9 @@ function downloadReport() {
 // below prevents the template from rendering if that invariant is ever broken.
 const unitId = computed(() => workspaceStore.selectedUnit!.id);
 const year = computed(() => workspaceStore.selectedYear!);
+const carbonReportId = computed(
+  () => workspaceStore.selectedCarbonReport?.id ?? null,
+);
 const ready = computed(
   () =>
     workspaceStore.selectedUnit != null && workspaceStore.selectedYear != null,
@@ -254,11 +262,13 @@ async function prefetchSubmoduleCounts() {
   // One preview_limit=0 request per module instead of one per submodule.
   // data_entry_types_total_items covers all submodule counts in a single response.
   await moduleStore.prefetchAllModuleCounts(
-    modules.value.map((m) => ({
-      type: m.type,
-      unit: unitId.value,
-      year: String(year.value),
-    })),
+    modules.value
+      .filter((m) => m.type !== MODULES.Headcount)
+      .map((m) => ({
+        type: m.type,
+        unit: unitId.value,
+        year: String(year.value),
+      })),
   );
 }
 

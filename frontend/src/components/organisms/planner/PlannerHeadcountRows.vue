@@ -43,6 +43,7 @@ import {
   PLANNER_HEADCOUNT_SUBMODULE,
   plannerHeadcountLabelKey,
 } from 'src/constant/planner-headcount';
+import { useModuleStore } from 'src/stores/modules';
 
 interface HeadcountRow {
   sius_code: string;
@@ -63,6 +64,7 @@ const props = defineProps<{
 
 const $q = useQuasar();
 const { t } = useI18n();
+const moduleStore = useModuleStore();
 
 const rows = ref<HeadcountRow[]>(
   HEADCOUNT_CODES.map((code) => ({
@@ -116,9 +118,11 @@ async function save(row: HeadcountRow) {
     }
   } catch {
     $q.notify({ type: 'negative', message: t('planner_headcount_save_error') });
+    return;
   } finally {
     savingCode.value = null;
   }
+  await moduleStore.refreshEmissionBreakdownIfNeeded();
 }
 
 onMounted(load);
