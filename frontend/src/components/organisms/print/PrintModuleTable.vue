@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ModuleConfig, Submodule } from 'src/constant/moduleConfig';
+import { useAuthStore } from 'src/stores/auth';
 import { useModuleStore } from 'src/stores/modules';
 import { nOrDash } from 'src/utils/number';
 import {
@@ -27,7 +28,17 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const { t, te } = useI18n();
+const authStore = useAuthStore();
 const moduleStore = useModuleStore();
+
+const travelerNames = computed(() => {
+  const map = new Map(props.headcountMembers);
+  const institutionalId = authStore.user?.institutional_id;
+  if (institutionalId && !map.has(institutionalId)) {
+    map.set(institutionalId, authStore.displayName);
+  }
+  return map;
+});
 
 const translate = (key: string, params?: Record<string, unknown>) =>
   t(key, params ?? {});
@@ -61,7 +72,7 @@ const cellContext = computed<PrintCellContext>(() => ({
   t: translate,
   te,
   taxonomyKindLabels: taxonomyKindLabels.value,
-  headcountMembers: props.headcountMembers,
+  headcountMembers: travelerNames.value,
   formatNumber: (value: number, options?: Intl.NumberFormatOptions) =>
     nOrDash(value, { options }),
   numberFormatOptions: props.moduleConfig.numberFormatOptions,

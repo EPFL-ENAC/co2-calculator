@@ -697,15 +697,17 @@ class TestRequirePlanScopeForReport:
 
 
 class TestCheckModulePermissionForReport:
-    """Explore reports drop the module gate to unit membership (#1988);
-    Plan and Calculator reports delegate to the strict per-module gate.
+    """Explore reports and Grant Proposal plan reports drop the module gate
+    to unit membership (#1988, #1983); effective plan-year and Calculator
+    reports delegate to the strict per-module gate.
     """
 
     @staticmethod
-    def _report(project_id=5, unit_id=1):
+    def _report(project_id=5, unit_id=1, is_grant=False):
         report = MagicMock()
         report.carbon_project_id = project_id
         report.unit_id = unit_id
+        report.is_grant = is_grant
         return report
 
     @staticmethod
@@ -778,6 +780,34 @@ class TestCheckModulePermissionForReport:
             db=db,
             unit_id=7,
         )
+
+    @pytest.mark.asyncio
+    async def test_grant_plan_report_passes_for_std_unit_member(self):
+        from app.models.carbon_report import CarbonReportType
+
+        unit = self._unit("0184")
+        result = await check_module_permission_for_report(
+            current_user=self._std_user("0184"),
+            module_id="equipment",
+            action="edit",
+            db=self._db(CarbonReportType.SIMULATOR_PLAN, unit),
+            report=self._report(is_grant=True),
+        )
+        assert result is unit
+
+    @pytest.mark.asyncio
+    async def test_grant_plan_report_denies_std_of_other_unit(self):
+        from app.models.carbon_report import CarbonReportType
+
+        with pytest.raises(HTTPException) as exc:
+            await check_module_permission_for_report(
+                current_user=self._std_user("9999"),
+                module_id="equipment",
+                action="edit",
+                db=self._db(CarbonReportType.SIMULATOR_PLAN, self._unit("0184")),
+                report=self._report(is_grant=True),
+            )
+        assert exc.value.status_code == 403
 
     @pytest.mark.asyncio
     async def test_explore_report_denies_std_of_other_unit(self):

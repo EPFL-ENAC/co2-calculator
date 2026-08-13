@@ -453,7 +453,9 @@
               <module-table-section
                 :key="moduleMountKey(entry.config.module)"
                 :type="entry.config.module"
-                :config-override="getPlannerModuleConfig(entry.config.module)"
+                :config-override="
+                  getPlannerModuleConfig(entry.config.module, selfTraveler)
+                "
                 :data="moduleStore.state.data"
                 :loading="moduleStore.state.loading"
                 :error="moduleStore.state.error"
@@ -500,13 +502,17 @@ import {
   PLANNER_MODULES,
   type PlannerModuleConfig,
 } from 'src/constant/planner-module-config';
-import { getPlannerModuleConfig } from 'src/constant/planner-module-config/module-configs';
+import {
+  getPlannerModuleConfig,
+  type PlannerSelfTraveler,
+} from 'src/constant/planner-module-config/module-configs';
 import { getModuleTypeId } from 'src/constant/moduleStates';
 import {
   MODULES,
   SUBMODULE_EQUIPMENT_TYPES,
   type Module,
 } from 'src/constant/modules';
+import { useAuthStore } from 'src/stores/auth';
 import { useModuleStore } from 'src/stores/modules';
 import { factorMountKey } from 'src/utils/factor-year';
 import {
@@ -538,6 +544,7 @@ const emit = defineEmits<{
 
 const $q = useQuasar();
 const { t, n } = useI18n();
+const authStore = useAuthStore();
 const moduleStore = useModuleStore();
 const plansStore = useSimulatorPlansStore();
 
@@ -872,8 +879,26 @@ const grantYearsCount = computed<number | null>(() =>
   props.yearData.is_grant ? (props.projectYearsCount ?? null) : null,
 );
 
+// Grant sections open every module's input form to any unit member; the
+// effective year sections follow the workspace module permissions, so a
+// standard user only sees Travel and External Clouds & AI (#1983).
+const visibleModules = computed<PlannerModuleConfig[]>(() =>
+  PLANNER_MODULES.filter(
+    (config) =>
+      props.yearData.is_grant || authStore.canUserAccessModule(config.module),
+  ),
+);
+
+const selfTraveler = computed<PlannerSelfTraveler | null>(() => {
+  const institutionalId = authStore.user?.institutional_id;
+  if (!institutionalId || authStore.hasUserCanValidateModuleStatus()) {
+    return null;
+  }
+  return { institutional_id: institutionalId, name: authStore.displayName };
+});
+
 const moduleEntries = computed<ModuleEntry[]>(() =>
-  PLANNER_MODULES.map((config) => ({
+  visibleModules.value.map((config) => ({
     config,
     module: props.yearData.modules.find(
       (m) => m.module_type_id === getModuleTypeId(config.module),

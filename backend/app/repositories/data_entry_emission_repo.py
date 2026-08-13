@@ -16,7 +16,7 @@ from app.models.carbon_report import (
     CarbonReportModule,
     CarbonReportType,
 )
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
@@ -173,6 +173,7 @@ class DataEntryEmissionRepository:
         carbon_report_module_id,
         aggregate_by: str = "emission_type_id",
         aggregate_field: str = "kg_co2eq",
+        exclude_planner_snapshots: bool = False,
     ) -> dict[str, float | None]:
         """Aggregate DataEntryEmission data by emission_type_id
                 SELECT
@@ -201,6 +202,12 @@ class DataEntryEmissionRepository:
             )
             .group_by(group_field)
         )
+        if exclude_planner_snapshots:
+            query = query.where(
+                col(DataEntry.source).is_distinct_from(
+                    DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+                )
+            )
 
         result = await self.session.execute(
             query
