@@ -87,16 +87,22 @@ def is_policy_exempt(data_entry_type: DataEntryTypeEnum) -> bool:
 #   - equipment "name": locked — matrix lists Class/Sub-class/Active/Standby
 #     usage only.
 #   - animal_facilities "researchfacility_type": locked — not named.
-# Two fields the matrix DOES name but can never be granted regardless of
-# this table, because they're Create-only on their DTO (no update path
-# exists for anyone, not just this policy): Headcount's "SCIPER"
-# (user_institutional_id) and Prof. Travel's "Traveler" (same field name).
+# One field the matrix DOES name but can't be granted here yet: Prof.
+# Travel's "Traveler" (user_institutional_id) is still Create-only on its
+# DTO — same underlying field as Headcount's SCIPER, which WAS extended to
+# Update (see below); Traveler needs the same DTO + uniqueness-check work,
+# plus a richer inline input than a plain text box (it's an autocomplete
+# select in the create form) — tracked as a follow-up, not done here.
 PERMISSIONS: dict[
     tuple[ModuleTypeEnum, DataEntryTypeEnum | None, Provenance], frozenset[str] | None
 ] = {
-    # Headcount (member)
+    # Headcount (member). SCIPER (user_institutional_id) is editable on a
+    # user row (decided 2026-08-13, product call — reverses the earlier
+    # "Create-only, no Update DTO path" framing; HeadCountUpdate now
+    # accepts it, and the workflow re-checks the (uid, sius_code)
+    # uniqueness constraint on update the same way create() does).
     (ModuleTypeEnum.headcount, None, Provenance.USER): frozenset(
-        {"name", "sius_code", "fte"}
+        {"name", "sius_code", "fte", "user_institutional_id"}
     ),
     (ModuleTypeEnum.headcount, None, Provenance.IMPORTED): None,
     # Headcount - student (its own handler/DTO, EPT only)

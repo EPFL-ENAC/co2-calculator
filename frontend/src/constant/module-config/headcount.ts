@@ -28,6 +28,7 @@ const memberFields: ModuleField[] = [
     ratio: '1/4',
     icon: 'o_filter_drama',
     columnSize: 'sm',
+    editableInline: true,
   },
   {
     id: 'sius_code',
@@ -38,6 +39,7 @@ const memberFields: ModuleField[] = [
     icon: 'o_assignment_ind',
     optionLabelsAreKeys: true,
     columnSize: 'sm',
+    editableInline: true,
 
     options: [
       { value: '51', label: '51' },
@@ -56,6 +58,7 @@ const memberFields: ModuleField[] = [
     type: 'text',
     sortable: false,
     ratio: '1/4',
+    editableInline: true,
   },
   {
     id: 'fte',
@@ -67,6 +70,7 @@ const memberFields: ModuleField[] = [
     sortable: false,
     ratio: '1/4',
     icon: 'o_timer',
+    editableInline: true,
   },
 ];
 
@@ -86,6 +90,7 @@ const studentFields: ModuleField[] = [
     ratio: '12/12',
     icon: iconMap['o_timer'],
     tooltip: 'module-headcount-submodule-student-table-fte',
+    editableInline: true,
   },
 ];
 

@@ -537,6 +537,74 @@ weeks / 44 backend commits stale before this change; regenerating it is a
 separate follow-up, not bundled here — this plan's own frontend types are
 hand-written (see Frontend gating), not generated-schema-dependent.
 
+## Manual QA finding: frontend inline-editing was never enabled for most modules (2026-08-13)
+
+Manual testing surfaced that Headcount's Name/Position/SCIPER/EPT showed as
+non-editable regardless of provenance. Root cause: `editableInline` on
+`ModuleField` gates whether a column renders as an input at all — this
+plan's per-row policy check only decides whether an _already inline-
+editable_ column is locked for a given row. Headcount's `memberFields`/
+`studentFields` never set `editableInline` on any field, so the #951
+mechanism had nothing to act on: cells rendered as plain text in both
+directions before and after this plan's changes, masking the gap.
+
+Audited every module-config file's `editableInline` flags against the
+backend's USER editable-field sets. Already correct (no changes needed):
+Equipment, External Cloud/AI, Process Emissions, Purchase Centralized,
+Buildings — combustion. **Fixed** (flag added on exactly the fields the
+backend now allows, per module):
+
+- Headcount member: `name`, `sius_code`, `fte` (`user_institutional_id` —
+  see SCIPER note below).
+- Headcount student: `fte`.
+- Buildings — rooms: `building_name`, `room_name`, `room_allocation_ratio`
+  (`room_type` was already correct; `room_surface_square_meter` stays
+  locked, not in the #951 matrix).
+- Research Facilities (both submodules): `researchfacility_name`, `use`,
+  `use_unit` (common only) (`researchfacility_type` stays locked, animal-
+  specific, not named in the matrix).
+- Purchase (main, non-centralized kinds): `name`, `supplier`.
+- Professional Travel: `departure_date` only (see below — origin/
+  destination deferred).
+
+**Deferred — Professional Travel `origin_iata`/`origin_name` +
+`destination_iata`/`destination_name`.** Backend already allows these for
+USER rows, but the CREATE form resolves them via a `direction-input`/
+autocomplete component (pairing the display name with an IATA code or
+`origin_natural_key`/`destination_natural_key`), while `ModuleTable.vue`'s
+generic inline-editable branch only supports plain `QInput`/`QSelect` or
+the `module-inline-select` kind/subkind component. Flipping
+`editableInline: true` on a bare text field would let a user edit the
+display name inline while leaving its paired code/natural_key stale —
+exactly the desync the backend explicitly grants both fields together to
+avoid (see PERMISSIONS comment on train's fields). Needs either a proper
+inline autocomplete component or a decision that this pair is edit-dialog-
+only; not done in this pass.
+
+## SCIPER (user_institutional_id) made updatable on a user's own Headcount row (2026-08-13)
+
+Manual QA also surfaced the product call: SCIPER should be editable when
+the row was user-created, reversing this plan's earlier framing of it as
+"Create-only, no Update DTO path for anyone." Implemented:
+
+- `HeadCountUpdate` gained `user_institutional_id` (validator mirrors
+  Create's: non-empty after strip).
+- `CarbonReportModuleWorkflow.update()` now re-runs create()'s
+  `(user_institutional_id, sius_code)` uniqueness check when either field
+  changes, `exclude_id=item_id` — the DTO alone can't enforce this, and it
+  was never needed on update before because the field wasn't writable.
+- PERMISSIONS: headcount member USER branch gained
+  `user_institutional_id`. IMPORTED stays locked — this only applies to a
+  user's own row.
+- Frontend: `editableInline: true` (plain text field, no autocomplete
+  complexity, unlike Traveler below).
+
+**Not extended to Prof. Travel's "Traveler"** (same underlying
+`user_institutional_id` field, same matrix wording) — it needs the same
+DTO + uniqueness-check work AND a richer inline component (see the
+deferred origin/destination note above; Traveler is itself an autocomplete
+select in the create form, not a plain text box). Tracked as a follow-up.
+
 ## Second code-review round (2026-08-13, post-commit)
 
 Six findings on the committed backend+frontend diff; four fixed, two

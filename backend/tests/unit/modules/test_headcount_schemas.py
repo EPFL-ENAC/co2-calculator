@@ -174,6 +174,12 @@ def test_headcount_student_invalid(payload: dict) -> None:
         pytest.param({**_MEMBER_META, "sius_code": "54"}, id="sius-only"),
         pytest.param({**_MEMBER_META, "fte": 0.9}, id="fte-only"),
         pytest.param({**_MEMBER_META}, id="nothing-to-update"),
+        # #951: SCIPER is updatable on a user-created row (not on an
+        # imported one — that's the data-entry-permissions layer's job,
+        # not the DTO's).
+        pytest.param(
+            {**_MEMBER_META, "user_institutional_id": "654321"}, id="uid-only"
+        ),
     ],
 )
 def test_headcount_update_valid(payload: dict) -> None:
@@ -186,6 +192,7 @@ def test_headcount_update_valid(payload: dict) -> None:
         pytest.param({**_MEMBER_META, "sius_code": "invalid"}, id="sius-invalid"),
         pytest.param({**_MEMBER_META, "fte": 1.5}, id="fte-above-one"),
         pytest.param({**_MEMBER_META, "fte": -1}, id="fte-negative"),
+        pytest.param({**_MEMBER_META, "user_institutional_id": "   "}, id="uid-blank"),
     ],
 )
 def test_headcount_update_invalid(payload: dict) -> None:

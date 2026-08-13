@@ -19,6 +19,7 @@ const purchaseFields: ModuleField[] = [
     sortable: true,
     align: 'left',
     ratio: '1/2',
+    editableInline: true,
   },
   {
     id: 'supplier',
@@ -29,6 +30,7 @@ const purchaseFields: ModuleField[] = [
     sortable: true,
     align: 'left',
     ratio: '1/2',
+    editableInline: true,
   },
   {
     id: 'purchase_institutional_code',

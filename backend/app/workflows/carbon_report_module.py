@@ -314,6 +314,31 @@ class CarbonReportModuleWorkflow:
                         "fields": changed_locked_fields,
                     },
                 )
+        # #951: SCIPER (user_institutional_id) is now updatable on a user
+        # row (policy-gated above); mirrors create()'s uniqueness check
+        # (a person can hold multiple roles, so the key is the pair, not
+        # just the person) — same check the DTO can't express, now needed
+        # on update too since the field wasn't writable before.
+        if data_entry_type == DataEntryTypeEnum.member and (
+            "user_institutional_id" in item_data or "sius_code" in item_data
+        ):
+            member_data = validated_data.model_dump()
+            uid = member_data.get("user_institutional_id")
+            sius_code = member_data.get("sius_code")
+            if uid and sius_code:
+                is_unique = await DataEntryService(
+                    self.session
+                ).check_member_role_unique(
+                    carbon_report_module_id=carbon_report_module.id,
+                    uid=uid,
+                    sius_code=sius_code,
+                    exclude_id=item_id,
+                )
+                if not is_unique:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail="DUPLICATE_INSTITUTIONAL_ID",
+                    )
         try:
             item = await DataEntryService(self.session).update(
                 id=item_id,

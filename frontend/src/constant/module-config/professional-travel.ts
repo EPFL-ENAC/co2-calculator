@@ -72,7 +72,7 @@ const commonTravelFields: ModuleField[] = [
     required: false,
     sortable: true,
     ratio: '1/1',
-    editableInline: false,
+    editableInline: true,
   },
   {
     id: 'number_of_trips',

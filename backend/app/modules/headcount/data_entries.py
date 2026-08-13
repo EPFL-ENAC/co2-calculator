@@ -90,8 +90,21 @@ class HeadCountStudentUpdate(DataEntryUpdate):
 class HeadCountUpdate(DataEntryUpdate):
     name: str | None = None
     sius_code: str | None = None
+    # #951: SCIPER is updatable — only on a user-created row (enforced by
+    # the data-entry-permissions layer, not here; this DTO just needs to
+    # accept the field at all).
+    user_institutional_id: str | None = None
     fte: float | None = None
     note: str | None = None
+
+    @field_validator("user_institutional_id", mode="before")
+    @classmethod
+    def validate_user_institutional_id(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not v.strip():
+            raise ValueError("User institutional ID cannot be empty")
+        return v.strip()
 
     @field_validator("fte", mode="after")
     @classmethod

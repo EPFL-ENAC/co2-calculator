@@ -116,7 +116,7 @@ MATRIX_CASES = [
         ModuleTypeEnum.headcount,
         DataEntryTypeEnum.member,
         Provenance.USER,
-        {"name", "sius_code", "fte"},
+        {"name", "sius_code", "fte", "user_institutional_id"},
     ),
     (ModuleTypeEnum.headcount, DataEntryTypeEnum.member, Provenance.IMPORTED, set()),
     (

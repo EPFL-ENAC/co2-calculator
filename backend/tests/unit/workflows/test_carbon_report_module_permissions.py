@@ -359,3 +359,98 @@ async def test_delete_user_row_succeeds():
         )
 
     data_entry_service.delete.assert_awaited_once()
+
+
+_EXISTING_MEMBER_DATA = {
+    "name": "Test Member",
+    "sius_code": "54",
+    "user_institutional_id": "123456",
+    "fte": 0.8,
+}
+
+
+@pytest.mark.asyncio
+async def test_update_member_sciper_on_user_row_succeeds_when_unique():
+    """#951: SCIPER (user_institutional_id) is updatable on a user's own
+    headcount row (product decision 2026-08-13). Mirrors create()'s
+    (uid, sius_code) uniqueness check, now needed on update too since the
+    field wasn't writable before this change.
+    """
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        _EXISTING_MEMBER_DATA, source=None
+    )
+    data_entry_service.check_member_role_unique = AsyncMock(return_value=True)
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        await workflow.update(
+            carbon_report_module=SimpleNamespace(id=18036, module_type_id=1),
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            item_id=1,
+            item_data={"user_institutional_id": "654321"},
+            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            request_context={},
+            background_tasks=MagicMock(),
+        )
+
+    data_entry_service.check_member_role_unique.assert_awaited_once()
+    call_kwargs = data_entry_service.check_member_role_unique.call_args.kwargs
+    assert call_kwargs["uid"] == "654321"
+    assert call_kwargs["sius_code"] == "54"
+    assert call_kwargs["exclude_id"] == 1
+    data_entry_service.update.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_member_sciper_duplicate_is_rejected():
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        _EXISTING_MEMBER_DATA, source=None
+    )
+    data_entry_service.check_member_role_unique = AsyncMock(return_value=False)
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        with pytest.raises(HTTPException) as exc_info:
+            await workflow.update(
+                carbon_report_module=SimpleNamespace(id=18036, module_type_id=1),
+                data_entry_type_id=DataEntryTypeEnum.member.value,
+                item_id=1,
+                item_data={"user_institutional_id": "999999"},
+                current_user=SimpleNamespace(id=5, institutional_id="352707"),
+                request_context={},
+                background_tasks=MagicMock(),
+            )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == "DUPLICATE_INSTITUTIONAL_ID"
+    data_entry_service.update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_member_sciper_on_imported_row_is_403():
+    """Locked on an imported row — the whole point of gating it by
+    provenance rather than just adding it to the DTO.
+    """
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        _EXISTING_MEMBER_DATA, source=_IMPORTED_SOURCE
+    )
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        with pytest.raises(HTTPException) as exc_info:
+            await workflow.update(
+                carbon_report_module=SimpleNamespace(id=18036, module_type_id=1),
+                data_entry_type_id=DataEntryTypeEnum.member.value,
+                item_id=1,
+                item_data={"user_institutional_id": "654321"},
+                current_user=SimpleNamespace(id=5, institutional_id="352707"),
+                request_context={},
+                background_tasks=MagicMock(),
+            )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail["code"] == "FIELD_NOT_EDITABLE"
+    data_entry_service.update.assert_not_called()
