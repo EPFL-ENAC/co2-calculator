@@ -771,7 +771,7 @@ export default {
 
   'planner-grant-module-research-facilities-title': {
     en: 'This module allows you to estimate the carbon footprint associated with the use of EPFL research infrastructures specific to your project (Scope 3). To do so, add the relevant research infrastructures and animal facilities, indicating the corresponding budget for each.\n\nThe methodology used is documented in the Documentation pages.',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée à l'utilisation des infrastructures de recherche EPFL spécifiques à votre projet (Scope 3). Pour cela, ajoutez les infrastructures de recherche et animaleries en indiquant le budget correspondant.\n\nLa méthodologie utilisée est documentée dans les pages Documentation.,
+    fr: "Ce module permet d'estimer l'empreinte carbone liée à l'utilisation des infrastructures de recherche EPFL spécifiques à votre projet (Scope 3). Pour cela, ajoutez les infrastructures de recherche et animaleries en indiquant le budget correspondant.\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
   },
   'planner-grant-module-research-facilities-submodule-research-facilities': {
     en: '',
