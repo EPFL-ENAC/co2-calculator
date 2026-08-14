@@ -152,7 +152,13 @@ test('renderPrintCell resolves traveler names from headcount members', () => {
   );
   expect(
     renderPrintCell({ user_institutional_id: '__other_external__' }, col, ctx),
-  ).toBe('Other traveler (external)');
+  ).toBe('Other traveler (internal)');
+  expect(renderPrintCell({ user_institutional_id: '-1' }, col, ctx)).toBe(
+    'Other traveler (internal)',
+  );
+  expect(renderPrintCell({ user_institutional_id: null }, col, ctx)).toBe(
+    'Other traveler (external)',
+  );
   expect(renderPrintCell({}, col, ctx)).toBe('-');
 });
 

@@ -505,6 +505,7 @@ import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { PermissionAction } from 'src/stores/auth';
 import { getTemplateFileName } from 'src/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
+import { CARBON_PROJECT } from 'src/constant/carbon-project';
 import { resolveTravelerCellText } from 'src/constant/module-config/traveler-options';
 import type {
   Module,

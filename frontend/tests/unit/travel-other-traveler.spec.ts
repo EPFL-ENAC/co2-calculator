@@ -64,9 +64,9 @@ test('#1153: SCIPER not in the headcount falls back to "Other traveler (internal
 });
 
 test('#1153: cell text — undefined id (loading) renders a dash', () => {
-  expect(resolveTravelerCellText(undefined, new Map(), undefined, 'Me', t)).toBe(
-    '-',
-  );
+  expect(
+    resolveTravelerCellText(undefined, new Map(), undefined, 'Me', t),
+  ).toBe('-');
 });
 
 test('#1153: cell text — external sentinel renders the external label', () => {
@@ -77,7 +77,13 @@ test('#1153: cell text — external sentinel renders the external label', () => 
 
 test('#1153: cell text — internal sentinel renders the internal label', () => {
   expect(
-    resolveTravelerCellText(TRAVELER_OTHER_INTERNAL, new Map(), undefined, 'Me', t),
+    resolveTravelerCellText(
+      TRAVELER_OTHER_INTERNAL,
+      new Map(),
+      undefined,
+      'Me',
+      t,
+    ),
   ).toBe(TRAVELER_OTHER_INTERNAL_LABEL_KEY);
 });
 
@@ -89,9 +95,9 @@ test('#1153: cell text — matching roster entry wins over the raw SCIPER', () =
 });
 
 test('#1153: cell text — current user shortcut wins when not in the roster map yet', () => {
-  expect(resolveTravelerCellText('0184', new Map(), '0184', 'Ada Lovelace', t)).toBe(
-    'Ada Lovelace',
-  );
+  expect(
+    resolveTravelerCellText('0184', new Map(), '0184', 'Ada Lovelace', t),
+  ).toBe('Ada Lovelace');
 });
 
 test('#1153: cell text — unresolved SCIPER falls back to the internal label', () => {
@@ -102,6 +108,9 @@ test('#1153: cell text — unresolved SCIPER falls back to the internal label', 
 
 test('#1153: trips-map legend keys external under "" (matches the backend leg coercion)', () => {
   const entries = travelerSentinelMapEntries(t);
-  expect(entries).toContainEqual([TRAVELER_OTHER_INTERNAL, TRAVELER_OTHER_INTERNAL_LABEL_KEY]);
+  expect(entries).toContainEqual([
+    TRAVELER_OTHER_INTERNAL,
+    TRAVELER_OTHER_INTERNAL_LABEL_KEY,
+  ]);
   expect(entries).toContainEqual(['', TRAVELER_OTHER_EXTERNAL_LABEL_KEY]);
 });
