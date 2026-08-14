@@ -13,6 +13,10 @@ import {
  * - 'prefilled' (type 2) — reference-year prefill + per-row "% of
  *   reference year" slider + Calculator-identical input form
  * - 'empty'     (type 3) — empty by default, Calculator-identical form
+ *
+ * Travel is 'empty' UI-wise but the backend plain-copies the reference
+ * year's rows into the plan as ordinary editable entries (#2018,
+ * PLANNER_PLAIN_COPY_MODULE_TYPES) — no reference columns or % slider.
  */
 export type PlannerBehavior = 'manual' | 'prefilled' | 'empty';
 
