@@ -31,9 +31,20 @@
         dense
         hide-bottom-space
         :error="nameTouched && nameInput.trim().length === 0"
-        @blur="saveIfDirty('name')"
-        @keyup.enter="saveIfDirty('name')"
+        @blur="saveName"
+        @keyup.enter="saveName"
       />
+      <q-checkbox
+        v-model="isViewableByUnitMembers"
+        :label="$t('planner_share_with_lab_label')"
+        :disable="yearByYearChecked"
+        color="info"
+        size="sm"
+        class="q-mt-sm"
+      />
+      <div v-if="yearByYearChecked" class="text-body2 text-grey-7">
+        {{ $t('planner_share_with_lab_disabled_hint') }}
+      </div>
     </q-card-section>
     <q-separator />
 
@@ -99,17 +110,6 @@
     </q-card-section>
     <q-separator />
 
-    <q-card-section>
-      <q-checkbox
-        v-model="shareWithLab"
-        :label="$t('planner_share_with_lab_label')"
-        color="info"
-        size="sm"
-        @update:model-value="saveIfDirty('is_viewable_by_unit_members')"
-      />
-    </q-card-section>
-    <q-separator />
-
     <!-- The plan's sections (Project Grant + per-year) are created explicitly
          (not as a hidden side-effect of picking a year), with visible
          progress. -->
@@ -137,7 +137,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import { useRoute } from 'vue-router';
@@ -165,7 +165,6 @@ const nameInput = ref(props.plan.name);
 const startYearInput = ref<number | null>(props.plan.start_year ?? null);
 const endYearInput = ref<number | null>(props.plan.end_year ?? null);
 const grantProposalInput = ref(props.plan.is_grant_proposal);
-const shareWithLab = ref(props.plan.is_viewable_by_unit_members);
 const nameTouched = ref(false);
 const saving = ref(false);
 const generatingSections = ref(false);
@@ -184,17 +183,14 @@ const yearByYearChecked = computed({
   set: (value: boolean) => (yearByYearInput.value = value),
 });
 
-watch(
-  () => props.plan,
-  (plan) => {
-    nameInput.value = plan.name;
-    startYearInput.value = plan.start_year ?? null;
-    endYearInput.value = plan.end_year ?? null;
-    grantProposalInput.value = plan.is_grant_proposal;
-    shareWithLab.value = plan.is_viewable_by_unit_members;
-    yearByYearInput.value = null;
-  },
-);
+// Per-year sections hold the unit's real annual data, so a plan carrying them
+// stays private to its creator: the share checkbox reads unchecked and is
+// locked while "Ongoing Project" is on. Derived straight from the plan (the
+// save round-trip refreshes it), so there is no local copy to keep in sync.
+const isViewableByUnitMembers = computed({
+  get: () => props.plan.is_viewable_by_unit_members && !yearByYearChecked.value,
+  set: (value: boolean) => void saveShareWithLab(value),
+});
 
 // Plans span from the earliest configurable Calculator year
 // (settings.MIN_CONFIGURABLE_YEAR — no reference data before it) up to ten
@@ -301,32 +297,41 @@ async function generateSections() {
 
 /**
  * Persist name / lab-visibility as soon as the user leaves the field (the
- * design has no explicit Save button). Years are handled by generateYears.
+ * design has no explicit Save button). Years are handled by generateSections.
  */
-async function saveIfDirty(field: 'name' | 'is_viewable_by_unit_members') {
-  if (field === 'name') nameTouched.value = true;
+async function saveName() {
+  nameTouched.value = true;
   if (saving.value) return;
 
-  const payload: SimulatorPlanUpdatePayload = {};
   const trimmedName = nameInput.value.trim();
-
-  if (field === 'name' && trimmedName && trimmedName !== props.plan.name) {
-    payload.name = trimmedName;
-  }
-  if (
-    field === 'is_viewable_by_unit_members' &&
-    shareWithLab.value !== props.plan.is_viewable_by_unit_members
-  ) {
-    payload.is_viewable_by_unit_members = shareWithLab.value;
-  }
-  if (Object.keys(payload).length === 0) return;
+  if (!trimmedName || trimmedName === props.plan.name) return;
 
   saving.value = true;
   try {
-    emit('updated', await plansStore.updatePlan(props.plan.id, payload));
+    emit(
+      'updated',
+      await plansStore.updatePlan(props.plan.id, { name: trimmedName }),
+    );
   } catch {
     nameInput.value = props.plan.name;
-    shareWithLab.value = props.plan.is_viewable_by_unit_members;
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function saveShareWithLab(value: boolean) {
+  if (saving.value || value === props.plan.is_viewable_by_unit_members) return;
+
+  saving.value = true;
+  try {
+    emit(
+      'updated',
+      await plansStore.updatePlan(props.plan.id, {
+        is_viewable_by_unit_members: value,
+      }),
+    );
+  } catch {
+    // the checkbox re-derives from the untouched plan
   } finally {
     saving.value = false;
   }

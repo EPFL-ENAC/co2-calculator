@@ -49,7 +49,11 @@
       </q-card>
 
       <!-- Project information box -->
-      <planner-project-info :plan="plan" @updated="onPlanUpdated" />
+      <planner-project-info
+        :key="plan.id"
+        :plan="plan"
+        @updated="onPlanUpdated"
+      />
 
       <!-- One section per year of the range -->
       <template v-if="plansStore.planYears.length">

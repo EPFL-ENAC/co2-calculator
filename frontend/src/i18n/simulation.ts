@@ -203,6 +203,10 @@ export default {
     en: 'Visible to all lab members',
     fr: 'Visible par tous les membres du laboratoire',
   },
+  planner_share_with_lab_disabled_hint: {
+    en: 'An ongoing project stays private to its creator.',
+    fr: 'Un projet en cours reste privé, visible par son créateur uniquement.',
+  },
   planner_grant_proposal_label: {
     en: 'Grant proposal',
     fr: 'Demande de financement',
