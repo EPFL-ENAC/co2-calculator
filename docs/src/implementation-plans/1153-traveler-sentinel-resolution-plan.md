@@ -506,13 +506,13 @@ def downgrade() -> None:
             UPDATE data_entries
             SET data = jsonb_set(data::jsonb, '{user_institutional_id}', '"__other_external__"')::json
             WHERE data->>'user_institutional_id' IS NULL
-              AND data ? 'user_institutional_id'
+              AND data::jsonb ? 'user_institutional_id'
             """
         )
     )
 ```
 
-Note the downgrade's External-other `WHERE` clause: `data->>'user_institutional_id' IS NULL AND data ? 'user_institutional_id'` — matches only rows where the key is *present* with a null value (this migration's own contract), not rows where the key is absent entirely (e.g. non-travel data entries, which have no such key at all and must not be touched).
+Note the downgrade's External-other `WHERE` clause: `data->>'user_institutional_id' IS NULL AND data::jsonb ? 'user_institutional_id'` — matches only rows where the key is *present* with a null value (this migration's own contract), not rows where the key is absent entirely (e.g. non-travel data entries, which have no such key at all and must not be touched). The `::jsonb` cast is required: `data_entries.data` is Postgres `json`, and the `?` (has-key) operator is `jsonb`-only — found and fixed during Task 4's implementation (2026-08-14), documented here for consistency.
 
 Update the module docstring at the top of the generated file to explain the
 "why" (mirror the mice migration's docstring style): this migration exists
