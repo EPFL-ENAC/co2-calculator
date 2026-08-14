@@ -15,7 +15,6 @@ from app.models.unit import Unit
 from app.models.user import (
     GlobalScope,
     Role,
-    RoleName,
     UnitScope,
     User,
     calculate_user_permissions,
@@ -123,20 +122,16 @@ async def _evaluate_permission_policy(input_data: dict) -> dict:
 async def _evaluate_resource_access_policy(input_data: dict) -> dict:
     """Evaluate resource-level access policy for specific resources.
 
-    Checks if a user can access/edit a specific resource based on:
-    - Resource type and properties (e.g., provider, created_by)
-    - User roles and scope
-    - Business logic rules
+    No resource_type currently has a specific rule — every resource_type
+    denies by default (see the retirement note below for why
+    professional_travel's rule moved elsewhere). New resource types stay
+    secure until an explicit rule is added here.
 
     Args:
         input_data: Dictionary containing:
-            - "user": User object or dict with user info (must have roles)
+            - "user": User object or dict with user info
             - "resource_type": Resource type (e.g., "professional_travel")
-            - "resource": Resource dict with properties like:
-                - "id": Resource ID
-                - "created_by": User ID who created the resource
-                - "unit_id": Unit ID the resource belongs to
-                - "provider": Provider source (for professional_travel)
+            - "resource": Resource dict with properties like "id"
 
     Returns:
         Policy decision dict: {"allow": bool, "reason": str}
@@ -151,78 +146,16 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
     if not resource:
         return {"allow": False, "reason": "Missing resource"}
 
-    # Extract roles and user_id
-    user_id: int | None = None
-    if isinstance(user_data, User):
-        roles = user_data.roles or []
-        user_id = user_data.id
-    elif isinstance(user_data, dict):
-        roles_data = user_data.get("roles", [])
-        roles = [
-            Role(**r) if isinstance(r, dict) else r for r in roles_data if r is not None
-        ]
-        id_value = user_data.get("id")
-        user_id = id_value if isinstance(id_value, int) else None
-    else:
+    if not isinstance(user_data, (User, dict)):
         return {"allow": False, "reason": "Invalid user data format"}
 
-    # Professional Travel resource access rules
-    if resource_type == "professional_travel":
-        provider = resource.get("provider", "")
-        created_by = resource.get("created_by", "")
-        resource_unit_id = resource.get("unit_id", "")
-
-        # Rule 1: API trips are read-only (cannot be edited by anyone)
-        if provider == "api":
-            return {
-                "allow": False,
-                "reason": "API trips are read-only and cannot be edited",
-            }
-
-        # Rule 2: Check if user has global scope (backoffice admin)
-        has_global_scope = any(
-            isinstance(role.on, GlobalScope)
-            or (isinstance(role.on, dict) and role.on.get("scope") == "global")
-            for role in roles
-        )
-        if has_global_scope:
-            return {"allow": True, "reason": "Global scope access (backoffice admin)"}
-
-        # Rule 3: Check if user has unit scope for this resource's unit
-        user_unit_ids = set()
-        principal_or_secondary = False
-        for role in roles:
-            role_name = role.role if isinstance(role.role, str) else role.role.value
-            role_scope = role.on
-
-            # Check if principal role
-            if role_name == RoleName.CO2_USER_PRINCIPAL.value:
-                principal_or_secondary = True
-                # Extract unit from scope (principal is always unit-scoped).
-                if isinstance(role_scope, UnitScope) and role_scope.institutional_id:
-                    user_unit_ids.add(role_scope.institutional_id)
-
-        # Principals can edit manual/CSV trips in their units
-        if principal_or_secondary and resource_unit_id in user_unit_ids:
-            return {
-                "allow": True,
-                "reason": (
-                    "Unit scope access (principal can edit trips in their units)"
-                ),
-            }
-
-        # Rule 4: Standard users can only edit their own manual trips
-        if user_id and created_by == user_id:
-            return {
-                "allow": True,
-                "reason": "Owner access (user can edit their own trips)",
-            }
-
-        # Default: deny access
-        return {
-            "allow": False,
-            "reason": "Insufficient permissions to access this resource",
-        }
+    # Professional Travel used to have a bespoke resource_type branch here
+    # (role/scope extraction, API trips read-only, unit/owner rules).
+    # Retired (#951): the imported-branch lock in
+    # app.core.data_entry_permissions supersedes it — provenance-keyed,
+    # enforced in CarbonReportModuleWorkflow, and no longer specific to this
+    # one module. Every resource_type, including professional_travel, now
+    # falls through to the generic deny-by-default below.
 
     # Default for other/unhandled resource types: deny by default
     # This ensures new resource types are secure until explicit policy rules are added
@@ -751,9 +684,13 @@ async def check_module_permission_for_report(
     """Module gate for report-addressed routes.
 
     Calculator reports keep the full per-module permission gate
-    (``check_module_permission_for_unit``). Simulator reports (Explore and
-    Plan) drop to unit membership: any unit member may read and write the
-    sandbox/plan modules. Plan creator/share rules are enforced separately by
+    (``check_module_permission_for_unit``). Explore reports and Grant
+    Proposal plan reports drop to unit membership: any unit member gets
+    every module's input form there (#1983 — a standard user's reference
+    prefill stays hidden at the data layer). Effective plan-year reports
+    keep the per-module gate, so a standard user only reaches their
+    own-scoped modules (professional travel, external cloud & AI). Plan
+    creator/share rules are enforced separately by
     ``require_plan_scope_for_report``, and the professional-travel own-rows
     filter stays keyed on the caller's role at the data layer.
 
@@ -762,8 +699,12 @@ async def check_module_permission_for_report(
     """
     if report.carbon_project_id is not None:
         project = await db.get(CarbonProject, report.carbon_project_id)
-        if project is not None and project.carbon_report_type in (
-            CarbonReportType.SIMULATOR_EXPLORE,
+        if project is not None and (
+            project.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE
+            or (
+                project.carbon_report_type == CarbonReportType.SIMULATOR_PLAN
+                and bool(getattr(report, "is_grant", False))
+            )
         ):
             unit = await db.get(Unit, report.unit_id)
             if unit is None:

@@ -16,3 +16,21 @@ export const PLANNER_SIUS_CODES = [
 
 /** The planner's single headcount submodule (a fixed grid, not an add-row table). */
 export const PLANNER_HEADCOUNT_SUBMODULE = 'planner_headcount';
+
+/**
+ * Students have no SIUS code: they are their own grid row, prefilled from the
+ * reference year's student submodule and priced with the student factors.
+ */
+export const PLANNER_STUDENT_CODE = 'student';
+
+export const PLANNER_HEADCOUNT_CODES = [
+  ...PLANNER_SIUS_CODES,
+  PLANNER_STUDENT_CODE,
+] as const;
+
+/** SIUS labels are keyed by the bare code; the students row has its own key. */
+export function plannerHeadcountLabelKey(code: string): string {
+  return code === PLANNER_STUDENT_CODE
+    ? 'planner_headcount_student_category'
+    : code;
+}

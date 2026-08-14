@@ -79,6 +79,9 @@ const userType = computed(() =>
 // users instead email the principal.
 const accessManagementProviderName = runtimeConfig.accessManagementProviderName;
 const accessManagementProviderUrl = runtimeConfig.accessManagementProviderUrl;
+const accessManagementProviderAboutUrl =
+  runtimeConfig.accessManagementProviderAboutUrl;
+const rolesDocUrl = runtimeConfig.rolesDocUrl;
 
 const principalUserName = computed(
   () => workspaceStore.selectedUnit?.principal_user_name ?? '',
@@ -217,41 +220,24 @@ const calculatorUpdates = computed(() => {
                 <q-icon name="expand_more" size="xs" class="q-ml-xs" />
                 <q-menu anchor="bottom right" self="top right" :offset="[0, 6]">
                   <div class="calculator-card__access-popover">
-                    <p class="text-subtitle2 text-weight-medium q-mb-xs">
-                      {{ $t(`co2_calculator_access_${userType}_title`) }}
-                    </p>
-                    <p class="text-body2 text-secondary q-mb-md">
-                      {{
-                        $t(`co2_calculator_access_${userType}_body`, {
-                          provider:
-                            accessManagementProviderName ||
-                            $t('co2_calculator_access_provider_generic'),
-                        })
-                      }}
-                    </p>
-
-                    <!-- Principals delegate roles in the access-management
-                         portal; hidden when no portal URL is configured. -->
-                    <a
-                      v-if="isPrincipalUser && accessManagementProviderUrl"
-                      :href="accessManagementProviderUrl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="link text-body2 text-weight-medium"
-                    >
-                      {{
-                        $t('co2_calculator_access_cta_principal', {
-                          provider:
-                            accessManagementProviderName ||
-                            $t('co2_calculator_access_provider_generic'),
-                        })
-                      }}
-                      <q-icon name="o_arrow_outward" size="xs" />
-                    </a>
+                    <div>
+                      <p class="text-subtitle2 text-weight-medium q-mb-xs">
+                        {{ $t(`co2_calculator_access_${userType}_title`) }}
+                      </p>
+                      <p class="text-body2 text-secondary q-mb-none">
+                        {{
+                          $t(`co2_calculator_access_${userType}_body`, {
+                            provider:
+                              accessManagementProviderName ||
+                              $t('co2_calculator_access_provider_generic'),
+                          })
+                        }}
+                      </p>
+                    </div>
 
                     <!-- Standard users email their unit's principal user. -->
                     <q-btn
-                      v-else-if="requestAccessMailto"
+                      v-if="!isPrincipalUser && requestAccessMailto"
                       type="a"
                       :href="requestAccessMailto"
                       color="info"
@@ -260,15 +246,67 @@ const calculatorUpdates = computed(() => {
                       unelevated
                       no-caps
                       size="sm"
-                      class="text-weight-medium"
+                      class="text-weight-medium self-start"
                     />
-                    <p v-else class="text-body2 text-secondary q-mb-none">
+                    <p
+                      v-else-if="!isPrincipalUser"
+                      class="text-body2 text-secondary q-mb-none"
+                    >
                       {{
                         $t('co2_calculator_access_no_email', {
                           name: principalUserName,
                         })
                       }}
                     </p>
+
+                    <div class="calculator-card__access-links">
+                      <a
+                        v-if="rolesDocUrl"
+                        :href="rolesDocUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="link text-body2 text-weight-medium"
+                      >
+                        {{ $t('co2_calculator_access_cta_roles_doc') }}
+                        <q-icon name="o_arrow_outward" size="xs" />
+                      </a>
+
+                      <a
+                        v-if="accessManagementProviderAboutUrl"
+                        :href="accessManagementProviderAboutUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="link text-body2 text-weight-medium"
+                      >
+                        {{
+                          $t('co2_calculator_access_cta_about_provider', {
+                            provider:
+                              accessManagementProviderName ||
+                              $t('co2_calculator_access_provider_generic'),
+                          })
+                        }}
+                        <q-icon name="o_arrow_outward" size="xs" />
+                      </a>
+
+                      <!-- Principals delegate roles in the access-management
+                           portal; hidden when no portal URL is configured. -->
+                      <a
+                        v-if="isPrincipalUser && accessManagementProviderUrl"
+                        :href="accessManagementProviderUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="link text-body2 text-weight-medium"
+                      >
+                        {{
+                          $t('co2_calculator_access_cta_principal', {
+                            provider:
+                              accessManagementProviderName ||
+                              $t('co2_calculator_access_provider_generic'),
+                          })
+                        }}
+                        <q-icon name="o_arrow_outward" size="xs" />
+                      </a>
+                    </div>
                   </div>
                 </q-menu>
               </q-btn>
@@ -495,8 +533,18 @@ const calculatorUpdates = computed(() => {
 
 // Access details revealed from the role badge.
 .calculator-card__access-popover {
+  display: flex;
+  flex-direction: column;
+  gap: tokens.$spacing-lg;
   max-width: 400px;
   padding: tokens.$spacing-xl;
+}
+
+.calculator-card__access-links {
+  display: flex;
+  flex-direction: column;
+  gap: tokens.$spacing-md;
+  align-items: flex-start;
 }
 
 .calculator-card__updates {

@@ -1,18 +1,14 @@
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { api } from 'src/api/http';
 import { getModuleTypeId } from 'src/constant/moduleStates';
 import { MODULES } from 'src/constant/modules';
-import {
-  PLANNER_HEADCOUNT_SUBMODULE,
-  PLANNER_SIUS_CODES,
-} from 'src/constant/planner-headcount';
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
 import {
   useSimulatorPlansStore,
   type SimulatorPlan,
   type SimulatorPlanYear,
 } from 'src/stores/simulatorPlans';
+import { useAuthStore } from 'src/stores/auth';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { sumBreakdownTonnes } from 'src/utils/breakdownTotal';
@@ -20,12 +16,10 @@ import {
   toEmissionBreakdown,
   type ReportStats,
 } from 'src/utils/emissionStatsAdapter';
-import { buildModulePath } from 'src/utils/modulePath';
-
-export interface PlannerHeadcountRow {
-  sius_code: string;
-  fte: number;
-}
+import {
+  fetchPlannerHeadcountRows,
+  type PlannerHeadcountRow,
+} from 'src/utils/plannerHeadcountRows';
 
 /**
  * One sheet of the report. The list is built after fetching so a year with no
@@ -48,6 +42,7 @@ export type PlannerPrintSheet =
 
 export function useProjectPlannerPrintData() {
   const route = useRoute();
+  const authStore = useAuthStore();
   const workspaceStore = useWorkspaceStore();
   const plansStore = useSimulatorPlansStore();
   const yearConfigStore = useYearConfigStore();
@@ -202,33 +197,6 @@ export function useProjectPlannerPrintData() {
     return true;
   }
 
-  async function fetchHeadcountRows(
-    carbonReportId: number,
-  ): Promise<PlannerHeadcountRow[]> {
-    const response = await api
-      .get(
-        `${buildModulePath(
-          MODULES.Headcount,
-          carbonReportId,
-        )}/${PLANNER_HEADCOUNT_SUBMODULE}?page=1&limit=100`,
-      )
-      .json<{ items: { sius_code?: string; fte?: number | null }[] }>();
-
-    const byCode = new Map(
-      response.items
-        .filter((item) => item.sius_code)
-        .map((item) => [item.sius_code as string, item]),
-    );
-    // A blank category is the plan saying "nobody here"; dropping it once means
-    // neither the page list nor the table has to ask again what is filled in.
-    const rows: PlannerHeadcountRow[] = [];
-    for (const code of PLANNER_SIUS_CODES) {
-      const fte = byCode.get(code)?.fte;
-      if (fte != null) rows.push({ sius_code: code, fte });
-    }
-    return rows;
-  }
-
   async function fetchAllData(): Promise<void> {
     loading.value = true;
     try {
@@ -247,10 +215,17 @@ export function useProjectPlannerPrintData() {
 
       await Promise.all(
         planYears.value
-          .filter((year) => isHeadcountActive(year))
+          .filter(
+            (year) =>
+              isHeadcountActive(year) &&
+              (year.is_grant ||
+                authStore.canUserAccessModule(MODULES.Headcount)),
+          )
           .map(async (year) => {
             try {
-              headcountRows.value[year.id] = await fetchHeadcountRows(year.id);
+              headcountRows.value[year.id] = await fetchPlannerHeadcountRows(
+                year.id,
+              );
             } catch {
               // An untouched module has no rows yet; leave the year without one.
               headcountRows.value[year.id] = [];

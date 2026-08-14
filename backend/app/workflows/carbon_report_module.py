@@ -2,9 +2,17 @@ from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.data_entry_permissions import (
+    ALWAYS_WRITABLE_FIELDS,
+    can_delete,
+    editable_fields,
+    is_policy_exempt,
+    provenance_of,
+)
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.schemas.data_entry import (
@@ -155,6 +163,8 @@ class CarbonReportModuleWorkflow:
                 data=data_entry_create,
                 request_context=request_context,
                 background_tasks=background_tasks,
+                source=DataEntrySourceEnum.USER_MANUAL.value,
+                created_by_id=current_user.id,
             )
             if item is None:
                 raise HTTPException(
@@ -273,6 +283,62 @@ class CarbonReportModuleWorkflow:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Current user ID is required to update item",
             )
+        if not is_policy_exempt(data_entry_type):
+            module_type = ModuleTypeEnum(carbon_report_module.module_type_id)
+            # DataEntryService.get() (line 226) always raises on a missing
+            # entry, never returns None — existing_entry is guaranteed here.
+            provenance = provenance_of(existing_entry.source)
+            allowed = (
+                editable_fields(module_type, data_entry_type, provenance)
+                | ALWAYS_WRITABLE_FIELDS
+            )
+            # Diffs the caller's literal item_data, not update_payload — the
+            # latter can carry dependent-field resets from
+            # clear_dependent_fields_on_kind_change() (e.g. Purchase's
+            # purchase_additional_code nulled when purchase_institutional_code
+            # changes). Those are data-integrity cascades of an ALLOWED edit,
+            # not a user attempting to write a locked field directly, and are
+            # intentionally not checked here (decision 2026-08-13, code
+            # review; see test_update_purchase_kind_change_clears_locked_
+            # dependent_field for the pinned behavior).
+            changed_locked_fields = [
+                field
+                for field, value in item_data.items()
+                if field not in allowed and existing_data.get(field) != value
+            ]
+            if changed_locked_fields:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "code": "FIELD_NOT_EDITABLE",
+                        "fields": changed_locked_fields,
+                    },
+                )
+        # #951: SCIPER (user_institutional_id) is now updatable on a user
+        # row (policy-gated above); mirrors create()'s uniqueness check
+        # (a person can hold multiple roles, so the key is the pair, not
+        # just the person) — same check the DTO can't express, now needed
+        # on update too since the field wasn't writable before.
+        if data_entry_type == DataEntryTypeEnum.member and (
+            "user_institutional_id" in item_data or "sius_code" in item_data
+        ):
+            member_data = validated_data.model_dump()
+            uid = member_data.get("user_institutional_id")
+            sius_code = member_data.get("sius_code")
+            if uid and sius_code:
+                is_unique = await DataEntryService(
+                    self.session
+                ).check_member_role_unique(
+                    carbon_report_module_id=carbon_report_module.id,
+                    uid=uid,
+                    sius_code=sius_code,
+                    exclude_id=item_id,
+                )
+                if not is_unique:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail="DUPLICATE_INSTITUTIONAL_ID",
+                    )
         try:
             item = await DataEntryService(self.session).update(
                 id=item_id,
@@ -318,6 +384,20 @@ class CarbonReportModuleWorkflow:
         request_context: dict,
         background_tasks: BackgroundTasks,
     ) -> None:
+        try:
+            entry = await DataEntryService(self.session).get(id=data_entry_id)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
+            ) from e
+        data_entry_type = DataEntryTypeEnum(entry.data_entry_type_id)
+        if not is_policy_exempt(data_entry_type) and not can_delete(
+            provenance_of(entry.source)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "ROW_NOT_DELETABLE"},
+            )
         await DataEntryService(self.session).delete(
             id=data_entry_id,
             current_user=current_user,

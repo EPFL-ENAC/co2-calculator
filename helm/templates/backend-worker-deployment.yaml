@@ -1,0 +1,138 @@
+{{- if .Values.worker.enabled }}
+# Plan #2050 Track B — poller-only worker: executes background jobs
+# (recalc, ingestion, sync) so they never compete with API request
+# traffic — including health probes — for the DB pool. No Service, no
+# ingress, no startup probe (nothing routes traffic here, and the
+# wait-for-postgres init container already gates startup). #2049 added
+# a readinessProbe anyway — it gates RollingUpdate progress even
+# without a Service, so a new worker can't swap in before it can reach
+# the DB.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-worker
+  labels:
+    {{- include "co2-calculator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  revisionHistoryLimit: 2
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  replicas: {{ .Values.worker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "co2-calculator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.worker.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "co2-calculator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "co2-calculator.serviceAccountName" . }}
+      {{- with .Values.backend.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      initContainers:
+        {{- if .Values.database.waitForPostgres.enabled }}
+        - name: wait-for-postgres
+          image: {{ .Values.database.waitForPostgres.image.repository }}:{{ .Values.database.waitForPostgres.image.tag }}
+          imagePullPolicy: {{ .Values.database.waitForPostgres.image.pullPolicy }}
+          command: ['sh', '-c']
+          args:
+            - |
+              until pg_isready -d ${DB_URL}; do
+                echo "Waiting for PostgreSQL to be ready..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+          env:
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.databaseSecretName" . }}
+                  key: {{ .Values.database.existingSecret.keys.url }}
+          resources:
+            {{- toYaml .Values.backend.initContainers.waitForPostgres.resources | nindent 12 }}
+        {{- end }}
+      containers:
+        # Same image as the backend deployment — this is the same app
+        # process, just with RUN_BACKGROUND_POLLER/DISPATCH_JOBS_INLINE
+        # flipped on and no port exposed via a Service.
+        - name: worker
+          securityContext:
+            {{- toYaml .Values.backend.securityContext | nindent 12 }}
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.targetPort }}
+              protocol: TCP
+          env:
+            {{- include "co2-calculator.backendSecretEnv" . | nindent 12 }}
+            # Same non-secret config every backend-image pod needs (app
+            # name, provider types, log level, DB pool sizing, ...) —
+            # backend.env was never included here, so the worker crashed
+            # on boot missing required Settings fields (#2050, caught on
+            # dev's first real worker.enabled deploy; unit/integration
+            # tests mock Settings and never exercise this).
+            {{- range $key, $value := .Values.backend.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- range $key, $value := .Values.worker.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            # Unconditional: this template only renders when worker.enabled
+            # is true, and that's the pod whose whole job is to poll and
+            # inline-dispatch. Not exposed via worker.env — see the
+            # matching override in backend-deployment.yaml.
+            - name: RUN_BACKGROUND_POLLER
+              value: "true"
+            - name: DISPATCH_JOBS_INLINE
+              value: "true"
+          livenessProbe:
+            {{- toYaml .Values.worker.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.worker.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- include "co2-calculator.backendSecretVolumeMount" . | nindent 12 }}
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- include "co2-calculator.backendSecretVolume" . | nindent 8 }}
+
+      {{- with .Values.worker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

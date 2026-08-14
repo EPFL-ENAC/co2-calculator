@@ -182,6 +182,14 @@ export default {
     en: 'Manage access in {provider}',
     fr: 'Gérer les accès dans {provider}',
   },
+  co2_calculator_access_cta_roles_doc: {
+    en: 'Roles in the CO₂ Calculator',
+    fr: 'Les rôles dans le Calculateur CO₂',
+  },
+  co2_calculator_access_cta_about_provider: {
+    en: 'About {provider}',
+    fr: 'À propos de {provider}',
+  },
   // Generic {provider} fallback when APP_ACCESS_MANAGEMENT_PROVIDER_NAME is
   // unset, so the popover body reads grammatically without an institution name.
   co2_calculator_access_provider_generic: {

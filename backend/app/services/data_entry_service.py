@@ -8,6 +8,7 @@ from fastapi import BackgroundTasks
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.data_entry_permissions import submodule_policies
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.audit import AuditChangeTypeEnum
@@ -639,10 +640,12 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
         travel_institutional_id_filter: str | None = None,
+        exclude_planner_snapshots: bool = False,
     ) -> ModuleResponse:
         data_entry_types_total_items = await self.repo.get_total_count_by_submodule(
             carbon_report_module_id=carbon_report_module_id,
             travel_institutional_id_filter=travel_institutional_id_filter,
+            exclude_planner_snapshots=exclude_planner_snapshots,
         )
 
         incomplete_new_equipment_count = await self.repo.count_incomplete_new_equipment(
@@ -678,6 +681,7 @@ class DataEntryService:
         sort_order: str = "asc",
         filter: str | None = None,
         institutional_id_filter: str | None = None,
+        exclude_planner_snapshots: bool = False,
         current_user: UserRead | None = None,
         request_context: dict | None = None,
         background_tasks: BackgroundTasks | None = None,
@@ -692,7 +696,12 @@ class DataEntryService:
             sort_order=sort_order,
             filter=filter,
             institutional_id_filter=institutional_id_filter,
+            exclude_planner_snapshots=exclude_planner_snapshots,
         )
+        if response is not None:
+            response.data_entry_policies = submodule_policies(
+                DataEntryTypeEnum(data_entry_type_id)
+            )
 
         if (
             (current_user is not None and current_user.id is not None)

@@ -52,8 +52,14 @@ def pytest_configure():
 
 @pytest.fixture(autouse=True)
 def disable_poller(monkeypatch):
-    """Disable the background poller for all tests."""
+    """Disable the background pollers for all tests.
+
+    No current test drives app.main's lifespan (TestClient calls hit
+    route functions directly), so this is belt-and-suspenders rather
+    than load-bearing today — kept for the day a test does.
+    """
     monkeypatch.setattr("app.main.settings.RUN_BACKGROUND_POLLER", False)
+    monkeypatch.setattr("app.main.settings.RUN_DB_HEALTH_POLLER", False)
 
 
 # ---------------------------------------------------------------------------

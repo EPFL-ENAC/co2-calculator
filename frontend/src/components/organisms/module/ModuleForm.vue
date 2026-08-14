@@ -341,7 +341,6 @@ import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
-  SUBMODULE_PURCHASE_TYPES,
 } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 
@@ -682,13 +681,6 @@ if (props.moduleType === MODULES.Equipment) {
   props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion
 ) {
   factorValueFieldIds.push('unit');
-} else if (
-  props.moduleType === MODULES.Purchase &&
-  props.submoduleType === SUBMODULE_PURCHASE_TYPES.PurchasesCentralized
-) {
-  // coef_to_kg has no form field: it rides along in `form` so the factor
-  // mirror can write it and buildPayload can send it.
-  factorValueFieldIds.push('unit', 'coef_to_kg');
 }
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =

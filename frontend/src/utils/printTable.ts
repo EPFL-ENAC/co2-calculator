@@ -1,4 +1,5 @@
 import type { ModuleField } from 'src/constant/moduleConfig';
+import { resolveTravelerName } from 'src/constant/module-config/traveler-options';
 
 export type PrintRow = Record<string, unknown>;
 
@@ -116,12 +117,13 @@ export function renderPrintCell(
   if (col.field === 'traveler_name') {
     const userInstitutionalId = row['user_institutional_id'] as
       string | undefined;
-    if (userInstitutionalId == null) return '-';
-    const member = ctx.headcountMembers.get(userInstitutionalId);
-    if (member) return member;
-    // The planner has no per-person roster; its travelers are categories.
-    const categoryKey = `planner_traveler_category.${userInstitutionalId}`;
-    return ctx.te(categoryKey) ? ctx.t(categoryKey) : '-';
+    return resolveTravelerName(
+      userInstitutionalId,
+      userInstitutionalId != null
+        ? ctx.headcountMembers.get(userInstitutionalId)
+        : undefined,
+      ctx.t,
+    );
   }
 
   const val = row[col.field];

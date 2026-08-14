@@ -15,32 +15,59 @@ import { PLANNER_MODULE_CONFIG } from 'src/constant/planner-module-config';
  * adaptations applied by `withPlannerAdaptations`:
  * - no CSV top bar (bulk ingest pipelines are unit/year-scoped and would
  *   bypass the plan's report addressing)
- * - Travel's traveler dropdown offers categories instead of headcount names.
+ * - Travel's traveler dropdown offers the "Other traveler" options instead of
+ *   headcount names, except for own-scoped users, whose traveler is pinned to
+ *   themselves so the rows they create stay inside the own-rows read filter.
  *
  * Headcount and Purchases are NOT here — they render through
  * PlannerHeadcountRows (fixed SIUS-category grid) and PlannerPurchaseRows
  * (global budget XOR per-category grid), not data tables.
  */
 
-function plannerTravelerField(categories: string[]): Partial<ModuleField> {
+export interface PlannerSelfTraveler {
+  institutional_id: string;
+  name: string;
+}
+
+function plannerTravelerField(
+  options: Array<{ value: string; labelKey: string }>,
+): Partial<ModuleField> {
   return {
     type: 'select',
-    optionLabelKey: 'planner_traveler_category.{value}',
-    options: categories.map((value) => ({ value, label: value })),
+    options: options.map(({ value, labelKey }) => ({
+      value,
+      label: labelKey,
+    })),
+  };
+}
+
+function selfTravelerField(self: PlannerSelfTraveler): Partial<ModuleField> {
+  return {
+    type: 'select',
+    options: [{ value: self.institutional_id, label: self.name }],
+    default: self.institutional_id,
   };
 }
 
 /** Clone a Calculator config with the planner adaptations applied. */
-function withPlannerAdaptations(module: Module): ModuleConfig {
+function withPlannerAdaptations(
+  module: Module,
+  self: PlannerSelfTraveler | null,
+): ModuleConfig {
   const base = MODULES_CONFIG[module] as ModuleConfig;
-  const travelerCategories =
-    PLANNER_MODULE_CONFIG[module]?.travelerCategories ?? null;
+  const travelerOptions =
+    PLANNER_MODULE_CONFIG[module]?.travelerOptions ?? null;
   const submodules: Submodule[] = (base.submodules ?? []).map((sub) => ({
     ...sub,
     hasTableTopBar: false,
     moduleFields: (sub.moduleFields ?? []).map((field) =>
-      travelerCategories && field.type === 'headcount-member-select'
-        ? { ...field, ...plannerTravelerField(travelerCategories) }
+      travelerOptions && field.type === 'headcount-member-select'
+        ? {
+            ...field,
+            ...(self
+              ? selfTravelerField(self)
+              : plannerTravelerField(travelerOptions)),
+          }
         : field,
     ),
   }));
@@ -48,6 +75,9 @@ function withPlannerAdaptations(module: Module): ModuleConfig {
 }
 
 /** The ModuleConfig to render for a module inside the Simulator Plan. */
-export function getPlannerModuleConfig(module: Module): ModuleConfig {
-  return withPlannerAdaptations(module);
+export function getPlannerModuleConfig(
+  module: Module,
+  self: PlannerSelfTraveler | null = null,
+): ModuleConfig {
+  return withPlannerAdaptations(module, self);
 }

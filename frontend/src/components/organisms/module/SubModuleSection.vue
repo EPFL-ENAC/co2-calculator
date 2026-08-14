@@ -8,23 +8,32 @@
   >
     <template #header>
       <div class="row flex items-center full-width">
-        <div class="col">
-          {{ $t(submodule.tableNameKey, { count: submoduleCount || 0 }) }}
+        <div class="col row items-center no-wrap">
+          <span>
+            {{ $t(submodule.tableNameKey, { count: submoduleCount || 0 }) }}
+          </span>
+          <q-icon
+            v-if="hasTableTooltip && inlineTooltip"
+            :name="outlinedInfo"
+            size="16px"
+            color="grey-6"
+            class="cursor-pointer q-ml-sm"
+            :aria-label="$t('module-info-label')"
+          >
+            <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+              {{ $t(tableTooltipKey) }}
+            </q-tooltip>
+          </q-icon>
         </div>
         <q-icon
-          v-if="hasTableTooltip"
+          v-if="hasTableTooltip && !inlineTooltip"
           :name="outlinedInfo"
           size="sm"
           class="cursor-pointer q-mr-sm"
           :aria-label="$t('module-info-label')"
         >
-          <q-tooltip
-            v-if="hasTableTooltip"
-            anchor="center right"
-            self="top right"
-            class="u-tooltip"
-          >
-            {{ $t(`module-${moduleType}-submodule-${submodule.type}`) }}
+          <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+            {{ $t(tableTooltipKey) }}
           </q-tooltip>
         </q-icon>
       </div>
@@ -127,23 +136,32 @@
   >
     <q-card-section>
       <div class="row flex items-center full-width">
-        <div class="col text-h5 text-weight-medium">
-          {{ $t(submodule.tableNameKey, { count: submoduleCount || 0 }) }}
+        <div class="col row items-center no-wrap text-h5 text-weight-medium">
+          <span>
+            {{ $t(submodule.tableNameKey, { count: submoduleCount || 0 }) }}
+          </span>
+          <q-icon
+            v-if="hasTableTooltip && inlineTooltip"
+            :name="outlinedInfo"
+            size="16px"
+            color="grey-6"
+            class="cursor-pointer q-ml-sm"
+            :aria-label="$t('module-info-label')"
+          >
+            <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+              {{ $t(tableTooltipKey) }}
+            </q-tooltip>
+          </q-icon>
         </div>
         <q-icon
-          v-if="hasTableTooltip"
+          v-if="hasTableTooltip && !inlineTooltip"
           :name="outlinedInfo"
           size="sm"
           class="cursor-pointer q-mr-sm"
           :aria-label="$t('module-info-label')"
         >
-          <q-tooltip
-            v-if="hasTableTooltip"
-            anchor="center right"
-            self="top right"
-            class="u-tooltip"
-          >
-            {{ $t(`module-${moduleType}-submodule-${submodule.type}`) }}
+          <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+            {{ $t(tableTooltipKey) }}
           </q-tooltip>
         </q-icon>
       </div>
@@ -265,6 +283,7 @@ import {
   getSubmoduleLighterColor,
 } from 'src/composables/useModuleIconColors';
 import { canShowModuleForm } from 'src/utils/module-table-access';
+import { submoduleTooltipKey, type TooltipScope } from 'src/utils/tooltipScope';
 interface Option {
   label: string;
   value: string;
@@ -327,6 +346,8 @@ type CommonProps = {
   threshold: Threshold;
   disable: boolean;
   isExplorer?: boolean;
+  /** Which space this section renders in; selects the tooltip text set. */
+  tooltipScope?: TooltipScope;
 };
 
 type ModuleTypeProps = {
@@ -352,6 +373,7 @@ const props = withDefaults(
     showGrantBudget: false,
     grantBudget: null,
     grantBudgetCurrency: null,
+    tooltipScope: 'calculator',
   },
 );
 const authStore = useAuthStore();
@@ -506,11 +528,21 @@ const showModuleForm = computed(
     }),
 );
 
+const tableTooltipKey = computed(() =>
+  submoduleTooltipKey(
+    props.tooltipScope,
+    props.moduleType,
+    props.submodule.type ?? '',
+  ),
+);
+
+// Planner and Explorer sit the icon right after the title, small and grey, to
+// match their module headers; the Calculator keeps its right-aligned icon.
+const inlineTooltip = computed(() => props.tooltipScope !== 'calculator');
+
 const hasTableTooltip = computed(() => {
   if (!props.submodule.type) return false;
-  return (
-    t(`module-${props.moduleType}-submodule-${props.submodule.type}`) !== ''
-  );
+  return t(tableTooltipKey.value) !== '';
 });
 
 // actions

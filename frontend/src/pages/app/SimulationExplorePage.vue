@@ -33,18 +33,39 @@
                 <div class="text-h5 text-weight-medium">
                   {{ $t(m.type) }}
                 </div>
+                <q-icon
+                  v-if="moduleTooltip(m.type)"
+                  :name="outlinedInfo"
+                  size="16px"
+                  color="grey-6"
+                  class="cursor-pointer q-ml-sm"
+                  :aria-label="$t('module-info-label')"
+                  @click.stop
+                >
+                  <q-tooltip
+                    anchor="center right"
+                    self="top right"
+                    class="u-tooltip"
+                  >
+                    {{ moduleTooltip(m.type) }}
+                  </q-tooltip>
+                </q-icon>
               </div>
             </template>
 
             <q-separator />
 
-            <div class="q-px-lg q-py-md">
-              <p
-                v-if="m.type === MODULES.Headcount"
-                class="text-body2 text-grey-7 q-mb-md"
-              >
+            <template v-if="m.type === MODULES.Headcount">
+              <p class="text-body2 text-grey-7 q-px-lg q-pt-md q-mb-md">
                 {{ $t('simulation_headcount_fte_hint') }}
               </p>
+              <PlannerHeadcountRows
+                v-if="carbonReportId != null"
+                :carbon-report-id="carbonReportId"
+                :disable="false"
+              />
+            </template>
+            <div v-else class="q-px-lg q-py-md">
               <div
                 v-for="(sub, subIdx) in m.submodules"
                 :key="`${m.type}-${sub.id}`"
@@ -56,6 +77,7 @@
                   :module-type="m.type"
                   :disable="false"
                   :is-explorer="true"
+                  tooltip-scope="explorer"
                   :submodule-type="sub.type"
                   :data="null"
                   :loading="false"
@@ -134,12 +156,16 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
+import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
 import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import {
   MODULES,
   MODULES_THRESHOLD_TYPES,
+  type Module,
   type Threshold,
 } from 'src/constant/modules';
+import { moduleTooltipKey } from 'src/utils/tooltipScope';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
@@ -150,7 +176,7 @@ import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarb
 
 const router = useRouter();
 const route = useRoute();
-const { locale } = useI18n();
+const { t, locale } = useI18n();
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
@@ -173,6 +199,9 @@ function downloadReport() {
 // below prevents the template from rendering if that invariant is ever broken.
 const unitId = computed(() => workspaceStore.selectedUnit!.id);
 const year = computed(() => workspaceStore.selectedYear!);
+const carbonReportId = computed(
+  () => workspaceStore.selectedCarbonReport?.id ?? null,
+);
 const ready = computed(
   () =>
     workspaceStore.selectedUnit != null && workspaceStore.selectedYear != null,
@@ -190,6 +219,10 @@ const simulatorReady = ref(false);
 const breakdownReady = ref(false);
 
 const modules = computed(() => getExploreModules(yearConfigStore.getModule));
+
+function moduleTooltip(module: Module): string {
+  return t(moduleTooltipKey('explorer', module));
+}
 
 const expandedModules = reactive<Record<string, boolean>>({});
 
@@ -229,11 +262,13 @@ async function prefetchSubmoduleCounts() {
   // One preview_limit=0 request per module instead of one per submodule.
   // data_entry_types_total_items covers all submodule counts in a single response.
   await moduleStore.prefetchAllModuleCounts(
-    modules.value.map((m) => ({
-      type: m.type,
-      unit: unitId.value,
-      year: String(year.value),
-    })),
+    modules.value
+      .filter((m) => m.type !== MODULES.Headcount)
+      .map((m) => ({
+        type: m.type,
+        unit: unitId.value,
+        year: String(year.value),
+      })),
   );
 }
 

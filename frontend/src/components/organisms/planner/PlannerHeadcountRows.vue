@@ -10,7 +10,7 @@
       <!-- Canonical SIUS-category labels from i18n/headcount_factor.ts
            (keyed by the bare code) — same source the Calculator uses. -->
       <label :for="`fte-${row.sius_code}`" class="col text-body2">
-        {{ $t(row.sius_code) }}
+        {{ $t(plannerHeadcountLabelKey(row.sius_code)) }}
       </label>
       <q-input
         :id="`fte-${row.sius_code}`"
@@ -39,9 +39,11 @@ import { useI18n } from 'vue-i18n';
 
 import { api } from 'src/api/http';
 import {
+  PLANNER_HEADCOUNT_CODES as HEADCOUNT_CODES,
   PLANNER_HEADCOUNT_SUBMODULE,
-  PLANNER_SIUS_CODES as SIUS_CODES,
+  plannerHeadcountLabelKey,
 } from 'src/constant/planner-headcount';
+import { useModuleStore } from 'src/stores/modules';
 
 interface HeadcountRow {
   sius_code: string;
@@ -62,9 +64,14 @@ const props = defineProps<{
 
 const $q = useQuasar();
 const { t } = useI18n();
+const moduleStore = useModuleStore();
 
 const rows = ref<HeadcountRow[]>(
-  SIUS_CODES.map((code) => ({ sius_code: code, fte: null, entryId: null })),
+  HEADCOUNT_CODES.map((code) => ({
+    sius_code: code,
+    fte: null,
+    entryId: null,
+  })),
 );
 const savingCode = ref<string | null>(null);
 
@@ -81,7 +88,7 @@ async function load() {
         .filter((it) => it.sius_code)
         .map((it) => [it.sius_code as string, it]),
     );
-    rows.value = SIUS_CODES.map((code) => {
+    rows.value = HEADCOUNT_CODES.map((code) => {
       const item = byCode.get(code);
       return {
         sius_code: code,
@@ -111,9 +118,11 @@ async function save(row: HeadcountRow) {
     }
   } catch {
     $q.notify({ type: 'negative', message: t('planner_headcount_save_error') });
+    return;
   } finally {
     savingCode.value = null;
   }
+  await moduleStore.refreshEmissionBreakdownIfNeeded();
 }
 
 onMounted(load);

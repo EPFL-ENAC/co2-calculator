@@ -6,11 +6,32 @@
     >
       <template #header>
         <q-item-section>
-          {{
-            yearData.is_grant
-              ? $t('planner_project_grant_title')
-              : yearData.year
-          }}
+          <div class="flex items-center">
+            <span>
+              {{
+                yearData.is_grant
+                  ? $t('planner_project_grant_title')
+                  : yearData.year
+              }}
+            </span>
+            <q-icon
+              v-if="sectionTooltip"
+              :name="outlinedInfo"
+              size="16px"
+              color="grey-6"
+              class="cursor-pointer q-ml-sm"
+              :aria-label="$t('module-info-label')"
+              @click.stop
+            >
+              <q-tooltip
+                anchor="center right"
+                self="top right"
+                class="u-tooltip"
+              >
+                {{ sectionTooltip }}
+              </q-tooltip>
+            </q-icon>
+          </div>
         </q-item-section>
       </template>
 
@@ -155,6 +176,23 @@
                 <div class="text-h5 text-weight-medium">
                   {{ $t(entry.config.module) }}
                 </div>
+                <q-icon
+                  v-if="moduleTooltip(entry.config.module)"
+                  :name="outlinedInfo"
+                  size="16px"
+                  color="grey-6"
+                  class="cursor-pointer q-ml-sm"
+                  :aria-label="$t('module-info-label')"
+                  @click.stop
+                >
+                  <q-tooltip
+                    anchor="center right"
+                    self="top right"
+                    class="u-tooltip"
+                  >
+                    {{ moduleTooltip(entry.config.module) }}
+                  </q-tooltip>
+                </q-icon>
               </div>
             </q-item-section>
             <q-item-section side @click.stop>
@@ -415,7 +453,9 @@
               <module-table-section
                 :key="moduleMountKey(entry.config.module)"
                 :type="entry.config.module"
-                :config-override="getPlannerModuleConfig(entry.config.module)"
+                :config-override="
+                  getPlannerModuleConfig(entry.config.module, selfTraveler)
+                "
                 :data="moduleStore.state.data"
                 :loading="moduleStore.state.loading"
                 :error="moduleStore.state.error"
@@ -434,6 +474,7 @@
                 :grant-budgets="entry.module?.budgets ?? null"
                 :grant-budget-currency="yearData.budget_currency"
                 :disable="entry.module?.is_active === false"
+                :tooltip-scope="tooltipScope"
               />
             </template>
           </div>
@@ -450,6 +491,8 @@ import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import { moduleTooltipKey, type TooltipScope } from 'src/utils/tooltipScope';
 import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
 import PlannerPurchaseRows from 'src/components/organisms/planner/PlannerPurchaseRows.vue';
 import PlannerResearchFacilityRows from 'src/components/organisms/planner/PlannerResearchFacilityRows.vue';
@@ -459,13 +502,17 @@ import {
   PLANNER_MODULES,
   type PlannerModuleConfig,
 } from 'src/constant/planner-module-config';
-import { getPlannerModuleConfig } from 'src/constant/planner-module-config/module-configs';
+import {
+  getPlannerModuleConfig,
+  type PlannerSelfTraveler,
+} from 'src/constant/planner-module-config/module-configs';
 import { getModuleTypeId } from 'src/constant/moduleStates';
 import {
   MODULES,
   SUBMODULE_EQUIPMENT_TYPES,
   type Module,
 } from 'src/constant/modules';
+import { useAuthStore } from 'src/stores/auth';
 import { useModuleStore } from 'src/stores/modules';
 import { factorMountKey } from 'src/utils/factor-year';
 import {
@@ -497,6 +544,7 @@ const emit = defineEmits<{
 
 const $q = useQuasar();
 const { t, n } = useI18n();
+const authStore = useAuthStore();
 const moduleStore = useModuleStore();
 const plansStore = useSimulatorPlansStore();
 
@@ -809,12 +857,48 @@ function isEdgeToEdge(module: Module): boolean {
  * Grant tables show kgCO₂eq per year and multiplied over the project's years
  * (#1979). Year sections never do; the RF grid shows the pair on its own rows.
  */
+// The Grant section and the project-year sections carry their own guidance
+// texts, so the tooltip set follows the section kind (tooltips.ts).
+const tooltipScope = computed<TooltipScope>(() =>
+  props.yearData.is_grant ? 'planner-grant' : 'planner-year',
+);
+
+const sectionTooltip = computed(() =>
+  t(
+    props.yearData.is_grant
+      ? 'planner-grant-section-title'
+      : 'planner-year-section-title',
+  ),
+);
+
+function moduleTooltip(module: Module): string {
+  return t(moduleTooltipKey(tooltipScope.value, module));
+}
+
 const grantYearsCount = computed<number | null>(() =>
   props.yearData.is_grant ? (props.projectYearsCount ?? null) : null,
 );
 
+// Grant sections open every module's input form to any unit member; the
+// effective year sections follow the workspace module permissions, so a
+// standard user only sees Travel and External Clouds & AI (#1983).
+const visibleModules = computed<PlannerModuleConfig[]>(() =>
+  PLANNER_MODULES.filter(
+    (config) =>
+      props.yearData.is_grant || authStore.canUserAccessModule(config.module),
+  ),
+);
+
+const selfTraveler = computed<PlannerSelfTraveler | null>(() => {
+  const institutionalId = authStore.user?.institutional_id;
+  if (!institutionalId || authStore.hasUserCanValidateModuleStatus()) {
+    return null;
+  }
+  return { institutional_id: institutionalId, name: authStore.displayName };
+});
+
 const moduleEntries = computed<ModuleEntry[]>(() =>
-  PLANNER_MODULES.map((config) => ({
+  visibleModules.value.map((config) => ({
     config,
     module: props.yearData.modules.find(
       (m) => m.module_type_id === getModuleTypeId(config.module),

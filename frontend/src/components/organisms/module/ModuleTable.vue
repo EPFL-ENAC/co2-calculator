@@ -157,10 +157,13 @@
           :style="getColumnStyle(col)"
         >
           <template v-if="col.editableInline">
-            <template v-if="isRowConditionallyReadOnly(slotProps.row, col)">
-              <span>{{
-                slotProps.row[col.readOnlyDisplayField ?? col.field] ?? ''
-              }}</span>
+            <template
+              v-if="
+                isRowConditionallyReadOnly(slotProps.row, col) ||
+                isRowFieldPolicyLocked(slotProps.row, col)
+              "
+            >
+              <span>{{ renderReadOnlyInlineCell(slotProps.row, col) }}</span>
             </template>
             <module-inline-select
               v-else-if="
@@ -253,7 +256,7 @@
               v-if="showTableRowActions && canEditRows && hasModuleUpload"
               icon="o_delete"
               color="black"
-              :disable="isDisabled"
+              :disable="isDisabled || !isRowPolicyDeletable(slotProps.row)"
               unelevated
               no-caps
               dense
@@ -502,6 +505,7 @@ import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { PermissionAction } from 'src/stores/auth';
 import { getTemplateFileName } from 'src/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
+import { resolveTravelerName } from 'src/constant/module-config/traveler-options';
 import type {
   Module,
   ConditionalSubmoduleProps,
@@ -523,6 +527,7 @@ import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import { formatRowErrorLines } from 'src/utils/rowErrors';
+import { isFieldEditable, isRowDeletable } from 'src/utils/dataEntryPolicy';
 import {
   clampReferencePercentage,
   REFERENCE_PERCENTAGE_MAX,
@@ -1001,6 +1006,29 @@ const tableAccess = computed<ModuleTableAccess>(() => ({
 
 const isDisabled = computed(() => isModuleTableDisabled(tableAccess.value));
 
+// #951: null for submodules the policy layer doesn't cover (planner,
+// embodied energy) — isFieldEditable/isRowDeletable treat null as ungated.
+const dataEntryPolicies = computed(
+  () =>
+    moduleStore.state.dataSubmodule[props.submoduleType]?.data_entry_policies ??
+    null,
+);
+
+function isRowFieldPolicyLocked(row: ModuleRow, col: { field: string }) {
+  return !isFieldEditable(
+    dataEntryPolicies.value,
+    row.source as number | null | undefined,
+    col.field,
+  );
+}
+
+function isRowPolicyDeletable(row: ModuleRow) {
+  return isRowDeletable(
+    dataEntryPolicies.value,
+    row.source as number | null | undefined,
+  );
+}
+
 const canEditRows = computed(() => hasRowEditPermission(tableAccess.value));
 
 const showTableRowActions = computed(
@@ -1315,14 +1343,19 @@ function renderCell(
     const iata = row['destination_iata'] as string | undefined;
     return iata ? `${name ?? iata} (${iata})` : (name ?? '-');
   }
-  // Resolve traveler name from loaded headcount members (user_institutional_id is the source of truth)
+  // Resolve traveler name from loaded headcount members (user_institutional_id
+  // is the source of truth). Sentinels and unmatched SCIPERs are handled by the
+  // shared resolver (issue #1153).
   if (col.field === 'traveler_name') {
     const user_institutional_id = row['user_institutional_id'] as
       string | undefined;
-    if (user_institutional_id != null) {
-      return headcountMembersMap.value.get(user_institutional_id) ?? '-';
+    if (user_institutional_id == null) return '-';
+    const member = headcountMembersMap.value.get(user_institutional_id);
+    if (member) return member;
+    if (user_institutional_id === authStore.user?.institutional_id) {
+      return authStore.displayName;
     }
-    return '-';
+    return resolveTravelerName(user_institutional_id, undefined, $t);
   }
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
@@ -1373,6 +1406,19 @@ function renderCell(
   }
   console.warn('Unexpected cell value type', val);
   return String(val);
+}
+
+// The read-only fallback for a normally-editableInline cell (locked by
+// readOnlyWhen or #951 policy) used to read the raw stored value directly —
+// correct for plain text/numbers, but silently un-translated for
+// option-label fields (e.g. headcount sius_code stores "57", not "Personnel
+// administratif"). Reuses renderCell so every rendering path shares one
+// formatting/translation source of truth.
+function renderReadOnlyInlineCell(row: ModuleRow, col: TableViewColumn) {
+  const targetCol = col.readOnlyDisplayField
+    ? { ...col, field: col.readOnlyDisplayField }
+    : col;
+  return renderCell(row, targetCol);
 }
 
 function getItemName(row: ModuleRow): string {
@@ -1784,7 +1830,7 @@ function isCompletePurchase(row: ModuleRow) {
 }
 
 function isCompletePurchaseAdditional(row: ModuleRow) {
-  const required = ['name', 'annual_consumption', 'coef_to_kg'];
+  const required = ['name', 'unit', 'annual_consumption', 'coef_to_kg'];
   return required.every(
     (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
   );

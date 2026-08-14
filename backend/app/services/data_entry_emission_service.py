@@ -141,11 +141,19 @@ class DataEntryEmissionService:
         data_entry: DataEntry | DataEntryResponse,
         emission_type: EmissionType,
         report: CarbonReport,
+        *,
+        override_cache: dict[int, dict[int, float]] | None = None,
     ) -> float | None:
         """If percentage_of_reference_year is present, compute kg_co2eq from base year.
 
         The override matches the previous-year DataEntry within the same module type
         and data_entry_type, using stable identifiers when available.
+
+        ``override_cache`` (see ``prefetch_percentage_override_cache``) maps
+        ``source_data_entry_id`` to its prefetched per-leaf kg sums, letting a
+        batch caller short-circuit the fast path below — one PK fetch + one
+        sum query per entry otherwise, the shape every Simulator Plan prefill
+        copy carries.
         """
         raw = data_entry.data.get("percentage_of_reference_year")
         if raw is None:
@@ -175,6 +183,13 @@ class DataEntryEmissionService:
         # stored quantities), as documented in the #1556 plan.
         source_entry_id = data_entry.data.get("source_data_entry_id")
         if source_entry_id is not None:
+            leaf_sums = (
+                override_cache.get(int(source_entry_id)) if override_cache else None
+            )
+            if leaf_sums is not None:
+                leaf_ids = get_subtree_leaves(emission_type)
+                prev_kg = sum(leaf_sums.get(lid, 0.0) for lid in leaf_ids)
+                return prev_kg * (percentage / 100.0)
             source_entry = await self.session.get(DataEntry, int(source_entry_id))
             if source_entry is None:
                 return None
@@ -263,6 +278,69 @@ class DataEntryEmissionService:
         )
         return float((await self.session.exec(stmt)).one())
 
+    async def prefetch_percentage_override_cache(
+        self, entries: list[DataEntry], *, unit_id: int | None
+    ) -> dict[int, dict[int, float]]:
+        """Bulk-preload ``source_data_entry_id`` sums for a batch of entries.
+
+        Maps ``source_data_entry_id`` -> {leaf emission_type_id: summed kg}
+        for ``_get_percentage_override_kg``'s ``override_cache`` param. Skips
+        (and leaves to the per-entry fallback, which re-checks and rejects)
+        any source belonging to another unit — same ownership gate as the
+        single-entry path, just applied once per source instead of per call.
+        """
+        if unit_id is None:
+            return {}
+        source_ids = {
+            int(sid)
+            for entry in entries
+            if (sid := entry.data.get("source_data_entry_id")) is not None
+        }
+        if not source_ids:
+            return {}
+
+        sources = (
+            await self.session.exec(
+                select(DataEntry).where(col(DataEntry.id).in_(source_ids))
+            )
+        ).all()
+
+        same_unit_ids: set[int] = set()
+        for source in sources:
+            if source.id is None:
+                continue
+            source_report = await self._get_report_for_data_entry(source)
+            if source_report is not None and source_report.unit_id == unit_id:
+                same_unit_ids.add(source.id)
+
+        return await self._sum_leaves_by_source(same_unit_ids)
+
+    async def _sum_leaves_by_source(
+        self, source_ids: set[int]
+    ) -> dict[int, dict[int, float]]:
+        """GROUP BY sum of persisted kg_co2eq per (source entry, leaf type)."""
+        if not source_ids:
+            return {}
+        stmt = (
+            select(
+                DataEntryEmission.data_entry_id,
+                DataEntryEmission.emission_type_id,
+                func.sum(DataEntryEmission.kg_co2eq),
+            )
+            .where(col(DataEntryEmission.data_entry_id).in_(source_ids))
+            .group_by(
+                col(DataEntryEmission.data_entry_id),
+                col(DataEntryEmission.emission_type_id),
+            )
+        )
+        # Seed every requested id so a source with no persisted emissions yet
+        # (e.g. not yet recalculated) still hits the cache with an empty sum
+        # instead of falling back to the per-entry path.
+        sums: dict[int, dict[int, float]] = {sid: {} for sid in source_ids}
+        for data_entry_id, leaf_type_id, kg in await self.session.exec(stmt):
+            sums.setdefault(data_entry_id, {})[leaf_type_id] = float(kg)
+        return sums
+
     async def prepare_create(
         self,
         data_entry: DataEntry | DataEntryResponse,
@@ -272,6 +350,7 @@ class DataEntryEmissionService:
         factor_query_cache: dict | None = None,
         slice_cache: dict | None = None,
         factor_resolver: FactorResolver | None = None,
+        override_cache: dict[int, dict[int, float]] | None = None,
     ) -> list[DataEntryEmission]:
         """Prepare emission records for any data entry type.
         TODO: Make this function readable!
@@ -436,6 +515,7 @@ class DataEntryEmissionService:
                         data_entry=data_entry,
                         emission_type=emission_type,
                         report=report,
+                        override_cache=override_cache,
                     )
                     if override_kg is not None:
                         results.append(
@@ -837,12 +917,14 @@ class DataEntryEmissionService:
         carbon_report_module_id: int,
         aggregate_by: str = "emission_type_id",
         aggregate_field: str = "kg_co2eq",
+        exclude_planner_snapshots: bool = False,
     ) -> dict[str, float | None]:
         """Get aggregated emission statistics for a carbon report module."""
         stats = await self.repo.get_stats(
             carbon_report_module_id,
             aggregate_by,
             aggregate_field,
+            exclude_planner_snapshots=exclude_planner_snapshots,
         )
         return stats
 

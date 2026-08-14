@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.models.building_room import BuildingRoom
 from app.models.carbon_report import CarbonReport, CarbonReportModule
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.location import Location, TransportModeEnum
@@ -450,6 +450,7 @@ class DataEntryRepository:
         self,
         carbon_report_module_id: int,
         travel_institutional_id_filter: str | None = None,
+        exclude_planner_snapshots: bool = False,
     ) -> dict[int, int]:
         """Docstring for get_total_count_by_submodule
 
@@ -497,6 +498,12 @@ class DataEntryRepository:
                     col(DataEntry.data_entry_type_id).not_in(travel_type_ids),
                     DataEntry.data["user_institutional_id"].as_string()
                     == travel_institutional_id_filter,
+                )
+            )
+        if exclude_planner_snapshots:
+            query = query.where(
+                col(DataEntry.source).is_distinct_from(
+                    DataEntrySourceEnum.PLANNER_SNAPSHOT.value
                 )
             )
         result = await self.session.execute(query)
@@ -698,6 +705,7 @@ class DataEntryRepository:
         sort_order: str,
         filter: str | None = None,
         institutional_id_filter: str | None = None,
+        exclude_planner_snapshots: bool = False,
     ) -> SubmoduleResponse:
         is_travel_entry = data_entry_type_id in (
             DataEntryTypeEnum.plane.value,
@@ -967,6 +975,13 @@ class DataEntryRepository:
                 == institutional_id_filter
             )
 
+        if exclude_planner_snapshots:
+            statement = statement.where(
+                col(DataEntry.source).is_distinct_from(
+                    DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+                )
+            )
+
         handler_default = getattr(handler, "default_where", [])
         if handler_default:
             statement = statement.where(*handler_default)
@@ -1043,6 +1058,12 @@ class DataEntryRepository:
             count_stmt = count_stmt.where(
                 DataEntry.data["user_institutional_id"].as_string()
                 == institutional_id_filter
+            )
+        if exclude_planner_snapshots:
+            count_stmt = count_stmt.where(
+                col(DataEntry.source).is_distinct_from(
+                    DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+                )
             )
         if handler_default:
             count_stmt = count_stmt.where(*handler_default)
