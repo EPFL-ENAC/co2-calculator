@@ -58,7 +58,7 @@ class DepartureDateMixin(BaseModel):
 
 
 class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
-    user_institutional_id: str
+    user_institutional_id: str | None
     origin_iata: str
     destination_iata: str
     cabin_class: str | None = None
@@ -74,7 +74,7 @@ class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryRespon
 
 
 class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
-    user_institutional_id: str
+    user_institutional_id: str | None
     origin_name: str
     destination_name: str
     cabin_class: str | None = None
@@ -92,7 +92,7 @@ class ProfessionalTravelPlaneHandlerCreate(
 ):
     origin_iata: str  ## IATA code
     destination_iata: str  ## IATA code
-    user_institutional_id: str
+    user_institutional_id: str | None
     departure_date: date | None = None
     number_of_trips: int = 1
     cabin_class: str
@@ -110,7 +110,7 @@ class ProfessionalTravelPlaneHandlerCreate(
 class ProfessionalTravelTrainHandlerCreate(
     TrainCabinClassValidationMixin, DepartureDateMixin, DataEntryCreate
 ):
-    user_institutional_id: str
+    user_institutional_id: str | None
     origin_name: str
     destination_name: str
     # check if necessary after migration to new reference location for train
