@@ -292,7 +292,7 @@ def submodule_policies(
                 | ALWAYS_WRITABLE_FIELDS
             ),
         )
-        for provenance in Provenance
+        for provenance in list(Provenance)
     }
     return DataEntryPolicies(user=branches["user"], imported=branches["imported"])
 
@@ -335,7 +335,7 @@ def _validate_registry() -> None:
                 continue
             handler = BaseModuleHandler.get_by_type(data_entry_type)
             valid_fields = set(handler.update_dto.model_fields)
-            for provenance in Provenance:
+            for provenance in list(Provenance):
                 fields = editable_fields(module_type, data_entry_type, provenance)
                 unknown = fields - valid_fields
                 if unknown:

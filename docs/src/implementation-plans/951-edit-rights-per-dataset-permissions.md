@@ -581,6 +581,21 @@ avoid (see PERMISSIONS comment on train's fields). Needs either a proper
 inline autocomplete component or a decision that this pair is edit-dialog-
 only; not done in this pass.
 
+**Tried and reverted, same day: wiring the dormant edit-dialog modal for
+this.** `ModuleForm.vue` already had full edit-mode support for
+`direction-input` (pre-fills from `origin_iata`/`origin_name`, resolves
+the right paired fields on selection) — the modal
+(`editDialogOpen`/`editInputs`/`editRowData` in `ModuleTable.vue`) was
+built for it and never wired to a trigger. Wiring an "edit" action-column
+icon for Travel rows worked end-to-end (verified via `make type-check` +
+full frontend suite), but product reached a different consensus before
+merge: **no modal/edit-button for table rows** — inline-only editing, and
+From/To (IATA code, train station name) simply stay non-editable inline
+rather than gain a modal. Date stays inline-editable (unchanged). Reverted
+via a clean `git revert` of the wiring commit rather than leaving unused
+code behind. If From/To editability is wanted later, it needs a proper
+inline autocomplete component, not the modal path.
+
 ## SCIPER (user_institutional_id) made updatable on a user's own Headcount row (2026-08-13)
 
 Manual QA also surfaced the product call: SCIPER should be editable when
