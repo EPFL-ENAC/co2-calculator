@@ -49,11 +49,21 @@ PLANNER_PREFILLED_MODULE_TYPES: set[ModuleTypeEnum] = {
     ModuleTypeEnum.external_cloud_and_ai,
 }
 
+# Simulator Plan plain-copy modules: reference-year rows are copied as normal
+# editable planner entries, without the ``percentage_of_reference_year`` /
+# ``source_data_entry_id`` reference mechanism (#2018). The frontend keeps
+# ``behavior === 'empty'`` for them, so no reference columns render.
+PLANNER_PLAIN_COPY_MODULE_TYPES: set[ModuleTypeEnum] = {
+    ModuleTypeEnum.professional_travel,
+}
+
 # Simulator Plan modules emptied when a plan-year's reference year changes.
 # The prefilled ones are rebuilt from the new baseline; purchase is manual
 # input whose classes and factors are resolved against the reference year, so
 PLANNER_REFERENCE_SCOPED_MODULE_TYPES: set[ModuleTypeEnum] = (
-    PLANNER_PREFILLED_MODULE_TYPES | {ModuleTypeEnum.purchase}
+    PLANNER_PREFILLED_MODULE_TYPES
+    | PLANNER_PLAIN_COPY_MODULE_TYPES
+    | {ModuleTypeEnum.purchase}
 )
 
 # corresponding data_entry_type enum for each module type

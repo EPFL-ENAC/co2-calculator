@@ -28,6 +28,7 @@ import {
 import {
   carbonReportLookupPath,
   resolveCarbonProject,
+  type CarbonProject,
 } from 'src/constant/carbon-project';
 
 /**
@@ -436,14 +437,17 @@ export const useModuleStore = defineStore('modules', () => {
   // The planner addresses reports by id directly (a unit can hold several
   // plans with overlapping years, so unit/year cannot identify a report):
   // planner callers pass `carbonReportId` to modulePath and never reach here.
+  // `project` overrides the route's context for cross-project lookups (the
+  // planner reading the reference year's Calculator roster).
   async function resolveCarbonReportId(
     unit: number | string,
     year: number | string,
+    project: CarbonProject = carbonProject.value,
   ): Promise<number> {
-    const key = `${unit}|${year}|${carbonProject.value}`;
+    const key = `${unit}|${year}|${project}`;
     const cached = reportIdCache[key];
     if (cached) return cached;
-    const path = carbonReportLookupPath(carbonProject.value, unit, year);
+    const path = carbonReportLookupPath(project, unit, year);
     const report = await api.get(path).json<{ id: number }>();
     reportIdCache[key] = report.id;
     return report.id;

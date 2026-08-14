@@ -16,6 +16,7 @@ from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.module_type import (
+    PLANNER_PLAIN_COPY_MODULE_TYPES,
     PLANNER_PREFILLED_MODULE_TYPES,
     PLANNER_REFERENCE_SCOPED_MODULE_TYPES,
     ModuleTypeEnum,
@@ -370,7 +371,7 @@ class SimulatorPlanService:
     async def _prefill_reference_modules(
         self, report: CarbonReport | CarbonReportRead
     ) -> None:
-        """Empty every reference-scoped module and rebuild the prefilled ones.
+        """Empty every reference-scoped module, rebuild prefilled + copied ones.
 
         Runs on reference-year set/change/removal (there is no manual prefill
         trigger). The modules are emptied first, so a module never mixes two
@@ -390,8 +391,11 @@ class SimulatorPlanService:
             for m in modules
             if m.module_type_id in PLANNER_REFERENCE_SCOPED_MODULE_TYPES
         ]
-        prefilled = [
-            m for m in scoped if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
+        rebuilt = [
+            m
+            for m in scoped
+            if m.module_type_id
+            in PLANNER_PREFILLED_MODULE_TYPES | PLANNER_PLAIN_COPY_MODULE_TYPES
         ]
         await self._clear_module_entries([m.id for m in scoped if m.id is not None])
         if report.reference_year is None:
@@ -401,11 +405,15 @@ class SimulatorPlanService:
         )
         if ref_report is None:
             return
-        for module_type_id in sorted(m.module_type_id for m in prefilled):
+        for module_type_id in sorted(m.module_type_id for m in rebuilt):
             # The grant RF grid starts from the reference year's platform
             # list, not from copied entries (#1980) — cleared above, left
-            # empty for the user's own selection.
-            if report.is_grant and module_type_id == ModuleTypeEnum.research_facilities:
+            # empty for the user's own selection. Grant travel is planned
+            # from scratch too (#2018).
+            if report.is_grant and module_type_id in (
+                ModuleTypeEnum.research_facilities,
+                ModuleTypeEnum.professional_travel,
+            ):
                 continue
             if module_type_id == ModuleTypeEnum.headcount:
                 await self.prefill_headcount_from_reference(
@@ -456,7 +464,10 @@ class SimulatorPlanService:
         Destructive and idempotent: the module's entries are deleted first, then
         the reference year's are copied at ``percentage_of_reference_year =
         100``. Each copy keeps ``source_data_entry_id`` so the % slider computes
-        against the live reference entry. Returns the copied count.
+        against the live reference entry. Plain-copy modules
+        (``PLANNER_PLAIN_COPY_MODULE_TYPES``) skip both fields: their copies are
+        ordinary editable entries whose emissions recompute from the row data.
+        Returns the copied count.
 
         The copy + emission-compute loop is batched by
         ``_persist_prefill_entries`` — see plan/perf notes on this function.
@@ -504,6 +515,7 @@ class SimulatorPlanService:
         default_percentage = (
             0 if report.is_grant and module_type_id == ModuleTypeEnum.equipment else 100
         )
+        plain_copy = module_type_id in PLANNER_PLAIN_COPY_MODULE_TYPES
         copies: list[DataEntry] = []
         for src in await entry_repo.list_by_module(ref_module.id):
             copy = DataEntry(
@@ -512,7 +524,9 @@ class SimulatorPlanService:
                 unit_id=report.unit_id,
                 year=report.year,
                 source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
-                data={
+                data=dict(src.data)
+                if plain_copy
+                else {
                     **src.data,
                     "percentage_of_reference_year": default_percentage,
                     "source_data_entry_id": src.id,

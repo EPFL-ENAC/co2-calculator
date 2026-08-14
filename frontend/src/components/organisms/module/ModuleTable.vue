@@ -506,6 +506,7 @@ import { PermissionAction } from 'src/stores/auth';
 import { getTemplateFileName } from 'src/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 import { resolveTravelerName } from 'src/constant/module-config/traveler-options';
+import { CARBON_PROJECT } from 'src/constant/carbon-project';
 import type {
   Module,
   ConditionalSubmoduleProps,
@@ -2131,16 +2132,27 @@ onMounted(async () => {
     );
   }
 
-  // For professional travel, pre-load headcount members to resolve traveler names in the table
+  // For professional travel, pre-load headcount members to resolve traveler names
+  // in the table. Plan reports hold no member roster, so planner tables
+  // (carbonReportId set) read the reference year's Calculator roster instead —
+  // copied reference rows carry real institutional ids (#2018). Units without a
+  // Calculator report for that year fail the lookup and keep the fallback labels.
   if (
     props.moduleType === MODULES.ProfessionalTravel &&
     props.unitId &&
     props.year
   ) {
     try {
-      const members: HeadcountMemberDropdownItem[] = await getHeadcountMembers(
-        await moduleStore.resolveCarbonReportId(props.unitId, props.year),
-      );
+      const rosterReportId =
+        props.carbonReportId != null
+          ? await moduleStore.resolveCarbonReportId(
+              props.unitId,
+              props.factorYear ?? props.year,
+              CARBON_PROJECT.calculator,
+            )
+          : await moduleStore.resolveCarbonReportId(props.unitId, props.year);
+      const members: HeadcountMemberDropdownItem[] =
+        await getHeadcountMembers(rosterReportId);
       headcountMembersMap.value = new Map(
         members.map((m) => [m.institutional_id, m.name]),
       );
