@@ -14,6 +14,9 @@ from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions import EmissionType
 from app.repositories.data_entry_repo import DEFAULT_FILTER_MAP, DataEntryRepository
 from app.schemas.data_entry import DataEntryUpdate
+from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
+    TRAVELER_OTHER_INTERNAL,
+)
 
 # ======================================================================
 # CRUD Operation Tests
@@ -1553,3 +1556,116 @@ async def test_detach_handles_none_attached_and_already_detached(
     await db_session.flush()
     repo._detach(None, entry, other)
     assert other not in db_session.sync_session
+
+
+# ======================================================================
+# Traveler sentinel resolution matrix (#1153, -1/null scheme)
+# ======================================================================
+
+
+def _plane_entry(module_id: int, sciper: str | None) -> DataEntry:
+    return DataEntry(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data={
+            "user_institutional_id": sciper,
+            "origin_iata": "GVA",
+            "destination_iata": "ZRH",
+            "cabin_class": "economy",
+        },
+    )
+
+
+def _member_entry(module_id: int, sciper: str | None, name: str) -> DataEntry:
+    return DataEntry(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.member,
+        status=DataEntryStatusEnum.PENDING,
+        data={
+            "user_institutional_id": sciper,
+            "name": name,
+            "sius_code": "51",
+            "fte": 1.0,
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_traveler_resolution_matrix(db_session: AsyncSession):
+    """PRD §4 matrix, driven through the real get_submodule_data query.
+
+    Every row must round-trip its stored user_institutional_id unchanged
+    (never overwritten by the resolver), regardless of whether a Headcount
+    match exists.
+
+    traveler_name's resolution *outcome* isn't independently observable
+    here: ProfessionalTravelPlaneHandlerResponse doesn't declare that field,
+    so model_validate silently drops it before it ever reaches
+    response.items. The "NULL = NULL never spuriously matches" property is
+    ANSI SQL three-valued-logic semantics (a database-engine guarantee, not
+    application logic) — this test can't and doesn't need to re-verify it
+    beyond confirming the query doesn't crash when a second NULL-valued
+    member row exists (see the module_a member seed below).
+    """
+    repo = DataEntryRepository(db_session)
+
+    module_a = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    module_b = CarbonReportModule(
+        carbon_report_id=2,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module_a)
+    db_session.add(module_b)
+    await db_session.flush()
+
+    # Headcount: "123456" is a member of module_a's report only.
+    db_session.add(_member_entry(module_a.id, "123456", "Ada Lovelace"))
+    # A second module_a member with no SCIPER yet (#951 made it optional).
+    # Guards against NULL-fan-out/crash risk: the correlated subquery's
+    # .limit(1) exists so that if a driver/dialect ever treated
+    # NULL = NULL as true, matching >1 row would raise "more than one row
+    # returned by a subquery used as an expression" instead of silently
+    # mis-resolving a name. Not a name-resolution check (unobservable here).
+    db_session.add(_member_entry(module_a.id, None, "No Sciper Yet"))
+    # A different unit/year's Headcount also has "999999" — must NOT resolve
+    # to module_a's travel row with the same SCIPER (unit isolation, PRD §4).
+    db_session.add(_member_entry(module_b.id, "999999", "Wrong Unit Person"))
+    await db_session.flush()
+
+    rows = {
+        "matched": _plane_entry(module_a.id, "123456"),
+        "external": _plane_entry(module_a.id, None),
+        "internal_explicit": _plane_entry(module_a.id, TRAVELER_OTHER_INTERNAL),
+        "unresolved_source_id": _plane_entry(module_a.id, "45005"),
+        "wrong_unit_match": _plane_entry(module_a.id, "999999"),
+    }
+    for entry in rows.values():
+        db_session.add(entry)
+    await db_session.flush()
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module_a.id,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    by_id = {item.id: item for item in response.items}
+
+    # Every stored value survives unchanged — resolution never rewrites data.
+    assert by_id[rows["matched"].id].user_institutional_id == "123456"
+    assert by_id[rows["external"].id].user_institutional_id is None
+    assert (
+        by_id[rows["internal_explicit"].id].user_institutional_id
+        == TRAVELER_OTHER_INTERNAL
+    )
+    assert by_id[rows["unresolved_source_id"].id].user_institutional_id == "45005"
+    assert by_id[rows["wrong_unit_match"].id].user_institutional_id == "999999"
