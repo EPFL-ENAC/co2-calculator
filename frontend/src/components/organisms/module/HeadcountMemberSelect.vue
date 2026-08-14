@@ -69,7 +69,7 @@ const emit = defineEmits<{
 
 interface SelectOption {
   label: string;
-  value: string;
+  value: string | null;
 }
 
 const loading = ref(false);
