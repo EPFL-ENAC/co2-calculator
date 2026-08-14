@@ -169,6 +169,12 @@ these:
      explicitly, with a comment explaining the asymmetry with the
      JSON-row path. Internal (`"-1"`) needs no change — it survives the
      `or ""` coercion untouched (it's a truthy string).
+  4. **`HeadcountMemberSelect.vue`'s `SelectOption` interface** (found during
+     plan-writing self-review, not caught in the original brainstorming
+     pass): it types `value: string`, but the dropdown already pushes
+     `{ value: TRAVELER_OTHER_EXTERNAL }` — once that constant is `null`,
+     this is a type error, not a runtime bug (the `q-select` binding is
+     already `string | null`). Widen the interface to `value: string | null`.
 
 ## 6. Migration
 
