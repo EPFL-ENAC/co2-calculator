@@ -17,6 +17,7 @@ from app.services.data_ingestion.api_providers.base_tableau_api_provider import 
 )
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
     TRAVELER_OTHER_EXTERNAL,
+    TRAVELER_OTHER_INTERNAL,
     ProfessionalTravelApiProvider,
 )
 
@@ -33,6 +34,17 @@ class TestToBool:
     def test_false_values(self):
         for v in ("false", "0", "no", "off", "", "random"):
             assert to_bool(v) is False
+
+
+# ---------------------------------------------------------------------------
+# Sentinel constants contract
+# ---------------------------------------------------------------------------
+
+
+def test_sentinel_constants_are_the_agreed_literals():
+    """Pins the exact wire values — frontend traveler-options.ts must match."""
+    assert TRAVELER_OTHER_INTERNAL == "-1"
+    assert TRAVELER_OTHER_EXTERNAL is None
 
 
 # ---------------------------------------------------------------------------
@@ -357,6 +369,9 @@ class TestTransformData:
         result = await provider.transform_data(records)
         assert len(result) == 1
         assert result[0]["user_institutional_id"] == TRAVELER_OTHER_EXTERNAL
+        # Pin the sentinel scheme itself (not just the imported symbol):
+        # External other is real JSON null, not a string sentinel.
+        assert result[0]["user_institutional_id"] is None
 
     async def test_allows_none_sciper(self, provider):
         records = [self._make_record(SCIPER=None)]

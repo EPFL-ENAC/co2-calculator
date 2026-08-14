@@ -18,11 +18,19 @@ from app.services.data_ingestion.api_providers.base_tableau_api_provider import 
 
 logger = get_logger(__name__)
 
-# Sentinel ``user_institutional_id`` for a traveler with no EPFL SCIPER
-# (#1153). Must match ``TRAVELER_OTHER_EXTERNAL`` in
-# frontend/src/constant/module-config/traveler-options.ts, which resolves it
-# to the "Other traveler (external)" display label.
-TRAVELER_OTHER_EXTERNAL = "__other_external__"
+# Sentinel ``user_institutional_id`` values for a traveler not tied to a
+# resolvable Headcount identity (#1153, revised to the -1/null scheme —
+# see docs/src/implementation-plans/1153-traveler-sentinel-resolution-prd.md).
+# Must match the same-named constants in
+# frontend/src/constant/module-config/traveler-options.ts.
+# - INTERNAL: traveler has a SCIPER but it doesn't resolve against this
+#   report's Headcount roster. Not assigned by ingestion (a Tableau row
+#   either has a SCIPER or doesn't) — read-time resolution only, defined
+#   here for centralized reuse (tests, future create-DTO validation).
+# - EXTERNAL: traveler has no SCIPER at all. Ingestion assigns this on a
+#   blank/None/whitespace SCIPER.
+TRAVELER_OTHER_INTERNAL = "-1"
+TRAVELER_OTHER_EXTERNAL = None
 
 
 class ProfessionalTravelApiProvider(BaseTableauApiProvider):
