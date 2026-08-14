@@ -400,7 +400,7 @@ async def export_audit_logs(
                 ]
             )
 
-        content = output.getvalue()
+        content = "\ufeff" + output.getvalue()
         return StreamingResponse(
             iter([content]),
             media_type="text/csv",

@@ -48,6 +48,7 @@ import { formatTonnesForChart } from 'src/utils/number';
 import { stackShade } from 'src/utils/chart-shades';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
+import { downloadCsv, escapeCsvValue } from 'src/utils/csvDownload';
 
 const props = defineProps({
   breakdownData: {
@@ -1438,10 +1439,7 @@ const downloadPNG = () =>
   downloadEchartAsPng(chartRef.value?.chart, 'module-carbon-footprint');
 
 const downloadCSV = () => {
-  const escape = (v: unknown) => {
-    const s = String(v ?? '');
-    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const escape = escapeCsvValue;
 
   const rows = buildCarbonFootprintCsvRows(
     datasetSource.value,
@@ -1461,11 +1459,10 @@ const downloadCSV = () => {
     ),
   ].join('\n');
 
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = `module-carbon-footprint-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadCsv(
+    csv,
+    `module-carbon-footprint-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`,
+  );
 };
 </script>
 

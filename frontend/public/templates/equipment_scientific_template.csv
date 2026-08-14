@@ -1,4 +1,4 @@
-equipment_class,sub_class,equipment_id,name,active_usage_hours_per_week,standby_usage_hours_per_week,note,kg_co2eq
+﻿equipment_class,sub_class,equipment_id,name,active_usage_hours_per_week,standby_usage_hours_per_week,note,kg_co2eq
 Power supplies,,"","","","","",""
 Amplifiers,,"","","","","",""
 Signal analysis,,"","","","","",""

@@ -1,4 +1,4 @@
-provider,usage_type,requests_per_user_per_day,fte_count,note
+﻿provider,usage_type,requests_per_user_per_day,fte_count,note
 Gemini (Google),text,1_5,0.8,
 Mistral AI,text,5_20,3,
 Claude (Anthropic),text,20_100,5,

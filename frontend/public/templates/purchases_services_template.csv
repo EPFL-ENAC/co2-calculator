@@ -1,2 +1,2 @@
-name,supplier,quantity,total_spent_amount,currency,purchase_institutional_code,purchase_additional_code,purchase_institutional_description,note
+﻿name,supplier,quantity,total_spent_amount,currency,purchase_institutional_code,purchase_additional_code,purchase_institutional_description,note
 PB26 Plasma box shower,DHL Express Schweiz AG,1.0,72.92,chf,73152100,NB87,,

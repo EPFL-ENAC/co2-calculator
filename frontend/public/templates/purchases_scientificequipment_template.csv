@@ -1,2 +1,2 @@
-name,supplier,quantity,total_spent_amount,currency,purchase_institutional_code,purchase_additional_code,purchase_institutional_description,note
+﻿name,supplier,quantity,total_spent_amount,currency,purchase_institutional_code,purchase_additional_code,purchase_institutional_description,note
 Cathode TFE 174C,Gloor Instruments AG,1.0,5026.65,chf,D,NB61,,
