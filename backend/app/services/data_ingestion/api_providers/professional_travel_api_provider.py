@@ -94,8 +94,7 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
 
         if any(counts.values()):
             logger.info(
-                f"Travel feed missing-value counts (of {len(raw_data)} rows): "
-                f"{counts}"
+                f"Travel feed missing-value counts (of {len(raw_data)} rows): {counts}"
             )
 
     async def transform_data(

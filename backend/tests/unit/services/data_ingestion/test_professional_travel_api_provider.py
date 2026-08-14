@@ -452,9 +452,7 @@ class TestTransformData:
         ):
             await provider.transform_data(records)
 
-        assert not any(
-            "missing-value counts" in r.message for r in caplog.records
-        )
+        assert not any("missing-value counts" in r.message for r in caplog.records)
 
     async def test_resolve_modules_raises_when_all_units_missing(self, provider):
         provider.data_session = MagicMock()
