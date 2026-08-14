@@ -35,6 +35,7 @@ use([
 import { formatTonnesForChart } from 'src/utils/number';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
+import { downloadCsv, escapeCsvValue } from 'src/utils/csvDownload';
 
 const props = defineProps<{
   perPersonBreakdown?: Record<string, number> | null;
@@ -446,10 +447,7 @@ const downloadPNG = () =>
   downloadEchartAsPng(chartRef.value?.chart, 'carbon-footprint-per-person');
 
 const downloadCSV = () => {
-  const escape = (v: unknown) => {
-    const s = String(v ?? '');
-    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const escape = escapeCsvValue;
 
   const headers = [
     ...new Set(datasetSource.value.flatMap((item) => Object.keys(item))),
@@ -464,11 +462,10 @@ const downloadCSV = () => {
     ),
   ].join('\n');
 
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = `carbon-footprint-per-person-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadCsv(
+    csv,
+    `carbon-footprint-per-person-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`,
+  );
 };
 </script>
 

@@ -1,4 +1,4 @@
-name,unit,quantity,note
+﻿name,unit,quantity,note
 natural_gas,kWh,1200,
 heating_oil,kWh,800,
 biomethane,kWh,500,

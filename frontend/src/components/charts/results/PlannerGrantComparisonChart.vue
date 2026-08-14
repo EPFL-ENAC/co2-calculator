@@ -64,6 +64,7 @@ import {
 } from 'src/constant/charts';
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
+import { downloadCsv, escapeCsvValue } from 'src/utils/csvDownload';
 import { withYearRange } from 'src/utils/plannerYearRange';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
 
@@ -357,10 +358,7 @@ const downloadPNG = () =>
 
 /** One CSV per view — a grant-proposal file and an effective file. */
 const downloadCSV = () => {
-  const escape = (v: unknown) => {
-    const s = String(v ?? '');
-    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const escape = escapeCsvValue;
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const files: { name: string; view: 'grant' | 'years' }[] = [
     { name: `grant-proposal-${stamp}.csv`, view: 'grant' },
@@ -375,11 +373,7 @@ const downloadCSV = () => {
       [t('csv_header_category'), t('csv_header_co2')].map(escape).join(','),
       ...labels.map((label, idx) => [label, totals[idx]].map(escape).join(',')),
     ].join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = file.name;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    downloadCsv(csv, file.name);
   }
 };
 </script>
