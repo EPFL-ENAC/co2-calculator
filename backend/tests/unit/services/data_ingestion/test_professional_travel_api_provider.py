@@ -16,6 +16,8 @@ from app.services.data_ingestion.api_providers.base_tableau_api_provider import 
     to_bool,
 )
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
+    TRAVELER_OTHER_EXTERNAL,
+    TRAVELER_OTHER_INTERNAL,
     ProfessionalTravelApiProvider,
 )
 
@@ -32,6 +34,17 @@ class TestToBool:
     def test_false_values(self):
         for v in ("false", "0", "no", "off", "", "random"):
             assert to_bool(v) is False
+
+
+# ---------------------------------------------------------------------------
+# Sentinel constants contract
+# ---------------------------------------------------------------------------
+
+
+def test_sentinel_constants_are_the_agreed_literals():
+    """Pins the exact wire values — frontend traveler-options.ts must match."""
+    assert TRAVELER_OTHER_INTERNAL == "-1"
+    assert TRAVELER_OTHER_EXTERNAL is None
 
 
 # ---------------------------------------------------------------------------
@@ -348,10 +361,29 @@ class TestTransformData:
         result = await provider.transform_data(records)
         assert len(result) == 0
 
-    async def test_filters_missing_sciper(self, provider):
+    async def test_allows_missing_sciper(self, provider):
+        # #1153: SCIPER is no longer mandatory — a traveler with no EPFL
+        # SCIPER still comes through, tagged with the external-traveler
+        # sentinel the frontend resolves to "Other traveler (external)".
         records = [self._make_record(SCIPER="")]
         result = await provider.transform_data(records)
-        assert len(result) == 0
+        assert len(result) == 1
+        assert result[0]["user_institutional_id"] == TRAVELER_OTHER_EXTERNAL
+        # Pin the sentinel scheme itself (not just the imported symbol):
+        # External other is real JSON null, not a string sentinel.
+        assert result[0]["user_institutional_id"] is None
+
+    async def test_allows_none_sciper(self, provider):
+        records = [self._make_record(SCIPER=None)]
+        result = await provider.transform_data(records)
+        assert len(result) == 1
+        assert result[0]["user_institutional_id"] == TRAVELER_OTHER_EXTERNAL
+
+    async def test_allows_whitespace_sciper(self, provider):
+        records = [self._make_record(SCIPER="   ")]
+        result = await provider.transform_data(records)
+        assert len(result) == 1
+        assert result[0]["user_institutional_id"] == TRAVELER_OTHER_EXTERNAL
 
     async def test_filters_missing_iata(self, provider):
         records = [
@@ -388,6 +420,39 @@ class TestTransformData:
         records = [self._make_record(**{"Centre financier": None})]
         result = await provider.transform_data(records)
         assert result[0]["unit_institutional_id"] is None
+
+    async def test_logs_missing_field_counts(self, provider, caplog):
+        import logging
+
+        records = [
+            self._make_record(SCIPER=""),
+            self._make_record(**{"IN_Departure date": ""}),
+        ]
+        with caplog.at_level(
+            logging.INFO,
+            logger="app.services.data_ingestion."
+            "api_providers.professional_travel_api_provider",
+        ):
+            await provider.transform_data(records)
+
+        info_logs = [r.message for r in caplog.records if r.levelno == logging.INFO]
+        assert any("missing-value counts" in msg for msg in info_logs), info_logs
+        summary = next(msg for msg in info_logs if "missing-value counts" in msg)
+        assert "'SCIPER': 1" in summary
+        assert "'IN_Departure date': 1" in summary
+
+    async def test_no_missing_field_log_when_complete(self, provider, caplog):
+        import logging
+
+        records = [self._make_record()]
+        with caplog.at_level(
+            logging.INFO,
+            logger="app.services.data_ingestion."
+            "api_providers.professional_travel_api_provider",
+        ):
+            await provider.transform_data(records)
+
+        assert not any("missing-value counts" in r.message for r in caplog.records)
 
     async def test_resolve_modules_raises_when_all_units_missing(self, provider):
         provider.data_session = MagicMock()

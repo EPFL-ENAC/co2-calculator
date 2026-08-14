@@ -196,12 +196,7 @@ import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakd
 import { getHeadcountChartKeys } from 'src/utils/headcountChart';
 import { getHeadcountMembers } from 'src/api/modules';
 import { resolveTravelerNames } from 'src/utils/trips-map-data';
-import {
-  TRAVELER_OTHER_INTERNAL,
-  TRAVELER_OTHER_EXTERNAL,
-  TRAVELER_OTHER_INTERNAL_LABEL_KEY,
-  TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
-} from 'src/constant/module-config/traveler-options';
+import { travelerSentinelMapEntries } from 'src/constant/module-config/traveler-options';
 
 const props = withDefaults(
   defineProps<{
@@ -370,28 +365,18 @@ function fetchTopClassBreakdownIfNeeded() {
 // endpoint the member table already uses) instead of on the backend.
 const travelerNames = ref<Map<string, string>>(new Map());
 
-// The two "Other traveler" sentinels (issue #1153) are stored verbatim as the
-// traveler SCIPER, so seed their translated labels into every roster map — the
-// map renderer would otherwise show the raw `__other_internal__` string.
-function travelerSentinelLabels(): [string, string][] {
-  return [
-    [TRAVELER_OTHER_INTERNAL, t(TRAVELER_OTHER_INTERNAL_LABEL_KEY)],
-    [TRAVELER_OTHER_EXTERNAL, t(TRAVELER_OTHER_EXTERNAL_LABEL_KEY)],
-  ];
-}
-
 async function loadTravelerNames(unitId: number, year: number | string) {
   try {
     const members = await getHeadcountMembers(
       await moduleStore.resolveCarbonReportId(unitId, year),
     );
     travelerNames.value = new Map([
-      ...travelerSentinelLabels(),
+      ...travelerSentinelMapEntries(t),
       ...members.map((m): [string, string] => [m.institutional_id, m.name]),
     ]);
   } catch (err) {
     // Still resolve the sentinels even if the roster fetch fails.
-    travelerNames.value = new Map(travelerSentinelLabels());
+    travelerNames.value = new Map(travelerSentinelMapEntries(t));
     // Non-fatal: legs simply fall back to showing the raw SCIPER.
     console.error('Failed to load headcount members for trips map', err);
   }

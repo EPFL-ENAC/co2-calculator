@@ -89,7 +89,7 @@ const commonTravelFields: ModuleField[] = [
     id: 'user_institutional_id',
     labelKey: `${MODULES.ProfessionalTravel}-field-traveler`,
     type: 'headcount-member-select',
-    required: true,
+    required: false,
     sortable: false,
     ratio: '1/1',
     editableInline: false,

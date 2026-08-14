@@ -868,6 +868,14 @@ class DataEntryRepository:
 
             entities = [DataEntry, emission_agg.c.total_kg_co2eq, Factor]
             if is_travel_entry:
+                # Both TRAVELER_OTHER_INTERNAL ("-1") and External-other
+                # (real SQL NULL) rely on this equality never spuriously
+                # matching a MemberEntry: no real SCIPER is ever "-1", and
+                # SQL's NULL = NULL evaluates to NULL (not true) — so an
+                # External-other travel row can never match a Headcount
+                # member who also has no SCIPER yet (#951 made that
+                # optional too). See
+                # 1153-traveler-sentinel-resolution-prd.md §5.
                 # A person can hold multiple headcount roles (sius_code) in the
                 # same unit, so a plain JOIN on (uid, module) can match >1
                 # MemberEntry row and fan out/duplicate every travel row for
