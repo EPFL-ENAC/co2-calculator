@@ -49,12 +49,26 @@
     <q-separator />
 
     <q-card-section>
-      <q-checkbox
-        v-model="grantProposalInput"
-        :label="$t('planner_grant_proposal_checkbox')"
-        color="info"
-        size="sm"
-      />
+      <div class="row items-center q-gutter-x-sm">
+        <q-checkbox
+          v-model="grantProposalInput"
+          :label="$t('planner_grant_proposal_checkbox')"
+          color="info"
+          size="sm"
+        />
+        <q-icon
+          v-if="grantProposalTooltip"
+          :name="outlinedInfo"
+          size="16px"
+          color="grey-6"
+          class="cursor-pointer"
+          :aria-label="$t('module-info-label')"
+        >
+          <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+            {{ grantProposalTooltip }}
+          </q-tooltip>
+        </q-icon>
+      </div>
       <div class="text-body2 text-grey-7">
         {{ $t('planner_grant_proposal_hint') }}
       </div>
@@ -160,6 +174,7 @@ const plansStore = useSimulatorPlansStore();
 const yearConfigStore = useYearConfigStore();
 
 const sectionTooltip = computed(() => t('planner-project-info-section-title'));
+const grantProposalTooltip = computed(() => t('planner-grant-proposal-title'));
 
 const nameInput = ref(props.plan.name);
 const startYearInput = ref<number | null>(props.plan.start_year ?? null);

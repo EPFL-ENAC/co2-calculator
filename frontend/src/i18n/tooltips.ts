@@ -659,9 +659,14 @@ export default {
     fr: "Sélectionnez si vous voulez estimer l'empreinte d'un projet en lien avec une demande de financement et/ou pour un projet passé, en cours, ou futur. L'estimation des projets en cours ne peut pas être accessible à toutes et tous les membres de votre unité. Si vous voulez donner accès à l'estimation de ces projets à d'autres membres de votre unité, veuillez les accréditer comme Utilisateur Principal dans https://accred.epfl.ch/.",
   },
 
+  'planner-grant-proposal-title': {
+    en: "This section allows you to gather information related to a research project’s carbon footprint as requested by funding agencies. Please contact co2calculator{'@'}epfl.ch if the agencies ask for information that you cannot find here.",
+    fr: "Cet espace vous permet de collecter les informations liées à l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter co2calculator{'@'}epfl.ch si les agences vous demandent des informations que vous ne retrouvez pas ici.",
+  },
+
   'planner-grant-section-title': {
-    en: 'This section allows you to gather information related to a research project’s carbon footprint as requested by funding agencies. Please contact co2calculator@epfl.ch if the agencies ask for information that you cannot find here.',
-    fr: "Cet espace vous permet de collecter les informations liées à l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter co2calculator@epfl.ch si les agences vous demandent des informations que vous ne retrouvez pas ici.",
+    en: "This section allows you to gather information related to a research project’s carbon footprint as requested by funding agencies. Please contact co2calculator{'@'}epfl.ch if the agencies ask for information that you cannot find here.",
+    fr: "Cet espace vous permet de collecter les informations liées à l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter co2calculator{'@'}epfl.ch si les agences vous demandent des informations que vous ne retrouvez pas ici.",
   },
 
   'planner-grant-module-headcount-title': {
