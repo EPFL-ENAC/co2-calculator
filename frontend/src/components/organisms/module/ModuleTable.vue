@@ -253,25 +253,6 @@
               </q-tooltip>
             </q-btn>
             <q-btn
-              v-if="isProfessionalTravelModule && canEditRows"
-              icon="o_edit"
-              color="black"
-              :disable="
-                isDisabled ||
-                !isRowFieldEditable(slotProps.row, 'departure_date')
-              "
-              unelevated
-              no-caps
-              dense
-              flat
-              class="action-btn"
-              @click="openTravelEditDialog(slotProps.row)"
-            >
-              <q-tooltip class="tooltip action-tooltip" :offset="[0, 8]">
-                {{ $t('common_edit') }}
-              </q-tooltip>
-            </q-btn>
-            <q-btn
               v-if="showTableRowActions && canEditRows && hasModuleUpload"
               icon="o_delete"
               color="black"
@@ -383,15 +364,13 @@
         />
       </q-card-section>
       <q-separator />
-      <q-card-section v-if="isEquipmentModule" class="q-pa-none">
+      <q-card-section class="q-pa-none">
         <div class="q-pa-md text-body2 text-grey-7">
           {{
             $t('equipment_edit_disclaimer') ||
             "Pensez à mettre à jour votre inventaire : si vous ajoutez un élément manuellement cette année, il ne sera pas repris l’année prochaine, sauf si vous l’avez intégré dans votre inventaire. Your change won't be reflected in the DB. If you change power, contact us."
           }}
         </div>
-      </q-card-section>
-      <q-card-section class="q-pa-none">
         <module-form
           :fields="editInputs"
           :row-data="editRowData"
@@ -613,12 +592,6 @@ const workspaceStore = useWorkspaceStore();
 const isEquipmentModule = computed(
   () => props.moduleType === MODULES.Equipment,
 );
-// #951: From/To need the create form's autocomplete (pairs the display name
-// with its IATA code / natural key) — no safe plain-text inline equivalent,
-// so Professional Travel rows get an edit-dialog trigger instead.
-const isProfessionalTravelModule = computed(
-  () => props.moduleType === MODULES.ProfessionalTravel,
-);
 const powerFeedbackDialogOpen = ref(false);
 const powerFeedbackRow = ref<{
   equipmentName: string;
@@ -636,21 +609,6 @@ const powerFeedbackRow = ref<{
 const powerFeedbackUnitName = computed(
   () => workspaceStore.selectedUnit?.name ?? String(props.unitId),
 );
-
-// #951: opens the (shared, previously-unwired) edit dialog for Professional
-// Travel rows — From/To need the create form's DirectionInput autocomplete,
-// which already supports edit mode (pre-fills from origin_iata/origin_name,
-// resolves the right paired fields on selection) once given rowData.
-function openTravelEditDialog(row: ModuleRow) {
-  ItemName.value = getItemName(row);
-  editInputs.value = props.moduleFields;
-  const rowData: Record<string, FieldValue> = {};
-  Object.entries(row).forEach(([key, value]) => {
-    rowData[key] = value === undefined ? null : value;
-  });
-  editRowData.value = rowData;
-  editDialogOpen.value = true;
-}
 
 function openNoteDialog(row: ModuleRow) {
   noteDialogRowId.value = getRowId(row);
@@ -1061,14 +1019,6 @@ function isRowFieldPolicyLocked(row: ModuleRow, col: { field: string }) {
     dataEntryPolicies.value,
     row.source as number | null | undefined,
     col.field,
-  );
-}
-
-function isRowFieldEditable(row: ModuleRow, fieldId: string) {
-  return isFieldEditable(
-    dataEntryPolicies.value,
-    row.source as number | null | undefined,
-    fieldId,
   );
 }
 
