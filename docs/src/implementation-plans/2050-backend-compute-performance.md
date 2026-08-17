@@ -1118,42 +1118,55 @@ Opened 2026-08-17 after two new reports: an 11-year plan-range `PATCH
 
 The 21.89s dev trace (`954e5976…c3e298`, one single year) decomposes as:
 
-|                                              |                              |
-| -------------------------------------------- | ---------------------------- |
-| Wall clock                                   | 21885.3ms                    |
-| DB spans                                     | 241                          |
-| Sum of all DB time                           | 2776.5ms                     |
-| **Largest single gap with zero DB activity** | **18486.0ms** (at t+169.8ms) |
+|                                                       |                              |
+| ----------------------------------------------------- | ---------------------------- |
+| Wall clock                                            | 21885.3ms                    |
+| DB spans                                              | 241                          |
+| Sum of all DB time                                    | 2776.5ms                     |
+| **Largest single gap with zero _traced_ DB activity** | **18486.0ms** (at t+169.8ms) |
 
-**84% of that request is one contiguous stretch with no database
-activity at all.** The plan behind it carries ~50k equipment entries
-across 10 years, i.e. ~5k entries in the single year this request
-prefilled.
+84% of that request is one contiguous stretch with no _traced_ database
+activity. The plan behind it carries ~50k equipment entries across 10
+years, i.e. ~5k entries in the single year this request prefilled.
 
-That reading is consistent: the batching already landed in Tracks D/E
-means the factor cache and `prefetch_slice` are warm after the first few
-entries, so per-entry work stops touching the DB — and what remains is
-**pure Python emission computation, ~5k entries × several emission leaves
-each, at roughly 3.7ms per entry.** The gap is the compute loop, not a
-stall.
+**That window is not idle, and it is not purely Python.** Scanning all 37
+distinct statement shapes in the trace: there is no `INSERT INTO
+data_entry_emissions` anywhere — only `DELETE`s and `SELECT`s against
+that table. The request unquestionably wrote emission rows. `bulk_copy`
+writes them through `COPY FROM STDIN` (`cursor.copy()`), which OTel's
+psycopg instrumentation does not trace, unlike `execute`/`executemany`.
 
-The decisive consequence: **query batching is finished as a lever here.**
-Only 2776.5ms of a 21885.3ms request is SQL. Removing every remaining
-round trip caps out at a 13% improvement. The remaining 84% is Python
-per-entry work, and the only way to remove it is to _not do it_ — see F3,
-which replicates already-computed emission rows in SQL instead of
-recomputing them per year.
+So the 18.5s window contains **at least one uninstrumented bulk write in
+addition to the Python compute loop**, and this trace cannot apportion
+between them. An earlier draft of this section claimed the 84% was pure
+Python per-entry compute and used that to argue query batching was
+finished as a lever; that claim was not supported and has been removed.
 
-Two secondary factors still worth confirming, since they scale the
-per-entry constant rather than the algorithm:
+What the trace does establish:
 
-- **CPU limits on the API pod.** 3.7ms/entry of Python is high; a low
-  k8s CPU quota inflates it directly. Track B (move job execution off the
-  API pods) was meant to relieve exactly this — **verify #2081 is live on
-  dev.**
-- **Dropped spans.** 246 spans is low. If the collector shed a batch the
-  gap is partly an artifact. Cheap to rule out, and it would change the
-  split above.
+- Only 2776.5ms of 21885.3ms is _traced_ SQL, so further round-trip
+  batching is a bounded lever at best.
+- The unaccounted ~19.1s is some mix of Python emission compute and
+  untraced `COPY`. **Which one dominates is unknown, and is the single
+  most important open question in this track** — it decides whether F3
+  (stop computing in Python) or write-volume reduction is the right
+  attack.
+
+**Do not sequence F2/F3/F4 off this trace alone.** The discriminating
+experiment is cheap and local: seed ~5k equipment entries into one
+Calculator year, run `set_reference_year` against local Postgres with the
+observability overlay, and measure the split directly. If 5k entries cost
+seconds of Python locally, F3 is aimed correctly; if they cost ~200ms,
+the dev time is write volume or infrastructure and F3 will not touch it.
+
+Two secondary factors, each scaling the constant rather than the
+algorithm:
+
+- **CPU limits on the API pod.** A low k8s CPU quota inflates the Python
+  share directly. Track B (move job execution off the API pods) was meant
+  to relieve exactly this — **verify #2081 is live on dev.**
+- **Dropped spans.** 246 spans is low; a shed collector batch would change
+  the split again.
 
 ### F1 — buildings room lookups (fixed, 2026-08-17)
 
@@ -1258,11 +1271,18 @@ So the two are complementary, not alternatives:
   it is not avoidable by optimization.
 
 Recommended order: **F2** (a deletion, immediate, and it removes the
-last per-module cold cache), then **F3** (the rewrite — the only lever
-that touches the 84%, and F0/F1's findings make it the clear choice),
-then **F4** (the job) for plans above the threshold. F0's two open
-confirmations (span drops, CPU limits) run alongside; they change the
-constant, not the plan.
+last per-module cold cache), then **F0's local
+5k-entry measurement**, which decides whether **F3** (the rewrite) or
+write-volume reduction is the right next attack — F3 is only the clear
+choice if Python compute is shown to dominate. **F4** (the job) follows
+for plans above the threshold regardless, since it is the only thing that
+survives the ceiling case.
+
+F3 is a proposal, not a queued task: it replaces work inside
+`_recalculate_report_emissions`, not just prefill, which makes it
+recalculation internals — the guardrails require a written plan reviewed
+by both maintainers before it is touched. Nobody should build it off this
+track alone.
 
 ## Priority order
 
