@@ -776,23 +776,24 @@ async def test_set_reference_year_produces_correct_emissions_without_prefill_com
 
 
 @pytest.mark.asyncio
-async def test_prefill_headcount_empty_after_prefill_still_recomputes_stats(
+async def test_modules_left_empty_by_prefill_still_get_their_stats_refreshed(
     async_session, user, monkeypatch: pytest.MonkeyPatch
 ):
-    """A headcount module left empty by prefill must still get its stats
-    refreshed.
+    """Every module prefill leaves empty must still be refreshed — in ONE call.
 
     An empty module never appears in the later
-    ``_recalculate_report_emissions``'s entry-driven module set, so this
-    ``if not rows`` branch is its only chance to reflect "now empty" stats.
-    Without it an emptied headcount module keeps stale ones.
+    ``_recalculate_report_emissions``'s entry-driven module set, so prefill
+    is its only chance to reflect "now empty" stats. Each such module used
+    to issue its own single-module ``recompute_stats_many``; they are now
+    batched (plan #2050 Track F6), so this pins both halves — the modules
+    are still covered, and they cost one call rather than one each.
     """
     service = SimulatorPlanService(async_session)
-    ref_report = await service.report_service.create(
-        CarbonReportCreate(year=2024, unit_id=81)
-    )  # no member/student entries added — reference headcount stays empty
+    # A reference report with no entries at all: every rebuilt module of the
+    # plan year ends up empty.
+    await service.report_service.create(CarbonReportCreate(year=2024, unit_id=81))
 
-    plan = await service.create_plan(unit_id=81, user=user, name="empty-headcount")
+    plan = await service.create_plan(unit_id=81, user=user, name="empty-modules")
     await _update_plan(
         service, plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
     )
@@ -802,17 +803,16 @@ async def test_prefill_headcount_empty_after_prefill_still_recomputes_stats(
     async_session.add(report)
     await async_session.flush()
 
-    module = next(
-        m
-        for m in await service.report_service.module_service.list_modules(report.id)
-        if m.module_type_id == int(ModuleTypeEnum.headcount)
+    modules = await service.report_service.module_service.list_modules(report.id)
+    headcount = next(
+        m for m in modules if m.module_type_id == int(ModuleTypeEnum.headcount)
     )
 
     calls: list[list[int]] = []
     original = service.report_service.module_service.recompute_stats_many
 
     async def counting_recompute(module_ids, **kwargs):
-        calls.append(list(module_ids))
+        calls.append(sorted(module_ids))
         return await original(module_ids, **kwargs)
 
     monkeypatch.setattr(
@@ -821,14 +821,17 @@ async def test_prefill_headcount_empty_after_prefill_still_recomputes_stats(
         counting_recompute,
     )
 
-    rows_created = await service.prefill_headcount_from_reference(
-        report, ref_report=ref_report
-    )
+    await service._prefill_reference_modules(report)  # noqa: SLF001
 
-    assert rows_created == 0
-    assert calls == [[module.id]], (
-        f"expected recompute_stats_many([{module.id}]) to run for the "
-        f"empty-after-prefill headcount module, got {calls}"
+    covered = {module_id for call in calls for module_id in call}
+    assert headcount.id in covered, (
+        f"the empty headcount module never got its stats refreshed: {calls}"
+    )
+    # One call for the upfront clear, one batched call for everything
+    # prefill left empty — not one per empty module.
+    assert len(calls) <= 2, (
+        f"expected the empty modules' stats to be batched, got {len(calls)} "
+        f"separate recompute_stats_many calls: {calls}"
     )
 
 
