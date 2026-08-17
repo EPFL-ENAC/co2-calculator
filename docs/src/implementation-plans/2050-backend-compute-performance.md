@@ -1489,6 +1489,44 @@ without it, setting a reference year returns an empty year and looks like
 a silent failure. Visible "prefill running" state, poll, refetch on
 completion, strings in both `en-US` and `fr-CH`.
 
+#### Status: implemented, 2026-08-17
+
+Backend:
+
+- `simulator_plan_prefill` handler (`app/tasks/simulator_plan_tasks.py`),
+  registered in `bootstrap.py`. Raises rather than finishing "successfully"
+  on an empty `report_ids` — a job that silently does nothing would leave
+  the plan year empty with no error anywhere.
+- `_sync_year_reports` and `set_reference_year` now return the report ids
+  needing prefill instead of doing the work; `prefill_reports()` is the
+  handler's entry point and is idempotent on retry.
+- Both routes enqueue via `_enqueue_prefill` and stamp `prefill_job_id`.
+- `GET /project-plans/{plan_id}/prefill/{job_id}` for polling, gated by the
+  plan's own access check **and** by matching the job's `plan_id` — the
+  admin data-sync job routes are the wrong permission surface for a plan
+  editor waiting on their own PATCH.
+- No migration: `EntityType.GLOBAL_PER_YEAR` already existed.
+
+Frontend:
+
+- The store polls, then refetches; the two `timeout: 300000` workarounds
+  are gone (one carried a `TODO: backend to make a background task
+instead!` — this is that task).
+- `pollUntilPrefilled` extracted as a pure function with an injected
+  `sleep`, so the wait is testable without timers or HTTP. Backs off
+  500ms -> 3s.
+- Banner while the copy runs, in `en-US` and `fr-CH`.
+
+Tests: 4 handler tests (registration, config plumbing, both failure
+modes), 2 service tests (prefill is deferred, not run inline; retry
+converges instead of duplicating), 3 poll tests (immediate return,
+repeat until finished, backoff ceiling). Full backend unit suite 2040
+passed; frontend `test-ct` 396 passed.
+
+**Known gap:** the year sections are visibly empty while the job runs. The
+banner says so, but a large prefill leaves a real "building" window — if
+that reads badly in practice, per-year progress is the follow-up.
+
 ### F5 — on porting an endpoint to Rust
 
 Asked directly, 2026-08-17, given that dev's CPU cannot be upgraded and
