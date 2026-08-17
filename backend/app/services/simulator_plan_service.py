@@ -508,14 +508,17 @@ class SimulatorPlanService:
         # reference each delete-then-rebuild their own module already
         # (plan #2050 Track D finding 1); clearing them here too is
         # thrown-away work, never observable (nothing commits mid-request).
-        await self._clear_module_entries(
-            [
-                m.id
-                for m in scoped
-                if m.id is not None and m.module_type_id not in will_rebuild_ids
-            ]
-        )
+        cleared = [
+            m.id
+            for m in scoped
+            if m.id is not None and m.module_type_id not in will_rebuild_ids
+        ]
+        await self._clear_module_entries(cleared)
         if ref_report is None or ref_report.id is None or not will_rebuild_ids:
+            if cleared:
+                await self.report_service.module_service.recompute_stats_many(
+                    sorted(cleared)
+                )
             return
         # One list_modules for the reference side (the plan side is already
         # `modules`/`will_rebuild`, fetched once above) instead of one
@@ -556,14 +559,14 @@ class SimulatorPlanService:
                 )
             if copied == 0 and plan_module.id is not None:
                 emptied.append(plan_module.id)
-        # A module left empty by prefill never appears in
-        # _recalculate_report_emissions's entry-driven module set, so it
-        # still needs a stats refresh — one batched call for all of them
-        # instead of one per module (plan #2050 Track F6).
-        if emptied:
-            await self.report_service.module_service.recompute_stats_many(
-                sorted(emptied)
-            )
+        # Modules cleared above and modules prefill left empty are the same
+        # case — neither appears in _recalculate_report_emissions's
+        # entry-driven module set, so both need a stats refresh here. One
+        # call for all of them keeps the report rollup behind it to a single
+        # run per report (plan #2050 Track F6).
+        stale = cleared + emptied
+        if stale:
+            await self.report_service.module_service.recompute_stats_many(sorted(stale))
 
     async def _reference_entries(
         self,
@@ -583,16 +586,17 @@ class SimulatorPlanService:
         return entries
 
     async def _clear_module_entries(self, module_ids: list[int]) -> None:
-        """Delete every data entry of the given modules and refresh their stats.
+        """Delete every data entry of the given modules.
 
-        Emissions follow through the ``data_entry_id`` cascade.
+        Emissions follow through the ``data_entry_id`` cascade. Stats are
+        *not* refreshed here: the caller folds these modules in with the
+        ones prefill leaves empty and refreshes both in a single
+        ``recompute_stats_many``, so the report rollup behind it runs once
+        per report instead of once per group (plan #2050 Track F6).
         """
         if not module_ids:
             return
         await DataEntryRepository(self.session).bulk_delete_by_modules(module_ids)
-        await self.report_service.module_service.recompute_stats_many(
-            sorted(module_ids)
-        )
 
     async def _year_read(self, report: CarbonReport) -> SimulatorPlanYearRead:
         """Build the per-year DTO (report + its modules)."""

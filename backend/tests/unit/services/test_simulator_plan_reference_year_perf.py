@@ -807,6 +807,10 @@ async def test_modules_left_empty_by_prefill_still_get_their_stats_refreshed(
     headcount = next(
         m for m in modules if m.module_type_id == int(ModuleTypeEnum.headcount)
     )
+    # Purchase is cleared but never rebuilt — the other half of the merge.
+    purchase = next(
+        m for m in modules if m.module_type_id == int(ModuleTypeEnum.purchase)
+    )
 
     calls: list[list[int]] = []
     original = service.report_service.module_service.recompute_stats_many
@@ -827,11 +831,13 @@ async def test_modules_left_empty_by_prefill_still_get_their_stats_refreshed(
     assert headcount.id in covered, (
         f"the empty headcount module never got its stats refreshed: {calls}"
     )
-    # One call for the upfront clear, one batched call for everything
-    # prefill left empty — not one per empty module.
-    assert len(calls) <= 2, (
-        f"expected the empty modules' stats to be batched, got {len(calls)} "
-        f"separate recompute_stats_many calls: {calls}"
+    assert purchase.id in covered, (
+        f"the cleared purchase module never got its stats refreshed: {calls}"
+    )
+    # Cleared modules and prefill-emptied modules are the same case, so they
+    # share one call — which keeps the report rollup behind it to one run.
+    assert len(calls) == 1, (
+        f"expected a single batched recompute_stats_many, got {len(calls)}: {calls}"
     )
 
 
