@@ -1439,6 +1439,56 @@ Recommended order, **revised after F0's measurement**:
    fixed-CPU hardware it is the single largest remaining application-side
    lever.
 
+#### Design, decided 2026-08-17
+
+Branch: stays on `perf/2050-track-f-prefill-batching` -> `dev` (lead's
+call, overriding the pipeline-branch default). Both endpoints in one
+slice. Async is **unconditional** — no row-count threshold, so there is no
+dual contract to maintain.
+
+**The async boundary is the prefill work, not the whole request.** A plain
+rename must not become a polled operation, so each endpoint keeps its
+synchronous metadata change and defers only the expensive part:
+
+| endpoint                        | stays synchronous                 | deferred to the job           |
+| ------------------------------- | --------------------------------- | ----------------------------- |
+| `PATCH /{plan_id}`              | plan fields, report create/delete | prefill + recalc of new years |
+| `PATCH /{plan_id}/years/{year}` | `reference_year` write            | prefill + recalc of that year |
+
+Both responses gain **`prefill_job_id: UUID | None`**. That is one
+contract, not two: `null` means nothing to wait for, non-null means poll
+then refetch. A threshold would instead have made the response type itself
+conditional, which is the dual path the guardrails forbid.
+
+**Job shape** — reuses existing infrastructure, no migration:
+
+- `job_type = "simulator_plan_prefill"`, registered like every other
+  handler.
+- `entity_type = GLOBAL_PER_YEAR` (3) — already exists for jobs not scoped
+  to a module, so **no `ALTER TYPE` on the append-only `EntityType` enum**.
+- `module_type_id` / `data_entry_type_id` stay `NULL`, so under Postgres'
+  `NULLS DISTINCT` the "one current per combo" partial unique index never
+  fires — two plans prefilling concurrently cannot collide.
+- `meta["config"] = {"plan_id": ..., "report_ids": [...]}`.
+
+**Idempotency on retry** is free: prefill is already destructive and
+idempotent (each module is delete-then-rebuild), so a re-run after a pod
+crash converges rather than duplicating rows — the property #1559 and the
+310-series require of every handler.
+
+**Constraints taken from the required reading**, not invented here:
+
+- The handler must leave `job_session` clean; #1219's stage incident was a
+  poisoned session escaping the handler and self-propagating a stall.
+- Jobs run under `MAX_CONCURRENT_JOBS` with heartbeat/preemption (#1723),
+  so the handler must be async end to end — a sync wrapper calling
+  `asyncio.run` would cancel the fire-and-forget task.
+
+**The frontend ships in the same PR**, per the no-backward-compat rule:
+without it, setting a reference year returns an empty year and looks like
+a silent failure. Visible "prefill running" state, poll, refetch on
+completion, strings in both `en-US` and `fr-CH`.
+
 ### F5 — on porting an endpoint to Rust
 
 Asked directly, 2026-08-17, given that dev's CPU cannot be upgraded and
