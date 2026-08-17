@@ -31,7 +31,7 @@
     "quasar": "^2.23.4",
     "unwrapped": "=0.1.25",
     "vue": "=3.5.41",
-    "vue-echarts": "=8.0.1",
+    "vue-echarts": "=8.1.0",
     "vue-i18n": "=11.4.7",
     "vue-router": "^5.2.0"
   },
