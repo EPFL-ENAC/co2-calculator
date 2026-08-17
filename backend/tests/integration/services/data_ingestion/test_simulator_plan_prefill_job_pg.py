@@ -20,10 +20,12 @@ B. Re-running the same job converges instead of duplicating rows, the
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReport
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
@@ -93,6 +95,10 @@ async def _seed_plan_awaiting_prefill(Sf) -> tuple[int, list[int], int]:
                 )
             )
         await session.flush()
+
+        # The reference year must actually hold computed emissions — that is
+        # what a copied row's provenance points at.
+        await svc._recalculate_report_emissions(ref)  # noqa: SLF001
 
         plan = await svc.create_plan(unit_id=1, user=user, name="p")
         updated = await svc.update_plan(
@@ -203,3 +209,54 @@ async def test_reports_survive_the_job_with_their_reference_year(Sf):
             assert report is not None
             assert report.reference_year == 2024
             assert report.year == 2027
+
+
+@pytest.mark.asyncio
+async def test_prefilled_emissions_keep_the_source_factor_id(Sf):
+    """A copied row's emissions must carry the source leaf's factor id.
+
+    Not cosmetic. ``get_submodule_data`` joins ``primary_factor_id`` to
+    ``Factor`` and spreads its values into ``enriched_data["primary_factor"]``,
+    which each module's ``to_response`` reads to populate ordinary row
+    fields. Equipment's ``active_power_w``/``standby_power_w`` have **no
+    fallback to entry data**, so a NULL factor id makes them ``None`` and
+    ``ModuleTable.isCompleteEquipement`` marks the row incomplete — the
+    prefilled planner rows rendered as tinted "incomplete" before this fix
+    (plan #2050 F3).
+    """
+    _plan_id, report_ids, plan_module_id = await _seed_plan_awaiting_prefill(Sf)
+
+    async with Sf() as session:
+        svc = SimulatorPlanService(session)
+        await svc.prefill_reports(report_ids)
+        await session.commit()
+
+        entries = await DataEntryRepository(session).list_by_module(plan_module_id)
+        assert entries, "nothing was prefilled — rig is wrong"
+        for entry in entries:
+            source_id = entry.data.get("source_data_entry_id")
+            assert source_id is not None
+            rows = (
+                await session.exec(
+                    select(DataEntryEmission).where(
+                        col(DataEntryEmission.data_entry_id) == entry.id
+                    )
+                )
+            ).all()
+            assert rows, f"copied entry {entry.id} has no emissions"
+            src_rows = (
+                await session.exec(
+                    select(DataEntryEmission).where(
+                        col(DataEntryEmission.data_entry_id) == int(source_id)
+                    )
+                )
+            ).all()
+            assert src_rows, f"rig is wrong: source {source_id} has no emissions"
+            expected = {r.primary_factor_id for r in src_rows}
+            assert expected and expected != {None}, (
+                f"rig is wrong: source {source_id} has no factor id: {expected}"
+            )
+            assert {r.primary_factor_id for r in rows} == expected, (
+                f"copied entry {entry.id} lost its factor provenance: "
+                f"{[r.primary_factor_id for r in rows]} != {expected}"
+            )

@@ -143,9 +143,13 @@ class DataEntryEmissionService:
         emission_type: EmissionType,
         report: CarbonReport,
         *,
-        override_cache: dict[int, dict[int, float]] | None = None,
-    ) -> float | None:
+        override_cache: dict[int, dict[int, tuple[float, int | None]]] | None = None,
+    ) -> tuple[float, int | None] | None:
         """If percentage_of_reference_year is present, compute kg_co2eq from base year.
+
+        Returns ``(kg, primary_factor_id)`` — the factor id is the source
+        leaf's, carried through so a copied planner row keeps its provenance
+        (plan #2050 F3).
 
         The override matches the previous-year DataEntry within the same module type
         and data_entry_type, using stable identifiers when available.
@@ -189,8 +193,16 @@ class DataEntryEmissionService:
             )
             if leaf_sums is not None:
                 leaf_ids = get_subtree_leaves(emission_type)
-                prev_kg = sum(leaf_sums.get(lid, 0.0) for lid in leaf_ids)
-                return prev_kg * (percentage / 100.0)
+                prev_kg = sum(leaf_sums.get(lid, (0.0, None))[0] for lid in leaf_ids)
+                factor_id = min(
+                    (
+                        fid
+                        for lid in leaf_ids
+                        if (fid := leaf_sums.get(lid, (0.0, None))[1]) is not None
+                    ),
+                    default=None,
+                )
+                return prev_kg * (percentage / 100.0), factor_id
             source_entry = await self.session.get(DataEntry, int(source_entry_id))
             if source_entry is None:
                 return None
@@ -205,9 +217,10 @@ class DataEntryEmissionService:
                     data_entry.id,
                 )
                 return None
-            return await self._sum_entry_emissions(source_entry, emission_type) * (
-                percentage / 100.0
+            prev_kg, factor_id = await self._sum_entry_emissions(
+                source_entry, emission_type
             )
+            return prev_kg * (percentage / 100.0), factor_id
 
         # Resolve current module_type_id so we can match the prior-year module.
         stmt_mod = select(CarbonReportModule).where(
@@ -265,26 +278,37 @@ class DataEntryEmissionService:
         if prev_entry is None:
             return None
 
-        prev_kg = await self._sum_entry_emissions(prev_entry, emission_type)
-        return prev_kg * (percentage / 100.0)
+        prev_kg, factor_id = await self._sum_entry_emissions(prev_entry, emission_type)
+        return prev_kg * (percentage / 100.0), factor_id
 
     async def _sum_entry_emissions(
         self, entry: DataEntry, emission_type: EmissionType
-    ) -> float:
-        """Sum an entry's persisted kg_co2eq over the emission type's leaves."""
+    ) -> tuple[float, int | None]:
+        """Sum an entry's persisted kg_co2eq over the emission type's leaves.
+
+        Returns ``(kg, primary_factor_id)``. The factor id must travel with
+        the sum here exactly as it does in ``_sum_leaves_by_source``: if only
+        the cached path carried it, the same planner row would render
+        differently depending on whether the cache hit (plan #2050 F3).
+        """
         leaf_ids = get_subtree_leaves(emission_type)
-        stmt = select(func.coalesce(func.sum(DataEntryEmission.kg_co2eq), 0.0)).where(
+        stmt = select(
+            func.coalesce(func.sum(DataEntryEmission.kg_co2eq), 0.0),
+            func.min(DataEntryEmission.primary_factor_id),
+        ).where(
             col(DataEntryEmission.data_entry_id) == entry.id,
             col(DataEntryEmission.emission_type_id).in_(leaf_ids),
         )
-        return float((await self.session.exec(stmt)).one())
+        kg, factor_id = (await self.session.exec(stmt)).one()
+        return float(kg), factor_id
 
     async def prefetch_percentage_override_cache(
         self, entries: list[DataEntry] | list[DataEntryResponse], *, unit_id: int | None
-    ) -> dict[int, dict[int, float]]:
+    ) -> dict[int, dict[int, tuple[float, int | None]]]:
         """Bulk-preload ``source_data_entry_id`` sums for a batch of entries.
 
-        Maps ``source_data_entry_id`` -> {leaf emission_type_id: summed kg}
+        Maps ``source_data_entry_id`` -> {leaf emission_type_id:
+        (summed kg, primary_factor_id)}
         for ``_get_percentage_override_kg``'s ``override_cache`` param. Skips
         (and leaves to the per-entry fallback, which re-checks and rejects)
         any source belonging to another unit — same ownership gate as the
@@ -318,8 +342,17 @@ class DataEntryEmissionService:
 
     async def _sum_leaves_by_source(
         self, source_ids: set[int]
-    ) -> dict[int, dict[int, float]]:
-        """GROUP BY sum of persisted kg_co2eq per (source entry, leaf type)."""
+    ) -> dict[int, dict[int, tuple[float, int | None]]]:
+        """GROUP BY sum of persisted kg_co2eq per (source entry, leaf type).
+
+        Also carries the source leaf's ``primary_factor_id`` so a copied
+        planner row keeps its factor provenance — without it the row renders
+        with no ``active_power_w``/``standby_power_w`` and the table marks it
+        incomplete (plan #2050 F3). ``min`` picks one deterministic id when a
+        leaf resolved through several factors, matching what
+        ``prepare_create``'s rollup row and ``DataEntryRepository``'s
+        aggregate already do.
+        """
         if not source_ids:
             return {}
         stmt = (
@@ -327,6 +360,7 @@ class DataEntryEmissionService:
                 DataEntryEmission.data_entry_id,
                 DataEntryEmission.emission_type_id,
                 func.sum(DataEntryEmission.kg_co2eq),
+                func.min(DataEntryEmission.primary_factor_id),
             )
             .where(col(DataEntryEmission.data_entry_id).in_(source_ids))
             .group_by(
@@ -337,9 +371,11 @@ class DataEntryEmissionService:
         # Seed every requested id so a source with no persisted emissions yet
         # (e.g. not yet recalculated) still hits the cache with an empty sum
         # instead of falling back to the per-entry path.
-        sums: dict[int, dict[int, float]] = {sid: {} for sid in source_ids}
-        for data_entry_id, leaf_type_id, kg in await self.session.exec(stmt):
-            sums.setdefault(data_entry_id, {})[leaf_type_id] = float(kg)
+        sums: dict[int, dict[int, tuple[float, int | None]]] = {
+            sid: {} for sid in source_ids
+        }
+        for data_entry_id, leaf_type_id, kg, factor_id in await self.session.exec(stmt):
+            sums.setdefault(data_entry_id, {})[leaf_type_id] = (float(kg), factor_id)
         return sums
 
     async def prepare_create(
@@ -351,7 +387,7 @@ class DataEntryEmissionService:
         factor_query_cache: dict | None = None,
         slice_cache: dict | None = None,
         factor_resolver: FactorResolver | None = None,
-        override_cache: dict[int, dict[int, float]] | None = None,
+        override_cache: dict[int, dict[int, tuple[float, int | None]]] | None = None,
     ) -> list[DataEntryEmissionRow]:
         """Prepare emission records for any data entry type.
         TODO: Make this function readable!
@@ -513,18 +549,23 @@ class DataEntryEmissionService:
                 )
 
                 if report is not None:
-                    override_kg = await self._get_percentage_override_kg(
+                    override = await self._get_percentage_override_kg(
                         data_entry=data_entry,
                         emission_type=emission_type,
                         report=report,
                         override_cache=override_cache,
                     )
-                    if override_kg is not None:
+                    if override is not None:
+                        override_kg, override_factor_id = override
                         results.append(
                             DataEntryEmissionRow(
                                 data_entry_id=data_entry.id,
                                 emission_type_id=emission_type.value,
-                                primary_factor_id=None,
+                                # The source leaf's factor, so a copied
+                                # planner row keeps its provenance and still
+                                # renders its factor-derived columns
+                                # (plan #2050 F3).
+                                primary_factor_id=override_factor_id,
                                 scope=emission_type_scope(emission_type),
                                 kg_co2eq=float(override_kg),
                                 meta={

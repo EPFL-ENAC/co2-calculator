@@ -1443,6 +1443,54 @@ but it is no longer "a perf change that silently alters output" — it is a
 perf change that also repairs a display defect. **F3 is unblocked pending
 that visual confirmation.**
 
+#### Status: the provenance half shipped; the SQL rewrite did not — 2026-08-17
+
+F3 was specified as two `INSERT … SELECT` statements. **Only the
+`primary_factor_id` fix was built**, deliberately, because two findings
+made the rewrite the worse half of the deal:
+
+- `data_entries.data` is `JSON`, not `JSONB`, so the copy needs
+  Postgres-only casts (`data::jsonb || jsonb_build_object(...)`) plus a
+  SQLite fallback for the unit suite — meaning **the fallback is what tests
+  run and the real path is untested**. That is exactly the F7 failure, and
+  F7 was a bug that shipped through it.
+- Its performance half is now marginal: the `INSERT` is 248ms inside a
+  1148ms **background** job that F4 already took off the request path.
+
+What actually mattered was one hardcoded line:
+
+```python
+# data_entry_emission_service.py, the percentage-override branch
+primary_factor_id=None,
+```
+
+The override short-circuit returns kg directly and never resolves a
+factor, so every prefilled planner row lost its provenance. Fixed by
+carrying the source leaf's factor id through — one extra
+`func.min(primary_factor_id)` column on an existing `GROUP BY`, so **zero
+additional round trips**. `min` picks one deterministic id when a leaf
+resolved through several factors, matching `prepare_create`'s own rollup
+row and `DataEntryRepository`'s aggregate.
+
+**All three override paths were updated, not just the fast one** — the
+bulk `override_cache`, the single-entry `_sum_entry_emissions` fallback,
+and the prior-year module-match path. Had only the cached path carried the
+id, the same row would render differently depending on whether the cache
+hit: a drift bug worse than the uniform `None` it replaced.
+
+The CSV explicit-`kg_co2eq` override keeps `primary_factor_id=None`, and
+correctly — no factor governs a hand-supplied kg.
+
+Regression test is an integration test against real Postgres asserting the
+copied row's emission rows carry the source's factor id; verified to fail
+without the fix (`[None] != {1}`). Its docstring records _why_ the column
+matters, so nobody deletes it as cosmetic.
+
+**Still open:** the `INSERT … SELECT` rewrite. It remains the right
+long-term shape for the job path, but it needs a way to test the Postgres
+path that the SQLite unit fixture cannot provide — the integration harness
+added in F7 is where it would live.
+
 ### F4 — sizing: at the stated ceilings, this needs a job
 
 Per reference year, the stated maxima are ~6,990 entries (equipment 3000,
