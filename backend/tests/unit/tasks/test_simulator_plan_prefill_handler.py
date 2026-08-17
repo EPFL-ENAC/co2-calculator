@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.models.data_ingestion import DataIngestionJob
+from app.models.data_ingestion import DataIngestionJob, IngestionResult
 from app.tasks.registry import get_handler
 from app.tasks.simulator_plan_tasks import simulator_plan_prefill_handler
 
@@ -50,7 +50,12 @@ async def test_handler_prefills_the_configured_reports():
             [10, 11, 12]
         )
 
-    assert meta["result"] == {"plan_id": 42, "reports_prefilled": 3}
+    assert meta["plan_id"] == 42
+    assert meta["reports_prefilled"] == 3
+    # ``result`` goes straight into the job row's IngestionResult column, so
+    # it must be that enum and not a payload dict — putting data there raises
+    # a StatementError at FINISHED-write time, long after the work is done.
+    assert meta["result"] is IngestionResult.SUCCESS
     # The runner persists this dict on its own FINISHED write — a handler
     # that set state itself would race it.
     assert "state" not in meta

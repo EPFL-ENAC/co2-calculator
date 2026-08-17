@@ -1579,6 +1579,56 @@ clear up changes `prefill_module_from_reference`'s documented
 delete-then-rebuild idempotency, so it wants its own change rather than
 riding along here.
 
+### F7 — the job, end to end (a bug the unit tests could not see)
+
+The F4 handler shipped with four unit tests, all mocking
+`SimulatorPlanService`. Everything measured in F6 called
+`prefill_reports` directly. **Nothing had run the real path** —
+`run_job` -> registry -> handler -> commit — against a real database.
+
+Added that test (real Postgres, real runner, real prefill), and it failed
+immediately on a genuine bug:
+
+```
+sqlalchemy.exc.StatementError: (builtins.TypeError)
+cannot use 'dict' as a dict key (unhashable type: 'dict')
+[SQL: UPDATE data_ingestion_jobs SET state=..., result=%(result)s, ...]
+```
+
+The handler returned `"result": {"plan_id": ..., "reports_prefilled": ...}`.
+The runner reads `meta["result"]` **straight into the job row's
+`IngestionResult` column** — it is the outcome enum, not a payload slot.
+So the prefill itself ran and committed perfectly, then the FINISHED write
+blew up: the plan year would have been correctly filled while its job hung
+in RUNNING forever. **That is the #1219 stall shape**, reintroduced, and no
+amount of mock-based unit testing would have found it — the mock happily
+returned whatever the handler asked it to.
+
+Fixed (`result` is `IngestionResult.SUCCESS`, payload moved to sibling
+keys), and the unit test now asserts the enum specifically, with the
+reason in the comment.
+
+The integration test pins three things: the job reaches FINISHED/SUCCESS
+and the rows are really committed; a re-dispatched job converges instead
+of duplicating; and the route's metadata commit is visible to the job
+(otherwise the handler would prefill a report whose `reference_year` is
+still unset and silently produce nothing).
+
+**Lesson worth keeping:** a handler's contract with its runner cannot be
+tested against a mock of its own collaborators. Every new `@register`ed
+job type needs one real-runner test.
+
+### F8 — not done, deliberately
+
+The 80 per-module `DELETE`s (8 per report) are the clearest remaining
+count win, and they are **left alone on purpose**. Batching them means
+moving the clear out of `prefill_module_from_reference`, whose
+delete-then-rebuild idempotency is documented and directly tested. That
+trades a public-method contract and a footgun for ~27ms of work that F4
+already made non-blocking. The invariant it protects — hand-added rows are
+wiped when the baseline changes — is covered end to end elsewhere, so the
+change is _possible_; it is just not worth it at this price.
+
 ### F5 — on porting an endpoint to Rust
 
 Asked directly, 2026-08-17, given that dev's CPU cannot be upgraded and

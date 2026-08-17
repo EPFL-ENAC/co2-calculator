@@ -10,7 +10,7 @@ the cheap metadata change and hand the copy to this handler.
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_ingestion import DataIngestionJob
+from app.models.data_ingestion import DataIngestionJob, IngestionResult
 from app.services.simulator_plan_service import SimulatorPlanService
 from app.tasks.registry import register
 
@@ -49,7 +49,11 @@ async def simulator_plan_prefill_handler(
         f"simulator_plan_prefill (job {job.id}): prefilled {prefilled} "
         f"report(s) of plan {plan_id}"
     )
+    # ``result`` is read straight into the job row's IngestionResult column
+    # by the runner — it is the outcome enum, not a payload slot.
     return {
         "status_message": f"Prefilled {prefilled} plan year(s)",
-        "result": {"plan_id": plan_id, "reports_prefilled": prefilled},
+        "result": IngestionResult.SUCCESS,
+        "plan_id": plan_id,
+        "reports_prefilled": prefilled,
     }
