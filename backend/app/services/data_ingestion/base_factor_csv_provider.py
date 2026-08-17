@@ -1,6 +1,4 @@
 import asyncio
-import csv
-import io
 import urllib.parse
 from abc import ABC, abstractmethod
 from typing import Any, TypedDict
@@ -33,6 +31,7 @@ from app.services.data_ingestion.base_csv_provider import (
 )
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.factor_service import FactorService
+from app.utils.csv_dialect import csv_dict_reader
 
 logger = get_logger(__name__)
 
@@ -191,7 +190,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
             copy_batch_size = get_settings().INGEST_COPY_BATCH_SIZE
             batch: list[Factor] = []
-            csv_reader = csv.DictReader(io.StringIO(setup_result["csv_text"]))
+            csv_reader = csv_dict_reader(setup_result["csv_text"])
 
             for row_idx, row in enumerate(csv_reader, start=1):
                 # Row processing is pure CPU (validate, in-memory resolution)
@@ -303,7 +302,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         strict_mode = self.config.get("strict_column_validation", False)
         rows_to_check = 5
 
-        validation_reader = csv.DictReader(io.StringIO(csv_text))
+        validation_reader = csv_dict_reader(csv_text)
         first_rows = []
 
         try:

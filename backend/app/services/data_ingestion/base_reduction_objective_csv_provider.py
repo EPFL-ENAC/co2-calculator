@@ -4,8 +4,6 @@ Each CSV is validated row-by-row with Pydantic, then the entire result is
 stored as a JSON array inside ``year_configuration.config.reduction_objectives``.
 """
 
-import csv
-import io
 import urllib.parse
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
@@ -28,6 +26,7 @@ from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.year_configuration import BaseReductionObjectiveHandler
 from app.services.data_ingestion.base_csv_provider import _validate_file_path
 from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.utils.csv_dialect import csv_dict_reader
 
 logger = get_logger(__name__)
 
@@ -196,7 +195,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
 
             # -- Parse & validate every row ---------------------------------
             validated_rows: list[dict] = []
-            csv_reader = csv.DictReader(io.StringIO(csv_text, newline=""))
+            csv_reader = csv_dict_reader(csv_text)
 
             for row_idx, raw_row in enumerate(csv_reader, start=1):
                 # Strip whitespace from keys and values
@@ -299,7 +298,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         expected_columns: set[str],
         required_columns: set[str],
     ) -> None:
-        reader = csv.DictReader(io.StringIO(csv_text, newline=""))
+        reader = csv_dict_reader(csv_text)
         first_rows: list[dict] = []
         try:
             for idx, row in enumerate(reader):

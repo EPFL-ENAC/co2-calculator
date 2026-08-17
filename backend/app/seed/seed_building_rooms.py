@@ -1,7 +1,6 @@
 """Seed building room data from CSV for the Buildings module."""
 
 import asyncio
-import csv
 from pathlib import Path
 
 from sqlmodel import delete
@@ -10,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.building_room import BuildingRoom
+from app.utils.csv_dialect import csv_dict_reader
 
 logger = get_logger(__name__)
 
@@ -37,7 +37,7 @@ async def seed_building_rooms(session: AsyncSession) -> None:
 
     rooms: list[BuildingRoom] = []
     with open(CSV_PATH) as csvfile:
-        reader = csv.DictReader(csvfile)
+        reader = csv_dict_reader(csvfile.read())
         for row in reader:
             room = BuildingRoom(
                 building_location=row["building_location"].strip(),

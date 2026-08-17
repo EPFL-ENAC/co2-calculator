@@ -1,6 +1,4 @@
 import asyncio
-import csv
-import io
 import time
 import urllib.parse
 from abc import ABC, abstractmethod
@@ -49,6 +47,7 @@ from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
+from app.utils.csv_dialect import csv_dict_reader
 from app.utils.progress import format_progress
 
 logger = get_logger(__name__)
@@ -325,7 +324,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         rows_to_check = 5
 
         # Validate using a separate reader
-        validation_reader = csv.DictReader(io.StringIO(csv_text, newline=""))
+        validation_reader = csv_dict_reader(csv_text)
         first_rows = []
 
         try:
@@ -617,7 +616,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Extract unique unit institutional_ids from CSV
         # (column is named 'unit_institutional_id' to be explicit)
-        csv_reader = csv.DictReader(io.StringIO(csv_text, newline=""))
+        csv_reader = csv_dict_reader(csv_text)
         unit_codes = set()
         for row in csv_reader:
             unit_code = row.get("unit_institutional_id")
@@ -957,9 +956,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
             for mod_id, uid, sius in existing_keys:
                 seen_institutional_ids.setdefault(mod_id, set()).add((uid, sius))
-            csv_reader = csv.DictReader(
-                io.StringIO(setup_result["csv_text"], newline="")
-            )
+            csv_reader = csv_dict_reader(setup_result["csv_text"])
 
             last_yield = time.perf_counter()
             for row_idx, row in enumerate(csv_reader, start=1):
