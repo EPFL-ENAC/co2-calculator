@@ -5,10 +5,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.repositories.carbon_project_repo import CarbonProjectRepository
+from app.schemas.carbon_report import CarbonReportRead
 
 
 async def resolve_factor_year(
-    session: AsyncSession, report: CarbonReport
+    session: AsyncSession, report: CarbonReport | CarbonReportRead
 ) -> int | None:
     """Return the year whose factors apply to ``report``'s entries.
 

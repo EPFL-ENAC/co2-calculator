@@ -533,65 +533,41 @@ async def test_recalculate_report_emissions_empty_still_refreshes_report_stats(
     )
 
 
-# ── Track E tier 1: set_reference_year skips prefill's own emission compute ───
+# ── Track F2: both prefill callers compute in one batched pass ────────────────
 
 
 @pytest.mark.asyncio
-async def test_set_reference_year_never_calls_persist_prefill_entries(
+async def test_sync_year_reports_computes_emissions_in_one_batched_pass(
     async_session, user, monkeypatch: pytest.MonkeyPatch
 ):
-    """``set_reference_year`` must skip ``_persist_prefill_entries`` entirely.
+    """New plan-year creation must recompute the whole report once, not per module.
 
-    Regression test for plan #2050 Track E tier 1: its own
-    ``_recalculate_report_emissions`` recomputes every entry's emissions
-    from scratch right after (it has to — it also covers modules prefill
-    never touches, like ``purchase``'s manual rows), so computing them
-    during prefill first is thrown away. Fails loudly rather than silently
-    passing if a future edit reintroduces the call.
+    Regression test for plan #2050 Track F2. ``_sync_year_reports`` used to
+    compute emissions inside prefill, once per module: a cold
+    ``FactorResolver`` + factor-query cache and a single-module
+    ``recompute_stats_many`` for every module of every year. It now mirrors
+    ``set_reference_year`` — insert the rows, then one
+    ``_recalculate_report_emissions`` for the report — which shares one
+    resolver/cache across every module and ends in one batched stats pass.
+
+    Before the fix ``_prepare_recalc_emissions`` was never reached from this
+    caller at all, so this fails without it.
     """
     service = SimulatorPlanService(async_session)
-    ref_report, _ = await _reference_report_with_entries(
-        service, async_session, count=2, unit_id=71
-    )
-    plan = await _plan_with_year(service, user, "tier1-skip", year=2027, unit_id=71)
-
-    async def failing_persist(*args, **kwargs):
-        raise AssertionError(
-            "_persist_prefill_entries was called from set_reference_year's "
-            "path — its result is thrown away by the _recalculate_report_"
-            "emissions call right after (Track E tier 1 regressed)"
-        )
-
-    monkeypatch.setattr(service, "_persist_prefill_entries", failing_persist)
-
-    result = await service.set_reference_year(plan.id, 2027, 2024)
-    assert result is not None
-
-
-@pytest.mark.asyncio
-async def test_sync_year_reports_still_calls_persist_prefill_entries(
-    async_session, user, monkeypatch: pytest.MonkeyPatch
-):
-    """The other caller (new plan-year creation) must keep computing emissions
-    during prefill — it has no later ``_recalculate_report_emissions`` pass
-    to fall back on, per its own code comment ("no other entries exist
-    yet"). The mirror of the test above: Track E tier 1 must not have
-    silently broken this caller while fixing the other one.
-    """
-    service = SimulatorPlanService(async_session)
+    await _seed_process_emissions_factor(async_session)
     await _reference_report_with_entries(service, async_session, count=2, unit_id=72)
 
     calls = 0
-    original = service._persist_prefill_entries
+    original = service._prepare_recalc_emissions  # noqa: SLF001
 
-    async def counting_persist(*args, **kwargs):
+    async def counting_prepare(*args, **kwargs):
         nonlocal calls
         calls += 1
         return await original(*args, **kwargs)
 
-    monkeypatch.setattr(service, "_persist_prefill_entries", counting_persist)
+    monkeypatch.setattr(service, "_prepare_recalc_emissions", counting_prepare)
 
-    plan = await service.create_plan(unit_id=72, user=user, name="tier1-keep")
+    plan = await service.create_plan(unit_id=72, user=user, name="f2-batched")
     await service.update_plan(
         plan.id,
         SimulatorPlanUpdate(
@@ -599,10 +575,52 @@ async def test_sync_year_reports_still_calls_persist_prefill_entries(
         ),
     )
 
-    assert calls > 0, (
-        "_sync_year_reports must still call _persist_prefill_entries — it "
-        "has no follow-up recalc pass to compute emissions for it"
+    assert calls == 1, (
+        f"expected one batched compute for the new year report, got {calls} — "
+        "_sync_year_reports is computing per module again (Track F2 regressed)"
     )
+
+
+@pytest.mark.asyncio
+async def test_sync_year_reports_emissions_are_correct(async_session, user):
+    """Correctness, not just call-count: routing new plan years through the
+    batched recalc must persist the same kg values the per-module compute
+    produced. A prefilled year whose rows carry no emissions is the silent
+    failure this guards — the numbers are published.
+    """
+    service = SimulatorPlanService(async_session)
+    await _seed_process_emissions_factor(async_session)
+    ref_report, _ = await _reference_report_with_entries(
+        service, async_session, count=2, unit_id=74
+    )
+    await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+
+    plan = await service.create_plan(unit_id=74, user=user, name="f2-correct")
+    await service.update_plan(
+        plan.id,
+        SimulatorPlanUpdate(
+            start_year=2027, end_year=2027, default_reference_year=2024
+        ),
+    )
+
+    years = await service.list_plan_years(plan.id)
+    assert years is not None
+    module = next(
+        m
+        for m in years[0].modules
+        if m.module_type_id == int(ModuleTypeEnum.process_emissions)
+    )
+    entries = await DataEntryRepository(async_session).list_by_module(module.id)
+    assert {e.data["quantity"] for e in entries} == {1.0, 2.0}
+
+    emission_repo = DataEntryEmissionService(async_session).repo
+    kg_by_quantity = {}
+    for e in entries:
+        rows = await emission_repo.get_by_data_entry_id(e.id)
+        assert rows, f"entry {e.id} has no persisted emissions"
+        kg_by_quantity[e.data["quantity"]] = sum(r.kg_co2eq for r in rows)
+    # ef_kg_co2eq_per_unit=1.0, copied at 100% → kg_co2eq == quantity.
+    assert kg_by_quantity == {1.0: 1.0, 2.0: 2.0}
 
 
 @pytest.mark.asyncio
@@ -653,16 +671,12 @@ async def test_prefill_headcount_empty_after_prefill_still_recomputes_stats(
     async_session, user, monkeypatch: pytest.MonkeyPatch
 ):
     """A headcount module left empty by prefill must still get its stats
-    refreshed even with ``compute_emissions=False``.
+    refreshed.
 
-    Unlike ``prefill_module_from_reference`` (whose empty-``src_entries``
-    early return runs before the ``compute_emissions`` check at all),
-    ``prefill_headcount_from_reference`` reaches its own empty-``rows``
-    branch *after* that check — the ``elif not rows`` added alongside
-    ``compute_emissions`` must fire, or an empty headcount module keeps
-    stale stats: it never appears in the later
-    ``_recalculate_report_emissions``'s entry-driven module set (Track E
-    tier 1, same reasoning as Track D finding 2's empty-entries branch).
+    An empty module never appears in the later
+    ``_recalculate_report_emissions``'s entry-driven module set, so this
+    ``if not rows`` branch is its only chance to reflect "now empty" stats.
+    Without it an emptied headcount module keeps stale ones.
     """
     service = SimulatorPlanService(async_session)
     ref_report = await service.report_service.create(
@@ -699,14 +713,13 @@ async def test_prefill_headcount_empty_after_prefill_still_recomputes_stats(
     )
 
     rows_created = await service.prefill_headcount_from_reference(
-        report, ref_report=ref_report, compute_emissions=False
+        report, ref_report=ref_report
     )
 
     assert rows_created == 0
     assert calls == [[module.id]], (
         f"expected recompute_stats_many([{module.id}]) to run for the "
-        f"empty-after-prefill headcount module even with "
-        f"compute_emissions=False, got {calls}"
+        f"empty-after-prefill headcount module, got {calls}"
     )
 
 

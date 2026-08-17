@@ -281,10 +281,13 @@ class SimulatorPlanService:
                 )
             )
             if default_reference_year is not None:
-                # Prefill computes the copied rows' emissions itself; only
-                # the report rollup is missing (no other entries exist yet).
+                # Same two-step as set_reference_year: insert the copied rows,
+                # then compute the whole report in one batched pass. Computing
+                # per module here instead built a cold FactorResolver and ran
+                # a single-module recompute_stats_many per module per year
+                # (plan #2050 Track F2).
                 await self._prefill_reference_modules(report_read)
-                await self.report_service.recompute_report_stats(report_read.id)
+                await self._recalculate_report_emissions(report_read)
         if want_years and project.is_viewable_by_unit_members:
             project.is_viewable_by_unit_members = False
             self.session.add(project)
@@ -373,20 +376,17 @@ class SimulatorPlanService:
             report.reference_year = reference_year
             self.session.add(report)
             await self.session.flush()
-            # _recalculate_report_emissions right after recomputes every
-            # entry's emissions (and every touched module's stats) from
-            # scratch anyway — skip prefill's own compute entirely here
-            # (plan #2050 Track E tier 1). Not safe for _sync_year_reports's
-            # own call (default True there), which has no such follow-up.
-            await self._prefill_reference_modules(report, compute_emissions=False)
+            # Prefill only inserts the copied rows; the recalc right after
+            # computes every entry's emissions (and every touched module's
+            # stats) from scratch — it has to, since it also covers modules
+            # prefill never touches, like purchase's manual rows.
+            await self._prefill_reference_modules(report)
             await self._recalculate_report_emissions(report)
         return await self._year_read(report)
 
     async def _prefill_reference_modules(
         self,
         report: CarbonReport | CarbonReportRead,
-        *,
-        compute_emissions: bool = True,
     ) -> None:
         """Empty every reference-scoped module, rebuild prefilled + copied ones.
 
@@ -400,18 +400,9 @@ class SimulatorPlanService:
         empty —  showing the previous baseline's rows under a new reference year
         would be a lie.
 
-        Args:
-            compute_emissions: forwarded to each rebuilt module's prefill
-                call — ``False`` only from ``set_reference_year``, whose
-                ``_recalculate_report_emissions`` right after recomputes
-                every entry's emissions from scratch anyway (it has to,
-                since it also covers modules prefill never touches, like
-                ``purchase``'s manual rows) — computing them here first is
-                thrown away (plan #2050 Track E tier 1). ``True`` (default)
-                for ``_sync_year_reports`` (new plan-year creation): its own
-                code comment already explains why — "no other entries exist
-                yet," so prefill's own compute is the only pass that ever
-                runs for that caller.
+        Inserts the copied rows only; the caller computes emissions for the
+        whole report in one batched pass right after (both callers do — plan
+        #2050 Track F2).
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
@@ -490,7 +481,6 @@ class SimulatorPlanService:
                     ref_report=ref_report,
                     plan_module=plan_modules_by_type[module_type_id],
                     ref_module=ref_modules_by_type.get(module_type_id),
-                    compute_emissions=compute_emissions,
                 )
             else:
                 await self.prefill_module_from_reference(
@@ -499,7 +489,6 @@ class SimulatorPlanService:
                     ref_report=ref_report,
                     plan_module=plan_modules_by_type[module_type_id],
                     ref_module=ref_modules_by_type.get(module_type_id),
-                    compute_emissions=compute_emissions,
                 )
 
     async def _clear_module_entries(self, module_ids: list[int]) -> None:
@@ -538,7 +527,6 @@ class SimulatorPlanService:
         ref_report: CarbonReport | None = None,
         plan_module: CarbonReportModuleRead | None = None,
         ref_module: CarbonReportModuleRead | None = None,
-        compute_emissions: bool = True,
     ) -> int:
         """Rebuild a plan module from the reference-year Calculator entries.
 
@@ -550,8 +538,8 @@ class SimulatorPlanService:
         ordinary editable entries whose emissions recompute from the row data.
         Returns the copied count.
 
-        The copy + emission-compute loop is batched by
-        ``_persist_prefill_entries`` — see plan/perf notes on this function.
+        Emissions are not computed here — the caller recomputes the whole
+        report in one batched pass right after (plan #2050 Track F2).
 
         Args:
             ref_report: The reference year's Calculator report, when the
@@ -562,10 +550,6 @@ class SimulatorPlanService:
                 lists every module up front) — skips the redundant
                 ``get_module`` here (plan #2050 Track E tier 2).
             ref_module: Same, for the reference year's module.
-            compute_emissions: when ``False``, only insert the copied rows —
-                skip ``_persist_prefill_entries`` (emissions + stats)
-                entirely. See ``_prefill_reference_modules``'s docstring for
-                when this is safe (plan #2050 Track E tier 1).
 
         Raises ValueError when the report has no reference year or the
         reference year has no Calculator report/module for the unit.
@@ -629,16 +613,8 @@ class SimulatorPlanService:
             }
             for src in src_entries
         ]
-        copies = await self._bulk_insert_entries(rows)
-
-        if compute_emissions:
-            await self._persist_prefill_entries(
-                copies,
-                plan_module.id,
-                year=report.reference_year,
-                unit_id=report.unit_id,
-            )
-        return len(copies)
+        await self._bulk_insert_entries(rows)
+        return len(rows)
 
     async def prefill_headcount_from_reference(
         self,
@@ -647,7 +623,6 @@ class SimulatorPlanService:
         ref_report: CarbonReport | None = None,
         plan_module: CarbonReportModuleRead | None = None,
         ref_module: CarbonReportModuleRead | None = None,
-        compute_emissions: bool = True,
     ) -> int:
         """Rebuild the plan's headcount grid from the reference-year members.
 
@@ -663,8 +638,6 @@ class SimulatorPlanService:
             plan_module: see ``prefill_module_from_reference``'s docstring —
                 same contract (plan #2050 Track E tier 2).
             ref_module: same.
-            compute_emissions: see ``prefill_module_from_reference``'s
-                docstring — same contract (plan #2050 Track E tier 1).
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
@@ -734,16 +707,10 @@ class SimulatorPlanService:
         ]
         rows = await self._bulk_insert_entries(row_dicts)
 
-        if compute_emissions:
-            await self._persist_prefill_entries(
-                rows, plan_module.id, year=report.reference_year, unit_id=report.unit_id
-            )
-        elif not rows:
-            # Empty after prefill — never appears in
-            # _recalculate_report_emissions's entry-driven module set later,
-            # so this is its only chance to reflect "now empty" stats (same
-            # reasoning _persist_prefill_entries's own empty branch already
-            # applies — plan #2050 Track D finding 2 / Track E tier 1).
+        if not rows:
+            # Empty after prefill — an empty module never appears in
+            # _recalculate_report_emissions's entry-driven module set, so
+            # this is its only chance to reflect "now empty" stats.
             await self.report_service.module_service.recompute_stats_many(
                 [plan_module.id]
             )
@@ -752,8 +719,8 @@ class SimulatorPlanService:
     async def _bulk_insert_entries(self, rows: list[dict]) -> list[DataEntryResponse]:
         """INSERT ``rows`` via Core, wrapping each with its assigned id.
 
-        Returns the ``DataEntryResponse`` shape ``_persist_prefill_entries``/
-        ``prepare_create`` already accept — no ``DataEntry(...)`` ORM
+        Returns the ``DataEntryResponse`` shape ``prepare_create``
+        already accepts — no ``DataEntry(...)`` ORM
         instance is ever constructed for a prefill batch, since these rows
         are never individually ``session.add()``ed (only ``create``/
         ``upsert_by_data_entry`` need that — see
@@ -778,87 +745,16 @@ class SimulatorPlanService:
             for row_id, row in zip(ids, rows, strict=True)
         ]
 
-    async def _persist_prefill_entries(
-        self,
-        entries: list[DataEntryResponse],
-        module_id: int,
-        *,
-        year: int,
-        unit_id: int | None,
+    async def _recalculate_report_emissions(
+        self, report: CarbonReport | CarbonReportRead
     ) -> None:
-        """Compute freshly-inserted prefill rows' emissions, refresh the stats.
-
-        Only called when the caller actually needs the result —
-        ``set_reference_year`` skips this entirely now (plan #2050 Track E
-        tier 1: its own follow-up ``_recalculate_report_emissions``
-        recomputes everything from scratch anyway, so calling this first
-        would just be thrown-away work). ``_sync_year_reports`` (new
-        plan-year creation) is the only remaining caller — there, this is
-        the one and only pass, so it always runs in full.
-
-        ``entries`` already exist in the DB with ids assigned (see
-        ``_bulk_insert_entries``) — nothing to flush here. Batched (one
-        shared ``FactorResolver``/factor-query cache, one grouped
-        ``prefetch_slice`` per data_entry_type, one bulk emission insert,
-        one prefetched percentage-override cache) so an N-row module costs
-        a small constant number of round trips instead of ``O(N)``. The
-        override cache mirrors ``_recalculate_report_emissions``'s (#2050
-        C3) — every prefilled row here carries ``source_data_entry_id``
-        too, and without it each one re-triggers
-        ``_get_percentage_override_kg``'s per-entry PK fetch + sum query
-        fallback.
-        """
-        if not entries:
-            await self.report_service.module_service.recompute_stats_many([module_id])
-            return
-
-        emission_svc = DataEntryEmissionService(self.session)
-        factor_resolver = FactorResolver(self.session)
-        factor_query_cache: dict = {}
-        override_cache = await emission_svc.prefetch_percentage_override_cache(
-            entries, unit_id=unit_id
-        )
-
-        # Group by data_entry_type_id: a module can mix subtypes (e.g.
-        # headcount's student/member rows), and prefetch_slice/handler
-        # selection are per-type, same as the recalc workflow.
-        by_type: dict[int, list[DataEntryResponse]] = {}
-        for entry in entries:
-            by_type.setdefault(entry.data_entry_type_id, []).append(entry)
-
-        prepared_emissions = []
-        for data_entry_type_id, group in by_type.items():
-            handler = BaseModuleHandler.get_by_type(
-                DataEntryTypeEnum(data_entry_type_id)
-            )
-            slice_cache = await handler.prefetch_slice(group, self.session, year=year)
-            for entry in group:
-                prepared_emissions.extend(
-                    await emission_svc.prepare_create(
-                        entry,
-                        year=year,
-                        factor_resolver=factor_resolver,
-                        factor_query_cache=factor_query_cache,
-                        slice_cache=slice_cache,
-                        override_cache=override_cache,
-                    )
-                )
-        # Single bulk insert via COPY: the rows are brand new (nothing
-        # stale to delete first, unlike upsert_by_data_entry), and
-        # prepare_create already hands back lightweight rows, not real
-        # ORM instances — bulk_copy is the path that takes those as-is.
-        await emission_svc.bulk_copy(prepared_emissions)
-
-        await self.report_service.module_service.recompute_stats_many([module_id])
-
-    async def _recalculate_report_emissions(self, report: CarbonReport) -> None:
         """Recompute emissions of the report's entries + refresh stats.
 
         Factor lookup follows the reference year, so every entry of the report
         has to be recomputed when it changes.
 
-        Batched like ``_persist_prefill_entries`` and the recalc workflow —
-        see ``_prepare_recalc_emissions`` — instead of the old per-entry
+        Batched like the recalc workflow — see
+        ``_prepare_recalc_emissions`` — instead of the old per-entry
         ``upsert_by_data_entry`` loop, measured at 39x more SQL statements
         for a 40x entry-count increase (plan #2050 section C3).
         """
