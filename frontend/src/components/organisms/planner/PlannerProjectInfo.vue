@@ -162,7 +162,6 @@ import {
   type SimulatorPlan,
   type SimulatorPlanUpdatePayload,
 } from 'src/stores/simulatorPlans';
-import { useYearConfigStore } from 'src/stores/yearConfig';
 
 const props = defineProps<{ plan: SimulatorPlan }>();
 const emit = defineEmits<{ updated: [plan: SimulatorPlan] }>();
@@ -171,7 +170,6 @@ const { t } = useI18n();
 const $q = useQuasar();
 const route = useRoute();
 const plansStore = useSimulatorPlansStore();
-const yearConfigStore = useYearConfigStore();
 
 const sectionTooltip = computed(() => t('planner-project-info-section-title'));
 const grantProposalTooltip = computed(() => t('planner-grant-proposal-title'));
@@ -207,14 +205,11 @@ const isViewableByUnitMembers = computed({
   set: (value: boolean) => void saveShareWithLab(value),
 });
 
-// Plans span from the earliest configurable Calculator year
-// (settings.MIN_CONFIGURABLE_YEAR — no reference data before it) up to ten
-// years ahead. Bounded selects replace free-form validation entirely.
-const YEARS_AHEAD = 10;
-const maxYear = computed(() => new Date().getFullYear() + YEARS_AHEAD);
-const minYear = computed(
-  () => yearConfigStore.minConfigurableYear ?? new Date().getFullYear(),
-);
+// Fixed project horizon decided by the steering committee: plans may start
+// as early as 2019 and must end by 2050. Bounded selects replace free-form
+// validation entirely.
+const MIN_YEAR = 2016;
+const MAX_YEAR = 2050;
 
 function yearRange(
   from: number,
@@ -230,14 +225,14 @@ function yearRange(
 }
 
 const startYearOptions = computed(() =>
-  yearRange(minYear.value, maxYear.value, startYearInput.value),
+  yearRange(MIN_YEAR, MAX_YEAR, startYearInput.value),
 );
 
 // End year can't precede the chosen start year.
 const endYearOptions = computed(() =>
   yearRange(
-    Math.max(minYear.value, startYearInput.value ?? minYear.value),
-    maxYear.value,
+    Math.max(MIN_YEAR, startYearInput.value ?? MIN_YEAR),
+    MAX_YEAR,
     endYearInput.value,
   ),
 );
