@@ -127,3 +127,15 @@ class SimulatorPlanYearRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class SimulatorPlanPrefillStatus(BaseModel):
+    """Progress of a deferred plan prefill (plan #2050 Track F4)."""
+
+    job_id: int
+    #: True once the job reached its terminal state, whatever the outcome —
+    #: the client stops polling and refetches the plan years.
+    finished: bool
+    #: Set only when finished: "success" | "warning" | "error".
+    result: str | None = None
+    status_message: str | None = None

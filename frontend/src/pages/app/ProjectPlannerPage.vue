@@ -55,6 +55,20 @@
         @updated="onPlanUpdated"
       />
 
+      <!-- Prefill runs in the background: the year sections already exist
+           but are still empty, so say so rather than render them as zero. -->
+      <q-banner
+        v-if="plansStore.prefillRunning"
+        dense
+        class="bg-info text-white q-mb-md"
+        data-testid="planner-prefill-running"
+      >
+        <template #avatar>
+          <q-spinner size="1.5em" />
+        </template>
+        {{ $t('planner_prefill_running') }}
+      </q-banner>
+
       <!-- One section per year of the range -->
       <template v-if="plansStore.planYears.length">
         <planner-year-section

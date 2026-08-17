@@ -15,6 +15,7 @@ from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
     IngestionMethod,
+    IngestionResult,
     IngestionState,
     TargetType,
 )
@@ -23,6 +24,7 @@ from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.simulator_plan import (
     SimulatorPlanCreate,
+    SimulatorPlanPrefillStatus,
     SimulatorPlanRead,
     SimulatorPlanReferenceYearUpdate,
     SimulatorPlanUpdate,
@@ -191,6 +193,38 @@ async def update_simulator_plan(
         db, current_user, plan_id, needs_prefill
     )
     return _with_can_manage(current_user, [result])[0]
+
+
+@router.get("/{plan_id}/prefill/{job_id}", response_model=SimulatorPlanPrefillStatus)
+async def get_simulator_plan_prefill_status(
+    plan_id: int,
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Poll a deferred prefill job (plan #2050 Track F4).
+
+    Gated by the plan's own access check rather than the admin data-sync
+    permissions, since the caller here is the plan's editor waiting on
+    their own PATCH.
+    """
+    await _require_plan_unit_access(db, current_user, plan_id, "view")
+    job = await DataIngestionRepository(db).get_job_by_id(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Prefill job not found")
+    config = (job.meta or {}).get("config") or {}
+    if config.get("plan_id") != plan_id:
+        # Don't let a plan's editor read another plan's job by id.
+        raise HTTPException(status_code=404, detail="Prefill job not found")
+    finished = job.state == IngestionState.FINISHED
+    return SimulatorPlanPrefillStatus(
+        job_id=job_id,
+        finished=finished,
+        result=IngestionResult(job.result).name.lower()
+        if finished and job.result is not None
+        else None,
+        status_message=(job.meta or {}).get("status_message"),
+    )
 
 
 @router.get("/{plan_id}/years", response_model=list[SimulatorPlanYearRead])
