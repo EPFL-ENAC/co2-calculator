@@ -1280,6 +1280,41 @@ Verify first that `resolve_factor_year(report)` returns the same year
 any report with a reference year set, which is the only branch that
 prefills, but the equivalence is the whole safety argument.
 
+#### Status: implemented + measured, 2026-08-17
+
+`_sync_year_reports` now mirrors `set_reference_year`: prefill inserts the
+copied rows, then one `_recalculate_report_emissions` computes the whole
+report. Both callers behave identically, so `compute_emissions` and
+`_persist_prefill_entries` were **deleted** rather than left as a dual
+path (73 lines gone, no behaviour branch retained).
+
+Measured on the 10-plan-year creation path against real Postgres, varying
+how many module types actually hold entries:
+
+| populated module types |        | statements | wall         |
+| ---------------------- | ------ | ---------- | ------------ |
+| 1 (500 entries x 10y)  | before | 1198       | 1080.3ms     |
+|                        | after  | 1218       | 1187.3ms     |
+| 4 (200 entries x 10y)  | before | 1408       | 1452.7ms     |
+|                        | after  | **1108**   | **1351.2ms** |
+
+**The win scales with populated module count, and at one module type it is
+a regression** (+20 statements, +107ms) — `_recalculate_report_emissions`
+re-fetches the report's entries and issues a `DELETE` for emissions that
+do not exist yet on a brand-new report, which the per-module path skipped.
+At four module types that overhead is repaid several times over: **-300
+statements (-21%)** and -101ms.
+
+Real plan years populate up to eight module types, so the four-type row is
+the representative one — but the single-module case is a genuine small
+regression and is recorded here rather than averaged away.
+
+**The statement count is the number that matters, and local wall clock
+understates it.** Dev pays ~9-17x per round trip (F0), so -300 statements
+is worth roughly 1.2-3s there against ~130ms locally. The redundant
+`DELETE` on fresh reports is a known, unfixed remainder — worth folding
+into F3, which removes that path entirely.
+
 ### F3 — the copies are identical across years (verified)
 
 Prefill copies the _same_ reference-year entries into every plan year, at
