@@ -15,6 +15,12 @@ Behaviours pinned here (all at the repository layer, like ``test_sort.py``):
 3. ``test_count_incomplete_new_equipment`` — the count reflects only new
    equipment still missing active/standby usage, and drops to zero once the
    usage is filled.
+4. ``test_prior_year_usage_map_partial_fields`` — the carry-forward lookup
+   returns only the usage fields the prior year actually set.
+5. ``test_apply_equipment_carry_forward`` — per-field merge: prior-year values
+   win over ingested ones, unset prior fields and unmatched equipment are left
+   untouched. (The factor → 12/156 formula fallback is pinned in
+   ``tests/unit/modules/test_equipment_schemas.py``.)
 """
 
 import pytest
@@ -25,6 +31,7 @@ from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DataEntryRepository
+from app.services.data_entry_service import DataEntryService
 
 UNIT_ID = 1
 
@@ -52,11 +59,15 @@ async def _seed_entry(
     year: int,
     equipment_id: str,
     with_usage: bool = True,
+    active_usage: int | None = None,
+    standby_usage: int | None = None,
 ) -> DataEntry:
     """Seed one scientific equipment entry with its denormalized unit/year.
 
     ``get_prior_year_equipment_ids`` and ``_equipment_module_scope`` read the
     denormalized ``unit_id``/``year`` off the entry, so both must be set.
+    ``active_usage``/``standby_usage`` override the ``with_usage`` pair to
+    seed a single field.
     """
     data: dict = {
         "name": f"eq-{equipment_id}",
@@ -66,6 +77,10 @@ async def _seed_entry(
     if with_usage:
         data["active_usage_hours_per_week"] = 12
         data["standby_usage_hours_per_week"] = 150
+    if active_usage is not None:
+        data["active_usage_hours_per_week"] = active_usage
+    if standby_usage is not None:
+        data["standby_usage_hours_per_week"] = standby_usage
     entry = DataEntry(
         carbon_report_module_id=module.id,
         data_entry_type_id=DataEntryTypeEnum.scientific,
@@ -84,8 +99,9 @@ async def test_new_equipment_flagged_and_sorted_first(db_session: AsyncSession):
     """The equipment_id absent from the prior year is flagged and floats up.
 
     Prior year (2024) has {E1, E2}. Current year (2025) has E1 (existing) and
-    E3 (new). Sorting by name ascending would place ``eq-E1`` before ``eq-E3``;
-    the new-first primary sort must override that so E3 comes back first.
+    E3 (new, still missing usage). Sorting by name ascending would place
+    ``eq-E1`` before ``eq-E3``; the new-and-incomplete primary sort must
+    override that so E3 comes back first.
     """
     repo = DataEntryRepository(db_session)
 
@@ -95,10 +111,6 @@ async def test_new_equipment_flagged_and_sorted_first(db_session: AsyncSession):
 
     cur_module = await _seed_module(db_session, 2025)
     await _seed_entry(db_session, cur_module, year=2025, equipment_id="E1")
-    # New *and* missing usage hours: the float-to-top rule is
-    # ``desc(and_(is_new, missing_usage))`` (#259 surfaces rows that need the
-    # user's attention), not "new" on its own — a new row already filled in
-    # sorts normally.
     await _seed_entry(
         db_session, cur_module, year=2025, equipment_id="E3", with_usage=False
     )
@@ -174,3 +186,98 @@ async def test_count_incomplete_new_equipment(db_session: AsyncSession):
     await db_session.commit()
 
     assert await repo.count_incomplete_new_equipment(cur_module.id) == 0
+
+
+@pytest.mark.asyncio
+async def test_prior_year_usage_map_partial_fields(db_session: AsyncSession):
+    """The lookup returns only the usage fields each prior row actually set."""
+    repo = DataEntryRepository(db_session)
+
+    prev_module = await _seed_module(db_session, 2024)
+    await _seed_entry(
+        db_session,
+        prev_module,
+        year=2024,
+        equipment_id="E1",
+        with_usage=False,
+        active_usage=10,
+        standby_usage=100,
+    )
+    await _seed_entry(
+        db_session,
+        prev_module,
+        year=2024,
+        equipment_id="E2",
+        with_usage=False,
+        active_usage=8,
+    )
+    await _seed_entry(
+        db_session, prev_module, year=2024, equipment_id="E3", with_usage=False
+    )
+    await db_session.commit()
+
+    assert await repo.get_prior_year_equipment_usage(UNIT_ID, 2025) == {
+        "E1": {
+            "active_usage_hours_per_week": 10,
+            "standby_usage_hours_per_week": 100,
+        },
+        "E2": {"active_usage_hours_per_week": 8},
+    }
+    assert await repo.get_prior_year_equipment_usage(UNIT_ID, 2024) == {}
+
+
+@pytest.mark.asyncio
+async def test_apply_equipment_carry_forward(db_session: AsyncSession):
+    """Per-field merge: prior-year values win over the ingested file's ones,
+    fields the prior year left unset stay as ingested, unmatched equipment is
+    untouched. Entries arrive like the ingest batch: no unit/year stamped.
+    """
+    prev_module = await _seed_module(db_session, 2024)
+    await _seed_entry(
+        db_session,
+        prev_module,
+        year=2024,
+        equipment_id="E1",
+        with_usage=False,
+        active_usage=10,
+        standby_usage=100,
+    )
+    await _seed_entry(
+        db_session,
+        prev_module,
+        year=2024,
+        equipment_id="E2",
+        with_usage=False,
+        active_usage=8,
+    )
+    cur_module = await _seed_module(db_session, 2025)
+    await db_session.commit()
+
+    def _batch_entry(equipment_id: str, **usage: int) -> DataEntry:
+        return DataEntry(
+            carbon_report_module_id=cur_module.id,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            data={
+                "name": f"eq-{equipment_id}",
+                "equipment_id": equipment_id,
+                "equipment_class": "microscope",
+                **usage,
+            },
+        )
+
+    matched = _batch_entry(
+        "E1", active_usage_hours_per_week=1, standby_usage_hours_per_week=2
+    )
+    partial = _batch_entry("E2", standby_usage_hours_per_week=40)
+    unmatched = _batch_entry("E9", active_usage_hours_per_week=3)
+
+    service = DataEntryService(db_session)
+    await service.apply_equipment_carry_forward([matched, partial, unmatched])
+
+    assert matched.data["active_usage_hours_per_week"] == 10
+    assert matched.data["standby_usage_hours_per_week"] == 100
+    assert partial.data["active_usage_hours_per_week"] == 8
+    assert partial.data["standby_usage_hours_per_week"] == 40
+    assert unmatched.data["active_usage_hours_per_week"] == 3
+    assert "standby_usage_hours_per_week" not in unmatched.data
+    assert (matched.unit_id, matched.year) == (UNIT_ID, 2025)

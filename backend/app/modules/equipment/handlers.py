@@ -6,6 +6,8 @@ from app.models.data_entry_emission import DataEntryEmission, EmissionComputatio
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.modules.equipment.data_entries import (
+    DEFAULT_ACTIVE_USAGE_HOURS_PER_WEEK,
+    DEFAULT_STANDBY_USAGE_HOURS_PER_WEEK,
     MAX_WEEKLY_USAGE_HOURS,
     EquipmentHandlerCreate,
     EquipmentHandlerResponse,
@@ -99,16 +101,18 @@ class EquipmentModuleHandler(BaseModuleHandler):
 
         def _equipment_formula(ctx: dict, factor_values: dict) -> float | None:
             # Usage hours are a live default: the user's value wins, an
-            # unset field tracks the factor's current suggestion (nothing
-            # is seeded into entry.data any more).
+            # unset field tracks the factor's current suggestion, and when
+            # the factor has none either the #259 spec defaults apply.
             active_hours = ctx.get("active_usage_hours_per_week")
             if active_hours is None:
                 active_hours = factor_values.get("active_usage_hours_per_week")
+            if active_hours is None:
+                active_hours = DEFAULT_ACTIVE_USAGE_HOURS_PER_WEEK
             standby_hours = ctx.get("standby_usage_hours_per_week")
             if standby_hours is None:
                 standby_hours = factor_values.get("standby_usage_hours_per_week")
-            if active_hours is None or standby_hours is None:
-                return None
+            if standby_hours is None:
+                standby_hours = DEFAULT_STANDBY_USAGE_HOURS_PER_WEEK
             active_power_w = factor_values.get("active_power_w")
             standby_power_w = factor_values.get("standby_power_w")
             ef = factor_values.get("ef_kg_co2eq_per_kwh")

@@ -36,6 +36,10 @@ from app.modules.equipment import (
     EquipmentHandlerCreate,
     EquipmentHandlerResponse,
 )
+from app.modules.equipment.data_entries import (
+    DEFAULT_ACTIVE_USAGE_HOURS_PER_WEEK,
+    DEFAULT_STANDBY_USAGE_HOURS_PER_WEEK,
+)
 from app.schemas.data_entry import BaseModuleHandler
 
 _OMIT = object()
@@ -247,12 +251,27 @@ def test_equipment_formula_falls_back_to_factor_hours_when_unset() -> None:
     assert kg == pytest.approx(expected_weekly_wh * settings_weeks / 1000)
 
 
-def test_equipment_formula_none_when_no_hours_anywhere() -> None:
-    kg = _compute_kg(
-        {},
-        {"active_power_w": 100.0, "standby_power_w": 10.0, "ef_kg_co2eq_per_kwh": 1.0},
+def test_equipment_formula_spec_defaults_when_no_hours_anywhere() -> None:
+    """No hours on the entry nor the factor → the #259 defaults (12/156) apply,
+    each field independently.
+    """
+    factor_values = {
+        "active_power_w": 100.0,
+        "standby_power_w": 10.0,
+        "ef_kg_co2eq_per_kwh": 1.0,
+    }
+    settings_weeks = get_settings().WEEKS_PER_YEAR
+
+    kg = _compute_kg({}, factor_values)
+    expected_weekly_wh = (
+        DEFAULT_ACTIVE_USAGE_HOURS_PER_WEEK * 100.0
+        + DEFAULT_STANDBY_USAGE_HOURS_PER_WEEK * 10.0
     )
-    assert kg is None
+    assert kg == pytest.approx(expected_weekly_wh * settings_weeks / 1000)
+
+    kg = _compute_kg({"active_usage_hours_per_week": 5}, factor_values)
+    expected_weekly_wh = 5 * 100.0 + DEFAULT_STANDBY_USAGE_HOURS_PER_WEEK * 10.0
+    assert kg == pytest.approx(expected_weekly_wh * settings_weeks / 1000)
 
 
 # ── response DTO accepts fractional power (regression, stage 500 on entry 385685) ──

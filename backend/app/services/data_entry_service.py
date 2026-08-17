@@ -17,7 +17,10 @@ from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonRep
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 
 # from app.repositories.headcount_repo import HeadCountRepository
-from app.repositories.data_entry_repo import DataEntryRepository
+from app.repositories.data_entry_repo import (
+    EQUIPMENT_DATA_ENTRY_TYPE_IDS,
+    DataEntryRepository,
+)
 from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
@@ -59,6 +62,7 @@ class DataEntryService:
         self.session = session
         self.repo = DataEntryRepository(session)
         self.versioning = versioning_service or AuditDocumentService(session)
+        self._prior_equipment_usage_cache: dict[tuple[int, int], dict[str, dict]] = {}
 
     async def get_stats(
         self,
@@ -196,6 +200,41 @@ class DataEntryService:
         """Whether this module's report belongs to a Simulator project."""
         return bool(await self.simulator_module_ids({carbon_report_module_id}))
 
+    async def apply_equipment_carry_forward(
+        self, data_entries: list[DataEntry]
+    ) -> None:
+        """Carry equipment usage hours forward from the unit's most recent
+        prior year, matched by ``equipment_id`` (issue #259).
+
+        Each usage field is taken independently: a value set last year wins
+        over whatever the ingest file supplies; a field last year left unset
+        stays unset and keeps tracking the factor default (then the spec's
+        12/156 fallback in the emission formula). Prior-year maps are cached
+        per ``(unit_id, year)`` on the service instance, so a 50k-row ingest
+        costs one lookup query per unit/year, never one per entry.
+        """
+        equipment = [
+            e
+            for e in data_entries
+            if e.data_entry_type_id in EQUIPMENT_DATA_ENTRY_TYPE_IDS
+            and (e.data or {}).get("equipment_id")
+        ]
+        if not equipment:
+            return
+        await self.fill_denormalized_scope(equipment)
+        for entry in equipment:
+            if entry.unit_id is None or entry.year is None:
+                continue
+            scope = (entry.unit_id, entry.year)
+            prior_usage = self._prior_equipment_usage_cache.get(scope)
+            if prior_usage is None:
+                prior_usage = await self.repo.get_prior_year_equipment_usage(
+                    entry.unit_id, entry.year
+                )
+                self._prior_equipment_usage_cache[scope] = prior_usage
+            prior = prior_usage.get(entry.data["equipment_id"])
+            if prior:
+                entry.data = {**entry.data, **prior}
     async def create(
         self,
         carbon_report_module_id: int,
@@ -376,6 +415,7 @@ class DataEntryService:
             if created_by_id is not None:
                 entry.created_by_id = created_by_id
         await self.fill_denormalized_scope(data_entries)
+        await self.apply_equipment_carry_forward(data_entries)
         count = await self.repo.bulk_copy(data_entries)
         logger.info(f"COPY-inserted {count} data entries (job {sanitize(job_id)})")
         return count
