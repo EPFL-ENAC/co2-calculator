@@ -43,6 +43,7 @@ from app.models.user import User
 from app.seed.seed_locations import _NATURAL_KEY_EXPR
 from app.services.data_ingestion.base_csv_provider import _validate_file_path
 from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.utils.csv_dialect import csv_dict_reader
 
 logger = get_logger(__name__)
 
@@ -237,7 +238,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         required_columns: set[str],
         expected_columns: set[str],
     ) -> None:
-        reader = csv.DictReader(io.StringIO(csv_text))
+        reader = csv_dict_reader(csv_text)
         try:
             first = next(reader)
         except StopIteration:
@@ -379,7 +380,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
     def _parse_locations_rows(csv_text: str, det: DataEntryTypeEnum) -> list[list[str]]:
         target_mode = det.name  # "plane" or "train"
         rows: list[list[str]] = []
-        reader = csv.DictReader(io.StringIO(csv_text))
+        reader = csv_dict_reader(csv_text)
         for raw in reader:
             mode = (raw.get("transport_mode") or "").strip().lower()
             if mode != target_mode:
@@ -505,7 +506,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
 
         rooms: list[BuildingRoom] = []
         skipped = 0
-        reader = csv.DictReader(io.StringIO(csv_text))
+        reader = csv_dict_reader(csv_text)
         for raw in reader:
             building_location = (raw.get("building_location") or "").strip()
             building_name = (raw.get("building_name") or "").strip()

@@ -1,9 +1,9 @@
-import csv
-import io
 from datetime import date
 from typing import TypedDict
 
 import httpx
+
+from app.utils.csv_dialect import csv_dict_reader
 
 ECB_TIMEOUT_SECONDS = 10
 ECB_EXR_URL = "https://data-api.ecb.europa.eu/service/data/EXR/"
@@ -168,7 +168,7 @@ class ExchangeRatesService:
             )
 
         # Parse CSV into list of dicts (typed)
-        reader = csv.DictReader(io.StringIO(response.text))
+        reader = csv_dict_reader(response.text)
 
         data: list[ExchangeRateRow] = []
         for row in reader:

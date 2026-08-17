@@ -1,7 +1,5 @@
 """Year configuration schemas for API request/response validation."""
 
-import csv
-import io
 from datetime import datetime
 from enum import IntEnum
 from typing import (
@@ -19,6 +17,7 @@ from pydantic import (
 
 from app.models.data_ingestion import IngestionResult
 from app.models.module_type import ModuleTypeEnum
+from app.utils.csv_dialect import csv_dict_reader
 
 # Type definitions
 UncertaintyTag = Literal["low", "medium", "high", "none"]
@@ -225,7 +224,7 @@ def validate_reduction_objective_csv(
     else:
         raise ValueError(["Unable to decode CSV file. Please save it as UTF-8."])
 
-    reader = csv.DictReader(io.StringIO(text))
+    reader = csv_dict_reader(text)
 
     # Validate header presence
     if reader.fieldnames is None:
