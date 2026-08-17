@@ -3,7 +3,7 @@ status: in-progress
 issue: 2050
 last_updated: 2026-08-17
 title: "Backend compute performance — pod stability, worker split, request-path profiling"
-summary: "Three-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081), fix a simulator-plan reference-year PATCH N+1 in recalc then prefill (PR #2083 + same-day follow-up), then a general fix for Pydantic's per-instance default_factory signature-introspection tax across every SQLModel table — and profile compute cost (Track C), which rules out a language rewrite."
+summary: "Six-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081); profile compute cost (Track C), which rules out a language rewrite; then fix the simulator-plan reference-year PATCH end to end — recalc and prefill N+1s, Pydantic's per-instance default_factory tax across every SQLModel table, Core INSERT…RETURNING, and Tracks D/E's redundant recomputes — taking it 960ms → 271.4ms (PRs #2083, #2152). Track F reopens the per-year prefill fan-out behind a 21.89s dev trace whose bottleneck is not traced SQL."
 ---
 
 # Backend compute performance (#2050)
@@ -796,7 +796,7 @@ single-item leverage the last three fixes did — this is genuine
 diminishing-returns territory; further gains need either accepting the
 INSERT floor or moving the work off the request path entirely (Track B).
 
-## Track D — round-trip count, not query speed (proposed, not yet implemented)
+## Track D — round-trip count, not query speed (implemented 2026-08-17)
 
 An outside review of the 203.55ms trace argued the real problem is
 statement _count_, not per-statement speed, and proposed a "load once →
@@ -943,7 +943,7 @@ largest plans specifically once the INSERT-execution floor (~50ms at
 N=1000, genuine Postgres write time) is the dominant remaining cost, since
 no amount of round-trip reduction removes that.
 
-## Track E — the actual optimal shape (proposed, not yet implemented)
+## Track E — the actual optimal shape (implemented 2026-08-17)
 
 Requested directly: "write me down the todo/steps for the optimal
 optimization — in my head it's two SQL requests." Two isn't literally
@@ -1333,6 +1333,25 @@ investigation order.
    finding on its own, and — since the tax scales with SQL statement count
    — one that C3's fix already shrinks as a side effect on the endpoint it
    touches, without anyone having to tune OTel to get that partial win.
+
+8. ~~**D** — the two redundant-recompute findings (upfront module-clear of
+   modules that self-clear during rebuild; per-module stats recompute
+   superseded by a later full recalc).~~ **Done 2026-08-17** — branch
+   `perf/2050-simulator-plan-track-d-e`, PR #2152. 346.7ms → 302.1ms.
+9. ~~**E** — tiers 1 and 2: `set_reference_year` skips prefill's own
+   emission compute entirely (`compute_emissions=False`), and
+   `_prefill_reference_modules` batches its `get_module` calls into one
+   `list_modules` per side.~~ **Done 2026-08-17**, same branch/PR.
+   302.1ms → **271.4ms**, closing a 960ms → 271.4ms chain (-71.7%).
+   Tiers 8/9 (batch `list_by_module` and flatten row-inserts across module
+   types) remain proposals — estimated ~3-8ms local / ~15-40ms dev, a
+   guess rather than a measurement.
+10. **F** — the per-year fan-out, reopened 2026-08-17 by an 11-year
+    plan-range PATCH at 3144ms local and a 21.89s `/years/{year}` on dev.
+    F1 (buildings `prefetch_slice`) is **done**; F2 is a queued deletion;
+    F0's local 5k-entry measurement gates F3 vs. write-volume work; F4
+    (the job route) is required for the stated ceilings regardless. See
+    Track F for why this is not simply "more of Track E".
 
 A0 runs alongside 1–3 as verification.
 
