@@ -5,9 +5,9 @@ contract (data-description.md → Headcount):
 
     name                  ✅ non-empty string (stripped)
     sius_code             ✅ within {51,52,53,54,56,57,58,59}
-    user_institutional_id ❌ optional (#951); non-empty when provided (doc
-                              says numbers-only, code allows letters, e.g.
-                              "test-412424")
+    user_institutional_id ✅ non-empty string, stripped (doc says numbers-only,
+                              code allows letters, e.g. "test-412424");
+                              mandatory again as of #2138 (reverts #951)
     fte                   ✅ float, 0 ≤ fte ≤ 1
     note                  ❌ optional
 
@@ -81,10 +81,6 @@ def _student(**overrides) -> dict:
         pytest.param(_member(name="  Bob Jones  "), id="name-stripped"),
         # Doc says "numbers only" but the schema deliberately allows letters.
         pytest.param(_member(user_institutional_id="test-412424"), id="uid-letters"),
-        # #951: SCIPER is optional at creation — a manually-added member may
-        # not have a known institutional ID yet; it's editable later.
-        pytest.param(_member(user_institutional_id=_OMIT), id="uid-omitted"),
-        pytest.param(_member(user_institutional_id=None), id="uid-none"),
         *[
             pytest.param(_member(sius_code=code), id=f"sius-{code}")
             for code in sorted(SIUS_CODE_VALUES)
@@ -120,6 +116,8 @@ def test_headcount_member_strips_name_and_uid() -> None:
         pytest.param(_member(sius_code="55"), id="sius-not-in-set"),
         pytest.param(_member(sius_code="60"), id="sius-out-of-range"),
         pytest.param(_member(sius_code="professor"), id="sius-non-numeric"),
+        pytest.param(_member(user_institutional_id=_OMIT), id="uid-missing"),
+        pytest.param(_member(user_institutional_id=None), id="uid-none"),
         pytest.param(_member(user_institutional_id=""), id="uid-empty"),
         pytest.param(_member(user_institutional_id="   "), id="uid-whitespace"),
         pytest.param(_member(fte=_OMIT), id="fte-missing"),

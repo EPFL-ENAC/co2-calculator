@@ -24,9 +24,8 @@ class HeadCountStudentResponse(DataEntryResponseGen):
 class HeadCountCreate(DataEntryCreate):
     name: str
     sius_code: str
-    # #951: optional — a manually-added member may not have a known SCIPER
-    # yet; it's editable later on their own row (see PERMISSIONS).
-    user_institutional_id: str | None = None
+    # #2138: mandatory again (reverts #951's optional-at-creation call).
+    user_institutional_id: str
     fte: float
     note: str | None = None
 
@@ -37,11 +36,11 @@ class HeadCountCreate(DataEntryCreate):
             raise ValueError("Name cannot be empty")
         return v.strip()
 
-    @field_validator("user_institutional_id", mode="before")
+    # mode="after": pydantic rejects a null/non-str value as a clean 422
+    # before this runs, instead of an AttributeError from v.strip().
+    @field_validator("user_institutional_id", mode="after")
     @classmethod
-    def validate_user_institutional_id(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
+    def validate_user_institutional_id(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("User institutional ID cannot be empty")
         # doc says numbers only but user can use letters as well (test-412424 e.g)

@@ -56,6 +56,7 @@ const memberFields: ModuleField[] = [
     id: 'user_institutional_id',
     labelKey: 'headcount-member-form-field-user-institutional-id-label',
     type: 'text',
+    required: true,
     sortable: false,
     ratio: '1/4',
     editableInline: true,
