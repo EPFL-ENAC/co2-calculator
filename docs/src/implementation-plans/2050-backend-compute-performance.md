@@ -1395,6 +1395,54 @@ Until that is answered, **F4 is the better next move**: it is required at
 the stated ceilings regardless of how fast the synchronous path becomes,
 and it does not touch emission values at all.
 
+#### The `primary_factor_id` question, answered — 2026-08-17
+
+Checked on the maintainer's prompt ("we don't really care about
+`primary_factor_id`, but check again"). **It is used** — and the finding
+inverts F3's risk.
+
+Nothing in `frontend/src/` mentions `primary_factor` (0 matches), which is
+why it looks unused. It is consumed **server-side**: the joined `Factor`'s
+`values` + `classification` are spread into
+`enriched_data["primary_factor"]` by `get_submodule_data`, and each
+module's `to_response` reads that dict to populate ordinary row fields —
+equipment's `active_power_w` / `standby_power_w` / `equipment_class` /
+`sub_class`, buildings' four `*_kwh_per_square_meter`, cloud/AI's
+`service_type`.
+
+For equipment, two of those have **no fallback to entry data**:
+
+```python
+"active_power_w": primary_factor.get("active_power_w", None),
+"standby_power_w": primary_factor.get("standby_power_w", None),
+```
+
+A prefilled planner row has `primary_factor_id = NULL`, so those come back
+`None`. `ModuleTable.isCompleteEquipement` requires exactly those fields,
+and the planner renders through
+`PlannerYearSection -> ModuleTableSection -> SubModuleSection -> ModuleTable`.
+Demonstrated directly against the real handler:
+
+```
+planner row TODAY : active_power_w=None -> isComplete=False
+                    missing=[active_usage_hours_per_week,
+                             standby_usage_hours_per_week,
+                             active_power_w, standby_power_w]
+with primary_factor: active_power_w=120  -> isComplete=True  missing=[]
+```
+
+**So prefilled planner equipment rows are currently rendered as incomplete
+(the `row-incomplete` tint) because prefill drops their factor
+provenance.** Carrying `primary_factor_id` through — which an
+`INSERT … SELECT` of the source's emission rows does for free — _fixes_
+that rather than breaking anything.
+
+This flips F3's blocker into an argument for it. It remains a visible
+change to planner tables and should be eyeballed in the UI before merge,
+but it is no longer "a perf change that silently alters output" — it is a
+perf change that also repairs a display defect. **F3 is unblocked pending
+that visual confirmation.**
+
 ### F4 — sizing: at the stated ceilings, this needs a job
 
 Per reference year, the stated maxima are ~6,990 entries (equipment 3000,
