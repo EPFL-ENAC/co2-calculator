@@ -1,7 +1,7 @@
 <template>
   <q-select
     :model-value="modelValue"
-    :options="visibleOptions"
+    :options="filteredOptions"
     :loading="loading"
     :label="label"
     :placeholder="placeholder ?? undefined"
@@ -21,7 +21,6 @@
     emit-value
     map-options
     @filter="filterFn"
-    @virtual-scroll="onVirtualScroll"
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <template v-if="icon" #prepend>
@@ -32,8 +31,6 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-
-const PAGE_SIZE = 50;
 
 const props = defineProps<{
   modelValue: string | number | null | undefined;
@@ -56,7 +53,6 @@ defineEmits<{
 }>();
 
 const searchQuery = ref('');
-const pageCount = ref(1);
 
 const filteredOptions = computed(() => {
   const q = searchQuery.value.toLowerCase();
@@ -67,28 +63,10 @@ const filteredOptions = computed(() => {
   );
 });
 
-const visibleOptions = computed(() => {
-  const base = filteredOptions.value.slice(0, pageCount.value * PAGE_SIZE);
-  const sel = props.modelValue != null ? String(props.modelValue) : null;
-  if (sel && !base.some((o) => o.value === sel)) {
-    const found = filteredOptions.value.find((o) => o.value === sel);
-    if (found) return [found, ...base];
-  }
-  return base;
-});
-
 function filterFn(val: string, update: (cb: () => void) => void) {
   update(() => {
     searchQuery.value = val;
-    pageCount.value = 1;
   });
-}
-
-function onVirtualScroll({ to }: { to: number }) {
-  const showing = pageCount.value * PAGE_SIZE;
-  if (to >= showing - 5 && showing < filteredOptions.value.length) {
-    pageCount.value++;
-  }
 }
 </script>
 
