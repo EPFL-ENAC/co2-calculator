@@ -1108,6 +1108,162 @@ the 960ms this investigation actually started at** (the first live-trace
 number, before any fix). Confirmed against live traces at every stage
 this session, not just isolated profiling.
 
+## Track F — the per-year fan-out, and an 18.5s gap that isn't SQL
+
+Opened 2026-08-17 after two new reports: an 11-year plan-range `PATCH
+/v1/project-plans/{plan_id}` at 3144ms locally, and a **21.89s**
+`PATCH /v1/project-plans/{plan_id}/years/{year}` on dev.
+
+### F0 — read the dev trace before rewriting anything
+
+The 21.89s dev trace (`954e5976…c3e298`, one single year) decomposes as:
+
+|                                              |                              |
+| -------------------------------------------- | ---------------------------- |
+| Wall clock                                   | 21885.3ms                    |
+| DB spans                                     | 241                          |
+| Sum of all DB time                           | 2776.5ms                     |
+| **Largest single gap with zero DB activity** | **18486.0ms** (at t+169.8ms) |
+
+**84% of that request is one contiguous stretch with no database
+activity at all.** The plan behind it carries ~50k equipment entries
+across 10 years, i.e. ~5k entries in the single year this request
+prefilled.
+
+That reading is consistent: the batching already landed in Tracks D/E
+means the factor cache and `prefetch_slice` are warm after the first few
+entries, so per-entry work stops touching the DB — and what remains is
+**pure Python emission computation, ~5k entries × several emission leaves
+each, at roughly 3.7ms per entry.** The gap is the compute loop, not a
+stall.
+
+The decisive consequence: **query batching is finished as a lever here.**
+Only 2776.5ms of a 21885.3ms request is SQL. Removing every remaining
+round trip caps out at a 13% improvement. The remaining 84% is Python
+per-entry work, and the only way to remove it is to _not do it_ — see F3,
+which replicates already-computed emission rows in SQL instead of
+recomputing them per year.
+
+Two secondary factors still worth confirming, since they scale the
+per-entry constant rather than the algorithm:
+
+- **CPU limits on the API pod.** 3.7ms/entry of Python is high; a low
+  k8s CPU quota inflates it directly. Track B (move job execution off the
+  API pods) was meant to relieve exactly this — **verify #2081 is live on
+  dev.**
+- **Dropped spans.** 246 spans is low. If the collector shed a batch the
+  gap is partly an artifact. Cheap to rule out, and it would change the
+  split above.
+
+### F1 — buildings room lookups (fixed, 2026-08-17)
+
+`BuildingRoomModuleHandler.pre_compute` did one `building_rooms` point
+lookup **per entry** — 364 selects / 188.1ms on the 11-year local trace,
+64 on the dev trace. It was the one handler with a per-entry lookup and
+no `prefetch_slice` override; travel has had one since plan 310D.
+
+Fixed by mirroring travel exactly: `prefetch_slice` bulk-loads the
+slice's rooms in one `IN` query, `pre_compute` reads them from
+`slice_cache` and keeps its per-entry fallback for single-entry
+create/update (which has no slice). Fixes both the prefill path and the
+recalc workflow, since both call `prefetch_slice`. Regression test
+verified to fail without the fix.
+
+### F2 — the prefill path defeats its own batching
+
+On the 11-year local trace, four query shapes fire **exactly 114 times**
+each (module select, entry count, emission sum, module update). That is
+`recompute_stats_many` — whose own docstring says it exists to replace
+"N sequential `recompute_stats` calls (~8 queries per module)" — being
+called **once per module with a single-element list**, ~10 modules ×
+11 years. Same story for `FactorResolver` + `factor_query_cache`, which
+`_persist_prefill_entries` constructs fresh per module per year: ~110
+cold caches per request, and `factors` is the largest single bucket at
+381 calls / 435.4ms.
+
+`set_reference_year` already has the right shape — it prefills rows with
+`compute_emissions=False`, then runs **one** `_recalculate_report_emissions`
+for the whole report, which shares one resolver/cache/override-cache
+across every module and ends with a single batched
+`recompute_stats_many(all module ids)`. `_sync_year_reports` is the only
+remaining caller still computing per-module.
+
+**Proposed:** give `_sync_year_reports` the same shape —
+`_prefill_reference_modules(report, compute_emissions=False)` followed by
+`_recalculate_report_emissions(report)`. This is a deletion, not a new
+path: it makes `compute_emissions` always-`False`, which in turn lets
+`_persist_prefill_entries` be removed entirely. The
+`recompute_report_stats(report_read.id)` call after it also becomes dead,
+since `recompute_stats_many` already ends in
+`recompute_report_stats_many` over the distinct parent reports.
+
+Verify first that `resolve_factor_year(report)` returns the same year
+`_persist_prefill_entries` passed (`report.reference_year`) — it does for
+any report with a reference year set, which is the only branch that
+prefills, but the equivalence is the whole safety argument.
+
+### F3 — the copies are identical across years (verified)
+
+Prefill copies the _same_ reference-year entries into every plan year, at
+100%, and computes them all with `year = reference_year`. Three checks
+confirm the per-year work is genuinely redundant, not merely similar:
+
+- `resolve_factor_year` returns `report.reference_year` whenever it is
+  set — identical for all 10 plan years.
+- `_get_percentage_override_kg`'s `base_year` uses `report.reference_year`
+  when set, never `report.year`.
+- No module handler reads `data_entry.year`; the compute path takes
+  `year` as an explicit parameter.
+
+So the emissions computed for 2027 are byte-identical to those for
+2028…2036. Only ids, `carbon_report_module_id` and the stored `year`
+differ. The exception is grant equipment, which prefills at 0% (#1981).
+
+This is what makes the "two SQL statements" instinct correct, and it is
+the one genuinely large win available:
+
+1. `INSERT INTO data_entries (…) SELECT …` from the reference modules,
+   remapping `carbon_report_module_id`/`year`, `RETURNING id`.
+2. `INSERT INTO data_entry_emissions (…) SELECT …` joined to those new
+   ids — copying the reference year's **already-computed** emission rows
+   rather than recomputing them.
+
+Nothing round-trips through Python. Per year this is O(1) statements
+instead of O(modules × entries), and the recompute collapses to one
+`recompute_stats_many` over every module of every year.
+
+### F4 — sizing: at the stated ceilings, this needs a job
+
+Per reference year, the stated maxima are ~6,990 entries (equipment 3000,
+purchase 3000, travel 300, buildings 300, external cloud/AI 300,
+headcount 30, research facilities 30, process 30) — **~70,000
+`data_entries` for a 10-year plan**, plus several emission leaves each,
+so roughly 150k–350k `data_entry_emissions` rows. The plan behind the
+21.89s trace already sits near that ceiling on equipment alone (~50k
+entries across 10 years).
+
+F3 removes the Python per-entry cost, but not the write volume: even at a
+healthy 20–30k rows/s `COPY`, 150k–350k emission rows is 10–20s of pure
+insert. **No synchronous HTTP request survives the ceiling case**, however
+well optimized.
+
+So the two are complementary, not alternatives:
+
+- **F3 makes the common case fast** — small and mid-size plans stop being
+  O(years × entries) in Python and become a couple of set-based inserts.
+- **F4 makes the ceiling case survivable** — above a row-count threshold,
+  prefill enqueues rather than blocking, using the existing
+  data-ingestion job pattern (return 202, report progress, let the UI
+  poll). This is the "job/pipeline route", and at 50k equipment entries
+  it is not avoidable by optimization.
+
+Recommended order: **F2** (a deletion, immediate, and it removes the
+last per-module cold cache), then **F3** (the rewrite — the only lever
+that touches the 84%, and F0/F1's findings make it the clear choice),
+then **F4** (the job) for plans above the threshold. F0's two open
+confirmations (span drops, CPU limits) run alongside; they change the
+constant, not the plan.
+
 ## Priority order
 
 C1, C2, and C3's measurement phase are all now done (2026-08-12); this
