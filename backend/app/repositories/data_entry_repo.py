@@ -427,6 +427,22 @@ class DataEntryRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
+    async def list_by_creator_and_type(
+        self, created_by_id: int, data_entry_type_id: DataEntryTypeEnum
+    ) -> list[DataEntry]:
+        """Fetch all DataEntries of one type created by one job/user.
+
+        Used by the bulk ingest path to read back the rows a job just
+        COPY-inserted (``bulk_copy`` never populates ``.id``) so derived
+        companion entries can FK-link them.
+        """
+        statement = select(DataEntry).where(
+            col(DataEntry.created_by_id) == created_by_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id.value,
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
     async def list_by_data_entry_type_and_year(
         self,
         data_entry_type_id: DataEntryTypeEnum,

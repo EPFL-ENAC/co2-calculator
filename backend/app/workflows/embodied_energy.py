@@ -2,11 +2,49 @@ from fastapi import BackgroundTasks
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.logging import get_logger
+from app.models.building_room import BuildingRoom
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.schemas.data_entry import DataEntryResponse
 from app.schemas.user import UserRead
+from app.services.building_room_service import BuildingRoomService
+from app.services.data_entry_service import DataEntryService
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
+
+logger = get_logger(__name__)
+
+
+async def _resolve_building_embodied_energy_data(
+    room_cache: dict[str, BuildingRoom] | None,
+    session: AsyncSession,
+    data_entry_id: int,
+    data: dict,
+) -> dict | None:
+    """Build a ``building_embodied_energy`` payload from a ``building`` entry.
+
+    The room surface is resolved from the ``BuildingRoom`` reference table —
+    never read off the source entry's ``.data``, which does not persist it.
+    ``room_cache`` (a ``{room_name: BuildingRoom}`` map) replaces the per-room
+    query for bulk callers; ``None`` falls back to a direct ``get_room`` call.
+    Returns ``None`` when the entry or reference data is incomplete (skip,
+    don't default).
+    """
+    building_name = data.get("building_name")
+    room_name = data.get("room_name")
+    if not building_name or not room_name:
+        return None
+    if room_cache is not None:
+        room = room_cache.get(room_name)
+    else:
+        room = await BuildingRoomService(session).get_room(room_name=room_name)
+    if room is None or room.room_surface_square_meter is None:
+        return None
+    return {
+        "data_entry_id": data_entry_id,
+        "building_name": building_name,
+        "room_surface_square_meter": room.room_surface_square_meter,
+    }
 
 
 class EmbodiedEnergyWorkflow:
@@ -103,7 +141,12 @@ class EmbodiedEnergyWorkflow:
         background_tasks: BackgroundTasks,
     ) -> None:
         """Calculate embodied energy emissions for a new building data entry."""
-        embodied_energy_data = self._make_building_embodied_energy_data(data_entry)
+        embodied_energy_data = await _resolve_building_embodied_energy_data(
+            room_cache=None,
+            session=self.session,
+            data_entry_id=data_entry.id,
+            data=data_entry.data,
+        )
         if embodied_energy_data is None:
             return
         # Use the CarbonReportModuleWorkflow to create the embodied energy data entry
@@ -126,7 +169,12 @@ class EmbodiedEnergyWorkflow:
         request_context: dict,
         background_tasks: BackgroundTasks,
     ) -> None:
-        embodied_energy_data = self._make_building_embodied_energy_data(data_entry)
+        embodied_energy_data = await _resolve_building_embodied_energy_data(
+            room_cache=None,
+            session=self.session,
+            data_entry_id=data_entry.id,
+            data=data_entry.data,
+        )
         if embodied_energy_data is None:
             # Clean up, if needed
             await self.post_delete(
@@ -150,26 +198,53 @@ class EmbodiedEnergyWorkflow:
                 background_tasks=background_tasks,
             )
 
-    def _make_building_embodied_energy_data(
-        self, data_entry: DataEntryResponse
-    ) -> dict | None:
-        """Create a data payload for the embodied energy
-        based on the building data entry.
+    async def create_companions_for(self, parent_entries: list[DataEntry]) -> int:
+        """Bulk-create ``building_embodied_energy`` companions for freshly
+        ingested ``building`` entries. Returns the number of rows inserted.
+
+        Straight map-and-insert: the bulk ingest's delete-then-recreate has
+        already removed stale companions, so no reconcile is needed. The whole
+        ``BuildingRoom`` table is prefetched once so resolution never queries
+        per row. Parents without resolvable reference data are skipped, same
+        as the interactive path.
         """
-        building_name = data_entry.data.get("building_name")
-        if not building_name:
-            return None
-        room_surface_square_meter = data_entry.data.get("room_surface_square_meter")
-        if room_surface_square_meter is None:
-            return None
-        # Create a data entry for the embodied energy emissions
-        # based on the building data entry
-        embodied_energy_data = {
-            "data_entry_id": data_entry.id,
-            "building_name": building_name,
-            "room_surface_square_meter": room_surface_square_meter,
-        }
-        return embodied_energy_data
+        if not parent_entries:
+            return 0
+        rooms = await BuildingRoomService(self.session).list_rooms()
+        room_cache = {room.room_name: room for room in rooms}
+        companions: list[DataEntry] = []
+        for parent in parent_entries:
+            if parent.id is None:
+                continue
+            embodied_energy_data = await _resolve_building_embodied_energy_data(
+                room_cache=room_cache,
+                session=self.session,
+                data_entry_id=parent.id,
+                data=parent.data or {},
+            )
+            if embodied_energy_data is None:
+                continue
+            companions.append(
+                DataEntry(
+                    data_entry_type_id=DataEntryTypeEnum.building_embodied_energy.value,
+                    carbon_report_module_id=parent.carbon_report_module_id,
+                    data=embodied_energy_data,
+                    status=parent.status,
+                    source=parent.source,
+                    created_by_id=parent.created_by_id,
+                    year=parent.year,
+                    unit_id=parent.unit_id,
+                )
+            )
+        if not companions:
+            logger.info(
+                "create_companions_for: no resolvable rooms among "
+                f"{len(parent_entries)} building entries — nothing inserted"
+            )
+            return 0
+        return await DataEntryService(self.session).bulk_copy(
+            companions, job_id=companions[0].created_by_id
+        )
 
     async def _get_embodied_energy_entry_id(
         self, carbon_report_module_id: int, data_entry_id: int

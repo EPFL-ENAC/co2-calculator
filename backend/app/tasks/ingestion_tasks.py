@@ -494,6 +494,11 @@ async def _chain_emission_recalc_for_data_ingest(
 
     targets: list[dict[str, Any]]
     if job.data_entry_type_id is not None:
+        # Late import mirrors the multi-det branch below (data_ingestion →
+        # tasks → module_type cycle).
+        from app.models.data_entry import DataEntryTypeEnum
+        from app.models.module_type import DERIVED_DATA_ENTRY_TYPES
+
         targets = [
             {
                 "module_type_id": job.module_type_id,
@@ -501,6 +506,21 @@ async def _chain_emission_recalc_for_data_ingest(
                 "year": year,
             }
         ]
+        # Derived companion types get a parallel recalc sibling — their rows
+        # were created synchronously by the ingest, so no ordering dependency.
+        try:
+            pinned = DataEntryTypeEnum(job.data_entry_type_id)
+        except ValueError:
+            pinned = None
+        if pinned is not None:
+            targets.extend(
+                {
+                    "module_type_id": job.module_type_id,
+                    "data_entry_type_id": derived.value,
+                    "year": year,
+                }
+                for derived in DERIVED_DATA_ENTRY_TYPES.get(pinned, [])
+            )
     else:
         # Multi-det data ingest (e.g. headcount.csv covers member +
         # student in one upload).  Late import avoids the

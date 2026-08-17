@@ -26,7 +26,11 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
-from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.models.module_type import (
+    DERIVED_DATA_ENTRY_TYPES,
+    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+    ModuleTypeEnum,
+)
 from app.models.unit import Unit
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
@@ -774,9 +778,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # If the job targets a specific data_entry_type_id, only delete
         # entries for that type. Deleting all types for the module would
         # wipe sibling submodules (e.g. uploading research_facilities
-        # data would erase animal_facilities entries).
+        # data would erase animal_facilities entries). Derived companion
+        # types ride along so their stale rows are replaced with the parent.
         if self.job.data_entry_type_id is not None:
-            valid_entry_types = [DataEntryTypeEnum(self.job.data_entry_type_id)]
+            pinned_type = DataEntryTypeEnum(self.job.data_entry_type_id)
+            valid_entry_types = [
+                pinned_type,
+                *DERIVED_DATA_ENTRY_TYPES.get(pinned_type, []),
+            ]
         else:
             valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
@@ -1399,6 +1408,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 f"{stats['rows_processed']} rows total"
             )
 
+        # Companion rows for derived data-entry types (all parent batches
+        # are committed by now; the parallel emission_recalc sibling chained
+        # after the job prices them).
+        await self._create_derived_companions(data_entry_service)
+
         # Move file from processing/ to processed/
         processing_path = setup_result["processing_path"]
         metadata_update = {
@@ -1451,6 +1465,42 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             "skipped": stats["rows_skipped"],
             "stats": stats,
         }
+
+    async def _create_derived_companions(
+        self, data_entry_service: DataEntryService
+    ) -> None:
+        """Create companion entries for the job's derived data-entry types.
+
+        Driven by ``DERIVED_DATA_ENTRY_TYPES`` so the base class stays
+        module-agnostic; the type-specific derivation lives behind its
+        workflow. The just-inserted parent rows are read back by
+        ``created_by_id`` because ``bulk_copy`` never populates ``.id``.
+        """
+        if self.job is None or self.job.data_entry_type_id is None:
+            return
+        pinned_type = DataEntryTypeEnum(self.job.data_entry_type_id)
+        derived_types = DERIVED_DATA_ENTRY_TYPES.get(pinned_type, [])
+        if not derived_types or self.job_id is None:
+            return
+
+        # Late import: workflows import the service layer this module
+        # belongs to.
+        from app.workflows.embodied_energy import EmbodiedEnergyWorkflow
+
+        parents = await data_entry_service.repo.list_by_creator_and_type(
+            created_by_id=self.job_id,
+            data_entry_type_id=pinned_type,
+        )
+        for derived_type in derived_types:
+            if derived_type == DataEntryTypeEnum.building_embodied_energy:
+                created = await EmbodiedEnergyWorkflow(
+                    self.data_session
+                ).create_companions_for(parents)
+                logger.info(
+                    f"Created {created} {derived_type.name} companion entries "
+                    f"from {len(parents)} {pinned_type.name} rows"
+                )
+        await self.data_session.commit()
 
     async def _process_batch(
         self,

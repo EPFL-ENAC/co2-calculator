@@ -116,6 +116,14 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
 }
 
 
+# Companion data-entry types derived from a parent type's rows instead of
+# being ingested directly. Bulk ingestion deletes and recreates them together
+# with the parent rows and fans out a sibling emission_recalc job per entry.
+DERIVED_DATA_ENTRY_TYPES: dict[DataEntryTypeEnum, list[DataEntryTypeEnum]] = {
+    DataEntryTypeEnum.building: [DataEntryTypeEnum.building_embodied_energy],
+}
+
+
 def get_data_entry_types_for_module_type(
     module_type: ModuleTypeEnum,
 ) -> list[DataEntryTypeEnum]:
