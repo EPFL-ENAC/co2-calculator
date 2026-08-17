@@ -1153,11 +1153,52 @@ What the trace does establish:
   attack.
 
 **Do not sequence F2/F3/F4 off this trace alone.** The discriminating
-experiment is cheap and local: seed ~5k equipment entries into one
-Calculator year, run `set_reference_year` against local Postgres with the
-observability overlay, and measure the split directly. If 5k entries cost
-seconds of Python locally, F3 is aimed correctly; if they cost ~200ms,
-the dev time is write volume or infrastructure and F3 will not touch it.
+experiment is cheap and local — and has now been run (below).
+
+#### Status: measured, 2026-08-17 — Python compute is _not_ the bottleneck
+
+Rig: throwaway local Postgres, fresh DB per run, `set_reference_year`
+against a reference year holding N entries, with `_prepare_recalc_emissions`
+(Python compute) and `bulk_replace_for_entries` (DELETE + untraced `COPY`)
+timed separately, and a hard assertion that emission rows were actually
+written — a factor that fails to resolve produces zero emissions and makes
+every number meaningless, which is exactly how an earlier attempt in this
+investigation was confounded.
+
+| N    | wall    | traced SQL    | Python compute | DELETE+COPY | rest    |
+| ---- | ------- | ------------- | -------------- | ----------- | ------- |
+| 200  | 112.7ms | 69.6ms (115)  | 11.2ms         | 5.1ms       | 96.4ms  |
+| 1000 | 180.9ms | 105.5ms (115) | 31.3ms         | 13.2ms      | 136.4ms |
+| 5000 | 560.9ms | 308.1ms (119) | 132.2ms        | 62.5ms      | 366.2ms |
+
+**At 5k entries the whole request is 560.9ms locally, and Python emission
+compute is 132.2ms of it — 24%.** The `COPY` write is 62.5ms (11%).
+Traced SQL is 308.1ms (55%) across just 119 statements, so the cost is
+per-statement volume (5k-row transfers), not round-trip count.
+
+This settles F0's open question, and it does **not** favour F3:
+
+- F3 removes the Python compute. Locally that is a **~24% win, not 84%.**
+- Statement count is already flat in N (115 → 119 from N=200 to N=5000),
+  so Tracks D/E did their job; there is no N+1 left to find here.
+- **The dev/local gap is not explained by the algorithm.** Local wall at
+  5k is 560.9ms against dev's 21885.3ms — 39x. Splitting it: traced SQL
+  is ~9x slower on dev (2776.5ms vs 308.1ms), consistent with the known
+  9–17x round-trip ratio, but the _non-SQL_ remainder is **~75x slower**
+  (19109ms vs 253ms). Python running 75x slower than local is the
+  signature of **CPU throttling on the API pod**, not of bad code.
+
+**So the primary suspect moves back to Track A/B infrastructure**:
+confirm #2081 is live on dev and check the API pod's CPU limit and CFS
+throttling counters. A3 (raise the CPU request) was written for exactly
+this and is marked done in PR #2081 — verify it actually applied.
+
+Caveat, stated plainly: the rig uses `process_emissions` entries, which
+resolve to **one** emission leaf each. Equipment — the module type behind
+the 21.89s trace — may produce several leaves per entry, scaling both the
+Python compute and the `COPY` row count by that factor. That shifts the
+24% share upward but does not explain a 75x non-SQL gap. Re-running the
+rig with a multi-leaf module type is the obvious refinement.
 
 Two secondary factors, each scaling the constant rather than the
 algorithm:
@@ -1270,13 +1311,23 @@ So the two are complementary, not alternatives:
   poll). This is the "job/pipeline route", and at 50k equipment entries
   it is not avoidable by optimization.
 
-Recommended order: **F2** (a deletion, immediate, and it removes the
-last per-module cold cache), then **F0's local
-5k-entry measurement**, which decides whether **F3** (the rewrite) or
-write-volume reduction is the right next attack — F3 is only the clear
-choice if Python compute is shown to dominate. **F4** (the job) follows
-for plans above the threshold regardless, since it is the only thing that
-survives the ceiling case.
+Recommended order, **revised after F0's measurement**:
+
+1. **Confirm the dev pod's CPU limits / CFS throttling, and that #2081 is
+   live.** F0 measured the non-SQL half of the request running ~75x
+   slower on dev than locally while SQL runs only ~9x slower. Nothing in
+   this track's application-level work explains that ratio, and until it
+   is explained, every code-side estimate for dev is unreliable.
+2. **F2** — a deletion, immediate, removes the last per-module cold
+   cache. Small but free.
+3. **F4** — the job route. At the stated ceilings this is required
+   regardless of how fast the synchronous path gets (see below), and it
+   is the only item that survives the 50k-equipment case.
+4. **F3** — the two-statement rewrite. Still correct and still the right
+   long-term shape, but F0 sized it at ~24% locally, not the 84% an
+   earlier draft of this section assumed. It is a considered refactor of
+   recalculation internals, not an emergency fix, and it should not jump
+   ahead of items 1–3.
 
 F3 is a proposal, not a queued task: it replaces work inside
 `_recalculate_report_emissions`, not just prefill, which makes it
