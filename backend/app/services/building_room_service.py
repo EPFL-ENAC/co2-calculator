@@ -22,6 +22,10 @@ class BuildingRoomService:
             room_name=room_name,
         )
 
+    async def get_rooms_by_names(self, room_names: list[str]) -> list[BuildingRoom]:
+        """Get rooms by name in one query (bulk form of ``get_room``)."""
+        return await self.repo.get_rooms_by_names(room_names)
+
     async def list_buildings(self) -> list[dict]:
         """Return distinct buildings with location and name."""
         return await self.repo.list_buildings()

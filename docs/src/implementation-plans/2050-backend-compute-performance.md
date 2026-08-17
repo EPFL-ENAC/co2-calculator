@@ -3,7 +3,7 @@ status: in-progress
 issue: 2050
 last_updated: 2026-08-17
 title: "Backend compute performance — pod stability, worker split, request-path profiling"
-summary: "Three-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081), fix a simulator-plan reference-year PATCH N+1 in recalc then prefill (PR #2083 + same-day follow-up), then a general fix for Pydantic's per-instance default_factory signature-introspection tax across every SQLModel table — and profile compute cost (Track C), which rules out a language rewrite."
+summary: "Six-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081); profile compute cost (Track C), which rules out a language rewrite; then fix the simulator-plan reference-year PATCH end to end — recalc and prefill N+1s, Pydantic's per-instance default_factory tax across every SQLModel table, Core INSERT…RETURNING, and Tracks D/E's redundant recomputes — taking it 960ms → 271.4ms (PRs #2083, #2152). Track F reopens the per-year prefill fan-out behind a 21.89s dev trace whose bottleneck is not traced SQL."
 ---
 
 # Backend compute performance (#2050)
@@ -796,7 +796,7 @@ single-item leverage the last three fixes did — this is genuine
 diminishing-returns territory; further gains need either accepting the
 INSERT floor or moving the work off the request path entirely (Track B).
 
-## Track D — round-trip count, not query speed (proposed, not yet implemented)
+## Track D — round-trip count, not query speed (implemented 2026-08-17)
 
 An outside review of the 203.55ms trace argued the real problem is
 statement _count_, not per-statement speed, and proposed a "load once →
@@ -943,7 +943,7 @@ largest plans specifically once the INSERT-execution floor (~50ms at
 N=1000, genuine Postgres write time) is the dominant remaining cost, since
 no amount of round-trip reduction removes that.
 
-## Track E — the actual optimal shape (proposed, not yet implemented)
+## Track E — the actual optimal shape (implemented 2026-08-17)
 
 Requested directly: "write me down the todo/steps for the optimal
 optimization — in my head it's two SQL requests." Two isn't literally
@@ -1108,6 +1108,654 @@ the 960ms this investigation actually started at** (the first live-trace
 number, before any fix). Confirmed against live traces at every stage
 this session, not just isolated profiling.
 
+## Track F — the per-year fan-out, and an 18.5s gap that isn't SQL
+
+Opened 2026-08-17 after two new reports: an 11-year plan-range `PATCH
+/v1/project-plans/{plan_id}` at 3144ms locally, and a **21.89s**
+`PATCH /v1/project-plans/{plan_id}/years/{year}` on dev.
+
+### F0 — read the dev trace before rewriting anything
+
+The 21.89s dev trace (`954e5976…c3e298`, one single year) decomposes as:
+
+|                                                       |                              |
+| ----------------------------------------------------- | ---------------------------- |
+| Wall clock                                            | 21885.3ms                    |
+| DB spans                                              | 241                          |
+| Sum of all DB time                                    | 2776.5ms                     |
+| **Largest single gap with zero _traced_ DB activity** | **18486.0ms** (at t+169.8ms) |
+
+84% of that request is one contiguous stretch with no _traced_ database
+activity. The plan behind it carries ~50k equipment entries across 10
+years, i.e. ~5k entries in the single year this request prefilled.
+
+**That window is not idle, and it is not purely Python.** Scanning all 37
+distinct statement shapes in the trace: there is no `INSERT INTO
+data_entry_emissions` anywhere — only `DELETE`s and `SELECT`s against
+that table. The request unquestionably wrote emission rows. `bulk_copy`
+writes them through `COPY FROM STDIN` (`cursor.copy()`), which OTel's
+psycopg instrumentation does not trace, unlike `execute`/`executemany`.
+
+So the 18.5s window contains **at least one uninstrumented bulk write in
+addition to the Python compute loop**, and this trace cannot apportion
+between them. An earlier draft of this section claimed the 84% was pure
+Python per-entry compute and used that to argue query batching was
+finished as a lever; that claim was not supported and has been removed.
+
+What the trace does establish:
+
+- Only 2776.5ms of 21885.3ms is _traced_ SQL, so further round-trip
+  batching is a bounded lever at best.
+- The unaccounted ~19.1s is some mix of Python emission compute and
+  untraced `COPY`. **Which one dominates is unknown, and is the single
+  most important open question in this track** — it decides whether F3
+  (stop computing in Python) or write-volume reduction is the right
+  attack.
+
+**Do not sequence F2/F3/F4 off this trace alone.** The discriminating
+experiment is cheap and local — and has now been run (below).
+
+#### Status: measured, 2026-08-17 — Python compute is _not_ the bottleneck
+
+Rig: throwaway local Postgres, fresh DB per run, `set_reference_year`
+against a reference year holding N entries, with `_prepare_recalc_emissions`
+(Python compute) and `bulk_replace_for_entries` (DELETE + untraced `COPY`)
+timed separately, and a hard assertion that emission rows were actually
+written — a factor that fails to resolve produces zero emissions and makes
+every number meaningless, which is exactly how an earlier attempt in this
+investigation was confounded.
+
+| N    | wall    | traced SQL    | Python compute | DELETE+COPY | rest    |
+| ---- | ------- | ------------- | -------------- | ----------- | ------- |
+| 200  | 112.7ms | 69.6ms (115)  | 11.2ms         | 5.1ms       | 96.4ms  |
+| 1000 | 180.9ms | 105.5ms (115) | 31.3ms         | 13.2ms      | 136.4ms |
+| 5000 | 560.9ms | 308.1ms (119) | 132.2ms        | 62.5ms      | 366.2ms |
+
+**At 5k entries the whole request is 560.9ms locally, and Python emission
+compute is 132.2ms of it — 24%.** The `COPY` write is 62.5ms (11%).
+Traced SQL is 308.1ms (55%) across just 119 statements, so the cost is
+per-statement volume (5k-row transfers), not round-trip count.
+
+This settles F0's open question, and it does **not** favour F3:
+
+- F3 removes the Python compute. Locally that is a **~24% win, not 84%.**
+- Statement count is already flat in N (115 → 119 from N=200 to N=5000),
+  so Tracks D/E did their job; there is no N+1 left to find here.
+
+Caveat, stated plainly: the rig uses `process_emissions` entries, which
+resolve to **one** emission leaf each. Equipment — the module type behind
+the 21.89s trace — may produce several leaves per entry, scaling both the
+Python compute and the `COPY` row count by that factor. That shifts the
+24% share upward. Re-running the rig with a multi-leaf module type is the
+obvious refinement.
+
+#### Correction, 2026-08-17: the dev/local ratio computed here was invalid
+
+An earlier version of this section divided the local 5k wall clock into
+the 21.89s dev trace, derived a "~75x slower non-SQL" figure, and
+concluded the cause was **CPU throttling on the API pod**. Both the
+number and the conclusion were wrong, and they are withdrawn.
+
+The comparison was confounded three ways: the local rig runs
+**post-Track-D/E** code, the dev trace ran **pre-fix** code (the branch
+was not merged); the rig uses **`process_emissions`** (1 emission leaf per
+entry), the dev trace was **equipment** (likely several); and entry counts
+were not matched. Nothing that ratio claimed survives.
+
+The trustworthy numbers are the pre-existing platform benchmark — same
+dataset (8,453 entries), same build, varied only by environment:
+
+| Environment                  | App throughput | CPU benchmark |
+| ---------------------------- | -------------- | ------------- |
+| Local MacBook M4 + docker PG | ~384 rows/s    | 19.25 M it/s  |
+| K8s `dev2` (EPYC 9124)       | ~174 rows/s    | 10.73 M it/s  |
+| K8s `dev` (Xeon Gold 6242)   | ~72 rows/s     | 5.93 M it/s   |
+
+So dev is **~5.3x slower than local on app throughput** against a
+**~3.25x slower CPU** — old hardware, not a misconfiguration. **There is
+no cgroup CPU limit**: both pods report `cpu.max = max 100000`, which
+disproves the throttling hypothesis directly. That benchmark also rules
+out Postgres and network latency: `dev2` scores ~180 rows/s against K8s PG
+and ~174 against IT-CENTRAL, i.e. DB location barely moves the number.
+
+The ~1.6x that CPU speed does **not** explain (5.3x observed vs 3.25x
+CPU) is the genuinely open question — candidates are node CPU contention,
+vCPU allocation, container/runtime differences, and OTel's instrumentation
+tax, which C1 measured at ~37% throughput. Track F's application-level
+work does not address any of these.
+
+Two secondary factors, each scaling the constant rather than the
+algorithm:
+
+- **CPU limits on the API pod.** A low k8s CPU quota inflates the Python
+  share directly. Track B (move job execution off the API pods) was meant
+  to relieve exactly this — **verify #2081 is live on dev.**
+- **Dropped spans.** 246 spans is low; a shed collector batch would change
+  the split again.
+
+### F1 — buildings room lookups (fixed, 2026-08-17)
+
+`BuildingRoomModuleHandler.pre_compute` did one `building_rooms` point
+lookup **per entry** — 364 selects / 188.1ms on the 11-year local trace,
+64 on the dev trace. It was the one handler with a per-entry lookup and
+no `prefetch_slice` override; travel has had one since plan 310D.
+
+Fixed by mirroring travel exactly: `prefetch_slice` bulk-loads the
+slice's rooms in one `IN` query, `pre_compute` reads them from
+`slice_cache` and keeps its per-entry fallback for single-entry
+create/update (which has no slice). Fixes both the prefill path and the
+recalc workflow, since both call `prefetch_slice`. Regression test
+verified to fail without the fix.
+
+### F2 — the prefill path defeats its own batching
+
+On the 11-year local trace, four query shapes fire **exactly 114 times**
+each (module select, entry count, emission sum, module update). That is
+`recompute_stats_many` — whose own docstring says it exists to replace
+"N sequential `recompute_stats` calls (~8 queries per module)" — being
+called **once per module with a single-element list**, ~10 modules ×
+11 years. Same story for `FactorResolver` + `factor_query_cache`, which
+`_persist_prefill_entries` constructs fresh per module per year: ~110
+cold caches per request, and `factors` is the largest single bucket at
+381 calls / 435.4ms.
+
+`set_reference_year` already has the right shape — it prefills rows with
+`compute_emissions=False`, then runs **one** `_recalculate_report_emissions`
+for the whole report, which shares one resolver/cache/override-cache
+across every module and ends with a single batched
+`recompute_stats_many(all module ids)`. `_sync_year_reports` is the only
+remaining caller still computing per-module.
+
+**Proposed:** give `_sync_year_reports` the same shape —
+`_prefill_reference_modules(report, compute_emissions=False)` followed by
+`_recalculate_report_emissions(report)`. This is a deletion, not a new
+path: it makes `compute_emissions` always-`False`, which in turn lets
+`_persist_prefill_entries` be removed entirely. The
+`recompute_report_stats(report_read.id)` call after it also becomes dead,
+since `recompute_stats_many` already ends in
+`recompute_report_stats_many` over the distinct parent reports.
+
+Verify first that `resolve_factor_year(report)` returns the same year
+`_persist_prefill_entries` passed (`report.reference_year`) — it does for
+any report with a reference year set, which is the only branch that
+prefills, but the equivalence is the whole safety argument.
+
+#### Status: implemented + measured, 2026-08-17
+
+`_sync_year_reports` now mirrors `set_reference_year`: prefill inserts the
+copied rows, then one `_recalculate_report_emissions` computes the whole
+report. Both callers behave identically, so `compute_emissions` and
+`_persist_prefill_entries` were **deleted** rather than left as a dual
+path (73 lines gone, no behaviour branch retained).
+
+Measured on the 10-plan-year creation path against real Postgres, varying
+how many module types actually hold entries:
+
+| populated module types |        | statements | wall         |
+| ---------------------- | ------ | ---------- | ------------ |
+| 1 (500 entries x 10y)  | before | 1198       | 1080.3ms     |
+|                        | after  | 1218       | 1187.3ms     |
+| 4 (200 entries x 10y)  | before | 1408       | 1452.7ms     |
+|                        | after  | **1108**   | **1351.2ms** |
+
+**The win scales with populated module count, and at one module type it is
+a regression** (+20 statements, +107ms) — `_recalculate_report_emissions`
+re-fetches the report's entries and issues a `DELETE` for emissions that
+do not exist yet on a brand-new report, which the per-module path skipped.
+At four module types that overhead is repaid several times over: **-300
+statements (-21%)** and -101ms.
+
+Real plan years populate up to eight module types, so the four-type row is
+the representative one — but the single-module case is a genuine small
+regression and is recorded here rather than averaged away.
+
+**The statement count is the number that matters, and local wall clock
+understates it.** Dev pays ~9-17x per round trip (F0), so -300 statements
+is worth roughly 1.2-3s there against ~130ms locally. The redundant
+`DELETE` on fresh reports is a known, unfixed remainder — worth folding
+into F3, which removes that path entirely.
+
+### F3 — the copies are identical across years (verified)
+
+Prefill copies the _same_ reference-year entries into every plan year, at
+100%, and computes them all with `year = reference_year`. Three checks
+confirm the per-year work is genuinely redundant, not merely similar:
+
+- `resolve_factor_year` returns `report.reference_year` whenever it is
+  set — identical for all 10 plan years.
+- `_get_percentage_override_kg`'s `base_year` uses `report.reference_year`
+  when set, never `report.year`.
+- No module handler reads `data_entry.year`; the compute path takes
+  `year` as an explicit parameter.
+
+So the emissions computed for 2027 are byte-identical to those for
+2028…2036. Only ids, `carbon_report_module_id` and the stored `year`
+differ. The exception is grant equipment, which prefills at 0% (#1981).
+
+This is what makes the "two SQL statements" instinct correct:
+
+1. `INSERT INTO data_entries (…) SELECT …` from the reference modules,
+   remapping `carbon_report_module_id`/`year`, `RETURNING id`.
+2. `INSERT INTO data_entry_emissions (…) SELECT …` joined to those new
+   ids — copying the reference year's **already-computed** emission rows
+   rather than recomputing them.
+
+Nothing round-trips through Python. Per year this is O(1) statements
+instead of O(modules × entries), and the recompute collapses to one
+`recompute_stats_many` over every module of every year.
+
+#### Status: verified numerically safe, but it is not a drop-in — 2026-08-17
+
+Ran the equivalence check the guardrails demand before touching anything
+that produces published numbers: prefill a plan year from a reference year
+holding computed emissions, then diff every copied entry's emission rows
+against its source's, **row for row** — not totals, since a copy could
+match on total while splitting the value across different leaves.
+
+Result on 5 entries at 100%: `kg_co2eq`, `emission_type_id` and `scope`
+match **exactly**. The arithmetic behind F3 is sound.
+
+One field differs: **`primary_factor_id` is `None` on the recomputed copy
+and set on the source.** The override short-circuit
+(`_get_percentage_override_kg`) returns kg directly and never resolves a
+factor, so prefilled planner rows currently carry no factor provenance.
+
+That single delta is what stops F3 being the two-statement change it was
+written as:
+
+- An `INSERT … SELECT` would carry the source's `primary_factor_id`
+  through. `data_entry_repo.py:871-952` joins that column to `Factor` for
+  rollups and listings, where it currently yields `NULL` for every planner
+  row. So F3 would **change user-visible listing output** as a side effect
+  of a performance change.
+- **Grant equipment prefills at 0%** (#1981) — copying the source's rows
+  is simply wrong there, so it needs its own branch.
+- **Plain-copy modules** (professional travel) carry no
+  `source_data_entry_id` at all, so there is nothing to join to.
+
+Three branches, one of which alters displayed data. And F3's original
+premise has partly been consumed: **F2 already removed the per-year,
+per-module redundancy** by routing new plan years through one batched
+`_recalculate_report_emissions`. What remains for F3 is the Python compute
+(F0 measured it at 132.2ms of 560.9ms, ~24%) plus the row transfers —
+worthwhile, but not the dominant term the earlier draft implied.
+
+**Open decision for the maintainers, and it is not a performance
+question:** _should prefilled planner emission rows carry their source's
+`primary_factor_id`?_
+
+- **Yes** → that is a deliberate data-provenance improvement. It ships on
+  its own, with tests covering the affected rollup/listing queries, and
+  F3 then follows cleanly on top.
+- **No** → F3 must null the column on copy, which makes it a fast-path
+  duplicate of the compute layer — two ways to produce an emission row,
+  i.e. exactly the dual source of truth the guardrails forbid.
+
+Until that is answered, **F4 is the better next move**: it is required at
+the stated ceilings regardless of how fast the synchronous path becomes,
+and it does not touch emission values at all.
+
+#### The `primary_factor_id` question, answered — 2026-08-17
+
+Checked on the maintainer's prompt ("we don't really care about
+`primary_factor_id`, but check again"). **It is used** — and the finding
+inverts F3's risk.
+
+Nothing in `frontend/src/` mentions `primary_factor` (0 matches), which is
+why it looks unused. It is consumed **server-side**: the joined `Factor`'s
+`values` + `classification` are spread into
+`enriched_data["primary_factor"]` by `get_submodule_data`, and each
+module's `to_response` reads that dict to populate ordinary row fields —
+equipment's `active_power_w` / `standby_power_w` / `equipment_class` /
+`sub_class`, buildings' four `*_kwh_per_square_meter`, cloud/AI's
+`service_type`.
+
+For equipment, two of those have **no fallback to entry data**:
+
+```python
+"active_power_w": primary_factor.get("active_power_w", None),
+"standby_power_w": primary_factor.get("standby_power_w", None),
+```
+
+A prefilled planner row has `primary_factor_id = NULL`, so those come back
+`None`. `ModuleTable.isCompleteEquipement` requires exactly those fields,
+and the planner renders through
+`PlannerYearSection -> ModuleTableSection -> SubModuleSection -> ModuleTable`.
+Demonstrated directly against the real handler:
+
+```
+planner row TODAY : active_power_w=None -> isComplete=False
+                    missing=[active_usage_hours_per_week,
+                             standby_usage_hours_per_week,
+                             active_power_w, standby_power_w]
+with primary_factor: active_power_w=120  -> isComplete=True  missing=[]
+```
+
+**So prefilled planner equipment rows are currently rendered as incomplete
+(the `row-incomplete` tint) because prefill drops their factor
+provenance.** Carrying `primary_factor_id` through — which an
+`INSERT … SELECT` of the source's emission rows does for free — _fixes_
+that rather than breaking anything.
+
+This flips F3's blocker into an argument for it. It remains a visible
+change to planner tables and should be eyeballed in the UI before merge,
+but it is no longer "a perf change that silently alters output" — it is a
+perf change that also repairs a display defect. **F3 is unblocked pending
+that visual confirmation.**
+
+#### Status: the provenance half shipped; the SQL rewrite did not — 2026-08-17
+
+F3 was specified as two `INSERT … SELECT` statements. **Only the
+`primary_factor_id` fix was built**, deliberately, because two findings
+made the rewrite the worse half of the deal:
+
+- `data_entries.data` is `JSON`, not `JSONB`, so the copy needs
+  Postgres-only casts (`data::jsonb || jsonb_build_object(...)`) plus a
+  SQLite fallback for the unit suite — meaning **the fallback is what tests
+  run and the real path is untested**. That is exactly the F7 failure, and
+  F7 was a bug that shipped through it.
+- Its performance half is now marginal: the `INSERT` is 248ms inside a
+  1148ms **background** job that F4 already took off the request path.
+
+What actually mattered was one hardcoded line:
+
+```python
+# data_entry_emission_service.py, the percentage-override branch
+primary_factor_id=None,
+```
+
+The override short-circuit returns kg directly and never resolves a
+factor, so every prefilled planner row lost its provenance. Fixed by
+carrying the source leaf's factor id through — one extra
+`func.min(primary_factor_id)` column on an existing `GROUP BY`, so **zero
+additional round trips**. `min` picks one deterministic id when a leaf
+resolved through several factors, matching `prepare_create`'s own rollup
+row and `DataEntryRepository`'s aggregate.
+
+**All three override paths were updated, not just the fast one** — the
+bulk `override_cache`, the single-entry `_sum_entry_emissions` fallback,
+and the prior-year module-match path. Had only the cached path carried the
+id, the same row would render differently depending on whether the cache
+hit: a drift bug worse than the uniform `None` it replaced.
+
+The CSV explicit-`kg_co2eq` override keeps `primary_factor_id=None`, and
+correctly — no factor governs a hand-supplied kg.
+
+Regression test is an integration test against real Postgres asserting the
+copied row's emission rows carry the source's factor id; verified to fail
+without the fix (`[None] != {1}`). Its docstring records _why_ the column
+matters, so nobody deletes it as cosmetic.
+
+**Still open:** the `INSERT … SELECT` rewrite. It remains the right
+long-term shape for the job path, but it needs a way to test the Postgres
+path that the SQLite unit fixture cannot provide — the integration harness
+added in F7 is where it would live.
+
+### F4 — sizing: at the stated ceilings, this needs a job
+
+Per reference year, the stated maxima are ~6,990 entries (equipment 3000,
+purchase 3000, travel 300, buildings 300, external cloud/AI 300,
+headcount 30, research facilities 30, process 30) — **~70,000
+`data_entries` for a 10-year plan**, plus several emission leaves each,
+so roughly 150k–350k `data_entry_emissions` rows. The plan behind the
+21.89s trace already sits near that ceiling on equipment alone (~50k
+entries across 10 years).
+
+F3 removes the Python per-entry cost, but not the write volume: even at a
+healthy 20–30k rows/s `COPY`, 150k–350k emission rows is 10–20s of pure
+insert. **No synchronous HTTP request survives the ceiling case**, however
+well optimized.
+
+So the two are complementary, not alternatives:
+
+- **F3 makes the common case fast** — small and mid-size plans stop being
+  O(years × entries) in Python and become a couple of set-based inserts.
+- **F4 makes the ceiling case survivable** — above a row-count threshold,
+  prefill enqueues rather than blocking, using the existing
+  data-ingestion job pattern (return 202, report progress, let the UI
+  poll). This is the "job/pipeline route", and at 50k equipment entries
+  it is not avoidable by optimization.
+
+Recommended order, **revised after F0's measurement**:
+
+1. **Accept dev's CPU as a fixed constraint.** The platform benchmark
+   shows old hardware (~3.25x slower CPU), no cgroup limit, and DB/network
+   already ruled out. There is no infrastructure fix pending here, so the
+   remaining lever genuinely is "do less work" — which is what F3 is.
+2. **F2** — a deletion, immediate, removes the last per-module cold
+   cache. Small but free.
+3. **F4** — the job route. At the stated ceilings this is required
+   regardless of how fast the synchronous path gets (see below), and it
+   is the only item that survives the 50k-equipment case.
+4. **F3** — the two-statement rewrite. F0 sized its compute half at ~24%
+   locally, but that undersells it: F3 also removes the 5k-row transfers
+   that make up most of the 308ms of traced SQL, because nothing
+   round-trips into Python at all. It is a considered refactor of
+   recalculation internals and needs the two-maintainer sign-off, but on
+   fixed-CPU hardware it is the single largest remaining application-side
+   lever.
+
+#### Design, decided 2026-08-17
+
+Branch: stays on `perf/2050-track-f-prefill-batching` -> `dev` (lead's
+call, overriding the pipeline-branch default). Both endpoints in one
+slice. Async is **unconditional** — no row-count threshold, so there is no
+dual contract to maintain.
+
+**The async boundary is the prefill work, not the whole request.** A plain
+rename must not become a polled operation, so each endpoint keeps its
+synchronous metadata change and defers only the expensive part:
+
+| endpoint                        | stays synchronous                 | deferred to the job           |
+| ------------------------------- | --------------------------------- | ----------------------------- |
+| `PATCH /{plan_id}`              | plan fields, report create/delete | prefill + recalc of new years |
+| `PATCH /{plan_id}/years/{year}` | `reference_year` write            | prefill + recalc of that year |
+
+Both responses gain **`prefill_job_id: UUID | None`**. That is one
+contract, not two: `null` means nothing to wait for, non-null means poll
+then refetch. A threshold would instead have made the response type itself
+conditional, which is the dual path the guardrails forbid.
+
+**Job shape** — reuses existing infrastructure, no migration:
+
+- `job_type = "simulator_plan_prefill"`, registered like every other
+  handler.
+- `entity_type = GLOBAL_PER_YEAR` (3) — already exists for jobs not scoped
+  to a module, so **no `ALTER TYPE` on the append-only `EntityType` enum**.
+- `module_type_id` / `data_entry_type_id` stay `NULL`, so under Postgres'
+  `NULLS DISTINCT` the "one current per combo" partial unique index never
+  fires — two plans prefilling concurrently cannot collide.
+- `meta["config"] = {"plan_id": ..., "report_ids": [...]}`.
+
+**Idempotency on retry** is free: prefill is already destructive and
+idempotent (each module is delete-then-rebuild), so a re-run after a pod
+crash converges rather than duplicating rows — the property #1559 and the
+310-series require of every handler.
+
+**Constraints taken from the required reading**, not invented here:
+
+- The handler must leave `job_session` clean; #1219's stage incident was a
+  poisoned session escaping the handler and self-propagating a stall.
+- Jobs run under `MAX_CONCURRENT_JOBS` with heartbeat/preemption (#1723),
+  so the handler must be async end to end — a sync wrapper calling
+  `asyncio.run` would cancel the fire-and-forget task.
+
+**The frontend ships in the same PR**, per the no-backward-compat rule:
+without it, setting a reference year returns an empty year and looks like
+a silent failure. Visible "prefill running" state, poll, refetch on
+completion, strings in both `en-US` and `fr-CH`.
+
+#### Status: implemented, 2026-08-17
+
+Backend:
+
+- `simulator_plan_prefill` handler (`app/tasks/simulator_plan_tasks.py`),
+  registered in `bootstrap.py`. Raises rather than finishing "successfully"
+  on an empty `report_ids` — a job that silently does nothing would leave
+  the plan year empty with no error anywhere.
+- `_sync_year_reports` and `set_reference_year` now return the report ids
+  needing prefill instead of doing the work; `prefill_reports()` is the
+  handler's entry point and is idempotent on retry.
+- Both routes enqueue via `_enqueue_prefill` and stamp `prefill_job_id`.
+- `GET /project-plans/{plan_id}/prefill/{job_id}` for polling, gated by the
+  plan's own access check **and** by matching the job's `plan_id` — the
+  admin data-sync job routes are the wrong permission surface for a plan
+  editor waiting on their own PATCH.
+- No migration: `EntityType.GLOBAL_PER_YEAR` already existed.
+
+Frontend:
+
+- The store polls, then refetches; the two `timeout: 300000` workarounds
+  are gone (one carried a `TODO: backend to make a background task
+instead!` — this is that task).
+- `pollUntilPrefilled` extracted as a pure function with an injected
+  `sleep`, so the wait is testable without timers or HTTP. Backs off
+  500ms -> 3s.
+- Banner while the copy runs, in `en-US` and `fr-CH`.
+
+Tests: 4 handler tests (registration, config plumbing, both failure
+modes), 2 service tests (prefill is deferred, not run inline; retry
+converges instead of duplicating), 3 poll tests (immediate return,
+repeat until finished, backoff ceiling). Full backend unit suite 2040
+passed; frontend `test-ct` 396 passed.
+
+**Known gap:** the year sections are visibly empty while the job runs. The
+banner says so, but a large prefill leaves a real "building" window — if
+that reads badly in practice, per-year progress is the follow-up.
+
+### F6 — the job path itself (implemented 2026-08-17)
+
+F4 moved prefill off the request, but the work still costs what it costs —
+on dev that job is the 21.9s. Profiled it directly on local Postgres with
+a per-shape statement breakdown, 10 plan years x 4 populated module types.
+
+**What the split looks like after F4:**
+
+|                                   | wall       | SQL                 |
+| --------------------------------- | ---------- | ------------------- |
+| Request (what the user waits for) | **66.6ms** | 45.6ms (116 stmts)  |
+| Job (background)                  | 1148.4ms   | 632.8ms (660 stmts) |
+
+The request went **1351ms -> 66.6ms**, a 20x cut in what the user
+experiences. The rest is the job's.
+
+**Two redundancies found and fixed in the job:**
+
+1. **The reference side was re-read once per plan year.** Every plan year
+   copies from the _same_ reference report, yet the job re-fetched that
+   report, its module list, and — the expensive part — all of its entries
+   for each year: 40 of 90 `list_by_module` calls were the same rows read
+   ten times. A per-job `_ReferenceCache` collapses them (90 -> 27).
+2. **`recompute_stats_many` was called once per module, again.** Same
+   defect F2 fixed one level up: each module prefill left empty issued its
+   own single-module call. Batched. Then the upfront clear and the
+   prefill-emptied set turned out to be the same case (neither appears in
+   the recalc's entry-driven module set), so they share one call — which
+   keeps the report rollup behind it to one run per report instead of
+   three.
+
+**Result: 991 -> 660 job statements (-33%)**, SQL 761ms -> 633ms, wall
+1295ms -> 1148ms. Statement count is the number that travels to dev, where
+each round trip costs 9-17x more.
+
+**What is left, in time order:**
+
+| shape                             | n   | ms    | note                                         |
+| --------------------------------- | --- | ----- | -------------------------------------------- |
+| `INSERT INTO data_entries`        | 40  | 248.5 | row volume (8000 rows), not overhead         |
+| `SELECT carbon_report_modules`    | 141 | 61.4  | 14 per report, metadata                      |
+| `SELECT carbon_reports`           | 112 | 46.8  | 11 per report, metadata                      |
+| `SELECT data_entries` (reference) | 27  | 72.3  | already cached; the rest is real reads       |
+| `DELETE FROM data_entries`        | 80  | 31.3  | one per module — batchable to one per report |
+
+The INSERT dominates on time and is irreducible without F3 (which would
+make it an `INSERT … SELECT` that never leaves the database). The 80
+per-module `DELETE`s are the clearest remaining count win, but moving the
+clear up changes `prefill_module_from_reference`'s documented
+delete-then-rebuild idempotency, so it wants its own change rather than
+riding along here.
+
+### F7 — the job, end to end (a bug the unit tests could not see)
+
+The F4 handler shipped with four unit tests, all mocking
+`SimulatorPlanService`. Everything measured in F6 called
+`prefill_reports` directly. **Nothing had run the real path** —
+`run_job` -> registry -> handler -> commit — against a real database.
+
+Added that test (real Postgres, real runner, real prefill), and it failed
+immediately on a genuine bug:
+
+```
+sqlalchemy.exc.StatementError: (builtins.TypeError)
+cannot use 'dict' as a dict key (unhashable type: 'dict')
+[SQL: UPDATE data_ingestion_jobs SET state=..., result=%(result)s, ...]
+```
+
+The handler returned `"result": {"plan_id": ..., "reports_prefilled": ...}`.
+The runner reads `meta["result"]` **straight into the job row's
+`IngestionResult` column** — it is the outcome enum, not a payload slot.
+So the prefill itself ran and committed perfectly, then the FINISHED write
+blew up: the plan year would have been correctly filled while its job hung
+in RUNNING forever. **That is the #1219 stall shape**, reintroduced, and no
+amount of mock-based unit testing would have found it — the mock happily
+returned whatever the handler asked it to.
+
+Fixed (`result` is `IngestionResult.SUCCESS`, payload moved to sibling
+keys), and the unit test now asserts the enum specifically, with the
+reason in the comment.
+
+The integration test pins three things: the job reaches FINISHED/SUCCESS
+and the rows are really committed; a re-dispatched job converges instead
+of duplicating; and the route's metadata commit is visible to the job
+(otherwise the handler would prefill a report whose `reference_year` is
+still unset and silently produce nothing).
+
+**Lesson worth keeping:** a handler's contract with its runner cannot be
+tested against a mock of its own collaborators. Every new `@register`ed
+job type needs one real-runner test.
+
+### F8 — not done, deliberately
+
+The 80 per-module `DELETE`s (8 per report) are the clearest remaining
+count win, and they are **left alone on purpose**. Batching them means
+moving the clear out of `prefill_module_from_reference`, whose
+delete-then-rebuild idempotency is documented and directly tested. That
+trades a public-method contract and a footgun for ~27ms of work that F4
+already made non-blocking. The invariant it protects — hand-added rows are
+wiped when the baseline changes — is covered end to end elsewhere, so the
+change is _possible_; it is just not worth it at this price.
+
+### F5 — on porting an endpoint to Rust
+
+Asked directly, 2026-08-17, given that dev's CPU cannot be upgraded and
+OTel is staying: would porting a `project-plans` PATCH to Rust help?
+
+**No — and F0 is the measurement that decides it**, satisfying the exact
+condition the "On rewriting in another language" section left open ("a
+future profile on a different workload showing a genuinely compute-bound
+hot path"). That profile came back at **24% Python compute**, so:
+
+- A _perfect_ Rust port of the compute layer is capped at ~24% by Amdahl,
+  before accounting for any FFI or process-boundary cost.
+- It does not touch the 308ms (55%) of traced SQL, because Rust still has
+  to fetch 5k rows, compute, and write them back.
+- **F3 strictly dominates it.** F3 removes the Python compute _and_ the
+  row transfers — a larger win, in less time, with no new language and no
+  second implementation of a carbon formula. Two implementations of a
+  formula drift, and a drifted published number is the failure this
+  project fears most.
+
+If a Rust number is still wanted, the right shape is a **standalone
+microbenchmark of the emission-formula loop only** — no endpoint, no DB,
+no FastAPI. That answers "how much faster is this arithmetic in Rust" in a
+day, and cannot become a second source of truth.
+
+F3 is a proposal, not a queued task: it replaces work inside
+`_recalculate_report_emissions`, not just prefill, which makes it
+recalculation internals — the guardrails require a written plan reviewed
+by both maintainers before it is touched. Nobody should build it off this
+track alone.
+
 ## Priority order
 
 C1, C2, and C3's measurement phase are all now done (2026-08-12); this
@@ -1157,6 +1805,25 @@ investigation order.
    finding on its own, and — since the tax scales with SQL statement count
    — one that C3's fix already shrinks as a side effect on the endpoint it
    touches, without anyone having to tune OTel to get that partial win.
+
+8. ~~**D** — the two redundant-recompute findings (upfront module-clear of
+   modules that self-clear during rebuild; per-module stats recompute
+   superseded by a later full recalc).~~ **Done 2026-08-17** — branch
+   `perf/2050-simulator-plan-track-d-e`, PR #2152. 346.7ms → 302.1ms.
+9. ~~**E** — tiers 1 and 2: `set_reference_year` skips prefill's own
+   emission compute entirely (`compute_emissions=False`), and
+   `_prefill_reference_modules` batches its `get_module` calls into one
+   `list_modules` per side.~~ **Done 2026-08-17**, same branch/PR.
+   302.1ms → **271.4ms**, closing a 960ms → 271.4ms chain (-71.7%).
+   Tiers 8/9 (batch `list_by_module` and flatten row-inserts across module
+   types) remain proposals — estimated ~3-8ms local / ~15-40ms dev, a
+   guess rather than a measurement.
+10. **F** — the per-year fan-out, reopened 2026-08-17 by an 11-year
+    plan-range PATCH at 3144ms local and a 21.89s `/years/{year}` on dev.
+    F1 (buildings `prefetch_slice`) is **done**; F2 is a queued deletion;
+    F0's local 5k-entry measurement gates F3 vs. write-volume work; F4
+    (the job route) is required for the stated ceilings regardless. See
+    Track F for why this is not simply "more of Track E".
 
 A0 runs alongside 1–3 as verification.
 

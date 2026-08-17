@@ -20,6 +20,36 @@ from app.services.simulator_plan_service import (
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
+async def _set_ref(service, plan_id, year, reference_year, *, is_grant=False):
+    """``set_reference_year`` plus the prefill its job now runs (Track F4).
+
+    The route defers prefill to ``simulator_plan_prefill``; these tests
+    exercise the combined effect, so they run both halves and re-read the
+    year afterwards (the first read is built before prefill happens).
+    """
+    out = await service.set_reference_year(
+        plan_id, year, reference_year, is_grant=is_grant
+    )
+    if out is None:
+        return None
+    _, needs_prefill = out
+    await service.prefill_reports(needs_prefill)
+    years = await service.list_plan_years(plan_id)
+    return next(
+        (y for y in years or [] if y.year == year and y.is_grant == is_grant), None
+    )
+
+
+async def _update_plan(service, plan_id, update):
+    """``update_plan`` plus the prefill its job now runs (Track F4)."""
+    out = await service.update_plan(plan_id, update)
+    if out is None:
+        return None
+    result, needs_prefill = out
+    await service.prefill_reports(needs_prefill)
+    return result
+
+
 @pytest_asyncio.fixture
 async def async_session():
     engine = create_async_engine(DATABASE_URL, echo=False, future=True)
@@ -136,8 +166,8 @@ async def test_list_plans_scoped_to_unit(async_session, user):
 async def test_rename_plan(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="old-name")
-    renamed = await service.update_plan(
-        created.id, SimulatorPlanUpdate(name="new-name")
+    renamed = await _update_plan(
+        service, created.id, SimulatorPlanUpdate(name="new-name")
     )
 
     assert renamed is not None
@@ -152,7 +182,7 @@ async def test_rename_plan(async_session, user):
 async def test_rename_plan_same_name_is_noop(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="same")
-    renamed = await service.update_plan(created.id, SimulatorPlanUpdate(name="same"))
+    renamed = await _update_plan(service, created.id, SimulatorPlanUpdate(name="same"))
     assert renamed is not None
     assert renamed.name == "same"
 
@@ -163,13 +193,15 @@ async def test_rename_plan_collision_raises(async_session, user):
     await service.create_plan(unit_id=1, user=user, name="taken")
     created = await service.create_plan(unit_id=1, user=user, name="mine")
     with pytest.raises(ValueError):
-        await service.update_plan(created.id, SimulatorPlanUpdate(name="taken"))
+        await _update_plan(service, created.id, SimulatorPlanUpdate(name="taken"))
 
 
 @pytest.mark.asyncio
 async def test_rename_plan_missing_returns_none(async_session, user):
     service = SimulatorPlanService(async_session)
-    assert await service.update_plan(9999, SimulatorPlanUpdate(name="whatever")) is None
+    assert (
+        await _update_plan(service, 9999, SimulatorPlanUpdate(name="whatever")) is None
+    )
 
 
 # ── duplicate_plan ────────────────────────────────────────────────────────────
@@ -239,8 +271,8 @@ async def test_setting_year_range_creates_reports_with_modules(async_session, us
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="proj")
 
-    updated = await service.update_plan(
-        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2029)
+    updated = await _update_plan(
+        service, created.id, SimulatorPlanUpdate(start_year=2027, end_year=2029)
     )
     assert updated is not None
     assert (updated.start_year, updated.end_year) == (2027, 2029)
@@ -258,7 +290,8 @@ async def test_year_range_defaults_reference_year_on_new_reports(async_session, 
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="proj")
 
-    await service.update_plan(
+    await _update_plan(
+        service,
         created.id,
         SimulatorPlanUpdate(
             start_year=2027, end_year=2028, default_reference_year=2026
@@ -269,8 +302,10 @@ async def test_year_range_defaults_reference_year_on_new_reports(async_session, 
     assert [y.reference_year for y in years] == [2026, 2026]
 
     # Growing the range only defaults the new report; 2027-2028 keep theirs.
-    await service.update_plan(
-        created.id, SimulatorPlanUpdate(end_year=2029, default_reference_year=2025)
+    await _update_plan(
+        service,
+        created.id,
+        SimulatorPlanUpdate(end_year=2029, default_reference_year=2025),
     )
     years = await service.list_plan_years(created.id)
     assert years is not None
@@ -286,8 +321,8 @@ async def test_year_range_without_default_leaves_reference_unset(async_session, 
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="proj")
 
-    await service.update_plan(
-        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    await _update_plan(
+        service, created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
     )
     years = await service.list_plan_years(created.id)
     assert years is not None
@@ -298,12 +333,12 @@ async def test_year_range_without_default_leaves_reference_unset(async_session, 
 async def test_shrinking_year_range_deletes_out_of_range_reports(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="proj")
-    await service.update_plan(
-        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2030)
+    await _update_plan(
+        service, created.id, SimulatorPlanUpdate(start_year=2027, end_year=2030)
     )
 
-    await service.update_plan(
-        created.id, SimulatorPlanUpdate(start_year=2028, end_year=2029)
+    await _update_plan(
+        service, created.id, SimulatorPlanUpdate(start_year=2028, end_year=2029)
     )
     assert await _plan_years(service, created.id) == [2028, 2029]
 
@@ -312,13 +347,13 @@ async def test_shrinking_year_range_deletes_out_of_range_reports(async_session, 
 async def test_growing_year_range_keeps_existing_reports(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="proj")
-    await service.update_plan(
-        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    await _update_plan(
+        service, created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
     )
     first = await service.list_plan_years(created.id)
     assert first is not None
 
-    await service.update_plan(created.id, SimulatorPlanUpdate(end_year=2028))
+    await _update_plan(service, created.id, SimulatorPlanUpdate(end_year=2028))
     years = await service.list_plan_years(created.id)
     assert years is not None
     assert [y.year for y in years] == [2027, 2028]
@@ -331,8 +366,8 @@ async def test_inverted_year_range_raises(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="proj")
     with pytest.raises(ValueError):
-        await service.update_plan(
-            created.id, SimulatorPlanUpdate(start_year=2030, end_year=2027)
+        await _update_plan(
+            service, created.id, SimulatorPlanUpdate(start_year=2030, end_year=2027)
         )
 
 
@@ -343,11 +378,11 @@ async def test_inverted_year_range_raises(async_session, user):
 async def test_set_reference_year(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="proj")
-    await service.update_plan(
-        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    await _update_plan(
+        service, created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
     )
 
-    result = await service.set_reference_year(created.id, 2027, 2024)
+    result = await _set_ref(service, created.id, 2027, 2024)
     assert result is not None
     assert result.reference_year == 2024
 
@@ -360,7 +395,7 @@ async def test_set_reference_year(async_session, user):
 async def test_set_reference_year_missing_year_returns_none(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="proj")
-    assert await service.set_reference_year(created.id, 2031, 2024) is None
+    assert await _set_ref(service, created.id, 2031, 2024) is None
 
 
 @pytest.mark.asyncio
@@ -424,7 +459,7 @@ async def test_remove_reference_year_wipes_prefilled_modules(async_session, user
     entry_repo = DataEntryRepository(async_session)
     assert len(await entry_repo.list_by_module(plan_module.id)) == 2
 
-    result = await service.set_reference_year(plan.id, 2027, None)
+    result = await _set_ref(service, plan.id, 2027, None)
     assert result is not None and result.reference_year is None
     assert await entry_repo.list_by_module(plan_module.id) == []
 
@@ -483,8 +518,8 @@ async def test_set_reference_year_grant_clears_but_does_not_rebuild_rf_and_trave
     await async_session.flush()
 
     plan = await service.create_plan(unit_id=1, user=user, name="proj")
-    await service.update_plan(
-        plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    await _update_plan(
+        service, plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
     )
     grant_report = await service.report_service.create(
         CarbonReportCreate(
@@ -518,7 +553,7 @@ async def test_set_reference_year_grant_clears_but_does_not_rebuild_rf_and_trave
     )
     await async_session.flush()
 
-    result = await service.set_reference_year(plan.id, 2027, 2024, is_grant=True)
+    result = await _set_ref(service, plan.id, 2027, 2024, is_grant=True)
     assert result is not None
 
     entry_repo = DataEntryRepository(async_session)
@@ -538,10 +573,10 @@ async def test_set_reference_year_without_calc_report_is_noop(async_session, use
     """A reference year with no Calculator report still sets, prefilling nothing."""
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="proj")
-    await service.update_plan(
-        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    await _update_plan(
+        service, created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
     )
-    result = await service.set_reference_year(created.id, 2027, 2024)
+    result = await _set_ref(service, created.id, 2027, 2024)
     assert result is not None and result.reference_year == 2024
 
 
@@ -571,10 +606,10 @@ async def _calculator_report_with_process_entries(service, async_session, year=2
 
 
 async def _plan_year_report(service, plan_id, year=2027, reference_year=2024):
-    await service.update_plan(
-        plan_id, SimulatorPlanUpdate(start_year=year, end_year=year)
+    await _update_plan(
+        service, plan_id, SimulatorPlanUpdate(start_year=year, end_year=year)
     )
-    await service.set_reference_year(plan_id, year, reference_year)
+    await _set_ref(service, plan_id, year, reference_year)
     reports = await service.repo.list_reports_for_project(plan_id)
     return next(r for r in reports if r.year == year)
 
@@ -636,8 +671,8 @@ async def test_prefill_without_reference_year_raises(async_session, user):
     service = SimulatorPlanService(async_session)
     await _calculator_report_with_process_entries(service, async_session)
     plan = await service.create_plan(unit_id=1, user=user, name="proj")
-    await service.update_plan(
-        plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    await _update_plan(
+        service, plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
     )
     reports = await service.repo.list_reports_for_project(plan.id)
     with pytest.raises(ValueError, match="reference year"):
@@ -685,7 +720,7 @@ async def test_reference_year_change_wipes_the_previous_baseline_rows(
     plan = await service.create_plan(unit_id=1, user=user, name="proj")
     report = await _plan_year_report(service, plan.id, reference_year=2024)
 
-    await service.set_reference_year(plan.id, 2027, 2025)
+    await _set_ref(service, plan.id, 2027, 2025)
 
     rows = await _plan_module_rows(service, async_session, report)
     assert len(rows) == 1
@@ -711,8 +746,8 @@ async def test_switching_back_reprefills_at_100_percent(async_session, user):
     async_session.add(rows_2024[0])
     await async_session.flush()
 
-    await service.set_reference_year(plan.id, 2027, 2025)
-    await service.set_reference_year(plan.id, 2027, 2024)
+    await _set_ref(service, plan.id, 2027, 2025)
+    await _set_ref(service, plan.id, 2027, 2024)
 
     rows = await _plan_module_rows(service, async_session, report)
     assert len(rows) == 2
@@ -742,7 +777,7 @@ async def test_hand_added_rows_are_wiped_on_switch(async_session, user):
     )
     await async_session.flush()
 
-    await service.set_reference_year(plan.id, 2027, 2025)
+    await _set_ref(service, plan.id, 2027, 2025)
 
     rows = await _plan_module_rows(service, async_session, report)
     assert [r.source for r in rows] == [DataEntrySourceEnum.PLANNER_SNAPSHOT.value]
@@ -759,7 +794,7 @@ async def test_switch_to_a_year_without_calculator_data_empties_the_modules(
     plan = await service.create_plan(unit_id=1, user=user, name="proj")
     report = await _plan_year_report(service, plan.id, reference_year=2024)
 
-    await service.set_reference_year(plan.id, 2027, 2025)
+    await _set_ref(service, plan.id, 2027, 2025)
 
     assert await _plan_module_rows(service, async_session, report) == []
 
@@ -769,8 +804,8 @@ async def test_duplicate_plan_syncs_year_reports(async_session, user):
     """A duplicated plan opens with the same year sections as its source."""
     service = SimulatorPlanService(async_session)
     source = await service.create_plan(unit_id=1, user=user, name="source")
-    await service.update_plan(
-        source.id, SimulatorPlanUpdate(start_year=2027, end_year=2029)
+    await _update_plan(
+        service, source.id, SimulatorPlanUpdate(start_year=2027, end_year=2029)
     )
 
     copy = await service.duplicate_plan(source.id, user)

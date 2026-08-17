@@ -2059,7 +2059,9 @@ class TestPercentageOverrideSnapshotSource:
         # Source resolves to a report of the same unit (ownership gate passes).
         with (
             patch.object(
-                service, "_sum_entry_emissions", new=AsyncMock(return_value=200.0)
+                service,
+                "_sum_entry_emissions",
+                new=AsyncMock(return_value=(200.0, 77)),
             ),
             patch.object(
                 service,
@@ -2070,7 +2072,12 @@ class TestPercentageOverrideSnapshotSource:
             result = await service._get_percentage_override_kg(
                 de, EmissionType.process_emissions, self._report()
             )
-        assert result == pytest.approx(80.0)
+        # 40% of the source's 200kg, and the source leaf's factor id travels
+        # with it so the copied row keeps its provenance (plan #2050 F3).
+        assert result is not None
+        kg, factor_id = result
+        assert kg == pytest.approx(80.0)
+        assert factor_id == 77
         service.session.get.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -2110,7 +2117,9 @@ class TestPercentageOverrideSnapshotSource:
         service.session.get = AsyncMock(return_value=MagicMock(id=999))
         with (
             patch.object(
-                service, "_sum_entry_emissions", new=AsyncMock(return_value=1_000.0)
+                service,
+                "_sum_entry_emissions",
+                new=AsyncMock(return_value=(1_000.0, 5)),
             ) as sum_mock,
             patch.object(
                 service,

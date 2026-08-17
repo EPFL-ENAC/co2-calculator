@@ -61,6 +61,36 @@ EMISSION_INSERT_RE = re.compile(
 )
 
 
+async def _set_ref(service, plan_id, year, reference_year, *, is_grant=False):
+    """``set_reference_year`` plus the prefill its job now runs (Track F4).
+
+    The route defers prefill to ``simulator_plan_prefill``; these tests
+    exercise the combined effect, so they run both halves and re-read the
+    year afterwards (the first read is built before prefill happens).
+    """
+    out = await service.set_reference_year(
+        plan_id, year, reference_year, is_grant=is_grant
+    )
+    if out is None:
+        return None
+    _, needs_prefill = out
+    await service.prefill_reports(needs_prefill)
+    years = await service.list_plan_years(plan_id)
+    return next(
+        (y for y in years or [] if y.year == year and y.is_grant == is_grant), None
+    )
+
+
+async def _update_plan(service, plan_id, update):
+    """``update_plan`` plus the prefill its job now runs (Track F4)."""
+    out = await service.update_plan(plan_id, update)
+    if out is None:
+        return None
+    result, needs_prefill = out
+    await service.prefill_reports(needs_prefill)
+    return result
+
+
 @pytest_asyncio.fixture
 async def engine():
     eng = create_async_engine(DATABASE_URL, echo=False, future=True)
@@ -223,8 +253,8 @@ async def _plan_with_year(
     service: SimulatorPlanService, user, plan_name: str, year: int, *, unit_id: int
 ):
     plan = await service.create_plan(unit_id=unit_id, user=user, name=plan_name)
-    await service.update_plan(
-        plan.id, SimulatorPlanUpdate(start_year=year, end_year=year)
+    await _update_plan(
+        service, plan.id, SimulatorPlanUpdate(start_year=year, end_year=year)
     )
     return plan
 
@@ -242,7 +272,7 @@ async def _measure_set_reference_year(
     plan = await _plan_with_year(service, user, plan_name, year=2027, unit_id=unit_id)
 
     with count_statements(engine) as log:
-        result = await service.set_reference_year(plan.id, 2027, 2024)
+        result = await _set_ref(service, plan.id, 2027, 2024)
     assert result is not None
     return log
 
@@ -307,7 +337,7 @@ async def test_recalculate_report_emissions_isolated_statement_count(
         plan = await _plan_with_year(
             service, user, f"iso-{entry_count}", year=2027, unit_id=unit_id
         )
-        report = await service.set_reference_year(plan.id, 2027, 2024)
+        report = await _set_ref(service, plan.id, 2027, 2024)
         assert report is not None
         reports = await service.repo.list_reports_for_project(plan.id)
         db_report = next(r for r in reports if r.id == report.id)
@@ -381,7 +411,7 @@ async def test_recalculate_report_emissions_large_n_delete_breakdown(
         plan = await _plan_with_year(
             service, user, f"bigN-{entry_count}", year=2027, unit_id=unit_id
         )
-        report = await service.set_reference_year(plan.id, 2027, 2024)
+        report = await _set_ref(service, plan.id, 2027, 2024)
         assert report is not None
         reports = await service.repo.list_reports_for_project(plan.id)
         db_report = next(r for r in reports if r.id == report.id)
@@ -458,7 +488,7 @@ async def test_percentage_override_cache_matches_uncached_path(async_session, us
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
 
     plan = await _plan_with_year(service, user, "equiv", year=2027, unit_id=41)
-    result = await service.set_reference_year(plan.id, 2027, 2024)
+    result = await _set_ref(service, plan.id, 2027, 2024)
     assert result is not None
     reports = await service.repo.list_reports_for_project(plan.id)
     db_report = next(r for r in reports if r.id == result.id)
@@ -533,76 +563,173 @@ async def test_recalculate_report_emissions_empty_still_refreshes_report_stats(
     )
 
 
-# ── Track E tier 1: set_reference_year skips prefill's own emission compute ───
+# ── Track F4: the PATCHes defer prefill to a job ──────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_set_reference_year_never_calls_persist_prefill_entries(
-    async_session, user, monkeypatch: pytest.MonkeyPatch
+async def test_set_reference_year_defers_prefill_instead_of_running_it(
+    async_session, user
 ):
-    """``set_reference_year`` must skip ``_persist_prefill_entries`` entirely.
+    """Setting a baseline must persist the year and hand the copy to the job.
 
-    Regression test for plan #2050 Track E tier 1: its own
-    ``_recalculate_report_emissions`` recomputes every entry's emissions
-    from scratch right after (it has to — it also covers modules prefill
-    never touches, like ``purchase``'s manual rows), so computing them
-    during prefill first is thrown away. Fails loudly rather than silently
-    passing if a future edit reintroduces the call.
+    Regression test for plan #2050 Track F4: prefill used to run inside the
+    request (21.9s on dev for one year of a ~5k-entry module). The call now
+    returns the report ids needing prefill and leaves the modules empty
+    until the job runs.
     """
     service = SimulatorPlanService(async_session)
+    await _seed_process_emissions_factor(async_session)
     ref_report, _ = await _reference_report_with_entries(
-        service, async_session, count=2, unit_id=71
+        service, async_session, count=3, unit_id=91
     )
-    plan = await _plan_with_year(service, user, "tier1-skip", year=2027, unit_id=71)
+    await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    plan = await _plan_with_year(service, user, "f4-defer", year=2027, unit_id=91)
 
-    async def failing_persist(*args, **kwargs):
-        raise AssertionError(
-            "_persist_prefill_entries was called from set_reference_year's "
-            "path — its result is thrown away by the _recalculate_report_"
-            "emissions call right after (Track E tier 1 regressed)"
-        )
+    out = await service.set_reference_year(plan.id, 2027, 2024)
+    assert out is not None
+    year_read, needs_prefill = out
+    assert needs_prefill == [year_read.id], (
+        "set_reference_year must hand back the report needing prefill"
+    )
 
-    monkeypatch.setattr(service, "_persist_prefill_entries", failing_persist)
+    module = next(
+        m
+        for m in year_read.modules
+        if m.module_type_id == int(ModuleTypeEnum.process_emissions)
+    )
+    repo = DataEntryRepository(async_session)
+    assert await repo.list_by_module(module.id) == [], (
+        "prefill ran inside the request — Track F4 regressed"
+    )
 
-    result = await service.set_reference_year(plan.id, 2027, 2024)
-    assert result is not None
+    # The job's half, run on its own, produces the rows.
+    assert await service.prefill_reports(needs_prefill) == 1
+    assert len(await repo.list_by_module(module.id)) == 3
 
 
 @pytest.mark.asyncio
-async def test_sync_year_reports_still_calls_persist_prefill_entries(
-    async_session, user, monkeypatch: pytest.MonkeyPatch
-):
-    """The other caller (new plan-year creation) must keep computing emissions
-    during prefill — it has no later ``_recalculate_report_emissions`` pass
-    to fall back on, per its own code comment ("no other entries exist
-    yet"). The mirror of the test above: Track E tier 1 must not have
-    silently broken this caller while fixing the other one.
+async def test_prefill_reports_is_idempotent_on_retry(async_session, user):
+    """A preempted job re-runs from the start; it must converge, not duplicate.
+
+    #1559 / the 310-series require this of every handler — prefill empties
+    each module before rebuilding, so running it twice is the same as once.
     """
     service = SimulatorPlanService(async_session)
+    await _seed_process_emissions_factor(async_session)
+    ref_report, _ = await _reference_report_with_entries(
+        service, async_session, count=3, unit_id=92
+    )
+    await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    plan = await _plan_with_year(service, user, "f4-retry", year=2027, unit_id=92)
+
+    out = await service.set_reference_year(plan.id, 2027, 2024)
+    assert out is not None
+    _, needs_prefill = out
+
+    await service.prefill_reports(needs_prefill)
+    await service.prefill_reports(needs_prefill)
+
+    years = await service.list_plan_years(plan.id)
+    assert years is not None
+    module = next(
+        m
+        for m in years[0].modules
+        if m.module_type_id == int(ModuleTypeEnum.process_emissions)
+    )
+    entries = await DataEntryRepository(async_session).list_by_module(module.id)
+    assert len(entries) == 3, f"retry duplicated rows: {len(entries)} != 3"
+
+
+# ── Track F2: both prefill callers compute in one batched pass ────────────────
+
+
+@pytest.mark.asyncio
+async def test_sync_year_reports_computes_emissions_in_one_batched_pass(
+    async_session, user, monkeypatch: pytest.MonkeyPatch
+):
+    """New plan-year creation must recompute the whole report once, not per module.
+
+    Regression test for plan #2050 Track F2. ``_sync_year_reports`` used to
+    compute emissions inside prefill, once per module: a cold
+    ``FactorResolver`` + factor-query cache and a single-module
+    ``recompute_stats_many`` for every module of every year. It now mirrors
+    ``set_reference_year`` — insert the rows, then one
+    ``_recalculate_report_emissions`` for the report — which shares one
+    resolver/cache across every module and ends in one batched stats pass.
+
+    Before the fix ``_prepare_recalc_emissions`` was never reached from this
+    caller at all, so this fails without it.
+    """
+    service = SimulatorPlanService(async_session)
+    await _seed_process_emissions_factor(async_session)
     await _reference_report_with_entries(service, async_session, count=2, unit_id=72)
 
     calls = 0
-    original = service._persist_prefill_entries
+    original = service._prepare_recalc_emissions  # noqa: SLF001
 
-    async def counting_persist(*args, **kwargs):
+    async def counting_prepare(*args, **kwargs):
         nonlocal calls
         calls += 1
         return await original(*args, **kwargs)
 
-    monkeypatch.setattr(service, "_persist_prefill_entries", counting_persist)
+    monkeypatch.setattr(service, "_prepare_recalc_emissions", counting_prepare)
 
-    plan = await service.create_plan(unit_id=72, user=user, name="tier1-keep")
-    await service.update_plan(
+    plan = await service.create_plan(unit_id=72, user=user, name="f2-batched")
+    await _update_plan(
+        service,
         plan.id,
         SimulatorPlanUpdate(
             start_year=2027, end_year=2027, default_reference_year=2024
         ),
     )
 
-    assert calls > 0, (
-        "_sync_year_reports must still call _persist_prefill_entries — it "
-        "has no follow-up recalc pass to compute emissions for it"
+    assert calls == 1, (
+        f"expected one batched compute for the new year report, got {calls} — "
+        "_sync_year_reports is computing per module again (Track F2 regressed)"
     )
+
+
+@pytest.mark.asyncio
+async def test_sync_year_reports_emissions_are_correct(async_session, user):
+    """Correctness, not just call-count: routing new plan years through the
+    batched recalc must persist the same kg values the per-module compute
+    produced. A prefilled year whose rows carry no emissions is the silent
+    failure this guards — the numbers are published.
+    """
+    service = SimulatorPlanService(async_session)
+    await _seed_process_emissions_factor(async_session)
+    ref_report, _ = await _reference_report_with_entries(
+        service, async_session, count=2, unit_id=74
+    )
+    await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+
+    plan = await service.create_plan(unit_id=74, user=user, name="f2-correct")
+    await _update_plan(
+        service,
+        plan.id,
+        SimulatorPlanUpdate(
+            start_year=2027, end_year=2027, default_reference_year=2024
+        ),
+    )
+
+    years = await service.list_plan_years(plan.id)
+    assert years is not None
+    module = next(
+        m
+        for m in years[0].modules
+        if m.module_type_id == int(ModuleTypeEnum.process_emissions)
+    )
+    entries = await DataEntryRepository(async_session).list_by_module(module.id)
+    assert {e.data["quantity"] for e in entries} == {1.0, 2.0}
+
+    emission_repo = DataEntryEmissionService(async_session).repo
+    kg_by_quantity = {}
+    for e in entries:
+        rows = await emission_repo.get_by_data_entry_id(e.id)
+        assert rows, f"entry {e.id} has no persisted emissions"
+        kg_by_quantity[e.data["quantity"]] = sum(r.kg_co2eq for r in rows)
+    # ef_kg_co2eq_per_unit=1.0, copied at 100% → kg_co2eq == quantity.
+    assert kg_by_quantity == {1.0: 1.0, 2.0: 2.0}
 
 
 @pytest.mark.asyncio
@@ -622,10 +749,10 @@ async def test_set_reference_year_produces_correct_emissions_without_prefill_com
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
 
     plan = await service.create_plan(unit_id=73, user=user, name="tier1-correct")
-    await service.update_plan(
-        plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    await _update_plan(
+        service, plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
     )
-    plan_result = await service.set_reference_year(plan.id, 2027, 2024)
+    plan_result = await _set_ref(service, plan.id, 2027, 2024)
     assert plan_result is not None
 
     module = next(
@@ -649,29 +776,26 @@ async def test_set_reference_year_produces_correct_emissions_without_prefill_com
 
 
 @pytest.mark.asyncio
-async def test_prefill_headcount_empty_after_prefill_still_recomputes_stats(
+async def test_modules_left_empty_by_prefill_still_get_their_stats_refreshed(
     async_session, user, monkeypatch: pytest.MonkeyPatch
 ):
-    """A headcount module left empty by prefill must still get its stats
-    refreshed even with ``compute_emissions=False``.
+    """Every module prefill leaves empty must still be refreshed — in ONE call.
 
-    Unlike ``prefill_module_from_reference`` (whose empty-``src_entries``
-    early return runs before the ``compute_emissions`` check at all),
-    ``prefill_headcount_from_reference`` reaches its own empty-``rows``
-    branch *after* that check — the ``elif not rows`` added alongside
-    ``compute_emissions`` must fire, or an empty headcount module keeps
-    stale stats: it never appears in the later
-    ``_recalculate_report_emissions``'s entry-driven module set (Track E
-    tier 1, same reasoning as Track D finding 2's empty-entries branch).
+    An empty module never appears in the later
+    ``_recalculate_report_emissions``'s entry-driven module set, so prefill
+    is its only chance to reflect "now empty" stats. Each such module used
+    to issue its own single-module ``recompute_stats_many``; they are now
+    batched (plan #2050 Track F6), so this pins both halves — the modules
+    are still covered, and they cost one call rather than one each.
     """
     service = SimulatorPlanService(async_session)
-    ref_report = await service.report_service.create(
-        CarbonReportCreate(year=2024, unit_id=81)
-    )  # no member/student entries added — reference headcount stays empty
+    # A reference report with no entries at all: every rebuilt module of the
+    # plan year ends up empty.
+    await service.report_service.create(CarbonReportCreate(year=2024, unit_id=81))
 
-    plan = await service.create_plan(unit_id=81, user=user, name="empty-headcount")
-    await service.update_plan(
-        plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    plan = await service.create_plan(unit_id=81, user=user, name="empty-modules")
+    await _update_plan(
+        service, plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
     )
     reports = await service.repo.list_reports_for_project(plan.id)
     report = reports[0]
@@ -679,17 +803,20 @@ async def test_prefill_headcount_empty_after_prefill_still_recomputes_stats(
     async_session.add(report)
     await async_session.flush()
 
-    module = next(
-        m
-        for m in await service.report_service.module_service.list_modules(report.id)
-        if m.module_type_id == int(ModuleTypeEnum.headcount)
+    modules = await service.report_service.module_service.list_modules(report.id)
+    headcount = next(
+        m for m in modules if m.module_type_id == int(ModuleTypeEnum.headcount)
+    )
+    # Purchase is cleared but never rebuilt — the other half of the merge.
+    purchase = next(
+        m for m in modules if m.module_type_id == int(ModuleTypeEnum.purchase)
     )
 
     calls: list[list[int]] = []
     original = service.report_service.module_service.recompute_stats_many
 
     async def counting_recompute(module_ids, **kwargs):
-        calls.append(list(module_ids))
+        calls.append(sorted(module_ids))
         return await original(module_ids, **kwargs)
 
     monkeypatch.setattr(
@@ -698,15 +825,19 @@ async def test_prefill_headcount_empty_after_prefill_still_recomputes_stats(
         counting_recompute,
     )
 
-    rows_created = await service.prefill_headcount_from_reference(
-        report, ref_report=ref_report, compute_emissions=False
-    )
+    await service._prefill_reference_modules(report)  # noqa: SLF001
 
-    assert rows_created == 0
-    assert calls == [[module.id]], (
-        f"expected recompute_stats_many([{module.id}]) to run for the "
-        f"empty-after-prefill headcount module even with "
-        f"compute_emissions=False, got {calls}"
+    covered = {module_id for call in calls for module_id in call}
+    assert headcount.id in covered, (
+        f"the empty headcount module never got its stats refreshed: {calls}"
+    )
+    assert purchase.id in covered, (
+        f"the cleared purchase module never got its stats refreshed: {calls}"
+    )
+    # Cleared modules and prefill-emptied modules are the same case, so they
+    # share one call — which keeps the report rollup behind it to one run.
+    assert len(calls) == 1, (
+        f"expected a single batched recompute_stats_many, got {len(calls)}: {calls}"
     )
 
 
@@ -787,8 +918,8 @@ async def test_prefill_module_from_reference_calls_list_by_module_once(
         service, async_session, count=5, unit_id=1
     )
     plan = await service.create_plan(unit_id=1, user=user, name="dup-check")
-    await service.update_plan(
-        plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    await _update_plan(
+        service, plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
     )
     reports = await service.repo.list_reports_for_project(plan.id)
     plan_report = reports[0]
@@ -839,7 +970,8 @@ async def test_sync_year_reports_statement_count_vs_year_count(
 
     short_plan = await service.create_plan(unit_id=1, user=user, name="short-range")
     with count_statements(engine) as short_log:
-        await service.update_plan(
+        await _update_plan(
+            service,
             short_plan.id,
             SimulatorPlanUpdate(
                 start_year=2027, end_year=2028, default_reference_year=2024
@@ -848,7 +980,8 @@ async def test_sync_year_reports_statement_count_vs_year_count(
 
     long_plan = await service.create_plan(unit_id=1, user=user, name="long-range")
     with count_statements(engine) as long_log:
-        await service.update_plan(
+        await _update_plan(
+            service,
             long_plan.id,
             SimulatorPlanUpdate(
                 start_year=2027, end_year=2031, default_reference_year=2024

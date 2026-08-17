@@ -98,6 +98,11 @@ class SimulatorPlanRead(BaseModel):
     creator_name: str | None = None
     total_tonnes_co2eq: float | None = None
     can_manage: bool = False
+    #: Set when the PATCH deferred its prefill to a ``simulator_plan_prefill``
+    #: job (plan #2050 Track F4). ``None`` means there was nothing to wait
+    #: for; otherwise the client polls this job before trusting the year's
+    #: entries and stats.
+    prefill_job_id: int | None = None
 
     class Config:
         from_attributes = True
@@ -114,6 +119,23 @@ class SimulatorPlanYearRead(BaseModel):
     budget_currency: str | None = None
     stats: dict | None = None
     modules: list[CarbonReportModuleRead] = []
+    #: Set when the PATCH deferred its prefill to a ``simulator_plan_prefill``
+    #: job (plan #2050 Track F4). ``None`` means there was nothing to wait
+    #: for; otherwise the client polls this job before trusting the year's
+    #: entries and stats.
+    prefill_job_id: int | None = None
 
     class Config:
         from_attributes = True
+
+
+class SimulatorPlanPrefillStatus(BaseModel):
+    """Progress of a deferred plan prefill (plan #2050 Track F4)."""
+
+    job_id: int
+    #: True once the job reached its terminal state, whatever the outcome —
+    #: the client stops polling and refetches the plan years.
+    finished: bool
+    #: Set only when finished: "success" | "warning" | "error".
+    result: str | None = None
+    status_message: str | None = None

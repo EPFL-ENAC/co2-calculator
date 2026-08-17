@@ -135,6 +135,10 @@ export default {
     en: 'Active',
     fr: 'Actif',
   },
+  planner_prefill_running: {
+    en: 'Copying the reference year into your project years. This can take a moment for large baselines; the figures below are incomplete until it finishes.',
+    fr: "Copie de l'année de référence dans les années de votre projet. Cela peut prendre un moment pour les bases importantes ; les chiffres ci-dessous sont incomplets jusqu'à la fin.",
+  },
   planner_results_title: {
     en: 'Project results',
     fr: 'Résultats du projet',
