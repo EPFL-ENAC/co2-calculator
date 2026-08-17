@@ -180,8 +180,11 @@ class SimulatorPlanService:
 
     async def update_plan(
         self, plan_id: int, update: SimulatorPlanUpdate
-    ) -> SimulatorPlanRead | None:
+    ) -> tuple[SimulatorPlanRead, list[int]] | None:
         """Apply a PATCH to a plan; returns None if the plan does not exist.
+
+        Returns the updated plan and the report ids still needing prefill —
+        the caller enqueues that work (plan #2050 Track F4).
 
         Renaming to the current name is a no-op; a collision with another
         plan of the same unit raises ``ValueError``. When the plan ends up
@@ -212,12 +215,12 @@ class SimulatorPlanService:
         ):
             raise ValueError("start_year must be <= end_year")
         project = await self._flush_guarded(self.repo.create(project))
-        await self._sync_year_reports(
+        needs_prefill = await self._sync_year_reports(
             project,
             default_reference_year=update.default_reference_year,
             with_year_sections=update.with_year_sections,
         )
-        return await self._read_with_creator(project)
+        return await self._read_with_creator(project), needs_prefill
 
     async def _sync_year_reports(
         self,
@@ -225,7 +228,7 @@ class SimulatorPlanService:
         default_reference_year: int | None = None,
         *,
         with_year_sections: bool | None = None,
-    ) -> None:
+    ) -> list[int]:
         """Make the plan's reports match ``start_year..end_year``, one per year.
 
         Out-of-range reports are deleted together with their entries
@@ -245,6 +248,12 @@ class SimulatorPlanService:
         A plan that ends up with per-year sections is also forced back to
         private (``is_viewable_by_unit_members = False``): those sections
         carry the unit's real annual data, which only the creator may see.
+
+        Returns the ids of the reports that still need prefilling. Creating
+        the reports is cheap; copying a reference year into them is not (a
+        10-year range over a large baseline runs to tens of thousands of
+        rows), so that part is handed to the ``simulator_plan_prefill`` job
+        rather than run inside the request — plan #2050 Track F4.
         """
         if project.id is None:
             raise ValueError("project must be persisted before use")
@@ -252,7 +261,7 @@ class SimulatorPlanService:
         grant_report = next((r for r in reports if r.is_grant), None)
         if project.start_year is None or project.end_year is None:
             await self._sync_grant_report(project, grant_report)
-            return
+            return []
         want_years = with_year_sections
         if want_years is None:
             want_years = not reports or any(not r.is_grant for r in reports)
@@ -271,6 +280,7 @@ class SimulatorPlanService:
                 existing_years.add(report.year)
             elif report.id is not None:
                 await self.report_service.delete(report.id)
+        needs_prefill: list[int] = []
         for year in sorted(target_years - existing_years):
             report_read = await self.report_service.create(
                 CarbonReportCreate(
@@ -281,18 +291,13 @@ class SimulatorPlanService:
                 )
             )
             if default_reference_year is not None:
-                # Same two-step as set_reference_year: insert the copied rows,
-                # then compute the whole report in one batched pass. Computing
-                # per module here instead built a cold FactorResolver and ran
-                # a single-module recompute_stats_many per module per year
-                # (plan #2050 Track F2).
-                await self._prefill_reference_modules(report_read)
-                await self._recalculate_report_emissions(report_read)
+                needs_prefill.append(report_read.id)
         if want_years and project.is_viewable_by_unit_members:
             project.is_viewable_by_unit_members = False
             self.session.add(project)
             await self.session.flush()
         await self._sync_grant_report(project, grant_report)
+        return needs_prefill
 
     async def _sync_grant_report(
         self, project: CarbonProject, grant_report: CarbonReport | None
@@ -349,7 +354,7 @@ class SimulatorPlanService:
         reference_year: int | None,
         *,
         is_grant: bool = False,
-    ) -> SimulatorPlanYearRead | None:
+    ) -> tuple[SimulatorPlanYearRead, list[int]] | None:
         """Set or remove the baseline year of one plan-year report; None if missing.
 
         ``is_grant`` targets the Project Grant report, which shares its year
@@ -364,7 +369,10 @@ class SimulatorPlanService:
         about it before calling this.
 
         The remaining entries get their emissions recomputed, since factor
-        lookup follows the reference year.
+        lookup follows the reference year — deferred to the
+        ``simulator_plan_prefill`` job, whose id the caller returns so the
+        client can wait for it (plan #2050 Track F4). Returns the year and
+        the report ids needing that work; an unchanged baseline needs none.
         """
         reports = await self.repo.list_reports_for_project(plan_id)
         report = next(
@@ -372,17 +380,34 @@ class SimulatorPlanService:
         )
         if report is None:
             return None
+        needs_prefill: list[int] = []
         if report.reference_year != reference_year:
             report.reference_year = reference_year
             self.session.add(report)
             await self.session.flush()
-            # Prefill only inserts the copied rows; the recalc right after
-            # computes every entry's emissions (and every touched module's
-            # stats) from scratch — it has to, since it also covers modules
-            # prefill never touches, like purchase's manual rows.
+            if report.id is not None:
+                needs_prefill.append(report.id)
+        return await self._year_read(report), needs_prefill
+
+    async def prefill_reports(self, report_ids: list[int]) -> int:
+        """Prefill and recompute whole reports; returns how many ran.
+
+        The ``simulator_plan_prefill`` job's entry point (plan #2050 Track
+        F4) — the expensive half of both plan PATCHes, lifted out of the
+        request. Safe to re-run after a crashed or preempted job: prefill
+        empties each module before rebuilding it, so a retry converges
+        instead of duplicating rows.
+
+        Prefill only inserts the copied rows; the recalc right after
+        computes every entry's emissions (and every touched module's stats)
+        from scratch — it has to, since it also covers modules prefill never
+        touches, like purchase's manual rows.
+        """
+        reports = await self.repo.list_reports_by_ids(report_ids)
+        for report in reports:
             await self._prefill_reference_modules(report)
             await self._recalculate_report_emissions(report)
-        return await self._year_read(report)
+        return len(reports)
 
     async def _prefill_reference_modules(
         self,

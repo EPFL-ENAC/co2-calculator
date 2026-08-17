@@ -11,8 +11,16 @@ from app.core.policy import (
     require_plan_access,
     require_unit_access,
 )
+from app.models.data_ingestion import (
+    DataIngestionJob,
+    EntityType,
+    IngestionMethod,
+    IngestionState,
+    TargetType,
+)
 from app.models.unit import Unit
 from app.models.user import User
+from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.simulator_plan import (
     SimulatorPlanCreate,
     SimulatorPlanRead,
@@ -21,6 +29,8 @@ from app.schemas.simulator_plan import (
     SimulatorPlanYearRead,
 )
 from app.services.simulator_plan_service import SimulatorPlanService
+from app.tasks._background import fire_and_forget_or_defer_to_poller
+from app.tasks.runner import run_job
 from app.utils.report_stats import merge_report_stats
 
 logger = get_logger(__name__)
@@ -52,6 +62,46 @@ async def _require_plan_unit_access(
     require_unit_access(current_user, unit)
     require_plan_access(current_user, plan, action)
     return service
+
+
+async def _enqueue_prefill(
+    db: AsyncSession, current_user: User, plan_id: int, report_ids: list[int]
+) -> int | None:
+    """Queue the prefill of ``report_ids``; returns the job id, or None.
+
+    Copying a reference year into a plan year is far too slow to run inside
+    the request (plan #2050 Track F4) — the route persists the cheap
+    metadata change and hands the copy to the job runner.
+
+    ``module_type_id``/``data_entry_type_id`` stay NULL so Postgres'
+    NULLS DISTINCT keeps the "one current per combo" partial unique index
+    from firing: two plans prefilling at once must not collide.
+    """
+    if not report_ids:
+        return None
+    job = DataIngestionJob(
+        job_type="simulator_plan_prefill",
+        module_type_id=None,
+        data_entry_type_id=None,
+        year=None,
+        ingestion_method=IngestionMethod.computed,
+        target_type=TargetType.DATA_ENTRIES,
+        entity_type=EntityType.GLOBAL_PER_YEAR,
+        state=IngestionState.NOT_STARTED,
+        provider=current_user.provider,
+        meta={"config": {"plan_id": plan_id, "report_ids": report_ids}},
+    )
+    created = await DataIngestionRepository(db).create_ingestion_job(job)
+    await db.commit()
+    if created.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to queue plan prefill",
+        )
+    fire_and_forget_or_defer_to_poller(
+        run_job(created.id), name=f"run_job-{created.id}"
+    )
+    return created.id
 
 
 @router.get("/unit/{unit_id}/", response_model=list[SimulatorPlanRead])
@@ -130,12 +180,16 @@ async def update_simulator_plan(
     """
     service = await _require_plan_unit_access(db, current_user, plan_id, "edit")
     try:
-        result = await service.update_plan(plan_id, plan)
+        updated = await service.update_plan(plan_id, plan)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    if result is None:
+    if updated is None:
         raise HTTPException(status_code=404, detail="Plan not found")
+    result, needs_prefill = updated
     await db.commit()
+    result.prefill_job_id = await _enqueue_prefill(
+        db, current_user, plan_id, needs_prefill
+    )
     return _with_can_manage(current_user, [result])[0]
 
 
@@ -196,16 +250,20 @@ async def set_simulator_plan_reference_year(
     """
     service = await _require_plan_unit_access(db, current_user, plan_id, "edit")
     try:
-        result = await service.set_reference_year(
+        updated = await service.set_reference_year(
             plan_id, year, update.reference_year, is_grant=update.is_grant
         )
     except ValueError as exc:
         # Re-snapshot of prefilled modules can fail when the new reference
         # year has no Calculator report for the unit.
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    if result is None:
+    if updated is None:
         raise HTTPException(status_code=404, detail="Plan year not found")
+    result, needs_prefill = updated
     await db.commit()
+    result.prefill_job_id = await _enqueue_prefill(
+        db, current_user, plan_id, needs_prefill
+    )
     return result
 
 
