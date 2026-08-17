@@ -1181,24 +1181,48 @@ This settles F0's open question, and it does **not** favour F3:
 - F3 removes the Python compute. Locally that is a **~24% win, not 84%.**
 - Statement count is already flat in N (115 → 119 from N=200 to N=5000),
   so Tracks D/E did their job; there is no N+1 left to find here.
-- **The dev/local gap is not explained by the algorithm.** Local wall at
-  5k is 560.9ms against dev's 21885.3ms — 39x. Splitting it: traced SQL
-  is ~9x slower on dev (2776.5ms vs 308.1ms), consistent with the known
-  9–17x round-trip ratio, but the _non-SQL_ remainder is **~75x slower**
-  (19109ms vs 253ms). Python running 75x slower than local is the
-  signature of **CPU throttling on the API pod**, not of bad code.
-
-**So the primary suspect moves back to Track A/B infrastructure**:
-confirm #2081 is live on dev and check the API pod's CPU limit and CFS
-throttling counters. A3 (raise the CPU request) was written for exactly
-this and is marked done in PR #2081 — verify it actually applied.
 
 Caveat, stated plainly: the rig uses `process_emissions` entries, which
 resolve to **one** emission leaf each. Equipment — the module type behind
 the 21.89s trace — may produce several leaves per entry, scaling both the
 Python compute and the `COPY` row count by that factor. That shifts the
-24% share upward but does not explain a 75x non-SQL gap. Re-running the
-rig with a multi-leaf module type is the obvious refinement.
+24% share upward. Re-running the rig with a multi-leaf module type is the
+obvious refinement.
+
+#### Correction, 2026-08-17: the dev/local ratio computed here was invalid
+
+An earlier version of this section divided the local 5k wall clock into
+the 21.89s dev trace, derived a "~75x slower non-SQL" figure, and
+concluded the cause was **CPU throttling on the API pod**. Both the
+number and the conclusion were wrong, and they are withdrawn.
+
+The comparison was confounded three ways: the local rig runs
+**post-Track-D/E** code, the dev trace ran **pre-fix** code (the branch
+was not merged); the rig uses **`process_emissions`** (1 emission leaf per
+entry), the dev trace was **equipment** (likely several); and entry counts
+were not matched. Nothing that ratio claimed survives.
+
+The trustworthy numbers are the pre-existing platform benchmark — same
+dataset (8,453 entries), same build, varied only by environment:
+
+| Environment                  | App throughput | CPU benchmark |
+| ---------------------------- | -------------- | ------------- |
+| Local MacBook M4 + docker PG | ~384 rows/s    | 19.25 M it/s  |
+| K8s `dev2` (EPYC 9124)       | ~174 rows/s    | 10.73 M it/s  |
+| K8s `dev` (Xeon Gold 6242)   | ~72 rows/s     | 5.93 M it/s   |
+
+So dev is **~5.3x slower than local on app throughput** against a
+**~3.25x slower CPU** — old hardware, not a misconfiguration. **There is
+no cgroup CPU limit**: both pods report `cpu.max = max 100000`, which
+disproves the throttling hypothesis directly. That benchmark also rules
+out Postgres and network latency: `dev2` scores ~180 rows/s against K8s PG
+and ~174 against IT-CENTRAL, i.e. DB location barely moves the number.
+
+The ~1.6x that CPU speed does **not** explain (5.3x observed vs 3.25x
+CPU) is the genuinely open question — candidates are node CPU contention,
+vCPU allocation, container/runtime differences, and OTel's instrumentation
+tax, which C1 measured at ~37% throughput. Track F's application-level
+work does not address any of these.
 
 Two secondary factors, each scaling the constant rather than the
 algorithm:
@@ -1313,21 +1337,47 @@ So the two are complementary, not alternatives:
 
 Recommended order, **revised after F0's measurement**:
 
-1. **Confirm the dev pod's CPU limits / CFS throttling, and that #2081 is
-   live.** F0 measured the non-SQL half of the request running ~75x
-   slower on dev than locally while SQL runs only ~9x slower. Nothing in
-   this track's application-level work explains that ratio, and until it
-   is explained, every code-side estimate for dev is unreliable.
+1. **Accept dev's CPU as a fixed constraint.** The platform benchmark
+   shows old hardware (~3.25x slower CPU), no cgroup limit, and DB/network
+   already ruled out. There is no infrastructure fix pending here, so the
+   remaining lever genuinely is "do less work" — which is what F3 is.
 2. **F2** — a deletion, immediate, removes the last per-module cold
    cache. Small but free.
 3. **F4** — the job route. At the stated ceilings this is required
    regardless of how fast the synchronous path gets (see below), and it
    is the only item that survives the 50k-equipment case.
-4. **F3** — the two-statement rewrite. Still correct and still the right
-   long-term shape, but F0 sized it at ~24% locally, not the 84% an
-   earlier draft of this section assumed. It is a considered refactor of
-   recalculation internals, not an emergency fix, and it should not jump
-   ahead of items 1–3.
+4. **F3** — the two-statement rewrite. F0 sized its compute half at ~24%
+   locally, but that undersells it: F3 also removes the 5k-row transfers
+   that make up most of the 308ms of traced SQL, because nothing
+   round-trips into Python at all. It is a considered refactor of
+   recalculation internals and needs the two-maintainer sign-off, but on
+   fixed-CPU hardware it is the single largest remaining application-side
+   lever.
+
+### F5 — on porting an endpoint to Rust
+
+Asked directly, 2026-08-17, given that dev's CPU cannot be upgraded and
+OTel is staying: would porting a `project-plans` PATCH to Rust help?
+
+**No — and F0 is the measurement that decides it**, satisfying the exact
+condition the "On rewriting in another language" section left open ("a
+future profile on a different workload showing a genuinely compute-bound
+hot path"). That profile came back at **24% Python compute**, so:
+
+- A _perfect_ Rust port of the compute layer is capped at ~24% by Amdahl,
+  before accounting for any FFI or process-boundary cost.
+- It does not touch the 308ms (55%) of traced SQL, because Rust still has
+  to fetch 5k rows, compute, and write them back.
+- **F3 strictly dominates it.** F3 removes the Python compute _and_ the
+  row transfers — a larger win, in less time, with no new language and no
+  second implementation of a carbon formula. Two implementations of a
+  formula drift, and a drifted published number is the failure this
+  project fears most.
+
+If a Rust number is still wanted, the right shape is a **standalone
+microbenchmark of the emission-formula loop only** — no endpoint, no DB,
+no FastAPI. That answers "how much faster is this arithmetic in Rust" in a
+day, and cannot become a second source of truth.
 
 F3 is a proposal, not a queued task: it replaces work inside
 `_recalculate_report_emissions`, not just prefill, which makes it
