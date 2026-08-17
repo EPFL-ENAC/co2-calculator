@@ -43,7 +43,7 @@ const purchaseFields: ModuleField[] = [
     hint: `${MODULES.Purchase}.inputs.purchase_institutional_code-hint`,
     inputTypeName: 'QSelect',
     readOnly: false,
-    editableInline: true,
+    editableInline: false,
     ratio: '1/4',
     icon: 'o_category',
     columnSize: 'md',
