@@ -69,8 +69,45 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         EmissionType.buildings__rooms__heating_thermal: "heating_kwh_per_square_meter",
     }
 
-    async def pre_compute(self, data_entry: Any, session: Any) -> dict:
-        """Call RoomService to get room surface by room_name"""
+    async def prefetch_slice(
+        self,
+        entries: list[Any],
+        session: Any,
+        *,
+        year: int | None = None,
+    ) -> dict:
+        """Bulk-load the slice's rooms once instead of one lookup per entry.
+
+        ``pre_compute`` needs each entry's room surface, which comes from a
+        point lookup on ``building_rooms`` — one round trip per entry. Rooms
+        are ref-data (year-independent), so the whole slice resolves in a
+        single ``IN`` query here and ``pre_compute`` reads it in-memory.
+        """
+        room_names = {
+            entry.data.get("room_name")
+            for entry in entries
+            if entry.data.get("room_name")
+        }
+        if not room_names:
+            return {}
+        rooms = await BuildingRoomService(session).get_rooms_by_names(
+            sorted(room_names)
+        )
+        # First row per name wins, matching get_room's `.first()`.
+        rooms_by_name: dict[str, Any] = {}
+        for room in rooms:
+            rooms_by_name.setdefault(room.room_name, room)
+        return {"rooms": rooms_by_name}
+
+    async def pre_compute(
+        self, data_entry: Any, session: Any, *, slice_cache: dict | None = None
+    ) -> dict:
+        """Call RoomService to get room surface by room_name
+
+        ``slice_cache`` (from ``prefetch_slice``) supplies the slice's rooms
+        in-memory during a recalc; absent it (single-entry create/update),
+        the per-entry lookup below runs unchanged.
+        """
         room_name = data_entry.data.get("room_name")
         building_name = data_entry.data.get("building_name")
         if not room_name or not building_name:
@@ -87,8 +124,11 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
                 building_name,
             )
             return {}
-        service = BuildingRoomService(session)
-        room = await service.get_room(room_name=room_name)
+        cached_rooms = (slice_cache or {}).get("rooms")
+        if cached_rooms is not None:
+            room = cached_rooms.get(room_name)
+        else:
+            room = await BuildingRoomService(session).get_room(room_name=room_name)
         if room is None:
             # Same "no leaf rows" outcome as the missing-name branch
             # above — log so the operator can chase the missing
