@@ -1332,8 +1332,7 @@ So the emissions computed for 2027 are byte-identical to those for
 2028…2036. Only ids, `carbon_report_module_id` and the stored `year`
 differ. The exception is grant equipment, which prefills at 0% (#1981).
 
-This is what makes the "two SQL statements" instinct correct, and it is
-the one genuinely large win available:
+This is what makes the "two SQL statements" instinct correct:
 
 1. `INSERT INTO data_entries (…) SELECT …` from the reference modules,
    remapping `carbon_report_module_id`/`year`, `RETURNING id`.
@@ -1344,6 +1343,57 @@ the one genuinely large win available:
 Nothing round-trips through Python. Per year this is O(1) statements
 instead of O(modules × entries), and the recompute collapses to one
 `recompute_stats_many` over every module of every year.
+
+#### Status: verified numerically safe, but it is not a drop-in — 2026-08-17
+
+Ran the equivalence check the guardrails demand before touching anything
+that produces published numbers: prefill a plan year from a reference year
+holding computed emissions, then diff every copied entry's emission rows
+against its source's, **row for row** — not totals, since a copy could
+match on total while splitting the value across different leaves.
+
+Result on 5 entries at 100%: `kg_co2eq`, `emission_type_id` and `scope`
+match **exactly**. The arithmetic behind F3 is sound.
+
+One field differs: **`primary_factor_id` is `None` on the recomputed copy
+and set on the source.** The override short-circuit
+(`_get_percentage_override_kg`) returns kg directly and never resolves a
+factor, so prefilled planner rows currently carry no factor provenance.
+
+That single delta is what stops F3 being the two-statement change it was
+written as:
+
+- An `INSERT … SELECT` would carry the source's `primary_factor_id`
+  through. `data_entry_repo.py:871-952` joins that column to `Factor` for
+  rollups and listings, where it currently yields `NULL` for every planner
+  row. So F3 would **change user-visible listing output** as a side effect
+  of a performance change.
+- **Grant equipment prefills at 0%** (#1981) — copying the source's rows
+  is simply wrong there, so it needs its own branch.
+- **Plain-copy modules** (professional travel) carry no
+  `source_data_entry_id` at all, so there is nothing to join to.
+
+Three branches, one of which alters displayed data. And F3's original
+premise has partly been consumed: **F2 already removed the per-year,
+per-module redundancy** by routing new plan years through one batched
+`_recalculate_report_emissions`. What remains for F3 is the Python compute
+(F0 measured it at 132.2ms of 560.9ms, ~24%) plus the row transfers —
+worthwhile, but not the dominant term the earlier draft implied.
+
+**Open decision for the maintainers, and it is not a performance
+question:** _should prefilled planner emission rows carry their source's
+`primary_factor_id`?_
+
+- **Yes** → that is a deliberate data-provenance improvement. It ships on
+  its own, with tests covering the affected rollup/listing queries, and
+  F3 then follows cleanly on top.
+- **No** → F3 must null the column on copy, which makes it a fast-path
+  duplicate of the compute layer — two ways to produce an emission row,
+  i.e. exactly the dual source of truth the guardrails forbid.
+
+Until that is answered, **F4 is the better next move**: it is required at
+the stated ceilings regardless of how fast the synchronous path becomes,
+and it does not touch emission values at all.
 
 ### F4 — sizing: at the stated ceilings, this needs a job
 
