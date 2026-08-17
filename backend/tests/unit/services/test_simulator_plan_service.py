@@ -430,6 +430,110 @@ async def test_remove_reference_year_wipes_prefilled_modules(async_session, user
 
 
 @pytest.mark.asyncio
+async def test_set_reference_year_grant_clears_but_does_not_rebuild_rf_and_travel(
+    async_session, user
+):
+    """Grant reports never prefill research_facilities/professional_travel
+    (#1980/#2018 — left empty for the user's own selection), but stale rows
+    from a previous baseline must still be cleared out.
+
+    Regression test for plan #2050 Track D finding 1: the upfront
+    ``_clear_module_entries`` call now only covers modules that won't
+    self-clear when rebuilt below. These two module types never reach that
+    rebuild step for a grant report (skipped in the loop), so if the
+    upfront-clear exclusion logic doesn't account for that, their old
+    entries would never get cleared at all. The reference-year Calculator
+    report also carries RF/travel entries here — if the exclusion instead
+    broke by *including* these two in ``will_rebuild`` (so they wrongly
+    self-clear-then-rebuild via ``prefill_module_from_reference`` like an
+    ordinary module), the test's own fixture would populate them right back
+    up, catching that failure mode too, not just an unfixed stale-row one.
+    """
+    service = SimulatorPlanService(async_session)
+    ref_report, _, _ = await _calculator_report_with_process_entries(
+        service, async_session
+    )
+    ref_modules = await service.report_service.module_service.list_modules(
+        ref_report.id
+    )
+    ref_rf_module = next(
+        m
+        for m in ref_modules
+        if m.module_type_id == int(ModuleTypeEnum.research_facilities)
+    )
+    ref_travel_module = next(
+        m
+        for m in ref_modules
+        if m.module_type_id == int(ModuleTypeEnum.professional_travel)
+    )
+    async_session.add(
+        DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.research_facilities.value,
+            carbon_report_module_id=ref_rf_module.id,
+            data={"name": "reference platform"},
+        )
+    )
+    async_session.add(
+        DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.plane.value,
+            carbon_report_module_id=ref_travel_module.id,
+            data={"name": "reference trip"},
+        )
+    )
+    await async_session.flush()
+
+    plan = await service.create_plan(unit_id=1, user=user, name="proj")
+    await service.update_plan(
+        plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    )
+    grant_report = await service.report_service.create(
+        CarbonReportCreate(
+            year=2027, unit_id=1, carbon_project_id=plan.id, is_grant=True
+        )
+    )
+    modules = await service.report_service.module_service.list_modules(grant_report.id)
+    rf_module = next(
+        m
+        for m in modules
+        if m.module_type_id == int(ModuleTypeEnum.research_facilities)
+    )
+    travel_module = next(
+        m
+        for m in modules
+        if m.module_type_id == int(ModuleTypeEnum.professional_travel)
+    )
+    async_session.add(
+        DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.research_facilities.value,
+            carbon_report_module_id=rf_module.id,
+            data={"name": "stale"},
+        )
+    )
+    async_session.add(
+        DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.plane.value,
+            carbon_report_module_id=travel_module.id,
+            data={"name": "stale trip"},
+        )
+    )
+    await async_session.flush()
+
+    result = await service.set_reference_year(plan.id, 2027, 2024, is_grant=True)
+    assert result is not None
+
+    entry_repo = DataEntryRepository(async_session)
+    assert await entry_repo.list_by_module(rf_module.id) == [], (
+        "stale research_facilities rows survived a reference-year change on "
+        "a grant report — the upfront clear must still cover modules that "
+        "are excluded from rebuild, not just modules absent from `rebuilt`"
+    )
+    assert await entry_repo.list_by_module(travel_module.id) == [], (
+        "stale professional_travel rows survived a reference-year change "
+        "on a grant report"
+    )
+
+
+@pytest.mark.asyncio
 async def test_set_reference_year_without_calc_report_is_noop(async_session, user):
     """A reference year with no Calculator report still sets, prefilling nothing."""
     service = SimulatorPlanService(async_session)

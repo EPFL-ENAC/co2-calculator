@@ -6,9 +6,14 @@ section C3, and pins the fix: ``_recalculate_report_emissions`` now shares
 a ``FactorResolver``/factor-query cache and does one set-based delete +
 bulk insert instead of a per-entry factor lookup + SELECT-then-DELETE.
 
-Findings #2 and #4 (duplicate ``list_by_module`` call, per-year fan-out in
-``_sync_year_reports``) are unaffected by this fix and remain open —
-tracked as measurement-only here.
+Finding #2 (duplicate ``list_by_module`` call) and finding #3's own N+1
+(``_persist_prefill_entries`` never got the ``override_cache`` batching
+applied to ``_recalculate_report_emissions``) are fixed here too — a
+production trace of a ~1000-entry plan hit exactly this: the request's
+first ~70s produced zero DB spans because the *prefill* phase, not the
+recalc phase, was issuing the per-entry ``session.get`` + sum-query
+fallback. Finding #4 (per-year fan-out in ``_sync_year_reports``) is
+structural and remains open — tracked as measurement-only here.
 
 Mirrors ``tests/unit/services/test_simulator_plan_service.py``'s in-memory
 sqlite fixture, extended to expose the engine so a
@@ -116,8 +121,13 @@ class StatementLog:
         DELETE, but added its own O(1) SELECT: ``prefetch_percentage_
         override_cache``'s batched GROUP BY sum over prefill sources.
         Alongside the pre-existing O(1) stats-rollup SELECT
-        (``recompute_stats_many``), this now settles at <=2 per recalc
-        call — constant, not per-entry — instead of the old N+1.
+        (``recompute_stats_many``), this now settles at <=2 per isolated
+        ``_recalculate_report_emissions`` call — constant, not per-entry,
+        instead of the old N+1. ``_prefill_reference_modules`` settles at
+        its own higher-but-still-constant value instead (13 in this file's
+        fixture): one stats-rollup SELECT per reference-scoped *module
+        type* touched, not per entry — see
+        ``test_prefill_reference_modules_isolated_statement_count``.
         """
         return sum(1 for s in self.statements if EMISSION_SELECT_RE.match(s.strip()))
 
@@ -523,20 +533,254 @@ async def test_recalculate_report_emissions_empty_still_refreshes_report_stats(
     )
 
 
-# ── Finding #2: prefill_module_from_reference queries the same rows twice ─────
-# Not touched by this fix — still open, tracked as measurement only.
+# ── Track E tier 1: set_reference_year skips prefill's own emission compute ───
 
 
 @pytest.mark.asyncio
-async def test_prefill_module_from_reference_calls_list_by_module_twice(
+async def test_set_reference_year_never_calls_persist_prefill_entries(
     async_session, user, monkeypatch: pytest.MonkeyPatch
 ):
-    """Finding #2 (open, not fixed here): ``entry_repo.list_by_module(
-    ref_module.id)`` runs once for the emptiness check (line 484) and again
-    for the copy loop (line 497). Counts calls directly rather than
-    sniffing SQL text — deterministic regardless of backend. Asserts the
-    *current* (unfixed) count so this test documents the open finding
-    instead of silently going stale; flip to ``== 1`` when #2 is fixed.
+    """``set_reference_year`` must skip ``_persist_prefill_entries`` entirely.
+
+    Regression test for plan #2050 Track E tier 1: its own
+    ``_recalculate_report_emissions`` recomputes every entry's emissions
+    from scratch right after (it has to — it also covers modules prefill
+    never touches, like ``purchase``'s manual rows), so computing them
+    during prefill first is thrown away. Fails loudly rather than silently
+    passing if a future edit reintroduces the call.
+    """
+    service = SimulatorPlanService(async_session)
+    ref_report, _ = await _reference_report_with_entries(
+        service, async_session, count=2, unit_id=71
+    )
+    plan = await _plan_with_year(service, user, "tier1-skip", year=2027, unit_id=71)
+
+    async def failing_persist(*args, **kwargs):
+        raise AssertionError(
+            "_persist_prefill_entries was called from set_reference_year's "
+            "path — its result is thrown away by the _recalculate_report_"
+            "emissions call right after (Track E tier 1 regressed)"
+        )
+
+    monkeypatch.setattr(service, "_persist_prefill_entries", failing_persist)
+
+    result = await service.set_reference_year(plan.id, 2027, 2024)
+    assert result is not None
+
+
+@pytest.mark.asyncio
+async def test_sync_year_reports_still_calls_persist_prefill_entries(
+    async_session, user, monkeypatch: pytest.MonkeyPatch
+):
+    """The other caller (new plan-year creation) must keep computing emissions
+    during prefill — it has no later ``_recalculate_report_emissions`` pass
+    to fall back on, per its own code comment ("no other entries exist
+    yet"). The mirror of the test above: Track E tier 1 must not have
+    silently broken this caller while fixing the other one.
+    """
+    service = SimulatorPlanService(async_session)
+    await _reference_report_with_entries(service, async_session, count=2, unit_id=72)
+
+    calls = 0
+    original = service._persist_prefill_entries
+
+    async def counting_persist(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(service, "_persist_prefill_entries", counting_persist)
+
+    plan = await service.create_plan(unit_id=72, user=user, name="tier1-keep")
+    await service.update_plan(
+        plan.id,
+        SimulatorPlanUpdate(
+            start_year=2027, end_year=2027, default_reference_year=2024
+        ),
+    )
+
+    assert calls > 0, (
+        "_sync_year_reports must still call _persist_prefill_entries — it "
+        "has no follow-up recalc pass to compute emissions for it"
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_reference_year_produces_correct_emissions_without_prefill_compute(
+    async_session, user
+):
+    """Correctness, not just call-count: skipping prefill's own compute
+    (tier 1) must not change the final emitted kg values —
+    ``_recalculate_report_emissions`` alone must produce the same answer a
+    prefill-then-recalc double-compute would have.
+    """
+    service = SimulatorPlanService(async_session)
+    await _seed_process_emissions_factor(async_session)
+    ref_report, _ = await _reference_report_with_entries(
+        service, async_session, count=2, unit_id=73
+    )
+    await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+
+    plan = await service.create_plan(unit_id=73, user=user, name="tier1-correct")
+    await service.update_plan(
+        plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    )
+    plan_result = await service.set_reference_year(plan.id, 2027, 2024)
+    assert plan_result is not None
+
+    module = next(
+        m
+        for m in plan_result.modules
+        if m.module_type_id == int(ModuleTypeEnum.process_emissions)
+    )
+    entries = await DataEntryRepository(async_session).list_by_module(module.id)
+    assert {e.data["quantity"] for e in entries} == {1.0, 2.0}
+
+    emission_repo = DataEntryEmissionService(async_session).repo
+    kg_by_quantity = {}
+    for e in entries:
+        rows = await emission_repo.get_by_data_entry_id(e.id)
+        assert rows, f"entry {e.id} has no persisted emissions"
+        kg_by_quantity[e.data["quantity"]] = sum(r.kg_co2eq for r in rows)
+    # ef_kg_co2eq_per_unit=1.0 (see _seed_process_emissions_factor), so
+    # kg_co2eq == quantity for each copied entry (100% of reference) — a
+    # real, non-zero, non-default value, not just "some row exists."
+    assert kg_by_quantity == {1.0: 1.0, 2.0: 2.0}
+
+
+@pytest.mark.asyncio
+async def test_prefill_headcount_empty_after_prefill_still_recomputes_stats(
+    async_session, user, monkeypatch: pytest.MonkeyPatch
+):
+    """A headcount module left empty by prefill must still get its stats
+    refreshed even with ``compute_emissions=False``.
+
+    Unlike ``prefill_module_from_reference`` (whose empty-``src_entries``
+    early return runs before the ``compute_emissions`` check at all),
+    ``prefill_headcount_from_reference`` reaches its own empty-``rows``
+    branch *after* that check — the ``elif not rows`` added alongside
+    ``compute_emissions`` must fire, or an empty headcount module keeps
+    stale stats: it never appears in the later
+    ``_recalculate_report_emissions``'s entry-driven module set (Track E
+    tier 1, same reasoning as Track D finding 2's empty-entries branch).
+    """
+    service = SimulatorPlanService(async_session)
+    ref_report = await service.report_service.create(
+        CarbonReportCreate(year=2024, unit_id=81)
+    )  # no member/student entries added — reference headcount stays empty
+
+    plan = await service.create_plan(unit_id=81, user=user, name="empty-headcount")
+    await service.update_plan(
+        plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    )
+    reports = await service.repo.list_reports_for_project(plan.id)
+    report = reports[0]
+    report.reference_year = 2024
+    async_session.add(report)
+    await async_session.flush()
+
+    module = next(
+        m
+        for m in await service.report_service.module_service.list_modules(report.id)
+        if m.module_type_id == int(ModuleTypeEnum.headcount)
+    )
+
+    calls: list[list[int]] = []
+    original = service.report_service.module_service.recompute_stats_many
+
+    async def counting_recompute(module_ids, **kwargs):
+        calls.append(list(module_ids))
+        return await original(module_ids, **kwargs)
+
+    monkeypatch.setattr(
+        service.report_service.module_service,
+        "recompute_stats_many",
+        counting_recompute,
+    )
+
+    rows_created = await service.prefill_headcount_from_reference(
+        report, ref_report=ref_report, compute_emissions=False
+    )
+
+    assert rows_created == 0
+    assert calls == [[module.id]], (
+        f"expected recompute_stats_many([{module.id}]) to run for the "
+        f"empty-after-prefill headcount module even with "
+        f"compute_emissions=False, got {calls}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_prefill_reference_modules_never_calls_get_module(
+    async_session, user, monkeypatch: pytest.MonkeyPatch
+):
+    """``_prefill_reference_modules`` must satisfy every rebuilt module type's
+    plan/reference module from its own ``list_modules`` calls — never a
+    per-module-type ``get_module`` (plan #2050 Track E tier 2).
+
+    Uses a plan with a Calculator reference year that has entries in
+    multiple prefilled module types (process_emissions + headcount), so a
+    regression that reintroduces even one ``get_module`` call shows up.
+    """
+    service = SimulatorPlanService(async_session)
+    ref_report, _ = await _reference_report_with_entries(
+        service, async_session, count=2, unit_id=91
+    )
+    ref_modules = await service.report_service.module_service.list_modules(
+        ref_report.id
+    )
+    headcount_ref_module = next(
+        m for m in ref_modules if m.module_type_id == int(ModuleTypeEnum.headcount)
+    )
+    async_session.add(
+        DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=headcount_ref_module.id,
+            data={"sius_code": "PROF", "fte": 1.0},
+        )
+    )
+    await async_session.flush()
+
+    plan = await _plan_with_year(service, user, "tier2-no-get", year=2027, unit_id=91)
+    reports = await service.repo.list_reports_for_project(plan.id)
+    report = reports[0]
+    report.reference_year = 2024
+    async_session.add(report)
+    await async_session.flush()
+
+    calls = 0
+    original = service.report_service.module_service.get_module
+
+    async def counting_get_module(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        service.report_service.module_service, "get_module", counting_get_module
+    )
+
+    await service._prefill_reference_modules(report)  # noqa: SLF001
+
+    assert calls == 0, (
+        f"expected zero get_module calls (list_modules should cover every "
+        f"rebuilt module type on both sides), got {calls}"
+    )
+
+
+# ── Finding #2: prefill_module_from_reference queried the same rows twice ─────
+# Fixed: the copy loop now reuses the emptiness-check's ``src_entries``.
+
+
+@pytest.mark.asyncio
+async def test_prefill_module_from_reference_calls_list_by_module_once(
+    async_session, user, monkeypatch: pytest.MonkeyPatch
+):
+    """Finding #2, fixed: ``entry_repo.list_by_module(ref_module.id)`` ran
+    once for the emptiness check and again for the copy loop. The copy loop
+    now iterates the already-fetched ``src_entries`` instead of re-querying.
+    Counts calls directly rather than sniffing SQL text — deterministic
+    regardless of backend.
     """
     service = SimulatorPlanService(async_session)
     report, module = await _reference_report_with_entries(
@@ -567,10 +811,10 @@ async def test_prefill_module_from_reference_calls_list_by_module_twice(
 
     ref_module_calls = calls.count(module.id)
     print(f"\nlist_by_module(ref_module.id) called {ref_module_calls} time(s)")
-    assert ref_module_calls == 2, (
+    assert ref_module_calls == 1, (
         f"list_by_module(ref_module.id) was called {ref_module_calls} times "
-        "(expected 2, the known-open finding #2) — update this test if "
-        "the duplicate call was fixed"
+        "(expected 1): finding #2 regressed — the copy loop is re-querying "
+        "instead of reusing src_entries"
     )
 
 
@@ -625,6 +869,86 @@ async def test_sync_year_reports_statement_count_vs_year_count(
     # Reported, not asserted: per-year fan-out is structural (one report per
     # year is the feature), the plan flags it as a cost multiplier for
     # findings #1-#3, not as its own bug.
+
+
+# ── Finding #3: _prefill_reference_modules had its own N+1, fixed ─────────────
+# Every prefill copy carries source_data_entry_id (finding #2's own subject),
+# and _persist_prefill_entries never got the override_cache batching applied
+# to _recalculate_report_emissions — so the *prefill* phase, not recalc,
+# re-triggered the per-entry session.get + sum-query fallback for every row.
+# This is what a production ~1000-entry plan-year PATCH actually spent its
+# first ~70s of DB-silent time on: prefill runs before recalc, so its cost
+# fell outside the C3 finding-#1 measurement (which isolates
+# _recalculate_report_emissions alone, after prefill has already run).
+
+
+@pytest.mark.asyncio
+async def test_prefill_reference_modules_isolated_statement_count(
+    engine, async_session, user
+):
+    """Isolates ``_prefill_reference_modules`` (prefill only, no recalc).
+
+    Before the fix, ``_persist_prefill_entries`` computed each prefilled
+    row's percentage-override kg via the uncached ``session.get`` + sum-query
+    path (every row carries ``source_data_entry_id``), so statement count
+    scaled with entry count independent of finding #1's fix. After the fix,
+    it shares ``prefetch_percentage_override_cache`` the same way recalc does.
+
+    A matching Factor is seeded and the reference report's own emissions are
+    computed first (as in production, where the reference year's Calculator
+    entries are already computed): without a resolvable factor,
+    ``resolve_computations`` yields no computations and the percentage-
+    override branch — the thing this test measures — is never reached at
+    all, silently passing regardless of the fix.
+    """
+    service = SimulatorPlanService(async_session)
+    await _seed_process_emissions_factor(async_session)
+
+    async def isolated_prefill(entry_count: int, unit_id: int) -> StatementLog:
+        ref_report, _ref_module = await _reference_report_with_entries(
+            service, async_session, entry_count, unit_id=unit_id
+        )
+        await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+        plan = await _plan_with_year(
+            service, user, f"prefill-{entry_count}", year=2027, unit_id=unit_id
+        )
+        reports = await service.repo.list_reports_for_project(plan.id)
+        report = reports[0]
+        report.reference_year = 2024
+        async_session.add(report)
+        await async_session.flush()
+        with count_statements(engine) as log:
+            await service._prefill_reference_modules(report)  # noqa: SLF001
+        return log
+
+    small = await isolated_prefill(10, unit_id=61)
+    large = await isolated_prefill(50, unit_id=62)
+
+    print("\n[isolated _prefill_reference_modules]")
+    print(f"N=10  {small.breakdown()}")
+    print(f"N=50  {large.breakdown()}")
+    print(f"ratio total={large.total / small.total:.2f}")
+    print(
+        f"ratio emission_selects={large.emission_selects / small.emission_selects:.2f}"
+    )
+
+    # ``total`` alone doesn't discriminate here: SQLite's bulk_copy fallback
+    # scales emission_inserts 5x regardless of this fix (one INSERT per row,
+    # unlike production Postgres's single COPY — see StatementLog.
+    # non_insert_total's docstring), which dilutes a per-entry SELECT
+    # regression out of the raw total. emission_selects isolates the actual
+    # bug: before the fix, N=10->50 measured 23->63 SELECTs against
+    # data_entry_emissions (one _sum_entry_emissions call per prefilled row);
+    # the fix flattens that to a small constant tied to module count
+    # (finding #4's sibling — this method fans out per module type), not
+    # entry count.
+    assert large.emission_selects < small.emission_selects * 2, (
+        f"emission_selects scales with entry count "
+        f"({small.emission_selects} -> {large.emission_selects} for 10 -> 50 "
+        "entries): finding #3's override-cache fix regressed "
+        "(_persist_prefill_entries lost its prefetch_percentage_override_cache "
+        "call, or prepare_create stopped receiving it)"
+    )
 
 
 # ── Second data point: a non-process_emissions module type ────────────────────

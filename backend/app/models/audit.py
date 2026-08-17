@@ -11,6 +11,8 @@ from sqlalchemy import Column, Index, text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import JSON, Field, SQLModel
 
+from app.models._field_defaults import default_list, default_utcnow
+
 
 class SyncStatusEnum(str, Enum):
     PENDING = "PENDING"
@@ -75,7 +77,7 @@ class AuditDocumentBase(SQLModel):
         description="Actor identifier (user_id or job_id)",
     )
     changed_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Timestamp of change (UTC)"
+        default_factory=default_utcnow, description="Timestamp of change (UTC)"
     )
 
     # Request context (mandatory audit fields)
@@ -83,7 +85,7 @@ class AuditDocumentBase(SQLModel):
         description="User provider code of who performed the action"
     )
     handled_ids: list[str] = Field(
-        default_factory=list,
+        default_factory=default_list,
         sa_column=Column(JSON),
         description="List of user provider codes whose data was affected",
     )

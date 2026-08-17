@@ -8,6 +8,7 @@ from sqlalchemy import DateTime as SADateTime
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import JSON, Field, SQLModel
 
+from app.models._field_defaults import default_dict, default_utcnow
 from app.models.user import UserProvider
 
 
@@ -27,7 +28,7 @@ class YearConfigurationBase(SQLModel):
         ),
     )
     config: dict[str, Any] = Field(
-        default_factory=dict,
+        default_factory=default_dict,
         sa_column=Column(JSON, nullable=False, server_default="{}"),
         description="Deep configuration (thresholds, tags, goals) as JSON",
     )
@@ -53,7 +54,7 @@ class YearConfiguration(YearConfigurationBase, table=True):
         description="Provider scope (accred, default, test)",
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=default_utcnow,
         sa_column_kwargs={"onupdate": datetime.utcnow},
         description="Last modification timestamp",
     )

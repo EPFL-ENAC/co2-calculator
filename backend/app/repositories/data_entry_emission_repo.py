@@ -17,7 +17,7 @@ from app.models.carbon_report import (
     CarbonReportType,
 )
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_emission import DataEntryEmission, DataEntryEmissionRow
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
 from app.modules.emissions.registry import ROLLUP_EMISSION_TYPE_IDS
@@ -130,19 +130,22 @@ class DataEntryEmissionRepository:
                 )
             )
 
-    async def bulk_copy(self, emissions: list[DataEntryEmission]) -> int:
+    async def bulk_copy(self, emissions: list[DataEntryEmissionRow]) -> int:
         """Bulk insert via PostgreSQL ``COPY … FROM STDIN`` (psycopg3).
 
         Same contract as ``DataEntryRepository.bulk_copy``: runs on the
         session's own connection (transactional), returns a row count,
-        never populates ids.  Non-psycopg drivers (SQLite / asyncpg test
-        fixtures) take the ORM bulk path.
+        never populates ids. Reads ``emissions`` as plain attributes, so the
+        lightweight ``DataEntryEmissionRow`` rows ``prepare_create`` builds
+        need no conversion here. Non-psycopg drivers (SQLite / asyncpg test
+        fixtures) take the ORM bulk path, which does need real mapped rows —
+        materialized via ``to_orm()`` only on that fallback.
         """
         if not emissions:
             return 0
         bind = self.session.get_bind()
         if bind.dialect.driver != "psycopg":
-            self.session.add_all(emissions)
+            self.session.add_all([e.to_orm() for e in emissions])
             await self.session.flush()
             return len(emissions)
 

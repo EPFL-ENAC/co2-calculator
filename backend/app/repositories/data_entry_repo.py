@@ -9,7 +9,7 @@ from sqlalchemy import Select, and_, asc, desc, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import aliased
-from sqlmodel import col, delete, select
+from sqlmodel import col, delete, insert, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -160,6 +160,40 @@ class DataEntryRepository:
                         )
                     )
         return len(db_objs)
+
+    async def bulk_insert_returning_ids(self, rows: list[dict]) -> list[int]:
+        """Bulk INSERT via Core (not the ORM), returning ids in ``rows`` order.
+
+        For callers that need ids back immediately but not real ORM/
+        session-tracked objects — contrast ``bulk_create`` (returns real
+        objects, one INSERT per call but ORM-instantiates every row first)
+        and ``bulk_copy`` (COPY, fastest, but never populates ids at all).
+        ``rows`` are plain column-value dicts: no ``DataEntry(...)``
+        construction, so none of the per-instance SQLAlchemy mapper/
+        Pydantic-validation cost `DataEntryEmissionRow` was introduced to
+        avoid (plan #2050 §C2/C3) applies here either — the same tax on the
+        model one level up.
+
+        ``sort_by_parameter_order`` is SQLAlchemy's documented guarantee
+        that RETURNING rows line up with ``rows``' order — the only
+        contractual way to get that; without it, ordering is
+        implementation-defined per backend/driver/batch-size, not something
+        to rely on even where it happens to work in ad hoc testing (checked
+        up to N=2000 against local Postgres/psycopg — order held either
+        way here, but that's this stack's current behavior, not the API
+        contract). insertmanyvalues still batches every row into one round
+        trip on Postgres regardless of count. Requires the
+        params-as-second-argument form of ``execute`` — a multi-row
+        ``.values(rows)`` INSERT can't be order-sorted (verified; raises
+        ``CompileError``).
+        """
+        if not rows:
+            return []
+        stmt = insert(DataEntry).returning(
+            col(DataEntry.id), sort_by_parameter_order=True
+        )
+        result = await self.session.execute(stmt, rows)
+        return [row[0] for row in result.all()]
 
     async def bulk_delete(
         self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum

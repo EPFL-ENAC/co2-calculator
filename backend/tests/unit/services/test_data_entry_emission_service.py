@@ -6,7 +6,7 @@ import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import (
-    DataEntryEmission,
+    DataEntryEmissionRow,
     EmissionComputation,
 )
 from app.models.factor import Factor
@@ -46,10 +46,11 @@ def _make_data_entry_response(data: dict) -> DataEntryResponse:
     )
 
 
-def _make_fake_emission() -> DataEntryEmission:
-    emission = MagicMock(spec=DataEntryEmission)
-    emission.kg_co2eq = 123.45
-    return emission
+def _make_fake_emission() -> DataEntryEmissionRow:
+    """A ``prepare_create``-shaped stand-in — real dataclass, not a mock,
+    since ``upsert_by_data_entry`` calls ``.to_orm()`` on what it returns.
+    """
+    return DataEntryEmissionRow(data_entry_id=1, emission_type_id=1, kg_co2eq=123.45)
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +81,7 @@ async def test_upsert_passes_data_through_unchanged():
     async def fake_prepare_create(
         de: DataEntryResponse,
         kg_co2eq_override: float | None = None,
-    ) -> list[DataEntryEmission]:
+    ) -> list[DataEntryEmissionRow]:
         captured.append(de)
         return [fake_emission]
 
@@ -108,7 +109,7 @@ async def test_upsert_deletes_then_creates_emissions():
 
     data_entry = _make_data_entry_response({"number_of_trips": 1})
 
-    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmission]:
+    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmissionRow]:
         return [fake_emission]
 
     with patch.object(service, "prepare_create", side_effect=fake_prepare_create):
@@ -126,7 +127,7 @@ async def test_upsert_returns_none_and_flushes_when_no_emissions():
 
     data_entry = _make_data_entry_response({"number_of_trips": 1})
 
-    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmission]:
+    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmissionRow]:
         return []
 
     with patch.object(service, "prepare_create", side_effect=fake_prepare_create):
