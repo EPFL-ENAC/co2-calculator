@@ -1527,6 +1527,58 @@ passed; frontend `test-ct` 396 passed.
 banner says so, but a large prefill leaves a real "building" window — if
 that reads badly in practice, per-year progress is the follow-up.
 
+### F6 — the job path itself (implemented 2026-08-17)
+
+F4 moved prefill off the request, but the work still costs what it costs —
+on dev that job is the 21.9s. Profiled it directly on local Postgres with
+a per-shape statement breakdown, 10 plan years x 4 populated module types.
+
+**What the split looks like after F4:**
+
+|                                   | wall       | SQL                 |
+| --------------------------------- | ---------- | ------------------- |
+| Request (what the user waits for) | **66.6ms** | 45.6ms (116 stmts)  |
+| Job (background)                  | 1148.4ms   | 632.8ms (660 stmts) |
+
+The request went **1351ms -> 66.6ms**, a 20x cut in what the user
+experiences. The rest is the job's.
+
+**Two redundancies found and fixed in the job:**
+
+1. **The reference side was re-read once per plan year.** Every plan year
+   copies from the _same_ reference report, yet the job re-fetched that
+   report, its module list, and — the expensive part — all of its entries
+   for each year: 40 of 90 `list_by_module` calls were the same rows read
+   ten times. A per-job `_ReferenceCache` collapses them (90 -> 27).
+2. **`recompute_stats_many` was called once per module, again.** Same
+   defect F2 fixed one level up: each module prefill left empty issued its
+   own single-module call. Batched. Then the upfront clear and the
+   prefill-emptied set turned out to be the same case (neither appears in
+   the recalc's entry-driven module set), so they share one call — which
+   keeps the report rollup behind it to one run per report instead of
+   three.
+
+**Result: 991 -> 660 job statements (-33%)**, SQL 761ms -> 633ms, wall
+1295ms -> 1148ms. Statement count is the number that travels to dev, where
+each round trip costs 9-17x more.
+
+**What is left, in time order:**
+
+| shape                             | n   | ms    | note                                         |
+| --------------------------------- | --- | ----- | -------------------------------------------- |
+| `INSERT INTO data_entries`        | 40  | 248.5 | row volume (8000 rows), not overhead         |
+| `SELECT carbon_report_modules`    | 141 | 61.4  | 14 per report, metadata                      |
+| `SELECT carbon_reports`           | 112 | 46.8  | 11 per report, metadata                      |
+| `SELECT data_entries` (reference) | 27  | 72.3  | already cached; the rest is real reads       |
+| `DELETE FROM data_entries`        | 80  | 31.3  | one per module — batchable to one per report |
+
+The INSERT dominates on time and is irreducible without F3 (which would
+make it an `INSERT … SELECT` that never leaves the database). The 80
+per-module `DELETE`s are the clearest remaining count win, but moving the
+clear up changes `prefill_module_from_reference`'s documented
+delete-then-rebuild idempotency, so it wants its own change rather than
+riding along here.
+
 ### F5 — on porting an endpoint to Rust
 
 Asked directly, 2026-08-17, given that dev's CPU cannot be upgraded and
