@@ -1,9 +1,9 @@
 ---
 status: in-progress
 issue: 2050
-last_updated: 2026-08-12
+last_updated: 2026-08-17
 title: "Backend compute performance — pod stability, worker split, request-path profiling"
-summary: "Three-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081), fix a simulator-plan reference-year PATCH N+1 (PR #2083), and profile compute cost (Track C) — round-trip count and ORM object-construction overhead dominate, not raw arithmetic, so a language rewrite stays closed."
+summary: "Three-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081), fix a simulator-plan reference-year PATCH N+1 in recalc then prefill (PR #2083 + same-day follow-up), then a general fix for Pydantic's per-instance default_factory signature-introspection tax across every SQLModel table — and profile compute cost (Track C), which rules out a language rewrite."
 ---
 
 # Backend compute performance (#2050)
@@ -195,7 +195,7 @@ claim/preempt, advisory locks, and the `RUN_BACKGROUND_POLLER` settings gate
 POLLER` reused.** The original plan below said "API pods set
 `RUN_BACKGROUND_POLLER=false`" — building it exposed why that's wrong: the
 test suite's autouse `disable_poller` fixture already sets
-`RUN_BACKGROUND_POLLER=False` for *every* test, while dozens of `_pg.py`
+`RUN_BACKGROUND_POLLER=False` for _every_ test, while dozens of `_pg.py`
 integration tests assert that `fire_and_forget(run_job(...))` still fires
 inline. Reusing that flag for dispatch gating would have made every one of
 those tests silently no-op. Production also needs the same split: worker
@@ -209,7 +209,7 @@ behavior everywhere untouched).
 **Misconfiguration guard:** `DISPATCH_JOBS_INLINE=false` with no pod
 running the poller leaves every job row `NOT_STARTED` forever — a silent
 fallback the guardrails explicitly ban. Fixed at the Helm layer, not the
-app layer: `worker.enabled` is the *only* knob a deployer sets. When true,
+app layer: `worker.enabled` is the _only_ knob a deployer sets. When true,
 `backend-deployment.yaml` appends an override pair
 (`RUN_BACKGROUND_POLLER=false`, `DISPATCH_JOBS_INLINE=false` — last
 same-named env entry wins in k8s) on top of `backend.env`'s static
@@ -220,7 +220,7 @@ Implementation:
 
 1. All 6 (not 4 — two more direct-dispatch sites turned up at
    `data_sync.py:2075,2269` during implementation) `fire_and_forget(
-   run_job(...))` call sites now route through
+run_job(...))` call sites now route through
    `fire_and_forget_or_defer_to_poller()` (`app/tasks/_background.py`),
    which either dispatches immediately or closes the coroutine unstarted
    and leaves the already-committed `NOT_STARTED` row for the poller.
@@ -335,11 +335,11 @@ request in OTel auto-instrumentation, which every benchmark above ran
 without. Real endpoint (`PATCH /api/v1/project-plans/{id}/years/{year}`,
 local uvicorn against the seeded Postgres, 3×20s runs at concurrency 8):
 
-| Variant                       | rps   | p50     | p95     | p99     | CPU% |
-| ------------------------------ | ----- | ------- | ------- | ------- | ---- |
-| A — bare uvicorn                | 471.4 | 16.68ms | 21.42ms | 26.66ms | ~79% |
-| B — OTel, exporters=none        | 295.6 | 26.27ms | 34.79ms | 51.85ms | ~77% |
-| C — OTel, full OTLP export      | 292.5 | 25.37ms | 37.35ms | 42.85ms | ~80% |
+| Variant                    | rps   | p50     | p95     | p99     | CPU% |
+| -------------------------- | ----- | ------- | ------- | ------- | ---- |
+| A — bare uvicorn           | 471.4 | 16.68ms | 21.42ms | 26.66ms | ~79% |
+| B — OTel, exporters=none   | 295.6 | 26.27ms | 34.79ms | 51.85ms | ~77% |
+| C — OTel, full OTLP export | 292.5 | 25.37ms | 37.35ms | 42.85ms | ~80% |
 
 **B vs A: −37% throughput, +58–94% latency across p50–p99 — this app's own
 OTel tax lands in the "30%+, investigate" bucket, not the "negligible"
@@ -364,10 +364,10 @@ dropping.
 re-checked: `bench_alloc.py`'s allocation-churn workload wrapped in a real
 (no-export) `TracerProvider` span per iteration, alpine vs slim:
 
-| Workload             | alpine (musl) | slim (glibc) | ratio |
+| Workload              | alpine (musl) | slim (glibc) | ratio |
 | --------------------- | ------------- | ------------ | ----- |
-| alloc, no OTel         | 1.07 M/s      | 1.40 M/s     | 1.31× |
-| alloc + OTel span tax  | 0.104 M/s     | 0.130 M/s    | 1.25× |
+| alloc, no OTel        | 1.07 M/s      | 1.40 M/s     | 1.31× |
+| alloc + OTel span tax | 0.104 M/s     | 0.130 M/s    | 1.25× |
 
 Same direction, same rough magnitude — **the alpine-vs-glibc conclusion
 above holds.** OTel's own tax (37% rps) dwarfs musl vs glibc (11–24%,
@@ -437,7 +437,7 @@ Pydantic-validated model), and that construction/validation tax is paid on
 every row even though `bulk_replace_for_entries` never `session.add()`s
 these individual objects — they only feed a later bulk DELETE+COPY. So the
 77%/22% `prepare`/`remainder` split from the first pass was accurate, but
-the *composition* assumed inside `prepare` (DB round trips) was wrong —
+the _composition_ assumed inside `prepare` (DB round trips) was wrong —
 it's Python/ORM object-instantiation overhead, not waiting on Postgres.
 
 **Not implemented, follow-up target**: accumulate a lightweight
@@ -598,6 +598,516 @@ this doesn't reproduce there). A dedicated equivalence test asserts the
 cached and uncached paths compute identical kg values, not just fewer
 statements. Full backend unit suite (1974 tests) green.
 
+#### 2026-08-17 — still 504ing in `dev`: findings #2 and #3 were never actually fixed
+
+A production trace (`PATCH /v1/project-plans/8011/years/2025`, ~1000
+entries, 504 after 91.5s) showed the C3 fix deployed but the bug still
+present. Gap analysis on the trace (excluding the root span and deduping
+the paired `psycopg`/SQLAlchemy spans per DB op) found two DB-silent
+stretches: ~70.1s before the first captured span, and a further ~16.9s
+CPU-only gap later in the request (73.6s→90.5s, between the last prefill
+statement and `bulk_replace_for_entries`'s DELETE). The mandatory early
+queries (`get_current_user`'s `users` lookup, `units`, `get_plan`'s
+`carbon_projects`, the `reference_year` flush) are **absent from the trace
+entirely** — early spans were dropped on export, so the first gap's
+contents can't be read off the trace directly or attributed precisely: it
+contains those dropped auth/plan/unit spans plus an unknown share of
+`_prefill_reference_modules`, which is confirmed still running past the
+70.1s mark (its `DELETE FROM data_entries` clear appears at 72.4s). What
+_is_ attributable: the 1006 individual percentage-override sum queries
+visible from 70.1s onward belong to prefill (see below), so prefill's own
+N+1 is a real, confirmed contributor to that window — just not
+necessarily all of it.
+
+Rereading the code against that timing pointed at the two findings this
+plan had already logged as still-open, both in `_prefill_reference_
+modules`'s own call path — neither was in scope for the C3 fix above,
+which only instrumented `_recalculate_report_emissions`:
+
+- **Finding #2, actually still present.** The "Fixes — confirmed" list
+  above named dropping the duplicate `list_by_module` call, but the
+  "Status: fixed" note only landed the shared-resolver and override-cache
+  fixes — finding #2's own fix never shipped. Confirmed still in the code:
+  `prefill_module_from_reference` called `entry_repo.list_by_module(ref_
+module.id)` once for the emptiness check and again for the copy loop.
+  Fixed now: the copy loop reuses the already-fetched `src_entries`.
+- **Finding #3, the actual dominant cost, never separately measured.**
+  Finding #3 said `_prefill_reference_modules` fans out per module type and
+  was "subsumed by (1)'s per-entry cost" — but (1)'s fix (the
+  `override_cache` batching) only reached `_recalculate_report_emissions`.
+  `_persist_prefill_entries` — the batched-looking helper both
+  `prefill_module_from_reference` and `prefill_headcount_from_reference`
+  call — builds a shared `FactorResolver`/`factor_query_cache`/
+  `slice_cache` but never called `prefetch_percentage_override_cache` and
+  never passed an `override_cache` to `prepare_create`. Every prefilled row
+  carries `source_data_entry_id` (same shape finding #2's docstring
+  already named), so every one of them re-triggered `_get_percentage_
+override_kg`'s per-entry `session.get` + `_sum_entry_emissions` sum-query
+  fallback — the exact N+1 C3 fixed for recalc, unfixed one call site over,
+  and hit _first_ since prefill runs before recalc. The 1006 individual
+  sum queries visible from 70.1s onward in the trace are this fallback,
+  confirming it fired at production scale — a real, measured contributor
+  to the DB-silent window, though (per above) not proven to be the whole
+  70.1s.
+
+  Fixed: `_persist_prefill_entries` now takes a `unit_id` and calls
+  `prefetch_percentage_override_cache` once per invocation, mirroring
+  `_recalculate_report_emissions`'s existing shape exactly. Regression
+  test added (`test_prefill_reference_modules_isolated_statement_count`,
+  isolating `_prefill_reference_modules` the way finding #1's tests
+  isolate `_recalculate_report_emissions`): before this fix,
+  `emission_selects` scaled 23→63 for a 10→50 entry increase; after, it's
+  constant at 13 regardless of N (the remaining constant is one stats-
+  rollup SELECT per reference-scoped module type touched, not per entry —
+  finding #4's fan-out shape, not a new bug). `test_prefill_module_from_
+reference_calls_list_by_module_once` (renamed from `..._twice`, finding
+  #2) confirms the duplicate call is gone. Full backend unit suite (2066
+  tests) green.
+
+  **Not fixed by this update, still open**: the second gap (73.6s→90.5s,
+  ~16.9s, no DB calls at all) sits inside `_prepare_recalc_emissions`'s
+  pure-Python compute loop (factor resolution + formula application), not
+  a query pattern this fix touches. It lines up with this plan's own
+  Context table — `dev` measured ~72 rows/s, and ~1000 entries at that
+  rate is ~14s — i.e. it's C2's ORM/Pydantic-construction finding, already
+  logged above as unimplemented and lower-priority than C3. This PATCH
+  still costs ~17s of unavoidable-today compute on top of whatever the
+  prefill fix saves.
+
+  Also outstanding from this same trace, not yet actioned: the response's
+  final `http send` lands at ~91.5s — well past Traefik's default 60s
+  timeout, so the backend kept computing and writing to the DB _after_ the
+  client had already seen the 504. Combined with A4 (this PATCH holds a
+  pooled connection and the event loop for its whole duration, no
+  `asyncio.sleep(0)` yield — see C3's intro above), a client retry on top
+  of the still-running original request is a plausible double-write path
+  worth checking before this is called closed. Track A/B (move this off
+  the request path
+  entirely) remains the durable fix; this update only removes two more
+  N+1s from the synchronous path in the meantime.
+
+#### 2026-08-17 (same day, follow-up) — `DataEntry` construction had the same tax as `DataEntryEmission`, plus a general fix
+
+After landing the prefill `override_cache` fix above, a fresh local trace of
+the same PATCH (smaller plan, ~360ms total) still showed one dominant cost:
+a 136ms DB-silent gap immediately followed by a 94ms `INSERT INTO
+data_entries` (2 calls) — together ~63% of the request — inside
+`prefill_module_from_reference`'s copy-construction step, before
+`_recalculate_report_emissions` even starts.
+
+**Root cause, one level up from finding #1's `DataEntryEmission` fix**:
+Pydantic v2's `resolve_default_value`/`takes_validated_data_argument` calls
+`inspect.signature()` on every `default_factory` on **every model
+instantiation** (not cached per-field) to check whether it takes a
+`validated_data` argument. For a bare C builtin (`dict`,
+`datetime.utcnow`) that lookup is expensive and always fails — measured
+directly: ~4µs/call for `dict`, ~20µs/call for `datetime.utcnow` (5×
+worse), versus ~2µs for a trivial Python-level wrapper function. `DataEntry`
+has three such fields (`data: dict`, `created_at`/`updated_at: datetime`),
+each paying this on every prefill copy — the same class of cost finding #1
+found in `DataEntryEmission`, just never looked for elsewhere.
+
+Confirmed the sqlite test harness was hiding this: `DataEntryEmissionRepository.bulk_copy`'s
+non-psycopg fallback still builds real ORM objects, so profiling against
+sqlite showed no improvement from the finding #1 fix. Re-profiled against a
+throwaway local Postgres database instead (`co2_prof`, dropped after
+measuring) — the only way to exercise the real `COPY FROM STDIN` path.
+
+**Fix**: added `app/models/_field_defaults.py` (`default_dict`,
+`default_list`, `default_utcnow` — trivial wrapper functions) and swapped
+every bare-builtin `Field(default_factory=dict|list|datetime.utcnow)` across
+`app/models/` to use them — 12 occurrences across `audit.py`,
+`year_configuration.py`, `data_ingestion.py`, `data_entry.py`,
+`data_entry_emission.py`, `factor.py`. (The dataclass `field(default_factory=...)`
+calls in `data_entry_emission.py`'s `FactorQuery`/`EmissionComputation`/
+`DataEntryEmissionRow` are stdlib `dataclasses`, not Pydantic — unaffected
+by this mechanism, left untouched.)
+
+**Measured** (Postgres, `set_reference_year`, N=1000 entries):
+633.5ms → 474.7ms (−25%). `sqlmodel_table_construct` cumulative time
+0.177s → 0.069s; `inspect.signature`/`_signature_fromstr`/`__build_class__`
+disappeared from the profile entirely. Remaining cost at this scale is
+`select.kqueue`/socket I/O (round-trip latency) and psycopg query
+preparation — round-trip-bound, not Python-construction-bound. Full backend
+unit suite (2012 tests) green; lint/type-check clean.
+
+**Confirmed against a live trace** — re-ran the same PATCH locally
+(GlitchTip export, same plan/entry count both times): 364.9ms → 323.75ms.
+The gap before `INSERT INTO data_entries` shrank 136.1ms → 107.6ms and the
+INSERT itself 47.2ms → 27.6ms avg per call, but that combined chunk was
+still ~50% of the request — smaller, not gone. Confirmed via the `INSERT`
+statement's byte length (identical, 214,311 chars) that both traces were
+the same workload, not a smaller batch giving a false win.
+
+#### 2026-08-17 (same day, second follow-up) — the remaining gap was `DataEntry` ORM construction itself, not `default_factory`
+
+The `default_factory` fix only removes signature-introspection overhead;
+`prefill_module_from_reference`/`prefill_headcount_from_reference` still
+built a real `DataEntry(...)` (`table=True`) instance per prefilled row and
+`session.add()`ed it one at a time — paying SQLAlchemy's own mapper/
+instance-state machinery (`_initialize_instance`, `cascade_iterator`,
+instrumented-attribute `__setattr__`) regardless. Unlike
+`DataEntryEmission`, these rows _do_ need real ids back immediately
+(`source_data_entry_id`, `prepare_create`'s `data_entry.id` guard,
+`entry_ids` for the recalc that follows) — the reason they couldn't just
+route through `bulk_copy` (never populates ids) the way emissions did.
+
+**Fix**: `DataEntryRepository.bulk_insert_returning_ids(rows: list[dict])`
+— a Core-level (not ORM) `INSERT ... RETURNING id`, `rows` as plain
+column-value dicts, `sort_by_parameter_order=True` so returned ids line up
+with input order (this is SQLAlchemy's documented contract for this, not
+something reproduced as broken locally without it — checked to N=2000
+against Postgres/psycopg, order held either way on this stack; kept the
+flag as the correct guarantee regardless, pinned with a regression test
+using a distinguishing marker per row). `prefill_module_from_reference`/
+`prefill_headcount_from_reference` now build plain dicts, bulk-insert, and
+wrap the returned ids as `DataEntryResponse` (not `DataEntry`) —
+`_persist_prefill_entries` and everything downstream (`prepare_create`,
+`prefetch_percentage_override_cache`, `prefetch_slice`) already accepted
+`DataEntryResponse` via their existing `DataEntry | DataEntryResponse`
+union types, so no other signature changes were needed. No `DataEntry(...)`
+ORM instance or `session.flush()` in the whole prefill copy path anymore.
+
+**Measured** (Postgres, N=1000): 474.7ms → 395.6ms (−17% more; −38.5%
+total from the 633.5ms starting point three fixes ago).
+`sqlmodel_table_construct` is gone entirely from the profile now.
+**Confirmed against a live trace** (same plan, re-verified via the
+`INSERT` statement's byte length again): 323.75ms → 203.55ms. Gap before
+`INSERT` 107.6ms → 8.1ms; `INSERT` itself 27.6ms avg → 25.1ms avg (now
+genuine Postgres execution time for the batch, not Python construction —
+this is close to a floor for INSERT+RETURNING at this row count).
+Regression test added (`test_bulk_insert_returning_ids_preserves_row_order`,
+`tests/unit/repositories/test_data_entry_repo.py`). Full backend suite
+(2014 tests) green; lint/type-check clean.
+
+**What's left at 203.55ms**: no single dominant cost anymore — spread
+across the INSERT itself (~50ms, likely near-floor), ~20 small per-
+module-type SELECTs (`list_by_module`-shaped, ~1ms avg each, could be
+batched into one bulk fetch across module types — the same "N+1 across
+module types, not entries" shape as the `get_by_report_and_module_type`
+double-lookup below, estimated ~15-20ms if fixed), a `get_module` call
+for both the plan and reference module per module type
+(`prefill_module_from_reference`/`prefill_headcount_from_reference` each
+re-fetch what `_prefill_reference_modules` already read into `rebuilt` for
+the plan side — genuinely redundant, but only ~5ms total measured, not
+worth the refactor on its own), and several small per-module-type gaps
+(~40ms combined) not yet individually attributed. None of these have the
+single-item leverage the last three fixes did — this is genuine
+diminishing-returns territory; further gains need either accepting the
+INSERT floor or moving the work off the request path entirely (Track B).
+
+## Track D — round-trip count, not query speed (proposed, not yet implemented)
+
+An outside review of the 203.55ms trace argued the real problem is
+statement _count_, not per-statement speed, and proposed a "load once →
+calculate → write once" rewrite of the whole request. The count claims
+checked out **after correcting a mistake in how I first read them** (see
+below); the sweeping rewrite doesn't — two concrete, narrowly-scoped fixes
+account for the actual redundancy without touching the pipeline's shape.
+
+**Correction, for the record**: my first pass at re-verifying the reviewer's
+table said it was double-counting the paired psycopg/SQLAlchemy spans (the
+mistake I'd made and been corrected on earlier this same session). It
+wasn't — filtering on the span that actually carries `db.statement`
+reproduces their numbers exactly: **117 SELECT, 24 UPDATE, 9 DELETE, 6
+WITH, 1 INSERT = 157 statements, ~93ms of the 203.55ms request.** Flagging
+the correction rather than quietly fixing my own analysis, since I'd
+already stated the wrong version with confidence.
+
+**What's real, verified against the actual call graph** (not just pattern-matched from the trace):
+
+1. **`_clear_module_entries`'s upfront scope duplicates 7 of 8 modules' own
+   self-clear.** `_prefill_reference_modules` calls `_clear_module_entries`
+   for all 8 `PLANNER_REFERENCE_SCOPED_MODULE_TYPES` up front (line 405),
+   which deletes their entries **and** recomputes their stats to reflect
+   "now empty." But `prefill_module_from_reference`/
+   `prefill_headcount_from_reference` — called next, for 7 of those 8
+   (everything except `purchase`, which is wiped but never rebuilt) — each
+   do their **own** `bulk_delete_by_modules([plan_module.id])` first
+   (documented as "destructive and idempotent," a real, load-bearing
+   contract: these are the only two callers, but it's public API on the
+   service). The upfront clear-and-recompute for those 7 modules is
+   thrown away within the same transaction, never observable (nothing
+   commits until the whole PATCH finishes) — pure waste.
+
+   **Fix**: narrow `_clear_module_entries`'s call at line 405 to
+   `scoped - rebuilt` (just `purchase`) instead of all of `scoped`. Zero
+   behavior change — `prefill_module_from_reference`/
+   `prefill_headcount_from_reference` still delete-then-rebuild their own
+   modules exactly as before; only the redundant upfront pass for the
+   ones about to be rebuilt anyway goes away.
+
+2. **`_persist_prefill_entries`'s per-module `recompute_stats_many` is
+   thrown-away work for one of its two callers, load-bearing for the
+   other — a blind removal would silently break the second one.**
+   `_prefill_reference_modules` has two callers:
+   - `set_reference_year` → always followed by `_recalculate_report_emissions`,
+     which recomputes stats for **every** module touching **any** entry of
+     the report (`list_by_carbon_report`) — including every module
+     `_persist_prefill_entries` just freshly computed stats for, moments
+     earlier, in the same transaction. That per-module call's result is
+     immediately superseded and never observed. This is the caller behind
+     the trace above — the actual "recompute the same module 2-3 times"
+     shape the review flagged.
+   - `_sync_year_reports` (new plan-year creation, `update_plan`) → only
+     calls `recompute_report_stats` (report-level rollup) afterward, **not**
+     `_recalculate_report_emissions`. For this caller,
+     `_persist_prefill_entries`'s per-module recompute is the _only_ thing
+     that ever computes those modules' stats — removing it would ship plan
+     years with stale/never-computed module stats, a real regression the
+     existing test suite may not catch (worth checking before touching
+     this).
+
+   **Fix**: thread a `skip_module_stats: bool = False` (or similar) through
+   `_persist_prefill_entries` → `prefill_module_from_reference` /
+   `prefill_headcount_from_reference`, set `True` only from
+   `_prefill_reference_modules` when its caller is `set_reference_year`
+   (i.e., when a subsequent `_recalculate_report_emissions` is guaranteed).
+   This is the single biggest lever in Track D — potentially removing
+   ~7 of the ~24 UPDATE-triggering `recompute_stats_many` calls and a
+   meaningful share of the 117 SELECT (each call's internal machinery —
+   module load, grouped emissions, grouped count, FTE, years-by-report,
+   report rollup — costs several statements even batched).
+
+**What's in the review but not yet verified to this standard** — real
+patterns, not yet root-caused to a specific fix, so not sized or promised:
+repeated `get_module`/`get_report`-shaped re-fetches crossing service
+boundaries beyond the one instance measured above (~5ms, not worth its own
+refactor); whether the ~20 per-module-type `list_by_module` SELECTs could
+collapse into one bulk fetch across module types grouped in Python.
+
+#### Status: implemented — both fixes, 2026-08-17
+
+`_clear_module_entries`'s scope narrowed to `scoped` modules not in
+`will_rebuild` (finding 1); `skip_module_stats` threaded from
+`set_reference_year` through `_prefill_reference_modules` →
+`prefill_module_from_reference`/`prefill_headcount_from_reference` →
+`_persist_prefill_entries` (finding 2), applied only to the non-empty
+branch's final `recompute_stats_many` — the empty-`entries` branch stays
+unconditional, since a module that ends up with zero rows after prefill
+never appears in `_recalculate_report_emissions`'s later entry-driven
+module set and would otherwise keep stale stats.
+
+Both edge cases the naive versions of these fixes would have gotten wrong
+are pinned with regression tests, verified to actually fail without their
+fix (not just pass trivially): `test_set_reference_year_grant_clears_but_
+does_not_rebuild_rf_and_travel` (a grant report's reference-year RF/travel
+entries would get wrongly copied back in if the upfront-clear exclusion
+also skipped rebuilding them) and `test_persist_prefill_entries_empty_
+branch_ignores_skip_module_stats` (the empty branch must run regardless of
+the flag). Full backend suite (2016 tests) green; lint/type-check clean.
+
+**Measured** (Postgres, N=1000): 346.7ms, down from 395.6ms before these
+two fixes — `recompute_stats_many` call count 129 → 95.
+**Total from this Track D's own starting point** (the 203.55ms live trace
+before any of today's fixes): not yet re-measured against a fresh trace at
+this small a scale (the two fixes' win is real but modest per-request at
+low module/entry counts — most of the removed work was already cheap
+individually; the win compounds with report size and module count, same
+as every fix in this plan).
+
+**What I'd reject from the review, and still would after implementing the
+narrow version**: the "load everything → calculate in memory → one write"
+rewrite of the whole request. It's the right shape for a green-field
+design, and the review's _diagnosis_ — round-trip count, not query speed,
+is the problem — was correct and is now fully acted on by this plan's C3,
+Track D, and the `default_factory`/Core-INSERT fixes: every real win this
+whole plan found came from cutting round trips or redundant work, never
+from speeding up a slow query (none were ever found). But retrofitting the
+rewrite's _prescription_ here means restructuring
+`_prefill_reference_modules`'s per-module-type loop, `prepare_create`'s
+per-entry emission computation, and `recompute_stats_many`'s aggregation
+all at once — the exact "recalculation/pipeline internals" the guardrails
+require a maintainer-reviewed written plan for — for a payoff not
+demonstrably larger than what the narrow, two-caller-aware version just
+measured. Track D's finding 2 alone is a concrete illustration of the
+risk: the "obviously redundant" recompute had a second caller
+(`_sync_year_reports`) with no later recalc to cover it — a blind
+rewrite following the review's shape would very plausibly have shipped
+that regression, since nothing in the review's trace-based analysis could
+have surfaced a code path the trace itself never exercised. The pattern
+holds generally: this session's series of fixes (N+1, `default_factory`,
+Core INSERT, Track D) delivered the review's own diagnosis — round trips
+960ms → ~350ms, roughly 64% — through several small, independently
+reviewable, low-blast-radius changes, each with its own regression test.
+A rewrite gets the same diagnosis addressed at once, but bets it on a
+single large, harder-to-review change to code where a wrong bet costs a
+drifted published carbon number — the worst failure this project defines
+for itself. Same destination, and the incremental path is not slower to
+arrive — it is verifiably not, since it already has.
+
+**If more is wanted past 346.7ms**: incremental, not a rewrite — batch
+`list_by_module` across module types (flagged above, not yet sized);
+re-evaluate whether Track B (async job runner) is warranted for the
+largest plans specifically once the INSERT-execution floor (~50ms at
+N=1000, genuine Postgres write time) is the dominant remaining cost, since
+no amount of round-trip reduction removes that.
+
+## Track E — the actual optimal shape (proposed, not yet implemented)
+
+Requested directly: "write me down the todo/steps for the optimal
+optimization — in my head it's two SQL requests." Two isn't literally
+reachable (see the honest floor at the end), but there's a real lever here
+bigger than anything in Track D, found by taking that framing seriously
+instead of stopping at Track D's fix.
+
+**The finding**: Track D's finding 2 only skipped the _stats_ half of
+`_persist_prefill_entries`'s wasted work for `set_reference_year`. The
+_emissions_ half — `prepare_create`'s factor resolution and formula
+computation, C2's own profiling measured at ~65-77% of recalc wall time —
+is still computed and written during prefill, then immediately
+overwritten by `_recalculate_report_emissions`'s subsequent full-report
+pass, which has to recompute every entry anyway (it also covers
+`purchase`'s manual rows and anything else prefill never touches). This is
+the same "computed here, superseded there" shape as finding 2, just for
+the more expensive half. Verified nothing reads emissions in the gap
+between the two calls in `set_reference_year` — `_year_read` runs after
+both, off the final stats — so skipping it is as safe as finding 2 was.
+
+`_sync_year_reports` (new plan-year creation) is the mirror image: its own
+code comment already says why it never calls `_recalculate_report_
+emissions` — "no other entries exist yet," so prefill's own compute _is_
+the one necessary pass there. Confirmed by reading the callers, not
+assumed: this is exactly the two-callers trap Track D finding 2 already
+hit once this session.
+
+### TODO
+
+**Tier 1 — skip prefill's emission compute entirely for `set_reference_year`
+(the big lever, do this first)**
+
+1. Add a `compute_emissions: bool = True` parameter to
+   `prefill_module_from_reference`/`prefill_headcount_from_reference`
+   (mirrors `skip_module_stats`'s threading exactly, same call sites).
+   When `False`, skip straight past `_persist_prefill_entries` — call
+   `_bulk_insert_entries(rows)` and return; no `prepare_create` loop, no
+   `override_cache`/`factor_query_cache`/`slice_cache` setup, no
+   `bulk_copy` for emissions, no stats recompute (subsumes finding 2 —
+   `skip_module_stats` becomes redundant once emissions aren't computed
+   either, since there's nothing to compute stats from yet).
+2. `_prefill_reference_modules` forwards `compute_emissions` the same way
+   it forwards `skip_module_stats` today.
+3. `set_reference_year` passes `compute_emissions=False`.
+   `_sync_year_reports` keeps the default (`True`) — unchanged behavior,
+   verified necessary above.
+4. Once this lands, `skip_module_stats`/the empty-branch special case in
+   `_persist_prefill_entries` can be deleted, not just left unused — per
+   this file's own guardrail (no backward-compat paths): for
+   `set_reference_year`, `_persist_prefill_entries` is never called at
+   all anymore; for `_sync_year_reports`, it always runs in full, so the
+   flag has no remaining caller to serve.
+5. Regression test: mirror
+   `test_persist_prefill_entries_empty_branch_ignores_skip_module_stats`'s
+   monkeypatch-and-count approach, asserting `prepare_create`/`bulk_copy`
+   are never called when `compute_emissions=False`, and a full
+   `set_reference_year` still ends with correct final emissions (via
+   `_recalculate_report_emissions`) — an equivalence test like
+   `test_percentage_override_cache_matches_uncached_path`, not just a
+   call-count assertion, since this is exactly the kind of change where
+   "fewer statements" must not mean "different numbers."
+6. Re-measure against Postgres (N=1000 harness already exists) before
+   touching anything else — this alone may make Tier 2 not worth doing.
+
+**Tier 2 — consolidate reads/writes across module types (smaller, do only
+if Tier 1's numbers still justify it)**
+
+7. Replace the per-module-type `get_module(report.id, type)` /
+   `get_module(ref_report.id, type)` pair in `prefill_module_from_
+reference`/`prefill_headcount_from_reference` with the `list_modules`
+   result `_prefill_reference_modules` already has in hand for the plan
+   side, plus one `list_modules(ref_report.id)` call for the reference
+   side (currently zero calls there — always refetched per type).
+8. Replace the per-module-type `list_by_module(ref_module.id)` with one
+   `SELECT * FROM data_entries WHERE carbon_report_module_id IN (all ref
+module ids)`, grouped by `carbon_report_module_id` in Python — the
+   grouping headcount already needs internally (member/student → SIUS
+   bucket) becomes a second grouping pass over the same fetched rows,
+   not a second query.
+9. After Tier 1, prefill's only remaining per-module-type work for
+   `set_reference_year` is building row dicts and inserting them — flatten
+   the row-building across all rebuilt module types into one list, one
+   `bulk_insert_returning_ids` call, instead of one call per type.
+10. Regression tests: statement-count assertions in the same style as
+    `test_prefill_reference_modules_isolated_statement_count`, updated for
+    the new shape.
+
+**Honest floor — why not two**: read-then-compute-then-write is
+inherently ≥2 round trips for anything needing values back before the next
+step (RETURNING ids from the entry INSERT are needed before emissions can
+reference them — a real FK dependency, not an artifact of how this code
+happens to be structured). DELETE and INSERT can't be one statement
+either. After both tiers, the realistic floor for `set_reference_year` is
+roughly: 1 read (plan + ref modules, mergeable into one round trip with a
+union or two cheap indexed lookups) + 1 read (reference entries, all
+module types) + 1 write (bulk delete) + 1 write (bulk insert entries,
+RETURNING ids) + `_recalculate_report_emissions`'s existing pass (itself
+already near-optimal per C3: 1 read of the report's entries, 1 write for
+emissions, 1-2 for stats rollup) — call it **8-10 total SQL operations**
+for the whole PATCH, regardless of module or entry count, down from the
+current ~150. Not two, but the same order of magnitude of ambition, and
+the actual number that would show up in a fresh trace once both tiers
+land — worth stating precisely rather than rounding to a slogan.
+
+#### Status: implemented — both tiers, 2026-08-17
+
+**Tier 1** (steps 1-6): `compute_emissions: bool = True` threaded through
+`prefill_module_from_reference`/`prefill_headcount_from_reference` →
+`_prefill_reference_modules` → `set_reference_year` (passes `False`) /
+`_sync_year_reports` (keeps default `True`, verified necessary by reading
+its own code comment before touching anything). `skip_module_stats`
+(Track D finding 2) deleted, not left dead — with `compute_emissions=False`
+skipping `_persist_prefill_entries` entirely, there was nothing left for
+it to gate. The empty-`entries`/empty-`rows` edge case (a module that
+ends up with zero rows after prefill must still get its stats refreshed,
+regardless of `compute_emissions`) is preserved in both
+`prefill_module_from_reference` (early return, unconditional, unchanged)
+and `prefill_headcount_from_reference` (new `elif not rows:` branch, since
+its `_persist_prefill_entries` call — and therefore that branch — no
+longer runs at all when `compute_emissions=False`).
+
+**Tier 2** (steps 7 only — 8/9 not done, see below): `plan_module`/
+`ref_module` optional params added to both prefill methods, defaulting to
+their old self-fetching `get_module` behavior when omitted (preserves
+standalone callability — `test_prefill_rebuilds_the_module` still calls
+`prefill_module_from_reference` directly with no caller-supplied modules,
+unchanged). `_prefill_reference_modules` now does one `list_modules` for
+the reference side (it already had the plan side) and passes both
+pre-fetched modules into every rebuilt module type's call — zero
+`get_module` calls during a full prefill, down from two per module type.
+
+Steps 8 (batch `list_by_module` across module types) and 9 (flatten the
+row-insert across module types) **not implemented** — they need either
+duplicating `prepare_create`'s per-type grouping logic outside the public
+per-module-type methods, or restructuring those methods' public contract,
+neither of which the measured win (below) justified pursuing today.
+
+Every edge case has a regression test verified to fail without its fix
+(not just pass trivially — each was broken and re-run to confirm):
+`test_set_reference_year_never_calls_persist_prefill_entries`,
+`test_sync_year_reports_still_calls_persist_prefill_entries` (the mirror —
+tier 1 must not have broken the caller it wasn't meant to touch),
+`test_set_reference_year_produces_correct_emissions_without_prefill_compute`
+(actual kg values, not just call counts — skipping computation must not
+skip _correctness_), `test_prefill_headcount_empty_after_prefill_still_
+recomputes_stats`, `test_prefill_reference_modules_never_calls_get_module`.
+Full backend suite (2020 tests) green; lint/type-check clean.
+
+**Measured** (Postgres, N=1000): tier 1 alone 346.7ms → 302.1ms (−13%);
+tier 1 + tier 2 step 7 → 271.4ms (−10% more). `_prepare_recalc_emissions`/
+`prepare_create` no longer appear anywhere in `_prefill_reference_modules`'s
+call tree — the only remaining call site is `_recalculate_report_emissions`,
+exactly once, as intended. Dominant cost is `select.kqueue` (round-trip
+wait) and psycopg query preparation — round-trip-bound, same conclusion as
+Track D, at a lower floor.
+
+**Total, from this file's very first N=1000 measurement to now**: 1298ms
+(sqlite, pre-#2050) → 633.5ms (Postgres, C3 override-cache fix) → 474.7ms
+(`default_factory`) → 395.6ms (Core INSERT) → 346.7ms (Track D) → 302.1ms
+(Track E tier 1) → **271.4ms (Track E tier 1+2) — a 71.7% reduction from
+the 960ms this investigation actually started at** (the first live-trace
+number, before any fix). Confirmed against live traces at every stage
+this session, not just isolated profiling.
+
 ## Priority order
 
 C1, C2, and C3's measurement phase are all now done (2026-08-12); this
@@ -618,16 +1128,26 @@ investigation order.
    statements at N=8000 being a single avoidable SELECT+DELETE-per-entry
    pattern, plus a second per-entry N+1 (percentage-override lookup) found
    only once the first fix's own regression test still showed O(N) scaling
-   — see C3's status note above.
+   — see C3's status note above. **Follow-up done 2026-08-17**: the same
+   percentage-override N+1 and the duplicate `list_by_module` call were
+   still live in `_prefill_reference_modules`'s own path
+   (`_persist_prefill_entries`), which this fix never touched — see the
+   2026-08-17 status update above. The `asyncio.sleep(0)` yield is still
+   outstanding.
 5. ~~**B** — worker split (also resolves A4).~~ **Implemented, disabled by
    default** — draft PR #2081 ships `worker.enabled=false`; flipping it on
    any real environment is a separate follow-up.
-6. **C2's follow-up finding is a new, concrete lever, not just informative**
-   — ~65-67% of recalc wall clock is `DataEntryEmission(...)` ORM/Pydantic
-   construction on rows that are never individually persisted. Unimplemented;
-   lower priority than C3 (C3 blocked a synchronous request path and held a
-   DB connection, this doesn't), but worth its own follow-up issue rather
-   than being dropped as "no additional compute work indicated."
+6. ~~**C2's follow-up finding** — ~65-67% of recalc wall clock is
+   `DataEntryEmission(...)` ORM/Pydantic construction on rows that are never
+   individually persisted.~~ **Done**, same day as the C3 follow-up above:
+   `prepare_create` (shared by the recalc workflow and both simulator-plan
+   paths) now builds `DataEntryEmissionRow` — a plain dataclass — instead,
+   materializing a real ORM row only at the two call sites that genuinely
+   `session.add()` one (`create`, `upsert_by_data_entry`). Surfaced a second,
+   general instance of the same tax (Pydantic's per-instance
+   `default_factory` signature introspection, not specific to
+   `DataEntryEmission`) — fixed across every `table=True` model in
+   `app/models/`, not just this one.
 7. **C1's OTel rerun found a bigger, separate lever than musl vs glibc** —
    instrumentation alone costs this app ~37% throughput / +58-94% latency
    (span-per-SQL-statement overhead, not export cost). Doesn't change the

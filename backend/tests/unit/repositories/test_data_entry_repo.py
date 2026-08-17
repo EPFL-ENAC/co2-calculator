@@ -230,6 +230,65 @@ async def test_bulk_create_data_entries(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_bulk_insert_returning_ids_preserves_row_order(db_session: AsyncSession):
+    """Returned ids must map back to ``rows`` in submitted order.
+
+    Pins the API contract ``bulk_insert_returning_ids`` relies on
+    (``sort_by_parameter_order=True`` on the Core INSERT's RETURNING) —
+    without it, row/id ordering is implementation-defined per SQLAlchemy's
+    own docs, not something to rely on even where it happens to hold in ad
+    hoc testing (plan #2050 §C2/C3 follow-up, where this replaced per-row
+    ``DataEntry(...)`` ORM construction for the Simulator Plan prefill copy
+    path — a silent reorder here would misattribute one entry's data to
+    another's id). Note: this specific test doesn't reproduce a failure
+    without the flag on SQLite (small single-statement batches don't
+    trigger reordering here) — it pins the contract, not an observed local
+    bug; the flag was verified against real Postgres/psycopg separately.
+    Uses a distinguishing marker per row rather than trusting sequential-id
+    assumptions, so a genuine reorder would fail this even if ids still
+    happened to come back sorted.
+    """
+    repo = DataEntryRepository(db_session)
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    rows = [
+        {
+            "data_entry_type_id": DataEntryTypeEnum.plane.value,
+            "carbon_report_module_id": module.id,
+            "data": {"marker": i},
+            "status": DataEntryStatusEnum.PENDING,
+            "year": None,
+            "unit_id": None,
+            "source": None,
+            "created_by_id": None,
+        }
+        for i in range(20)
+    ]
+
+    ids = await repo.bulk_insert_returning_ids(rows)
+    assert len(ids) == 20
+
+    from sqlmodel import select
+
+    stmt = select(DataEntry).where(DataEntry.id.in_(ids))
+    by_id = {e.id: e.data["marker"] for e in (await db_session.exec(stmt)).all()}
+    assert [by_id[row_id] for row_id in ids] == list(range(20))
+
+
+@pytest.mark.asyncio
+async def test_bulk_insert_returning_ids_empty_rows(db_session: AsyncSession):
+    """No rows in, no round trip, empty list out."""
+    repo = DataEntryRepository(db_session)
+    assert await repo.bulk_insert_returning_ids([]) == []
+
+
+@pytest.mark.asyncio
 async def test_bulk_delete_data_entries(db_session: AsyncSession):
     """Test bulk deleting data entries by module and type."""
     repo = DataEntryRepository(db_session)

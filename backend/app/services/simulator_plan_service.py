@@ -13,8 +13,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
-from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry import (
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryStatusEnum,
+    DataEntryTypeEnum,
+)
+from app.models.data_entry_emission import DataEntryEmissionRow
 from app.models.module_type import (
     PLANNER_PLAIN_COPY_MODULE_TYPES,
     PLANNER_PREFILLED_MODULE_TYPES,
@@ -25,7 +30,11 @@ from app.models.user import User
 from app.modules_planner.headcount import PLANNER_STUDENT_CODE
 from app.repositories.carbon_project_repo import CarbonProjectRepository
 from app.repositories.data_entry_repo import DataEntryRepository
-from app.schemas.carbon_report import CarbonReportCreate, CarbonReportRead
+from app.schemas.carbon_report import (
+    CarbonReportCreate,
+    CarbonReportModuleRead,
+    CarbonReportRead,
+)
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.schemas.simulator_plan import (
     SimulatorPlanRead,
@@ -364,12 +373,20 @@ class SimulatorPlanService:
             report.reference_year = reference_year
             self.session.add(report)
             await self.session.flush()
-            await self._prefill_reference_modules(report)
+            # _recalculate_report_emissions right after recomputes every
+            # entry's emissions (and every touched module's stats) from
+            # scratch anyway — skip prefill's own compute entirely here
+            # (plan #2050 Track E tier 1). Not safe for _sync_year_reports's
+            # own call (default True there), which has no such follow-up.
+            await self._prefill_reference_modules(report, compute_emissions=False)
             await self._recalculate_report_emissions(report)
         return await self._year_read(report)
 
     async def _prefill_reference_modules(
-        self, report: CarbonReport | CarbonReportRead
+        self,
+        report: CarbonReport | CarbonReportRead,
+        *,
+        compute_emissions: bool = True,
     ) -> None:
         """Empty every reference-scoped module, rebuild prefilled + copied ones.
 
@@ -382,6 +399,19 @@ class SimulatorPlanService:
         has no Calculator report for the unit there is nothing to copy and they stay
         empty —  showing the previous baseline's rows under a new reference year
         would be a lie.
+
+        Args:
+            compute_emissions: forwarded to each rebuilt module's prefill
+                call — ``False`` only from ``set_reference_year``, whose
+                ``_recalculate_report_emissions`` right after recomputes
+                every entry's emissions from scratch anyway (it has to,
+                since it also covers modules prefill never touches, like
+                ``purchase``'s manual rows) — computing them here first is
+                thrown away (plan #2050 Track E tier 1). ``True`` (default)
+                for ``_sync_year_reports`` (new plan-year creation): its own
+                code comment already explains why — "no other entries exist
+                yet," so prefill's own compute is the only pass that ever
+                runs for that caller.
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
@@ -397,31 +427,79 @@ class SimulatorPlanService:
             if m.module_type_id
             in PLANNER_PREFILLED_MODULE_TYPES | PLANNER_PLAIN_COPY_MODULE_TYPES
         ]
-        await self._clear_module_entries([m.id for m in scoped if m.id is not None])
-        if report.reference_year is None:
-            return
-        ref_report = await self.repo.get_calculator_report(
-            report.unit_id, report.reference_year
+
+        ref_report = None
+        if report.reference_year is not None:
+            ref_report = await self.repo.get_calculator_report(
+                report.unit_id, report.reference_year
+            )
+        # The grant RF grid starts from the reference year's platform list,
+        # not from copied entries (#1980) — left empty for the user's own
+        # selection. Grant travel is planned from scratch too (#2018). Both
+        # stay out of ``will_rebuild`` below, which decides both what gets
+        # prefilled and what the upfront clear must still cover — they
+        # never self-clear (prefill is never called for them), so the
+        # upfront clear is their only chance to empty out.
+        will_rebuild = (
+            [
+                m
+                for m in rebuilt
+                if not (
+                    report.is_grant
+                    and m.module_type_id
+                    in (
+                        ModuleTypeEnum.research_facilities,
+                        ModuleTypeEnum.professional_travel,
+                    )
+                )
+            ]
+            if ref_report is not None
+            else []
         )
-        if ref_report is None:
+        will_rebuild_ids = {m.module_type_id for m in will_rebuild}
+        # Only clear modules upfront that won't self-clear when rebuilt
+        # below — prefill_module_from_reference/prefill_headcount_from_
+        # reference each delete-then-rebuild their own module already
+        # (plan #2050 Track D finding 1); clearing them here too is
+        # thrown-away work, never observable (nothing commits mid-request).
+        await self._clear_module_entries(
+            [
+                m.id
+                for m in scoped
+                if m.id is not None and m.module_type_id not in will_rebuild_ids
+            ]
+        )
+        if ref_report is None or ref_report.id is None or not will_rebuild_ids:
             return
-        for module_type_id in sorted(m.module_type_id for m in rebuilt):
-            # The grant RF grid starts from the reference year's platform
-            # list, not from copied entries (#1980) — cleared above, left
-            # empty for the user's own selection. Grant travel is planned
-            # from scratch too (#2018).
-            if report.is_grant and module_type_id in (
-                ModuleTypeEnum.research_facilities,
-                ModuleTypeEnum.professional_travel,
-            ):
-                continue
+        # One list_modules for the reference side (the plan side is already
+        # `modules`/`will_rebuild`, fetched once above) instead of one
+        # get_module per module type on each side — a real get_module call
+        # for every rebuilt type, twice, otherwise (plan #2050 Track E
+        # tier 2).
+        ref_modules_by_type = {
+            m.module_type_id: m
+            for m in await self.report_service.module_service.list_modules(
+                ref_report.id
+            )
+        }
+        plan_modules_by_type = {m.module_type_id: m for m in will_rebuild}
+        for module_type_id in sorted(will_rebuild_ids):
             if module_type_id == ModuleTypeEnum.headcount:
                 await self.prefill_headcount_from_reference(
-                    report, ref_report=ref_report
+                    report,
+                    ref_report=ref_report,
+                    plan_module=plan_modules_by_type[module_type_id],
+                    ref_module=ref_modules_by_type.get(module_type_id),
+                    compute_emissions=compute_emissions,
                 )
             else:
                 await self.prefill_module_from_reference(
-                    report, module_type_id, ref_report=ref_report
+                    report,
+                    module_type_id,
+                    ref_report=ref_report,
+                    plan_module=plan_modules_by_type[module_type_id],
+                    ref_module=ref_modules_by_type.get(module_type_id),
+                    compute_emissions=compute_emissions,
                 )
 
     async def _clear_module_entries(self, module_ids: list[int]) -> None:
@@ -458,6 +536,9 @@ class SimulatorPlanService:
         module_type_id: int,
         *,
         ref_report: CarbonReport | None = None,
+        plan_module: CarbonReportModuleRead | None = None,
+        ref_module: CarbonReportModuleRead | None = None,
+        compute_emissions: bool = True,
     ) -> int:
         """Rebuild a plan module from the reference-year Calculator entries.
 
@@ -476,6 +557,15 @@ class SimulatorPlanService:
             ref_report: The reference year's Calculator report, when the
                 caller (``_prefill_reference_modules``) already looked it up
                 for the whole rebuild — skips the redundant refetch here.
+            plan_module: The plan-year's own module, when the caller already
+                has it (``_prefill_reference_modules`` always does — it
+                lists every module up front) — skips the redundant
+                ``get_module`` here (plan #2050 Track E tier 2).
+            ref_module: Same, for the reference year's module.
+            compute_emissions: when ``False``, only insert the copied rows —
+                skip ``_persist_prefill_entries`` (emissions + stats)
+                entirely. See ``_prefill_reference_modules``'s docstring for
+                when this is safe (plan #2050 Track E tier 1).
 
         Raises ValueError when the report has no reference year or the
         reference year has no Calculator report/module for the unit.
@@ -485,7 +575,8 @@ class SimulatorPlanService:
         if report.reference_year is None:
             raise ValueError("Set a reference year before prefilling")
         module_service = self.report_service.module_service
-        plan_module = await module_service.get_module(report.id, module_type_id)
+        if plan_module is None:
+            plan_module = await module_service.get_module(report.id, module_type_id)
         if plan_module is None or plan_module.id is None:
             raise ValueError(f"Module {module_type_id} not found on the plan year")
         if ref_report is None:
@@ -496,7 +587,8 @@ class SimulatorPlanService:
             raise ValueError(
                 f"No Calculator report for reference year {report.reference_year}"
             )
-        ref_module = await module_service.get_module(ref_report.id, module_type_id)
+        if ref_module is None:
+            ref_module = await module_service.get_module(ref_report.id, module_type_id)
         if ref_module is None or ref_module.id is None:
             raise ValueError(f"Module {module_type_id} not found on the reference year")
 
@@ -516,28 +608,36 @@ class SimulatorPlanService:
             0 if report.is_grant and module_type_id == ModuleTypeEnum.equipment else 100
         )
         plain_copy = module_type_id in PLANNER_PLAIN_COPY_MODULE_TYPES
-        copies: list[DataEntry] = []
-        for src in await entry_repo.list_by_module(ref_module.id):
-            copy = DataEntry(
-                data_entry_type_id=src.data_entry_type_id,
-                carbon_report_module_id=plan_module.id,
-                unit_id=report.unit_id,
-                year=report.year,
-                source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
-                data=dict(src.data)
+        rows = [
+            {
+                "data_entry_type_id": src.data_entry_type_id,
+                "carbon_report_module_id": plan_module.id,
+                "unit_id": report.unit_id,
+                "year": report.year,
+                "source": DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
+                "status": DataEntryStatusEnum.PENDING,
+                "created_by_id": None,
+                "created_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
+                "data": dict(src.data)
                 if plain_copy
                 else {
                     **src.data,
                     "percentage_of_reference_year": default_percentage,
                     "source_data_entry_id": src.id,
                 },
-            )
-            self.session.add(copy)
-            copies.append(copy)
+            }
+            for src in src_entries
+        ]
+        copies = await self._bulk_insert_entries(rows)
 
-        await self._persist_prefill_entries(
-            copies, plan_module.id, year=report.reference_year
-        )
+        if compute_emissions:
+            await self._persist_prefill_entries(
+                copies,
+                plan_module.id,
+                year=report.reference_year,
+                unit_id=report.unit_id,
+            )
         return len(copies)
 
     async def prefill_headcount_from_reference(
@@ -545,6 +645,9 @@ class SimulatorPlanService:
         report: CarbonReport | CarbonReportRead,
         *,
         ref_report: CarbonReport | None = None,
+        plan_module: CarbonReportModuleRead | None = None,
+        ref_module: CarbonReportModuleRead | None = None,
+        compute_emissions: bool = True,
     ) -> int:
         """Rebuild the plan's headcount grid from the reference-year members.
 
@@ -555,15 +658,23 @@ class SimulatorPlanService:
         FTE, for the user to lower to the project's share; a category nobody
         staffed gets no row, leaving its input blank. Destructive and
         idempotent — the grid is emptied first. Returns the rows created.
+
+        Args:
+            plan_module: see ``prefill_module_from_reference``'s docstring —
+                same contract (plan #2050 Track E tier 2).
+            ref_module: same.
+            compute_emissions: see ``prefill_module_from_reference``'s
+                docstring — same contract (plan #2050 Track E tier 1).
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
         if report.reference_year is None:
             raise ValueError("Set a reference year before prefilling")
         module_service = self.report_service.module_service
-        plan_module = await module_service.get_module(
-            report.id, ModuleTypeEnum.headcount
-        )
+        if plan_module is None:
+            plan_module = await module_service.get_module(
+                report.id, ModuleTypeEnum.headcount
+            )
         if plan_module is None or plan_module.id is None:
             raise ValueError("Headcount module not found on the plan year")
         if ref_report is None:
@@ -574,9 +685,10 @@ class SimulatorPlanService:
             raise ValueError(
                 f"No Calculator report for reference year {report.reference_year}"
             )
-        ref_module = await module_service.get_module(
-            ref_report.id, ModuleTypeEnum.headcount
-        )
+        if ref_module is None:
+            ref_module = await module_service.get_module(
+                ref_report.id, ModuleTypeEnum.headcount
+            )
         if ref_module is None or ref_module.id is None:
             raise ValueError("Headcount module not found on the reference year")
 
@@ -604,51 +716,113 @@ class SimulatorPlanService:
                 continue
             fte_by_code[code] = fte_by_code.get(code, 0.0) + fte
 
-        rows = [
-            DataEntry(
-                data_entry_type_id=DataEntryTypeEnum.planner_headcount,
-                carbon_report_module_id=plan_module.id,
-                unit_id=report.unit_id,
-                year=report.year,
-                source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
-                data={"sius_code": code, "fte": fte},
-            )
+        row_dicts = [
+            {
+                "data_entry_type_id": DataEntryTypeEnum.planner_headcount.value,
+                "carbon_report_module_id": plan_module.id,
+                "unit_id": report.unit_id,
+                "year": report.year,
+                "source": DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
+                "status": DataEntryStatusEnum.PENDING,
+                "created_by_id": None,
+                "created_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
+                "data": {"sius_code": code, "fte": fte},
+            }
             for code, fte in sorted(fte_by_code.items())
             if fte > 0
         ]
-        for row in rows:
-            self.session.add(row)
+        rows = await self._bulk_insert_entries(row_dicts)
 
-        await self._persist_prefill_entries(
-            rows, plan_module.id, year=report.reference_year
-        )
+        if compute_emissions:
+            await self._persist_prefill_entries(
+                rows, plan_module.id, year=report.reference_year, unit_id=report.unit_id
+            )
+        elif not rows:
+            # Empty after prefill — never appears in
+            # _recalculate_report_emissions's entry-driven module set later,
+            # so this is its only chance to reflect "now empty" stats (same
+            # reasoning _persist_prefill_entries's own empty branch already
+            # applies — plan #2050 Track D finding 2 / Track E tier 1).
+            await self.report_service.module_service.recompute_stats_many(
+                [plan_module.id]
+            )
         return len(rows)
 
-    async def _persist_prefill_entries(
-        self, entries: list[DataEntry], module_id: int, *, year: int
-    ) -> None:
-        """Flush new prefill rows, compute their emissions, refresh the stats.
+    async def _bulk_insert_entries(self, rows: list[dict]) -> list[DataEntryResponse]:
+        """INSERT ``rows`` via Core, wrapping each with its assigned id.
 
-        Batched (one flush for the whole set, one shared
-        ``FactorResolver``/factor-query cache, one grouped ``prefetch_slice``
-        per data_entry_type, one bulk emission insert) so an N-row module costs
-        a small constant number of round trips instead of ``O(N)``.
+        Returns the ``DataEntryResponse`` shape ``_persist_prefill_entries``/
+        ``prepare_create`` already accept — no ``DataEntry(...)`` ORM
+        instance is ever constructed for a prefill batch, since these rows
+        are never individually ``session.add()``ed (only ``create``/
+        ``upsert_by_data_entry`` need that — see
+        ``DataEntryEmissionRow``'s docstring for the same pattern one model
+        over). Plan #2050 §C2/C3 follow-up: this is what the request's
+        remaining `INSERT INTO data_entries` + preceding gap in a live trace
+        turned out to be — per-row SQLAlchemy mapper/instance-state
+        overhead, not a query-count problem (that part was already fixed).
+        """
+        if not rows:
+            return []
+        ids = await DataEntryRepository(self.session).bulk_insert_returning_ids(rows)
+        return [
+            DataEntryResponse(
+                id=row_id,
+                data_entry_type_id=row["data_entry_type_id"],
+                carbon_report_module_id=row["carbon_report_module_id"],
+                data=row["data"],
+                source=row["source"],
+                status=row["status"],
+            )
+            for row_id, row in zip(ids, rows, strict=True)
+        ]
+
+    async def _persist_prefill_entries(
+        self,
+        entries: list[DataEntryResponse],
+        module_id: int,
+        *,
+        year: int,
+        unit_id: int | None,
+    ) -> None:
+        """Compute freshly-inserted prefill rows' emissions, refresh the stats.
+
+        Only called when the caller actually needs the result —
+        ``set_reference_year`` skips this entirely now (plan #2050 Track E
+        tier 1: its own follow-up ``_recalculate_report_emissions``
+        recomputes everything from scratch anyway, so calling this first
+        would just be thrown-away work). ``_sync_year_reports`` (new
+        plan-year creation) is the only remaining caller — there, this is
+        the one and only pass, so it always runs in full.
+
+        ``entries`` already exist in the DB with ids assigned (see
+        ``_bulk_insert_entries``) — nothing to flush here. Batched (one
+        shared ``FactorResolver``/factor-query cache, one grouped
+        ``prefetch_slice`` per data_entry_type, one bulk emission insert,
+        one prefetched percentage-override cache) so an N-row module costs
+        a small constant number of round trips instead of ``O(N)``. The
+        override cache mirrors ``_recalculate_report_emissions``'s (#2050
+        C3) — every prefilled row here carries ``source_data_entry_id``
+        too, and without it each one re-triggers
+        ``_get_percentage_override_kg``'s per-entry PK fetch + sum query
+        fallback.
         """
         if not entries:
             await self.report_service.module_service.recompute_stats_many([module_id])
             return
-        # One round trip for the whole batch (vs. one flush per row) —
-        # needed so every row gets its id before emissions are computed.
-        await self.session.flush()
 
         emission_svc = DataEntryEmissionService(self.session)
         factor_resolver = FactorResolver(self.session)
         factor_query_cache: dict = {}
+        override_cache = await emission_svc.prefetch_percentage_override_cache(
+            entries, unit_id=unit_id
+        )
 
         # Group by data_entry_type_id: a module can mix subtypes (e.g.
         # headcount's student/member rows), and prefetch_slice/handler
         # selection are per-type, same as the recalc workflow.
-        by_type: dict[int, list[DataEntry]] = {}
+        by_type: dict[int, list[DataEntryResponse]] = {}
         for entry in entries:
             by_type.setdefault(entry.data_entry_type_id, []).append(entry)
 
@@ -661,16 +835,19 @@ class SimulatorPlanService:
             for entry in group:
                 prepared_emissions.extend(
                     await emission_svc.prepare_create(
-                        DataEntryResponse.model_validate(entry),
+                        entry,
                         year=year,
                         factor_resolver=factor_resolver,
                         factor_query_cache=factor_query_cache,
                         slice_cache=slice_cache,
+                        override_cache=override_cache,
                     )
                 )
-        # Single bulk insert: the rows are brand new, so unlike
-        # upsert_by_data_entry there is nothing stale to delete first.
-        await emission_svc.bulk_create(prepared_emissions)
+        # Single bulk insert via COPY: the rows are brand new (nothing
+        # stale to delete first, unlike upsert_by_data_entry), and
+        # prepare_create already hands back lightweight rows, not real
+        # ORM instances — bulk_copy is the path that takes those as-is.
+        await emission_svc.bulk_copy(prepared_emissions)
 
         await self.report_service.module_service.recompute_stats_many([module_id])
 
@@ -716,7 +893,7 @@ class SimulatorPlanService:
 
     async def _prepare_recalc_emissions(
         self, entries: list[DataEntry], *, year: int | None, unit_id: int | None
-    ) -> tuple[list[int], list[DataEntryEmission]]:
+    ) -> tuple[list[int], list[DataEntryEmissionRow]]:
         """Compute emissions for ``entries``, sharing resolver/cache/slice state.
 
         Groups by ``data_entry_type_id`` (a report mixes module types, each
@@ -741,7 +918,7 @@ class SimulatorPlanService:
             by_type.setdefault(entry.data_entry_type_id, []).append(entry)
 
         entry_ids: list[int] = []
-        prepared_emissions: list[DataEntryEmission] = []
+        prepared_emissions: list[DataEntryEmissionRow] = []
         for data_entry_type_id, group in by_type.items():
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry_type_id)

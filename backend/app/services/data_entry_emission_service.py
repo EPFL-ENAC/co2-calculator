@@ -9,6 +9,7 @@ from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonRep
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
+    DataEntryEmissionRow,
     EmissionComputation,
     FactorQuery,
 )
@@ -279,7 +280,7 @@ class DataEntryEmissionService:
         return float((await self.session.exec(stmt)).one())
 
     async def prefetch_percentage_override_cache(
-        self, entries: list[DataEntry], *, unit_id: int | None
+        self, entries: list[DataEntry] | list[DataEntryResponse], *, unit_id: int | None
     ) -> dict[int, dict[int, float]]:
         """Bulk-preload ``source_data_entry_id`` sums for a batch of entries.
 
@@ -351,7 +352,7 @@ class DataEntryEmissionService:
         slice_cache: dict | None = None,
         factor_resolver: FactorResolver | None = None,
         override_cache: dict[int, dict[int, float]] | None = None,
-    ) -> list[DataEntryEmission]:
+    ) -> list[DataEntryEmissionRow]:
         """Prepare emission records for any data entry type.
         TODO: Make this function readable!
         Orchestrates the pipeline below. The resolver-derived primary factor
@@ -389,7 +390,8 @@ class DataEntryEmissionService:
                 get a fresh one built here.
 
         Returns:
-            Ready-to-insert ``DataEntryEmission`` rows; empty on any failure.
+            Ready-to-insert emission rows (lightweight, not the real ORM
+            model — see ``DataEntryEmissionRow``); empty on any failure.
         """
         if not data_entry or data_entry.data_entry_type is None:
             logger.error("DataEntry must have a data_entry_type.")
@@ -496,7 +498,7 @@ class DataEntryEmissionService:
         # Add factor year to context for year-specific formulas
         ctx["_year"] = year
 
-        results: list[DataEntryEmission] = []
+        results: list[DataEntryEmissionRow] = []
 
         for emission_type in emission_types:
             computations = handler.resolve_computations(data_entry, emission_type, ctx)
@@ -519,7 +521,7 @@ class DataEntryEmissionService:
                     )
                     if override_kg is not None:
                         results.append(
-                            DataEntryEmission(
+                            DataEntryEmissionRow(
                                 data_entry_id=data_entry.id,
                                 emission_type_id=emission_type.value,
                                 primary_factor_id=None,
@@ -545,7 +547,7 @@ class DataEntryEmissionService:
                         f"data_entry_id={data_entry.id!r}"
                     )
                     results.append(
-                        DataEntryEmission(
+                        DataEntryEmissionRow(
                             data_entry_id=data_entry.id,
                             emission_type_id=comp.emission_type.value,
                             primary_factor_id=None,
@@ -607,7 +609,7 @@ class DataEntryEmissionService:
                         else None
                     )
                     results.append(
-                        DataEntryEmission(
+                        DataEntryEmissionRow(
                             data_entry_id=data_entry.id,
                             emission_type_id=_et_id,
                             primary_factor_id=factor.id,
@@ -639,7 +641,7 @@ class DataEntryEmissionService:
                 default=None,
             )
             results.append(
-                DataEntryEmission(
+                DataEntryEmissionRow(
                     data_entry_id=data_entry.id,
                     emission_type_id=rollup_type.value,
                     primary_factor_id=primary_factor_id,
@@ -856,13 +858,18 @@ class DataEntryEmissionService:
     async def create(self, data_entry: DataEntryResponse) -> list[DataEntryEmission]:
         """Create emissions for a data entry, if applicable.
 
-        Returns a list of created emission records.
+        Returns a list of created emission records. Single-entry path — the
+        one place besides ``upsert_by_data_entry`` that genuinely needs real
+        ``session.add()``ed rows, so ``prepare_create``'s lightweight rows
+        are materialized here, not left lightweight like the bulk paths.
         """
         emission_records = await self.prepare_create(data_entry)
         if not emission_records:
             return []
 
-        created_emissions = await self.repo.bulk_create(emission_records)
+        created_emissions = await self.repo.bulk_create(
+            [row.to_orm() for row in emission_records]
+        )
         return created_emissions
 
     async def bulk_create(
@@ -872,10 +879,18 @@ class DataEntryEmissionService:
         created_emissions = await self.repo.bulk_create(emission_records)
         return created_emissions
 
+    async def bulk_copy(self, emissions: list[DataEntryEmissionRow]) -> int:
+        """Bulk-insert freshly computed rows with nothing to replace first.
+
+        For prefill-style callers writing brand-new entries — mirrors
+        ``bulk_replace_for_entries`` minus the delete half.
+        """
+        return await self.repo.bulk_copy(emissions)
+
     async def bulk_replace_for_entries(
         self,
         data_entry_ids: list[int],
-        emissions: list[DataEntryEmission],
+        emissions: list[DataEntryEmissionRow],
     ) -> int:
         """Replace the emissions of a whole recalc slice in two set
         operations: one chunked DELETE over ``data_entry_ids``, one COPY
@@ -908,8 +923,11 @@ class DataEntryEmissionService:
         # Delete existing emissions
         await self.repo.delete_by_data_entry_id(data_entry_response.id)
 
-        # Create new emissions
-        created_emissions = await self.repo.bulk_create(prepared_emissions)
+        # Create new emissions — single-entry path, materialize real rows
+        # (see create()'s docstring for why the bulk paths don't).
+        created_emissions = await self.repo.bulk_create(
+            [row.to_orm() for row in prepared_emissions]
+        )
         return created_emissions
 
     async def get_stats(

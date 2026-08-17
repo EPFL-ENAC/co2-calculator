@@ -6,6 +6,8 @@ from enum import Enum
 from sqlalchemy import Column, DateTime, Integer
 from sqlmodel import JSON, Field, SQLModel
 
+from app.models._field_defaults import default_dict, default_utcnow
+
 
 class DataEntryStatusEnum(int, Enum):
     PENDING = 0
@@ -117,7 +119,7 @@ class DataEntryBase(SQLModel):
         description="Reference to parent carbon report module instance",
     )
     data: dict = Field(
-        default_factory=dict,
+        default_factory=default_dict,
         sa_column=Column(JSON),
         description="Dynamic JSON storage for module-specific data",
     )
@@ -191,11 +193,11 @@ class DataEntry(DataEntryBase, table=True):
     )
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=default_utcnow,
         sa_column=Column(DateTime, default=datetime.utcnow, nullable=False),
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=default_utcnow,
         sa_column=Column(
             DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
         ),
