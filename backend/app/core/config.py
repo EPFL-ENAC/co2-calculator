@@ -618,6 +618,20 @@ class Settings(BaseSettings):
             "dropdown stays in sync without a hardcoded copy of its own."
         ),
     )
+    APP_MIN_REDUCTION_YEAR: int = Field(
+        default=1990,
+        description=(
+            "Earliest reference year a reduction objective goal may use. "
+            "Echoed in the year configuration response for the frontend."
+        ),
+    )
+    APP_MAX_REDUCTION_YEAR: int = Field(
+        default=2050,
+        description=(
+            "Latest reference year a reduction objective goal may use. "
+            "Echoed in the year configuration response for the frontend."
+        ),
+    )
 
 
 @lru_cache
