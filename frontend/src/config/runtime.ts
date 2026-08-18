@@ -69,4 +69,14 @@ export const runtimeConfig = {
     injected.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL ||
     process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL ||
     '',
+  // Project-planner horizon: bounds for the start/end year selects. No code
+  // default: values come from APP_PLANNER_MIN_YEAR / APP_PLANNER_MAX_YEAR
+  // (/injectEnv.js per-pod, .env.local in dev). Unset resolves to NaN and
+  // the year selects render empty.
+  plannerMinYear: Number(
+    injected.APP_PLANNER_MIN_YEAR || process.env.APP_PLANNER_MIN_YEAR || NaN,
+  ),
+  plannerMaxYear: Number(
+    injected.APP_PLANNER_MAX_YEAR || process.env.APP_PLANNER_MAX_YEAR || NaN,
+  ),
 } as const;

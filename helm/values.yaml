@@ -315,6 +315,10 @@ frontend:
     APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL: "https://access-management.example.com/about"
     APP_ROLES_DOC_URL: "https://docs.example.com/roles/"
     APP_EQUIPMENT_POWER_FEEDBACK_EMAIL: "test@epfl.ch"
+    # Project-planner horizon: bounds for the plan start/end year selects.
+    # No code default — unset leaves the year selects empty.
+    APP_PLANNER_MIN_YEAR: "2016"
+    APP_PLANNER_MAX_YEAR: "2050"
 
   podAnnotations: {}
 

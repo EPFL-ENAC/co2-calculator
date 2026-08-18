@@ -156,6 +156,7 @@ import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import { useRoute } from 'vue-router';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import { runtimeConfig } from 'src/config/runtime';
 
 import {
   useSimulatorPlansStore,
@@ -205,11 +206,11 @@ const isViewableByUnitMembers = computed({
   set: (value: boolean) => void saveShareWithLab(value),
 });
 
-// Fixed project horizon decided by the steering committee: plans may start
-// as early as 2019 and must end by 2050. Bounded selects replace free-form
-// validation entirely.
-const MIN_YEAR = 2016;
-const MAX_YEAR = 2050;
+// Project horizon (steering-committee decision, per-pod configurable via
+// APP_PLANNER_MIN_YEAR / APP_PLANNER_MAX_YEAR). Bounded selects replace
+// free-form validation entirely.
+const MIN_YEAR = runtimeConfig.plannerMinYear;
+const MAX_YEAR = runtimeConfig.plannerMaxYear;
 
 function yearRange(
   from: number,
