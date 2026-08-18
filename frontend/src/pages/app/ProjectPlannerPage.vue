@@ -170,12 +170,14 @@
                 })
               "
               :bordered="false"
+              :enforce-module-activation="false"
             />
             <ModuleCarbonFootprintChart
               v-else
               :breakdown-data="breakdown"
               :title="$t('planner_results_chart_title', { name: plan.name })"
               :bordered="false"
+              :enforce-module-activation="false"
             />
 
             <q-separator />

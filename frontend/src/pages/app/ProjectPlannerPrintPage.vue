@@ -191,6 +191,7 @@ onMounted(async () => {
             "
             :view-additional-data="true"
             :print-mode="true"
+            :enforce-module-activation="false"
           />
           <ModuleCarbonFootprintChart
             v-else
@@ -198,6 +199,7 @@ onMounted(async () => {
             :title="$t('planner_results_chart_title', { name: plan.name })"
             :view-additional-data="true"
             :print-mode="true"
+            :enforce-module-activation="false"
           />
         </section>
 

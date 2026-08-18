@@ -52,7 +52,10 @@ onMounted(async () => {
       </div>
 
       <section>
-        <ModuleCarbonFootprintChart :breakdown-data="breakdown" />
+        <ModuleCarbonFootprintChart
+          :breakdown-data="breakdown"
+          :enforce-module-activation="false"
+        />
       </section>
     </ReportPage>
 
