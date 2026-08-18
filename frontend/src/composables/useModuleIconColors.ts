@@ -25,6 +25,16 @@ export const SUBMODULE_TO_CATEGORY: Record<string, string> = {
   energy_combustion: 'buildings_energy_combustion',
 };
 
+// Inverse of SUBMODULE_TO_CATEGORY — lets a category key be traced back to
+// the submodule key that must also be active (e.g. results charts hiding a
+// category when its submodule is deactivated in the back-office).
+export const CATEGORY_TO_SUBMODULE: Record<string, string> = Object.fromEntries(
+  Object.entries(SUBMODULE_TO_CATEGORY).map(([submodule, category]) => [
+    category,
+    submodule,
+  ]),
+);
+
 export interface ModuleIconColors {
   iconColor: string;
   // Raw values for use on arbitrary elements (cards, etc.)

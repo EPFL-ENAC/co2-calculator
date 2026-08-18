@@ -150,117 +150,115 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
       </q-item-section>
     </template>
 
-    <template v-if="!submodule.factorsOnly">
-      <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
+    <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
+      <div class="row items-center q-mb-xs">
+        <q-icon
+          name="power_settings_new"
+          color="accent"
+          size="xs"
+          class="q-mr-sm"
+        />
+        <div class="text-body2 text-weight-medium">
+          {{ $t('data_management_submodule_activation_title') }}
+        </div>
+      </div>
+      <div class="text-caption text-secondary q-mb-sm">
+        {{ $t('data_management_submodule_activation_description') }}
+      </div>
+      <q-toggle
+        :model-value="isSubmoduleEnabled(submodule)"
+        color="accent"
+        keep-color
+        size="md"
+        @update:model-value="
+          (val: boolean) => updateSubmoduleEnabled(submodule, val)
+        "
+      />
+    </q-card>
+    <q-separator class="q-my-xs" />
+    <q-card
+      flat
+      class="col q-px-lg q-pt-lg q-pb-md"
+      :class="{ 'submodule-item--disabled': isSubmoduleDisabled(submodule) }"
+    >
+      <div class="row items-center q-mb-xs">
+        <q-icon name="edit_off" color="accent" size="xs" class="q-mr-sm" />
+        <div class="text-body2 text-weight-medium">
+          {{ $t('data_management_submodule_inputs_deactivation_title') }}
+        </div>
+      </div>
+      <div class="text-caption text-secondary q-mb-sm">
+        {{ $t('data_management_submodule_inputs_deactivation_description') }}
+      </div>
+      <div class="row items-center q-col-gutter-md">
+        <q-checkbox
+          :model-value="
+            submodule.forceInputsDeactivated ||
+            isSubmoduleInputsDeactivated(submodule)
+          "
+          color="accent"
+          :disable="!!submodule.forceInputsDeactivated"
+          :label="$t('data_management_submodule_inputs_deactivation_label')"
+          @update:model-value="
+            (val: boolean) =>
+              !submodule.forceInputsDeactivated &&
+              updateSubmoduleInputsDeactivated(submodule, val)
+          "
+        />
+        <q-checkbox
+          :model-value="isSubmoduleCsvDeactivated(submodule)"
+          color="accent"
+          :label="$t('data_management_submodule_csv_deactivation_label')"
+          @update:model-value="
+            (val: boolean) => updateSubmoduleCsvDeactivated(submodule, val)
+          "
+        />
+      </div>
+    </q-card>
+    <template v-if="!submodule.noThreshold">
+      <q-separator class="q-my-xs" />
+      <q-card
+        flat
+        class="col q-px-lg q-pt-lg q-pb-md"
+        :class="{
+          'submodule-item--disabled': isSubmoduleDisabled(submodule),
+        }"
+      >
         <div class="row items-center q-mb-xs">
           <q-icon
-            name="power_settings_new"
+            name="legend_toggle"
             color="accent"
             size="xs"
             class="q-mr-sm"
           />
           <div class="text-body2 text-weight-medium">
-            {{ $t('data_management_submodule_activation_title') }}
+            {{ $t('data_management_threshold_title') }}
           </div>
         </div>
         <div class="text-caption text-secondary q-mb-sm">
-          {{ $t('data_management_submodule_activation_description') }}
+          {{ $t('data_management_threshold_description') }}
         </div>
-        <q-toggle
-          :model-value="isSubmoduleEnabled(submodule)"
-          color="accent"
-          keep-color
+        <q-input
+          :model-value="getSubmoduleThreshold(submodule)"
+          type="number"
+          dense
+          outlined
           size="md"
+          :debounce="600"
+          :suffix="$t('kgco2eq')"
+          :placeholder="$t('no_threshold')"
+          style="max-width: 500px"
           @update:model-value="
-            (val: boolean) => updateSubmoduleEnabled(submodule, val)
+            (val: string | number | null) =>
+              updateSubmoduleThreshold(
+                submodule,
+                val === '' || val === null ? null : Number(val),
+              )
           "
         />
       </q-card>
-      <q-separator class="q-my-xs" />
-      <q-card
-        flat
-        class="col q-px-lg q-pt-lg q-pb-md"
-        :class="{ 'submodule-item--disabled': isSubmoduleDisabled(submodule) }"
-      >
-        <div class="row items-center q-mb-xs">
-          <q-icon name="edit_off" color="accent" size="xs" class="q-mr-sm" />
-          <div class="text-body2 text-weight-medium">
-            {{ $t('data_management_submodule_inputs_deactivation_title') }}
-          </div>
-        </div>
-        <div class="text-caption text-secondary q-mb-sm">
-          {{ $t('data_management_submodule_inputs_deactivation_description') }}
-        </div>
-        <div class="row items-center q-col-gutter-md">
-          <q-checkbox
-            :model-value="
-              submodule.forceInputsDeactivated ||
-              isSubmoduleInputsDeactivated(submodule)
-            "
-            color="accent"
-            :disable="!!submodule.forceInputsDeactivated"
-            :label="$t('data_management_submodule_inputs_deactivation_label')"
-            @update:model-value="
-              (val: boolean) =>
-                !submodule.forceInputsDeactivated &&
-                updateSubmoduleInputsDeactivated(submodule, val)
-            "
-          />
-          <q-checkbox
-            :model-value="isSubmoduleCsvDeactivated(submodule)"
-            color="accent"
-            :label="$t('data_management_submodule_csv_deactivation_label')"
-            @update:model-value="
-              (val: boolean) => updateSubmoduleCsvDeactivated(submodule, val)
-            "
-          />
-        </div>
-      </q-card>
-      <template v-if="!submodule.noThreshold">
-        <q-separator class="q-my-xs" />
-        <q-card
-          flat
-          class="col q-px-lg q-pt-lg q-pb-md"
-          :class="{
-            'submodule-item--disabled': isSubmoduleDisabled(submodule),
-          }"
-        >
-          <div class="row items-center q-mb-xs">
-            <q-icon
-              name="legend_toggle"
-              color="accent"
-              size="xs"
-              class="q-mr-sm"
-            />
-            <div class="text-body2 text-weight-medium">
-              {{ $t('data_management_threshold_title') }}
-            </div>
-          </div>
-          <div class="text-caption text-secondary q-mb-sm">
-            {{ $t('data_management_threshold_description') }}
-          </div>
-          <q-input
-            :model-value="getSubmoduleThreshold(submodule)"
-            type="number"
-            dense
-            outlined
-            size="md"
-            :debounce="600"
-            :suffix="$t('kgco2eq')"
-            :placeholder="$t('no_threshold')"
-            style="max-width: 500px"
-            @update:model-value="
-              (val: string | number | null) =>
-                updateSubmoduleThreshold(
-                  submodule,
-                  val === '' || val === null ? null : Number(val),
-                )
-            "
-          />
-        </q-card>
-      </template>
-      <q-separator v-if="submoduleShowsImportRow(submodule)" class="q-my-xs" />
     </template>
+    <q-separator v-if="submoduleShowsImportRow(submodule)" class="q-my-xs" />
 
     <div
       v-if="submoduleShowsImportRow(submodule)"

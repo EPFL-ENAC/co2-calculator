@@ -13,6 +13,7 @@ import {
   colors,
 } from 'src/constant/charts';
 import { useColorblindStore } from 'src/stores/colorblind';
+import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
 import {
   TooltipComponent,
   LegendComponent,
@@ -44,12 +45,29 @@ const props = defineProps<{
   showValidationPlaceholder?: boolean;
   title?: string;
   viewAdditionalData?: boolean;
+  /**
+   * Hide categories whose module/submodule is deactivated in the current
+   * year's back-office config. Defaults on for single-year workspace
+   * contexts; callers that aggregate data across multiple years/units with
+   * no single "current year" config loaded (e.g. the back-office Reporting
+   * page) must opt out — yearConfigStore only ever holds one year's
+   * config, so applying it there would silently hide every category or
+   * apply an arbitrary year's rules to the aggregate.
+   */
+  enforceModuleActivation?: boolean;
 }>();
 
 const { t } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
 const isColorblind = computed(() => colorblindStore.enabled);
+const { isCategoryModuleActive } = useModuleCategoriesAvailability();
+const enforceModuleActivation = computed(
+  () => props.enforceModuleActivation ?? true,
+);
+function isCategoryVisible(categoryKey: string): boolean {
+  return !enforceModuleActivation.value || isCategoryModuleActive(categoryKey);
+}
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
   () => props.viewAdditionalData ?? toggleAdditionalData.value,
@@ -198,7 +216,7 @@ function encodeFor(categoryAxis: string, valueAxis: string) {
 
 const seriesArray = computed(() => {
   const barMaxWidth = isPrintMode.value ? 40 : undefined;
-  return [
+  const allSeries = [
     {
       name: t('charts-process-emissions-category'),
       type: 'bar' as const,
@@ -314,6 +332,7 @@ const seriesArray = computed(() => {
       : []),
     ...additionalSeriesData.value,
   ];
+  return allSeries.filter((s) => isCategoryVisible(String(s.encode.y)));
 });
 
 const chartTooltipOption = computed(() => {
@@ -336,6 +355,7 @@ const chartTooltipOption = computed(() => {
       const p = param as Record<string, unknown>;
       const series = seriesArray.value.find((s) => s.name === p.seriesName);
       const key = series?.encode.y;
+      if (!key) continue;
       const dataValue = Number(data?.[key]) || 0;
       if (dataValue > 0 && series) {
         rows.push({
@@ -451,9 +471,11 @@ const downloadCSV = () => {
 
   const headers = [
     ...new Set(datasetSource.value.flatMap((item) => Object.keys(item))),
-  ].sort((a, b) =>
-    a === 'category' ? -1 : b === 'category' ? 1 : a.localeCompare(b),
-  );
+  ]
+    .filter((key) => key === 'category' || isCategoryVisible(key))
+    .sort((a, b) =>
+      a === 'category' ? -1 : b === 'category' ? 1 : a.localeCompare(b),
+    );
 
   const csv = [
     headers.map(escape).join(','),
