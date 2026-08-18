@@ -13,6 +13,7 @@ from app.services.data_entry_emission_service import (
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
     BaseTableauApiProvider,
+    CaptionSpec,
     StatsDict,
 )
 
@@ -54,29 +55,29 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
     # loud instead of silently dropping a column. Do NOT add "IN_Centre
     # financier" here — the Tableau service team requires the calculated
     # "Centre financier" field.
-    REQUIRED_CAPTIONS: list[str] = [
-        "OUT_CO2_CORRECTED",
-        "OUT_DISTANCE_CORRECTED",
-        "SCIPER",
-        "Centre financier",
-        "IN_Departure date",
-        "IN_Segment class",
-        "IN_Segment destination airport code",
-        "IN_Segment origin airport code",
-        "IN_Supplier",
-        "IN_Ticket number",
-        "PASSENGER_TYPE",
-        "ROUND_TRIP",
-        "TRANSPORT_TYPE",
-        "Number of trips",
+    REQUIRED_CAPTIONS: list[CaptionSpec] = [
+        CaptionSpec("OUT_CO2_CORRECTED"),
+        CaptionSpec("OUT_DISTANCE_CORRECTED"),
+        CaptionSpec("SCIPER"),
+        CaptionSpec("Centre financier"),
+        CaptionSpec("IN_Departure date"),
+        CaptionSpec("IN_Segment class"),
+        CaptionSpec("IN_Segment destination airport code"),
+        CaptionSpec("IN_Segment origin airport code"),
+        CaptionSpec("IN_Supplier"),
+        CaptionSpec("IN_Ticket number"),
+        CaptionSpec("PASSENGER_TYPE"),
+        CaptionSpec("ROUND_TRIP"),
+        CaptionSpec("TRANSPORT_TYPE"),
+        CaptionSpec("Number of trips"),
     ]
 
     # Feed-quality diagnostics only — OUT_* fields are Tableau-computed and
     # always present, so they're excluded from the missing-value count.
     MISSING_VALUE_FIELDS: list[str] = [
-        c
+        c.field
         for c in REQUIRED_CAPTIONS
-        if c not in ("OUT_CO2_CORRECTED", "OUT_DISTANCE_CORRECTED")
+        if c.field not in ("OUT_CO2_CORRECTED", "OUT_DISTANCE_CORRECTED")
     ]
 
     def _log_missing_field_stats(self, raw_data: list[dict[str, Any]]) -> None:

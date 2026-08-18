@@ -17,6 +17,7 @@ from app.schemas.user import UserRead
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
     BaseTableauApiProvider,
+    CaptionSpec,
     StatsDict,
 )
 
@@ -62,12 +63,12 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
     #     "user_institutional_id",
     #     "ISODate",
 
-    REQUIRED_CAPTIONS: list[str] = [
-        CAPTION_NAME,
-        CAPTION_SCIPER,
-        CAPTION_SIUS,
-        CAPTION_FTE,
-        CAPTION_UNIT,
+    REQUIRED_CAPTIONS: list[CaptionSpec] = [
+        CaptionSpec(CAPTION_NAME),
+        CaptionSpec(CAPTION_SCIPER),
+        CaptionSpec(CAPTION_SIUS),
+        CaptionSpec(CAPTION_FTE),
+        CaptionSpec(CAPTION_UNIT),
     ]
 
     async def transform_data(
