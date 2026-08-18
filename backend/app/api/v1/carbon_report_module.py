@@ -25,16 +25,16 @@ from app.core.policy import (
     check_module_permission_for_report,
     check_module_permission_for_unit,
     get_module_permission_decision,
+    has_global_or_principal_access_for_unit,
     require_plan_scope_for_report,
 )
-from app.core.role_priority import pick_role_for_institutional_id
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
     MODULE_TYPE_TO_DATA_ENTRY_TYPES,
     ModuleTypeEnum,
 )
 from app.models.unit import Unit
-from app.models.user import GlobalScope, RoleName, User
+from app.models.user import GlobalScope, User
 from app.modules.emissions.registry import is_additional_breakdown_emission
 from app.modules.emissions.taxonomy import EmissionType
 from app.modules.headcount import (
@@ -192,19 +192,8 @@ def _has_global_or_principal_access_for_unit(
     current_user: User,
     unit: Unit | None,
 ) -> bool:
-    """Return whether the user has global or principal access for the unit.
-
-    ``RoleScope.institutional_id`` always stores ``Unit.institutional_id``.
-    """
-    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
-        return True
-    if unit is None:
-        return False
-    return (
-        unit.institutional_id is not None
-        and pick_role_for_institutional_id(current_user.roles, unit.institutional_id)
-        == RoleName.CO2_USER_PRINCIPAL
-    )
+    """Return whether the user has global or principal access for the unit."""
+    return has_global_or_principal_access_for_unit(current_user, unit)
 
 
 async def get_request_context(request: Request) -> dict:

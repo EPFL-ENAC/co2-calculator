@@ -15,6 +15,7 @@ from app.models.unit import Unit
 from app.models.user import (
     GlobalScope,
     Role,
+    RoleName,
     UnitScope,
     User,
     calculate_user_permissions,
@@ -537,6 +538,25 @@ def require_unit_access(current_user: User, unit: Unit | None) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access to this unit is not permitted.",
         )
+
+
+def has_global_or_principal_access_for_unit(
+    current_user: User,
+    unit: Unit | None,
+) -> bool:
+    """Return whether the user has global or principal access for the unit.
+
+    ``RoleScope.institutional_id`` always stores ``Unit.institutional_id``.
+    """
+    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
+        return True
+    if unit is None:
+        return False
+    return (
+        unit.institutional_id is not None
+        and pick_role_for_institutional_id(current_user.roles, unit.institutional_id)
+        == RoleName.CO2_USER_PRINCIPAL
+    )
 
 
 def plan_is_visible_to(current_user: User, project: Any) -> bool:
