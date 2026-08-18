@@ -778,8 +778,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # If the job targets a specific data_entry_type_id, only delete
         # entries for that type. Deleting all types for the module would
         # wipe sibling submodules (e.g. uploading research_facilities
-        # data would erase animal_facilities entries). Derived companion
-        # types ride along so their stale rows are replaced with the parent.
+        # data would erase animal_facilities entries). Derived types ride
+        # along so their stale rows are replaced with the parent.
         if self.job.data_entry_type_id is not None:
             pinned_type = DataEntryTypeEnum(self.job.data_entry_type_id)
             valid_entry_types = [
@@ -1408,10 +1408,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 f"{stats['rows_processed']} rows total"
             )
 
-        # Companion rows for derived data-entry types (all parent batches
-        # are committed by now; the parallel emission_recalc sibling chained
+        # Rows for derived data-entry types (all parent batches are
+        # committed by now; the parallel emission_recalc sibling chained
         # after the job prices them).
-        await self._create_derived_companions(data_entry_service)
+        await self._create_derived_entries(data_entry_service)
 
         # Move file from processing/ to processed/
         processing_path = setup_result["processing_path"]
@@ -1466,10 +1466,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             "stats": stats,
         }
 
-    async def _create_derived_companions(
+    async def _create_derived_entries(
         self, data_entry_service: DataEntryService
     ) -> None:
-        """Create companion entries for the job's derived data-entry types.
+        """Create entries for the job's derived data-entry types.
 
         Driven by ``DERIVED_DATA_ENTRY_TYPES`` so the base class stays
         module-agnostic; the type-specific derivation lives behind its
@@ -1485,21 +1485,21 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Late import: workflows import the service layer this module
         # belongs to.
-        from app.workflows.embodied_energy import EmbodiedEnergyWorkflow
+        from app.workflows.derived_entry_registry import DERIVED_ENTRY_WORKFLOWS
 
         parents = await data_entry_service.repo.list_by_creator_and_type(
             created_by_id=self.job_id,
             data_entry_type_id=pinned_type,
         )
         for derived_type in derived_types:
-            if derived_type == DataEntryTypeEnum.building_embodied_energy:
-                created = await EmbodiedEnergyWorkflow(
-                    self.data_session
-                ).create_companions_for(parents)
-                logger.info(
-                    f"Created {created} {derived_type.name} companion entries "
-                    f"from {len(parents)} {pinned_type.name} rows"
-                )
+            workflow_cls = DERIVED_ENTRY_WORKFLOWS[derived_type]
+            created = await workflow_cls(self.data_session).create_derived_entries_for(
+                parents
+            )
+            logger.info(
+                f"Created {created} {derived_type.name} entries "
+                f"from {len(parents)} {pinned_type.name} rows"
+            )
         await self.data_session.commit()
 
     async def _process_batch(

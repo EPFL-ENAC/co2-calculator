@@ -434,7 +434,7 @@ class DataEntryRepository:
 
         Used by the bulk ingest path to read back the rows a job just
         COPY-inserted (``bulk_copy`` never populates ``.id``) so derived
-        companion entries can FK-link them.
+        entries can FK-link them.
         """
         statement = select(DataEntry).where(
             col(DataEntry.created_by_id) == created_by_id,

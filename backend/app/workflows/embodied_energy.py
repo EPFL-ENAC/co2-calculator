@@ -15,38 +15,6 @@ from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 logger = get_logger(__name__)
 
 
-async def _resolve_building_embodied_energy_data(
-    room_cache: dict[str, BuildingRoom] | None,
-    session: AsyncSession,
-    data_entry_id: int,
-    data: dict,
-) -> dict | None:
-    """Build a ``building_embodied_energy`` payload from a ``building`` entry.
-
-    The room surface is resolved from the ``BuildingRoom`` reference table —
-    never read off the source entry's ``.data``, which does not persist it.
-    ``room_cache`` (a ``{room_name: BuildingRoom}`` map) replaces the per-room
-    query for bulk callers; ``None`` falls back to a direct ``get_room`` call.
-    Returns ``None`` when the entry or reference data is incomplete (skip,
-    don't default).
-    """
-    building_name = data.get("building_name")
-    room_name = data.get("room_name")
-    if not building_name or not room_name:
-        return None
-    if room_cache is not None:
-        room = room_cache.get(room_name)
-    else:
-        room = await BuildingRoomService(session).get_room(room_name=room_name)
-    if room is None or room.room_surface_square_meter is None:
-        return None
-    return {
-        "data_entry_id": data_entry_id,
-        "building_name": building_name,
-        "room_surface_square_meter": room.room_surface_square_meter,
-    }
-
-
 class EmbodiedEnergyWorkflow:
     """Workflow to calculate embodied energy emissions for a data entry."""
 
@@ -141,9 +109,8 @@ class EmbodiedEnergyWorkflow:
         background_tasks: BackgroundTasks,
     ) -> None:
         """Calculate embodied energy emissions for a new building data entry."""
-        embodied_energy_data = await _resolve_building_embodied_energy_data(
+        embodied_energy_data = await self._resolve_embodied_energy_data(
             room_cache=None,
-            session=self.session,
             data_entry_id=data_entry.id,
             data=data_entry.data,
         )
@@ -169,9 +136,8 @@ class EmbodiedEnergyWorkflow:
         request_context: dict,
         background_tasks: BackgroundTasks,
     ) -> None:
-        embodied_energy_data = await _resolve_building_embodied_energy_data(
+        embodied_energy_data = await self._resolve_embodied_energy_data(
             room_cache=None,
-            session=self.session,
             data_entry_id=data_entry.id,
             data=data_entry.data,
         )
@@ -198,33 +164,32 @@ class EmbodiedEnergyWorkflow:
                 background_tasks=background_tasks,
             )
 
-    async def create_companions_for(self, parent_entries: list[DataEntry]) -> int:
-        """Bulk-create ``building_embodied_energy`` companions for freshly
+    async def create_derived_entries_for(self, parent_entries: list[DataEntry]) -> int:
+        """Bulk-create ``building_embodied_energy`` entries for freshly
         ingested ``building`` entries. Returns the number of rows inserted.
 
         Straight map-and-insert: the bulk ingest's delete-then-recreate has
-        already removed stale companions, so no reconcile is needed. The whole
-        ``BuildingRoom`` table is prefetched once so resolution never queries
-        per row. Parents without resolvable reference data are skipped, same
-        as the interactive path.
+        already removed stale derived entries, so no reconcile is needed. The
+        whole ``BuildingRoom`` table is prefetched once so resolution never
+        queries per row. Parents without resolvable reference data are
+        skipped, same as the interactive path.
         """
         if not parent_entries:
             return 0
         rooms = await BuildingRoomService(self.session).list_rooms()
         room_cache = {room.room_name: room for room in rooms}
-        companions: list[DataEntry] = []
+        derived_entries: list[DataEntry] = []
         for parent in parent_entries:
             if parent.id is None:
                 continue
-            embodied_energy_data = await _resolve_building_embodied_energy_data(
+            embodied_energy_data = await self._resolve_embodied_energy_data(
                 room_cache=room_cache,
-                session=self.session,
                 data_entry_id=parent.id,
                 data=parent.data or {},
             )
             if embodied_energy_data is None:
                 continue
-            companions.append(
+            derived_entries.append(
                 DataEntry(
                     data_entry_type_id=DataEntryTypeEnum.building_embodied_energy.value,
                     carbon_report_module_id=parent.carbon_report_module_id,
@@ -236,15 +201,46 @@ class EmbodiedEnergyWorkflow:
                     unit_id=parent.unit_id,
                 )
             )
-        if not companions:
+        if not derived_entries:
             logger.info(
-                "create_companions_for: no resolvable rooms among "
+                "create_derived_entries_for: no resolvable rooms among "
                 f"{len(parent_entries)} building entries — nothing inserted"
             )
             return 0
         return await DataEntryService(self.session).bulk_copy(
-            companions, job_id=companions[0].created_by_id
+            derived_entries, job_id=derived_entries[0].created_by_id
         )
+
+    async def _resolve_embodied_energy_data(
+        self,
+        room_cache: dict[str, BuildingRoom] | None,
+        data_entry_id: int,
+        data: dict,
+    ) -> dict | None:
+        """Build a ``building_embodied_energy`` payload from a ``building`` entry.
+
+        The room surface is resolved from the ``BuildingRoom`` reference table —
+        never read off the source entry's ``.data``, which does not persist it.
+        ``room_cache`` (a ``{room_name: BuildingRoom}`` map) replaces the
+        per-room query for bulk callers; ``None`` falls back to a direct
+        ``get_room`` call. Returns ``None`` when the entry or reference data is
+        incomplete (skip, don't default).
+        """
+        building_name = data.get("building_name")
+        room_name = data.get("room_name")
+        if not building_name or not room_name:
+            return None
+        if room_cache is not None:
+            room = room_cache.get(room_name)
+        else:
+            room = await BuildingRoomService(self.session).get_room(room_name=room_name)
+        if room is None or room.room_surface_square_meter is None:
+            return None
+        return {
+            "data_entry_id": data_entry_id,
+            "building_name": building_name,
+            "room_surface_square_meter": room.room_surface_square_meter,
+        }
 
     async def _get_embodied_energy_entry_id(
         self, carbon_report_module_id: int, data_entry_id: int

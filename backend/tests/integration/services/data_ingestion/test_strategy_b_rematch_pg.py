@@ -784,7 +784,7 @@ async def test_building_embodied_energy_factor_values_change_propagates(pg_dsn):
         assert factor.id is not None
         factor_id: int = factor.id
 
-        # ``EmbodiedEnergyWorkflow._make_building_embodied_energy_data``
+        # ``EmbodiedEnergyWorkflow._resolve_embodied_energy_data``
         # bakes ``room_surface_square_meter`` directly into entry.data —
         # the handler has no pre_compute, so this is the only source.
         entry = DataEntry(

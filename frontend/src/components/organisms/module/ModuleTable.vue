@@ -1935,14 +1935,6 @@ function onFormSubmit(
 
   const perform = async () => {
     // Module-specific payload adjustments
-    if (
-      moduleType === MODULES.Buildings &&
-      props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building
-    ) {
-      // Display-only: the backend resolves the surface from the
-      // building-rooms reference table and must not receive a client value.
-      delete basePayload.room_surface_square_meter;
-    }
     if (moduleType === MODULES.Equipment) {
       // Backend will auto-resolve power_factor_id and power values
       // based on class/sub_class, so no need to fetch them here
