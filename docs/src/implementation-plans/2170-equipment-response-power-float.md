@@ -30,3 +30,26 @@ and the frontend (TS `number`, no int assumption) were already correct.
 validates `EquipmentHandlerResponse` against the exact stage payload;
 confirmed failing pre-fix with the reported `int_from_float` error,
 passing post-fix.
+
+## Swept for the same bug class elsewhere
+
+Same shape of bug: a data-entry response DTO field fed from
+`primary_factor.get(...)` / `factor_values.get(...)` whose type has drifted
+from the factor DTO that actually owns the value.
+
+- Imported every module's `data_entries.py` + `factors.py`
+  (`buildings`, `equipment`, `external_cloud_and_ai`, `headcount`,
+  `process_emissions`, `professional_travel`, `purchase`,
+  `research_facilities`), diffed `model_fields` base types (Optional/required
+  differences excluded — legitimate) for every field name shared between a
+  data-entry DTO and a factor DTO in the same module. Zero mismatches
+  remain after this fix.
+- Grepped every `handlers.py` for `primary_factor.get(...)` /
+  `factor_values.get(...)` written straight into a response dict, to find
+  which response fields are factor-enriched rather than user-entered (the
+  precondition for this bug class). Only `buildings`
+  (`heating_kwh_per_square_meter`, `cooling_kwh_per_square_meter`,
+  `ventilation_kwh_per_square_meter`, `lighting_kwh_per_square_meter`) shares
+  this shape with equipment — already `float` on both sides, no fix needed.
+
+No further PRs from this sweep.
