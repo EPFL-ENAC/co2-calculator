@@ -71,18 +71,20 @@
 
       <!-- One section per year of the range -->
       <template v-if="plansStore.planYears.length">
-        <planner-year-section
-          v-for="yearData in plansStore.planYears"
-          :key="yearData.id"
-          :plan-id="plan.id"
-          :year-data="yearData"
-          :unit-id="unitId"
-          :default-factor-year="plan.default_factor_year"
-          :reference-year-options="referenceYearOptions"
-          :expanded-keys="expandedKeys"
-          :project-years-count="projectYearsCount"
-          @toggle-module="onToggleModule"
-        />
+        <div class="year-sections">
+          <planner-year-section
+            v-for="yearData in plansStore.planYears"
+            :key="yearData.id"
+            :plan-id="plan.id"
+            :year-data="yearData"
+            :unit-id="unitId"
+            :default-factor-year="plan.default_factor_year"
+            :reference-year-options="referenceYearOptions"
+            :expanded-keys="expandedKeys"
+            :project-years-count="projectYearsCount"
+            @toggle-module="onToggleModule"
+          />
+        </div>
 
         <!-- Whole-plan results: every year of the range summed together -->
         <q-card flat bordered>
@@ -354,6 +356,13 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.year-sections {
+  display: grid;
+  gap: tokens.$spacing-md;
+}
+
 .results-blocks {
   display: grid;
   grid-template-columns: 1fr;

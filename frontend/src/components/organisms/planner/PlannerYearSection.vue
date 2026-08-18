@@ -548,7 +548,7 @@ const authStore = useAuthStore();
 const moduleStore = useModuleStore();
 const plansStore = useSimulatorPlansStore();
 
-const yearOpen = ref(true);
+const yearOpen = ref(false);
 const settingReferenceYear = ref(false);
 const referenceYearDialogOpen = ref(false);
 const togglingModuleId = ref<number | null>(null);
