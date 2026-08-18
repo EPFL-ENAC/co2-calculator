@@ -67,9 +67,10 @@ backend:
 
   secrets:
     # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
-    # Generate a secure key using: openssl rand -hex 32
+    # Generate a secure, distinct value for EACH key using: openssl rand -hex 32
     # Use backend.existingSecret.enabled=true for production environments
-    SECRET_KEY: "" # REQUIRED: Must be set via --set flag or existing secret
+    JWT_HMAC_KEY: "" # REQUIRED: JWT signing key. Must be set via --set flag or existing secret
+    SESSION_HMAC_KEY: "" # REQUIRED: OAuth-flow session cookie signing key. Must be set via --set flag or existing secret
 
     # OAuth/OIDC Configuration (optional, for future OAuth implementation)
     # OAUTH_CLIENT_ID: ""  # OAuth2 client ID from your identity provider
@@ -148,11 +149,12 @@ backend:
   existingSecret:
     # Default: reference a pre-existing Secret (production path).
     # For local/dev chart-managed secrets, set enabled=false and provide
-    # backend.secrets.SECRET_KEY.
+    # backend.secrets.JWT_HMAC_KEY / backend.secrets.SESSION_HMAC_KEY.
     enabled: true
     name: "" # REQUIRED when enabled=true: name of the pre-existing Secret
     keys:
-      secretKeyKey: SECRET_KEY # Key in the existing secret for SECRET_KEY
+      jwtHmacKeyKey: JWT_HMAC_KEY # Key in the existing secret for JWT_HMAC_KEY
+      sessionHmacKeyKey: SESSION_HMAC_KEY # Key in the existing secret for SESSION_HMAC_KEY
       oauthClientIdKey: OAUTH_CLIENT_ID # Key in the existing secret for OAuth client ID
       oauthClientSecretKey: OAUTH_CLIENT_SECRET # Key in the existing secret for OAuth client secret
       oauthIssuerUrlKey: OAUTH_ISSUER_URL # Key in the existing secret for OAuth issuer URL
