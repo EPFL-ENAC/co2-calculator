@@ -24,7 +24,7 @@ hack with a deterministic representation that:
 
 1. Displays a named person from Headcount when resolvable.
 2. Displays "Internal other" for a SCIPER-bearing traveler who isn't in
-   *this unit's* Headcount roster (wrong unit, not yet synced, or a
+   _this unit's_ Headcount roster (wrong unit, not yet synced, or a
    third-party id Headcount has never heard of).
 3. Displays "External other" for a traveler with no SCIPER at all.
 
@@ -49,11 +49,11 @@ with one.
 
 Adapted sentinel scheme (decided in brainstorming, 2026-08-14):
 
-| Stored `data.user_institutional_id` | Meaning |
-|---|---|
-| JSON key present, value `null` | Explicit External other |
-| `"-1"` (string) | Explicit Internal other |
-| Any other string | Source/institutional SCIPER — resolve against Headcount, scoped to `(carbon_report_module_id, sciper)` |
+| Stored `data.user_institutional_id` | Meaning                                                                                                |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| JSON key present, value `null`      | Explicit External other                                                                                |
+| `"-1"` (string)                     | Explicit Internal other                                                                                |
+| Any other string                    | Source/institutional SCIPER — resolve against Headcount, scoped to `(carbon_report_module_id, sciper)` |
 
 - **No new column.** No `traveller_type` field. No synthetic `User` rows.
 - **`null` is JSON-null with the key present**, not an absent key — matches
@@ -71,9 +71,10 @@ scattered literal comparisons):
 TRAVELER_OTHER_INTERNAL = "-1"
 TRAVELER_OTHER_EXTERNAL = None
 ```
+
 ```ts
 // frontend/src/constant/module-config/traveler-options.ts
-export const TRAVELER_OTHER_INTERNAL = '-1';
+export const TRAVELER_OTHER_INTERNAL = "-1";
 export const TRAVELER_OTHER_EXTERNAL = null;
 ```
 
@@ -92,21 +93,21 @@ else:
 
 **Unit scoping note:** the original PRD keys Headcount matching on
 `unit_id`. This codebase already scopes strictly tighter — on
-`carbon_report_module_id`, which pins both unit *and* report year. That's
+`carbon_report_module_id`, which pins both unit _and_ report year. That's
 already correct (a travel row must match the same report's Headcount
 snapshot, not just "some year for this unit") and requires no change.
 
 ## 4. Resolution matrix (canonical — tests must cover every row)
 
-| `user_institutional_id` | Matching Headcount `(carbon_report_module_id, sciper)` | Result |
-|---:|:---:|---|
-| `null` | N/A | **External other** |
-| `"-1"` | N/A | **Internal other** |
-| `"45005"` | Yes | **Headcount name** |
-| `"45005"` | No | **Internal other** |
-| `"12345"` | Yes | **Headcount name** |
-| `"12345"` | No | **Internal other** |
-| `"12345"` | Exists only for a different `carbon_report_module_id` | **Internal other** |
+| `user_institutional_id` | Matching Headcount `(carbon_report_module_id, sciper)` | Result             |
+| ----------------------: | :----------------------------------------------------: | ------------------ |
+|                  `null` |                          N/A                           | **External other** |
+|                  `"-1"` |                          N/A                           | **Internal other** |
+|               `"45005"` |                          Yes                           | **Headcount name** |
+|               `"45005"` |                           No                           | **Internal other** |
+|               `"12345"` |                          Yes                           | **Headcount name** |
+|               `"12345"` |                           No                           | **Internal other** |
+|               `"12345"` | Exists only for a different `carbon_report_module_id`  | **Internal other** |
 
 If an implementation detail conflicts with this table, the table wins.
 
@@ -150,13 +151,13 @@ these:
   resolution), `ModuleCharts.vue` (trips-map legend),
   `professional-travel.ts` / `planner-module-config/index.ts` (both only
   re-export the constants, no hardcoded sentinel strings — confirmed by
-  repo-wide grep). Swapping the two constants' *values* alone propagates
+  repo-wide grep). Swapping the two constants' _values_ alone propagates
   everywhere **except** two real bugs the swap would introduce:
 
   1. **`resolveTravelerName` (`traveler-options.ts:42`)** does
      `if (userInstitutionalId == null) return '-';` before the External
      check. A loose `== null` matches both `undefined` and `null` — once
-     External *is* `null`, this swallows it and always renders `'-'`
+     External _is_ `null`, this swallows it and always renders `'-'`
      instead of the label. Fix: `undefined` (no data loaded yet) → `'-'`;
      `null` (explicit External) → resolved label. Use `===`, not `==`.
   2. **`ModuleTable.vue:1352`** has the identical `== null` pre-check ahead
@@ -229,6 +230,7 @@ the §5 fixes.
 ## 9. Tests (resolution matrix + regressions)
 
 **Backend**
+
 - Extend `test_professional_travel_api_provider.py`: blank/None/whitespace
   SCIPER → `None` (not a string sentinel) — update the assertions already
   changed in PR #2117 to check `is None` instead of an `__other_external__`
@@ -242,6 +244,7 @@ the §5 fixes.
   accept `user_institutional_id: null`.
 
 **Frontend**
+
 - `resolveTravelerName` unit tests: `undefined` → `'-'`; `null` → External
   label; `"-1"` → Internal label; unresolved SCIPER (no `memberName`) →
   Internal label; resolved SCIPER (`memberName` set) → that name.
@@ -252,6 +255,7 @@ the §5 fixes.
   resolves to the External label via the `""`-keyed entry.
 
 **Migration**
+
 - `__other_internal__` → `"-1"`; `__other_external__` → JSON `null`
   (key present); untouched values (`"45005"`, real SCIPERs) unchanged;
   downgrade is the exact inverse.
@@ -265,7 +269,7 @@ the §5 fixes.
 4. Third-party SCIPERs (e.g. `45005`) are preserved unchanged whether or
    not they resolve.
 5. An unresolved SCIPER displays as Internal other; a SCIPER matching
-   Headcount for the *same* `carbon_report_module_id` displays that
+   Headcount for the _same_ `carbon_report_module_id` displays that
    person's name; a SCIPER matching Headcount only for a different
    module/unit/year does not resolve to that person.
 6. Legacy `__other_internal__` / `__other_external__` values are migrated;

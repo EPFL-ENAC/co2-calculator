@@ -52,7 +52,7 @@ pytest (`uv run pytest`); Vue 3 + Quasar 2, TypeScript, Playwright
   `user_institutional_id` as part of this plan. (PRD §5, §11)
 - Backend tests: `cd backend && uv run pytest <path> -q`. Frontend unit
   specs: `cd frontend && rtk playwright test -c playwright-ct.config.ts
-  <path>`. Frontend type-check (unproxied, per house rule — `rtk tsc` green
+<path>`. Frontend type-check (unproxied, per house rule — `rtk tsc` green
   does not guarantee `vue-tsc` passes): `cd frontend && make type-check`.
 
 ---
@@ -60,10 +60,12 @@ pytest (`uv run pytest`); Vue 3 + Quasar 2, TypeScript, Playwright
 ### Task 1: Backend — ingestion provider sentinel constants
 
 **Files:**
+
 - Modify: `backend/app/services/data_ingestion/api_providers/professional_travel_api_provider.py:21-25`
 - Test: `backend/tests/unit/services/data_ingestion/test_professional_travel_api_provider.py`
 
 **Interfaces:**
+
 - Produces: `TRAVELER_OTHER_INTERNAL: str = "-1"`, `TRAVELER_OTHER_EXTERNAL: None = None`, both importable from `app.services.data_ingestion.api_providers.professional_travel_api_provider`. `transform_data`'s existing blank-SCIPER branch (`sciper_raw if sciper_raw and str(sciper_raw).strip() else TRAVELER_OTHER_EXTERNAL`, line ~112-116) needs no edit — only the constant's value changes.
 
 - [ ] **Step 1: Add a failing assertion pinning the new sentinel type**
@@ -152,10 +154,12 @@ git commit -m "feat(travel-api): switch traveler sentinels to -1/null (#1153)"
 ### Task 2: Backend — nullable `user_institutional_id` on Create and Response DTOs
 
 **Files:**
+
 - Modify: `backend/app/modules/professional_travel/data_entries.py`
 - Test: Create `backend/tests/unit/modules/test_professional_travel_schemas.py`
 
 **Interfaces:**
+
 - Consumes: nothing from Task 1.
 - Produces: `ProfessionalTravelPlaneHandlerCreate.user_institutional_id: str | None`, `ProfessionalTravelTrainHandlerCreate.user_institutional_id: str | None`, `ProfessionalTravelPlaneHandlerResponse.user_institutional_id: str | None`, `ProfessionalTravelTrainHandlerResponse.user_institutional_id: str | None`. Task 3's repo test constructs rows relying on the Response DTO accepting `None`/`"-1"`.
 
@@ -283,19 +287,21 @@ git commit -m "feat(travel): accept null/-1 user_institutional_id on travel DTOs
 ### Task 3: Backend — end-to-end resolution matrix through the repo + safety comment
 
 **Files:**
+
 - Modify: `backend/app/repositories/data_entry_repo.py:870-880` (comment only, no logic change)
 - Test: `backend/tests/unit/repositories/test_data_entry_repo.py`
 
 **Interfaces:**
+
 - Consumes: `TRAVELER_OTHER_INTERNAL` from Task 1
   (`app.services.data_ingestion.api_providers.professional_travel_api_provider`),
   the widened Response DTOs from Task 2.
 - Produces: nothing new — this task only proves the existing
   `DataEntryRepository.get_submodule_data(carbon_report_module_id: int,
-  data_entry_type_id: int, limit: int, offset: int, sort_by: str,
-  sort_order: str, filter: str | None = None, institutional_id_filter: str
-  | None = None, exclude_planner_snapshots: bool = False) ->
-  SubmoduleResponse` round-trips the full matrix without raising and
+data_entry_type_id: int, limit: int, offset: int, sort_by: str,
+sort_order: str, filter: str | None = None, institutional_id_filter: str
+| None = None, exclude_planner_snapshots: bool = False) ->
+SubmoduleResponse` round-trips the full matrix without raising and
   without ever rewriting a stored value.
 
 - [ ] **Step 1: Write the failing (well: currently-erroring) test**
@@ -443,9 +449,11 @@ git commit -m "test(travel): pin traveler-sentinel resolution matrix through get
 ### Task 4: Backend — Alembic data migration for legacy sentinel values
 
 **Files:**
+
 - Create: `backend/alembic/versions/<generated>.py`
 
 **Interfaces:**
+
 - Consumes: nothing (pure data migration, independent of Tasks 1-3's Python code).
 - Produces: nothing consumed by later tasks.
 
@@ -512,7 +520,7 @@ def downgrade() -> None:
     )
 ```
 
-Note the downgrade's External-other `WHERE` clause: `data->>'user_institutional_id' IS NULL AND data::jsonb ? 'user_institutional_id'` — matches only rows where the key is *present* with a null value (this migration's own contract), not rows where the key is absent entirely (e.g. non-travel data entries, which have no such key at all and must not be touched). The `::jsonb` cast is required: `data_entries.data` is Postgres `json`, and the `?` (has-key) operator is `jsonb`-only — found and fixed during Task 4's implementation (2026-08-14), documented here for consistency.
+Note the downgrade's External-other `WHERE` clause: `data->>'user_institutional_id' IS NULL AND data::jsonb ? 'user_institutional_id'` — matches only rows where the key is _present_ with a null value (this migration's own contract), not rows where the key is absent entirely (e.g. non-travel data entries, which have no such key at all and must not be touched). The `::jsonb` cast is required: `data_entries.data` is Postgres `json`, and the `?` (has-key) operator is `jsonb`-only — found and fixed during Task 4's implementation (2026-08-14), documented here for consistency.
 
 Update the module docstring at the top of the generated file to explain the
 "why" (mirror the mice migration's docstring style): this migration exists
@@ -539,10 +547,12 @@ git commit -m "feat(db): migrate legacy __other_internal__/__other_external__ se
 ### Task 5: Frontend — `traveler-options.ts`: new sentinel values, fixed resolver, extracted cell/legend helpers
 
 **Files:**
+
 - Modify: `frontend/src/constant/module-config/traveler-options.ts`
 - Test: `frontend/tests/unit/travel-other-traveler.spec.ts`
 
 **Interfaces:**
+
 - Produces:
   - `TRAVELER_OTHER_INTERNAL: string = '-1'`
   - `TRAVELER_OTHER_EXTERNAL: null = null`
@@ -557,11 +567,11 @@ Replace the first test in `frontend/tests/unit/travel-other-traveler.spec.ts`
 renders `'-'`, which is the exact bug this task fixes:
 
 ```ts
-test('#1153: no data yet (undefined) renders a dash', () => {
-  expect(resolveTravelerName(undefined, undefined, t)).toBe('-');
+test("#1153: no data yet (undefined) renders a dash", () => {
+  expect(resolveTravelerName(undefined, undefined, t)).toBe("-");
 });
 
-test('#1153: explicit null (External other) resolves to the external label, not a dash', () => {
+test("#1153: explicit null (External other) resolves to the external label, not a dash", () => {
   expect(resolveTravelerName(null, undefined, t)).toBe(
     TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
   );
@@ -571,49 +581,61 @@ test('#1153: explicit null (External other) resolves to the external label, not 
 Append new tests for the two extracted helpers at the end of the file:
 
 ```ts
-import { resolveTravelerCellText, travelerSentinelMapEntries } from '../../src/constant/module-config/traveler-options';
+import {
+  resolveTravelerCellText,
+  travelerSentinelMapEntries,
+} from "../../src/constant/module-config/traveler-options";
 
-test('#1153: cell text — undefined id (loading) renders a dash', () => {
-  expect(resolveTravelerCellText(undefined, new Map(), undefined, 'Me', t)).toBe(
-    '-',
-  );
+test("#1153: cell text — undefined id (loading) renders a dash", () => {
+  expect(
+    resolveTravelerCellText(undefined, new Map(), undefined, "Me", t),
+  ).toBe("-");
 });
 
-test('#1153: cell text — external sentinel renders the external label', () => {
-  expect(resolveTravelerCellText(null, new Map(), undefined, 'Me', t)).toBe(
+test("#1153: cell text — external sentinel renders the external label", () => {
+  expect(resolveTravelerCellText(null, new Map(), undefined, "Me", t)).toBe(
     TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
   );
 });
 
-test('#1153: cell text — internal sentinel renders the internal label', () => {
+test("#1153: cell text — internal sentinel renders the internal label", () => {
   expect(
-    resolveTravelerCellText(TRAVELER_OTHER_INTERNAL, new Map(), undefined, 'Me', t),
+    resolveTravelerCellText(
+      TRAVELER_OTHER_INTERNAL,
+      new Map(),
+      undefined,
+      "Me",
+      t,
+    ),
   ).toBe(TRAVELER_OTHER_INTERNAL_LABEL_KEY);
 });
 
-test('#1153: cell text — matching roster entry wins over the raw SCIPER', () => {
-  const roster = new Map([['0184', 'Ada Lovelace']]);
-  expect(resolveTravelerCellText('0184', roster, undefined, 'Me', t)).toBe(
-    'Ada Lovelace',
+test("#1153: cell text — matching roster entry wins over the raw SCIPER", () => {
+  const roster = new Map([["0184", "Ada Lovelace"]]);
+  expect(resolveTravelerCellText("0184", roster, undefined, "Me", t)).toBe(
+    "Ada Lovelace",
   );
 });
 
-test('#1153: cell text — current user shortcut wins when not in the roster map yet', () => {
-  expect(resolveTravelerCellText('0184', new Map(), '0184', 'Ada Lovelace', t)).toBe(
-    'Ada Lovelace',
-  );
+test("#1153: cell text — current user shortcut wins when not in the roster map yet", () => {
+  expect(
+    resolveTravelerCellText("0184", new Map(), "0184", "Ada Lovelace", t),
+  ).toBe("Ada Lovelace");
 });
 
-test('#1153: cell text — unresolved SCIPER falls back to the internal label', () => {
-  expect(resolveTravelerCellText('999999', new Map(), undefined, 'Me', t)).toBe(
+test("#1153: cell text — unresolved SCIPER falls back to the internal label", () => {
+  expect(resolveTravelerCellText("999999", new Map(), undefined, "Me", t)).toBe(
     TRAVELER_OTHER_INTERNAL_LABEL_KEY,
   );
 });
 
 test('#1153: trips-map legend keys external under "" (matches the backend leg coercion)', () => {
   const entries = travelerSentinelMapEntries(t);
-  expect(entries).toContainEqual([TRAVELER_OTHER_INTERNAL, TRAVELER_OTHER_INTERNAL_LABEL_KEY]);
-  expect(entries).toContainEqual(['', TRAVELER_OTHER_EXTERNAL_LABEL_KEY]);
+  expect(entries).toContainEqual([
+    TRAVELER_OTHER_INTERNAL,
+    TRAVELER_OTHER_INTERNAL_LABEL_KEY,
+  ]);
+  expect(entries).toContainEqual(["", TRAVELER_OTHER_EXTERNAL_LABEL_KEY]);
 });
 ```
 
@@ -635,14 +657,14 @@ In `frontend/src/constant/module-config/traveler-options.ts`, change the
 constants (lines 15-16):
 
 ```ts
-export const TRAVELER_OTHER_INTERNAL = '__other_internal__';
-export const TRAVELER_OTHER_EXTERNAL = '__other_external__';
+export const TRAVELER_OTHER_INTERNAL = "__other_internal__";
+export const TRAVELER_OTHER_EXTERNAL = "__other_external__";
 ```
 
 to:
 
 ```ts
-export const TRAVELER_OTHER_INTERNAL = '-1';
+export const TRAVELER_OTHER_INTERNAL = "-1";
 export const TRAVELER_OTHER_EXTERNAL = null;
 ```
 
@@ -657,7 +679,7 @@ export function resolveTravelerName(
 ): string {
   // Only "no data yet" renders a dash. Once External other is a real
   // `null`, a loose `== null` here would swallow it too — use `===`.
-  if (userInstitutionalId === undefined) return '-';
+  if (userInstitutionalId === undefined) return "-";
   if (userInstitutionalId === TRAVELER_OTHER_EXTERNAL) {
     return t(TRAVELER_OTHER_EXTERNAL_LABEL_KEY);
   }
@@ -687,7 +709,7 @@ export function resolveTravelerCellText(
   currentUserDisplayName: string,
   t: (key: string) => string,
 ): string {
-  if (userInstitutionalId === undefined) return '-';
+  if (userInstitutionalId === undefined) return "-";
   if (userInstitutionalId !== null) {
     const member = headcountMembersMap.get(userInstitutionalId);
     if (member) return member;
@@ -710,7 +732,7 @@ export function travelerSentinelMapEntries(
 ): [string, string][] {
   return [
     [TRAVELER_OTHER_INTERNAL, t(TRAVELER_OTHER_INTERNAL_LABEL_KEY)],
-    ['', t(TRAVELER_OTHER_EXTERNAL_LABEL_KEY)],
+    ["", t(TRAVELER_OTHER_EXTERNAL_LABEL_KEY)],
   ];
 }
 ```
@@ -732,9 +754,11 @@ git commit -m "fix(travel): -1/null traveler sentinels, fix null-swallowed-to-da
 ### Task 6: Frontend — wire `ModuleTable.vue` to `resolveTravelerCellText`
 
 **Files:**
+
 - Modify: `frontend/src/components/organisms/module/ModuleTable.vue:508` (import), `:1346-1358` (`renderCell`'s `traveler_name` branch)
 
 **Interfaces:**
+
 - Consumes: `resolveTravelerCellText` from Task 5.
 
 - [ ] **Step 1: Replace the import**
@@ -742,13 +766,13 @@ git commit -m "fix(travel): -1/null traveler sentinels, fix null-swallowed-to-da
 Change line 508:
 
 ```ts
-import { resolveTravelerName } from 'src/constant/module-config/traveler-options';
+import { resolveTravelerName } from "src/constant/module-config/traveler-options";
 ```
 
 to:
 
 ```ts
-import { resolveTravelerCellText } from 'src/constant/module-config/traveler-options';
+import { resolveTravelerCellText } from "src/constant/module-config/traveler-options";
 ```
 
 (`resolveTravelerName` was only used at the one call site being replaced below — confirmed via repo-wide grep before this plan was written.)
@@ -758,33 +782,33 @@ import { resolveTravelerCellText } from 'src/constant/module-config/traveler-opt
 Replace:
 
 ```ts
-  if (col.field === 'traveler_name') {
-    const user_institutional_id = row['user_institutional_id'] as
-      string | undefined;
-    if (user_institutional_id == null) return '-';
-    const member = headcountMembersMap.value.get(user_institutional_id);
-    if (member) return member;
-    if (user_institutional_id === authStore.user?.institutional_id) {
-      return authStore.displayName;
-    }
-    return resolveTravelerName(user_institutional_id, undefined, $t);
+if (col.field === "traveler_name") {
+  const user_institutional_id = row["user_institutional_id"] as
+    string | undefined;
+  if (user_institutional_id == null) return "-";
+  const member = headcountMembersMap.value.get(user_institutional_id);
+  if (member) return member;
+  if (user_institutional_id === authStore.user?.institutional_id) {
+    return authStore.displayName;
   }
+  return resolveTravelerName(user_institutional_id, undefined, $t);
+}
 ```
 
 with:
 
 ```ts
-  if (col.field === 'traveler_name') {
-    const user_institutional_id = row['user_institutional_id'] as
-      string | null | undefined;
-    return resolveTravelerCellText(
-      user_institutional_id,
-      headcountMembersMap.value,
-      authStore.user?.institutional_id,
-      authStore.displayName,
-      $t,
-    );
-  }
+if (col.field === "traveler_name") {
+  const user_institutional_id = row["user_institutional_id"] as
+    string | null | undefined;
+  return resolveTravelerCellText(
+    user_institutional_id,
+    headcountMembersMap.value,
+    authStore.user?.institutional_id,
+    authStore.displayName,
+    $t,
+  );
+}
 ```
 
 - [ ] **Step 3: Type-check**
@@ -805,9 +829,11 @@ git commit -m "refactor(travel): wire ModuleTable traveler cell through resolveT
 ### Task 7: Frontend — wire `ModuleCharts.vue` to `travelerSentinelMapEntries`
 
 **Files:**
+
 - Modify: `frontend/src/components/organisms/module/ModuleCharts.vue:198-204` (imports), `:373-380` (`travelerSentinelLabels`)
 
 **Interfaces:**
+
 - Consumes: `travelerSentinelMapEntries` from Task 5.
 
 - [ ] **Step 1: Replace the sentinel import**
@@ -820,13 +846,13 @@ import {
   TRAVELER_OTHER_EXTERNAL,
   TRAVELER_OTHER_INTERNAL_LABEL_KEY,
   TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
-} from 'src/constant/module-config/traveler-options';
+} from "src/constant/module-config/traveler-options";
 ```
 
 to:
 
 ```ts
-import { travelerSentinelMapEntries } from 'src/constant/module-config/traveler-options';
+import { travelerSentinelMapEntries } from "src/constant/module-config/traveler-options";
 ```
 
 (none of the four removed symbols are used elsewhere in this file — confirmed via grep before this plan was written.)
@@ -863,7 +889,7 @@ async function loadTravelerNames(unitId: number, year: number | string) {
     // Still resolve the sentinels even if the roster fetch fails.
     travelerNames.value = new Map(travelerSentinelMapEntries(t));
     // Non-fatal: legs simply fall back to showing the raw SCIPER.
-    console.error('Failed to load headcount members for trips map', err);
+    console.error("Failed to load headcount members for trips map", err);
   }
 }
 ```
@@ -885,9 +911,11 @@ git commit -m "refactor(travel): wire ModuleCharts trips-map legend through trav
 ### Task 8: Frontend — widen `HeadcountMemberSelect.vue`'s option type
 
 **Files:**
+
 - Modify: `frontend/src/components/organisms/module/HeadcountMemberSelect.vue:70-73`
 
 **Interfaces:**
+
 - Consumes: `TRAVELER_OTHER_EXTERNAL` (now `null`) from Task 5.
 
 **Why this task exists:** `options` (line 99-109) already pushes `{ value:
@@ -942,6 +970,7 @@ git commit -m "fix(travel): widen HeadcountMemberSelect option type for null sen
 - [ ] **Step 1: Backend full targeted suite**
 
 Run:
+
 ```bash
 cd backend && uv run pytest \
   tests/unit/services/data_ingestion/test_professional_travel_api_provider.py \
@@ -951,16 +980,19 @@ cd backend && uv run pytest \
   tests/unit/v1/test_travel_table_visibility.py \
   -v
 ```
+
 Expected: PASS. Then run `cd backend && make lint` (ruff + mypy, per the backend `Makefile`'s `lint` target) and fix anything the sentinel type change surfaces.
 
 - [ ] **Step 2: Frontend full targeted suite + type-check**
 
 Run:
+
 ```bash
 cd frontend && rtk playwright test -c playwright-ct.config.ts tests/unit/travel-other-traveler.spec.ts
 cd frontend && make type-check
 cd frontend && npx eslint src/constant/module-config/traveler-options.ts src/components/organisms/module/ModuleTable.vue src/components/organisms/module/ModuleCharts.vue src/components/organisms/module/HeadcountMemberSelect.vue
 ```
+
 Expected: PASS, no lint errors.
 
 - [ ] **Step 3: Update PR #2117**
