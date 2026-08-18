@@ -100,7 +100,6 @@ onMounted(async () => {
             reportingEmissionBreakdown?.headcount_validated ?? false
           "
           :show-validation-placeholder="false"
-          :print-mode="true"
           :title="$t('backoffice_reporting_aggregated_results_per_fte_title')"
           :enforce-module-activation="false"
         />

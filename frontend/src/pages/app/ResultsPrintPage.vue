@@ -235,7 +235,6 @@ onMounted(async () => {
             :validated-categories="validatedCategories"
             :headcount-validated="headcountValidatedForPerPerson"
             :view-additional-data="viewAdditionalData"
-            :print-mode="true"
           />
         </section>
       </ReportPage>

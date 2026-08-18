@@ -717,9 +717,15 @@ const datasetSource = computed(() => {
   // they shouldn't render at all (not even greyed out). Skipped when the
   // caller has no single-year config loaded (see enforceModuleActivation).
   if (props.enforceModuleActivation) {
-    allData = allData.filter((item) =>
-      isCategoryModuleActive(String(item.category_key ?? '')),
-    );
+    allData = allData.filter((item) => {
+      const rawKey = String(
+        item.category_key ??
+          labelToKey.value[String(item.category ?? '')] ??
+          item.category ??
+          '',
+      );
+      return isCategoryModuleActive(rawKey);
+    });
   }
 
   // Partition into additional and main categories

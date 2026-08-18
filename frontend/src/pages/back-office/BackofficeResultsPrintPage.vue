@@ -115,7 +115,6 @@ onMounted(async () => {
           :validated-categories="validatedCategories"
           :headcount-validated="headcountValidated"
           :show-validation-placeholder="false"
-          :print-mode="true"
           :title="$t('backoffice_reporting_aggregated_results_per_fte_title')"
           :enforce-module-activation="false"
         />

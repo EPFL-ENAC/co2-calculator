@@ -38,35 +38,44 @@ import { usePrintMode } from 'src/composables/print/usePrintMode';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
 import { downloadCsv, escapeCsvValue } from 'src/utils/csvDownload';
 
-const props = defineProps<{
-  perPersonBreakdown?: Record<string, number> | null;
-  validatedCategories?: string[] | null;
-  headcountValidated?: boolean;
-  showValidationPlaceholder?: boolean;
-  title?: string;
-  viewAdditionalData?: boolean;
-  /**
-   * Hide categories whose module/submodule is deactivated in the current
-   * year's back-office config. Defaults on for single-year workspace
-   * contexts; callers that aggregate data across multiple years/units with
-   * no single "current year" config loaded (e.g. the back-office Reporting
-   * page) must opt out — yearConfigStore only ever holds one year's
-   * config, so applying it there would silently hide every category or
-   * apply an arbitrary year's rules to the aggregate.
-   */
-  enforceModuleActivation?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    perPersonBreakdown?: Record<string, number> | null;
+    validatedCategories?: string[] | null;
+    headcountValidated?: boolean;
+    showValidationPlaceholder?: boolean;
+    title?: string;
+    viewAdditionalData?: boolean;
+    /**
+     * Hide categories whose module/submodule is deactivated in the current
+     * year's back-office config. Defaults on for single-year workspace
+     * contexts; callers that aggregate data across multiple years/units with
+     * no single "current year" config loaded (e.g. the back-office Reporting
+     * page) must opt out — yearConfigStore only ever holds one year's
+     * config, so applying it there would silently hide every category or
+     * apply an arbitrary year's rules to the aggregate.
+     */
+    enforceModuleActivation?: boolean;
+  }>(),
+  {
+    perPersonBreakdown: null,
+    validatedCategories: null,
+    title: undefined,
+    enforceModuleActivation: true,
+  },
+);
 
 const { t } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
 const isColorblind = computed(() => colorblindStore.enabled);
 const { isCategoryModuleActive } = useModuleCategoriesAvailability();
-const enforceModuleActivation = computed(
-  () => props.enforceModuleActivation ?? true,
-);
+
 function isCategoryVisible(categoryKey: string): boolean {
-  return !enforceModuleActivation.value || isCategoryModuleActive(categoryKey);
+  if (props.enforceModuleActivation) {
+    return isCategoryModuleActive(categoryKey);
+  }
+  return true;
 }
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
@@ -332,7 +341,13 @@ const seriesArray = computed(() => {
       : []),
     ...additionalSeriesData.value,
   ];
-  return allSeries.filter((s) => isCategoryVisible(String(s.encode.y)));
+  return allSeries.filter((s) => {
+    const encode = s.encode as { x?: unknown; y?: unknown } | undefined;
+    const key = isPrintMode.value ? encode?.x : encode?.y;
+    const visible = isCategoryVisible(String(key ?? ''));
+    console.log(key, visible);
+    return visible;
+  });
 });
 
 const chartTooltipOption = computed(() => {
