@@ -1146,7 +1146,7 @@ async def test_get_submodule_data_populates_reference_kg_for_snapshot_rows(
         carbon_report_module_id=ref_module.id,
         data_entry_type_id=DataEntryTypeEnum.process_emissions,
         status=DataEntryStatusEnum.PENDING,
-        data={"category": "Refrigerant", "subcategory": "NF3", "quantity": 50},
+        data={"category": "Refrigerant", "subcategory": "NF3", "quantity_kg": 50},
         year=2025,
     )
     db_session.add(source_entry)
@@ -1188,7 +1188,7 @@ async def test_get_submodule_data_populates_reference_kg_for_snapshot_rows(
         data={
             "category": "Refrigerant",
             "subcategory": "NF3",
-            "quantity": 50,
+            "quantity_kg": 50,
             "source_data_entry_id": source_entry.id,
             "percentage_of_reference_year": 40,
         },
@@ -1198,7 +1198,7 @@ async def test_get_submodule_data_populates_reference_kg_for_snapshot_rows(
         carbon_report_module_id=plan_module.id,
         data_entry_type_id=DataEntryTypeEnum.process_emissions,
         status=DataEntryStatusEnum.PENDING,
-        data={"category": "CH4", "quantity": 65},
+        data={"category": "CH4", "quantity_kg": 65},
         year=2027,
     )
     db_session.add_all([snapshot_entry, plain_entry])

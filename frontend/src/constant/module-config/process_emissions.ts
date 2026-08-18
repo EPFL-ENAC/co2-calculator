@@ -45,8 +45,8 @@ const processEmissionsFields: ModuleField[] = [
       'module-process-emissions-submodule-process_emissions-table-subcategory',
   },
   {
-    id: 'quantity',
-    labelKey: `${MODULES.ProcessEmissions}.inputs.quantity`,
+    id: 'quantity_kg',
+    labelKey: `${MODULES.ProcessEmissions}.inputs.quantity_kg`,
     type: 'number',
     required: true,
     editableInline: true,

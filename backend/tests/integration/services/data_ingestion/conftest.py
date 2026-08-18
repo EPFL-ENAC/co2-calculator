@@ -462,6 +462,7 @@ _TRIMMED_CSV_FIXTURES: dict[tuple[str, str], str] = {
     ("purchases_common", "factors"): "purchases_common_factors_smoke.csv",
     ("external_clouds", "data"): "external_clouds_smoke.csv",
     ("processemissions", "data"): "process_emissions_smoke.csv",
+    ("processemissions", "legacy_quantity"): "process_emissions_legacy_quantity.csv",
     ("researchfacilities_common", "data"): "researchfacilities_common_smoke.csv",
     # Unit 3 — buildings (energy combustion + rooms)
     ("buildings_energycombustions", "data"): "building_energycombustions_smoke.csv",

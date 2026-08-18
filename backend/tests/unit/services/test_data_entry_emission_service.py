@@ -2050,7 +2050,7 @@ class TestPercentageOverrideSnapshotSource:
             data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
             carbon_report_module_id=10,
             data={
-                "quantity": 5.0,
+                "quantity_kg": 5.0,
                 "percentage_of_reference_year": 40,
                 "source_data_entry_id": 123,
             },
@@ -2088,7 +2088,7 @@ class TestPercentageOverrideSnapshotSource:
             data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
             carbon_report_module_id=10,
             data={
-                "quantity": 5.0,
+                "quantity_kg": 5.0,
                 "percentage_of_reference_year": 40,
                 "source_data_entry_id": 123,
             },
@@ -2109,7 +2109,7 @@ class TestPercentageOverrideSnapshotSource:
             data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
             carbon_report_module_id=10,
             data={
-                "quantity": 5.0,
+                "quantity_kg": 5.0,
                 "percentage_of_reference_year": 40,
                 "source_data_entry_id": 999,
             },

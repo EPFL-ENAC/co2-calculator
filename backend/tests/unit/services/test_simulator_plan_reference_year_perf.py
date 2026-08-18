@@ -242,7 +242,7 @@ async def _reference_report_with_entries(
             DataEntry(
                 data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
                 carbon_report_module_id=module.id,
-                data={"category": "co2", "quantity": float(i + 1)},
+                data={"category": "co2", "quantity_kg": float(i + 1)},
             )
         )
     await async_session.flush()
@@ -720,14 +720,14 @@ async def test_sync_year_reports_emissions_are_correct(async_session, user):
         if m.module_type_id == int(ModuleTypeEnum.process_emissions)
     )
     entries = await DataEntryRepository(async_session).list_by_module(module.id)
-    assert {e.data["quantity"] for e in entries} == {1.0, 2.0}
+    assert {e.data["quantity_kg"] for e in entries} == {1.0, 2.0}
 
     emission_repo = DataEntryEmissionService(async_session).repo
     kg_by_quantity = {}
     for e in entries:
         rows = await emission_repo.get_by_data_entry_id(e.id)
         assert rows, f"entry {e.id} has no persisted emissions"
-        kg_by_quantity[e.data["quantity"]] = sum(r.kg_co2eq for r in rows)
+        kg_by_quantity[e.data["quantity_kg"]] = sum(r.kg_co2eq for r in rows)
     # ef_kg_co2eq_per_unit=1.0, copied at 100% → kg_co2eq == quantity.
     assert kg_by_quantity == {1.0: 1.0, 2.0: 2.0}
 
@@ -761,14 +761,14 @@ async def test_set_reference_year_produces_correct_emissions_without_prefill_com
         if m.module_type_id == int(ModuleTypeEnum.process_emissions)
     )
     entries = await DataEntryRepository(async_session).list_by_module(module.id)
-    assert {e.data["quantity"] for e in entries} == {1.0, 2.0}
+    assert {e.data["quantity_kg"] for e in entries} == {1.0, 2.0}
 
     emission_repo = DataEntryEmissionService(async_session).repo
     kg_by_quantity = {}
     for e in entries:
         rows = await emission_repo.get_by_data_entry_id(e.id)
         assert rows, f"entry {e.id} has no persisted emissions"
-        kg_by_quantity[e.data["quantity"]] = sum(r.kg_co2eq for r in rows)
+        kg_by_quantity[e.data["quantity_kg"]] = sum(r.kg_co2eq for r in rows)
     # ef_kg_co2eq_per_unit=1.0 (see _seed_process_emissions_factor), so
     # kg_co2eq == quantity for each copied entry (100% of reference) — a
     # real, non-zero, non-default value, not just "some row exists."

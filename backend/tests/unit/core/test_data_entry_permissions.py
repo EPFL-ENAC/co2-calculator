@@ -130,7 +130,7 @@ MATRIX_CASES = [
         ModuleTypeEnum.process_emissions,
         DataEntryTypeEnum.process_emissions,
         Provenance.USER,
-        {"category", "subcategory", "quantity"},
+        {"category", "subcategory", "quantity_kg"},
     ),
     (
         ModuleTypeEnum.process_emissions,
