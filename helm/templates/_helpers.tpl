@@ -97,11 +97,16 @@ POLLER / DISPATCH_JOBS_INLINE) layered on top by the caller.
     secretKeyRef:
       name: {{ include "co2-calculator.databaseSecretName" . }}
       key: {{ .Values.database.existingSecret.keys.url }}
-- name: SECRET_KEY
+- name: JWT_HMAC_KEY
   valueFrom:
     secretKeyRef:
       name: {{ include "co2-calculator.backendSecretName" . }}
-      key: {{ .Values.backend.existingSecret.keys.secretKeyKey | default "SECRET_KEY" }}
+      key: {{ .Values.backend.existingSecret.keys.jwtHmacKeyKey | default "JWT_HMAC_KEY" }}
+- name: SESSION_HMAC_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "co2-calculator.backendSecretName" . }}
+      key: {{ .Values.backend.existingSecret.keys.sessionHmacKeyKey | default "SESSION_HMAC_KEY" }}
 - name: OAUTH_CLIENT_ID
   valueFrom:
     secretKeyRef:

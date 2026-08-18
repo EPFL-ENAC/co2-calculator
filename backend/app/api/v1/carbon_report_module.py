@@ -675,8 +675,6 @@ async def get_submodule(
     carbon_report_id: int,
     module_id: str,
     submodule_id: str,
-    request: Request,
-    background_tasks: BackgroundTasks,
     page: int = Query(default=1, ge=1, description="Page number"),
     limit: int = Query(default=100, le=1000, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
@@ -753,9 +751,6 @@ async def get_submodule(
         filter=filter,
         institutional_id_filter=institutional_id_filter,
         exclude_planner_snapshots=exclude_planner_snapshots,
-        current_user=UserRead.model_validate(current_user),
-        request_context=await get_request_context(request),
-        background_tasks=background_tasks,
     )
 
     if not submodule_data:

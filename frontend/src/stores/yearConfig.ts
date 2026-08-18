@@ -149,6 +149,12 @@ export interface YearConfigurationResponse {
    * own copy of the floor.
    */
   min_configurable_year: number;
+  /**
+   * Bounds a reduction objective's reference year must fall within, so the
+   * backoffice goal form derives its range from the backend.
+   */
+  min_reduction_year: number;
+  max_reduction_year: number;
 }
 
 /** Lightweight row from `GET /year-configuration/` (workspace year selector). */

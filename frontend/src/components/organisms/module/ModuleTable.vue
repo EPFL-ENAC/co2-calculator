@@ -1593,6 +1593,8 @@ async function commitInline(
   const rawVal = row[col.field];
 
   const valueToSave = (() => {
+    // Clear any previous error before validating
+    setError(row, col, null);
     if (isUsageField) {
       const activeVal = Number(row['active_usage_hours_per_week']) || 0;
       const standbyVal = Number(row['standby_usage_hours_per_week']) || 0;
@@ -1601,7 +1603,6 @@ async function commitInline(
         setError(row, col, validation.error);
         return null;
       }
-      setError(row, col, null);
       // parse raw value to number to ensure consistent type (could be string from input)
       const parsedVal = Number(rawVal);
       return Number.isFinite(parsedVal) ? parsedVal : rawVal;
@@ -1612,7 +1613,6 @@ async function commitInline(
         setError(row, col, validation.error);
         return null;
       }
-      setError(row, col, null);
       return validation.parsed;
     }
     if (isNumeric) {
@@ -1637,7 +1637,6 @@ async function commitInline(
         setError(row, col, $t('validation_must_be_at_most', { max: col.max }));
         return null;
       }
-      setError(row, col, null);
       return n;
     }
     return rawVal;

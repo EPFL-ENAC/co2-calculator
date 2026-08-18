@@ -401,7 +401,10 @@ async function handleDialogCompleted() {
           <template v-for="module in MODULES_LIST" :key="module">
             <ModuleConfig :module="module" />
           </template>
-          <ReductionObjectivesSection />
+          <ReductionObjectivesSection
+            :min-reduction-year="yearConfigStore.config.min_reduction_year"
+            :max-reduction-year="yearConfigStore.config.max_reduction_year"
+          />
           <q-inner-loading :showing="yearSyncInFlight" color="primary">
             <div class="text-center q-pa-md">
               <q-spinner-dots size="48px" color="primary" class="q-mb-md" />

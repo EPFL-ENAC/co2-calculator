@@ -12,7 +12,8 @@ from app.core.data_entry_permissions import submodule_policies
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.audit import AuditChangeTypeEnum
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 
 # from app.repositories.headcount_repo import HeadCountRepository
@@ -27,9 +28,17 @@ from app.schemas.carbon_report_response import (
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
 from app.schemas.user import UserRead
 from app.services.audit_service import AuditDocumentService
-from app.utils.audit_helpers import extract_handled_ids, extract_handled_ids_from_list
+from app.utils.audit_helpers import extract_handled_ids
 
 logger = get_logger(__name__)
+
+# Simulator entries are what-if scenarios — nothing is published from them, so
+# they carry no audit trail (#1958). The plan prefill already skips audit the
+# same way by inserting through Core.
+SIMULATOR_REPORT_TYPES = (
+    CarbonReportType.SIMULATOR_EXPLORE,
+    CarbonReportType.SIMULATOR_PLAN,
+)
 
 
 def _serialize_datetime(obj: Any) -> Any:
@@ -156,6 +165,37 @@ class DataEntryService:
             if entry.unit_id is None:
                 entry.unit_id = resolved[1]
 
+    async def simulator_module_ids(self, module_ids: set[int]) -> set[int]:
+        """Of ``module_ids``, those whose report belongs to a Simulator project.
+
+        One query per call, mirroring ``fill_denormalized_scope``. A module id
+        that resolves to nothing is absent from the result, so it stays
+        audited and the FK rejects it loudly downstream — skipping audit is a
+        positive Simulator match, never a lookup miss.
+        """
+        if not module_ids:
+            return set()
+        stmt = (
+            select(col(CarbonReportModule.id))
+            .join(
+                CarbonReport,
+                col(CarbonReport.id) == col(CarbonReportModule.carbon_report_id),
+            )
+            .join(
+                CarbonProject,
+                col(CarbonProject.id) == col(CarbonReport.carbon_project_id),
+            )
+            .where(
+                col(CarbonReportModule.id).in_(module_ids),
+                col(CarbonProject.carbon_report_type).in_(SIMULATOR_REPORT_TYPES),
+            )
+        )
+        return set((await self.session.execute(stmt)).scalars().all())
+
+    async def is_simulator_module(self, carbon_report_module_id: int) -> bool:
+        """Whether this module's report belongs to a Simulator project."""
+        return bool(await self.simulator_module_ids({carbon_report_module_id}))
+
     async def create(
         self,
         carbon_report_module_id: int,
@@ -192,32 +232,33 @@ class DataEntryService:
         await self.session.flush()
         await self.session.refresh(created_entry)
 
-        # Extract context information
-        request_context = request_context or {}
-        handled_ids = extract_handled_ids(
-            created_entry, DataEntryTypeEnum(data_entry_type_id)
-        )
+        if not await self.is_simulator_module(carbon_report_module_id):
+            # Extract context information
+            request_context = request_context or {}
+            handled_ids = extract_handled_ids(
+                created_entry, DataEntryTypeEnum(data_entry_type_id)
+            )
 
-        # Serialize data_snapshot to handle datetime objects
-        data_snapshot_str = json.dumps(
-            created_entry.model_dump(), default=_serialize_datetime
-        )
-        data_snapshot = json.loads(data_snapshot_str)
+            # Serialize data_snapshot to handle datetime objects
+            data_snapshot_str = json.dumps(
+                created_entry.model_dump(), default=_serialize_datetime
+            )
+            data_snapshot = json.loads(data_snapshot_str)
 
-        await self.versioning.create_version(
-            entity_type=self.repo.entity_type,
-            entity_id=created_entry.id or 0,
-            data_snapshot=data_snapshot,
-            change_type=AuditChangeTypeEnum.CREATE,
-            changed_by=user.id,
-            change_reason="Initial creation",
-            handler_id=user.institutional_id,
-            handled_ids=handled_ids,
-            ip_address=request_context.get("ip_address"),
-            route_path=request_context.get("route_path"),
-            route_payload=request_context.get("route_payload"),
-            background_tasks=background_tasks,
-        )
+            await self.versioning.create_version(
+                entity_type=self.repo.entity_type,
+                entity_id=created_entry.id or 0,
+                data_snapshot=data_snapshot,
+                change_type=AuditChangeTypeEnum.CREATE,
+                changed_by=user.id,
+                change_reason="Initial creation",
+                handler_id=user.institutional_id,
+                handled_ids=handled_ids,
+                ip_address=request_context.get("ip_address"),
+                route_path=request_context.get("route_path"),
+                route_payload=request_context.get("route_payload"),
+                background_tasks=background_tasks,
+            )
 
         # 5. return response
         return DataEntryResponse.model_validate(created_entry)
@@ -273,10 +314,15 @@ class DataEntryService:
             request_context = request_context or {}
             changed_by = user.id
             handler_id = user.institutional_id
+            simulator_modules = await self.simulator_module_ids(
+                {o.carbon_report_module_id for o in db_objs}
+            )
 
             # Build list of version metadata for bulk creation
             versions_data = []
             for obj in db_objs:
+                if obj.carbon_report_module_id in simulator_modules:
+                    continue
                 handled_ids = extract_handled_ids(
                     obj, DataEntryTypeEnum(obj.data_entry_type_id)
                 )
@@ -353,7 +399,7 @@ class DataEntryService:
         entries_to_delete = []
         snapshots = {}
         handled_ids_map = {}
-        if user:
+        if user and not await self.is_simulator_module(carbon_report_module_id):
             entries_to_delete = await self.repo.get_list(
                 carbon_report_module_id=carbon_report_module_id,
                 limit=10000,
@@ -441,7 +487,7 @@ class DataEntryService:
         entries_to_delete = []
         snapshots = {}
         handled_ids_map = {}
-        if user:
+        if user and not await self.is_simulator_module(carbon_report_module_id):
             entries_to_delete = await self.repo.get_list(
                 carbon_report_module_id=carbon_report_module_id,
                 limit=10000,
@@ -534,32 +580,33 @@ class DataEntryService:
 
             await self.session.refresh(entry)
 
-            # Extract context information
-            request_context = request_context or {}
-            handled_ids = extract_handled_ids(
-                entry, DataEntryTypeEnum(entry.data_entry_type_id)
-            )
+            if not await self.is_simulator_module(entry.carbon_report_module_id):
+                # Extract context information
+                request_context = request_context or {}
+                handled_ids = extract_handled_ids(
+                    entry, DataEntryTypeEnum(entry.data_entry_type_id)
+                )
 
-            # Serialize data_snapshot to handle datetime objects
-            data_snapshot_str = json.dumps(
-                entry.model_dump(), default=_serialize_datetime
-            )
-            data_snapshot = json.loads(data_snapshot_str)
+                # Serialize data_snapshot to handle datetime objects
+                data_snapshot_str = json.dumps(
+                    entry.model_dump(), default=_serialize_datetime
+                )
+                data_snapshot = json.loads(data_snapshot_str)
 
-            await self.versioning.create_version(
-                entity_type=self.repo.entity_type,
-                entity_id=entry.id or 0,
-                data_snapshot=data_snapshot,
-                change_type=AuditChangeTypeEnum.UPDATE,
-                changed_by=user.id,
-                change_reason="Data entry updated",
-                handler_id=user.institutional_id,
-                handled_ids=handled_ids,
-                ip_address=request_context.get("ip_address"),
-                route_path=request_context.get("route_path"),
-                route_payload=request_context.get("route_payload"),
-                background_tasks=background_tasks,
-            )
+                await self.versioning.create_version(
+                    entity_type=self.repo.entity_type,
+                    entity_id=entry.id or 0,
+                    data_snapshot=data_snapshot,
+                    change_type=AuditChangeTypeEnum.UPDATE,
+                    changed_by=user.id,
+                    change_reason="Data entry updated",
+                    handler_id=user.institutional_id,
+                    handled_ids=handled_ids,
+                    ip_address=request_context.get("ip_address"),
+                    route_path=request_context.get("route_path"),
+                    route_payload=request_context.get("route_payload"),
+                    background_tasks=background_tasks,
+                )
         except Exception as e:
             logger.error(f"Error updating data entry id={id}: {str(e)}")
             raise e
@@ -579,6 +626,8 @@ class DataEntryService:
         if entry is None:
             raise ValueError(f"Data entry with id={id} not found")
 
+        audited = not await self.is_simulator_module(entry.carbon_report_module_id)
+
         # Capture snapshot and handled_ids before deletion
         # Serialize data_snapshot to handle datetime objects
         data_snapshot_str = json.dumps(entry.model_dump(), default=_serialize_datetime)
@@ -597,20 +646,21 @@ class DataEntryService:
         request_context = request_context or {}
 
         # Create version record for deletion
-        await self.versioning.create_version(
-            entity_type=self.repo.entity_type,
-            entity_id=id,
-            data_snapshot=snapshot,
-            change_type=AuditChangeTypeEnum.DELETE,
-            changed_by=current_user.id,
-            change_reason="Data entry deleted",
-            handler_id=current_user.institutional_id,
-            handled_ids=handled_ids,
-            ip_address=request_context.get("ip_address"),
-            route_path=request_context.get("route_path"),
-            route_payload=request_context.get("route_payload"),
-            background_tasks=background_tasks,
-        )
+        if audited:
+            await self.versioning.create_version(
+                entity_type=self.repo.entity_type,
+                entity_id=id,
+                data_snapshot=snapshot,
+                change_type=AuditChangeTypeEnum.DELETE,
+                changed_by=current_user.id,
+                change_reason="Data entry deleted",
+                handler_id=current_user.institutional_id,
+                handled_ids=handled_ids,
+                ip_address=request_context.get("ip_address"),
+                route_path=request_context.get("route_path"),
+                route_payload=request_context.get("route_payload"),
+                background_tasks=background_tasks,
+            )
 
         return True
 
@@ -682,11 +732,15 @@ class DataEntryService:
         filter: str | None = None,
         institutional_id_filter: str | None = None,
         exclude_planner_snapshots: bool = False,
-        current_user: UserRead | None = None,
-        request_context: dict | None = None,
-        background_tasks: BackgroundTasks | None = None,
     ) -> SubmoduleResponse:
-        """Get module data for a unit and year."""
+        """Get module data for a unit and year.
+
+        Reads write nothing. The READ record this used to keep for
+        travel/headcount duplicated the mutation audit, as a version chain
+        over an empty snapshot keyed on the *module* — so the two submodule
+        fetches a Travel page issues in parallel raced each other's head swap
+        and 500ed (#1958). It also committed mid-read from a service.
+        """
         response = await self.repo.get_submodule_data(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
@@ -702,47 +756,6 @@ class DataEntryService:
             response.data_entry_policies = submodule_policies(
                 DataEntryTypeEnum(data_entry_type_id)
             )
-
-        if (
-            (current_user is not None and current_user.id is not None)
-            and (request_context is not None)
-            and (response is not None)
-            and (
-                data_entry_type_id == DataEntryTypeEnum.plane.value
-                or data_entry_type_id == DataEntryTypeEnum.train.value
-                or data_entry_type_id == DataEntryTypeEnum.member.value
-            )
-        ):
-            # for headcount and travel (plane/train), keep a READ audit record
-            # Create version record for read
-            extracted_handled_ids = extract_handled_ids_from_list(
-                list(response.items), DataEntryTypeEnum(data_entry_type_id)
-            )
-            # Note: To query all READ data_entries for a carbon_report_module_id,
-            # use entity_type='CarbonReportModule'.
-            # This is a temporary special case;
-            # future implementation will use a generic entity type
-            # (e.g., via AuditEntityTypeEnum).
-            await self.versioning.create_version(
-                entity_type="CarbonReportModule",
-                entity_id=carbon_report_module_id,
-                data_snapshot={},  # No snapshot for read operations
-                change_type=AuditChangeTypeEnum.READ,
-                changed_by=current_user.id,
-                change_reason=(
-                    f"Data entry read for "
-                    f"carbon_report_module_id {carbon_report_module_id} "
-                    f"and data_entry_type_id {data_entry_type_id}"
-                ),
-                handler_id=current_user.institutional_id,
-                handled_ids=extracted_handled_ids,
-                ip_address=request_context.get("ip_address"),
-                route_path=request_context.get("route_path"),
-                route_payload=request_context.get("route_payload"),
-                background_tasks=background_tasks,
-            )
-            # special case, we want to commit here, cause we don't commit in READ routes
-            await self.session.commit()
 
         return response
 

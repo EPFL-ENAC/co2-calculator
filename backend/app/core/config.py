@@ -164,18 +164,28 @@ class Settings(BaseSettings):
         description="Maximum file size in megabytes for uploads",
     )
 
-    # Security - REQUIRED in production
-    SECRET_KEY: str = Field(
-        default="CHANGE_ME_TO_A_SECURE_RANDOM_VALUE",
-        description="Secret key for JWT encoding/decoding (REQUIRED)",
+    # Security - REQUIRED outside local dev, enforced by assert_security_settings
+    # (app/main.py). Two separate signing keys, two separate blast radii:
+    # rotating one must not invalidate the other.
+    JWT_HMAC_KEY: str = Field(
+        default="",
+        description=(
+            "HMAC signing key for access/refresh JWTs (app/core/security.py). "
+            "REQUIRED. Must never be committed to source control — provide via "
+            "environment variables or a secret manager only."
+        ),
+    )
+    SESSION_HMAC_KEY: str = Field(
+        default="",
+        description=(
+            "HMAC signing key for Starlette's SessionMiddleware, which signs "
+            "the short-lived (60s) cookie used mid-OAuth-flow only (app/main.py). "
+            "REQUIRED. Deliberately separate from JWT_HMAC_KEY so rotating one "
+            "signing domain never invalidates the other."
+        ),
     )
 
     ALGORITHM: str = "HS256"
-
-    # OPA Configuration
-    OPA_URL: str = "http://localhost:8181"
-    OPA_TIMEOUT: float = 1.0
-    OPA_ENABLED: bool = False
 
     # Logging
     LOG_LEVEL: str = "INFO"
@@ -606,6 +616,20 @@ class Settings(BaseSettings):
             "``POST /year-configuration/{year}`` rejects anything below this "
             "floor; the GET response also echoes it so the frontend year "
             "dropdown stays in sync without a hardcoded copy of its own."
+        ),
+    )
+    APP_MIN_REDUCTION_YEAR: int = Field(
+        default=1990,
+        description=(
+            "Earliest reference year a reduction objective goal may use. "
+            "Echoed in the year configuration response for the frontend."
+        ),
+    )
+    APP_MAX_REDUCTION_YEAR: int = Field(
+        default=2050,
+        description=(
+            "Latest reference year a reduction objective goal may use. "
+            "Echoed in the year configuration response for the frontend."
         ),
     )
 

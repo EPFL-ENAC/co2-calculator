@@ -128,7 +128,7 @@ def test_jwt_alg_none_rejected(client, override_db):
 def test_jwt_wrong_alg_rejected(client, override_db):
     """A token signed with HS512 must be rejected when ALGORITHM=HS256."""
     settings = config.get_settings()
-    key = OctKey.import_key(settings.SECRET_KEY.encode())
+    key = OctKey.import_key(settings.JWT_HMAC_KEY.encode())
     forged = joserfc_jwt.encode(
         {"alg": "HS512"},
         {

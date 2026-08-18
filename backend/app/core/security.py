@@ -58,7 +58,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     expire = datetime.now(UTC) + expires_delta
     to_encode.update({"exp": expire})
 
-    key = OctKey.import_key(settings.SECRET_KEY.encode())
+    key = OctKey.import_key(settings.JWT_HMAC_KEY.encode())
     encoded_jwt = jwt.encode({"alg": settings.ALGORITHM}, to_encode, key)
     return encoded_jwt
 
@@ -72,7 +72,7 @@ def create_refresh_token(data: dict, expires_delta: timedelta | None = None) -> 
     expire = datetime.now(UTC) + expires_delta
     to_encode.update({"exp": expire})
 
-    key = OctKey.import_key(settings.SECRET_KEY.encode())
+    key = OctKey.import_key(settings.JWT_HMAC_KEY.encode())
     encoded_jwt = jwt.encode({"alg": settings.ALGORITHM}, to_encode, key)
     return encoded_jwt
 
@@ -83,7 +83,7 @@ def decode_jwt(token: str) -> dict:
     `jwt.decode` validates signature and algorithm but does NOT validate
     payload claims. The explicit `_CLAIMS_REGISTRY.validate` call below
     is what enforces `exp` (expiry) — without it expired tokens remain
-    valid until SECRET_KEY rotates.
+    valid until JWT_HMAC_KEY rotates.
 
     The 401 detail is intentionally opaque: callers don't need to know
     whether the failure was a bad signature, expired token, or invalid
@@ -92,7 +92,7 @@ def decode_jwt(token: str) -> dict:
     at INFO so it remains diagnosable server-side.
     """
     try:
-        key = OctKey.import_key(settings.SECRET_KEY.encode())
+        key = OctKey.import_key(settings.JWT_HMAC_KEY.encode())
         payload = jwt.decode(token, key, algorithms=[settings.ALGORITHM])
         _CLAIMS_REGISTRY.validate(payload.claims)
         return payload.claims
