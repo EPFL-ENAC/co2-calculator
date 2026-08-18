@@ -1025,6 +1025,8 @@ async def delete(
         f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
     )
+    submodule_key = submodule_id.replace("-", "_")
+    data_entry_type = DataEntryTypeEnum[submodule_key]
     try:
         request_context = await get_request_context(request)
 
@@ -1037,7 +1039,7 @@ async def delete(
         )
         await EmbodiedEnergyWorkflow(db).post_delete(
             carbon_report_module,
-            item_id,
+            data_entry_type.value,
             current_user=UserRead.model_validate(current_user),
             request_context=request_context,
             background_tasks=background_tasks,

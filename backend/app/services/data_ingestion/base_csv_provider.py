@@ -26,7 +26,11 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
-from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.models.module_type import (
+    DERIVED_DATA_ENTRY_TYPES,
+    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+    ModuleTypeEnum,
+)
 from app.models.unit import Unit
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
@@ -774,9 +778,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # If the job targets a specific data_entry_type_id, only delete
         # entries for that type. Deleting all types for the module would
         # wipe sibling submodules (e.g. uploading research_facilities
-        # data would erase animal_facilities entries).
+        # data would erase animal_facilities entries). Derived types ride
+        # along so their stale rows are replaced with the parent.
         if self.job.data_entry_type_id is not None:
-            valid_entry_types = [DataEntryTypeEnum(self.job.data_entry_type_id)]
+            pinned_type = DataEntryTypeEnum(self.job.data_entry_type_id)
+            valid_entry_types = [
+                pinned_type,
+                *DERIVED_DATA_ENTRY_TYPES.get(pinned_type, []),
+            ]
         else:
             valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
@@ -1452,6 +1461,36 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             "stats": stats,
         }
 
+    async def _create_derived_entries(self, batch: list[DataEntry]) -> None:
+        """Create derived rows for a just-inserted batch.
+
+        Driven by ``DERIVED_DATA_ENTRY_TYPES`` so the base class stays
+        module-agnostic: the registry only decides whether the job's pinned
+        type derives anything; each workflow picks its own source rows out
+        of the batch.
+        """
+        if self.job is None or self.job.data_entry_type_id is None:
+            return
+        pinned_type = DataEntryTypeEnum(self.job.data_entry_type_id)
+        derived_types = DERIVED_DATA_ENTRY_TYPES.get(pinned_type, [])
+        if not derived_types or self.job_id is None:
+            return
+
+        # Late import: workflows import the service layer this module
+        # belongs to.
+        from app.workflows.derived_entry_registry import DERIVED_ENTRY_WORKFLOWS
+
+        for derived_type in derived_types:
+            workflow_cls = DERIVED_ENTRY_WORKFLOWS[derived_type]
+            created = await workflow_cls(self.data_session).create_derived_entries_for(
+                batch
+            )
+            logger.info(
+                f"Created {created} {derived_type.name} entries "
+                f"from a batch of {len(batch)} rows"
+            )
+        await self.data_session.commit()
+
     async def _process_batch(
         self,
         batch: list[DataEntry],
@@ -1507,6 +1546,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         )
         logger.debug(f"COPY-inserted {inserted} data entries")
         await self.data_session.commit()
+
+        # Derived rows for this batch (the chained emission_recalc sibling
+        # prices them after the job).
+        await self._create_derived_entries(batch)
         return None
 
     async def _recompute_module_stats(self) -> None:

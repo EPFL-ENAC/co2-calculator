@@ -393,7 +393,7 @@ def build_energy_combustion() -> dict:
 
 def build_building_embodied_energy() -> dict:
     return {
-        "building_name": fake.last_name() + " Hall",
+        "room_name": f"R{random.randint(100, 999)}",  # nosec B311
     }
 
 

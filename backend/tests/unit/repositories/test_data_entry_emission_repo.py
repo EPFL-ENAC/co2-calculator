@@ -4,6 +4,7 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
+from app.models.building_room import BuildingRoom
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
@@ -767,7 +768,9 @@ async def test_embodied_energy_by_building_empty(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_embodied_energy_by_building_groups_by_name(db_session: AsyncSession):
-    """Emissions are grouped and summed per building_name."""
+    """Emissions are grouped and summed per building_name resolved from the
+    ``BuildingRoom`` reference row matching each entry's ``room_name``.
+    """
     repo = DataEntryEmissionRepository(db_session)
 
     module = CarbonReportModule(
@@ -776,19 +779,32 @@ async def test_embodied_energy_by_building_groups_by_name(db_session: AsyncSessi
         status=ModuleStatus.VALIDATED,
     )
     db_session.add(module)
+    for room, building in [
+        ("A-101", "Building A"),
+        ("A-102", "Building A"),
+        ("B-201", "Building B"),
+    ]:
+        db_session.add(
+            BuildingRoom(
+                building_location="EPFL",
+                building_name=building,
+                room_name=room,
+                room_surface_square_meter=10.0,
+            )
+        )
     await db_session.flush()
 
     entries = []
-    for building, kg in [
-        ("Building A", 100.0),
-        ("Building A", 200.0),
-        ("Building B", 50.0),
+    for room, kg in [
+        ("A-101", 100.0),
+        ("A-102", 200.0),
+        ("B-201", 50.0),
     ]:
         entry = DataEntry(
             carbon_report_module_id=module.id,
             data_entry_type_id=DataEntryTypeEnum.building_embodied_energy,
             status=DataEntryStatusEnum.PENDING,
-            data={"building_name": building},
+            data={"room_name": room},
         )
         db_session.add(entry)
         await db_session.flush()

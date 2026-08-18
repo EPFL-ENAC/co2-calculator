@@ -17,10 +17,12 @@ Buildings has three data-entry types (``MODULE_TYPE_TO_DATA_ENTRY_TYPES``):
   thermal — selected by the factor's energy_type; #1575).
 * ``energy_combustion`` — straight ``quantity × ef`` formula keyed by
   ``(unit, name)`` factor classification.
-* ``building_embodied_energy`` — *derived*: rows are created post-hoc
-  by ``EmbodiedEnergyWorkflow.post_create`` from the corresponding
-  ``building`` entry.  No CSV ingest path; covered for Strategy-B
-  recalc propagation only.
+* ``building_embodied_energy`` — *derived*: the ``EmbodiedEnergyWorkflow``
+  reconcile (interactive) and bulk derivation (ingest) keep one companion
+  per parent ``building`` entry.  The persisted payload is only
+  ``{"room_name"}``; ``pre_compute`` resolves ``building_name`` and
+  ``room_surface_square_meter`` from ``BuildingRoom``.  Covered here for
+  Strategy-B recalc propagation only.
 
 What this file pins
 ===================
@@ -540,6 +542,10 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
     ``primary_factor_id`` and the handler walks the live B-classification
     query in ``_fetch_factors`` for every entry.
 
+    Entries persist only ``{"room_name"}``; the surface and building name
+    resolve from the seeded ``BuildingRoom`` rows via the handler's
+    batched ``prefetch_slice``/``pre_compute`` pair.
+
     Distinct from the Strategy-B test's single-entry case.  The "exception"
     in the Unit-3 spec is that ALL embodied-energy DataEntry rows must
     propagate a factor change, including those that share a factor:
@@ -566,6 +572,26 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
     async with Sf() as s:
         module_id = await _seed_unit_module(s)
 
+        s.add_all(
+            [
+                BuildingRoom(
+                    building_location="EPFL",
+                    building_name="BC",
+                    room_name="BC-150",
+                    room_type="office",
+                    room_surface_square_meter=50.0,
+                ),
+                BuildingRoom(
+                    building_location="EPFL",
+                    building_name="AAB",
+                    room_name="AAB-010",
+                    room_type="office",
+                    room_surface_square_meter=80.0,
+                ),
+            ]
+        )
+        await s.commit()
+
         # The factor's ``classification`` carries ``building_name=default`` so
         # the handler's fallback (B-classification fallback chain) catches
         # both BC and AAB entries via the ``fallbacks={'building_name':
@@ -586,12 +612,12 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
         entry_a = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.building_embodied_energy.value,
             carbon_report_module_id=module_id,
-            data={"building_name": "BC", "room_surface_square_meter": 50.0},
+            data={"room_name": "BC-150"},
         )
         entry_b = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.building_embodied_energy.value,
             carbon_report_module_id=module_id,
-            data={"building_name": "AAB", "room_surface_square_meter": 80.0},
+            data={"room_name": "AAB-010"},
         )
         s.add_all([entry_a, entry_b])
         await s.commit()
