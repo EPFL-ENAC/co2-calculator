@@ -815,6 +815,12 @@ class DataEntryRepository:
         is_headcount_entry = data_entry_type_id in (
             DataEntryTypeEnum.member.value,
             DataEntryTypeEnum.student.value,
+            # #2050 Track H: planner_headcount already gets a rollup row
+            # from prepare_create (DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION maps
+            # it to EmissionType.headcount, same as member/student) — it
+            # was just never wired to read it, so it fell through to the
+            # unfiltered whole-table aggregation below (825ms in production).
+            DataEntryTypeEnum.planner_headcount.value,
         )
         is_equipment_entry = data_entry_type_id in EQUIPMENT_DATA_ENTRY_TYPE_IDS
         prev_equipment_ids: set[str] = set()
