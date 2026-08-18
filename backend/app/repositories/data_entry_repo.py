@@ -45,6 +45,11 @@ EQUIPMENT_DATA_ENTRY_TYPE_IDS = {
     DataEntryTypeEnum.other.value,
 }
 
+EQUIPMENT_USAGE_FIELDS = (
+    "active_usage_hours_per_week",
+    "standby_usage_hours_per_week",
+)
+
 # COPY target for ``bulk_copy`` — every non-defaulted data_entries column.
 # ``id`` is omitted so the sequence assigns it server-side.
 _DATA_ENTRY_COPY_SQL = """
@@ -636,27 +641,34 @@ class DataEntryRepository:
         else:
             return statement.order_by(desc(sort_expr))
 
-    async def get_prior_year_equipment_ids(
+    async def _prior_equipment_year(
         self, unit_id: int, current_year: int
-    ) -> set[str]:
-        """Return the set of ``equipment_id`` present in the unit's most recent
-        prior year (issue #259).
-
-        "Previous year" is the greatest year strictly before ``current_year``
-        that still has equipment entries for the unit — robust to skipped
-        years. Returns an empty set when the unit has no earlier equipment data
-        (e.g. its first campaign year), in which case nothing is flagged new.
+    ) -> int | None:
+        """Return the unit's most recent year with equipment entries strictly
+        before ``current_year`` — robust to skipped years. ``None`` when the
+        unit has no earlier equipment data (e.g. its first campaign year).
         """
-        type_ids = list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
         prior_year = (
             await self.session.execute(
                 select(func.max(DataEntry.year)).where(
                     col(DataEntry.unit_id) == unit_id,
                     col(DataEntry.year) < current_year,
-                    col(DataEntry.data_entry_type_id).in_(type_ids),
+                    col(DataEntry.data_entry_type_id).in_(
+                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                    ),
                 )
             )
         ).scalar_one_or_none()
+        return int(prior_year) if prior_year is not None else None
+
+    async def get_prior_year_equipment_ids(
+        self, unit_id: int, current_year: int
+    ) -> set[str]:
+        """Return the set of ``equipment_id`` present in the unit's most recent
+        prior year (issue #259). Empty set when there is no prior-year
+        equipment data, in which case nothing is flagged new.
+        """
+        prior_year = await self._prior_equipment_year(unit_id, current_year)
         if prior_year is None:
             return set()
         rows = (
@@ -666,7 +678,9 @@ class DataEntryRepository:
                     .where(
                         col(DataEntry.unit_id) == unit_id,
                         col(DataEntry.year) == prior_year,
-                        col(DataEntry.data_entry_type_id).in_(type_ids),
+                        col(DataEntry.data_entry_type_id).in_(
+                            list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                        ),
                     )
                     .distinct()
                 )
@@ -675,6 +689,50 @@ class DataEntryRepository:
             .all()
         )
         return {r for r in rows if r is not None}
+
+    async def get_prior_year_equipment_usage(
+        self, unit_id: int, current_year: int
+    ) -> dict[str, dict]:
+        """Map ``equipment_id`` -> usage values set in the unit's most recent
+        prior year (issue #259 carry-forward).
+
+        Single query per (unit, year): only the ``equipment_id`` and the two
+        usage fields travel over the wire, so a 50k-row prior year stays cheap.
+        Only fields actually set in the prior row appear in each dict, so the
+        caller can merge without inventing values the prior year never had.
+        """
+        prior_year = await self._prior_equipment_year(unit_id, current_year)
+        if prior_year is None:
+            return {}
+        rows = (
+            await self.session.execute(
+                select(
+                    DataEntry.data["equipment_id"].as_string(),
+                    *(DataEntry.data[field] for field in EQUIPMENT_USAGE_FIELDS),
+                )
+                .where(
+                    col(DataEntry.unit_id) == unit_id,
+                    col(DataEntry.year) == prior_year,
+                    col(DataEntry.data_entry_type_id).in_(
+                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                    ),
+                )
+                .order_by(col(DataEntry.id))
+            )
+        ).all()
+        usage_by_equipment: dict[str, dict] = {}
+        for equipment_id, *values in rows:
+            if not equipment_id:
+                continue
+            usage = {
+                field: value
+                for field, value in zip(EQUIPMENT_USAGE_FIELDS, values)
+                if value is not None
+            }
+            if not usage:
+                continue
+            usage_by_equipment.setdefault(equipment_id, {}).update(usage)
+        return usage_by_equipment
 
     async def _equipment_module_scope(
         self, carbon_report_module_id: int

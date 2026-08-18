@@ -199,6 +199,16 @@ class Settings(BaseSettings):
         default=52,
         description="Weeks per year for annual CO2 calculation",
     )
+    DEFAULT_ACTIVE_USAGE_HOURS_PER_WEEK: int = Field(
+        default=12,
+        description="Fallback equipment active usage hours per week when neither "
+        "the prior year nor a matching factor provides a value",
+    )
+    DEFAULT_STANDBY_USAGE_HOURS_PER_WEEK: int = Field(
+        default=156,
+        description="Fallback equipment standby usage hours per week when neither "
+        "the prior year nor a matching factor provides a value",
+    )
 
     # CO2 Calculation Constants
     CO2_PER_KM_KG: float = Field(
