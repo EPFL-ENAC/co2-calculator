@@ -91,7 +91,7 @@ async def _seed_plan_awaiting_prefill(Sf) -> tuple[int, list[int], int]:
                 DataEntry(
                     data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
                     carbon_report_module_id=ref_module.id,
-                    data={"category": "co2", "quantity": float(i + 1)},
+                    data={"category": "co2", "quantity_kg": float(i + 1)},
                 )
             )
         await session.flush()
@@ -166,7 +166,7 @@ async def test_prefill_job_runs_through_the_runner_and_copies_the_rows(
         assert job.result == IngestionResult.SUCCESS, f"job failed: {job.meta}"
 
         rows = await DataEntryRepository(session).list_by_module(plan_module_id)
-        assert {r.data["quantity"] for r in rows} == {1.0, 2.0, 3.0}, (
+        assert {r.data["quantity_kg"] for r in rows} == {1.0, 2.0, 3.0}, (
             "the runner reported success but the rows were never committed"
         )
 
