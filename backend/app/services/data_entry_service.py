@@ -235,6 +235,7 @@ class DataEntryService:
             prior = prior_usage.get(entry.data["equipment_id"])
             if prior:
                 entry.data = {**entry.data, **prior}
+
     async def create(
         self,
         carbon_report_module_id: int,

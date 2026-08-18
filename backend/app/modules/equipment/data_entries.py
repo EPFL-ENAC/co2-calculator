@@ -10,11 +10,6 @@ from app.schemas.data_entry import (
 
 MAX_WEEKLY_USAGE_HOURS = 168
 
-# Issue #259: last-resort usage values when neither the prior year nor a
-# matching factor provides them (12 + 156 = a full 168h week).
-DEFAULT_ACTIVE_USAGE_HOURS_PER_WEEK = 12
-DEFAULT_STANDBY_USAGE_HOURS_PER_WEEK = 156
-
 
 def _validate_weekly_usage_hours(v: int | None) -> int | None:
     if v is None:
