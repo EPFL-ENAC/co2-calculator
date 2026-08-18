@@ -2,7 +2,8 @@ import { MODULES } from 'src/constant/modules';
 
 // Toggled independently from the rest of Buildings — see
 // MODULE_SUBMODULES[MODULES.Buildings] below.
-export const BUILDING_EMBODIED_ENERGY_SUBMODULE_KEY = 'building_embodied_energy';
+export const BUILDING_EMBODIED_ENERGY_SUBMODULE_KEY =
+  'building_embodied_energy';
 
 export type SubmoduleConfig = {
   key: string;

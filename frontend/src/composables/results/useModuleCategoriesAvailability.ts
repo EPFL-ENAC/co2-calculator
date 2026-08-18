@@ -11,7 +11,11 @@ import { CATEGORY_TO_SUBMODULE } from 'src/composables/useModuleIconColors';
 // Exported so callers needing the plain category-key list (e.g.
 // ModuleCarbonFootprintChart's totals/labels) derive from a single source
 // instead of hand-maintaining a second copy that can drift out of sync.
-export const ADDITIONAL_HEADCOUNT_CATEGORY_KEYS = ['commuting', 'food', 'waste'];
+export const ADDITIONAL_HEADCOUNT_CATEGORY_KEYS = [
+  'commuting',
+  'food',
+  'waste',
+];
 export const ADDITIONAL_BUILDINGS_CATEGORY_KEYS = ['embodied_energy'];
 
 /**
