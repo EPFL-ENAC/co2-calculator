@@ -322,14 +322,28 @@ def test_refresh_rejects_legacy_user_id_only_token(client, override_db):
 
 
 def test_login_test_registration_matches_debug_flag():
-    """Pins F3: ``/auth/login-test`` is added to the router only when
-    ``settings.DEBUG`` is true at import time. In a production build the
-    route does not exist — there is no in-handler 403 gate to bypass.
+    """Pins F3: ``/auth/login-test`` never exists outside a DEBUG build.
+
+    There is no in-handler 403 gate to bypass — the route is simply not
+    registered — so the security-critical direction is "present implies
+    DEBUG", and that is what this asserts.
+
+    It deliberately does *not* assert the converse (DEBUG implies present).
+    ``settings.DEBUG`` is read at ``app.api.v1.auth`` import time to decide
+    registration, but ``.env`` overrides real env vars by design
+    (see ``app/core/config.py``), so a developer whose ``.env`` sets
+    ``DEBUG=True`` observes a different value here than the one that governed
+    import — making the converse a statement about import ordering, not about
+    the gate. Asserting it only produced a failure that varied with whether
+    the developer had a ``.env`` at all.
     """
     paths = {getattr(r, "path", None) for r in app.routes}
-    expected_present = auth_module.settings.DEBUG
     actually_present = f"{API_PREFIX}/auth/login-test" in paths
-    assert actually_present == expected_present
+    if actually_present:
+        assert auth_module.settings.DEBUG, (
+            "/auth/login-test is registered while DEBUG is off — the debug "
+            "login must not exist in a production build"
+        )
 
 
 def test_login_test_returns_404_in_prod_build(client):

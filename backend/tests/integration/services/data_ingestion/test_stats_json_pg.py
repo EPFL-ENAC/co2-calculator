@@ -386,7 +386,10 @@ async def test_headcount_stats_math_cross_root_scope3(seeded) -> None:
             s,
             crm_id=crm.id,
             data_entry_type=DataEntryTypeEnum.member,
-            emission_type=EmissionType.waste__incineration,
+            # Not waste__incineration: it stopped being a leaf when
+            # waste__incineration__domestic_waste was added under it, and
+            # stats roll up from leaves only.
+            emission_type=EmissionType.waste__incineration__domestic_waste,
             kg_co2eq=60.0,
         )
         await _seed_emission(
@@ -420,7 +423,7 @@ async def test_headcount_stats_math_cross_root_scope3(seeded) -> None:
         by_et = stats["by_emission_type"]
         # Leaves (keys are str(emission_type_id))
         assert by_et[str(int(EmissionType.food__non_vegetarian))] == 100.0
-        assert by_et[str(int(EmissionType.waste__incineration))] == 60.0
+        assert by_et[str(int(EmissionType.waste__incineration__domestic_waste))] == 60.0
         assert by_et[str(int(EmissionType.commuting__car))] == 40.0
         # Root-level rollups (each root's subtree includes only one
         # seeded leaf, so the rollup equals that leaf)

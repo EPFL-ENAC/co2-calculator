@@ -95,7 +95,13 @@ async def test_new_equipment_flagged_and_sorted_first(db_session: AsyncSession):
 
     cur_module = await _seed_module(db_session, 2025)
     await _seed_entry(db_session, cur_module, year=2025, equipment_id="E1")
-    await _seed_entry(db_session, cur_module, year=2025, equipment_id="E3")
+    # New *and* missing usage hours: the float-to-top rule is
+    # ``desc(and_(is_new, missing_usage))`` (#259 surfaces rows that need the
+    # user's attention), not "new" on its own — a new row already filled in
+    # sorts normally.
+    await _seed_entry(
+        db_session, cur_module, year=2025, equipment_id="E3", with_usage=False
+    )
     await db_session.commit()
 
     result = await repo.get_submodule_data(
@@ -110,7 +116,8 @@ async def test_new_equipment_flagged_and_sorted_first(db_session: AsyncSession):
     by_name = {item.name: item.is_new for item in result.items}  # type: ignore[attr-defined]
     assert by_name == {"eq-E1": False, "eq-E3": True}
     assert result.items[0].name == "eq-E3", (  # type: ignore[attr-defined]
-        "new equipment must float to the top, above the user's name sort"
+        "new equipment still missing its usage hours must float to the top, "
+        "above the user's name sort"
     )
 
 
