@@ -2068,6 +2068,29 @@ reason" is not the same as measured.
 
 ### H3 — regression test: equivalence, not just a timing number
 
+> **Status: delivered** (branch `fix/2050-planner-headcount-rollup`,
+> 2026-08-18). Two tests shipped, one per failure mode. See H5 for the
+> measured numbers; the design notes below are why they look the way they
+> do.
+>
+> - `tests/unit/repositories/test_data_entry_repo.py::test_get_submodule_data_planner_headcount_uses_rollup_total`
+>   — **correctness**. The rollup row deliberately _disagrees_ with the sum
+>   of its leaves (99.0 / factor 42 vs 10+5+3 = 18.0 / factor 1), so the
+>   assertion discriminates "read the rollup row" from "re-sum the leaves".
+>   The equivalence framing below is the wrong shape for this reason: both
+>   paths return the same number on realistic data, so an equivalence
+>   assertion passes on the _unfixed_ code. Confirmed RED (got 18.0,
+>   expected 99.0) before the fix.
+> - `tests/integration/services/data_ingestion/test_planner_headcount_rollup_perf_pg.py`
+>   — **performance**, Postgres-backed, 1M seeded `data_entry_emissions`
+>   rows via bulk COPY. Asserts **scaling invariance**: growing the rest of
+>   the table 20x (50k → 1M rows) must not cost more than 3x. An absolute
+>   ms budget cannot catch this bug locally — see H5.
+>
+> Note also `scope` is `int | None`, not a string: the `scope="direct"`
+> below is wrong and fails on Postgres (it was silently tolerated by
+> SQLite). Real values come from `emission_type_scope(EmissionType.X)`.
+
 Per the PRD's own acceptance criteria ("must return exactly the same...
 emission totals, primary factor... as the existing implementation") and
 this repo's own established pattern for exactly this kind of change
@@ -2174,16 +2197,71 @@ stage's `openshift-app-config` override the way dev's already is — not
 more trace reading on this file. Filed here as a note for whoever picks
 that repro up, not as an open investigation task for this plan.
 
+### H5 — measured, 2026-08-18
+
+The fix and both tests are on `fix/2050-planner-headcount-rollup`.
+Measured locally against a seeded 1,000,000-row `data_entry_emissions`
+table (Postgres testcontainer, psycopg3 — the production driver):
+
+| background rows | unfixed  | fixed     |
+| --------------- | -------- | --------- |
+| 50,000          | 10.2 ms  | 6.1 ms    |
+| 1,000,000       | 75.1 ms  | 6.4 ms    |
+| **scaling**     | **×7.4** | **×1.14** |
+
+Two things this settles:
+
+- **The 825ms trace is explained quantitatively, not just plausibly.**
+  75 ms local × dev's own measured 9–17× per-round-trip penalty (F0)
+  is 675–1275 ms, and the production trace was 825 ms. The magnitude
+  lines up without needing a second unexplained factor.
+- **A wall-clock budget is the wrong assertion for this bug.** At 1M
+  rows the unfixed query still answers in 75 ms locally — it passes any
+  sane local budget, including this plan's own 200 ms. What separates
+  fixed from unfixed is the _slope_, and the slope is hardware-independent.
+  Any future ceiling-scale perf test (plan
+  [2161](2161-ceiling-scale-perf-fixtures.md)) that asserts only on
+  absolute milliseconds will keep missing bugs of exactly this shape on
+  developer hardware.
+
+H1's `EXPLAIN` verification is now redundant for the fix itself — the
+scaling measurement is the stronger evidence, since it exercises the real
+query through the real ORM rather than a hand-transcribed SQL string.
+
+### H6 — tracing config, so the next one is measurable
+
+`82c2de` (H4) could not be root-caused because stage inherits the chart
+default `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "sqlalchemy,psycopg"`.
+Prepared on branch `debug/2050-track-h-full-tracing` in
+`openshift-app-config` (**not pushed** — needs a maintainer's call):
+
+- **stage** gains `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: ""` (SQL spans
+  visible, mirroring dev) and `OTEL_TRACES_SAMPLER: "always_on"`.
+- **dev** replaces its inert `OTEL_TRACES_SAMPLER_ARG: 0.01` with
+  `OTEL_TRACES_SAMPLER: "always_on"`.
+
+That `_ARG: 0.01` was **never in effect**, on either environment:
+`OTEL_TRACES_SAMPLER` itself was never set, so the SDK fell back to its
+default `parentbased_always_on` and sampled everything. `_ARG` is read
+only by `traceidratio` / `parentbased_traceidratio`
+(`opentelemetry/sdk/trace/sampling.py`, `_KNOWN_SAMPLERS`). So the
+sampler line is a correctness fix to config that was already lying, not a
+throughput change — the only real behaviour change here is stage's SQL
+instrumentation. Both are temporary: C1 measured SQL instrumentation at
+~2/3 of the OTel throughput tax, so revert once the stage PATCH is
+root-caused.
+
 ### Track H priority order
 
-1. **H2 — the one-line `is_headcount_entry` fix**, with H3's equivalence
-   test. Smallest possible diff, reuses an already-proven pattern, backed
-   by a root cause read from the code rather than inferred from the trace
-   — the highest-confidence, lowest-effort item in this entire plan.
-2. **H1's verification EXPLAIN** against real `planner_headcount` data —
-   cheap, confirms the fix's expected plan before merge.
-3. **H4's dev-side repro** of the stage PATCH, once someone has a spare
-   few minutes on dev — not blocked on anything above.
+1. ~~**H2 — the one-line `is_headcount_entry` fix**~~ — **done**, with
+   both regression tests (H3) and measurements (H5).
+2. ~~**H1's verification EXPLAIN**~~ — superseded by H5's scaling
+   measurement.
+3. **Land the fix**: PR `fix/2050-planner-headcount-rollup` → `dev`.
+4. **H6's tracing overrides** — needs a maintainer to approve pushing
+   `debug/2050-track-h-full-tracing` in `openshift-app-config`.
+5. **H4's dev-side repro** of the stage PATCH — unblocked once H6 lands,
+   or doable immediately on dev.
 
 ## Priority order
 
