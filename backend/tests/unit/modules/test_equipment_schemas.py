@@ -34,6 +34,7 @@ from app.modules.emissions import EmissionType
 from app.modules.equipment import (
     EquipmentFactorCreate,
     EquipmentHandlerCreate,
+    EquipmentHandlerResponse,
 )
 from app.schemas.data_entry import BaseModuleHandler
 
@@ -252,3 +253,24 @@ def test_equipment_formula_none_when_no_hours_anywhere() -> None:
         {"active_power_w": 100.0, "standby_power_w": 10.0, "ef_kg_co2eq_per_kwh": 1.0},
     )
     assert kg is None
+
+
+# ── response DTO accepts fractional power (regression, stage 500 on entry 385685) ──
+
+
+def test_equipment_response_accepts_fractional_power_w() -> None:
+    """EquipmentFactorCreate has allowed float active/standby_power_w since the
+    equipment_factors.csv contract moved off int; EquipmentHandlerResponse must
+    accept the same values it enriches data entries with, or to_response() 500s.
+    """
+    item = EquipmentHandlerResponse.model_validate(
+        {
+            "id": 385685,
+            **_DATA_META,
+            "name": "GoPro",
+            "equipment_class": "Monitor",
+            "active_power_w": 2.0,
+            "standby_power_w": 2.368421053,
+        }
+    )
+    assert item.standby_power_w == pytest.approx(2.368421053)

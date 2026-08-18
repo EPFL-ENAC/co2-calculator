@@ -64,8 +64,8 @@ class EquipmentHandlerResponse(DataEntryResponseGen):
     standby_usage_hours_per_week: int | None = None
     note: str | None = None
     kg_co2eq: float | None = None
-    active_power_w: int | None = None
-    standby_power_w: int | None = None
+    active_power_w: float | None = None
+    standby_power_w: float | None = None
 
     is_new: bool = False
 
