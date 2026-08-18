@@ -79,7 +79,7 @@
                     })
                   "
                   :error="!!errors[inp.id]"
-                  :error-message="errors[inp.id]"
+                  :error-message="errors[inp.id] ?? ''"
                   :required="inp.required"
                   :dense="true"
                   :outlined="true"
