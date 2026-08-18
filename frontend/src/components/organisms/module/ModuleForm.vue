@@ -220,6 +220,7 @@
                 :emit-value="inp.type === 'select'"
                 :map-options="inp.type === 'select'"
                 @update:model-value="(val: unknown) => (form[inp.id] = val)"
+                @focus="fieldInteraction.markInteracted(inp.id)"
                 @blur="normalizeField(inp)"
               >
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
@@ -336,6 +337,7 @@ import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
 import { resolveFactorYear } from 'src/utils/factor-year';
+import { createFieldInteractionTracker } from 'src/utils/fieldInteraction';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import {
   MODULES,
@@ -512,6 +514,9 @@ function normalizeField(inp: ModuleField): void {
       }
     }
   }
+  // Quasar defers this blur past reset(), so a blur on a field the user never
+  // touched is the form clearing itself, not an empty answer (#2072).
+  if (!fieldInteraction.shouldValidateOnBlur(inp.id)) return;
   validateField(inp);
 }
 
@@ -650,6 +655,7 @@ const emit = defineEmits<{
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
+const fieldInteraction = createFieldInteractionTracker();
 
 const kindFieldId = computed(() => {
   const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
@@ -1161,6 +1167,7 @@ function reset() {
     }
     errors[i.id] = null;
   });
+  fieldInteraction.clear();
   dateInputKey.value++;
 }
 
