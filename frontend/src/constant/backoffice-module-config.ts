@@ -1,5 +1,9 @@
 import { MODULES } from 'src/constant/modules';
 
+// Toggled independently from the rest of Buildings — see
+// MODULE_SUBMODULES[MODULES.Buildings] below.
+export const BUILDING_EMBODIED_ENERGY_SUBMODULE_KEY = 'building_embodied_energy';
+
 export type SubmoduleConfig = {
   key: string;
   labelKey: string;
@@ -12,7 +16,6 @@ export type SubmoduleConfig = {
   isDisabled?: true;
   headerIcon?: string;
   descriptionKey?: string;
-  factorsOnly?: true;
   mandatoryData?: boolean;
   mandatoryReference?: boolean;
   noThreshold?: true;
@@ -78,12 +81,11 @@ export const MODULE_SUBMODULES: Partial<
       dataEntryTypeId: 31,
     },
     {
-      key: 'building_embodied_energy',
+      key: BUILDING_EMBODIED_ENERGY_SUBMODULE_KEY,
       labelKey: 'data_management_submodule_buildings_construction_renovation',
       moduleTypeId: 3,
       dataEntryTypeId: 32,
       noData: true,
-      factorsOnly: true,
     },
   ],
   [MODULES.ProcessEmissions]: [

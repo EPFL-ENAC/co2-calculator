@@ -76,11 +76,16 @@ onMounted(async () => {
         />
       </section>
 
+      <!-- This report aggregates data across an admin-chosen set of years/units
+           with no single "current year" loaded into yearConfigStore, so the
+           charts' default module/submodule-activation filtering (which reads
+           that single-year config) must be disabled here. -->
       <section class="q-mt-md">
         <ModuleCarbonFootprintChart
           :breakdown-data="reportingEmissionBreakdown"
           :print-mode="true"
           :title="$t('backoffice_reporting_aggregated_results_title')"
+          :enforce-module-activation="false"
         />
       </section>
       <section class="q-mt-md">
@@ -97,6 +102,7 @@ onMounted(async () => {
           :show-validation-placeholder="false"
           :print-mode="true"
           :title="$t('backoffice_reporting_aggregated_results_per_fte_title')"
+          :enforce-module-activation="false"
         />
       </section>
     </ReportPage>

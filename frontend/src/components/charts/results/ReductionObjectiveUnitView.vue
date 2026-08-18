@@ -36,6 +36,7 @@ import {
 } from 'src/constant/charts';
 import { MODULE_STATES } from 'src/constant/moduleStates';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
+import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
 
 interface Props {
   hideResearchFacilities?: boolean;
@@ -68,6 +69,7 @@ const workspaceStore = useWorkspaceStore();
 const colorblindStore = useColorblindStore();
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
+const { isCategoryModuleActive } = useModuleCategoriesAvailability();
 
 const currentYear = computed(
   () => workspaceStore.selectedYear ?? new Date().getFullYear(),
@@ -253,6 +255,7 @@ const visibleUnitCategoryKeys = computed(() =>
     if (props.hideAdditionalData && ADDITIONAL_UNIT_CATEGORY_KEYS.has(c)) {
       return false;
     }
+    if (!isCategoryModuleActive(c)) return false;
     return isUnitCategoryInteractive(c);
   }),
 );
@@ -365,6 +368,7 @@ const unitSeriesData = computed(() => {
     if (props.hideAdditionalData && ADDITIONAL_UNIT_CATEGORY_KEYS.has(key)) {
       continue;
     }
+    if (!isCategoryModuleActive(key)) continue;
     if (!isUnitCategoryInteractive(key)) continue;
     baselineByCat[key] = (baselineByCat[key] ?? 0) + sumRowTonnes(row);
   }
@@ -379,6 +383,7 @@ const unitSeriesData = computed(() => {
     ) {
       continue;
     }
+    if (!isCategoryModuleActive(key)) continue;
     if (!isUnitCategoryInteractive(key)) continue;
     baselineByCat[key] = (baselineByCat[key] ?? 0) + sumRowTonnes(row);
   }

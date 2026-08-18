@@ -38,8 +38,10 @@ import { useRoute, useRouter } from 'vue-router';
 import { nOrDash } from 'src/utils/number';
 import { resolveLanguage } from 'src/utils/language';
 import { buildUnitPerimeterLabel } from 'src/utils/unitPerimeterLabel';
+import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
 
 const yearConfigStore = useYearConfigStore();
+const { anyAdditionalCategoryActive } = useModuleCategoriesAvailability();
 
 /** Keeps ECharts-heavy bundles out of the initial Results route chunk (Lighthouse / TTI). */
 const ChartChunkSkeleton = () =>
@@ -862,7 +864,8 @@ const getUncertainty = (
                 !(
                   hideResearchFacilities &&
                   module === MODULES.ResearchFacilities
-                )
+                ) &&
+                yearConfigStore.isModuleVisible(module)
               "
             >
               <q-separator />
@@ -1033,7 +1036,11 @@ const getUncertainty = (
         </q-card>
 
         <!-- Additional Data -->
-        <q-card v-if="viewAdditionalData" flat bordered>
+        <q-card
+          v-if="viewAdditionalData && anyAdditionalCategoryActive"
+          flat
+          bordered
+        >
           <div class="q-pa-xl flex justify-between items-center">
             <div>
               <div class="flex items-center no-wrap q-gutter-sm">

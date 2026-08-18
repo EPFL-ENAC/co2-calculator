@@ -14,11 +14,16 @@ import {
   ADDITIONAL_DATA_ICON,
 } from 'src/constant/charts';
 import { buildCarbonFootprintCsvRows } from 'src/utils/results-csv';
-import type { Module } from 'src/constant/modules';
+import { type Module } from 'src/constant/modules';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
-import { SUBMODULE_TO_CATEGORY } from 'src/composables/useModuleIconColors';
+import { CATEGORY_TO_SUBMODULE } from 'src/composables/useModuleIconColors';
 import { useColorblindStore } from 'src/stores/colorblind';
 import { isModuleFullyAvailable } from 'src/composables/useModuleAvailability';
+import {
+  useModuleCategoriesAvailability,
+  ADDITIONAL_HEADCOUNT_CATEGORY_KEYS as ADDITIONAL_HEADCOUNT_CATEGORIES,
+  ADDITIONAL_BUILDINGS_CATEGORY_KEYS as ADDITIONAL_BUILDINGS_CATEGORIES,
+} from 'src/composables/results/useModuleCategoriesAvailability';
 import {
   TooltipComponent,
   LegendComponent,
@@ -90,6 +95,19 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /**
+   * Hide categories whose module/submodule is deactivated in the current
+   * year's back-office config. Defaults on for single-year workspace
+   * contexts; callers that aggregate data across multiple years/units with
+   * no single "current year" config loaded (e.g. the back-office Reporting
+   * page) must opt out — yearConfigStore only ever holds one year's config,
+   * so applying it there would silently hide every category or apply an
+   * arbitrary year's rules to the aggregate.
+   */
+  enforceModuleActivation: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 const emit = defineEmits<{ (e: 'compareYears'): void }>();
@@ -97,6 +115,7 @@ const emit = defineEmits<{ (e: 'compareYears'): void }>();
 const { t, locale } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
+const { isCategoryModuleActive } = useModuleCategoriesAvailability();
 
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
@@ -119,16 +138,6 @@ const labelToKey = computed<Record<string, string>>(() => {
   }
   return map;
 });
-
-// Categories that share a module but need a distinct icon-box color scale
-// (buildings has two bars). Derived from SUBMODULE_TO_CATEGORY (useModuleIconColors)
-// so the two maps can't drift out of sync.
-const CATEGORY_TO_SUBMODULE: Record<string, string> = Object.fromEntries(
-  Object.entries(SUBMODULE_TO_CATEGORY).map(([submodule, category]) => [
-    category,
-    submodule,
-  ]),
-);
 
 type IconAxisItem = {
   label: string;
@@ -704,6 +713,15 @@ const datasetSource = computed(() => {
     allData = [...baseData, ...additionalData];
   }
 
+  // Drop categories whose module is deactivated in the backoffice config —
+  // they shouldn't render at all (not even greyed out). Skipped when the
+  // caller has no single-year config loaded (see enforceModuleActivation).
+  if (props.enforceModuleActivation) {
+    allData = allData.filter((item) =>
+      isCategoryModuleActive(String(item.category_key ?? '')),
+    );
+  }
+
   // Partition into additional and main categories
   const additional = [];
   const main = [];
@@ -870,8 +888,6 @@ const additionalSeriesData = computed(() => {
   ];
 });
 
-const ADDITIONAL_HEADCOUNT_CATEGORIES = ['commuting', 'food', 'waste'];
-
 const additionalHeadcountLabels = computed(
   () =>
     new Set(
@@ -881,8 +897,6 @@ const additionalHeadcountLabels = computed(
       }),
     ),
 );
-
-const ADDITIONAL_BUILDINGS_CATEGORIES = ['embodied_energy'];
 
 const additionalBuildingsLabels = computed(
   () =>

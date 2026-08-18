@@ -34,6 +34,7 @@ import {
   WASTE_DISPLAY_CATEGORY,
   WASTE_DISPLAY_ORDER,
 } from 'src/composables/results/useAdditionalCategoryCharts';
+import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
 import type {
   EmissionBreakdownCategoryRow,
   EmbodiedEnergyCategoryEntry,
@@ -60,6 +61,8 @@ const props = defineProps<{
 
 const { t, te } = useI18n();
 const colorblindStore = useColorblindStore();
+const { headcountActive, buildingEmbodiedEnergyActive } =
+  useModuleCategoriesAvailability();
 
 const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
 
@@ -449,6 +452,8 @@ const downloadPNG = () => {
           :class="{ 'additional-grid--print': printMode }"
         >
           <!-- ═══ HEADCOUNT SECTION ═══ -->
+          <!-- Hidden entirely (not just greyed out) when Headcount is deactivated in the back-office. -->
+          <template v-if="headcountActive">
           <!-- Headcount not validated: full-width placeholder -->
           <div
             v-if="!headcountValidated && !printMode"
@@ -729,8 +734,11 @@ const downloadPNG = () => {
               </div>
             </div>
           </template>
+          </template>
 
           <!-- BUILDINGS SECTION  -->
+          <!-- Hidden entirely when Buildings, or its construction/renovation submodule, is deactivated. -->
+          <template v-if="buildingEmbodiedEnergyActive">
           <!-- Buildings not validated: placeholder -->
           <div
             v-if="!buildingsValidated && !printMode"
@@ -841,6 +849,7 @@ const downloadPNG = () => {
               </div>
             </div>
           </div>
+          </template>
         </div>
       </q-card>
       <template v-if="!printMode">
