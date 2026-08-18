@@ -74,7 +74,7 @@ export default {
     en: 'Sub-category',
     fr: 'Sous-catégorie',
   },
-  [`${MODULES.ProcessEmissions}.inputs.quantity`]: {
+  [`${MODULES.ProcessEmissions}.inputs.quantity_kg`]: {
     en: 'Quantity (kg)',
     fr: 'Quantité (kg)',
   },

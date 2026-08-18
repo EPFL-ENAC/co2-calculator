@@ -118,7 +118,7 @@ PERMISSIONS: dict[
     ): None,
     # Process emissions
     (ModuleTypeEnum.process_emissions, None, Provenance.USER): frozenset(
-        {"category", "subcategory", "quantity"}
+        {"category", "subcategory", "quantity_kg"}
     ),
     (ModuleTypeEnum.process_emissions, None, Provenance.IMPORTED): None,
     # Buildings - combustion

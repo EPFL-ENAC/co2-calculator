@@ -242,7 +242,7 @@ async def _reference_report_with_entries(
             DataEntry(
                 data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
                 carbon_report_module_id=module.id,
-                data={"category": "co2", "quantity": float(i + 1)},
+                data={"category": "co2", "quantity_kg": float(i + 1)},
             )
         )
     await async_session.flush()

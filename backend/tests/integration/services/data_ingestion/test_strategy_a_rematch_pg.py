@@ -302,7 +302,7 @@ async def _seed_process_emissions(s: AsyncSession, module_id: int) -> tuple[int,
         data={
             "category": "co2",
             "subcategory": "industrial",
-            "quantity": 100.0,
+            "quantity_kg": 100.0,
         },
     )
     s.add(entry)

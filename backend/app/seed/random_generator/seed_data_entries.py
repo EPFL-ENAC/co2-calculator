@@ -401,7 +401,7 @@ def build_process_emissions() -> dict:
     return {
         "category": fake.word(),
         "subcategory": maybe(fake.word()),
-        "quantity": round(random.uniform(0, 5000), 2),  # nosec B311
+        "quantity_kg": round(random.uniform(0, 5000), 2),  # nosec B311
         "note": maybe(fake.sentence(nb_words=6)),
     }
 

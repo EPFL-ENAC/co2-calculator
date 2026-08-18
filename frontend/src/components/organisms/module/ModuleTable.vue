@@ -1874,7 +1874,7 @@ function isComplete(row: ModuleRow) {
     );
   }
   if (props.moduleType === MODULES.ProcessEmissions) {
-    const baseRequired = ['category', 'quantity'];
+    const baseRequired = ['category', 'quantity_kg'];
     const hasBaseRequired = hasRequiredValues(row, baseRequired);
     if (!hasBaseRequired) {
       return false;

@@ -597,7 +597,7 @@ async def _calculator_report_with_process_entries(service, async_session, year=2
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
             carbon_report_module_id=module.id,
-            data={"category": "co2", "quantity": quantity},
+            data={"category": "co2", "quantity_kg": quantity},
         )
         async_session.add(entry)
         entries.append(entry)
@@ -633,7 +633,7 @@ async def test_prefill_copies_reference_entries_at_100_percent(async_session, us
     assert all(r.data["percentage_of_reference_year"] == 100 for r in rows)
     assert {r.data["source_data_entry_id"] for r in rows} == {e.id for e in src_entries}
     # Snapshot keeps the reference quantities.
-    assert {r.data["quantity"] for r in rows} == {5.0, 7.0}
+    assert {r.data["quantity_kg"] for r in rows} == {5.0, 7.0}
 
 
 @pytest.mark.asyncio
@@ -651,7 +651,7 @@ async def test_prefill_rebuilds_the_module(async_session, user):
         data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
         carbon_report_module_id=plan_module.id,
         source=DataEntrySourceEnum.USER_MANUAL.value,
-        data={"category": "ch4", "quantity": 1.0},
+        data={"category": "ch4", "quantity_kg": 1.0},
     )
     async_session.add(user_row)
     await async_session.flush()
@@ -693,7 +693,7 @@ async def _second_calculator_year(service, async_session):
     entry = DataEntry(
         data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
         carbon_report_module_id=module.id,
-        data={"category": "n2o", "quantity": 3.0},
+        data={"category": "n2o", "quantity_kg": 3.0},
     )
     async_session.add(entry)
     await async_session.flush()
@@ -724,7 +724,7 @@ async def test_reference_year_change_wipes_the_previous_baseline_rows(
 
     rows = await _plan_module_rows(service, async_session, report)
     assert len(rows) == 1
-    assert rows[0].data["quantity"] == 3.0
+    assert rows[0].data["quantity_kg"] == 3.0
     assert rows[0].data["source_data_entry_id"] == entry_2025.id
 
 
@@ -741,7 +741,7 @@ async def test_switching_back_reprefills_at_100_percent(async_session, user):
     rows_2024[0].data = {
         **rows_2024[0].data,
         "percentage_of_reference_year": 40,
-        "quantity": 99.0,
+        "quantity_kg": 99.0,
     }
     async_session.add(rows_2024[0])
     await async_session.flush()
@@ -752,7 +752,7 @@ async def test_switching_back_reprefills_at_100_percent(async_session, user):
     rows = await _plan_module_rows(service, async_session, report)
     assert len(rows) == 2
     assert all(r.data["percentage_of_reference_year"] == 100 for r in rows)
-    assert {r.data["quantity"] for r in rows} == {5.0, 7.0}
+    assert {r.data["quantity_kg"] for r in rows} == {5.0, 7.0}
 
 
 @pytest.mark.asyncio
@@ -772,7 +772,7 @@ async def test_hand_added_rows_are_wiped_on_switch(async_session, user):
             data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
             carbon_report_module_id=plan_module.id,
             source=DataEntrySourceEnum.USER_MANUAL.value,
-            data={"category": "ch4", "quantity": 1.0},
+            data={"category": "ch4", "quantity_kg": 1.0},
         )
     )
     await async_session.flush()
