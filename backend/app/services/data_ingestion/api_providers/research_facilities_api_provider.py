@@ -15,6 +15,7 @@ from app.schemas.user import UserRead
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
     BaseTableauApiProvider,
+    CaptionSpec,
     StatsDict,
 )
 
@@ -43,16 +44,18 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
     CAPTION_DATE = "date_iso"
     CAPTION_CLIENT_TYPE = "client_type"
 
+    FUNCTION_USE = "SUM"
+
     USE_UNIT = "CHF"
     INTERNAL_CLIENT_TYPE = "INTERNE"
 
-    REQUIRED_CAPTIONS: list[str] = [
-        CAPTION_ID,
-        CAPTION_NAME,
-        CAPTION_USE,
-        CAPTION_UNIT,
-        CAPTION_DATE,
-        CAPTION_CLIENT_TYPE,
+    REQUIRED_CAPTIONS: list[CaptionSpec] = [
+        CaptionSpec(CAPTION_ID),
+        CaptionSpec(CAPTION_NAME),
+        CaptionSpec(CAPTION_USE, function=FUNCTION_USE),
+        CaptionSpec(CAPTION_UNIT),
+        CaptionSpec(CAPTION_DATE),
+        CaptionSpec(CAPTION_CLIENT_TYPE),
     ]
 
     async def transform_data(
@@ -72,7 +75,7 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
             facility_name = record.get(self.CAPTION_NAME)
             if not facility_name or str(facility_name).strip() == "":
                 continue
-            raw_use = record.get(self.CAPTION_USE)
+            raw_use = record.get(f"{self.FUNCTION_USE}({self.CAPTION_USE})")
             if raw_use is None:
                 continue
             try:

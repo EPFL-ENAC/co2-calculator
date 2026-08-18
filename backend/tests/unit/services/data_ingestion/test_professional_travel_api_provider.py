@@ -12,6 +12,7 @@ import pytest
 from app.models.data_entry import DataEntryTypeEnum
 from app.modules.emissions.registry import resolve_emission_types
 from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
+    CaptionSpec,
     normalize_vds_payload,
     to_bool,
 )
@@ -256,16 +257,28 @@ class TestExtractFieldCaptions:
 class TestBuildPayload:
     def test_valid_payload(self):
         p = _make_provider()
-        result = p._build_payload(["Field1", "Field2"])
+        result = p._build_payload([CaptionSpec("Field1"), CaptionSpec("Field2")])
         assert result["datasource"]["datasourceLuid"] == "ds-luid"
         assert len(result["query"]["fields"]) == 2
         assert result["options"]["returnFormat"] == "OBJECTS"
+
+    def test_field_with_function_included(self):
+        p = _make_provider()
+        result = p._build_payload([CaptionSpec("Field1", "SUM")])
+        assert result["query"]["fields"] == [
+            {"fieldCaption": "Field1", "function": "SUM"}
+        ]
+
+    def test_field_without_function_omits_key(self):
+        p = _make_provider()
+        result = p._build_payload([CaptionSpec("Field1")])
+        assert result["query"]["fields"] == [{"fieldCaption": "Field1"}]
 
     def test_raises_without_datasource_luid(self):
         p = _make_provider()
         p.datasource_luid = None
         with pytest.raises(ValueError, match="datasource_luid"):
-            p._build_payload(["A"])
+            p._build_payload([CaptionSpec("A")])
 
     def test_raises_with_empty_captions(self):
         p = _make_provider()

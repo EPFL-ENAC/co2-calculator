@@ -28,6 +28,7 @@ from app.models.data_entry import BULK_PER_YEAR_SOURCES, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
     BaseTableauApiProvider,
+    CaptionSpec,
 )
 
 SERVER_URL = "https://tableau.epfl.ch/"
@@ -40,7 +41,7 @@ class _StubTableauProvider(BaseTableauApiProvider):
     CONNECTOR = ConnectorType.EPFL_TABLEAU
     MODULE_TYPE = ModuleTypeEnum.professional_travel
     DATA_ENTRY_TYPE = DataEntryTypeEnum.plane
-    REQUIRED_CAPTIONS: list[str] = []
+    REQUIRED_CAPTIONS: list[CaptionSpec] = []
 
     async def transform_data(self, raw_data):
         return raw_data

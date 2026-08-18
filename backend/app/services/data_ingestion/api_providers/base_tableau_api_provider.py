@@ -15,7 +15,7 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
-from typing import Any, NoReturn, TypedDict
+from typing import Any, NamedTuple, NoReturn, TypedDict
 
 import httpx
 from joserfc import jwt as JWT
@@ -77,6 +77,15 @@ def to_bool(value: str) -> bool:
     return value.lower() in ("true", "1", "yes", "on")
 
 
+class CaptionSpec(NamedTuple):
+    """One VDS query field: the Tableau field caption, plus an optional
+    aggregation function (e.g. "SUM") to request for it.
+    """
+
+    field: str
+    function: str | None = None
+
+
 class BaseTableauApiProvider(DataIngestionProvider):
     """DB-backed Tableau VDS provider base.
 
@@ -87,7 +96,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
     CONNECTOR: ConnectorType
     MODULE_TYPE: ModuleTypeEnum
     DATA_ENTRY_TYPE: DataEntryTypeEnum
-    REQUIRED_CAPTIONS: list[str]
+    REQUIRED_CAPTIONS: list[CaptionSpec]
 
     # Module-specific ingest wording. ``INGEST_NOUN`` drives the progress /
     # failure job messages; ``MISSING_UNIT_REASON`` is the row-error reason
@@ -248,7 +257,11 @@ class BaseTableauApiProvider(DataIngestionProvider):
 
             metadata = await self._vds_read_metadata(session, x_auth)
             available_captions = set(self._extract_field_captions(metadata))
-            missing = [c for c in self.REQUIRED_CAPTIONS if c not in available_captions]
+            missing = [
+                c.field
+                for c in self.REQUIRED_CAPTIONS
+                if c.field not in available_captions
+            ]
             if missing:
                 raise ValueError(
                     f"Required Tableau captions missing from datasource "
@@ -259,7 +272,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
                 extra={
                     "available_count": len(available_captions),
                     "required_count": len(self.REQUIRED_CAPTIONS),
-                    "captions": self.REQUIRED_CAPTIONS,
+                    "captions": [c.field for c in self.REQUIRED_CAPTIONS],
                 },
             )
 
@@ -463,16 +476,23 @@ class BaseTableauApiProvider(DataIngestionProvider):
 
         return out
 
-    def _build_payload(self, field_captions: list[str]) -> dict:
+    def _build_payload(self, field_captions: list[CaptionSpec]) -> dict:
         if not self.datasource_luid:
             raise ValueError("datasource_luid is required")
         if not field_captions:
             raise ValueError("field_captions must contain at least one field")
 
+        fields: list[dict[str, str]] = []
+        for spec in field_captions:
+            field: dict[str, str] = {"fieldCaption": spec.field}
+            if spec.function:
+                field["function"] = spec.function
+            fields.append(field)
+
         payload: dict[str, Any] = {
             "datasource": {"datasourceLuid": self.datasource_luid},
             "query": {
-                "fields": [{"fieldCaption": c} for c in field_captions],
+                "fields": fields,
             },
             "options": {
                 "returnFormat": "OBJECTS",
