@@ -36,6 +36,7 @@ from app.models.module_type import (
 from app.models.unit import Unit
 from app.models.user import GlobalScope, RoleName, User
 from app.modules.emissions.registry import is_additional_breakdown_emission
+from app.modules.emissions.taxonomy import EmissionType
 from app.modules.headcount import (
     HeadcountItemResponse,
     HeadcountMemberDropdownItem,
@@ -420,6 +421,20 @@ _MODULE_TOP_CLASS_GROUP_FIELD_OVERRIDES: dict[
     },
 }
 
+# Splits one data entry type into several bars by emission type. Research
+# facilities share a single data entry type; IT vs non-IT only exists at the
+# emission-type level, so a DET-level grouping alone yields a single bar.
+_MODULE_TOP_CLASS_EMISSION_SPLITS: dict[
+    ModuleTypeEnum, dict[DataEntryTypeEnum, tuple[tuple[str, EmissionType], ...]]
+] = {
+    ModuleTypeEnum.research_facilities: {
+        DataEntryTypeEnum.research_facilities: (
+            ("facilities", EmissionType.research_facilities__facilities),
+            ("it_facilities", EmissionType.research_facilities__it_facilities),
+        ),
+    },
+}
+
 
 @router.get(
     "/{carbon_report_id}/modules/{module_id}/top-class-breakdown",
@@ -506,17 +521,32 @@ async def get_top_class_breakdown(
     for det in data_entry_types:
         field_groups.setdefault(overrides.get(det, group_field), []).append(det)
 
+    splits = _MODULE_TOP_CLASS_EMISSION_SPLITS.get(module_type, {})
     svc = DataEntryEmissionService(db)
     stats = []
     for field, dets in field_groups.items():
-        stats.extend(
-            await svc.get_top_class_breakdown(
-                carbon_report_module_ids=carbon_report_module_ids,
-                data_entry_types=dets,
-                group_by_field=field,
-                report_year=int(year),
+        plain_dets = [det for det in dets if det not in splits]
+        if plain_dets:
+            stats.extend(
+                await svc.get_top_class_breakdown(
+                    carbon_report_module_ids=carbon_report_module_ids,
+                    data_entry_types=plain_dets,
+                    group_by_field=field,
+                    report_year=int(year),
+                )
             )
-        )
+        for det in dets:
+            for name, emission_type in splits.get(det, ()):
+                groups = await svc.get_top_class_breakdown(
+                    carbon_report_module_ids=carbon_report_module_ids,
+                    data_entry_types=[det],
+                    group_by_field=field,
+                    report_year=int(year),
+                    emission_type_ids=[emission_type.value],
+                )
+                for group in groups:
+                    group["name"] = name
+                stats.extend(groups)
 
     factor_tk_field = _MODULE_TOP_CLASS_LABEL_FIELD.get(module_type)
     if factor_tk_field:

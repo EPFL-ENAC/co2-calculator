@@ -21,6 +21,7 @@ from app.modules.emissions import (
 )
 from app.modules.emissions.buckets import BucketNodes
 from app.modules.emissions.registry import MODULE_STAT_BUCKETS
+from app.modules.emissions.taxonomy import EmissionType
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -34,23 +35,29 @@ from app.services.data_entry_emission_service import DataEntryEmissionService
 
 logger = get_logger(__name__)
 
-# Per-module IT top-class detail persisted into module stats:
-# stats key, data entry types to group, and the classification field.
-_IT_TOP_CLASS_SPECS: dict[ModuleTypeEnum, tuple[str, list[DataEntryTypeEnum], str]] = {
+# Per-module IT top-class detail persisted into module stats: stats key,
+# data entry types to group, the classification field, and an optional
+# emission-type filter for types whose IT share is resolved per entry.
+_IT_TOP_CLASS_SPECS: dict[
+    ModuleTypeEnum, tuple[str, list[DataEntryTypeEnum], str, list[int] | None]
+] = {
     ModuleTypeEnum.equipment: (
         "equipment_it",
         [DataEntryTypeEnum.it],
         "equipment_class",
+        None,
     ),
     ModuleTypeEnum.purchase: (
         "purchases_it",
         [DataEntryTypeEnum.it_equipment],
         "purchase_institutional_code",
+        None,
     ),
     ModuleTypeEnum.research_facilities: (
         "research_facilities_it",
         [DataEntryTypeEnum.research_facilities],
         "researchfacility_name",
+        [EmissionType.research_facilities__it_facilities.value],
     ),
 }
 
@@ -614,13 +621,14 @@ class CarbonReportModuleService:
         spec = _IT_TOP_CLASS_SPECS.get(ModuleTypeEnum(module.module_type_id))
         if spec is None or module.id is None:
             return {}
-        stats_key, data_entry_types, group_by_field = spec
+        stats_key, data_entry_types, group_by_field, emission_type_ids = spec
         emission_repo = DataEntryEmissionRepository(self.session)
         rows = await emission_repo.get_top_class_breakdown(
             carbon_report_module_ids=[module.id],
             data_entry_types=data_entry_types,
             group_by_field=group_by_field,
             report_year=report_year,
+            emission_type_ids=emission_type_ids,
         )
         return {"it_top_classes": {stats_key: rows}}
 
@@ -659,14 +667,18 @@ class CarbonReportModuleService:
         emission_repo = DataEntryEmissionRepository(self.session)
         top_classes: dict[str, list] = {}
         for module_type, module_ids in module_ids_by_type.items():
-            stats_key, data_entry_types, group_by_field = _IT_TOP_CLASS_SPECS[
-                module_type
-            ]
+            (
+                stats_key,
+                data_entry_types,
+                group_by_field,
+                emission_type_ids,
+            ) = _IT_TOP_CLASS_SPECS[module_type]
             top_classes[stats_key] = await emission_repo.get_top_class_breakdown(
                 carbon_report_module_ids=module_ids,
                 data_entry_types=data_entry_types,
                 group_by_field=group_by_field,
                 report_year=report_year,
+                emission_type_ids=emission_type_ids,
             )
         return top_classes
 
