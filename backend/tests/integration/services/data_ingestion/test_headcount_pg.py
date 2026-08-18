@@ -145,7 +145,17 @@ def _make_writing_csv_provider(
 # distinct and FTE-weighted totals are easy to verify by inspection.
 _HEADCOUNT_LEAVES: list[tuple[str, str, EmissionType, float, float]] = [
     ("food", "vegetarian", EmissionType.food__vegetarian, 1.0, 100.0),
-    ("waste", "incineration", EmissionType.waste__incineration, 0.5, 50.0),
+    # waste__incineration stopped being a leaf when
+    # waste__incineration__domestic_waste was added under it. Emissions are
+    # only ever computed at leaves, so the factor has to be seeded — and the
+    # rows expected — one level down.
+    (
+        "waste",
+        "incineration",
+        EmissionType.waste__incineration__domestic_waste,
+        0.5,
+        50.0,
+    ),
     (
         "commuting",
         "public_transport",

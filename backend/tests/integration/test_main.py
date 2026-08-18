@@ -1,3 +1,4 @@
+import json
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -44,7 +45,9 @@ async def test_healthz_never_checked_is_still_200(monkeypatch):
     monkeypatch.setattr("app.main.get_db_health_state", lambda: None)
     resp = await main.healthz()
     assert resp.status_code == 200
-    assert b'"database": "unknown"' in resp.body
+    # Parse rather than substring-match: the body is compact JSON, and a
+    # byte-level assertion breaks on serializer whitespace alone.
+    assert json.loads(resp.body)["database"] == "unknown"
 
 
 @pytest.mark.asyncio
@@ -74,7 +77,9 @@ async def test_healthz_stale_state_reported_as_unknown(monkeypatch):
     )
     resp = await main.healthz()
     assert resp.status_code == 200
-    assert b'"database": "unknown"' in resp.body
+    # Parse rather than substring-match: the body is compact JSON, and a
+    # byte-level assertion breaks on serializer whitespace alone.
+    assert json.loads(resp.body)["database"] == "unknown"
 
 
 @pytest.mark.asyncio
