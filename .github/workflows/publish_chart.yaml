@@ -40,11 +40,13 @@ jobs:
 
       - name: Render Chart
         # Smoke-test both secret paths. Default (external) needs a Secret name;
-        # chart-managed (dev) needs a throwaway SECRET_KEY. Real deploys inject
+        # chart-managed (dev) needs throwaway signing keys. Real deploys inject
         # the real values.
         run: |
           helm template . --set backend.existingSecret.name=ci-existing-secret
-          helm template . --set backend.existingSecret.enabled=false --set backend.secrets.SECRET_KEY=ci-render-check
+          helm template . --set backend.existingSecret.enabled=false \
+            --set backend.secrets.JWT_HMAC_KEY=ci-render-check \
+            --set backend.secrets.SESSION_HMAC_KEY=ci-render-check
 
       - name: Set Helm chart version based on branch
         run: |

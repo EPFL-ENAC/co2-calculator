@@ -31,7 +31,7 @@ helm install co2-calc ./helm -f values.local.yaml
 Start a live-reload development loop:
 
 - `backend.env`: Maps to `APP_NAME`, `API_VERSION`, `LOG_LEVEL` and security values such as `ALGORITHM`.
-- `backend.secrets.SECRET_KEY`: Mirrors the required `SECRET_KEY` in the backend `.env`. Override with a secure value.
+- `backend.secrets.JWT_HMAC_KEY` / `backend.secrets.SESSION_HMAC_KEY`: Mirror the required `JWT_HMAC_KEY` / `SESSION_HMAC_KEY` in the backend `.env`. Override each with a distinct secure value.
 - `database.external`: Provides the duplicate `DB_URL`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` entries expected by the backend.
 - `frontend.env.API_BASE_URL`: Allows the UI to target the API path exposed through the ingress.
 
@@ -52,7 +52,8 @@ kubectl create namespace prod
 
 # Backend secret
 kubectl create secret generic backend-secret -n prod \
-  --from-literal=SECRET_KEY="$(openssl rand -hex 32)"
+  --from-literal=JWT_HMAC_KEY="$(openssl rand -hex 32)" \
+  --from-literal=SESSION_HMAC_KEY="$(openssl rand -hex 32)"
 
 # Database secret
 kubectl create secret generic db-secret -n prod \

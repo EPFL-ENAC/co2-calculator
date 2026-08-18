@@ -12,7 +12,7 @@ Trust boundaries (see plan
    ``refresh_token`` cookies directly on the 302 redirect response.
    Frontend and backend share the same domain (``/api`` prefix), so the
    browser accepts ``Set-Cookie`` on the redirect without ITP interference.
-   ``_set_auth_cookies`` emits JWTs signed with ``settings.SECRET_KEY``.
+   ``_set_auth_cookies`` emits JWTs signed with ``settings.JWT_HMAC_KEY``.
 3. cookie -> backend: ``decode_jwt`` validates signature, algorithm and
    ``exp``. Any identity in an ``auth_token`` / ``refresh_token`` cookie
    is trusted only after that check passes AND the JWT ``type`` matches

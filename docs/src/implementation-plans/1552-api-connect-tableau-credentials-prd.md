@@ -55,7 +55,7 @@ These were settled during design; the rest of the document assumes them.
 | Secrets           | `secret_value` is **encrypted at rest** (Fernet). Read schemas never return it; the form field is write-only (blank on edit keeps the stored value). |
 | Datasource (LUID) | **Stored in DB** as `connector_luid` on a per-module datasource row. The field schema and transform stay in code.                                    |
 | Env-only knobs    | `VERIFY_SSL`, `REQUEST_TIMEOUT_SECONDS`, `REST_MIN_API_VERSION`, `MAX_FIELDS` stay in env — runtime knobs, not connection state.                     |
-| Encryption key    | A **dedicated** `CREDENTIALS_ENCRYPTION_KEY` + `CREDENTIALS_ENCRYPTION_SALT`, Scrypt→Fernet (mirrors file encryption). Never reuse `SECRET_KEY`.     |
+| Encryption key    | A **dedicated** `CREDENTIALS_ENCRYPTION_KEY` + `CREDENTIALS_ENCRYPTION_SALT`, Scrypt→Fernet (mirrors file encryption). Never reuse `JWT_HMAC_KEY`.   |
 
 > **Where each `TABLEAU_*` value goes.** Form → connection:
 > `SERVER_URL`, `SITE_CONTENT_URL`, `USERNAME`, `CONNECTED_APP_CLIENT_ID`,

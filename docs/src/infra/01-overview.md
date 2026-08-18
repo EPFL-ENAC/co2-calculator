@@ -214,9 +214,19 @@ metadata:
 type: Opaque
 data:
   DB_URL: <base64-encoded>
-  SECRET_KEY: <base64-encoded>
+  JWT_HMAC_KEY: <base64-encoded>
+  SESSION_HMAC_KEY: <base64-encoded>
   OAUTH_CLIENT_SECRET: <base64-encoded>
 ```
+
+> `SECRET_KEY` was split into `JWT_HMAC_KEY` (JWT signing) and
+> `SESSION_HMAC_KEY` (OAuth-flow session cookie signing) — see
+> [issue #1704](https://github.com/EPFL-ENAC/co2-calculator/issues/1704).
+> Existing manually-created Secrets on stage/prod only have the old
+> `SECRET_KEY` entry: add both new keys before rolling out the upgrade, or
+> the backend/migration pods fail closed with `CreateContainerConfigError`.
+> Reusing the old `SECRET_KEY` value for `JWT_HMAC_KEY` keeps existing
+> sessions valid; `SESSION_HMAC_KEY` is brand new and needs a fresh value.
 
 **Management**:
 
