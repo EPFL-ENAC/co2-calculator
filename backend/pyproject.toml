@@ -71,6 +71,8 @@ env = [
     "CREDENTIALS_ENCRYPTION_KEY=test-key-material-please-change",
     "CREDENTIALS_ENCRYPTION_SALT=test-salt-please-change",
     "CONNECTOR_ALLOWED_HOST_SUFFIXES=epfl.ch",
+    "JWT_HMAC_KEY=test-jwt-hmac-key-please-change",
+    "SESSION_HMAC_KEY=test-session-hmac-key-please-change",
 
 ]
 
