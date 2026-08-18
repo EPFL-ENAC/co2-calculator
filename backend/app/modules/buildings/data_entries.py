@@ -152,13 +152,31 @@ class EnergyCombustionHandlerUpdate(DataEntryUpdate):
         return v
 
 
+class DiscardClientBuildingFieldsMixin(DiscardClientSurfaceMixin):
+    """Embodied-energy rows persist only ``room_name`` — building_name (like
+    the surface) resolves from the ``BuildingRoom`` reference table, so a
+    client-sent value must never be persisted.
+    """
+
+    @model_validator(mode="after")
+    def discard_client_building_name(self):
+        self.data.pop("building_name", None)
+        return self
+
+
 class BuildingEmbodiedEnergyHandlerResponse(DataEntryResponseGen):
-    building_name: str
-
-
-class BuildingEmbodiedEnergyHandlerCreate(DataEntryCreate):
-    building_name: str
-
-
-class BuildingEmbodiedEnergyHandlerUpdate(DataEntryUpdate):
+    room_name: str
     building_name: str | None = None
+    room_surface_square_meter: float | None = None
+
+
+class BuildingEmbodiedEnergyHandlerCreate(
+    DiscardClientBuildingFieldsMixin, DataEntryCreate
+):
+    room_name: str
+
+
+class BuildingEmbodiedEnergyHandlerUpdate(
+    DiscardClientBuildingFieldsMixin, DataEntryUpdate
+):
+    room_name: str | None = None

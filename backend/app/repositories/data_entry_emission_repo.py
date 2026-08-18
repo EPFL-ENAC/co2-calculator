@@ -10,6 +10,7 @@ from sqlmodel import col, delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
+from app.models.building_room import BuildingRoom
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import (
     CarbonReport,
@@ -383,7 +384,7 @@ class DataEntryEmissionRepository:
         Returns:
             [(building_name, sum_kg_co2eq), ...] sorted by building name.
         """
-        building_name_expr = DataEntry.data["building_name"].as_string()
+        building_name_expr = col(BuildingRoom.building_name)
         query: Select[Any] = (
             select(
                 building_name_expr.label("building_name"),
@@ -392,6 +393,12 @@ class DataEntryEmissionRepository:
             .join(
                 DataEntry,
                 col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            # Inner join: the building name is reference data — entries whose
+            # room_name no longer resolves carry no emission and drop out.
+            .join(
+                BuildingRoom,
+                DataEntry.data["room_name"].as_string() == col(BuildingRoom.room_name),
             )
             .join(
                 CarbonReportModule,
@@ -404,8 +411,6 @@ class DataEntryEmissionRepository:
                 col(DataEntryEmission.emission_type_id)
                 == EmissionType.buildings__construction_and_renovation.value,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
-                building_name_expr.isnot(None),
-                building_name_expr != "",
             )
             .group_by(building_name_expr)
             .order_by(building_name_expr)

@@ -760,10 +760,12 @@ async def test_building_embodied_energy_factor_values_change_propagates(pg_dsn):
 
     Handler has ``kind_field=None`` and runs a ``FactorQuery`` keyed on
     ``building_name`` in classification (B1 path with fallback).  The
-    surface is baked into ``entry.data['room_surface_square_meter']`` by
-    the upstream ``EmbodiedEnergyWorkflow.post_create`` step; the handler
-    has no ``pre_compute``, so that field must be present on the entry.
+    entry persists only ``{"room_name"}``; ``pre_compute`` resolves
+    ``building_name`` and ``room_surface_square_meter`` from the seeded
+    ``BuildingRoom`` reference row at compute time.
     """
+    from app.models.building_room import BuildingRoom
+
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -771,6 +773,15 @@ async def test_building_embodied_energy_factor_values_change_propagates(pg_dsn):
         _, module_id = await _seed_unit_and_module(
             s, module_type=ModuleTypeEnum.buildings
         )
+        room = BuildingRoom(
+            building_location="EPFL",
+            building_name="BC",
+            room_name="BC-150",
+            room_type="office",
+            room_surface_square_meter=50.0,
+        )
+        s.add(room)
+        await s.commit()
 
         factor = Factor(
             emission_type_id=EmissionType.buildings__construction_and_renovation.value,
@@ -784,13 +795,10 @@ async def test_building_embodied_energy_factor_values_change_propagates(pg_dsn):
         assert factor.id is not None
         factor_id: int = factor.id
 
-        # ``EmbodiedEnergyWorkflow._resolve_embodied_energy_data``
-        # bakes ``room_surface_square_meter`` directly into entry.data —
-        # the handler has no pre_compute, so this is the only source.
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.building_embodied_energy.value,
             carbon_report_module_id=module_id,
-            data={"building_name": "BC", "room_surface_square_meter": 50.0},
+            data={"room_name": "BC-150"},
         )
         s.add(entry)
         await s.commit()

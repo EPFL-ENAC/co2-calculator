@@ -427,22 +427,6 @@ class DataEntryRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
-    async def list_by_creator_and_type(
-        self, created_by_id: int, data_entry_type_id: DataEntryTypeEnum
-    ) -> list[DataEntry]:
-        """Fetch all DataEntries of one type created by one job/user.
-
-        Used by the bulk ingest path to read back the rows a job just
-        COPY-inserted (``bulk_copy`` never populates ``.id``) so derived
-        entries can FK-link them.
-        """
-        statement = select(DataEntry).where(
-            col(DataEntry.created_by_id) == created_by_id,
-            col(DataEntry.data_entry_type_id) == data_entry_type_id.value,
-        )
-        result = await self.session.execute(statement)
-        return list(result.scalars().all())
-
     async def list_by_data_entry_type_and_year(
         self,
         data_entry_type_id: DataEntryTypeEnum,
@@ -766,7 +750,10 @@ class DataEntryRepository:
         OriginLocation: Any = None
         DestLocation: Any = None
         traveler_name_subq: Any = None
-        is_buildings_entry = data_entry_type_id in (DataEntryTypeEnum.building.value,)
+        is_buildings_entry = data_entry_type_id in (
+            DataEntryTypeEnum.building.value,
+            DataEntryTypeEnum.building_embodied_energy.value,
+        )
         is_headcount_entry = data_entry_type_id in (
             DataEntryTypeEnum.member.value,
             DataEntryTypeEnum.student.value,
@@ -1242,6 +1229,13 @@ class DataEntryRepository:
                 enriched_data["room_surface_square_meter"] = (
                     building_room.room_surface_square_meter
                 )
+                # Embodied rows persist only room_name — building_name is
+                # reference data; parents keep their own stored value.
+                if (
+                    data_entry_type_id
+                    == DataEntryTypeEnum.building_embodied_energy.value
+                ):
+                    enriched_data["building_name"] = building_room.building_name
 
             source_entry_id = data_entry.data.get("source_data_entry_id")
             if source_entry_id is not None:

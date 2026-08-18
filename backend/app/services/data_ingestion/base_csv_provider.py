@@ -1408,11 +1408,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 f"{stats['rows_processed']} rows total"
             )
 
-        # Rows for derived data-entry types (all parent batches are
-        # committed by now; the parallel emission_recalc sibling chained
-        # after the job prices them).
-        await self._create_derived_entries(data_entry_service)
-
         # Move file from processing/ to processed/
         processing_path = setup_result["processing_path"]
         metadata_update = {
@@ -1466,15 +1461,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             "stats": stats,
         }
 
-    async def _create_derived_entries(
-        self, data_entry_service: DataEntryService
-    ) -> None:
-        """Create entries for the job's derived data-entry types.
+    async def _create_derived_entries(self, batch: list[DataEntry]) -> None:
+        """Create derived rows for a just-inserted batch.
 
         Driven by ``DERIVED_DATA_ENTRY_TYPES`` so the base class stays
-        module-agnostic; the type-specific derivation lives behind its
-        workflow. The just-inserted parent rows are read back by
-        ``created_by_id`` because ``bulk_copy`` never populates ``.id``.
+        module-agnostic: the registry only decides whether the job's pinned
+        type derives anything; each workflow picks its own source rows out
+        of the batch.
         """
         if self.job is None or self.job.data_entry_type_id is None:
             return
@@ -1487,18 +1480,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # belongs to.
         from app.workflows.derived_entry_registry import DERIVED_ENTRY_WORKFLOWS
 
-        parents = await data_entry_service.repo.list_by_creator_and_type(
-            created_by_id=self.job_id,
-            data_entry_type_id=pinned_type,
-        )
         for derived_type in derived_types:
             workflow_cls = DERIVED_ENTRY_WORKFLOWS[derived_type]
             created = await workflow_cls(self.data_session).create_derived_entries_for(
-                parents
+                batch
             )
             logger.info(
                 f"Created {created} {derived_type.name} entries "
-                f"from {len(parents)} {pinned_type.name} rows"
+                f"from a batch of {len(batch)} rows"
             )
         await self.data_session.commit()
 
@@ -1557,6 +1546,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         )
         logger.debug(f"COPY-inserted {inserted} data entries")
         await self.data_session.commit()
+
+        # Derived rows for this batch (the chained emission_recalc sibling
+        # prices them after the job).
+        await self._create_derived_entries(batch)
         return None
 
     async def _recompute_module_stats(self) -> None:
