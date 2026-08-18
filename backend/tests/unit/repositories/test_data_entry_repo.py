@@ -1824,3 +1824,9 @@ async def test_get_submodule_data_planner_headcount_uses_rollup_total(
     assert len(response.items) == 1
     item = response.items[0]
     assert item.kg_co2eq == pytest.approx(99.0)
+    # kg_co2eq is the only assertable difference: is_headcount_entry is read
+    # twice, so the fix also stops resolved_factor_id being computed here —
+    # but PlannerHeadCountResponse exposes no factor field, so that second
+    # dispatch has nothing observable to change. (It would be equivalent
+    # anyway: the rollup row's primary_factor_id is min(leaf factor ids),
+    # exactly what the generic path's func.min(primary_factor_id) produced.)

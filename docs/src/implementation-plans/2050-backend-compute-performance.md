@@ -2224,9 +2224,20 @@ Two things this settles:
   absolute milliseconds will keep missing bugs of exactly this shape on
   developer hardware.
 
-H1's `EXPLAIN` verification is now redundant for the fix itself — the
-scaling measurement is the stronger evidence, since it exercises the real
-query through the real ORM rather than a hand-transcribed SQL string.
+H1's `EXPLAIN` verification drops to low priority rather than staying a
+merge gate: the scaling measurement exercises the real query through the
+real ORM (not a hand-transcribed SQL string) and proves the cost stopped
+growing with table size. It does not prove the chosen plan is the same
+cheap index path `member`/`student` get — if someone wants that
+confirmed, the `EXPLAIN` is still the way.
+
+One behaviour this inherits rather than introduces: `prepare_create`
+writes the rollup row only when an entry yields **more than one** leaf
+(`data_entry_emission_service.py:674`). A single-leaf `planner_headcount`
+entry therefore has no rollup row, and the new LEFT JOIN returns a null
+total where the old aggregation would have returned that one leaf's
+value. This is exactly what `member`/`student` do today — consistency
+with them is the point of the fix — but it is worth knowing it exists.
 
 ### H6 — tracing config, so the next one is measurable
 

@@ -44,6 +44,14 @@ LARGE_BACKGROUND_ENTRIES = 4_750  # seeded on top of the small round
 # the ~825ms the production trace actually showed.
 MAX_SCALING_FACTOR = 3.0
 
+# This suite runs daily in CI (integration-tests.yml -> make
+# test-cov-xml-integration -> all of tests/integration) on a shared
+# runner, where the fixed path's ~6ms baseline is small enough that
+# scheduling noise alone could manufacture a 3x ratio. The floor keeps
+# the ratio from firing on absolute timings that are fast either way;
+# the unfixed path's 75ms clears it comfortably, so nothing is weakened.
+RATIO_FLOOR_MS = 25.0
+
 # The org-wide GET budget (2161-ceiling-scale-perf-fixtures.md). Kept as a
 # secondary assertion so the number stays documented and enforced, but it
 # is the ratio above that discriminates fixed from unfixed.
@@ -224,7 +232,7 @@ async def test_planner_headcount_submodule_get_ignores_table_wide_emission_volum
     )
 
     assert response.items[0].kg_co2eq == pytest.approx(18.0)
-    assert large_ms < small_ms * MAX_SCALING_FACTOR, (
+    assert large_ms < max(small_ms * MAX_SCALING_FACTOR, RATIO_FLOOR_MS), (
         f"{small_ms:.1f}ms at {small_rows} rows -> {large_ms:.1f}ms at "
         f"{large_rows} rows (x{large_ms / small_ms:.1f}): this query reads "
         f"one pre-computed rollup row, so it must not scale with the size "
