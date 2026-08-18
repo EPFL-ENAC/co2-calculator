@@ -142,6 +142,11 @@ export default defineConfig(function () {
         // in runtimeConfig; in production it comes from /injectEnv.js.
         APP_EQUIPMENT_POWER_FEEDBACK_EMAIL:
           process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL || '',
+        // Project-planner year horizon (see src/config/runtime.ts). Empty in
+        // dev falls back to the defaults in runtimeConfig; in production it
+        // comes from /injectEnv.js.
+        APP_PLANNER_MIN_YEAR: process.env.APP_PLANNER_MIN_YEAR || '',
+        APP_PLANNER_MAX_YEAR: process.env.APP_PLANNER_MAX_YEAR || '',
       },
       // rawDefine: {}
       // ignorePublicFolder: true,
