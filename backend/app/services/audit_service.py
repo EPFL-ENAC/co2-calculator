@@ -25,17 +25,6 @@ HANDLED_IDS_MAX_LENGTH = (
     20  # Max number of handled_ids to store for safety and performance
 )
 
-AUDIT_HEAD_INDEX_NAME = "audit_document_one_current_idx"
-MAX_HEAD_SWAP_ATTEMPTS = 5
-
-
-def _is_head_conflict(exc: IntegrityError) -> bool:
-    diag = getattr(exc.orig, "diag", None)
-    constraint = getattr(diag, "constraint_name", None)
-    if constraint is not None:
-        return constraint == AUDIT_HEAD_INDEX_NAME
-    return AUDIT_HEAD_INDEX_NAME.lower() in str(exc).lower()
-
 
 class AuditDocumentService:
     """Service for managing document versions with audit trail.
@@ -222,90 +211,68 @@ class AuditDocumentService:
         if route_payload is not None:
             route_payload = jsonable_encoder(route_payload)
 
-        # Flush the caller's pending work first so the savepoint below holds
-        # only the audit head swap.
-        await self.session.flush()
+        # No lock guards the head swap below: every remaining caller audits a
+        # mutation keyed on the row it just changed, so two writers can only
+        # collide by editing the same entry at once — a real conflict, which
+        # the IntegrityError surfaces rather than papers over (#1958).
+        # Get current version to compute diff and hash chain
+        current = await self.get_current_version(entity_type, entity_id)
 
-        # The head read, version increment and is_current flip are a
-        # read-modify-write that concurrent writers on the same entity race
-        # (FOR UPDATE cannot cover the no-head case nor the predicate
-        # re-evaluation after the winner commits). The loser trips
-        # audit_document_one_current_idx, rolls back its savepoint and
-        # retries against the winner's committed head.
-        for attempt in range(1, MAX_HEAD_SWAP_ATTEMPTS + 1):
-            try:
-                async with self.session.begin_nested():
-                    # Get current version to compute diff and hash chain
-                    current = await self.get_current_version(entity_type, entity_id)
+        if current:
+            new_version = current.version + 1
+            previous_hash = current.current_hash
+            old_data = current.data_snapshot
+        else:
+            new_version = 1
+            previous_hash = None
+            old_data = None
 
-                    if current:
-                        new_version = current.version + 1
-                        previous_hash = current.current_hash
-                        old_data = current.data_snapshot
-                    else:
-                        new_version = 1
-                        previous_hash = None
-                        old_data = None
+        # Compute diff
+        data_diff = self._compute_diff(old_data, data_snapshot)
 
-                    # Compute diff
-                    data_diff = self._compute_diff(old_data, data_snapshot)
+        # Compute hash
+        current_hash = self._compute_hash(
+            entity_type, entity_id, new_version, data_snapshot, previous_hash
+        )
 
-                    # Compute hash
-                    current_hash = self._compute_hash(
-                        entity_type,
-                        entity_id,
-                        new_version,
-                        data_snapshot,
-                        previous_hash,
-                    )
+        # Mark previous version as not current
+        if current:
+            current.is_current = False
+            self.session.add(current)
 
-                    # Mark previous version as not current
-                    if current:
-                        current.is_current = False
-                        self.session.add(current)
+        # for safety version make sure we don' push more than 20 handled_ids
+        final_handled_ids = handled_ids[:HANDLED_IDS_MAX_LENGTH] if handled_ids else []
+        # Create new version
+        doc_version = AuditDocument(
+            entity_type=entity_type,
+            entity_id=entity_id,
+            version=new_version,
+            is_current=True,
+            data_snapshot=data_snapshot,
+            data_diff=data_diff,
+            change_type=change_type,
+            change_reason=change_reason,
+            changed_by=changed_by,
+            changed_at=datetime.now(UTC),
+            previous_hash=previous_hash,
+            current_hash=current_hash,
+            handler_id=handler_id,
+            handled_ids=final_handled_ids,
+            ip_address=ip_address or "unknown",
+            route_path=route_path,
+            route_payload=route_payload,
+        )
 
-                    # for safety version make sure we don' push more than 20 handled_ids
-                    final_handled_ids = (
-                        handled_ids[:HANDLED_IDS_MAX_LENGTH] if handled_ids else []
-                    )
-                    # Create new version
-                    doc_version = AuditDocument(
-                        entity_type=entity_type,
-                        entity_id=entity_id,
-                        version=new_version,
-                        is_current=True,
-                        data_snapshot=data_snapshot,
-                        data_diff=data_diff,
-                        change_type=change_type,
-                        change_reason=change_reason,
-                        changed_by=changed_by,
-                        changed_at=datetime.now(UTC),
-                        previous_hash=previous_hash,
-                        current_hash=current_hash,
-                        handler_id=handler_id,
-                        handled_ids=final_handled_ids,
-                        ip_address=ip_address or "unknown",
-                        route_path=route_path,
-                        route_payload=route_payload,
-                    )
+        self.session.add(doc_version)
 
-                    self.session.add(doc_version)
-                    await self.session.flush()
-                break
-            except IntegrityError as e:
-                if not _is_head_conflict(e):
-                    raise
-                if attempt == MAX_HEAD_SWAP_ATTEMPTS:
-                    logger.error(
-                        f"Audit head swap for {entity_type}:{entity_id} still "
-                        f"conflicting after {MAX_HEAD_SWAP_ATTEMPTS} attempts"
-                    )
-                    raise
-                logger.warning(
-                    f"Concurrent version creation detected for "
-                    f"{entity_type}:{entity_id}; retrying "
-                    f"({attempt}/{MAX_HEAD_SWAP_ATTEMPTS})"
-                )
+        try:
+            await self.session.flush()
+        except IntegrityError as e:
+            await self.session.rollback()
+            logger.warning(
+                f"Concurrent version creation detected for {entity_type}:{entity_id}"
+            )
+            raise e
 
         await self.session.refresh(doc_version)
 
