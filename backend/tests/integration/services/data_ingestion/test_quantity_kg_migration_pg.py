@@ -42,10 +42,12 @@ _REVISION_PATH = (
     / "2026_08_18_1147-09ec5dcb3688_rename_process_emissions_quantity_to_.py"
 )
 
-# ``DataEntryTypeEnum.process_emissions`` / ``it_equipment`` — the second is
-# the control: purchase entries keep their own unrelated ``quantity`` field.
+# ``DataEntryTypeEnum.process_emissions`` / ``it_equipment`` — the latter is a
+# *purchase* submodule (declared under ``# purchase`` in the enum, handled by
+# ``PurchaseModuleHandler``), used here as the control: purchase entries keep
+# their own unrelated ``quantity`` field and must survive the migration intact.
 _DET_PROCESS_EMISSIONS = 50
-_DET_IT_EQUIPMENT = 61
+_DET_PURCHASE_IT_EQUIPMENT = 61
 
 
 def _load_revision():
@@ -107,7 +109,7 @@ async def test_quantity_kg_migration_roundtrip(pg_dsn) -> None:
         await _seed(
             engine,
             entry_id=9002,
-            det=_DET_IT_EQUIPMENT,
+            det=_DET_PURCHASE_IT_EQUIPMENT,
             crm_id=crm_id,
             data='{"name": "laptop", "quantity": 3}',
         )
