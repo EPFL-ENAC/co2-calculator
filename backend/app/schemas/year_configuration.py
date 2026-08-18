@@ -15,6 +15,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.config import get_settings
 from app.models.data_ingestion import IngestionResult
 from app.models.module_type import ModuleTypeEnum
 from app.utils.csv_dialect import csv_dict_reader
@@ -264,8 +265,8 @@ def validate_reduction_objective_csv(
     return validated_rows
 
 
-MIN_REDUCTION_YEAR = 1990
-MAX_REDUCTION_YEAR = 2050
+MIN_REDUCTION_YEAR = get_settings().APP_MIN_REDUCTION_YEAR
+MAX_REDUCTION_YEAR = get_settings().APP_MAX_REDUCTION_YEAR
 
 
 class ReductionObjectiveGoal(BaseModel):

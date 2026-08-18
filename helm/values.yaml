@@ -47,6 +47,8 @@ backend:
     FRONTEND_URL: "http://localhost:3000" # Change to frontend URL in production
     ACCRED_AUTHORIZATION_HEALTHCHECK_URL: "https://url-you-want-to-check"
     MIN_CONFIGURABLE_YEAR: "2025" # Earliest year an admin can create a YearConfiguration for
+    APP_MIN_REDUCTION_YEAR: "1990" # Earliest reference year for reduction objective goals
+    APP_MAX_REDUCTION_YEAR: "2050" # Latest reference year for reduction objective goals
     # Background job safety poller (orphan-job recovery)
     RUN_BACKGROUND_POLLER: "true"
     POLLER_INTERVAL_SECONDS: "2" # Seconds between poller sweeps
