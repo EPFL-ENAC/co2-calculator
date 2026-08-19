@@ -19,3 +19,8 @@ app_dump*
 # Playwright MCP scratch artifacts
 .playwright-mcp/
 planner-*.png
+
+# Secrets: any .env at any depth (the .env.example templates stay tracked)
+.env
+.env.*
+!.env.example
