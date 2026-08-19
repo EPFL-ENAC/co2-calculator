@@ -8,8 +8,10 @@ from sqlmodel import SQLModel
 from app.core.constants import ModuleStatus
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReportModule, CarbonReportType
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.module_type import ALL_MODULE_TYPE_IDS, ModuleTypeEnum
 from app.schemas.carbon_report import CarbonReportCreate, CarbonReportUpdate
+from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -395,3 +397,58 @@ async def test_recompute_report_stats_marks_plan_modules_validated(async_session
     assert fetched is not None and fetched.stats is not None
     assert "professional_travel" in fetched.stats["validated_buckets"]
     assert fetched.stats["validated_total"] == pytest.approx(3.0)
+
+
+# ======================================================================
+# #2050 J4 — one grouped query for entry count and headcount FTE
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_entry_counts_and_fte_matches_the_two_queries_it_replaces(
+    async_session,
+):
+    """One grouped query now returns both the entry count and the headcount
+    FTE sum. Asserted against hand-computed values including the two edges
+    that would otherwise be silently wrong: a non-headcount module (gets a
+    count, must get no FTE entry) and an entry with no ``fte`` key (must
+    still be counted).
+    """
+    headcount = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status=ModuleStatus.IN_PROGRESS,
+    )
+    travel = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status=ModuleStatus.IN_PROGRESS,
+    )
+    async_session.add_all([headcount, travel])
+    await async_session.flush()
+
+    for data in ({"fte": 2.0}, {"fte": 3.5}, {"name": "no fte here"}):
+        async_session.add(
+            DataEntry(
+                carbon_report_module_id=headcount.id,
+                data_entry_type_id=DataEntryTypeEnum.member.value,
+                data=data,
+            )
+        )
+    async_session.add(
+        DataEntry(
+            carbon_report_module_id=travel.id,
+            data_entry_type_id=DataEntryTypeEnum.plane.value,
+            data={"distance_km": 100},
+        )
+    )
+    await async_session.flush()
+
+    service = CarbonReportModuleService(async_session)
+    counts, fte = await service._entry_counts_and_fte([headcount, travel])
+
+    assert counts[headcount.id] == 3
+    assert counts[travel.id] == 1
+    assert fte[headcount.id] == pytest.approx(5.5)
+    # Non-headcount modules carry no FTE at all, exactly as before.
+    assert travel.id not in fte

@@ -52,10 +52,12 @@ from app.schemas.data_entry import (
     DataEntryResponse,
 )
 from app.schemas.user import UserRead
+from app.schemas.write_scope import WriteScope
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import DataEntryEmissionService
-from app.services.data_entry_service import DataEntryService
+from app.services.data_entry_service import SIMULATOR_REPORT_TYPES, DataEntryService
+from app.tasks.report_rollup import schedule_report_rollup
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 from app.workflows.embodied_energy import EmbodiedEnergyWorkflow
@@ -88,10 +90,32 @@ async def resolve_report_module(
 ) -> tuple[CarbonReportRead, CarbonReportModuleRead]:
     """Resolve identity addressing: the report and its module for a type.
 
+    Thin projection of :func:`resolve_write_scope` so both share one
+    resolution path — see there for the plan-scoping semantics.
+    """
+    scope = await resolve_write_scope(
+        carbon_report_id, module_id, db, current_user, action
+    )
+    return scope.report, scope.module
+
+
+async def resolve_write_scope(
+    carbon_report_id: int,
+    module_id: str,
+    db: AsyncSession,
+    current_user: User,
+    action: str = "edit",
+) -> WriteScope:
+    """Resolve the report, its module, and whether it is a Simulator report.
+
     When the report belongs to a Simulator Plan project, plan scoping is
     enforced on top of the module permission checks the routes perform:
-    unshared plans are invisible to non-creators, shared plans are
-    editable by every unit member.
+    unshared plans are invisible to non-creators, shared plans are editable by
+    every unit member.
+
+    The Simulator flag is kept rather than recomputed: plan scoping has to load
+    the project anyway, and that one fact is what ``is_simulator_module``
+    otherwise needed its own three-table JOIN to answer (#2050 J4).
 
     Args:
         carbon_report_id: The addressed carbon report (any project type —
@@ -102,11 +126,11 @@ async def resolve_report_module(
         action: ``"view"`` or ``"edit"`` — the intent of the calling route.
 
     Returns:
-        The (CarbonReportRead, CarbonReportModuleRead) pair.
+        The resolved :class:`WriteScope`.
 
     Raises:
-        HTTPException: 404 when the report or module does not exist,
-            403 when plan scoping rejects the action.
+        HTTPException: 404 when the report or module does not exist, 403 when
+            plan scoping rejects the action.
     """
     report = await CarbonReportService(db).get(carbon_report_id)
     if report is None:
@@ -114,7 +138,7 @@ async def resolve_report_module(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Carbon report not found",
         )
-    await require_plan_scope_for_report(db, current_user, report, action)
+    project = await require_plan_scope_for_report(db, current_user, report, action)
     module_type = _module_type_from_slug(module_id)
     module = await CarbonReportModuleService(db).get_module(
         carbon_report_id, int(module_type)
@@ -127,7 +151,13 @@ async def resolve_report_module(
                 f"carbon_report_id={carbon_report_id}, module={module_id}"
             ),
         )
-    return report, module
+    return WriteScope(
+        report=report,
+        module=module,
+        is_simulator=(
+            project is not None and project.carbon_report_type in SIMULATOR_REPORT_TYPES
+        ),
+    )
 
 
 async def _get_professional_travel_institutional_id_filter(
@@ -308,23 +338,17 @@ async def get_module(
     total_annual_fte = None
     total_kg_co2eq = None
     if module_id == "headcount":
-        total_annual_fte = await DataEntryService(db).get_total_per_field(
-            field_name="fte",
+        # #2050 Track J: one round trip, not three. These asked the same
+        # table for the same field over the same module; on dev a round
+        # trip costs ~160ms, so the count was the cost (Track G2).
+        fte = await DataEntryService(db).get_headcount_fte_breakdown(
             carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=None,
         )
-        member_stats: dict = await DataEntryService(db).get_stats(
-            carbon_report_module_id=carbon_report_module_id,
-            aggregate_by="sius_code",
-            aggregate_field="fte",
-            data_entry_type_id=DataEntryTypeEnum.member.value,
-        )
-        student_total: float | None = await DataEntryService(db).get_total_per_field(
-            field_name="fte",
-            carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=DataEntryTypeEnum.student.value,
-        )
-        module_data.stats = {**member_stats, "student": student_total}
+        total_annual_fte = fte.total_fte
+        module_data.stats = {
+            **fte.member_fte_by_sius_code,
+            "student": fte.student_fte,
+        }
     else:
         module_data.stats = await DataEntryEmissionService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,
@@ -874,9 +898,12 @@ async def create(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current user ID is required to create item",
         )
-    report, carbon_report_module = await resolve_report_module(
+    # #2050 J4: one resolution, carried through the whole write instead of
+    # four services re-deriving the same three rows.
+    scope = await resolve_write_scope(
         carbon_report_id, module_id, db, current_user, action="edit"
     )
+    report, carbon_report_module = scope.report, scope.module
     await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
@@ -895,14 +922,19 @@ async def create(
     data_entry_type_id = data_entry_type.value
     request_context = await get_request_context(request)
 
-    response = await CarbonReportModuleWorkflow(db).create(
+    workflow = CarbonReportModuleWorkflow(db)
+    response = await workflow.create(
         carbon_report_module=carbon_report_module,
         data_entry_type_id=data_entry_type_id,
         item_data=item_data,
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        scope=scope,
     )
+    # #2050 J4: after the commit, so the detached rollup reads this write's
+    # module stats rather than racing them.
+    schedule_report_rollup(workflow.stale_report_ids)
     await EmbodiedEnergyWorkflow(db).post_create(
         carbon_report_module,
         response,

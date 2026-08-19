@@ -21,6 +21,7 @@ from app.schemas.data_entry import (
     DataEntryUpdate,
 )
 from app.schemas.user import UserRead
+from app.schemas.write_scope import WriteScope
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
@@ -34,6 +35,9 @@ class CarbonReportModuleWorkflow:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+        # Reports whose stats a deferred rollup left stale, for the route to
+        # dispatch once the transaction has committed (#2050 J4).
+        self.stale_report_ids: set[int] = set()
 
     async def _check_planner_purchase_exclusivity(
         self,
@@ -98,6 +102,7 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        scope: WriteScope | None = None,
     ) -> DataEntryResponse:
         try:
             create_payload = {
@@ -126,24 +131,6 @@ class CarbonReportModuleWorkflow:
                 detail=f"Invalid item_data for creation: {str(e)}",
             )
 
-        if (
-            data_entry_type == DataEntryTypeEnum.member
-            and validated_data.model_dump().get("user_institutional_id")
-        ):
-            member_data = validated_data.model_dump()
-            uid = member_data["user_institutional_id"]
-            sius_code = member_data["sius_code"]
-            is_unique = await DataEntryService(self.session).check_member_role_unique(
-                carbon_report_module_id=carbon_report_module.id,
-                uid=uid,
-                sius_code=sius_code,
-            )
-            if not is_unique:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="DUPLICATE_INSTITUTIONAL_ID",
-                )
-
         if data_entry_type in (
             DataEntryTypeEnum.planner_purchase,
             DataEntryTypeEnum.planner_purchase_budget,
@@ -164,6 +151,7 @@ class CarbonReportModuleWorkflow:
                 background_tasks=background_tasks,
                 source=DataEntrySourceEnum.USER_MANUAL.value,
                 created_by_id=current_user.id,
+                scope=scope,
             )
             if item is None:
                 raise HTTPException(
@@ -171,15 +159,30 @@ class CarbonReportModuleWorkflow:
                     detail="Failed to create item",
                 )
 
-            await DataEntryEmissionService(self.session).upsert_by_data_entry(
-                data_entry_response=item
+            # #2050 J4: ``create``, not ``upsert_by_data_entry`` — the entry
+            # was inserted a few statements ago and cannot have emissions to
+            # replace, so upsert's pre-delete lookup is a guaranteed-empty
+            # SELECT. The update path below keeps using upsert.
+            await DataEntryEmissionService(self.session).create(item, scope=scope)
+            module_service = CarbonReportModuleService(self.session)
+            # #2050 J4: this module's stats stay in the request (the caller is
+            # looking at them); the report rollup is deferred and dispatched by
+            # the route after the commit.
+            await module_service.recompute_stats(
+                carbon_report_module.id, scope=scope, defer_report_rollup=True
             )
-            await CarbonReportModuleService(self.session).recompute_stats(
-                carbon_report_module.id
-            )
+            self.stale_report_ids = module_service.stale_report_ids
             await self.session.commit()
         except IntegrityError as e:
             await self.session.rollback()
+            # #2050 J4: the member-role uniqueness pre-check is gone. The
+            # unique index reports the same condition, without the
+            # check-then-act race two concurrent POSTs used to both win.
+            if "uq_member_role_per_module" in str(e.orig):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="DUPLICATE_INSTITUTIONAL_ID",
+                ) from e
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

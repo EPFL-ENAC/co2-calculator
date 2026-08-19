@@ -27,7 +27,9 @@ from app.modules.emissions.registry import (
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
+from app.schemas.carbon_report import CarbonReportRead
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
+from app.schemas.write_scope import WriteScope
 from app.services.factor_resolver import FactorResolver
 from app.services.factor_service import FactorService
 from app.utils.factor_year import resolve_factor_year
@@ -93,11 +95,13 @@ class DataEntryEmissionService:
         # repeated lookups (e.g. many entries of the same module, as in a
         # Simulator Plan prefill or a recalc slice with percentage-of-
         # reference-year entries) from one query each into a single query.
-        self._report_by_module_id: dict[int, CarbonReport | None] = {}
+        self._report_by_module_id: dict[
+            int, CarbonReport | CarbonReportRead | None
+        ] = {}
 
     async def _get_report_for_data_entry(
         self, data_entry: DataEntry | DataEntryResponse
-    ) -> CarbonReport | None:
+    ) -> CarbonReport | CarbonReportRead | None:
         """Fetch the CarbonReport for a DataEntry via CarbonReportModule."""
         if (
             not hasattr(data_entry, "carbon_report_module_id")
@@ -141,7 +145,10 @@ class DataEntryEmissionService:
         self,
         data_entry: DataEntry | DataEntryResponse,
         emission_type: EmissionType,
-        report: CarbonReport,
+        # #2050 J4: an interactive write hands over the read model the route
+        # already resolved. Only reference_year/year/unit_id are read here, and
+        # CarbonReportRead carries all three.
+        report: CarbonReport | CarbonReportRead,
         *,
         override_cache: dict[int, dict[int, tuple[float, int | None]]] | None = None,
     ) -> tuple[float, int | None] | None:
@@ -388,6 +395,7 @@ class DataEntryEmissionService:
         slice_cache: dict | None = None,
         factor_resolver: FactorResolver | None = None,
         override_cache: dict[int, dict[int, tuple[float, int | None]]] | None = None,
+        scope: WriteScope | None = None,
     ) -> list[DataEntryEmissionRow]:
         """Prepare emission records for any data entry type.
         TODO: Make this function readable!
@@ -427,14 +435,36 @@ class DataEntryEmissionService:
 
         Returns:
             Ready-to-insert emission rows (lightweight, not the real ORM
-            model — see ``DataEntryEmissionRow``); empty on any failure.
+            model — see ``DataEntryEmissionRow``).
+
+        Raises:
+            ValueError: whenever emissions cannot be computed correctly —
+                unresolvable year, unmapped type, missing factor key. #2050
+                Track I: every one of these used to log and return partial
+                or empty results, publishing a number that looked complete.
+                Recalc records the failure per entry and carries on
+                (``emission_recalculation.py:173``), so raising surfaces
+                the bad data without stalling the batch.
         """
-        if not data_entry or data_entry.data_entry_type is None:
-            logger.error("DataEntry must have a data_entry_type.")
-            return []
+        # ``data_entry_type`` is a property over a non-nullable int and
+        # ``DataEntryResponse.id`` is ``int``, so only the ORM model's
+        # pre-flush ``id`` is genuinely reachable here.
         if data_entry.id is None:
-            logger.error("DataEntry must have an ID before creating emissions.")
-            return []
+            raise ValueError(
+                "DataEntry must be flushed (id assigned) before computing emissions"
+            )
+
+        # #2050 J4: the route already resolved this module's report. Seeding
+        # the memo this service already keeps means _get_report_for_data_entry
+        # and the year resolution below cost nothing, instead of re-reading the
+        # module, report and project.
+        if scope is not None and scope.module.id is not None:
+            self._report_by_module_id.setdefault(scope.module.id, scope.report)
+
+        # A memo scoped to one invocation cannot go stale — factors do not
+        # change mid-call — so interactive callers get one too (#2050 J4).
+        if factor_query_cache is None:
+            factor_query_cache = {}
 
         resolver = factor_resolver or FactorResolver(self.session)
         handler = BaseModuleHandler.get_by_type(
@@ -462,8 +492,15 @@ class DataEntryEmissionService:
                 # reference year drives factor lookup.
                 year = await resolve_factor_year(self.session, report)
         if year is None:
-            logger.warning(
-                "Could not determine year for data entry, factors may not match"
+            # #2050 Track J: this used to warn "factors may not match" and
+            # then use them anyway — naming its own defect in a log line.
+            # Year selects the factor, so an unresolvable year means every
+            # number below is priced off an arbitrary year's factor.
+            raise ValueError(
+                f"Cannot determine the factor year for data_entry_id="
+                f"{data_entry.id!r} (carbon_report_module_id="
+                f"{data_entry.carbon_report_module_id!r}); refusing to "
+                f"compute emissions against an unknown year"
             )
         # Also load the report when the percentage override is requested, since
         # _get_percentage_override_kg needs reference_year and unit_id.
@@ -492,8 +529,15 @@ class DataEntryEmissionService:
             factor=primary_factor,
         )
         if emission_types is None:
-            logger.warning(f"Unhandled type: {data_entry.data_entry_type}")
-            return []
+            # #2050 Track J: an unmapped type returned [], which is
+            # indistinguishable downstream from "this entry emits nothing".
+            raise ValueError(
+                f"No emission types are mapped for "
+                f"{data_entry.data_entry_type!r} (data_entry_id="
+                f"{data_entry.id!r}); it cannot contribute a total"
+            )
+        # Genuinely empty is a real answer, unlike None above: the registry
+        # resolved this entry's classification to no leaves.
         if not emission_types:
             return []
 
@@ -536,9 +580,23 @@ class DataEntryEmissionService:
 
         results: list[DataEntryEmissionRow] = []
 
-        for emission_type in emission_types:
-            computations = handler.resolve_computations(data_entry, emission_type, ctx)
-
+        # Resolve every computation up front so the prefetch below sees all of
+        # them, then prime the Strategy-B memo in one query (#2050 J4).
+        # resolve_computations is pure, so hoisting it also stops it running
+        # twice.
+        computations_by_type = [
+            (
+                emission_type,
+                handler.resolve_computations(data_entry, emission_type, ctx),
+            )
+            for emission_type in emission_types
+        ]
+        await self._prime_factor_query_cache(
+            [comp for _, comps in computations_by_type for comp in comps],
+            year=year,
+            factor_query_cache=factor_query_cache,
+        )
+        for emission_type, computations in computations_by_type:
             for comp in computations:
                 factors = await self._fetch_factors(
                     comp,
@@ -606,26 +664,22 @@ class DataEntryEmissionService:
                     continue
 
                 for factor in factors:
-                    per_factor_kg = self._apply_formula(ctx, factor.values or {}, comp)
-                    if per_factor_kg is None:
-                        missing_ctx_keys = [
-                            key
-                            for key in [comp.quantity_key, comp.multiplier_key]
-                            if key and ctx.get(key) is None
-                        ]
-                        missing_factor_keys = [
-                            key
-                            for key in [comp.formula_key, comp.multiplier_key]
-                            if key and (factor.values or {}).get(key) is None
-                        ]
-                        logger.warning(
-                            f"Formula returned None for "
-                            f"emission_type={emission_type.name!r} "
-                            f"data_entry_id={data_entry.id!r} - "
-                            f"Missing context keys: {missing_ctx_keys}, "
-                            f"Missing factor keys: {missing_factor_keys}"
+                    # #2050 Track J: _apply_formula raises with the specific
+                    # reason rather than returning None for the caller to
+                    # drop. Dropping the leaf produced a total that looked
+                    # complete but was missing a term; for rollup types the
+                    # rollup row is only written when more than one leaf
+                    # survives, so it rendered as a blank cell instead.
+                    try:
+                        per_factor_kg = self._apply_formula(
+                            ctx, factor.values or {}, comp
                         )
-                        continue
+                    except ValueError as exc:
+                        raise ValueError(
+                            f"data_entry_id={data_entry.id!r}, "
+                            f"emission_type={emission_type.name!r}, "
+                            f"factor_id={factor.id!r}: {exc}"
+                        ) from exc
                     quantity: float | None = None
                     if comp.quantity_key and ctx.get(comp.quantity_key) is not None:
                         base_qty = float(ctx[comp.quantity_key])
@@ -694,6 +748,88 @@ class DataEntryEmissionService:
 
         return results
 
+    @staticmethod
+    def _factor_query_cache_key(q: FactorQuery, year: int | None) -> tuple:
+        """The one place the Strategy-B memo key is built.
+
+        Shared by ``_fetch_factors`` and ``_prime_factor_query_cache`` so the
+        two cannot drift: a second spelling of this tuple would silently turn
+        the prime into a no-op (#2050 J4).
+        """
+        return (
+            q.data_entry_type,
+            q.kind,
+            q.subkind,
+            q.emission_type,
+            tuple(sorted(q.context.items())),
+            tuple(sorted(q.fallbacks.items())),
+            year,
+        )
+
+    async def _prime_factor_query_cache(
+        self,
+        computations: list[EmissionComputation],
+        year: int | None,
+        factor_query_cache: dict,
+    ) -> None:
+        """Resolve every Strategy-B3 criteria in these computations at once.
+
+        #2050 J4: ``_fetch_factors`` queried one subtree per emission root —
+        three for a headcount member. Every subtree is known before the first
+        query, so one ``IN`` covers them all, and the per-criteria results are
+        seeded into the memo ``_fetch_factors`` already consults.
+
+        Only the pure-B3 shape is primed (an ``emission_type`` with no
+        kind/subkind/context/fallbacks). Anything else falls through to
+        ``_fetch_factors``' own resolution, so a shape this misses costs a
+        statement, never a wrong factor.
+        """
+        b3 = [
+            comp
+            for comp in computations
+            if comp.factor_id is None
+            and comp.factor_query is not None
+            and comp.factor_query.emission_type is not None
+            and comp.factor_query.kind is None
+            and comp.factor_query.subkind is None
+            and not comp.factor_query.context
+            and not comp.factor_query.fallbacks
+        ]
+        if not b3:
+            return
+
+        leaves_by_comp: dict[int, list[EmissionType]] = {}
+        for comp in b3:
+            query = comp.factor_query
+            if query is None or query.emission_type is None:
+                continue
+            leaves_by_comp[id(comp)] = [
+                EmissionType(node) for node in get_subtree_leaves(query.emission_type)
+            ]
+        wanted = sorted(
+            {leaf for leaves in leaves_by_comp.values() for leaf in leaves},
+            key=lambda leaf: leaf.value,
+        )
+        found = await FactorService(self.session).list_by_emission_types(
+            wanted, year=year
+        )
+        by_emission_type: dict[int, list[Factor]] = {}
+        for factor in found:
+            by_emission_type.setdefault(factor.emission_type_id, []).append(factor)
+
+        for comp in b3:
+            query = comp.factor_query
+            if query is None:
+                continue
+            factors: list[Factor] = []
+            for leaf in leaves_by_comp.get(id(comp), []):
+                factors.extend(by_emission_type.get(leaf.value, []))
+            if query.data_entry_type is not None:
+                factors = [
+                    f for f in factors if f.data_entry_type_id == query.data_entry_type
+                ]
+            factor_query_cache[self._factor_query_cache_key(query, year)] = factors
+
     async def _fetch_factors(
         self,
         comp: EmissionComputation,
@@ -747,14 +883,24 @@ class DataEntryEmissionService:
                 factor = by_id.get(comp.factor_id)
             if factor is None:
                 factor = await factor_service.get(comp.factor_id)
-            # Filter by year if factor exists and year is specified
-            if factor and year is not None and factor.year != year:
-                logger.warning(
-                    f"Factor {comp.factor_id} year ({factor.year}) "
-                    f"doesn't match data entry year ({year})"
+            # #2050 Track J: both of these returned [] — the year mismatch
+            # with a warning, the missing factor with nothing at all. An
+            # empty factor list means the leaf loop in prepare_create never
+            # runs, so the entry contributes zero and the missing-key raise
+            # there never fires. Silent zeros are the failure mode this
+            # whole track exists to remove.
+            if factor is None:
+                raise ValueError(
+                    f"Factor {comp.factor_id!r} referenced by emission_type="
+                    f"{comp.emission_type.name!r} does not exist"
                 )
-                return []
-            result.append(factor) if factor else None
+            if year is not None and factor.year != year:
+                raise ValueError(
+                    f"Factor {comp.factor_id!r} is for year {factor.year!r} "
+                    f"but this entry is priced for year {year!r}; refusing "
+                    f"to compute emissions from a mismatched factor"
+                )
+            result.append(factor)
             return result
 
         # ── Strategy B: classification query ────────────────────────────
@@ -769,15 +915,7 @@ class DataEntryEmissionService:
             # no cache (single-entry paths) are unchanged.
             cache_key = None
             if factor_query_cache is not None:
-                cache_key = (
-                    q.data_entry_type,
-                    q.kind,
-                    q.subkind,
-                    q.emission_type,
-                    tuple(sorted(q.context.items())),
-                    tuple(sorted(q.fallbacks.items())),
-                    year,
-                )
+                cache_key = self._factor_query_cache_key(q, year)
                 if cache_key in factor_query_cache:
                     return factor_query_cache[cache_key]
 
@@ -818,13 +956,19 @@ class DataEntryEmissionService:
             #     e.g. all sub-factors for "food" (vegetarian, non-vegetarian)
             #     Used when handler doesn't specify kind/subkind
             elif q.emission_type is not None:
-                all_nodes = get_subtree_leaves(q.emission_type)
-                emission_factors = []
-                for node in all_nodes:
-                    node_factors = await factor_service.list_by_emission_type(
-                        EmissionType(node), year=year
-                    )
-                    emission_factors.extend(node_factors)
+                # #2050 J4: one query for the whole subtree. This looped the
+                # leaves and queried per node — 24 factor SELECTs for one
+                # headcount member POST (3 roots whose subtrees hold 24
+                # leaves), measured in
+                # test_headcount_post_statement_budget_pg.py. The subtree is
+                # known before the first query, so it belongs in one IN.
+                emission_factors = await factor_service.list_by_emission_types(
+                    [
+                        EmissionType(node)
+                        for node in get_subtree_leaves(q.emission_type)
+                    ],
+                    year=year,
+                )
                 # we should also filter by data_entry_type in case we have factors
                 # for other types with the same emission_type in the subtree,
                 # but for now we don't have this case in our seed data
@@ -835,9 +979,6 @@ class DataEntryEmissionService:
                         for f in emission_factors
                         if f.data_entry_type_id == q.data_entry_type
                     ]
-                # should get all factors children of the emission type,
-                # not just those with matching kind
-                # factors = await factor_service.list_by_emission_type(q.emission_type)
                 result.extend(emission_factors)
 
             # B4: Broadest — by data_entry_type only
@@ -859,7 +1000,7 @@ class DataEntryEmissionService:
         ctx: dict,
         factor_values: dict,
         comp: EmissionComputation,
-    ) -> float | None:
+    ) -> float:
         """Compute kg_co2eq from context and factor values.
 
         If ``comp.formula_func`` is set it takes precedence (complex formulas).
@@ -872,21 +1013,51 @@ class DataEntryEmissionService:
         after a transition period
 
         # right now only Headcount use default
+
+        Raises:
+            ValueError: when the inputs cannot produce a value. #2050 Track
+                I: this used to return None and the caller dropped the leaf.
+                The reason lives here — the caller cannot tell a
+                ``formula_func`` that declined from a missing key, and its
+                old diagnostic printed two empty lists for the
+                ``formula_func`` case, which is the common one.
         """
         if comp.formula_func is not None:
-            return comp.formula_func(ctx, factor_values)
+            computed = comp.formula_func(ctx, factor_values)
+            if computed is None:
+                null_inputs = sorted(k for k, v in ctx.items() if v is None)
+                raise ValueError(
+                    f"The formula for {comp.emission_type.name!r} could not "
+                    f"produce a value. Null inputs on the entry: "
+                    f"{null_inputs or 'none'}. Factor keys available: "
+                    f"{sorted(factor_values)}. A reference-data lookup that "
+                    f"found no match (an unknown building room, say) shows "
+                    f"up here as a null input"
+                )
+            return computed
 
         if not comp.quantity_key or not comp.formula_key:
-            return None
+            raise ValueError(
+                f"{comp.emission_type.name!r} has neither a formula_func nor "
+                f"both of quantity_key/formula_key (quantity_key="
+                f"{comp.quantity_key!r}, formula_key={comp.formula_key!r}); "
+                f"it cannot be computed as configured"
+            )
 
         quantity = ctx.get(comp.quantity_key)
         ef = factor_values.get(comp.formula_key)
         if quantity is None or ef is None:
-            logger.info(
-                f"Missing required values for emission calculation "
-                f"for key: {comp.quantity_key} or {comp.formula_key}"
+            missing = [
+                name
+                for name, value in (
+                    (f"entry.{comp.quantity_key}", quantity),
+                    (f"factor.{comp.formula_key}", ef),
+                )
+                if value is None
+            ]
+            raise ValueError(
+                f"Cannot compute {comp.emission_type.name!r}: {missing} is missing"
             )
-            return None
 
         result = float(quantity) * float(ef)
         if comp.multiplier_key:
@@ -896,7 +1067,9 @@ class DataEntryEmissionService:
             result *= float(mult)
         return result
 
-    async def create(self, data_entry: DataEntryResponse) -> list[DataEntryEmission]:
+    async def create(
+        self, data_entry: DataEntryResponse, *, scope: WriteScope | None = None
+    ) -> list[DataEntryEmission]:
         """Create emissions for a data entry, if applicable.
 
         Returns a list of created emission records. Single-entry path — the
@@ -904,7 +1077,7 @@ class DataEntryEmissionService:
         ``session.add()``ed rows, so ``prepare_create``'s lightweight rows
         are materialized here, not left lightweight like the bulk paths.
         """
-        emission_records = await self.prepare_create(data_entry)
+        emission_records = await self.prepare_create(data_entry, scope=scope)
         if not emission_records:
             return []
 

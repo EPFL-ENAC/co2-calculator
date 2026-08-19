@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 
 from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.user import UserProvider
@@ -56,6 +57,9 @@ def _make_workflow_deps():
     )
 
     emission_service = MagicMock()
+    # #2050 J4: the create path calls ``create`` (no pre-delete lookup to
+    # waste); the update path still calls ``upsert_by_data_entry``.
+    emission_service.create = AsyncMock()
     emission_service.upsert_by_data_entry = AsyncMock()
     module_service = MagicMock()
     module_service.recompute_stats = AsyncMock()
@@ -71,7 +75,6 @@ async def test_create_second_role_for_existing_member_is_accepted():
     session, data_entry_service, emission_service, module_service = (
         _make_workflow_deps()
     )
-    data_entry_service.check_member_role_unique = AsyncMock(return_value=True)
     workflow = CarbonReportModuleWorkflow(session)
 
     with (
@@ -98,10 +101,9 @@ async def test_create_second_role_for_existing_member_is_accepted():
         )
 
     assert response.id == 1
-    data_entry_service.check_member_role_unique.assert_awaited_once()
-    call_kwargs = data_entry_service.check_member_role_unique.call_args.kwargs
-    assert call_kwargs["uid"] == "123456"
-    assert call_kwargs["sius_code"] == "54"
+    # #2050 J4: no uniqueness pre-check any more — uq_member_role_per_module
+    # enforces it, and a second role for the same person is outside the key.
+    data_entry_service.check_member_role_unique.assert_not_called()
     data_entry_service.create.assert_awaited_once()
 
 
@@ -113,7 +115,18 @@ async def test_create_duplicate_role_for_existing_member_is_rejected():
     session, data_entry_service, emission_service, module_service = (
         _make_workflow_deps()
     )
-    data_entry_service.check_member_role_unique = AsyncMock(return_value=False)
+    # #2050 J4: the duplicate now surfaces from the unique index rather than
+    # from a pre-check, so the insert is what raises.
+    data_entry_service.create = AsyncMock(
+        side_effect=IntegrityError(
+            "INSERT INTO data_entries ...",
+            {},
+            Exception(
+                "duplicate key value violates unique constraint "
+                '"uq_member_role_per_module"'
+            ),
+        )
+    )
     workflow = CarbonReportModuleWorkflow(session)
 
     with (
@@ -142,7 +155,7 @@ async def test_create_duplicate_role_for_existing_member_is_rejected():
 
     assert exc_info.value.status_code == 422
     assert exc_info.value.detail == "DUPLICATE_INSTITUTIONAL_ID"
-    data_entry_service.create.assert_not_awaited()
+    session.rollback.assert_awaited()
 
 
 @pytest.mark.asyncio

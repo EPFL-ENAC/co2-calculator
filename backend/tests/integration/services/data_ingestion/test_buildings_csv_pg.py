@@ -353,15 +353,23 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
 
 
 @pytest.mark.asyncio
-async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
+async def test_building_room_without_ref_data_fails_loudly(pg_dsn):
     """When no ``BuildingRoom`` matches the ``room_name`` on the entry,
-    ``BuildingRoomService.get_room`` returns ``None`` and the
-    formula's surface input is ``None`` — every leaf computes to
-    ``None`` and is dropped before persistence.
+    ``BuildingRoomService.get_room`` returns ``None``, so the formula's
+    surface input is ``None`` and no leaf can be computed.
 
-    Discovery contract: the entry itself stays in place (the CSV path
-    didn't fail), but no leaf emission rows appear and the rollup row
-    is absent / zero.  That's "skip", not "default".
+    #2050 Track J changed what happens next. This used to drop every
+    leaf silently ("skip, not default"), which left the building
+    contributing **zero** to its unit's total — a wrong total that looks
+    complete, which the guardrails rank as the worst failure this project
+    can have, and which no log line reading "skipped" would surface to
+    the person publishing the number.
+
+    Now it raises, naming the null input. The data outcome is unchanged
+    (the entry survives, no leaf rows are written, because recalc records
+    a per-entry error and moves on — ``emission_recalculation.py:173``);
+    what changed is that the gap is now visible in the job's
+    ``error_details`` instead of only in a log nobody reads.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -407,8 +415,12 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
         assert entry.id is not None
         entry_id = entry.id
 
-    async with Sf() as s:
-        await _initial_compute(s, entry_id)
+    # The failure names the missing input, not just "could not compute":
+    # an unknown room shows up as a null room_surface_square_meter, and
+    # that string is what the person reading error_details has to act on.
+    with pytest.raises(ValueError, match="room_surface_square_meter"):
+        async with Sf() as s:
+            await _initial_compute(s, entry_id)
 
     rows = await _read_emissions(pg_dsn, entry_id)
     leaf_rows = [
@@ -419,7 +431,8 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
         f"got {[(r.emission_type_id, r.kg_co2eq) for r in leaf_rows]}"
     )
 
-    # The DataEntry itself must still exist — ref-data miss is non-fatal.
+    # The DataEntry itself must still exist — the raise is per entry, and
+    # the ingestion that created the row is not rolled back by it.
     async with Sf() as s:
         entry = await s.get(DataEntry, entry_id)
         assert entry is not None, "DataEntry must survive a ref-data miss"

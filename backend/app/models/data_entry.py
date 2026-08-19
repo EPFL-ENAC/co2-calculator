@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Column, DateTime, Integer
+from sqlalchemy import Column, DateTime, Index, Integer, text
 from sqlmodel import JSON, Field, SQLModel
 
 from app.models._field_defaults import default_dict, default_utcnow
@@ -160,6 +160,26 @@ class DataEntry(DataEntryBase, table=True):
     """
 
     __tablename__ = "data_entries"
+
+    __table_args__ = (
+        # #2050 J4: one (module, person, role) per member row, enforced by the
+        # database. It replaces a check-then-act SELECT in the create workflow
+        # that two concurrent POSTs could both pass. A person can legitimately
+        # hold several roles in a unit, so sius_code is part of the key (#951).
+        # Partial + expression, hence the raw text: the key lives inside the
+        # JSON ``data`` column and applies to member rows only.
+        Index(
+            "uq_member_role_per_module",
+            "carbon_report_module_id",
+            text("(data ->> 'user_institutional_id')"),
+            text("(data ->> 'sius_code')"),
+            unique=True,
+            postgresql_where=text(
+                f"data_entry_type_id = {DataEntryTypeEnum.member.value} "
+                f"AND data ->> 'user_institutional_id' IS NOT NULL"
+            ),
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True, index=True)
 

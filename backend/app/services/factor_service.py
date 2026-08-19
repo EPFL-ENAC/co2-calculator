@@ -118,18 +118,18 @@ class FactorService:
             year=year,
         )
 
-    async def list_by_emission_type(
+    async def list_by_emission_types(
         self,
-        emission_type: EmissionType,
+        emission_types: list[EmissionType],
         year: int | None = None,
     ) -> list[Factor]:
-        """List all factors for a given emission type.
+        """List all factors for a set of emission types, in one query (#2050 J4).
 
         Args:
-            emission_type: Emission type filter
+            emission_types: Emission types to match
             year: Optional year filter for year-scoped factors
         """
-        return await self.repo.list_by_emission_type(emission_type, year)
+        return await self.repo.list_by_emission_types(emission_types, year)
 
     async def list_by_data_entry_type(
         self,

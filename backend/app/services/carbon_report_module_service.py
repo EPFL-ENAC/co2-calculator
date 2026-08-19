@@ -31,6 +31,7 @@ from app.schemas.carbon_report import (
     CarbonReportRead,
 )
 from app.schemas.data_entry import DataEntryResponse
+from app.schemas.write_scope import WriteScope
 from app.services.data_entry_emission_service import DataEntryEmissionService
 
 logger = get_logger(__name__)
@@ -171,6 +172,9 @@ class CarbonReportModuleService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = CarbonReportModuleRepository(session)
+        # Reports whose stats the last recompute deliberately left stale, for
+        # an interactive caller to dispatch after its commit (#2050 J4).
+        self.stale_report_ids: set[int] = set()
 
     async def bulk_create(
         self, carbon_reports: list[CarbonReportRead]
@@ -424,7 +428,12 @@ class CarbonReportModuleService:
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
     async def recompute_stats_many(
-        self, carbon_report_module_ids: list[int], *, bump_status: bool = True
+        self,
+        carbon_report_module_ids: list[int],
+        *,
+        bump_status: bool = True,
+        prefetched_years: dict[int, int] | None = None,
+        defer_report_rollup: bool = False,
     ) -> int:
         """Set-based stats recompute for the aggregation job.
 
@@ -465,24 +474,9 @@ class CarbonReportModuleService:
         emission_repo = DataEntryEmissionRepository(self.session)
         pairs = await emission_repo.get_stats_pair_many(carbon_report_module_ids)
 
-        count_rows = (
-            await self.session.execute(
-                select(
-                    col(DataEntry.carbon_report_module_id),
-                    func.count(),
-                )
-                .where(
-                    col(DataEntry.carbon_report_module_id).in_(
-                        carbon_report_module_ids
-                    ),
-                )
-                .group_by(col(DataEntry.carbon_report_module_id))
-            )
-        ).all()
-        counts = {module_id: count for module_id, count in count_rows}
-
-        fte_by_module = await self._headcount_fte_by_module(modules)
-        year_by_report = await self._years_by_report(modules)
+        counts, fte_by_module = await self._entry_counts_and_fte(modules)
+        # #2050 J4: an interactive write knows its report's year already.
+        year_by_report = prefetched_years or await self._years_by_report(modules)
 
         now_utc = int(datetime.now(UTC).timestamp())
         refreshed = 0
@@ -525,11 +519,26 @@ class CarbonReportModuleService:
             f"{len(report_ids)} report rollup(s) pending"
         )
 
+        self.stale_report_ids = report_ids
+        if defer_report_rollup:
+            # #2050 J4: the rollup scans every module in the report, so it is
+            # work proportional to the report rather than to the entry that
+            # triggered it. An interactive caller dispatches it after its
+            # commit (app/tasks/report_rollup.py); a background caller has
+            # nobody waiting and keeps it inline below.
+            return refreshed
+
         report_service = CarbonReportService(self.session)
         await report_service.recompute_report_stats_many(sorted(report_ids))
         return refreshed
 
-    async def recompute_stats(self, carbon_report_module_id: int) -> None:
+    async def recompute_stats(
+        self,
+        carbon_report_module_id: int,
+        *,
+        scope: WriteScope | None = None,
+        defer_report_rollup: bool = False,
+    ) -> None:
         """Recompute and persist the stats JSON for a single module.
 
         Thin wrapper over the set-based :meth:`recompute_stats_many` so the
@@ -537,31 +546,55 @@ class CarbonReportModuleService:
         the IN_PROGRESS status bump, and the report rollup. A missing or
         unmapped module is skipped there (no stats written), matching the
         prior early-return behaviour.
-        """
-        await self.recompute_stats_many([carbon_report_module_id])
 
-    async def _headcount_fte_by_module(
+        ``scope`` lets an interactive write hand over the report year it has
+        already resolved, instead of paying a query for it (#2050 J4).
+        """
+        prefetched_years = None
+        if scope is not None and scope.report.id is not None and scope.year is not None:
+            prefetched_years = {scope.report.id: scope.year}
+        await self.recompute_stats_many(
+            [carbon_report_module_id],
+            prefetched_years=prefetched_years,
+            defer_report_rollup=defer_report_rollup,
+        )
+
+    async def _entry_counts_and_fte(
         self, modules: Sequence[CarbonReportModule]
-    ) -> dict[int, float]:
-        """Sum FTE per headcount module so its stats carry total_fte."""
-        headcount_ids = [
+    ) -> tuple[dict[int, int], dict[int, float]]:
+        """Entry count per module and FTE sum per headcount module, one query.
+
+        #2050 J4: these were two grouped queries over the same table for the
+        same module ids. The headcount-only restriction on the FTE sum is
+        applied in Python — filtering it in SQL is what forced the second
+        query, and a non-headcount module must still carry no FTE at all.
+        """
+        module_ids = [m.id for m in modules if m.id is not None]
+        if not module_ids:
+            return {}, {}
+        headcount_ids = {
             m.id
             for m in modules
             if m.id is not None and m.module_type_id == ModuleTypeEnum.headcount
-        ]
-        if not headcount_ids:
-            return {}
+        }
         rows = (
             await self.session.execute(
                 select(
                     col(DataEntry.carbon_report_module_id),
+                    func.count(),
                     func.sum(DataEntry.data["fte"].as_float()),
                 )
-                .where(col(DataEntry.carbon_report_module_id).in_(headcount_ids))
+                .where(col(DataEntry.carbon_report_module_id).in_(module_ids))
                 .group_by(col(DataEntry.carbon_report_module_id))
             )
         ).all()
-        return {module_id: float(total or 0.0) for module_id, total in rows}
+        counts = {module_id: count for module_id, count, _ in rows}
+        fte = {
+            module_id: float(total or 0.0)
+            for module_id, _, total in rows
+            if module_id in headcount_ids
+        }
+        return counts, fte
 
     async def _years_by_report(
         self, modules: Sequence[CarbonReportModule]
