@@ -57,7 +57,6 @@ from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import SIMULATOR_REPORT_TYPES, DataEntryService
-from app.tasks.report_rollup import schedule_report_rollup
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 from app.workflows.embodied_energy import EmbodiedEnergyWorkflow
@@ -922,8 +921,7 @@ async def create(
     data_entry_type_id = data_entry_type.value
     request_context = await get_request_context(request)
 
-    workflow = CarbonReportModuleWorkflow(db)
-    response = await workflow.create(
+    response = await CarbonReportModuleWorkflow(db).create(
         carbon_report_module=carbon_report_module,
         data_entry_type_id=data_entry_type_id,
         item_data=item_data,
@@ -932,9 +930,6 @@ async def create(
         background_tasks=background_tasks,
         scope=scope,
     )
-    # #2050 J4: after the commit, so the detached rollup reads this write's
-    # module stats rather than racing them.
-    schedule_report_rollup(workflow.stale_report_ids)
     await EmbodiedEnergyWorkflow(db).post_create(
         carbon_report_module,
         response,

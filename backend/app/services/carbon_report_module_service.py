@@ -172,9 +172,6 @@ class CarbonReportModuleService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = CarbonReportModuleRepository(session)
-        # Reports whose stats the last recompute deliberately left stale, for
-        # an interactive caller to dispatch after its commit (#2050 J4).
-        self.stale_report_ids: set[int] = set()
 
     async def bulk_create(
         self, carbon_reports: list[CarbonReportRead]
@@ -433,7 +430,6 @@ class CarbonReportModuleService:
         *,
         bump_status: bool = True,
         prefetched_years: dict[int, int] | None = None,
-        defer_report_rollup: bool = False,
     ) -> int:
         """Set-based stats recompute for the aggregation job.
 
@@ -519,15 +515,6 @@ class CarbonReportModuleService:
             f"{len(report_ids)} report rollup(s) pending"
         )
 
-        self.stale_report_ids = report_ids
-        if defer_report_rollup:
-            # #2050 J4: the rollup scans every module in the report, so it is
-            # work proportional to the report rather than to the entry that
-            # triggered it. An interactive caller dispatches it after its
-            # commit (app/tasks/report_rollup.py); a background caller has
-            # nobody waiting and keeps it inline below.
-            return refreshed
-
         report_service = CarbonReportService(self.session)
         await report_service.recompute_report_stats_many(sorted(report_ids))
         return refreshed
@@ -537,7 +524,6 @@ class CarbonReportModuleService:
         carbon_report_module_id: int,
         *,
         scope: WriteScope | None = None,
-        defer_report_rollup: bool = False,
     ) -> None:
         """Recompute and persist the stats JSON for a single module.
 
@@ -554,9 +540,7 @@ class CarbonReportModuleService:
         if scope is not None and scope.report.id is not None and scope.year is not None:
             prefetched_years = {scope.report.id: scope.year}
         await self.recompute_stats_many(
-            [carbon_report_module_id],
-            prefetched_years=prefetched_years,
-            defer_report_rollup=defer_report_rollup,
+            [carbon_report_module_id], prefetched_years=prefetched_years
         )
 
     async def _entry_counts_and_fte(
