@@ -427,14 +427,24 @@ class DataEntryEmissionService:
 
         Returns:
             Ready-to-insert emission rows (lightweight, not the real ORM
-            model — see ``DataEntryEmissionRow``); empty on any failure.
+            model — see ``DataEntryEmissionRow``).
+
+        Raises:
+            ValueError: whenever emissions cannot be computed correctly —
+                unresolvable year, unmapped type, missing factor key. #2050
+                Track I: every one of these used to log and return partial
+                or empty results, publishing a number that looked complete.
+                Recalc records the failure per entry and carries on
+                (``emission_recalculation.py:173``), so raising surfaces
+                the bad data without stalling the batch.
         """
-        if not data_entry or data_entry.data_entry_type is None:
-            logger.error("DataEntry must have a data_entry_type.")
-            return []
+        # ``data_entry_type`` is a property over a non-nullable int and
+        # ``DataEntryResponse.id`` is ``int``, so only the ORM model's
+        # pre-flush ``id`` is genuinely reachable here.
         if data_entry.id is None:
-            logger.error("DataEntry must have an ID before creating emissions.")
-            return []
+            raise ValueError(
+                "DataEntry must be flushed (id assigned) before computing emissions"
+            )
 
         resolver = factor_resolver or FactorResolver(self.session)
         handler = BaseModuleHandler.get_by_type(
@@ -462,8 +472,15 @@ class DataEntryEmissionService:
                 # reference year drives factor lookup.
                 year = await resolve_factor_year(self.session, report)
         if year is None:
-            logger.warning(
-                "Could not determine year for data entry, factors may not match"
+            # #2050 Track I: this used to warn "factors may not match" and
+            # then use them anyway — naming its own defect in a log line.
+            # Year selects the factor, so an unresolvable year means every
+            # number below is priced off an arbitrary year's factor.
+            raise ValueError(
+                f"Cannot determine the factor year for data_entry_id="
+                f"{data_entry.id!r} (carbon_report_module_id="
+                f"{data_entry.carbon_report_module_id!r}); refusing to "
+                f"compute emissions against an unknown year"
             )
         # Also load the report when the percentage override is requested, since
         # _get_percentage_override_kg needs reference_year and unit_id.
@@ -492,8 +509,15 @@ class DataEntryEmissionService:
             factor=primary_factor,
         )
         if emission_types is None:
-            logger.warning(f"Unhandled type: {data_entry.data_entry_type}")
-            return []
+            # #2050 Track I: an unmapped type returned [], which is
+            # indistinguishable downstream from "this entry emits nothing".
+            raise ValueError(
+                f"No emission types are mapped for "
+                f"{data_entry.data_entry_type!r} (data_entry_id="
+                f"{data_entry.id!r}); it cannot contribute a total"
+            )
+        # Genuinely empty is a real answer, unlike None above: the registry
+        # resolved this entry's classification to no leaves.
         if not emission_types:
             return []
 
@@ -618,14 +642,19 @@ class DataEntryEmissionService:
                             for key in [comp.formula_key, comp.multiplier_key]
                             if key and (factor.values or {}).get(key) is None
                         ]
-                        logger.warning(
-                            f"Formula returned None for "
-                            f"emission_type={emission_type.name!r} "
-                            f"data_entry_id={data_entry.id!r} - "
-                            f"Missing context keys: {missing_ctx_keys}, "
-                            f"Missing factor keys: {missing_factor_keys}"
+                        # #2050 Track I: skipping the leaf produced a total
+                        # that looked complete but was missing a term. For
+                        # rollup types it is worse — the rollup row is only
+                        # written when more than one leaf survives, so
+                        # dropping two of three leaves renders as a blank
+                        # cell rather than a visible error.
+                        raise ValueError(
+                            f"Cannot compute emission_type="
+                            f"{emission_type.name!r} for data_entry_id="
+                            f"{data_entry.id!r} using factor_id={factor.id!r}: "
+                            f"missing context keys {missing_ctx_keys}, "
+                            f"missing factor keys {missing_factor_keys}"
                         )
-                        continue
                     quantity: float | None = None
                     if comp.quantity_key and ctx.get(comp.quantity_key) is not None:
                         base_qty = float(ctx[comp.quantity_key])
@@ -747,14 +776,24 @@ class DataEntryEmissionService:
                 factor = by_id.get(comp.factor_id)
             if factor is None:
                 factor = await factor_service.get(comp.factor_id)
-            # Filter by year if factor exists and year is specified
-            if factor and year is not None and factor.year != year:
-                logger.warning(
-                    f"Factor {comp.factor_id} year ({factor.year}) "
-                    f"doesn't match data entry year ({year})"
+            # #2050 Track I: both of these returned [] — the year mismatch
+            # with a warning, the missing factor with nothing at all. An
+            # empty factor list means the leaf loop in prepare_create never
+            # runs, so the entry contributes zero and the missing-key raise
+            # there never fires. Silent zeros are the failure mode this
+            # whole track exists to remove.
+            if factor is None:
+                raise ValueError(
+                    f"Factor {comp.factor_id!r} referenced by emission_type="
+                    f"{comp.emission_type.name!r} does not exist"
                 )
-                return []
-            result.append(factor) if factor else None
+            if year is not None and factor.year != year:
+                raise ValueError(
+                    f"Factor {comp.factor_id!r} is for year {factor.year!r} "
+                    f"but this entry is priced for year {year!r}; refusing "
+                    f"to compute emissions from a mismatched factor"
+                )
+            result.append(factor)
             return result
 
         # ── Strategy B: classification query ────────────────────────────

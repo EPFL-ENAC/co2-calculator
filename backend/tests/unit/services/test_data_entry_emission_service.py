@@ -1,5 +1,6 @@
 """Unit tests for DataEntryEmissionService."""
 
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -585,29 +586,27 @@ class TestApplyFormula:
 
 
 class TestPrepareCreate:
-    async def test_none_data_entry(self):
-        service = _make_service()
-        result = await service.prepare_create(None)
-        assert result == []
+    # #2050 Track I: the former ``test_none_data_entry`` and
+    # ``test_no_data_entry_type`` cases are gone with the guards they
+    # pinned. Both described states the types make impossible —
+    # ``prepare_create`` takes ``DataEntry | DataEntryResponse`` (not
+    # optional), and ``data_entry_type`` is a property over a non-nullable
+    # ``int`` column, so it cannot return None. Only a MagicMock could
+    # reach them. An unflushed id is genuinely reachable and now raises.
 
-    async def test_no_data_entry_type(self):
-        service = _make_service()
-        de = MagicMock()
-        de.data_entry_type = None
-        result = await service.prepare_create(de)
-        assert result == []
-
-    async def test_no_id(self):
+    async def test_no_id_raises(self):
         service = _make_service()
         de = _make_data_entry_response({"fte": 1.0})
         de = de.model_copy(update={"id": None})
         # resolve_emission_types needs a valid type, mock it
-        with patch(
-            "app.services.data_entry_emission_service.resolve_emission_types",
-            return_value=[MagicMock()],
+        with (
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[MagicMock()],
+            ),
+            pytest.raises(ValueError, match="must be flushed"),
         ):
-            result = await service.prepare_create(de)
-        assert result == []
+            await service.prepare_create(de)
 
 
 # ---------------------------------------------------------------------------
@@ -2133,3 +2132,170 @@ class TestPercentageOverrideSnapshotSource:
             )
         assert result is None
         sum_mock.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# #2050 Track I — prepare_create fails hard instead of publishing a
+# wrong-but-plausible number
+# ---------------------------------------------------------------------------
+#
+# Each of these sites used to log and carry on. The guardrails call that a
+# silent fallback ("a log line nobody reads is a silent fallback"), and the
+# failure mode is the worst one this project has: a total that looks
+# complete but is missing a leaf, priced off the wrong year's factor, or
+# silently zero. The recalc workflow already contains per-entry failures
+# (emission_recalculation.py:173-210 records them in ``error_details`` and
+# continues the batch), so raising here surfaces the problem without
+# stalling the pipeline.
+
+
+def _emission_computation(**kwargs) -> EmissionComputation:
+    defaults = {
+        "emission_type": EmissionType.professional_travel__plane,
+        "factor_id": 99,
+    }
+    return EmissionComputation(**{**defaults, **kwargs})
+
+
+@contextmanager
+def _patched_handler(computations: list[EmissionComputation]):
+    """Patch BaseModuleHandler.get_by_type with a handler returning
+    ``computations`` — the shape every prepare_create test below needs.
+    """
+    with patch(
+        "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+    ) as mock_handler_cls:
+        mock_handler = MagicMock()
+        mock_handler.kind_field = None
+        mock_handler.pre_compute = AsyncMock(return_value={})
+        mock_handler.resolve_computations = MagicMock(return_value=computations)
+        mock_handler_cls.return_value = mock_handler
+        yield mock_handler_cls
+
+
+@pytest.mark.asyncio
+async def test_prepare_create_raises_when_a_formula_returns_none():
+    """#2050 Track I: the leaf-dropping fallback that started this.
+
+    A factor missing the key the formula needs used to log a warning and
+    ``continue``, so an entry declaring three leaves silently produced
+    fewer. Downstream that shows up as a plausible total that is simply
+    too low — and, for headcount types, as a missing rollup row (the
+    rollup is only written when more than one leaf survives), which
+    renders as a blank cell rather than a visible error.
+    """
+    service = _make_service()
+
+    factor = MagicMock(spec=Factor)
+    factor.id = 99
+    factor.year = 2024
+    factor.emission_type_id = EmissionType.professional_travel__plane.value
+    # No ``ef_kg_co2eq_per_unit`` — the formula cannot resolve.
+    factor.values = {"unit": "km"}
+
+    de = _make_data_entry_response({"distance_km": 100})
+
+    with (
+        patch.object(service, "_fetch_factors", new=AsyncMock(return_value=[factor])),
+        patch.object(
+            service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+        ),
+        patch(
+            "app.services.data_entry_emission_service.resolve_emission_types",
+            return_value=[EmissionType.professional_travel__plane],
+        ),
+        _patched_handler(
+            [
+                _emission_computation(
+                    formula_key="ef_kg_co2eq_per_unit", quantity_key="distance_km"
+                )
+            ]
+        ),
+        pytest.raises(ValueError, match="ef_kg_co2eq_per_unit"),
+    ):
+        await service.prepare_create(de)
+
+
+@pytest.mark.asyncio
+async def test_prepare_create_raises_on_unhandled_data_entry_type():
+    """#2050 Track I: an unmapped type used to return [] — zero emissions,
+    indistinguishable from an entry that genuinely emits nothing.
+    """
+    service = _make_service()
+    de = _make_data_entry_response({"distance_km": 100})
+
+    with (
+        patch.object(
+            service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+        ),
+        patch(
+            "app.services.data_entry_emission_service.resolve_emission_types",
+            return_value=None,
+        ),
+        _patched_handler([_emission_computation()]),
+        pytest.raises(ValueError, match="No emission types are mapped"),
+    ):
+        await service.prepare_create(de)
+
+
+@pytest.mark.asyncio
+async def test_prepare_create_raises_when_year_cannot_be_determined():
+    """#2050 Track I: this site logged "factors may not match" and then
+    used the mismatched factors anyway — it named its own defect in the
+    log line and carried on.
+    """
+    service = _make_service()
+    de = _make_data_entry_response({"distance_km": 100})
+
+    with (
+        patch.object(
+            service, "_get_year_from_data_entry", new=AsyncMock(return_value=None)
+        ),
+        patch.object(
+            service, "_get_report_for_data_entry", new=AsyncMock(return_value=None)
+        ),
+        _patched_handler([_emission_computation()]),
+        pytest.raises(ValueError, match="year"),
+    ):
+        await service.prepare_create(de)
+
+
+@pytest.mark.asyncio
+async def test_fetch_factors_raises_when_the_factor_is_the_wrong_year():
+    """#2050 Track I: a factor from the wrong year made ``_fetch_factors``
+    return [], so the leaf loop never ran — a silent zero that also slips
+    past the missing-key raise, because there is no factor left to fail on.
+    """
+    service = _make_service()
+
+    factor = MagicMock(spec=Factor)
+    factor.id = 99
+    factor.year = 2023  # entry is 2024
+    factor.values = {"ef_kg_co2eq_per_unit": 0.5}
+
+    with (
+        patch(
+            "app.services.data_entry_emission_service.FactorService"
+        ) as factor_service_cls,
+        pytest.raises(ValueError, match="year"),
+    ):
+        factor_service_cls.return_value.get = AsyncMock(return_value=factor)
+        await service._fetch_factors(_emission_computation(factor_id=99), year=2024)
+
+
+@pytest.mark.asyncio
+async def test_fetch_factors_raises_when_a_referenced_factor_is_missing():
+    """#2050 Track I: the quietest site of all — a computation naming a
+    factor_id that resolves to nothing returned [] with no log line at
+    all, so the entry contributed zero and left no evidence.
+    """
+    service = _make_service()
+
+    with (
+        patch(
+            "app.services.data_entry_emission_service.FactorService"
+        ) as factor_service_cls,
+        pytest.raises(ValueError, match="12345"),
+    ):
+        factor_service_cls.return_value.get = AsyncMock(return_value=None)
+        await service._fetch_factors(_emission_computation(factor_id=12345), year=2024)
