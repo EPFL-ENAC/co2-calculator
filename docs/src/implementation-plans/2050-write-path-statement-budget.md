@@ -2401,12 +2401,35 @@ interactive write.
    guardrails prefer anyway — with the migration carrying the same definition
    for real environments.
 
+### Task 8's operational work, done 2026-08-19
+
+The index needed three things around it, all shipped:
+
+- **The headcount members API provider now dedupes.** It had no uniqueness
+  check at all — the CSV provider has always had one — so with the index in
+  place one duplicated person in the upstream Tableau export would have raised
+  `IntegrityError` on the whole `bulk_create` and failed the entire sync job,
+  on data we do not control. It now skips the row and counts it, the same
+  per-row outcome the CSV path has always had.
+- **The index builds `CONCURRENTLY`.** `data_entries` reaches ~1M rows in real
+  environments and a plain `CREATE INDEX` holds an exclusive lock for the whole
+  build. The trade: a failed build leaves an `INVALID` index instead of rolling
+  back, so the upgrade drops any leftover first.
+- **`backend/scripts/dedupe_member_roles.py`** reports duplicate groups and,
+  with `--fix`, deletes only those whose payload is identical to the row it
+  keeps (lowest id wins). Groups whose rows differ are reported and left alone:
+  choosing which FTE is real changes a published total.
+
+Testing it against a _seeded_ duplicate rather than only a clean database
+caught a real bug — the classification reads autobegin the connection's
+transaction, so the deletes' `conn.begin()` raised and `--fix` silently deleted
+nothing.
+
+**Duplicates checked on the lead's environment 2026-08-19: none.** Run the
+script against dev, stage and prod before the migration reaches them.
+
 ### Follow-ups
 
-- **Task 8's migration needs a duplicate check per environment before it
-  deploys.** It refuses to run and lists the offending rows rather than failing
-  on a bare Postgres error, but that still blocks a deploy. Local has none;
-  dev, stage and prod are unverified.
 - **`test_submodule_sort_search_matrix_pg` fails on `dev`** and is unrelated to
   this work — verified by running it in a clean worktree at `origin/dev`
   (`48c1b440`). Searching `building_name` in the `building_embodied_energy`
