@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 issue: 1918
 last_updated: 2026-08-19
 title: "Planner Purchases: multi-currency input with automated EUR conversion"
@@ -52,8 +52,9 @@ ef_kg_co2eq_per_eur` (`app/modules_planner/purchase/handlers.py`), and
 - `PlannerPurchaseCreate/Update` and `PlannerPurchaseBudgetCreate/Update`
   (`app/modules_planner/purchase/data_entries.py`) gain a **transient**
   `currency: str | None = None` field: validated (strip/lower, membership in
-  the same 9-code set as the Calculator's validators — aud, cad, chf, cny,
-  eur, gbp, jpy, sek, usd), interpreted as "the submitted `amount_eur` value
+  `SUPPORTED_CURRENCIES` — the shared 9-code set in `app/utils/currencies.py`
+  that the Calculator purchase validators, previously carrying the list
+  inline twice, now use as well), interpreted as "the submitted `amount_eur` value
   is denominated in this currency", and **never stored** (excluded before the
   entry data is written). Absent/blank means EUR — every existing client and
   every legacy payload keeps today's semantics bit-for-bit.
@@ -120,7 +121,8 @@ pass-through:
   values never change denomination.
 - i18n: `planner_purchase_amount_label` (`i18n/simulation.ts`) drops the
   hardcoded "(EUR)" — en `Amount`, fr `Montant`; the unit is the dynamic
-  suffix. No new keys.
+  suffix. One new key, `planner_currency_rates_unavailable`, for the toast
+  shown when a switch finds no rate.
 - Round-trip note: editing a CHF-displayed value re-sends the CHF number and
   reconverts; drift is bounded by ECB yearly-average rounding (sub-cent) and
   accepted.

@@ -281,6 +281,8 @@
               :key="factorScopedKey(entry.config.module)"
               :carbon-report-id="yearData.id"
               :project-years-count="grantYearsCount"
+              :budget-currency="yearData.budget_currency"
+              :factor-year="factorYear"
               :disable="entry.module?.is_active === false"
             />
             <!-- Grant proposals plan RF use from the reference year's whole

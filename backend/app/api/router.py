@@ -13,6 +13,7 @@ from app.api.v1 import (
     carbon_report_module_stats,
     connectors,
     data_sync,
+    exchange_rates,
     factors,
     files,
     locations,
@@ -50,6 +51,9 @@ api_router.include_router(
     carbon_report_module_stats.router, prefix="/modules-stats", tags=["modules-stats"]
 )
 api_router.include_router(units.router, prefix="/units", tags=["units"])
+api_router.include_router(
+    exchange_rates.router, prefix="/exchange-rates", tags=["exchange-rates"]
+)
 api_router.include_router(factors.router, prefix="/factors", tags=["factors"])
 api_router.include_router(taxonomies.router, prefix="/taxonomies", tags=["taxonomies"])
 api_router.include_router(

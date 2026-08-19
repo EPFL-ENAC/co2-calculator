@@ -7,6 +7,7 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.utils.currencies import SUPPORTED_CURRENCIES
 
 
 class PurchaseHandlerResponse(DataEntryResponseGen):
@@ -85,19 +86,9 @@ class PurchaseHandlerCreate(DataEntryCreate):
         if v is None:
             return "chf"
         normalized_v = v.strip().lower()
-        valid_currencies = [
-            "aud",
-            "cad",
-            "chf",
-            "cny",
-            "eur",
-            "gbp",
-            "jpy",
-            "sek",
-            "usd",
-        ]
-        if normalized_v not in valid_currencies:
-            raise ValueError(f"Currency must be one of: {valid_currencies}")
+        if normalized_v not in SUPPORTED_CURRENCIES:
+            allowed = ", ".join(sorted(SUPPORTED_CURRENCIES))
+            raise ValueError(f"Currency must be one of: {allowed}")
         return normalized_v
 
 
@@ -150,19 +141,9 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
         if v is None:
             return v
         normalized_v = v.strip().lower()
-        valid_currencies = [
-            "aud",
-            "cad",
-            "chf",
-            "cny",
-            "eur",
-            "gbp",
-            "jpy",
-            "sek",
-            "usd",
-        ]
-        if normalized_v not in valid_currencies:
-            raise ValueError(f"Currency must be one of: {valid_currencies}")
+        if normalized_v not in SUPPORTED_CURRENCIES:
+            allowed = ", ".join(sorted(SUPPORTED_CURRENCIES))
+            raise ValueError(f"Currency must be one of: {allowed}")
         return normalized_v
 
     @model_validator(mode="before")
