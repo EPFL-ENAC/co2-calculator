@@ -113,6 +113,16 @@ The factors-map build and `model_validate` were two; there are likely
 others (large serializations, in-Python aggregations). Sweep async paths
 for un-yielded CPU loops and large list-comps over DB result sets.
 
+**Done — 2026-08-19, see [[2050-backend-compute-performance]] Track I
+(renumbered from the original "Track G" once dev had already taken that
+letter for its own trace-review track). Track I3's audit-sync finding is
+independently corroborated live by that same plan's Track G3 trace.**
+The actual find wasn't CPU: a synchronous `httpx`-based Loki log handler
+wired straight onto the root logger (blocks every log call on Elasticsearch/Loki
+degradation), plus two unthreaded blocking I/O call sites (audit→ES sync
+via `BackgroundTasks`, connector credential encrypt/decrypt) — same class
+of bug as this incident, different mechanism than the CSV-ingestion path.
+
 ## Out of scope
 
 Bug-level fixes already covered elsewhere; this is shape work. The

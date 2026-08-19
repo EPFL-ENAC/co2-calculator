@@ -1,9 +1,9 @@
 ---
 status: in-progress
 issue: 2050
-last_updated: 2026-08-18
+last_updated: 2026-08-19
 title: "Backend compute performance — pod stability, worker split, request-path profiling"
-summary: "Six-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081); profile compute cost (Track C), which rules out a language rewrite; then fix the simulator-plan reference-year PATCH end to end — recalc and prefill N+1s, Pydantic's per-instance default_factory tax across every SQLModel table, Core INSERT…RETURNING, and Tracks D/E's redundant recomputes — taking it 960ms → 271.4ms (PRs #2083, #2152). Track F reopens the per-year prefill fan-out behind a 21.89s dev trace whose bottleneck is not traced SQL. Track G (2026-08-18) dates ~30 real dev/stage traces against the fix-merge timestamps: every slow stage trace predates #2050 entirely (stage is still pre-#2050, unrelated to any bug); dev's two biggest traces (80s, 21.89s) predate Track F's async-job fix; but plain module-detail GETs — never in this plan's scope — still cost 1-2.2s post-fix from the same connection-checkout + sequential-small-query pattern Tracks A/C/D/E already diagnosed and fixed elsewhere, and one 32s outlier has a genuinely untraced non-DB gap needing its own repro. Track H root-causes one of those G2 traces exactly: `planner_headcount` was missing from `get_submodule_data`'s `is_headcount_entry` tuple, so it fell through to an unfiltered whole-table `data_entry_emissions` aggregation (825ms) instead of the already-built, already-populated rollup-row fast path — a one-line fix, the highest-confidence item in the plan. A second 'critical' trace turned out to be stage's SQL instrumentation being off by design (C1's OTel-tax follow-up), not a new blind spot."
+summary: "Six-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081); profile compute cost (Track C), which rules out a language rewrite; then fix the simulator-plan reference-year PATCH end to end — recalc and prefill N+1s, Pydantic's per-instance default_factory tax across every SQLModel table, Core INSERT…RETURNING, and Tracks D/E's redundant recomputes — taking it 960ms → 271.4ms (PRs #2083, #2152). Track F reopens the per-year prefill fan-out behind a 21.89s dev trace whose bottleneck is not traced SQL. Track G (2026-08-18) dates ~30 real dev/stage traces against the fix-merge timestamps: every slow stage trace predates #2050 entirely (stage is still pre-#2050, unrelated to any bug); dev's two biggest traces (80s, 21.89s) predate Track F's async-job fix; but plain module-detail GETs — never in this plan's scope — still cost 1-2.2s post-fix from the same connection-checkout + sequential-small-query pattern Tracks A/C/D/E already diagnosed and fixed elsewhere, and one 32s outlier has a genuinely untraced non-DB gap needing its own repro. Track H root-causes one of those G2 traces exactly: `planner_headcount` was missing from `get_submodule_data`'s `is_headcount_entry` tuple, so it fell through to an unfiltered whole-table `data_entry_emissions` aggregation (825ms) instead of the already-built, already-populated rollup-row fast path — a one-line fix, the highest-confidence item in the plan. A second 'critical' trace turned out to be stage's SQL instrumentation being off by design (C1's OTel-tax follow-up), not a new blind spot. Track I (2026-08-19) answers a process-pool/worker-count proposal against this plan's own measurements, and finishes 310-e item 8's never-done sync-in-async audit — the real find is a synchronous Loki log handler on the root logger, not a CPU problem; corroborated live by Track G3's own trace."
 ---
 
 # Backend compute performance (#2050)
@@ -2489,6 +2489,17 @@ investigation order.
     `planner_headcount` too) exists specifically to avoid. **The single
     highest-confidence, lowest-effort fix in this entire plan** — see
     Track H for the one-line diff and its equivalence test.
+13. **I** — checked a process-pool/worker-count proposal against this
+    plan's own measurements (rejected, same Amdahl ceiling as the closed
+    Rust question) and finished 310-e item 8's sync-in-async audit,
+    deferred since the 2026-06-15 incident. Confirmed worker.enabled is
+    live on dev (`co2-calculator-worker`, 6+ days up). Real finds:
+    synchronous Loki log handler on the root logger (no queueing),
+    unthreaded audit→Elasticsearch sync via `BackgroundTasks` — the same
+    defect Track G3's live trace independently caught from the other
+    direction — and unthreaded connector-credential Scrypt KDF. All three
+    are `asyncio.to_thread`/`QueueHandler` wraps, no recalculation or
+    pipeline internals touched. See Track I.
 
 A0 runs alongside 1–3 as verification.
 
@@ -2533,3 +2544,193 @@ A3 + B on a properly requested worker brings `dev` toward `dev2`
 throughput (~2.4×); C3's fix removes an O(N)-round-trip N+1 that was 50%
 avoidable SELECT+DELETE traffic at production scale — this is now the
 single largest confirmed win in the plan.
+
+## Track I — a process-pool/worker-count proposal, checked against this plan, plus the audit 310-e item 8 never did
+
+2026-08-19. A generic "make CPU-bound FastAPI non-blocking" writeup was
+brought to the team, proposing a `ProcessPoolExecutor` for the ~5s CPU
+work, more uvicorn workers per pod "as protection," and a background-job
+architecture as the long-term target. It is not wrong in the abstract —
+it just describes, as a future recommendation, the architecture Track B
+and F4 already shipped, and its two other proposals (process pool, more
+workers per pod) are ones this plan already priced and rejected with
+measurements the writeup didn't have. Recorded here so the next person
+who finds that writeup finds this table first.
+
+| Proposal                           | Writeup's position                                   | This plan's own measurement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Verdict                                                                                         |
+| ---------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Background worker/job queue        | "Preferred long-term architecture"                   | Track B (dedicated worker Deployment) shipped; F4 (`prefill_job_id`, 202-then-poll) shipped for the worst offender found — the request went 1351ms → 66.6ms                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | **Already built.** Verify it's switched on (I1) — that's the real gap.                          |
+| `ProcessPoolExecutor` for CPU work | "First improvement I would implement"                | F0 measured the CPU share of the worst known request at N=5000: 132.2ms of 560.9ms wall = **24%**. A process pool can only ever move that slice — it can't touch the 55% traced SQL or the untraced `COPY`, both of which need the DB session a process boundary can't share.                                                                                                                                                                                                                                                                                                                                                 | **Priced and closed** — same Amdahl ceiling F5 used to close the Rust question, one line later. |
+| More uvicorn workers per pod       | "Additional protection... not universal"             | Track A already rejected `WORKERS=2`, citing memory doubling under a 1000Mi limit and a duplicated in-process poller. The limit is now **512Mi** (`values.yaml:102`) — strictly worse. `DB_POOL_SIZE=10 + DB_MAX_OVERFLOW=10` is per-process (`config.py:76-94`, docstring: "the hard cap on connections one pod can open"); two workers in one pod doubles that pod's connection footprint against the exact pool-exhaustion mechanism A1 found as the confirmed 504 cause. `backend.replicaCount` is already `2` — that buys the same request isolation at the k8s layer without doubling per-pod memory or DB connections. | **Rejected, harder than before.** Don't do this.                                                |
+| `asyncio.sleep()` in a CPU loop    | "Not the recommended solution... treats the symptom" | Correct in general, but this plan's own `sleep(0)` yields (310-e item 0, shipped) are the deliberate interim mitigation, not a design goal — load-bearing until the CPU-bound path in question has actually moved off the event loop. Don't remove them; see I2.                                                                                                                                                                                                                                                                                                                                                              | **Agrees, with one caveat.**                                                                    |
+
+### I1 — the one open question that actually changes the shape of this track
+
+Is `worker.enabled` (Track B) live anywhere real? Two things in this
+repo disagree with each other: `values.yaml:223-231` says the chart
+default is `false` and "enabling the split on any real environment is a
+separate, explicit follow-up"; but `backend-worker-deployment.yaml:88-93`
+documents a missing-`backend.env` crash "caught on dev's first real
+`worker.enabled` deploy" — so it was flipped on somewhere, at least once.
+F0 also left an explicit unresolved TODO: "verify #2081 is live on dev."
+Per-env values live in the external ops repo (`enack8s-app-config` /
+`openshift-app-config`), not here, so this can't be settled by reading
+this repo.
+
+Tried to check directly: `kubectl -n svc1751d-co2-calculator-dev get
+deploy` (and stage/prod) — all three contexts came back "You must be
+logged in to the server," OIDC token expired. **Action for whoever picks
+this up:** refresh login (`oc login` / re-auth the `oidc-enack8s` user)
+and check for a `-worker` Deployment in each namespace, or confirm
+directly with the lead.
+
+If the worker isn't running in the environment the 504s/21.89s traces
+came from, that's the single highest-value action in this entire track —
+above the audit below, above anything else here. Track B and F4 are
+built and merged; a disabled switch is not a design gap, it's an
+unflipped one.
+
+### I2 — the `asyncio.sleep` inventory, classified
+
+The full grep (`asyncio.sleep` across `backend/`) sorts into three
+buckets. Only the third has an open item.
+
+**1. Background-loop cadence — correct, leave alone.**
+`_pipeline_reconciler.py:142`, `_poller.py:156`, `_db_health.py:127`,
+`_pod_heartbeat.py:136`, `runner.py:425`. These are `while True: ...;
+await asyncio.sleep(interval)` polling loops — the interval _is_ the
+sleep's job. Removing them would busy-loop, not fix anything.
+
+**2. `sleep(0)` cooperative yields — 310-e item 0's shipped mitigation,
+load-bearing, do not remove.**
+`emission_recalculation.py:219`, `data_entry_repo.py:123`,
+`base_csv_provider.py:419,970`, `base_factor_csv_provider.py:202`. These
+exist because the 2026-06-15 incident (310-e) found CPU-bound row loops
+starving `/healthz` past its liveness timeout. The pasted writeup calls
+this pattern "not recommended... treats the symptom" — true as a
+long-term design goal, false as advice to delete these: the underlying
+work (CSV ingestion, factor merge) still runs synchronously wherever
+`worker.enabled=false`, and these yields are the only thing keeping the
+probes answering while it does. Remove them only once that work is
+confirmed off every pod that also serves `/healthz` — i.e., after I1
+resolves to "yes, live everywhere."
+
+One gap in this bucket, already logged and still open: the priority-order
+section above flags "the `asyncio.sleep(0)` yield is still outstanding"
+for `_recalculate_report_emissions` — checked again here,
+`simulator_plan_service.py` has no `asyncio.sleep` at all. That method
+holds the event loop and an open transaction for its whole O(N) duration
+on the synchronous half of the simulator-plan path (see C3). Not sized
+independently here; it inherits C3's existing priority.
+
+**3. Genuine per-request sleeps — checked, not a finding.**
+`data_sync.py:1345` and `:1848` are both inside SSE `StreamingResponse`
+generators (`await asyncio.sleep(2)` / `await asyncio.sleep(poll_interval)`
+between polls of job state). An `await` yields the event loop for every
+other coroutine on that pod for the sleep's duration — this is the
+correct shape for a long-lived SSE connection, not a blocking call.
+Not a finding.
+
+### I3 — the sync-in-async audit (310-e item 8, never done until now)
+
+This is the actual answer to "we never did a thorough code-review of the
+backend for this." Targeted grep for known blocking patterns
+(`requests.`, `time.sleep`, sync `httpx.Client`, `boto3`, `subprocess`,
+`openpyxl`/`pandas`, sync Elasticsearch client, `Fernet`/`Scrypt`/
+`hashlib`), then traced each hit to its caller to separate request-path
+from background/startup code. Ranked by blast radius.
+
+**1. `LokiHandler` (`core/logging.py:116-140`) — synchronous `httpx.Client`
+inside `logging.Handler.emit()`, on the root logger, no queueing.**
+The widest blast radius of anything found: wired with
+`logging.getLogger().addHandler(loki_handler)` when `LOKI_ENABLED` +
+`LOKI_URL` are set (`core/logging.py:213-223`) — no `QueueHandler`/
+`QueueListener` in between. Every `logger.info()`-or-higher call anywhere
+in the app, including inside request handlers, synchronously POSTs to
+Loki with `timeout=2.0`. A slow or unreachable Loki blocks the event loop
+up to 2s **per log line**, and a request that logs several lines under
+degradation stacks that. This is the same class of bug as the 2026-06-15
+incident (sync I/O on the event loop starving `/healthz`) but with a much
+larger surface — every logged line on every pod, not one background job.
+Not yet confirmed whether `LOKI_ENABLED=true` in any live environment
+(same external-ops-repo gap as I1) — check alongside it. Standard fix is
+`logging.handlers.QueueHandler` + a `QueueListener` running the real
+`LokiHandler` on a background thread, so `emit()` only ever does a
+non-blocking queue push.
+
+**2. Audit-trail → Elasticsearch sync via `BackgroundTasks` — fully
+synchronous, unthreaded, on the request pod.**
+`AuditService.create_version` / `bulk_create_versions` (called from at
+least `api/v1/auth.py`, `api/v1/connectors.py` on every mutating write
+that creates an audit version) schedule
+`sync_audit_records_with_elasticsearch` via `BackgroundTasks.add_task` —
+runs after the response, on the same event loop, on whichever pod
+handled the write. That task constructs a fresh `ElasticsearchClient()`
+per call (`AuditSyncService.__init__`, `elasticsearch/client.py:206-216`)
+— a blocking TCP+TLS handshake plus a blocking `self.client.info()` call
+at construction, `request_timeout=30`, `max_retries=3` — then calls the
+synchronous `sync_audit_record` / `bulk_sync_audit_records`. None of it
+is wrapped in `asyncio.to_thread`. Worst case under Elasticsearch
+degradation: up to ~90s of blocked event loop, triggered by an ordinary
+auth or connector write, on the pod that served it — not gated behind
+`worker.enabled` at all, since it fires from `BackgroundTasks`, not the
+job runner. Fix shape: wrap the `ElasticsearchClient()` construction and
+its sync calls in `asyncio.to_thread`, same pattern the Tableau provider
+already uses correctly (see the counter-example below).
+
+**Independently corroborated, live, before this audit was written**: Track
+G3's `d16436` trace (1538.3ms, `GET .../modules/{module_id}/{submodule_id}`)
+caught exactly this — a `BackgroundTask sync_pending_audit_records_task`
+costing 170.4ms inside a *read* endpoint's own request span. G3 flagged
+the `audit_documents` mutation-on-read as a semantics question for that
+table's owner, correctly not this audit's call to make. But the
+mutate-on-read question and the *blocking* question are separable: even
+if the answer is "yes, reads should stamp `is_current`," the sync call
+backing that stamp should still not be able to hold the event loop for
+up to 90s. This fix stands regardless of how the semantics question is
+answered.
+
+**3. Connector credential encrypt/decrypt — CPU-bound KDF inline in the
+event loop, real but bounded.**
+`core/crypto.py`'s `encrypt_secret`/`decrypt_secret` derive a Fernet key
+via `Scrypt(n=2**14, r=8, p=1)` — deliberately expensive, that's the
+point of a KDF. `ConnectorService.save_connection` (`async def`, called
+from `POST` in `api/v1/connectors.py`) calls `encrypt_secret` directly,
+unthreaded; `get_decrypted_secret` is called the same way from the
+Tableau provider's credential fetch. Lower severity than #1/#2 — bounded
+to tens of milliseconds, on a low-traffic admin path, not per ordinary
+request — but the same class of bug, and the same one-line fix
+(`asyncio.to_thread`).
+
+**Correctly done already, cited as the pattern to mirror:**
+`base_tableau_api_provider.py` builds a synchronous `httpx.Client()`
+(`_create_session`, line 424) but every `session.post`/`session.get`
+call on it goes through `await asyncio.to_thread(session.post, ...)`
+(lines 363, 438, 511) — this is exactly right, and exactly what #2 and #3
+above are missing.
+
+**Not findings**, checked and ruled out: no `requests` import anywhere in
+`backend/app`; no bare `time.sleep`; no `subprocess`; no `boto3`/
+`openpyxl`/`pandas` in the app (only in seed scripts, which run offline,
+not in request paths).
+
+### I4 — recommended order
+
+1. **I1** — resolve whether Track B is actually live. Blocks nothing else
+   here, but changes what "done" means for the rest of this plan.
+2. **Loki queue wrapper** (I3.1) — widest blast radius, smallest fix
+   (`QueueHandler`/`QueueListener`, stdlib only), independent of
+   everything else.
+3. **Audit-ES `to_thread` wrap** (I3.2) — second-widest blast radius
+   (any mutating write, not just data pipelines), same fix shape as the
+   Tableau provider already uses.
+4. **Connector crypto `to_thread` wrap** (I3.3) — smallest, same pattern,
+   bundle with #3 since it's the same one-line idiom applied twice more.
+5. **Do not** build a `ProcessPoolExecutor`, and **do not** raise uvicorn
+   worker count per pod — both closed above, with numbers.
+
+None of I3's three fixes touch recalculation, pipeline internals, or
+published emission numbers — they're logging/audit/crypto plumbing, not
+the guardrails' "written plan reviewed by both maintainers" category.
+They're still written up rather than shipped directly, in keeping with
+"the lead is away, ship small" — small enough here to be one PR each.
