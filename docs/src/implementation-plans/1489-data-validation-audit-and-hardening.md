@@ -1,5 +1,6 @@
 ---
 issue: 1489
+status: in-progress
 last_updated: 2026-08-19
 title: "Data-validation audit and hardening — backend as single source of truth"
 summary:
