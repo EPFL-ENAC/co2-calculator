@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.core.policy import has_global_or_principal_access_for_unit
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import (
@@ -27,6 +28,7 @@ from app.models.module_type import (
     PLANNER_REFERENCE_SCOPED_MODULE_TYPES,
     ModuleTypeEnum,
 )
+from app.models.unit import Unit
 from app.models.user import User
 from app.modules_planner.headcount import PLANNER_STUDENT_CODE
 from app.repositories.carbon_project_repo import CarbonProjectRepository
@@ -419,19 +421,57 @@ class SimulatorPlanService:
         computes every entry's emissions (and every touched module's stats)
         from scratch — it has to, since it also covers modules prefill never
         touches, like purchase's manual rows.
+
+        A standard user's Ongoing plan never carries the unit baseline:
+        non-grant years of a plan whose creator has neither global nor
+        principal access to the unit are wiped instead of copied, so no
+        reference-year rows show up in their tables, stats or charts. The
+        reference year itself stays set — it keeps driving factor lookup
+        and purchase classes for the rows they add themselves. Grant
+        reports keep the copy; their snapshot is hidden from standard
+        viewers at the read layer instead.
         """
         reports = await self.repo.list_reports_by_ids(report_ids)
         ref_cache = _ReferenceCache()
+        baseline_access: dict[int | None, bool] = {}
         for report in reports:
-            await self._prefill_reference_modules(report, ref_cache=ref_cache)
+            project_id = report.carbon_project_id
+            if project_id not in baseline_access:
+                baseline_access[
+                    project_id
+                ] = await self._plan_creator_has_baseline_access(project_id)
+            await self._prefill_reference_modules(
+                report,
+                ref_cache=ref_cache,
+                allow_reference_copy=report.is_grant or baseline_access[project_id],
+            )
             await self._recalculate_report_emissions(report)
         return len(reports)
+
+    async def _plan_creator_has_baseline_access(self, project_id: int | None) -> bool:
+        """Whether the plan's creator may see the unit's reference-year data.
+
+        True for global-scope and unit-principal creators; False for
+        standard users — and, defensively, for plans whose creator can no
+        longer be resolved.
+        """
+        if project_id is None:
+            return True
+        project = await self.repo.get_plan(project_id)
+        if project is None or project.created_by is None:
+            return False
+        creator = await self.session.get(User, project.created_by)
+        if creator is None:
+            return False
+        unit = await self.session.get(Unit, project.unit_id)
+        return has_global_or_principal_access_for_unit(creator, unit)
 
     async def _prefill_reference_modules(
         self,
         report: CarbonReport | CarbonReportRead,
         *,
         ref_cache: _ReferenceCache | None = None,
+        allow_reference_copy: bool = True,
     ) -> None:
         """Empty every reference-scoped module, rebuild prefilled + copied ones.
 
@@ -452,6 +492,11 @@ class SimulatorPlanService:
         ``ref_cache`` lets a multi-report job read the reference side once
         instead of once per plan year; omit it and this call reads its own
         (plan #2050 Track F6).
+
+        ``allow_reference_copy=False`` runs the wipe without the rebuild —
+        every reference-scoped module ends up empty, exactly like a report
+        with no reference year. Used for non-grant years of plans created
+        by standard users, who must not receive the unit's baseline.
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
@@ -469,7 +514,7 @@ class SimulatorPlanService:
         ]
 
         ref_report = None
-        if report.reference_year is not None:
+        if allow_reference_copy and report.reference_year is not None:
             ref_key = (report.unit_id, report.reference_year)
             if ref_cache is not None and ref_key in ref_cache.reports:
                 ref_report = ref_cache.reports[ref_key]

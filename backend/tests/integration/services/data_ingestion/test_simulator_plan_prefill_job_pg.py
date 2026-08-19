@@ -37,7 +37,7 @@ from app.models.data_ingestion import (
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
-from app.models.user import User, UserProvider
+from app.models.user import GlobalScope, Role, RoleName, User, UserProvider
 from app.modules.emissions.taxonomy import EmissionType
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.repositories.data_ingestion import DataIngestionRepository
@@ -66,6 +66,7 @@ async def _seed_plan_awaiting_prefill(Sf) -> tuple[int, list[int], int]:
         session.add(Unit(id=1, institutional_code="14270", name="U", level=1))
         await session.flush()
         user = User(institutional_id="1", email="a@b.c", display_name="R")
+        user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
         session.add(user)
         await session.flush()
 

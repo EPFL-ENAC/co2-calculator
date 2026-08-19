@@ -7,7 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
-from app.models.user import User
+from app.models.user import GlobalScope, Role, RoleName, User
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.simulator_plan import SimulatorPlanUpdate
@@ -71,6 +71,7 @@ async def user(async_session):
         email="ada@example.com",
         display_name="Ada Lovelace",
     )
+    db_user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
     async_session.add(db_user)
     await async_session.flush()
     return db_user
