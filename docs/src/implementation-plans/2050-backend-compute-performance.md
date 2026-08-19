@@ -1,9 +1,9 @@
 ---
 status: in-progress
 issue: 2050
-last_updated: 2026-08-17
+last_updated: 2026-08-18
 title: "Backend compute performance — pod stability, worker split, request-path profiling"
-summary: "Six-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081); profile compute cost (Track C), which rules out a language rewrite; then fix the simulator-plan reference-year PATCH end to end — recalc and prefill N+1s, Pydantic's per-instance default_factory tax across every SQLModel table, Core INSERT…RETURNING, and Tracks D/E's redundant recomputes — taking it 960ms → 271.4ms (PRs #2083, #2152). Track F reopens the per-year prefill fan-out behind a 21.89s dev trace whose bottleneck is not traced SQL."
+summary: "Six-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081); profile compute cost (Track C), which rules out a language rewrite; then fix the simulator-plan reference-year PATCH end to end — recalc and prefill N+1s, Pydantic's per-instance default_factory tax across every SQLModel table, Core INSERT…RETURNING, and Tracks D/E's redundant recomputes — taking it 960ms → 271.4ms (PRs #2083, #2152). Track F reopens the per-year prefill fan-out behind a 21.89s dev trace whose bottleneck is not traced SQL. Track G (2026-08-18) dates ~30 real dev/stage traces against the fix-merge timestamps: every slow stage trace predates #2050 entirely (stage is still pre-#2050, unrelated to any bug); dev's two biggest traces (80s, 21.89s) predate Track F's async-job fix; but plain module-detail GETs — never in this plan's scope — still cost 1-2.2s post-fix from the same connection-checkout + sequential-small-query pattern Tracks A/C/D/E already diagnosed and fixed elsewhere, and one 32s outlier has a genuinely untraced non-DB gap needing its own repro. Track H root-causes one of those G2 traces exactly: `planner_headcount` was missing from `get_submodule_data`'s `is_headcount_entry` tuple, so it fell through to an unfiltered whole-table `data_entry_emissions` aggregation (825ms) instead of the already-built, already-populated rollup-row fast path — a one-line fix, the highest-confidence item in the plan. A second 'critical' trace turned out to be stage's SQL instrumentation being off by design (C1's OTel-tax follow-up), not a new blind spot."
 ---
 
 # Backend compute performance (#2050)
@@ -1493,13 +1493,38 @@ added in F7 is where it would live.
 
 ### F4 — sizing: at the stated ceilings, this needs a job
 
-Per reference year, the stated maxima are ~6,990 entries (equipment 3000,
-purchase 3000, travel 300, buildings 300, external cloud/AI 300,
-headcount 30, research facilities 30, process 30) — **~70,000
-`data_entries` for a 10-year plan**, plus several emission leaves each,
-so roughly 150k–350k `data_entry_emissions` rows. The plan behind the
-21.89s trace already sits near that ceiling on equipment alone (~50k
-entries across 10 years).
+**Updated 2026-08-18** — see
+[`2161-ceiling-scale-perf-fixtures.md`](2161-ceiling-scale-perf-fixtures.md)
+for the fixture/test-suite plan built on top of this table; that plan is now
+the canonical home for the ceiling numbers, this table is quoted from it.
+The maxima below were placeholders; #2161 now has
+real order-of-magnitude estimates from martina-gallato for every calculator
+`DataEntryTypeEnum`, grouped by module here:
+
+| module group        | sub-types (max/unit-year)                                                                                                                                                | group total |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| headcount           | member 500, student 500                                                                                                                                                  | 1,000       |
+| equipment           | scientific 1,000, it 1,000, other 1,000                                                                                                                                  | 3,000       |
+| travel              | plane 500, train 5,000                                                                                                                                                   | 5,500       |
+| buildings           | building 500, energy_combustion 500, building_embodied_energy 500                                                                                                        | 1,500       |
+| external cloud/AI   | external_clouds 500, external_ai 500                                                                                                                                     | 1,000       |
+| process_emissions   | process_emissions 500                                                                                                                                                    | 500         |
+| purchase            | scientific_equipment, it_equipment, consumable_accessories, biological_chemical_gaseous_product, services, vehicles, other_purchases, purchases_centralized — 1,000 each | 8,000       |
+| research facilities | research_facilities 500, animal_facilities 50                                                                                                                            | 550         |
+
+**~21,050 entries/unit-year — ~3× the 6,990 placeholder this section
+originally used.** Planner-only types (`planner_headcount`,
+`planner_purchase`, `planner_purchase_budget`) aren't in martina's table —
+she left them `??`; filled here as rough estimates pending her confirmation:
+**50 / 5,000 / 10**.
+
+So a 10-year plan is now **~200,000+ `data_entries`**, not ~70,000, plus
+several emission leaves each — 400k–1M+ `data_entry_emissions` rows is
+plausible at the ceiling. The plan behind the 21.89s trace already has ~50k
+equipment entries across 10 years — **above** this table's revised
+per-year×10 equipment ceiling (3,000×10 = 30,000), meaning that unit's real
+usage already exceeds martina's stated maximum for that group. Worth
+flagging back to her rather than treating the table as a hard cap.
 
 F3 removes the Python per-entry cost, but not the write volume: even at a
 healthy 20–30k rows/s `COPY`, 150k–350k emission rows is 10–20s of pure
@@ -1756,6 +1781,632 @@ recalculation internals — the guardrails require a written plan reviewed
 by both maintainers before it is touched. Nobody should build it off this
 track alone.
 
+## Track G — trace review, 2026-08-18: dated verdict + one new unaddressed pattern
+
+The lead supplied ~30 GlitchTip trace exports (dev + stage, every request
+
+> 1s captured 2026-08-17/18) plus a target: p95 < 500ms for a normal GET. The
+> first question any of these traces raises is "is this old news or a live
+> regression" — answered here by cross-referencing each trace's wall-clock
+> timestamp against `git merge-base --is-ancestor <sha> dev|stage` for the two
+> fixes this plan already shipped: Track E (`5d793435`, merged
+> 2026-08-17T14:40 CEST) and Track F4 (`b8570fd8`, merged
+> 2026-08-17T22:33 CEST). PR #2081 (Track A/B) merged 2026-08-12, five days
+> before every trace in this batch.
+
+### G0 — dated verdict
+
+| Trace(s)                                                                                                                                                 | Route                                                                                                         | Dated verdict                                                                                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `562d39` (80.26s), `c3e298` (21.89s, = Track F0's own trace)                                                                                             | `PATCH .../years/{year}`                                                                                      | Both at 2026-08-17 15:14–15:17 UTC — **before** Track F4 (20:33 UTC same day). Already-diagnosed, already-fixed. Not live.                                                                                                       |
+| `8116cf` (32.08s)                                                                                                                                        | `GET /v1/taxonomies/module/{module}/{data_entry}`                                                             | 2026-08-17 14:06 UTC — before both fixes, but taxonomies was never in this plan's scope either way (see G4).                                                                                                                     |
+| All `stage/*` traces (`PATCH /project-plans/{plan_id}` 1.5–8.6s, module GETs 1.28–1.37s, the SSE streams)                                                | various                                                                                                       | `git merge-base --is-ancestor b8570fd8 stage` and `...5d793435 stage` both **fail** — stage's HEAD (`0b89b7bd`, v1.3.1, 2026-08-11) predates every #2050 commit. Every slow stage trace in this batch is pre-#2050 code. See G1. |
+| `0626c0`, `54c69f`, `ce06f1` (1.17–1.24s), `877acf`/`a61726`/`0477c6`/`b07dc5` (1.6–1.7s), `44fd61`/`f3d4a2` (1.26s), `d16436` (1.54s), `8c0715` (1.02s) | `GET .../modules/{module_id}[/{submodule_id}]`, isolated `SELECT`/`DELETE` fragments, `GET /v1/auth/callback` | **2026-08-18, 08:56–11:00 UTC — after both fixes.** Live, current, unaddressed. See G2/G3/G5.                                                                                                                                    |
+
+### G1 — stage is running pre-#2050 code entirely
+
+Not a bug to fix — a release to ship. Every stage trace in this batch,
+including the 8.6s `PATCH /v1/project-plans/{plan_id}`, is fully explained
+by code this plan already fixed on `dev` and never promoted. The SSE
+endpoints (`/v1/sync/{jobs,pipelines}/{id}/stream`, 8s–1.44min) are a
+separate, non-issue: their span breakdown is a single `http receive` span
+consuming ~99.9% of the duration with zero DB spans — a long-poll
+connection idling between server-sent events, exactly the behavior
+`2161-ceiling-scale-perf-fixtures.md`'s route registry already excludes
+with "SSE stream, no bounded response time". Nothing to fix here either.
+
+**Action: promote #2050 (dev → stage) at the next release.** No new code
+required for this section.
+
+### G2 — new, unaddressed: plain module-detail GETs cost 1–2.2s, unaffected by anything in Tracks A–F
+
+`GET /v1/carbon-reports/{carbon_report_id}/modules/{module_id}` (and its
+`/{submodule_id}` sibling) were never touched by this plan — Tracks C/D/E
+profiled `set_reference_year`/the simulator-plan PATCH and the recalc
+workflow, not this read path. The 2026-08-18 (post-fix) traces show the
+identical shape as the 2026-08-17 (pre-fix) ones, confirming that: this
+was never fixed, not that a fix regressed.
+
+Deduped span timeline for `0626c0` (root 1198.7ms; `X` and `X app` are the
+same DB operation traced at two instrumentation layers — Track D's own
+known artifact — kept as one interval below):
+
+```
+   0.0ms  request starts
+ 559.5ms  connect               <- pool checkout / new connection
+ 748.1ms  SELECT emission sums   (168.6ms)
+ 909.5ms  SELECT units            (161.4ms)
+1061.0ms  SELECT entry-type counts (151.4ms)
+1198.7ms  response sent
+```
+
+`connect(559.5) + 3 sequential queries(481.4) ≈ 1198.7ms` — the **entire**
+request is DB-bound, with zero unaccounted Python time. Two compounding
+causes, both already-proven patterns in this file:
+
+1. **The `connect` span itself — 289–620ms in all three post-fix
+   (2026-08-18) `modules/{module_id}` traces (`0626c0` 559.5ms, `54c69f`
+   620.0ms, `ce06f1` 289.3ms) — is per-request connection-checkout cost**
+   (the two pre-fix traces from 08-17, `524fae`/`45326f`, show no `connect`
+   span at all — different dominant cost that day, not proof the checkout
+   cost is new) — the same mechanism
+   Track A1 diagnosed for `/ready` (`pool_pre_ping`'s extra round trip,
+   `DB_POOL_TIMEOUT` contention), now visible on an ordinary GET, five days
+   after PR #2081 shipped Track A's `/ready` timeout bound and Track B's
+   worker split. Both are confirmed live on dev (worker pods
+   `co2-calculator-worker-*` are visibly running job SQL in this same trace
+   batch), yet the API pods still pay this cost — meaning #2081 stopped the
+   _504-producing_ symptom on `/ready` specifically, not the underlying
+   pool/connection cost on ordinary requests. **Open question, not yet
+   answered from these traces alone:** is Track A3's CPU-request bump
+   (`100m` → `1` core) actually applied on dev, and what is
+   `DB_POOL_SIZE`/`DB_MAX_OVERFLOW` set to there? Neither is visible from a
+   trace; needs a `kubectl describe`/config check, not more trace reading.
+2. **3–4 sequential, un-batched small queries per request** — units lookup,
+   per-type entry count, emission sum, and (in `ce06f1`) a `SELECT users...`
+   that re-queries the current user from the DB on every request rather
+   than reusing whatever `get_current_user` already resolved from the JWT.
+   This is the exact "round-trip count, not query speed" shape Tracks
+   C/D/E already proved and fixed three times over in this file — applied
+   here it would mean one combined query (or a shared per-request cache)
+   instead of four sequential ones. Per this plan's own guardrail
+   discipline: this needs its own written plan before touching the route
+   (mirror Tracks C/D/E's shape, don't invent a new one), not a fix folded
+   into this trace review.
+
+### G3 — `GET .../modules/{module_id}/{submodule_id}` mutates `audit_documents` on read
+
+The `d16436` trace (1538.3ms) shows a `SELECT data_entries...` (1050.4ms —
+itself worth checking why a single-item lookup costs a full second) followed
+by a `BackgroundTask sync_pending_audit_records_task` (170.4ms), an
+`UPDATE audit_documents SET is_current=...` (161.7ms), and a
+`SELECT audit_documents...` (151.2ms) — a **read** endpoint doing ~480ms of
+write-shaped work on every call. This may be intentional (e.g. stamping an
+audit trail's "current version" pointer the first time a row is viewed) or
+may be a genuine on-read side effect that doesn't belong on the hot path.
+**Flagging for the maintainers rather than proposing a fix** — removing a
+write whose purpose isn't understood yet is exactly the kind of silent
+behavior change the guardrails warn against; this needs an answer from
+whoever owns `audit_documents`'s semantics before it's touched.
+
+### G4 — the 32s `GET /v1/taxonomies/module/{module}/{data_entry}` outlier — unresolved, not DB-bound
+
+Span timeline (`8116cf`, relative to request start):
+
+```
+   0.0ms  request starts
+ 285.2ms  last traced span ends (one factors query + two trivial lookups)
+32076.2ms  first span after the gap: "http send"
+32076.8ms  response sent
+```
+
+**31.79 seconds with zero spans of any kind** — not a slow query (all DB
+work finished by 285ms), not the untraced-`COPY` pattern F0 found (no bulk
+write belongs on this read-only taxonomy endpoint). Two live hypotheses,
+neither confirmed by this trace alone:
+
+- Event-loop starvation by an untraced, non-yielding coroutine sharing the
+  same pod process — the same class of bug the 50ms yield (Track C3's
+  intro, the 2026-07-17 stage incident) already fixed for recalc, but no
+  concurrent recalc was captured on this pod in this same window, so this
+  is a hypothesis, not a finding.
+- An uninstrumented blocking call inside FastAPI's response path —
+  `response_model_exclude_none=True` validating/serializing a
+  `TaxonomyNode` tree that turned out unexpectedly large or self-referential
+  for this specific `(module, data_entry)` pair.
+
+This trace predates both #2050 fixes (2026-08-17 14:06 UTC) and
+`taxonomies.py` was never touched by any track in this plan — **old
+evidence of a never-investigated endpoint**, not a regression. Needs a live
+repro (re-request the same `(module, data_entry, year)` in dev with a
+profiler attached) before guessing further; the trace doesn't support
+picking between the two hypotheses above.
+
+### G5 — isolated 1.6–1.98s single-span fragments, dated
+
+Standalone `SELECT`/`SELECT app`/`DELETE` "traces" are GlitchTip capturing
+only the one slow child span when its parent HTTP-route span was dropped or
+sampled out on export — the same phenomenon Track F0 already noted ("early
+spans were dropped on export"). Two distinct, separately-dated clusters:
+
+- **2026-08-17 14:31 UTC (pre-fix)** — `SELECT 1`-shaped, matching Track
+  A1's readiness-probe diagnosis exactly. Old evidence for an
+  already-understood mechanism.
+- **2026-08-18 08:56–09:02 UTC (post-fix, on `co2-calculator-worker-*`
+  pods)** — `SELECT data_entry_emissions... primary_factor_id` at
+  1.6–1.7s, a single call to `prefetch_percentage_override_cache`'s
+  already-batched query (Track C3/E). Track B's worker split is visibly
+  working as designed here (job SQL runs on worker pods, not API pods) —
+  but the query itself still costs 1.6–1.7s per call at whatever row count
+  triggered it. **This connects directly to #2161**: at real per-unit-year
+  ceilings (~21,050 entries, `2161-ceiling-scale-perf-fixtures.md`), even an
+  already-batched, already-fixed query pays real cost at volume — exactly
+  what that plan's ceiling suite is built to catch systematically, instead
+  of one production fragment at a time.
+
+### Track G priority order
+
+1. **Promote #2050 to stage** (G1) — a release, not a code change; explains
+   8 of the ~20 stage traces in this batch immediately.
+2. **Verify PR #2081 is fully effective on dev** — confirm Track A3's CPU
+   request and current `DB_POOL_SIZE`/`DB_MAX_OVERFLOW` are what the plan
+   intended; the connection-checkout cost it targeted is still visible five
+   days after merge (G2).
+3. **Write a plan for `GET .../modules/{module_id}[/{submodule_id}]`** (G2)
+   — same batching medicine as Tracks C/D/E, applied to a route they never
+   covered. Lower blast radius than recalc internals (a read path, no
+   published numbers at stake) but still gets its own written plan per
+   guardrails, not a fix folded into this review.
+4. **Ask the `audit_documents` owner about G3** before touching it.
+5. **G4 needs a live repro**, not further trace reading — not actionable
+   from evidence alone.
+
+## Track H — the 825ms submodule GET, root-caused; the "critical" PATCH, explained
+
+The lead supplied a PRD-quality investigation of one specific G2 trace
+(`42a336`, 1033.2ms `GET .../modules/{module_id}/{submodule_id}`) plus a
+second "critical" trace (`82c2de`, 675.3ms `PATCH .../{item_id}`), with an
+explicit instruction: don't guess the bound parameters, find the real
+cause. Both are now explained — one with a one-line fix, one with a
+one-line correction to Track G's own hypothesis.
+
+### H1 — root cause: `planner_headcount` never got `is_headcount_entry`'s rollup fast path
+
+The PRD's own `EXPLAIN` already proved `data_entries`' own filter is cheap
+(0.131ms, indexed). The trace's 825.1ms query is exactly the PRD's
+suspected shape — confirmed verbatim from the trace's `db.statement`:
+
+```sql
+SELECT data_entries...., anon_1.total_kg_co2eq, factors....
+FROM data_entries
+LEFT OUTER JOIN (
+    SELECT data_entry_id, sum(kg_co2eq) AS total_kg_co2eq, min(primary_factor_id) AS primary_factor_id
+    FROM data_entry_emissions
+    WHERE emission_type_id NOT IN (%(emission_type_id_1_1)s, %(emission_type_id_1_2)s)
+    GROUP BY data_entry_id
+) AS anon_1 ON data_entries.id = anon_1.data_entry_id
+LEFT OUTER JOIN factors ON anon_1.primary_factor_id = factors.id
+WHERE data_entries.carbon_report_module_id = :module_id
+  AND data_entries.data_entry_type_id = :type_id  -- = 80 (planner_headcount)
+ORDER BY data_entries.id LIMIT 100 OFFSET 0
+```
+
+**Found by reading the code the trace's own request shape pointed at, not
+by guessing the bound `emission_type_id`s** — `app/repositories/data_entry_repo.py`'s
+`get_submodule_data` (the method behind this route) picks its query shape
+per type at lines 744–758:
+
+```python
+is_buildings_entry = data_entry_type_id in (DataEntryTypeEnum.building.value,)
+is_headcount_entry = data_entry_type_id in (
+    DataEntryTypeEnum.member.value,
+    DataEntryTypeEnum.student.value,
+)
+```
+
+`planner_headcount` (80) matches neither, so it falls to the generic
+`else` branch (lines 884–893) — the unfiltered, whole-table
+`GROUP BY data_entry_emissions.data_entry_id` the trace shows, with no
+`carbon_report_module_id`/`data_entry_type_id` predicate of its own. Every
+`data_entry_emissions` row in the database (growing toward #2161's real
+~21,050-entries/unit-year ceiling) has to be grouped before the outer join
+can discard all but the ~47 rows this module actually has.
+
+**The fast path already exists and already covers `planner_headcount` on
+the _write_ side — it just isn't wired up on the _read_ side.**
+`app/modules/emissions/registry.py:118-123`:
+
+```python
+DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION: dict[DataEntryTypeEnum, EmissionType] = {
+    DataEntryTypeEnum.building: EmissionType.buildings__rooms,
+    DataEntryTypeEnum.member: EmissionType.headcount,
+    DataEntryTypeEnum.student: EmissionType.headcount,
+    DataEntryTypeEnum.planner_headcount: EmissionType.headcount,  # <- already here
+}
+```
+
+`DataEntryEmissionService.prepare_create` (`data_entry_emission_service.py:670-689`)
+appends a `scope=None` rollup row generically for _any_ type in that dict
+once it has more than one computed leaf — no `planner_headcount` special
+case needed there, it's already generic. And `planner_headcount` always
+produces exactly the same three leaves as `member`/`student`
+(`registry.py:148-151`, comment: _"Simulator Plan manual headcount:
+aggregate FTE per SIUS category, same emission leaves as Calculator
+members (factors reused)"_) — `food`, `waste`, `commuting` — so it hits
+`len(results) > 1` every time, exactly the condition `member`/`student`
+already rely on for their own rollup row to exist. **A rollup row for
+every `planner_headcount` entry is already sitting in
+`data_entry_emissions` today; the read path just never asks for it.**
+
+### H2 — the fix: extend one tuple, reuse the proven query shape verbatim
+
+```python
+# app/repositories/data_entry_repo.py, get_submodule_data
+is_headcount_entry = data_entry_type_id in (
+    DataEntryTypeEnum.member.value,
+    DataEntryTypeEnum.student.value,
+    DataEntryTypeEnum.planner_headcount.value,
+)
+```
+
+That's the entire fix. The `is_headcount_entry` branch (lines 843–876)
+already builds the cheap query — a direct `JOIN` on the rollup row
+(`RollupEmission.emission_type_id == rollup_et_id AND scope IS NULL`)
+instead of a `GROUP BY` over the whole table — reused verbatim, no new
+query shape, per this file's own "mirror, don't invent" discipline. No
+migration: the rollup rows already exist. Expected result, by the same
+logic the PRD's own `EXPLAIN` already demonstrated for `data_entries`'
+side of the join: sub-millisecond, indexed lookup instead of 825ms.
+
+**One thing to verify, not assume:** confirm via `EXPLAIN (ANALYZE,
+BUFFERS)` against a real `planner_headcount` module (not guessed
+parameters — the PRD's own instruction, now pointed at the _new_ query
+instead of the old one) that the rollup-row JOIN plan is exactly as cheap
+here as it already is for `member`/`student` — same table, same index
+shape, so there's no structural reason it wouldn't be, but "no structural
+reason" is not the same as measured.
+
+### H3 — regression test: equivalence, not just a timing number
+
+> **Status: delivered** (branch `fix/2050-planner-headcount-rollup`,
+> 2026-08-18). Two tests shipped, one per failure mode. See H5 for the
+> measured numbers; the design notes below are why they look the way they
+> do.
+>
+> - `tests/unit/repositories/test_data_entry_repo.py::test_get_submodule_data_planner_headcount_uses_rollup_total`
+>   — **correctness**. The rollup row deliberately _disagrees_ with the sum
+>   of its leaves (99.0 / factor 42 vs 10+5+3 = 18.0 / factor 1), so the
+>   assertion discriminates "read the rollup row" from "re-sum the leaves".
+>   The equivalence framing below is the wrong shape for this reason: both
+>   paths return the same number on realistic data, so an equivalence
+>   assertion passes on the _unfixed_ code. Confirmed RED (got 18.0,
+>   expected 99.0) before the fix.
+> - `tests/integration/services/data_ingestion/test_planner_headcount_rollup_perf_pg.py`
+>   — **performance**, Postgres-backed, 1M seeded `data_entry_emissions`
+>   rows via bulk COPY. Asserts **scaling invariance**: growing the rest of
+>   the table 20x (50k → 1M rows) must not cost more than 3x. An absolute
+>   ms budget cannot catch this bug locally — see H5.
+>
+> Note also `scope` is `int | None`, not a string: the `scope="direct"`
+> below is wrong and fails on Postgres (it was silently tolerated by
+> SQLite). Real values come from `emission_type_scope(EmissionType.X)`.
+
+Per the PRD's own acceptance criteria ("must return exactly the same...
+emission totals, primary factor... as the existing implementation") and
+this repo's own established pattern for exactly this kind of change
+(`test_percentage_override_cache_matches_uncached_path` in plan 1661/C3's
+own work) — the test that matters is **row-for-row equivalence between the
+old query shape and the new one**, not a call-count or timing assertion
+alone:
+
+```python
+# backend/tests/unit/repositories/test_data_entry_repo.py
+async def test_planner_headcount_rollup_matches_unfiltered_aggregation(
+    db_session: AsyncSession,
+):
+    """#2050 Track H: is_headcount_entry must include planner_headcount.
+
+    Before the fix, planner_headcount fell through to the generic
+    unfiltered GROUP BY over the whole data_entry_emissions table (825ms
+    in production at real volume). Pins that the fast rollup-JOIN path
+    returns identical total_kg_co2eq/primary_factor_id to what the slow
+    path would have computed — not just that it's fast.
+    """
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.planner_headcount,
+        status=DataEntryStatusEnum.VALIDATED,
+        data={"sius_code": "51", "fte": 2.0},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    leaves = [
+        DataEntryEmission(
+            data_entry_id=entry.id, emission_type_id=EmissionType.food.value,
+            kg_co2eq=10.0, primary_factor_id=1, scope="direct",
+        ),
+        DataEntryEmission(
+            data_entry_id=entry.id, emission_type_id=EmissionType.waste.value,
+            kg_co2eq=5.0, primary_factor_id=2, scope="direct",
+        ),
+        DataEntryEmission(
+            data_entry_id=entry.id, emission_type_id=EmissionType.commuting.value,
+            kg_co2eq=3.0, primary_factor_id=3, scope="direct",
+        ),
+        # The rollup row prepare_create already writes for this type today.
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.headcount.value,
+            kg_co2eq=18.0, primary_factor_id=1, scope=None,
+            meta={"is_rollup": True},
+        ),
+    ]
+    db_session.add_all(leaves)
+    await db_session.flush()
+
+    repo = DataEntryRepository(db_session)
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.planner_headcount.value,
+        limit=100, offset=0, sort_by="id", sort_order="asc",
+    )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    # 10 + 5 + 3 = 18 — matches what the old unfiltered-GROUP-BY path
+    # would also compute from the three non-rollup leaves.
+    assert item.kg_co2eq == pytest.approx(18.0)
+```
+
+Add a second case with only one leaf recorded (no rollup row — the
+`len(results) > 1` guard's edge, exercised today by `member`/`student` and
+inherited unchanged) asserting the response still degrades sensibly (this
+mirrors an edge case `member`/`student` already handle; the test only
+needs to confirm `planner_headcount` isn't special-cased differently, not
+invent new behavior).
+
+### H4 — the "critical" 675.3ms PATCH: explained, not a new blind spot
+
+`82c2de` is a **stage** trace (`svc1751t-co2-calculator-stage`) with zero
+`db.system` spans anywhere in its 675.3ms — at first glance the same
+"untraced black box" shape as Track G's other findings. It isn't a new
+mystery: `helm/values.yaml:68` sets
+`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "sqlalchemy,psycopg"` as the chart
+default, landed deliberately in `d905e52f` (2026-08-12, this same plan's
+C1 OTel-tax follow-up: _"33% loss with SQLAlchemy/psycopg instrumented,
+16% with them disabled"_), with dev's own override to **re-enable** it for
+debugging living outside this repo (`openshift-app-config`). Every SQL-rich
+trace in this whole review is from **dev**; every SQL-blank one
+(`82c2de`, and Track G1's stage `PATCH /project-plans/{plan_id}` traces)
+is from **stage** — the pattern is the chart default working exactly as
+designed, not a gap to close.
+
+**Consequence, stated plainly: this specific 675.3ms PATCH cannot be
+root-caused from this trace, by design.** The path forward is either
+reproduce the same PATCH on dev (where SQL is visible) or temporarily flip
+stage's `openshift-app-config` override the way dev's already is — not
+more trace reading on this file. Filed here as a note for whoever picks
+that repro up, not as an open investigation task for this plan.
+
+### H5 — measured, 2026-08-18
+
+The fix and both tests are on `fix/2050-planner-headcount-rollup`.
+Measured locally against a seeded 1,000,000-row `data_entry_emissions`
+table (Postgres testcontainer, psycopg3 — the production driver):
+
+| background rows | unfixed  | fixed     |
+| --------------- | -------- | --------- |
+| 50,000          | 10.2 ms  | 6.1 ms    |
+| 1,000,000       | 75.1 ms  | 6.4 ms    |
+| **scaling**     | **×7.4** | **×1.14** |
+
+Two things this settles:
+
+- **The 825ms trace is explained quantitatively, not just plausibly.**
+  75 ms local × dev's own measured 9–17× per-round-trip penalty (F0)
+  is 675–1275 ms, and the production trace was 825 ms. The magnitude
+  lines up without needing a second unexplained factor.
+- **A wall-clock budget is the wrong assertion for this bug.** At 1M
+  rows the unfixed query still answers in 75 ms locally — it passes any
+  sane local budget, including this plan's own 200 ms. What separates
+  fixed from unfixed is the _slope_, and the slope is hardware-independent.
+  Any future ceiling-scale perf test (plan
+  [2161](2161-ceiling-scale-perf-fixtures.md)) that asserts only on
+  absolute milliseconds will keep missing bugs of exactly this shape on
+  developer hardware.
+
+H1's `EXPLAIN` verification drops to low priority rather than staying a
+merge gate: the scaling measurement exercises the real query through the
+real ORM (not a hand-transcribed SQL string) and proves the cost stopped
+growing with table size. It does not prove the chosen plan is the same
+cheap index path `member`/`student` get — if someone wants that
+confirmed, the `EXPLAIN` is still the way.
+
+One behaviour this inherits rather than introduces: `prepare_create`
+writes the rollup row only when an entry yields **more than one** leaf
+(`data_entry_emission_service.py:674`). A single-leaf `planner_headcount`
+entry therefore has no rollup row, and the new LEFT JOIN returns a null
+total where the old aggregation would have returned that one leaf's
+value. This is exactly what `member`/`student` do today — consistency
+with them is the point of the fix — but it is worth knowing it exists.
+
+### H6 — tracing config, so the next one is measurable
+
+`82c2de` (H4) could not be root-caused because stage inherits the chart
+default `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "sqlalchemy,psycopg"`.
+Pushed as branch `debug/2050-track-h-full-tracing` in
+`openshift-app-config` (`4f34268`, 2026-08-19; the lead handles the merge):
+
+- **stage** gains `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: ""` (SQL spans
+  visible, mirroring dev) and `OTEL_TRACES_SAMPLER: "always_on"`.
+- **dev** replaces its inert `OTEL_TRACES_SAMPLER_ARG: 0.01` with
+  `OTEL_TRACES_SAMPLER: "always_on"`.
+
+That `_ARG: 0.01` was **never in effect**, on either environment:
+`OTEL_TRACES_SAMPLER` itself was never set, so the SDK fell back to its
+default `parentbased_always_on` and sampled everything. `_ARG` is read
+only by `traceidratio` / `parentbased_traceidratio`
+(`opentelemetry/sdk/trace/sampling.py`, `_KNOWN_SAMPLERS`). So the
+sampler line is a correctness fix to config that was already lying, not a
+throughput change — the only real behaviour change here is stage's SQL
+instrumentation. Both are temporary: C1 measured SQL instrumentation at
+~2/3 of the OTel throughput tax, so revert once the stage PATCH is
+root-caused.
+
+### H7 — the GET, drawn
+
+**Which query shape runs, and why the old one could not be made fast.**
+
+```mermaid
+flowchart TD
+    REQ["GET .../modules/{module_id}/{submodule_id}<br/>data_entry_type_id = planner_headcount (80)"]
+    REQ --> D{"is_headcount_entry?<br/>data_entry_repo.py:754"}
+    D -->|"BEFORE — tuple listed member + student only,<br/>so planner_headcount fell through"| S1
+    D -->|"AFTER — tuple now includes planner_headcount"| F1
+
+    S1["generic branch, repo.py:891<br/>SELECT data_entry_id, SUM(kg_co2eq), MIN(primary_factor_id)<br/>FROM data_entry_emissions<br/>WHERE emission_type_id NOT IN (rollup types)<br/>GROUP BY data_entry_id"]
+    S1 --> S2["No module filter inside the subquery.<br/>The module restriction is a JOIN qual on data_entries,<br/>which Postgres cannot push through a GROUP BY —<br/>so the aggregate is computed over EVERY row first,<br/>then joined and thrown away."]
+    S2 --> S3["HashAggregate over the whole table<br/>cost grows linearly with total table size<br/>65 ms local @ 1M rows · ~825 ms on dev"]
+
+    F1["rollup branch, repo.py:852<br/>LEFT JOIN data_entry_emissions AS rollup<br/>ON rollup.data_entry_id = data_entries.id<br/>AND rollup.emission_type_id = headcount<br/>AND rollup.scope IS NULL"]
+    F1 --> F2["The total was already computed at write time by<br/>prepare_create and stored on one row.<br/>Indexed lookup, only this page's rows are touched."]
+    F2 --> F3["cost independent of table size<br/>6 ms local @ 1M rows · ~80 ms projected on dev"]
+```
+
+The key point is `S2`: the old shape was not a slow query that tuning
+could rescue. Nothing in it can be indexed away, because the work it does
+is _by construction_ proportional to the whole table — the filter that
+would have made it cheap sits on the other side of a join it cannot cross.
+The rollup row already existed for this type; the branch simply never read
+it.
+
+**Where the milliseconds actually go, before and after.** Same request,
+dev, at production volume:
+
+```
+BEFORE  ├─ connect (pool checkout)   ~300–620 ms  ████████████
+        ├─ aggregation query          ~825 ms     ████████████████████████████████
+        ├─ units + counts queries     ~300–480 ms ███████████████
+        └─ total                      ~1.4–1.9 s
+
+AFTER   ├─ connect (pool checkout)   ~300–620 ms  ████████████   <- now dominant
+   (H)  ├─ rollup JOIN                 ~80 ms     ███
+        ├─ units + counts queries     ~300–480 ms ███████████████
+        └─ total                      ~700–1180 ms
+
+TARGET  └─ total                       <200 ms
+```
+
+This fix removes the single largest bar. It does **not** get this endpoint
+under 200 ms in dev on its own — see H8.
+
+**The single-leaf caveat, drawn.** This is the one behaviour the fix
+changes for the worse, and it is only reachable when factor data is
+incomplete:
+
+```mermaid
+flowchart TD
+    A["planner_headcount entry<br/>declares 3 leaves: food, waste, commuting<br/>(registry.py:148)"] --> B{"Does _apply_formula return<br/>a value for each leaf?"}
+    B -->|"all 3 resolve"| C["3 leaf rows written"]
+    B -->|"factor row missing, or a formula/<br/>multiplier key absent from it →<br/>service.py:621 logs a warning and skips the leaf"| DD["only 1 leaf row written<br/>the other 2 are silently dropped"]
+    C --> E{"more than one leaf row?<br/>service.py:674"}
+    DD --> E
+    E -->|"yes"| F["rollup row written<br/>kg_co2eq = sum(leaves), scope = NULL"]
+    E -->|"no — a single leaf"| G["NO rollup row is written"]
+    F --> H["GET's LEFT JOIN matches it<br/>→ correct total displayed"]
+    G --> I["GET's LEFT JOIN finds no match<br/>→ total is NULL, UI shows a blank cell<br/>(before the fix, the generic SUM<br/>would have shown that one leaf's value)"]
+```
+
+Read plainly: **the blank cell is not caused by this fix.** The fix makes
+an existing data problem visible. The actual defect is upstream at
+`data_entry_emission_service.py:621` — a missing factor is swallowed with
+`logger.warning(...)` + `continue`, which is precisely the pattern
+[the guardrails](../contributing/guardrails.md) name as a silent fallback
+(_"a log line nobody reads is a silent fallback"_). An entry that should
+have three emission leaves quietly gets one, and every downstream consumer
+inherits a number that is wrong-but-plausible.
+
+`member`/`student` have behaved this way since rollups shipped, so this is
+inherited, not introduced — but "inherited" is not "fine". The correct
+follow-up is to make the skip loud where it happens, not to special-case
+the read path around it. Filed as a separate concern rather than folded
+into this fix, since it changes ingestion behaviour for four data entry
+types at once.
+
+### H8 — what it actually takes to reach <200 ms in dev
+
+H7's budget makes the remaining gap explicit. With Track H merged, the
+submodule GET on dev is still ~700–1180 ms, and **none** of what is left
+is query-plan work. Three levers, in descending confidence:
+
+**1. The `connect` span — 289–620 ms, per request (G2).**
+Present on all three post-fix `modules/{module_id}` dev traces
+(`0626c0` 559.5 ms, `54c69f` 620.0 ms, `ce06f1` 289.3 ms). An established
+connection does not cost half a second; this is checkout contention,
+`pool_pre_ping`'s extra round trip, or a genuinely new connection being
+opened per request. Three things to check, in order, none of which need
+more trace reading:
+
+- Is Track A3's CPU-request bump (`100m` → `1` core) actually applied on
+  dev? At 100m the pod is CPU-throttled, and a TLS handshake plus the
+  asyncio loop's own scheduling stretch into exactly this shape.
+- What are `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` on dev? Stage sets
+  `DB_POOL_SIZE: "20"`; dev is unverified. A pool smaller than the
+  concurrent request count turns checkout into a queue.
+- Is `pool_pre_ping` on? It costs one round trip per checkout — cheap
+  locally, not cheap against dev's DB.
+
+Pre-warming the pool in the FastAPI lifespan is the likely fix once the
+above says which of the three it is. Expected recovery: **~300–600 ms**,
+the single biggest remaining item.
+
+**2. The 3–4 sequential un-batched queries — ~300–480 ms (G2).**
+Units lookup, per-type entry counts, emission sums, and on some routes a
+`SELECT users` that re-reads the current user the JWT already carries.
+This is the same "round-trip count, not query speed" shape Tracks C, D and
+E each fixed already; applied here it means one combined query instead of
+four sequential ones. Expected recovery: **~200–350 ms**. Needs its own
+plan before touching the route (mirror C/D/E, don't invent a shape).
+
+**3. Everything else is already inside budget.** Post-H the actual data
+work is ~80 ms. There is no third mystery — G2's timeline accounted for
+100% of its 1198.7 ms with zero unexplained Python time.
+
+**300–600 ms + 200–350 ms recovered from a ~700–1180 ms baseline lands at
+roughly 100–500 ms.** That reaches the target at the good end and misses
+it at the bad end, which is the honest statement: lever 1 alone is not
+guaranteed to be sufficient, and the two together probably are. The
+100%-sampled SQL tracing from H6 is what turns "probably" into a number —
+it will show whether `connect` is queueing or handshaking, which decides
+whether the fix is a config change or a lifespan change.
+
+### Track H priority order
+
+1. ~~**H2 — the one-line `is_headcount_entry` fix**~~ — **done**, with
+   both regression tests (H3) and measurements (H5).
+2. ~~**H1's verification EXPLAIN**~~ — superseded by H5's scaling
+   measurement.
+3. **Land the fix**: PR `fix/2050-planner-headcount-rollup` → `dev`.
+4. ~~**H6's tracing overrides**~~ — pushed 2026-08-19, merge is the lead's.
+5. **H8 lever 1 — the `connect` span.** Biggest remaining item by far, and
+   it is a config question (`kubectl describe` + `DB_POOL_SIZE`), not a
+   code question. Do this before writing any more query code.
+6. **H8 lever 2 — batch the module-detail GET's sequential queries.**
+   Needs its own plan first (G2 says the same).
+7. **The silent factor skip** at `data_entry_emission_service.py:621` —
+   see H7's third diagram. Correctness, not performance; affects
+   `member`/`student`/`planner_headcount`/`building` alike.
+8. **H4's dev-side repro** of the stage PATCH — unblocked once H6 merges.
+
 ## Priority order
 
 C1, C2, and C3's measurement phase are all now done (2026-08-12); this
@@ -1824,6 +2475,20 @@ investigation order.
     F0's local 5k-entry measurement gates F3 vs. write-volume work; F4
     (the job route) is required for the stated ceilings regardless. See
     Track F for why this is not simply "more of Track E".
+11. **G** — dated trace review, 2026-08-18: confirms stage needs a promotion
+    (not a fix), confirms dev's two biggest historical traces predate Track
+    F4, and surfaces one genuinely new, unaddressed pattern — plain
+    module-detail GETs paying the same connection-checkout + sequential-
+    query costs Tracks A/C/D/E already fixed elsewhere, just never applied
+    to this route. See Track G's own priority order for the four follow-ups.
+12. **H** — root-caused one of Track G's own G2 traces: `planner_headcount`
+    was simply missing from `is_headcount_entry`'s tuple in
+    `get_submodule_data`, so it fell through to an unfiltered whole-table
+    aggregation the rollup-row fast path (already built for
+    `member`/`student`, already populated on the write side for
+    `planner_headcount` too) exists specifically to avoid. **The single
+    highest-confidence, lowest-effort fix in this entire plan** — see
+    Track H for the one-line diff and its equivalence test.
 
 A0 runs alongside 1–3 as verification.
 

@@ -12,6 +12,7 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions import EmissionType
+from app.modules.emissions.registry import emission_type_scope
 from app.repositories.data_entry_repo import DEFAULT_FILTER_MAP, DataEntryRepository
 from app.schemas.data_entry import DataEntryUpdate
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
@@ -1728,3 +1729,104 @@ async def test_traveler_resolution_matrix(db_session: AsyncSession):
     )
     assert by_id[rows["unresolved_source_id"].id].user_institutional_id == "45005"
     assert by_id[rows["wrong_unit_match"].id].user_institutional_id == "999999"
+
+
+# ======================================================================
+# #2050 Track H — planner_headcount missing from is_headcount_entry
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_planner_headcount_uses_rollup_total(
+    db_session: AsyncSession,
+):
+    """planner_headcount must read its total from the rollup row (the fast
+    path member/student already use), not by summing the individual leaves
+    itself (the slow, unfiltered ``else``-branch path — 825ms in production
+    at real volume, #2050 Track H).
+
+    In real data the rollup row's value always equals the sum of its
+    leaves (``prepare_create`` computes it that way), so a realistic seed
+    can't distinguish "which query ran" by value alone — both paths would
+    happen to agree. This test deliberately seeds a rollup row whose value
+    does NOT match the sum of its leaves, so the two candidate code paths
+    diverge observably: reading the rollup row directly returns 99.0/factor
+    42; re-summing the three leaves would return 18.0/factor 1. Before the
+    fix (``is_headcount_entry`` missing ``planner_headcount``), this test
+    fails with 18.0 — pinning that the *shape* of the query changed, not
+    just that some number came back.
+    """
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.planner_headcount,
+        status=DataEntryStatusEnum.VALIDATED,
+        data={"sius_code": "51", "fte": 2.0},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    leaves = [
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.food.value,
+            kg_co2eq=10.0,
+            primary_factor_id=1,
+            scope=emission_type_scope(EmissionType.food),
+        ),
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.waste.value,
+            kg_co2eq=5.0,
+            primary_factor_id=1,
+            scope=emission_type_scope(EmissionType.waste),
+        ),
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.commuting.value,
+            kg_co2eq=3.0,
+            primary_factor_id=1,
+            scope=emission_type_scope(EmissionType.commuting),
+        ),
+        # The rollup row prepare_create already writes for this type today
+        # (DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION already maps planner_headcount
+        # -> EmissionType.headcount). Deliberately mismatched vs the leaves'
+        # sum/factor — see docstring — to make the test discriminating.
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.headcount.value,
+            kg_co2eq=99.0,
+            primary_factor_id=42,
+            scope=None,
+            meta={"is_rollup": True},
+        ),
+    ]
+    db_session.add_all(leaves)
+    await db_session.flush()
+
+    repo = DataEntryRepository(db_session)
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.planner_headcount.value,
+        limit=100,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.kg_co2eq == pytest.approx(99.0)
+    # kg_co2eq is the only assertable difference: is_headcount_entry is read
+    # twice, so the fix also stops resolved_factor_id being computed here —
+    # but PlannerHeadCountResponse exposes no factor field, so that second
+    # dispatch has nothing observable to change. (It would be equivalent
+    # anyway: the rollup row's primary_factor_id is min(leaf factor ids),
+    # exactly what the generic path's func.min(primary_factor_id) produced.)
