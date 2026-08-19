@@ -25,10 +25,8 @@ _PROCESS_GAS_MAP: dict[str, EmissionType] = {
     "carbon dioxide (co2)": EmissionType.process_emissions__co2,
     "methane (ch4)": EmissionType.process_emissions__ch4,
     "nitrous oxide (n2o)": EmissionType.process_emissions__n2o,
-    # SF6 and NF3 are not refrigerants either, but they were outside the
-    # #2091 split request — left here deliberately, not by oversight.
-    "sulfur hexafluoride (sf6)": EmissionType.process_emissions__refrigerants,
-    "nitrogen trifluoride (nf3)": EmissionType.process_emissions__refrigerants,
+    "sulfur hexafluoride (sf6)": EmissionType.process_emissions__sf6,
+    "nitrogen trifluoride (nf3)": EmissionType.process_emissions__nf3,
     "hydrofluorocarbons (hfcs)": EmissionType.process_emissions__hfcs,
     "perfluorinated compounds": (
         EmissionType.process_emissions__perfluorinated_compounds
