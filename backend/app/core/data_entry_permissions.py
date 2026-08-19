@@ -60,10 +60,19 @@ def can_delete(provenance: Provenance) -> bool:
 
 ALWAYS_WRITABLE_FIELDS = frozenset({"note"})
 
-# Data-entry types that never go through this policy layer: planner
-# (simulator "what-if") snapshot rows, and system-derived rows created as a
-# side effect of another mutation (embodied energy, from room changes).
-# Neither is in the #951 matrix.
+# Planner snapshot rows keep the USER whitelist of their calculator type but
+# additionally own the planner scaling field their slider writes — it is not
+# a DTO field on any module (it rides through DataEntryUpdate.unflatten_payload
+# into ``data``), so it can't live in the PERMISSIONS matrix, which
+# _validate_registry checks against update DTOs.
+PLANNER_SNAPSHOT_WRITABLE_FIELDS = frozenset({"percentage_of_reference_year"})
+
+# Data-entry types that never go through this policy layer: planner-kind
+# types (planner_headcount/planner_purchase*, enum >= 80), and system-derived
+# rows created as a side effect of another mutation (embodied energy, from
+# room changes). Neither is in the #951 matrix. Planner PREFILLED rows are
+# NOT exempt — they reuse calculator types and resolve to the USER branch
+# (plus PLANNER_SNAPSHOT_WRITABLE_FIELDS above).
 SYSTEM_MANAGED_TYPES = frozenset({DataEntryTypeEnum.building_embodied_energy})
 
 
@@ -265,6 +274,23 @@ def editable_fields(
         f"no data-entry permission entry for "
         f"{module_type}/{data_entry_type}/{provenance}"
     )
+
+
+def writable_fields_for_row(
+    module_type: ModuleTypeEnum,
+    data_entry_type: DataEntryTypeEnum,
+    source: int | None,
+) -> frozenset[str]:
+    """The full updatable field set for one row: provenance whitelist, the
+    always-writable metadata, and the planner scaling field on snapshot rows.
+    """
+    fields = (
+        editable_fields(module_type, data_entry_type, provenance_of(source))
+        | ALWAYS_WRITABLE_FIELDS
+    )
+    if source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value:
+        fields |= PLANNER_SNAPSHOT_WRITABLE_FIELDS
+    return fields
 
 
 def submodule_policies(
