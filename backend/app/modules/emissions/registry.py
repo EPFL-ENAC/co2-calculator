@@ -15,7 +15,12 @@ from app.modules.buildings.emissions import (
     resolve_combustion,
 )
 from app.modules.emissions.buckets import BucketNodes, StatBucket, expand_bucket
-from app.modules.emissions.taxonomy import EmissionType, FactorLike
+from app.modules.emissions.taxonomy import (
+    EmissionType,
+    EmissionTypeResolutionError,
+    FactorLike,
+    get_children,
+)
 from app.modules.equipment.emissions import STAT_BUCKETS as EQUIPMENT_BUCKETS
 from app.modules.external_cloud_and_ai.emissions import (
     STAT_BUCKETS as EXTERNAL_BUCKETS,
@@ -180,6 +185,8 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
         EmissionType.external__ai__provider_anthropic,
         EmissionType.external__ai__provider_openai,
         EmissionType.external__ai__provider_cohere,
+        EmissionType.external__ai__provider_github,
+        EmissionType.external__ai__provider_microsoft,
         EmissionType.external__ai__provider_others,
     ],
 }
@@ -203,7 +210,20 @@ _RUNTIME_RESOLVERS = {
 def resolve_factor_emission_type(
     data_entry_type: DataEntryTypeEnum,
     factor: dict,
-) -> EmissionType | None:
+) -> EmissionType:
+    """Resolve the single node a factor row is filed under, or raise.
+
+    The one funnel every factor-CSV row passes through (#2091). Two shapes
+    of answer are legitimate:
+
+    * ``FACTOR_TO_EMISSION_TYPES`` — a declared non-leaf. Buildings rooms,
+      plane and train file one factor at an intermediate node on purpose;
+      which leaf an entry lands on is a data-entry-time decision made by
+      ``resolve_emission_types``.
+    * a runtime resolver — must land on a leaf. Landing on a node that has
+      children means the resolver degraded up the tree, which is how a
+      factor ends up double-counted against its own children.
+    """
     static = FACTOR_TO_EMISSION_TYPES.get(data_entry_type)
     if static is not None:
         return static
@@ -212,15 +232,27 @@ def resolve_factor_emission_type(
     types = resolver(factor) if resolver else None
     if types is None:
         types = DATA_ENTRY_TO_EMISSION_TYPES.get(data_entry_type)
-    if types is None or len(types) == 0:
-        return None
-    if len(types) > 1:
-        raise ValueError(
-            f"Expected exactly one emission type for factor of type {data_entry_type},"
-            f" but got multiple: {types}"
-            f" for row: {factor}"
+    if not types:
+        raise EmissionTypeResolutionError(
+            f"No emission type is mapped for factor of type "
+            f"{data_entry_type.name} — row: {factor!r}"
         )
-    return types[0]
+    if len(types) > 1:
+        raise EmissionTypeResolutionError(
+            f"Expected exactly one emission type for factor of type "
+            f"{data_entry_type.name}, got {[t.name for t in types]} "
+            f"for row: {factor!r}"
+        )
+    resolved = types[0]
+    if get_children(resolved):
+        raise EmissionTypeResolutionError(
+            f"Factor of type {data_entry_type.name} resolved to "
+            f"EmissionType.{resolved.name}, which has children "
+            f"({[c.name for c in get_children(resolved)]}). A factor filed "
+            f"on an intermediate node double-counts against its own leaves; "
+            f"the row must name one of them. Row: {factor!r}"
+        )
+    return resolved
 
 
 def resolve_emission_types(

@@ -6,7 +6,12 @@ investigating #2174: `processemissions_factors.csv` spells gases out
 codes ("CO2") — the resolver must accept both.
 """
 
-from app.modules.emissions.taxonomy import EmissionType
+import pytest
+
+from app.modules.emissions.taxonomy import (
+    EmissionType,
+    EmissionTypeResolutionError,
+)
 from app.modules.process_emissions.emissions import resolve_process_emissions
 
 
@@ -22,19 +27,24 @@ def test_resolve_process_emissions_accepts_descriptive_factor_category() -> None
     ]
 
 
-def test_resolve_process_emissions_maps_fluorinated_gases_to_refrigerants() -> None:
-    for category in (
-        "Sulfur hexafluoride (SF6)",
-        "Nitrogen trifluoride (NF3)",
-        "Hydrofluorocarbons (HFCs)",
-        "Perfluorinated compounds",
-        "Fluorinated ethers",
-        "Perfluoropolyethers",
-    ):
-        assert resolve_process_emissions({"category": category}) == [
-            EmissionType.process_emissions__refrigerants
-        ], f"category={category!r}"
+def test_resolve_process_emissions_unknown_category_raises() -> None:
+    # #2091: returning None let the factor-CSV provider skip the row and
+    # finish WARNING, so the module silently lost a whole gas category.
+    with pytest.raises(EmissionTypeResolutionError, match="unobtainium"):
+        resolve_process_emissions({"category": "Unobtainium"})
 
 
-def test_resolve_process_emissions_unknown_category_returns_none() -> None:
-    assert resolve_process_emissions({"category": "Unobtainium"}) is None
+def test_resolve_process_emissions_splits_fluorinated_families() -> None:
+    # #2091: these four used to share process_emissions__refrigerants.
+    assert resolve_process_emissions({"category": "Hydrofluorocarbons (HFCs)"}) == [
+        EmissionType.process_emissions__hfcs
+    ]
+    assert resolve_process_emissions({"category": "Perfluorinated compounds"}) == [
+        EmissionType.process_emissions__perfluorinated_compounds
+    ]
+    assert resolve_process_emissions({"category": "Fluorinated ethers"}) == [
+        EmissionType.process_emissions__fluorinated_ethers
+    ]
+    assert resolve_process_emissions({"category": "Perfluoropolyethers"}) == [
+        EmissionType.process_emissions__perfluoropolyethers
+    ]

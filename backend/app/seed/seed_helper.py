@@ -22,16 +22,11 @@ versionapi = settings.FORMULA_VERSION_SHA256_SHORT
 def get_factor_emission_type_id(
     data_entry_type: DataEntryTypeEnum, factor: dict
 ) -> int:
-    emission_type_result = resolve_factor_emission_type(
+    """Raises ``EmissionTypeResolutionError`` when the row maps to nothing."""
+    return resolve_factor_emission_type(
         data_entry_type=data_entry_type,
         factor=factor,
-    )
-    if emission_type_result is None:
-        raise ValueError(
-            f"Unknown emission type resolution for data entry type "
-            f"{data_entry_type} with factor {factor}"
-        )
-    return emission_type_result.value
+    ).value
 
 
 async def get_carbon_report_module_id(
