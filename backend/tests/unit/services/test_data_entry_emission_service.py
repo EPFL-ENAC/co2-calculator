@@ -9,6 +9,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmissionRow,
     EmissionComputation,
+    FactorQuery,
 )
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
@@ -297,6 +298,13 @@ class TestMetaExtras:
             patch.object(
                 service, "_fetch_factors", new=AsyncMock(return_value=[factor])
             ),
+            # #2050 J4: prepare_create primes the Strategy-B memo in one query
+            # before the computation loop, which is its own DB seam.
+            patch.object(
+                service,
+                "_prime_factor_query_cache",
+                new=AsyncMock(return_value=None),
+            ),
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
             ),
@@ -352,6 +360,13 @@ class TestMetaExtras:
             patch.object(
                 service, "_fetch_factors", new=AsyncMock(return_value=[factor])
             ),
+            # #2050 J4: prepare_create primes the Strategy-B memo in one query
+            # before the computation loop, which is its own DB seam.
+            patch.object(
+                service,
+                "_prime_factor_query_cache",
+                new=AsyncMock(return_value=None),
+            ),
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
             ),
@@ -406,6 +421,13 @@ class TestMetaExtras:
         with (
             patch.object(
                 service, "_fetch_factors", new=AsyncMock(return_value=[factor])
+            ),
+            # #2050 J4: prepare_create primes the Strategy-B memo in one query
+            # before the computation loop, which is its own DB seam.
+            patch.object(
+                service,
+                "_prime_factor_query_cache",
+                new=AsyncMock(return_value=None),
             ),
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
@@ -1739,6 +1761,13 @@ class TestPrepareCreateResolvesFactorDynamically:
             patch.object(
                 service, "_fetch_factors", new=AsyncMock(return_value=[factor])
             ),
+            # #2050 J4: prepare_create primes the Strategy-B memo in one query
+            # before the computation loop, which is its own DB seam.
+            patch.object(
+                service,
+                "_prime_factor_query_cache",
+                new=AsyncMock(return_value=None),
+            ),
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
             ),
@@ -1789,6 +1818,13 @@ class TestPrepareCreateResolvesFactorDynamically:
             patch.object(
                 service, "_fetch_factors", new=AsyncMock(return_value=[factor])
             ),
+            # #2050 J4: prepare_create primes the Strategy-B memo in one query
+            # before the computation loop, which is its own DB seam.
+            patch.object(
+                service,
+                "_prime_factor_query_cache",
+                new=AsyncMock(return_value=None),
+            ),
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
             ),
@@ -1837,6 +1873,13 @@ class TestPrepareCreateResolvesFactorDynamically:
         with (
             patch.object(
                 service, "_fetch_factors", new=AsyncMock(return_value=[factor])
+            ),
+            # #2050 J4: prepare_create primes the Strategy-B memo in one query
+            # before the computation loop, which is its own DB seam.
+            patch.object(
+                service,
+                "_prime_factor_query_cache",
+                new=AsyncMock(return_value=None),
             ),
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
@@ -1996,6 +2039,13 @@ class TestPlannerHeadcountEmissions:
         with (
             patch.object(
                 service, "_fetch_factors", new=AsyncMock(return_value=[factor])
+            ),
+            # #2050 J4: prepare_create primes the Strategy-B memo in one query
+            # before the computation loop, which is its own DB seam.
+            patch.object(
+                service,
+                "_prime_factor_query_cache",
+                new=AsyncMock(return_value=None),
             ),
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
@@ -2316,3 +2366,84 @@ async def test_fetch_factors_raises_when_a_referenced_factor_is_missing():
     ):
         factor_service_cls.return_value.get = AsyncMock(return_value=None)
         await service._fetch_factors(_emission_computation(factor_id=12345), year=2024)
+
+
+@pytest.mark.asyncio
+async def test_prime_factor_query_cache_seeds_every_b3_criteria_in_one_query():
+    """#2050 J4: three emission roots meant three subtree queries. Priming the
+    memo the bulk paths already pass collapses them into one.
+    """
+    service = _make_service()
+
+    food = MagicMock(spec=Factor)
+    food.id = 1
+    food.emission_type_id = EmissionType.food__vegetarian.value
+    food.data_entry_type_id = DataEntryTypeEnum.member.value
+    commuting = MagicMock(spec=Factor)
+    commuting.id = 2
+    commuting.emission_type_id = EmissionType.commuting__cycling.value
+    commuting.data_entry_type_id = DataEntryTypeEnum.member.value
+
+    comps = [
+        _emission_computation(
+            emission_type=EmissionType.food,
+            factor_id=None,
+            factor_query=FactorQuery(
+                data_entry_type=DataEntryTypeEnum.member,
+                emission_type=EmissionType.food,
+            ),
+        ),
+        _emission_computation(
+            emission_type=EmissionType.commuting,
+            factor_id=None,
+            factor_query=FactorQuery(
+                data_entry_type=DataEntryTypeEnum.member,
+                emission_type=EmissionType.commuting,
+            ),
+        ),
+    ]
+
+    with patch(
+        "app.services.data_entry_emission_service.FactorService"
+    ) as factor_service_cls:
+        list_mock = AsyncMock(return_value=[food, commuting])
+        factor_service_cls.return_value.list_by_emission_types = list_mock
+        cache: dict = {}
+        await service._prime_factor_query_cache(
+            comps, year=2025, factor_query_cache=cache
+        )
+
+    # One query covering both subtrees, not one per root.
+    assert list_mock.await_count == 1
+    # And both criteria are now answerable from the memo, so _fetch_factors
+    # issues nothing for them.
+    assert len(cache) == 2
+    assert {f.id for factors in cache.values() for f in factors} == {1, 2}
+
+
+@pytest.mark.asyncio
+async def test_prime_factor_query_cache_key_matches_what_fetch_factors_reads():
+    """The prime is useless if its key differs from the memo key
+    ``_fetch_factors`` looks up — pin that they are the same tuple.
+    """
+    service = _make_service()
+    query = FactorQuery(
+        data_entry_type=DataEntryTypeEnum.member,
+        emission_type=EmissionType.food,
+    )
+    comp = _emission_computation(
+        emission_type=EmissionType.food, factor_id=None, factor_query=query
+    )
+
+    with patch(
+        "app.services.data_entry_emission_service.FactorService"
+    ) as factor_service_cls:
+        factor_service_cls.return_value.list_by_emission_types = AsyncMock(
+            return_value=[]
+        )
+        cache: dict = {}
+        await service._prime_factor_query_cache(
+            [comp], year=2025, factor_query_cache=cache
+        )
+
+    assert service._factor_query_cache_key(query, 2025) in cache

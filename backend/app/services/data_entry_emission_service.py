@@ -461,6 +461,11 @@ class DataEntryEmissionService:
         if scope is not None and scope.module.id is not None:
             self._report_by_module_id.setdefault(scope.module.id, scope.report)
 
+        # A memo scoped to one invocation cannot go stale — factors do not
+        # change mid-call — so interactive callers get one too (#2050 J4).
+        if factor_query_cache is None:
+            factor_query_cache = {}
+
         resolver = factor_resolver or FactorResolver(self.session)
         handler = BaseModuleHandler.get_by_type(
             DataEntryTypeEnum(data_entry.data_entry_type)
@@ -575,9 +580,23 @@ class DataEntryEmissionService:
 
         results: list[DataEntryEmissionRow] = []
 
-        for emission_type in emission_types:
-            computations = handler.resolve_computations(data_entry, emission_type, ctx)
-
+        # Resolve every computation up front so the prefetch below sees all of
+        # them, then prime the Strategy-B memo in one query (#2050 J4).
+        # resolve_computations is pure, so hoisting it also stops it running
+        # twice.
+        computations_by_type = [
+            (
+                emission_type,
+                handler.resolve_computations(data_entry, emission_type, ctx),
+            )
+            for emission_type in emission_types
+        ]
+        await self._prime_factor_query_cache(
+            [comp for _, comps in computations_by_type for comp in comps],
+            year=year,
+            factor_query_cache=factor_query_cache,
+        )
+        for emission_type, computations in computations_by_type:
             for comp in computations:
                 factors = await self._fetch_factors(
                     comp,
@@ -729,6 +748,88 @@ class DataEntryEmissionService:
 
         return results
 
+    @staticmethod
+    def _factor_query_cache_key(q: FactorQuery, year: int | None) -> tuple:
+        """The one place the Strategy-B memo key is built.
+
+        Shared by ``_fetch_factors`` and ``_prime_factor_query_cache`` so the
+        two cannot drift: a second spelling of this tuple would silently turn
+        the prime into a no-op (#2050 J4).
+        """
+        return (
+            q.data_entry_type,
+            q.kind,
+            q.subkind,
+            q.emission_type,
+            tuple(sorted(q.context.items())),
+            tuple(sorted(q.fallbacks.items())),
+            year,
+        )
+
+    async def _prime_factor_query_cache(
+        self,
+        computations: list[EmissionComputation],
+        year: int | None,
+        factor_query_cache: dict,
+    ) -> None:
+        """Resolve every Strategy-B3 criteria in these computations at once.
+
+        #2050 J4: ``_fetch_factors`` queried one subtree per emission root —
+        three for a headcount member. Every subtree is known before the first
+        query, so one ``IN`` covers them all, and the per-criteria results are
+        seeded into the memo ``_fetch_factors`` already consults.
+
+        Only the pure-B3 shape is primed (an ``emission_type`` with no
+        kind/subkind/context/fallbacks). Anything else falls through to
+        ``_fetch_factors``' own resolution, so a shape this misses costs a
+        statement, never a wrong factor.
+        """
+        b3 = [
+            comp
+            for comp in computations
+            if comp.factor_id is None
+            and comp.factor_query is not None
+            and comp.factor_query.emission_type is not None
+            and comp.factor_query.kind is None
+            and comp.factor_query.subkind is None
+            and not comp.factor_query.context
+            and not comp.factor_query.fallbacks
+        ]
+        if not b3:
+            return
+
+        leaves_by_comp: dict[int, list[EmissionType]] = {}
+        for comp in b3:
+            query = comp.factor_query
+            if query is None or query.emission_type is None:
+                continue
+            leaves_by_comp[id(comp)] = [
+                EmissionType(node) for node in get_subtree_leaves(query.emission_type)
+            ]
+        wanted = sorted(
+            {leaf for leaves in leaves_by_comp.values() for leaf in leaves},
+            key=lambda leaf: leaf.value,
+        )
+        found = await FactorService(self.session).list_by_emission_types(
+            wanted, year=year
+        )
+        by_emission_type: dict[int, list[Factor]] = {}
+        for factor in found:
+            by_emission_type.setdefault(factor.emission_type_id, []).append(factor)
+
+        for comp in b3:
+            query = comp.factor_query
+            if query is None:
+                continue
+            factors: list[Factor] = []
+            for leaf in leaves_by_comp.get(id(comp), []):
+                factors.extend(by_emission_type.get(leaf.value, []))
+            if query.data_entry_type is not None:
+                factors = [
+                    f for f in factors if f.data_entry_type_id == query.data_entry_type
+                ]
+            factor_query_cache[self._factor_query_cache_key(query, year)] = factors
+
     async def _fetch_factors(
         self,
         comp: EmissionComputation,
@@ -814,15 +915,7 @@ class DataEntryEmissionService:
             # no cache (single-entry paths) are unchanged.
             cache_key = None
             if factor_query_cache is not None:
-                cache_key = (
-                    q.data_entry_type,
-                    q.kind,
-                    q.subkind,
-                    q.emission_type,
-                    tuple(sorted(q.context.items())),
-                    tuple(sorted(q.fallbacks.items())),
-                    year,
-                )
+                cache_key = self._factor_query_cache_key(q, year)
                 if cache_key in factor_query_cache:
                     return factor_query_cache[cache_key]
 
