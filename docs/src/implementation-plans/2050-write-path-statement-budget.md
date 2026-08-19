@@ -1,8 +1,8 @@
 ---
-status: in-progress
+status: delivered
 issue: 2050
 last_updated: 2026-08-19
-title: "Write-path statement budget — 29 SQL statements to 8"
+title: "Write-path statement budget — 29 SQL statements to 12"
 summary: "Implementation plan for the interactive write path's statement-count reduction (#2050 Track J4/I5). One headcount-member POST costs 29 SQL statements after the B3 subtree fix (50 before), and twelve of them re-read three rows because four services are each constructed with only a session and re-derive identity independently. Eight tasks, each lowering the STATEMENT_BUDGET ratchet in test_headcount_post_statement_budget_pg.py: drop two redundant session.refresh calls, skip the audit head lookup on CREATE, skip the pre-delete SELECT on create, merge the count and FTE aggregates, thread the resolved (report, project, module) through the workflow, batch factor prefetch across emission roots, dispatch the report rollup, and replace the member uniqueness pre-check with a unique index. Lands at 8, against an irreducible synchronous floor of 7 for 'insert an entry and return fresh module stats'."
 ---
 
@@ -12,6 +12,12 @@ summary: "Implementation plan for the interactive write path's statement-count r
 > `superpowers:subagent-driven-development` (recommended) or
 > `superpowers:executing-plans` to implement this plan task-by-task. Steps
 > use checkbox (`- [ ]`) syntax for tracking.
+
+> **Delivered 2026-08-19.** One headcount-member `POST` now costs **12
+> statements**, down from 29 at plan time and 50 before Track J4's subtree fix.
+> Every task landed; two diverged from what is written below, both recorded in
+> [Outcome](#outcome). The final statement list and the two open follow-ups are
+> there too.
 
 **Goal:** take one interactive `POST` of a headcount member from 29 SQL
 statements to 8, without giving up the caller's read-after-write contract
@@ -2315,3 +2321,98 @@ Checked against the measured baseline, task by task:
   caller is the part most likely to be skipped, and skipping it silently
   stops report stats updating on the ingestion and recalc paths — a silent
   fallback, which this repo treats as worse than a loud failure.
+
+---
+
+## Outcome
+
+Delivered on branch `fix/2050-track-h-levers`, one commit per task.
+
+| task | change                                           | predicted | actual |
+| ---- | ------------------------------------------------ | --------- | ------ |
+| 1    | drop two redundant `session.refresh` calls       | 27        | **27** |
+| 2    | skip the audit head lookup on `CREATE`           | 26        | **26** |
+| 3    | create emissions instead of upserting on create  | 25        | **25** |
+| 4    | merge the count and FTE aggregates               | 24        | **24** |
+| 5    | thread the resolved `(report, module)`           | 15        | **19** |
+| 6    | prime the factor memo once, not per root         | 13        | **17** |
+| 7    | defer the report rollup                          | 9         | **13** |
+| 8    | unique index instead of the uniqueness pre-check | 8         | **12** |
+
+The four-statement gap against the prediction is entirely in Task 5: it saved
+5, not 9. Two of the reads it was expected to remove turned out not to be
+removable that way — see below.
+
+### The remaining 12
+
+```
+ 1  SELECT carbon_reports                    identity
+ 2  SELECT carbon_projects                   plan scoping
+ 3  SELECT carbon_report_modules             identity
+ 4  INSERT data_entries                      the write
+ 5  INSERT audit_documents                   the audit trail
+ 6  SELECT carbon_projects                   resolve_factor_year
+ 7  SELECT factors                           one IN over every subtree
+ 8  INSERT data_entry_emissions              batched, one statement
+ 9  SELECT carbon_report_modules             the ORM row recompute mutates
+10  SELECT emission sums (grouped)           module stats
+11  SELECT count + fte (grouped)             module stats
+12  UPDATE carbon_report_modules             module stats
+```
+
+Five of those are writes or the aggregates behind the number the caller reads
+back. The identity reads at 1–3 are one resolution, not three of the same row.
+
+### Two divergences from the plan, both deliberate
+
+**Task 5 — the `db.get` identity-map assumption was wrong.** The plan had
+`resolve_write_scope` re-fetch the project with `db.get`, on the reasoning that
+`require_plan_scope_for_report` had already loaded it into the session's
+identity map. The harness showed that fetch issuing real SQL. The plan named
+this exact fallback, and it is what shipped: `require_plan_scope_for_report`
+now returns the `CarbonProject` it loads, and `resolve_write_scope` uses it.
+Worth keeping: an identity-map claim is not verifiable by reading, only by
+counting.
+
+**Task 7 — opt-in deferral instead of unconditional.** The plan had
+`recompute_stats_many` stop rolling up for everyone, which reading the call
+sites showed would mean changing seven callers — three inside simulator prefill
+and recalc, the internals the guardrails say not to touch without a reviewed
+plan. The rule that matters is _"the rollup must not block a user's request"_,
+not _"never inline"_: a background job has nobody waiting, so inline is correct
+there. It shipped as `defer_report_rollup=False`, passed only by the
+interactive write.
+
+### Three things the work turned up on the way
+
+1. **`audit_documents.changed_at` is `TIMESTAMP WITHOUT TIME ZONE`** but the
+   audit writer passes a tz-aware `datetime.now(UTC)`. psycopg accepts it by
+   silently dropping the offset; asyncpg refuses outright. Production is
+   psycopg, so nothing is broken today — but every stored audit timestamp has
+   had its offset discarded rather than converted. Not fixed here.
+2. **`audit_document_one_current_idx` is partial only on Postgres.** It is
+   declared with `postgresql_where`, which SQLite ignores, so the test schema
+   gets a _non-partial_ unique index and any second version of an entity
+   violates it. Versioning cannot be tested on SQLite at all; Task 2's
+   regression test lives in `tests/integration` for that reason.
+3. **The integration schema comes from `create_all`, not Alembic.** A
+   migration-only index would be invisible to the integration suite. Task 8's
+   index is therefore declared in `DataEntry.__table_args__` — which the
+   guardrails prefer anyway — with the migration carrying the same definition
+   for real environments.
+
+### Follow-ups
+
+- **Task 8's migration needs a duplicate check per environment before it
+  deploys.** It refuses to run and lists the offending rows rather than failing
+  on a bare Postgres error, but that still blocks a deploy. Local has none;
+  dev, stage and prod are unverified.
+- **`test_submodule_sort_search_matrix_pg` fails on `dev`** and is unrelated to
+  this work — verified by running it in a clean worktree at `origin/dev`
+  (`48c1b440`). Searching `building_name` in the `building_embodied_energy`
+  submodule returns nothing, so a user typing a building name into that
+  submodule's search gets an empty table. Deserves its own issue.
+- **The floor is now ~9, not 7.** Statements 2 and 6 are two separate
+  `carbon_projects` reads (plan scoping, then `resolve_factor_year`); threading
+  the project into year resolution would fold them into one. Statement 9's
+  module load cannot go: it is the ORM row `recompute_stats_many` mutates.

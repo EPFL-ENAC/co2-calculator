@@ -3,7 +3,7 @@ status: in-progress
 issue: 2050
 last_updated: 2026-08-19
 title: "Backend compute performance — pod stability, worker split, request-path profiling"
-summary: "Six-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081); profile compute cost (Track C), which rules out a language rewrite; then fix the simulator-plan reference-year PATCH end to end — recalc and prefill N+1s, Pydantic's per-instance default_factory tax across every SQLModel table, Core INSERT…RETURNING, and Tracks D/E's redundant recomputes — taking it 960ms → 271.4ms (PRs #2083, #2152). Track F reopens the per-year prefill fan-out behind a 21.89s dev trace whose bottleneck is not traced SQL. Track G (2026-08-18) dates ~30 real dev/stage traces against the fix-merge timestamps: every slow stage trace predates #2050 entirely (stage is still pre-#2050, unrelated to any bug); dev's two biggest traces (80s, 21.89s) predate Track F's async-job fix; but plain module-detail GETs — never in this plan's scope — still cost 1-2.2s post-fix from the same connection-checkout + sequential-small-query pattern Tracks A/C/D/E already diagnosed and fixed elsewhere, and one 32s outlier has a genuinely untraced non-DB gap needing its own repro. Track H root-causes one of those G2 traces exactly: `planner_headcount` was missing from `get_submodule_data`'s `is_headcount_entry` tuple, so it fell through to an unfiltered whole-table `data_entry_emissions` aggregation (825ms) instead of the already-built, already-populated rollup-row fast path — a one-line fix, the highest-confidence item in the plan. A second 'critical' trace turned out to be stage's SQL instrumentation being off by design (C1's OTel-tax follow-up), not a new blind spot. Track I (2026-08-19) answers a process-pool/worker-count proposal against this plan's own measurements (rejected, same ceiling that closed the Rust question), confirms Track B is live on dev/stage but **entirely absent on prod**, and ships fixes for 310-e item 8's never-done sync-in-async audit — a synchronous Loki log handler on the root logger, an unthreaded audit→Elasticsearch sync (independently corroborated live by Track G3's own trace), and unthreaded connector-credential decryption — plus a read-only confirmation that DB-pool exhaustion is pod-local (SQLAlchemy QueuePool, 30/pod) rather than Postgres-side (27/100 in use), and a proposal to instrument the pool metric that answers that question without a manual kubectl exec next time. Track J (2026-08-19) delivers what Track H exposed and what H8 scoped: prepare_create had six silent fallbacks that published a wrong-but-plausible total (a dropped emission leaf, an unresolvable year used anyway, an unmapped type, a wrong-year factor, a factor_id resolving to nothing, an unflushed id) — all now raise, with two impossible-state guards deleted outright; and the headcount module GET's three sequential FTE round trips collapse into one GROUP BY. Lever 1 (the 289-620ms per-request `connect` span) deliberately ships nothing: the span turns out to wrap pool *checkout*, not physical connect, so G2's reading of it was wrong, and A3's 1-core recommendation is unapplyable at 3 replicas under a documented 2-core namespace quota — both remaining options need numbers that arrive free from H6's now-merged 100%-sampled SQL tracing."
+summary: "Six-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081); profile compute cost (Track C), which rules out a language rewrite; then fix the simulator-plan reference-year PATCH end to end — recalc and prefill N+1s, Pydantic's per-instance default_factory tax across every SQLModel table, Core INSERT…RETURNING, and Tracks D/E's redundant recomputes — taking it 960ms → 271.4ms (PRs #2083, #2152). Track F reopens the per-year prefill fan-out behind a 21.89s dev trace whose bottleneck is not traced SQL. Track G (2026-08-18) dates ~30 real dev/stage traces against the fix-merge timestamps: every slow stage trace predates #2050 entirely (stage is still pre-#2050, unrelated to any bug); dev's two biggest traces (80s, 21.89s) predate Track F's async-job fix; but plain module-detail GETs — never in this plan's scope — still cost 1-2.2s post-fix from the same connection-checkout + sequential-small-query pattern Tracks A/C/D/E already diagnosed and fixed elsewhere, and one 32s outlier has a genuinely untraced non-DB gap needing its own repro. Track H root-causes one of those G2 traces exactly: `planner_headcount` was missing from `get_submodule_data`'s `is_headcount_entry` tuple, so it fell through to an unfiltered whole-table `data_entry_emissions` aggregation (825ms) instead of the already-built, already-populated rollup-row fast path — a one-line fix, the highest-confidence item in the plan. A second 'critical' trace turned out to be stage's SQL instrumentation being off by design (C1's OTel-tax follow-up), not a new blind spot. Track I (2026-08-19) answers a process-pool/worker-count proposal against this plan's own measurements (rejected, same ceiling that closed the Rust question), confirms Track B is live on dev/stage but **entirely absent on prod**, and ships fixes for 310-e item 8's never-done sync-in-async audit — a synchronous Loki log handler on the root logger, an unthreaded audit→Elasticsearch sync (independently corroborated live by Track G3's own trace), and unthreaded connector-credential decryption — plus a read-only confirmation that DB-pool exhaustion is pod-local (SQLAlchemy QueuePool, 30/pod) rather than Postgres-side (27/100 in use), and a proposal to instrument the pool metric that answers that question without a manual kubectl exec next time. Track J (2026-08-19) delivers what Track H exposed and what H8 scoped: prepare_create had six silent fallbacks that published a wrong-but-plausible total (a dropped emission leaf, an unresolvable year used anyway, an unmapped type, a wrong-year factor, a factor_id resolving to nothing, an unflushed id) — all now raise, with two impossible-state guards deleted outright; and the headcount module GET's three sequential FTE round trips collapse into one GROUP BY. Lever 1 (the 289-620ms per-request `connect` span) deliberately ships nothing: the span turns out to wrap pool *checkout*, not physical connect, so G2's reading of it was wrong, and A3's 1-core recommendation is unapplyable at 3 replicas under a documented 2-core namespace quota — both remaining options need numbers that arrive free from H6's now-merged 100%-sampled SQL tracing. Track J then took the interactive write path from 50 SQL statements to 12 (24 factor lookups to 1) across eight measured steps, each holding its gain with a ratchet in a Postgres-backed statement-budget test, without making anything the caller reads back eventually consistent."
 ---
 
 # Backend compute performance (#2050)
@@ -3091,6 +3091,43 @@ the report and module, then 7-8 and 12-14 read them again, because
 `CarbonReportModuleService` are constructed separately and each memoizes
 per instance. Threading the already-resolved pair through the workflow
 should take 29 to roughly 22 with no architectural change.
+
+### J7 — the write path, delivered: 50 → 12 statements
+
+The interactive `POST` of a headcount member, measured end to end through the
+real route on real Postgres by
+`tests/integration/services/data_ingestion/test_headcount_post_statement_budget_pg.py`,
+which carries the ratchet that holds the gain:
+
+| stage                         | statements | factor lookups |
+| ----------------------------- | ---------- | -------------- |
+| before J4                     | 50         | 24             |
+| after J4's subtree fix        | 29         | 3              |
+| **after the eight-task plan** | **12**     | **1**          |
+
+Eight tasks, one commit each, full detail and the final statement list in
+[`2050-write-path-statement-budget.md`](2050-write-path-statement-budget.md):
+two redundant `session.refresh` calls removed, the audit head lookup skipped on
+`CREATE`, `create` instead of `upsert` on the create path, the count and FTE
+aggregates merged, the resolved `(report, module)` threaded through the write,
+the factor memo primed once instead of per emission root, the report rollup
+deferred and dispatched after the response, and the member-role uniqueness
+pre-check replaced by a unique partial index.
+
+Five of the remaining 12 are writes; the rest are the aggregates behind the
+number the caller reads back, plus one identity resolution. **Nothing the
+caller reads back became eventually consistent** — module stats stay in the
+request, so no "computing" state was needed anywhere, and the validation gate
+is untouched.
+
+Two things the plan got wrong and the measurement caught: an identity-map
+assumption in the threading task that was issuing real SQL, and an
+unconditional report-rollup deferral that would have meant changing seven
+callers, three of them inside prefill and recalc internals. Both are recorded
+in the write-path plan's Outcome section, along with three incidental findings
+(a timezone mismatch on `audit_documents.changed_at`, `postgresql_where` making
+an index partial only on Postgres, and the integration schema coming from
+`create_all` rather than Alembic).
 
 ### Track J priority order
 
