@@ -3,7 +3,7 @@ status: delivered
 issue: 2091
 last_updated: 2026-08-19
 title: "Emission type resolution fails hard, and is documented"
-summary: "Every module invented its own answer for a factor CSV value the taxonomy did not know: two resolvers raised, four returned None, and four walked up the tree onto an intermediate node — which double-counts, because an intermediate node already sums its children. Measured against the real INPUT_DATA CSVs, 877 of 18,977 factor rows resolved onto a node with children; 21 of those were genuine degradations (20 headcount, 1 centralized purchase) and 16 external-AI rows collapsed into provider_others, leaving the AI breakdown chart as a single bucket. This plan makes all eight runtime resolvers raise EmissionTypeResolutionError naming the offending value, adds a funnel guard rejecting any runtime resolution onto a node with children, escalates the factor-CSV provider from skip-row to abort-upload for emission-type failures only, adds the nine missing taxonomy leaves the real CSVs need, and ships a reference page with mermaid diagrams plus a pre-upload audit script. All 15 shipped factor CSVs resolve clean afterwards."
+summary: "Every module invented its own answer for a factor CSV value the taxonomy did not know: two resolvers raised, four returned None, and four walked up the tree onto an intermediate node — which double-counts, because an intermediate node already sums its children. Measured against the real INPUT_DATA CSVs, 877 of 18,977 factor rows resolved onto a node with children; 21 of those were genuine degradations (20 headcount, 1 centralized purchase) and 16 external-AI rows collapsed into provider_others, leaving the AI breakdown chart as a single bucket. This plan makes all eight runtime resolvers raise EmissionTypeResolutionError naming the offending value, adds a funnel guard rejecting any runtime resolution onto a node with children, escalates the factor-CSV provider from skip-row to abort-upload for emission-type failures only, adds the eleven missing taxonomy leaves the real CSVs need, and ships a reference page with mermaid diagrams plus a pre-upload audit script. All 15 shipped factor CSVs resolve clean afterwards."
 ---
 
 # #2091 — Emission type resolution fails hard
@@ -66,11 +66,11 @@ the row, committed every other row, and finished `IngestionResult.WARNING`.
    `EmissionTypeResolutionError`; `process_csv_in_batches` already rolls
    back on any exception, so no partial commit survives. Malformed values
    keep skip-and-continue — the escalation is scoped to emission types.
-7. **Nine new leaves**, appended and never renumbered:
+7. **Eleven new leaves**, appended and never renumbered:
    `waste__incineration__incineration_waste_bio_chem_ani`,
    `waste__recycling__{batteries,neon_tubes,chemical_waste}`,
-   `process_emissions__{hfcs,perfluorinated_compounds,fluorinated_ethers,perfluoropolyethers}`
-   (each F-gas family its own leaf, no longer sharing `refrigerants`),
+   `process_emissions__{hfcs,perfluorinated_compounds,fluorinated_ethers,perfluoropolyethers,sf6,nf3}`
+   (each fluorinated-gas family its own leaf; none share `refrigerants`),
    `external__ai__provider_{github,microsoft}`.
 8. **Reference page** with mermaid diagrams:
    [Emission Type Resolution](../backend/emission-type-resolution.md).
@@ -94,9 +94,6 @@ Raised for the stakeholders to confirm, not decided unilaterally.
 
 ## Deliberately not done
 
-- **SF6 and NF3 still map to `process_emissions__refrigerants`.** They are
-  not refrigerants either, but they were outside the split request. One-line
-  change when wanted.
 - **No data migration.** Existing rows under the old ids are not rebased;
   the lead is dropping the database, so overlapping data is acceptable here.
 - **`processemissions_data.csv` uses `category=Refrigerant` while

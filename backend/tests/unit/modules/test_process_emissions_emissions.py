@@ -48,3 +48,31 @@ def test_resolve_process_emissions_splits_fluorinated_families() -> None:
     assert resolve_process_emissions({"category": "Perfluoropolyethers"}) == [
         EmissionType.process_emissions__perfluoropolyethers
     ]
+    assert resolve_process_emissions({"category": "Sulfur hexafluoride (SF6)"}) == [
+        EmissionType.process_emissions__sf6
+    ]
+    assert resolve_process_emissions({"category": "Nitrogen trifluoride (NF3)"}) == [
+        EmissionType.process_emissions__nf3
+    ]
+
+
+def test_every_factor_gas_family_gets_a_distinct_leaf() -> None:
+    # #2091: six fluorinated families shared process_emissions__refrigerants,
+    # so the process-emissions breakdown could not tell them apart.
+    families = [
+        "Carbon dioxide (CO2)",
+        "Methane (CH4)",
+        "Nitrous oxide (N2O)",
+        "Sulfur hexafluoride (SF6)",
+        "Nitrogen trifluoride (NF3)",
+        "Hydrofluorocarbons (HFCs)",
+        "Perfluorinated compounds",
+        "Fluorinated ethers",
+        "Perfluoropolyethers",
+    ]
+    resolved = {
+        family: resolve_process_emissions({"category": family})[0]
+        for family in families
+    }
+    assert len(set(resolved.values())) == len(families), resolved
+    assert EmissionType.process_emissions__refrigerants not in resolved.values()

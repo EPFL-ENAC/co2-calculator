@@ -408,6 +408,13 @@ export const RESULTS_SUBCATEGORY_LABEL_KEYS: Record<string, string> = {
   n2o: 'process-emissions.category.n2o',
   refrigerants: 'process-emissions.category.refrigerants',
   refrigerant: 'process-emissions.category.refrigerants',
+  sf6: 'process-emissions.category.sf6',
+  nf3: 'process-emissions.category.nf3',
+  hfcs: 'process-emissions.category.hfcs',
+  perfluorinated_compounds:
+    'process-emissions.category.perfluorinated_compounds',
+  fluorinated_ethers: 'process-emissions.category.fluorinated_ethers',
+  perfluoropolyethers: 'process-emissions.category.perfluoropolyethers',
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',

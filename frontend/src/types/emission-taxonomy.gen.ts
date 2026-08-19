@@ -99,6 +99,8 @@ export const EMISSION_TYPE_NAMES: Record<number, string> = {
   70600: 'process_emissions__perfluorinated_compounds',
   70700: 'process_emissions__fluorinated_ethers',
   70800: 'process_emissions__perfluoropolyethers',
+  70900: 'process_emissions__sf6',
+  71000: 'process_emissions__nf3',
   80000: 'equipment',
   80100: 'equipment__scientific',
   80200: 'equipment__it',

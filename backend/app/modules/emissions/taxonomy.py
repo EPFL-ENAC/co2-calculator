@@ -180,6 +180,8 @@ class EmissionType(int, Enum):
     process_emissions__perfluorinated_compounds = 70600
     process_emissions__fluorinated_ethers = 70700
     process_emissions__perfluoropolyethers = 70800
+    process_emissions__sf6 = 70900
+    process_emissions__nf3 = 71000
 
     # -------------------------------------------------------------------------
     # Equipment
