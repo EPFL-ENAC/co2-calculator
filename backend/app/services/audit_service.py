@@ -101,8 +101,15 @@ class AuditDocumentService:
         self, entity_type: str, entity_id: int
     ) -> AuditDocument | None:
         """Get the current (is_current=True) version for an entity.
-        Get current version and lock it (FOR UPDATE)
-        to prevent concurrent version creation.
+
+        ``FOR UPDATE`` blocks a second reader while a first is mid-write, but
+        it does not make two concurrent creates for the same entity
+        correct: once the first writer commits, its row no longer matches
+        ``is_current = true``, so the second reader's re-checked WHERE
+        clause drops it and this returns None even though a head exists.
+        The second writer then collides with the first on
+        ``audit_document_one_current_idx`` instead of chaining onto it — an
+        existing, tracked gap (#1958), not something this lock closes.
         """
         stmt = (
             select(AuditDocument)
@@ -228,6 +235,16 @@ class AuditDocumentService:
         # collision (two writers minting one id) still surfaces:
         # audit_document_one_current_idx makes the flush below raise
         # IntegrityError rather than quietly writing a second version 1.
+        #
+        # A concurrent, *non-minted* collision (two real logins for the same
+        # user racing get_current_version) surfaces the same way today rather
+        # than retrying: a hand-rolled retry-on-conflict here needs a
+        # SAVEPOINT that unwinds only this insert without touching business
+        # data an earlier step in the same transaction already staged, and
+        # every SQLAlchemy 2.0 async shape tried for that (2026-08-19)
+        # either deactivated the outer transaction or broke the DBAPI
+        # connection outright. Tracked as a follow-up rather than shipped
+        # half-verified; see the plan's Outcome section.
         current = None
         if not entity_is_new:
             current = await self.get_current_version(entity_type, entity_id)

@@ -2401,6 +2401,56 @@ Auth and year-configuration audits chain onto the existing head again, as
 they did before Task 2. The interactive write path still measures 12
 statements; the ratchet is untouched.
 
+### Follow-up (2026-08-19): hardening the concurrent-write path itself
+
+The regression above was deterministic — every returning user's login hit
+it, `entity_is_new` fixes it outright and is what actually needed to reach
+`dev`. Two further issues surfaced while diagnosing it, both about the
+narrower case where two writers genuinely race on the same entity id (e.g.
+two concurrent logins for one user):
+
+- **`get_current_version`'s `FOR UPDATE` doesn't make concurrent creates
+  safe, and this is NOT fixed yet.** It filters on `is_current = true`. Once
+  the first writer commits, the locked row no longer matches that predicate,
+  so Postgres drops it from the result — the second writer sees no head at
+  all, computes `version=1`, and hits `audit_document_one_current_idx`
+  exactly like the Task 2 bug did, just from real concurrency instead of a
+  logic error (unchanged behavior — this pre-dates Task 2 and #1958 already
+  names it as an accepted "real conflict"). A retry-on-conflict fix was
+  attempted (roll back to a `SAVEPOINT` via `session.begin_nested()`, not
+  the outer transaction, then re-read the real head) and **reverted**: every
+  async shape tried either deactivated the whole SQLAlchemy transaction on
+  the first flush failure (`PendingRollbackError` on the retry's own
+  `get_current_version` read) or, once the savepoint was managed manually to
+  work around that, left the DBAPI connection in a broken `[closed] [BAD]`
+  state. A version that appeared to work was caught only by a second test
+  asserting that an unrelated pending change earlier in the same session
+  survives a losing retry — it didn't; the "targeted" rollback was in fact
+  rolling back the outer transaction. Given that failure mode (silently
+  discarding a caller's business-data write) is worse than the existing
+  behavior (a loud 500), this needs a correctly-scoped SAVEPOINT idiom
+  verified against SQLAlchemy 2.0's async session semantics specifically —
+  or a `pg_advisory_xact_lock` instead of a savepoint retry — before it
+  ships. Tracked here rather than as a silent no-op; `get_current_version`'s
+  docstring was corrected to describe the real (non-)guarantee in the
+  meantime.
+- **`LoginCard.vue` fired the login navigation twice per click.** The submit
+  button had both `@click="validate"` and `html-type="submit"` inside a
+  `q-form` bound to `@submit.prevent="handleSubmit"` — the click both called
+  `validate()` directly and triggered the form's native submit, which called
+  it again. One click could send two concurrent OAuth logins for the same
+  user, which is exactly the race the point above hardens against. Fixed by
+  dropping the redundant `@click` (the form submit path already covers it)
+  and adding a synchronous `if (loading.value) return; loading.value = true`
+  guard in `authStore.login`/`login_test`, so a literal double-click is a
+  no-op after the first. **No test added and not yet run against a live
+  app** — mounting a Quasar/Pinia/i18n-dependent leaf component isn't wired
+  into the Playwright CT harness (`frontend/playwright/index.ts` installs no
+  plugins), and `frontend/node_modules` isn't installed in this worktree to
+  run one ad hoc. Wiring that CT bootstrap (or a manual `make dev` login
+  smoke test) is a follow-up before this ships, not before it merges as a
+  draft.
+
 ### Three things the work turned up on the way
 
 1. **`audit_documents.changed_at` is `TIMESTAMP WITHOUT TIME ZONE`** but the
