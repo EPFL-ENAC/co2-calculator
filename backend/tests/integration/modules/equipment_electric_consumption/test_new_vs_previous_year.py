@@ -61,6 +61,7 @@ async def _seed_entry(
     with_usage: bool = True,
     active_usage: int | None = None,
     standby_usage: int | None = None,
+    stamp_ingest: bool = False,
 ) -> DataEntry:
     """Seed one scientific equipment entry with its denormalized unit/year.
 
@@ -89,6 +90,10 @@ async def _seed_entry(
         unit_id=UNIT_ID,
         year=year,
     )
+    if stamp_ingest:
+        # #2050 J10: is_new is decided when a CSV lands, not on every read, so
+        # a test that wants a flagged row has to arrive the way a CSV does.
+        await DataEntryService(session).apply_equipment_carry_forward([entry])
     session.add(entry)
     await session.flush()
     return entry
@@ -110,9 +115,16 @@ async def test_new_equipment_flagged_and_sorted_first(db_session: AsyncSession):
         await _seed_entry(db_session, prev_module, year=2024, equipment_id=eid)
 
     cur_module = await _seed_module(db_session, 2025)
-    await _seed_entry(db_session, cur_module, year=2025, equipment_id="E1")
     await _seed_entry(
-        db_session, cur_module, year=2025, equipment_id="E3", with_usage=False
+        db_session, cur_module, year=2025, equipment_id="E1", stamp_ingest=True
+    )
+    await _seed_entry(
+        db_session,
+        cur_module,
+        year=2025,
+        equipment_id="E3",
+        with_usage=False,
+        stamp_ingest=True,
     )
     await db_session.commit()
 
@@ -281,3 +293,107 @@ async def test_apply_equipment_carry_forward(db_session: AsyncSession):
     assert unmatched.data["active_usage_hours_per_week"] == 3
     assert "standby_usage_hours_per_week" not in unmatched.data
     assert (matched.unit_id, matched.year) == (UNIT_ID, 2025)
+
+
+# ---------------------------------------------------------------------------
+# #2050 J10 — is_new is stamped at CSV ingest, not derived on every read
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_carry_forward_stamps_is_new_at_ingest(db_session: AsyncSession):
+    """``is_new`` is decided once, when the CSV lands, and stored on the row.
+
+    It used to be recomputed on every page load, which meant loading every
+    equipment_id in the unit's prior year to answer it for 20 rows — 1711ms on
+    dev for one page. The prior-year lookup this needs is already cached per
+    (unit, year) by the carry-forward, so stamping costs nothing extra.
+    """
+    prior_module = await _seed_module(db_session, 2024)
+    module = await _seed_module(db_session, 2025)
+
+    db_session.add_all(
+        [
+            # Present last year *with* usage — carried forward and not new.
+            DataEntry(
+                carbon_report_module_id=prior_module.id,
+                data_entry_type_id=DataEntryTypeEnum.it,
+                status=DataEntryStatusEnum.VALIDATED,
+                unit_id=UNIT_ID,
+                year=2024,
+                data={
+                    "name": "Kept",
+                    "equipment_id": "EQ-KEPT",
+                    "equipment_class": "laptop",
+                    "active_usage_hours_per_week": 30,
+                },
+            ),
+            # Present last year with *no* usage fields at all. The carry-forward
+            # usage map drops these rows, so it cannot double as the id set —
+            # this entry must still count as not-new.
+            DataEntry(
+                carbon_report_module_id=prior_module.id,
+                data_entry_type_id=DataEntryTypeEnum.it,
+                status=DataEntryStatusEnum.VALIDATED,
+                unit_id=UNIT_ID,
+                year=2024,
+                data={
+                    "name": "Bare",
+                    "equipment_id": "EQ-BARE",
+                    "equipment_class": "laptop",
+                },
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    incoming = [
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.it,
+            status=DataEntryStatusEnum.VALIDATED,
+            unit_id=UNIT_ID,
+            year=2025,
+            data={
+                "name": name,
+                "equipment_id": equipment_id,
+                "equipment_class": "laptop",
+            },
+        )
+        for name, equipment_id in (
+            ("Kept", "EQ-KEPT"),
+            ("Bare", "EQ-BARE"),
+            ("Brand new", "EQ-NEW"),
+        )
+    ]
+
+    await DataEntryService(db_session).apply_equipment_carry_forward(incoming)
+
+    stamped = {e.data["equipment_id"]: e.data.get("is_new") for e in incoming}
+    assert stamped == {"EQ-KEPT": False, "EQ-BARE": False, "EQ-NEW": True}
+
+
+@pytest.mark.asyncio
+async def test_first_year_ingest_stamps_nothing_new(db_session: AsyncSession):
+    """A unit's first campaign year has no prior data, so nothing is new —
+    the same rule the read-time version applied.
+    """
+    module = await _seed_module(db_session, 2025)
+    incoming = [
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.it,
+            status=DataEntryStatusEnum.VALIDATED,
+            unit_id=UNIT_ID,
+            year=2025,
+            data={
+                "name": "First",
+                "equipment_id": "EQ-FIRST",
+                "equipment_class": "laptop",
+            },
+        )
+    ]
+
+    await DataEntryService(db_session).apply_equipment_carry_forward(incoming)
+
+    assert incoming[0].data.get("is_new") is False
