@@ -182,6 +182,7 @@ class AuditDocumentService:
         route_payload: dict | None = None,
         handled_ids: list[str] | None = None,
         background_tasks: BackgroundTasks | None = None,
+        entity_is_new: bool = False,
     ) -> AuditDocument:
         """Create a new version for an entity.
 
@@ -199,6 +200,8 @@ class AuditDocumentService:
             route_payload: Route payload/parameters
             handled_ids: List of user provider codes whose data was affected
             background_tasks: FastAPI BackgroundTasks object to schedule async tasks
+            entity_is_new: The caller minted the entity id in this request, so
+                no prior version can exist and the head lookup is skipped
 
         Returns:
             The newly created AuditDocument
@@ -216,14 +219,17 @@ class AuditDocumentService:
         # collide by editing the same entry at once — a real conflict, which
         # the IntegrityError surfaces rather than papers over (#1958).
         # Get current version to compute diff and hash chain.
-        # #2050 J4: a CREATE's entity id came from the sequence moments ago, so
-        # no prior version can exist — the FOR UPDATE head lookup would lock
-        # nothing and return nothing. Skipping it removes one statement from
-        # every interactive write. A genuine collision (two CREATEs for one id)
-        # still surfaces: audit_document_one_current_idx makes the flush below
-        # raise IntegrityError rather than quietly writing a second version 1.
+        # #2050 J4: when the caller minted the entity id moments ago, no prior
+        # version can exist — the FOR UPDATE head lookup would lock nothing and
+        # return nothing. Skipping it removes one statement from every
+        # interactive write. The skip is an explicit caller opt-in, NOT keyed
+        # on change_type: auth logs event-style CREATEs against reused entity
+        # ids (the logging-in user), which have a head to chain onto. A genuine
+        # collision (two writers minting one id) still surfaces:
+        # audit_document_one_current_idx makes the flush below raise
+        # IntegrityError rather than quietly writing a second version 1.
         current = None
-        if change_type is not AuditChangeTypeEnum.CREATE:
+        if not entity_is_new:
             current = await self.get_current_version(entity_type, entity_id)
 
         if current:

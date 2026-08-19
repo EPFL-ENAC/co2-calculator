@@ -2383,6 +2383,24 @@ not _"never inline"_: a background job has nobody waiting, so inline is correct
 there. It shipped as `defer_report_rollup=False`, passed only by the
 interactive write.
 
+### Post-ship regression (2026-08-19): the CREATE skip broke login
+
+Task 2 keyed the head-lookup skip on `change_type is CREATE`, assuming a
+CREATE's entity id always came from the sequence in the same request. Auth
+does not fit that assumption: it logs event-style CREATEs against reused
+entity ids — `("User", user.id)` on every login, `("User", 0)` on every
+failed login — so the second login after deploy inserted a second
+`version=1, is_current=True` head and `audit_document_one_current_idx`
+rejected the flush. The callback's `must_succeed=True` turned that into a
+failed login for every returning user.
+
+Fixed by making the skip an explicit `entity_is_new=True` opt-in on
+`create_version`, passed only by the two call sites that mint the entity id
+in the same request (interactive data-entry create, ingestion-job create).
+Auth and year-configuration audits chain onto the existing head again, as
+they did before Task 2. The interactive write path still measures 12
+statements; the ratchet is untouched.
+
 ### Three things the work turned up on the way
 
 1. **`audit_documents.changed_at` is `TIMESTAMP WITHOUT TIME ZONE`** but the

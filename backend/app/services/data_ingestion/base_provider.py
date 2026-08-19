@@ -213,6 +213,7 @@ class DataIngestionProvider(ABC):
             route_payload=request_context.get("route_payload")
             if request_context
             else None,
+            entity_is_new=True,
         )
 
         return self.job_id
