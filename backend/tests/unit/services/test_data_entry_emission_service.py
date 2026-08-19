@@ -509,7 +509,8 @@ class TestApplyFormula:
         result = service._apply_formula(ctx, factor_values, comp)
         assert result == pytest.approx(200.0)
 
-    def test_missing_quantity_returns_none(self):
+    def test_missing_quantity_raises_naming_the_entry_field(self):
+        """#2050 Track I: returned None, and the caller dropped the leaf."""
         from app.models.data_entry_emission import EmissionComputation
         from app.modules.emissions import EmissionType
 
@@ -521,9 +522,13 @@ class TestApplyFormula:
         )
         ctx = {}  # missing fte
         factor_values = {"kg_co2eq_per_fte": 420.0}
-        assert service._apply_formula(ctx, factor_values, comp) is None
+        # Names the side it is missing from — entry vs factor is the first
+        # thing whoever reads error_details needs to know.
+        with pytest.raises(ValueError, match=r"entry\.fte"):
+            service._apply_formula(ctx, factor_values, comp)
 
-    def test_missing_formula_key_returns_none(self):
+    def test_missing_formula_key_raises_naming_the_factor_field(self):
+        """#2050 Track I: returned None, and the caller dropped the leaf."""
         from app.models.data_entry_emission import EmissionComputation
         from app.modules.emissions import EmissionType
 
@@ -535,9 +540,14 @@ class TestApplyFormula:
         )
         ctx = {"fte": 1.0}
         factor_values = {}
-        assert service._apply_formula(ctx, factor_values, comp) is None
+        with pytest.raises(ValueError, match=r"factor\.missing_factor_key"):
+            service._apply_formula(ctx, factor_values, comp)
 
-    def test_no_keys_returns_none(self):
+    def test_no_keys_raises_as_a_misconfiguration(self):
+        """#2050 Track I: a computation with neither a formula_func nor the
+        key pair cannot be computed at all — that is a configuration bug,
+        not a data gap, and it used to return None like any other.
+        """
         from app.models.data_entry_emission import EmissionComputation
         from app.modules.emissions import EmissionType
 
@@ -546,7 +556,8 @@ class TestApplyFormula:
             emission_type=EmissionType.food,
             # no quantity_key or formula_key
         )
-        assert service._apply_formula({}, {}, comp) is None
+        with pytest.raises(ValueError, match="neither a formula_func"):
+            service._apply_formula({}, {}, comp)
 
     def test_formula_func_takes_precedence(self):
         from app.models.data_entry_emission import EmissionComputation
@@ -568,7 +579,12 @@ class TestApplyFormula:
         result = service._apply_formula(ctx, factor_values, comp)
         assert result == pytest.approx(15.0)
 
-    def test_formula_func_can_return_none(self):
+    def test_formula_func_returning_none_raises_with_the_null_inputs(self):
+        """#2050 Track I: the common real case (an unmatched reference-data
+        lookup) lands here, and the old call-site diagnostic printed two
+        empty lists for it because it only knew about key-based configs.
+        The reason has to come from here, where the branch is known.
+        """
         from app.models.data_entry_emission import EmissionComputation
         from app.modules.emissions import EmissionType
 
@@ -577,7 +593,8 @@ class TestApplyFormula:
             emission_type=EmissionType.food,
             formula_func=lambda ctx, fv: None,
         )
-        assert service._apply_formula({}, {}, comp) is None
+        with pytest.raises(ValueError, match="room_surface_square_meter"):
+            service._apply_formula({"room_surface_square_meter": None}, {}, comp)
 
 
 # ---------------------------------------------------------------------------

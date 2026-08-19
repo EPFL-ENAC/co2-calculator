@@ -630,31 +630,22 @@ class DataEntryEmissionService:
                     continue
 
                 for factor in factors:
-                    per_factor_kg = self._apply_formula(ctx, factor.values or {}, comp)
-                    if per_factor_kg is None:
-                        missing_ctx_keys = [
-                            key
-                            for key in [comp.quantity_key, comp.multiplier_key]
-                            if key and ctx.get(key) is None
-                        ]
-                        missing_factor_keys = [
-                            key
-                            for key in [comp.formula_key, comp.multiplier_key]
-                            if key and (factor.values or {}).get(key) is None
-                        ]
-                        # #2050 Track I: skipping the leaf produced a total
-                        # that looked complete but was missing a term. For
-                        # rollup types it is worse — the rollup row is only
-                        # written when more than one leaf survives, so
-                        # dropping two of three leaves renders as a blank
-                        # cell rather than a visible error.
-                        raise ValueError(
-                            f"Cannot compute emission_type="
-                            f"{emission_type.name!r} for data_entry_id="
-                            f"{data_entry.id!r} using factor_id={factor.id!r}: "
-                            f"missing context keys {missing_ctx_keys}, "
-                            f"missing factor keys {missing_factor_keys}"
+                    # #2050 Track I: _apply_formula raises with the specific
+                    # reason rather than returning None for the caller to
+                    # drop. Dropping the leaf produced a total that looked
+                    # complete but was missing a term; for rollup types the
+                    # rollup row is only written when more than one leaf
+                    # survives, so it rendered as a blank cell instead.
+                    try:
+                        per_factor_kg = self._apply_formula(
+                            ctx, factor.values or {}, comp
                         )
+                    except ValueError as exc:
+                        raise ValueError(
+                            f"data_entry_id={data_entry.id!r}, "
+                            f"emission_type={emission_type.name!r}, "
+                            f"factor_id={factor.id!r}: {exc}"
+                        ) from exc
                     quantity: float | None = None
                     if comp.quantity_key and ctx.get(comp.quantity_key) is not None:
                         base_qty = float(ctx[comp.quantity_key])
@@ -898,7 +889,7 @@ class DataEntryEmissionService:
         ctx: dict,
         factor_values: dict,
         comp: EmissionComputation,
-    ) -> float | None:
+    ) -> float:
         """Compute kg_co2eq from context and factor values.
 
         If ``comp.formula_func`` is set it takes precedence (complex formulas).
@@ -911,21 +902,51 @@ class DataEntryEmissionService:
         after a transition period
 
         # right now only Headcount use default
+
+        Raises:
+            ValueError: when the inputs cannot produce a value. #2050 Track
+                I: this used to return None and the caller dropped the leaf.
+                The reason lives here — the caller cannot tell a
+                ``formula_func`` that declined from a missing key, and its
+                old diagnostic printed two empty lists for the
+                ``formula_func`` case, which is the common one.
         """
         if comp.formula_func is not None:
-            return comp.formula_func(ctx, factor_values)
+            computed = comp.formula_func(ctx, factor_values)
+            if computed is None:
+                null_inputs = sorted(k for k, v in ctx.items() if v is None)
+                raise ValueError(
+                    f"The formula for {comp.emission_type.name!r} could not "
+                    f"produce a value. Null inputs on the entry: "
+                    f"{null_inputs or 'none'}. Factor keys available: "
+                    f"{sorted(factor_values)}. A reference-data lookup that "
+                    f"found no match (an unknown building room, say) shows "
+                    f"up here as a null input"
+                )
+            return computed
 
         if not comp.quantity_key or not comp.formula_key:
-            return None
+            raise ValueError(
+                f"{comp.emission_type.name!r} has neither a formula_func nor "
+                f"both of quantity_key/formula_key (quantity_key="
+                f"{comp.quantity_key!r}, formula_key={comp.formula_key!r}); "
+                f"it cannot be computed as configured"
+            )
 
         quantity = ctx.get(comp.quantity_key)
         ef = factor_values.get(comp.formula_key)
         if quantity is None or ef is None:
-            logger.info(
-                f"Missing required values for emission calculation "
-                f"for key: {comp.quantity_key} or {comp.formula_key}"
+            missing = [
+                name
+                for name, value in (
+                    (f"entry.{comp.quantity_key}", quantity),
+                    (f"factor.{comp.formula_key}", ef),
+                )
+                if value is None
+            ]
+            raise ValueError(
+                f"Cannot compute {comp.emission_type.name!r}: {missing} is missing"
             )
-            return None
 
         result = float(quantity) * float(ef)
         if comp.multiplier_key:
