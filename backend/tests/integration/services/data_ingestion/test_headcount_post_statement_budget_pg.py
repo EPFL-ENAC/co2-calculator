@@ -113,7 +113,7 @@ class StatementLog:
 
     def numbered(self) -> str:
         return "\n".join(
-            f"  {i:>2}. {' '.join(s.split())[:110]}"
+            f"  {i:>2}. {' '.join(s.split())[:150]}"
             for i, s in enumerate(self.statements, 1)
         )
 
@@ -298,7 +298,7 @@ async def test_headcount_member_post_statement_budget(
 # walks a progressive fallback chain (B1..B4) and _fetch_factors memoizes it
 # only when the caller passes a factor_query_cache, which every bulk path
 # does and no interactive path did.
-STATEMENT_BUDGET = 24
+STATEMENT_BUDGET = 19
 # One per emission leaf is the ceiling worth defending: factor resolution
 # must not scale with the fallback chain's depth.
 FACTOR_LOOKUP_BUDGET = 3

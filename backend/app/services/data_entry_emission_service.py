@@ -27,7 +27,9 @@ from app.modules.emissions.registry import (
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
+from app.schemas.carbon_report import CarbonReportRead
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
+from app.schemas.write_scope import WriteScope
 from app.services.factor_resolver import FactorResolver
 from app.services.factor_service import FactorService
 from app.utils.factor_year import resolve_factor_year
@@ -93,11 +95,13 @@ class DataEntryEmissionService:
         # repeated lookups (e.g. many entries of the same module, as in a
         # Simulator Plan prefill or a recalc slice with percentage-of-
         # reference-year entries) from one query each into a single query.
-        self._report_by_module_id: dict[int, CarbonReport | None] = {}
+        self._report_by_module_id: dict[
+            int, CarbonReport | CarbonReportRead | None
+        ] = {}
 
     async def _get_report_for_data_entry(
         self, data_entry: DataEntry | DataEntryResponse
-    ) -> CarbonReport | None:
+    ) -> CarbonReport | CarbonReportRead | None:
         """Fetch the CarbonReport for a DataEntry via CarbonReportModule."""
         if (
             not hasattr(data_entry, "carbon_report_module_id")
@@ -141,7 +145,10 @@ class DataEntryEmissionService:
         self,
         data_entry: DataEntry | DataEntryResponse,
         emission_type: EmissionType,
-        report: CarbonReport,
+        # #2050 J4: an interactive write hands over the read model the route
+        # already resolved. Only reference_year/year/unit_id are read here, and
+        # CarbonReportRead carries all three.
+        report: CarbonReport | CarbonReportRead,
         *,
         override_cache: dict[int, dict[int, tuple[float, int | None]]] | None = None,
     ) -> tuple[float, int | None] | None:
@@ -388,6 +395,7 @@ class DataEntryEmissionService:
         slice_cache: dict | None = None,
         factor_resolver: FactorResolver | None = None,
         override_cache: dict[int, dict[int, tuple[float, int | None]]] | None = None,
+        scope: WriteScope | None = None,
     ) -> list[DataEntryEmissionRow]:
         """Prepare emission records for any data entry type.
         TODO: Make this function readable!
@@ -445,6 +453,13 @@ class DataEntryEmissionService:
             raise ValueError(
                 "DataEntry must be flushed (id assigned) before computing emissions"
             )
+
+        # #2050 J4: the route already resolved this module's report. Seeding
+        # the memo this service already keeps means _get_report_for_data_entry
+        # and the year resolution below cost nothing, instead of re-reading the
+        # module, report and project.
+        if scope is not None and scope.module.id is not None:
+            self._report_by_module_id.setdefault(scope.module.id, scope.report)
 
         resolver = factor_resolver or FactorResolver(self.session)
         handler = BaseModuleHandler.get_by_type(
@@ -959,7 +974,9 @@ class DataEntryEmissionService:
             result *= float(mult)
         return result
 
-    async def create(self, data_entry: DataEntryResponse) -> list[DataEntryEmission]:
+    async def create(
+        self, data_entry: DataEntryResponse, *, scope: WriteScope | None = None
+    ) -> list[DataEntryEmission]:
         """Create emissions for a data entry, if applicable.
 
         Returns a list of created emission records. Single-entry path — the
@@ -967,7 +984,7 @@ class DataEntryEmissionService:
         ``session.add()``ed rows, so ``prepare_create``'s lightweight rows
         are materialized here, not left lightweight like the bulk paths.
         """
-        emission_records = await self.prepare_create(data_entry)
+        emission_records = await self.prepare_create(data_entry, scope=scope)
         if not emission_records:
             return []
 

@@ -31,6 +31,7 @@ from app.schemas.carbon_report_response import (
 )
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
 from app.schemas.user import UserRead
+from app.schemas.write_scope import WriteScope
 from app.services.audit_service import AuditDocumentService
 from app.utils.audit_helpers import extract_handled_ids
 
@@ -126,7 +127,9 @@ class DataEntryService:
             exclude_id=exclude_id,
         )
 
-    async def fill_denormalized_scope(self, data_entries: list[DataEntry]) -> None:
+    async def fill_denormalized_scope(
+        self, data_entries: list[DataEntry], *, scope: WriteScope | None = None
+    ) -> None:
         """Stamp denormalized ``year``/``unit_id`` from each entry's carbon report.
 
         Central guarantee, not per-provider convention: the per-year
@@ -137,6 +140,22 @@ class DataEntryService:
         module ids still missing a value; already-stamped entries cost
         nothing. Unknown module ids are left for the FK to reject loudly.
         """
+        # #2050 J4: an interactive write already resolved its report, so the
+        # year/unit stamp needs no query. Bulk callers pass no scope and keep
+        # the batched lookup below.
+        if scope is not None and scope.module.id is not None:
+            for entry in data_entries:
+                if entry.carbon_report_module_id != scope.module.id:
+                    raise ValueError(
+                        f"entry targets module {entry.carbon_report_module_id!r} "
+                        f"but the write scope resolved {scope.module.id!r}"
+                    )
+                if entry.year is None:
+                    entry.year = scope.year
+                if entry.unit_id is None:
+                    entry.unit_id = scope.unit_id
+            return
+
         module_ids = {
             e.carbon_report_module_id
             for e in data_entries
@@ -157,12 +176,12 @@ class DataEntryService:
             )
             .where(col(CarbonReportModule.id).in_(module_ids))
         )
-        scope = {
+        scope_by_module = {
             module_id: (year, unit_id)
             for module_id, year, unit_id in (await self.session.execute(stmt)).all()
         }
         for entry in data_entries:
-            resolved = scope.get(entry.carbon_report_module_id)
+            resolved = scope_by_module.get(entry.carbon_report_module_id)
             if resolved is None:
                 continue
             if entry.year is None:
@@ -247,6 +266,7 @@ class DataEntryService:
         background_tasks: BackgroundTasks | None = None,
         source: int | None = None,
         created_by_id: int | None = None,
+        scope: WriteScope | None = None,
     ) -> DataEntryResponse:
         logger.info(
             f"Creating data entry for module_id={sanitize(carbon_report_module_id)} "
@@ -265,7 +285,7 @@ class DataEntryService:
         if created_by_id is not None:
             entry.created_by_id = created_by_id
 
-        await self.fill_denormalized_scope([entry])
+        await self.fill_denormalized_scope([entry], scope=scope)
         created_entry = await self.repo.create(entry)
 
         # 3. replace by flush; commit should happen in 'orchestrator' or 'route'
@@ -275,7 +295,12 @@ class DataEntryService:
         # other column was set in Python before the flush (#2050 J4 — one of
         # two SELECTs that re-read a row we had just written).
 
-        if not await self.is_simulator_module(carbon_report_module_id):
+        is_simulator = (
+            scope.is_simulator
+            if scope is not None
+            else await self.is_simulator_module(carbon_report_module_id)
+        )
+        if not is_simulator:
             # Extract context information
             request_context = request_context or {}
             handled_ids = extract_handled_ids(

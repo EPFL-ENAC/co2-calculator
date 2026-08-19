@@ -21,6 +21,7 @@ from app.schemas.data_entry import (
     DataEntryUpdate,
 )
 from app.schemas.user import UserRead
+from app.schemas.write_scope import WriteScope
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
@@ -98,6 +99,7 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        scope: WriteScope | None = None,
     ) -> DataEntryResponse:
         try:
             create_payload = {
@@ -164,6 +166,7 @@ class CarbonReportModuleWorkflow:
                 background_tasks=background_tasks,
                 source=DataEntrySourceEnum.USER_MANUAL.value,
                 created_by_id=current_user.id,
+                scope=scope,
             )
             if item is None:
                 raise HTTPException(
@@ -175,9 +178,9 @@ class CarbonReportModuleWorkflow:
             # was inserted a few statements ago and cannot have emissions to
             # replace, so upsert's pre-delete lookup is a guaranteed-empty
             # SELECT. The update path below keeps using upsert.
-            await DataEntryEmissionService(self.session).create(item)
+            await DataEntryEmissionService(self.session).create(item, scope=scope)
             await CarbonReportModuleService(self.session).recompute_stats(
-                carbon_report_module.id
+                carbon_report_module.id, scope=scope
             )
             await self.session.commit()
         except IntegrityError as e:

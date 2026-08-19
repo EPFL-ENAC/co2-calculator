@@ -31,6 +31,7 @@ from app.schemas.carbon_report import (
     CarbonReportRead,
 )
 from app.schemas.data_entry import DataEntryResponse
+from app.schemas.write_scope import WriteScope
 from app.services.data_entry_emission_service import DataEntryEmissionService
 
 logger = get_logger(__name__)
@@ -424,7 +425,11 @@ class CarbonReportModuleService:
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
     async def recompute_stats_many(
-        self, carbon_report_module_ids: list[int], *, bump_status: bool = True
+        self,
+        carbon_report_module_ids: list[int],
+        *,
+        bump_status: bool = True,
+        prefetched_years: dict[int, int] | None = None,
     ) -> int:
         """Set-based stats recompute for the aggregation job.
 
@@ -466,7 +471,8 @@ class CarbonReportModuleService:
         pairs = await emission_repo.get_stats_pair_many(carbon_report_module_ids)
 
         counts, fte_by_module = await self._entry_counts_and_fte(modules)
-        year_by_report = await self._years_by_report(modules)
+        # #2050 J4: an interactive write knows its report's year already.
+        year_by_report = prefetched_years or await self._years_by_report(modules)
 
         now_utc = int(datetime.now(UTC).timestamp())
         refreshed = 0
@@ -513,7 +519,12 @@ class CarbonReportModuleService:
         await report_service.recompute_report_stats_many(sorted(report_ids))
         return refreshed
 
-    async def recompute_stats(self, carbon_report_module_id: int) -> None:
+    async def recompute_stats(
+        self,
+        carbon_report_module_id: int,
+        *,
+        scope: WriteScope | None = None,
+    ) -> None:
         """Recompute and persist the stats JSON for a single module.
 
         Thin wrapper over the set-based :meth:`recompute_stats_many` so the
@@ -521,8 +532,16 @@ class CarbonReportModuleService:
         the IN_PROGRESS status bump, and the report rollup. A missing or
         unmapped module is skipped there (no stats written), matching the
         prior early-return behaviour.
+
+        ``scope`` lets an interactive write hand over the report year it has
+        already resolved, instead of paying a query for it (#2050 J4).
         """
-        await self.recompute_stats_many([carbon_report_module_id])
+        prefetched_years = None
+        if scope is not None and scope.report.id is not None and scope.year is not None:
+            prefetched_years = {scope.report.id: scope.year}
+        await self.recompute_stats_many(
+            [carbon_report_module_id], prefetched_years=prefetched_years
+        )
 
     async def _entry_counts_and_fte(
         self, modules: Sequence[CarbonReportModule]

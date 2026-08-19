@@ -586,21 +586,27 @@ def plan_can_manage(current_user: User, project: Any) -> bool:
 
 async def require_plan_scope_for_report(
     db: AsyncSession, current_user: User, report: Any, action: str
-) -> None:
+) -> CarbonProject | None:
     """Enforce Simulator Plan scoping when ``report`` belongs to a plan.
 
     No-op for Calculator/Explore reports (and reports with no project). The
     single place every report-addressed write consults so plan visibility
     rules can't be forgotten on a new route.
+
+    Returns the report's ``CarbonProject`` when it has one, so a caller that
+    needs the project type does not pay a second lookup for a row this
+    function already loaded (#2050 J4). ``None`` when the report has no
+    project.
     """
     if report.carbon_project_id is None:
-        return
+        return None
     project = await db.get(CarbonProject, report.carbon_project_id)
     if (
         project is not None
         and project.carbon_report_type == CarbonReportType.SIMULATOR_PLAN
     ):
         require_plan_access(current_user, project, action)
+    return project
 
 
 def require_plan_access(current_user: User, project: Any, action: str) -> None:
