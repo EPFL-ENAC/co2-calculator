@@ -179,11 +179,21 @@ async def test_count_incomplete_new_equipment(db_session: AsyncSession):
     cur_module = await _seed_module(db_session, 2025)
     # Existing equipment missing usage must NOT count (only new equipment does).
     await _seed_entry(
-        db_session, cur_module, year=2025, equipment_id="E1", with_usage=False
+        db_session,
+        cur_module,
+        year=2025,
+        equipment_id="E1",
+        with_usage=False,
+        stamp_ingest=True,
     )
     # New equipment missing usage → counts.
     new_incomplete = await _seed_entry(
-        db_session, cur_module, year=2025, equipment_id="E3", with_usage=False
+        db_session,
+        cur_module,
+        year=2025,
+        equipment_id="E3",
+        with_usage=False,
+        stamp_ingest=True,
     )
     await db_session.commit()
 
@@ -397,3 +407,83 @@ async def test_first_year_ingest_stamps_nothing_new(db_session: AsyncSession):
     await DataEntryService(db_session).apply_equipment_carry_forward(incoming)
 
     assert incoming[0].data.get("is_new") is False
+
+
+@pytest.mark.asyncio
+async def test_incomplete_new_count_reads_the_stored_flag(db_session: AsyncSession):
+    """#2050 J11: the incomplete-new count reads ``is_new`` off the row.
+
+    It used to re-derive it the same way the page did — load every
+    ``equipment_id`` in the unit's prior year, then inline the set as
+    ``NOT IN (...)`` — and it runs on *every* module GET, not just the
+    equipment page.
+    """
+    repo = DataEntryRepository(db_session)
+    prev_module = await _seed_module(db_session, 2024)
+    await _seed_entry(db_session, prev_module, year=2024, equipment_id="E1")
+
+    cur_module = await _seed_module(db_session, 2025)
+    # New and missing usage — counted.
+    await _seed_entry(
+        db_session,
+        cur_module,
+        year=2025,
+        equipment_id="E9",
+        with_usage=False,
+        stamp_ingest=True,
+    )
+    # New but complete — not counted.
+    await _seed_entry(
+        db_session, cur_module, year=2025, equipment_id="E8", stamp_ingest=True
+    )
+    # Existing and missing usage — not counted, it is not new.
+    await _seed_entry(
+        db_session,
+        cur_module,
+        year=2025,
+        equipment_id="E1",
+        with_usage=False,
+        stamp_ingest=True,
+    )
+    await db_session.commit()
+
+    assert await repo.count_incomplete_new_equipment(cur_module.id) == 1
+
+
+@pytest.mark.asyncio
+async def test_incomplete_new_count_issues_no_prior_year_query(
+    db_session: AsyncSession,
+):
+    """The absence is the contract: counting must not touch the unit's history."""
+    from sqlalchemy import event
+
+    repo = DataEntryRepository(db_session)
+    prev_module = await _seed_module(db_session, 2024)
+    await _seed_entry(db_session, prev_module, year=2024, equipment_id="E1")
+    cur_module = await _seed_module(db_session, 2025)
+    await _seed_entry(
+        db_session,
+        cur_module,
+        year=2025,
+        equipment_id="E9",
+        with_usage=False,
+        stamp_ingest=True,
+    )
+    await db_session.commit()
+
+    statements: list[str] = []
+
+    def listener(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", listener)
+    try:
+        await repo.count_incomplete_new_equipment(cur_module.id)
+    finally:
+        event.remove(engine, "before_cursor_execute", listener)
+
+    prior_reads = [s for s in statements if "max(data_entries.year)" in s]
+    assert not prior_reads, (
+        f"the count queried the unit's prior year (#2050 J11):\n{prior_reads}"
+    )

@@ -773,16 +773,15 @@ class DataEntryRepository:
     async def count_incomplete_new_equipment(self, carbon_report_module_id: int) -> int:
         """Count equipment that is new vs the previous year (issue #259) yet is
         still missing usage data (active or standby hours). Returns ``0`` for
-        non-equipment modules and for units with no prior-year equipment data,
-        so it is safe to call unconditionally on any module.
+        non-equipment modules, so it is safe to call unconditionally on any
+        module.
+
+        #2050 J11: reads the ``is_new`` flag stamped at ingest
+        (``DataEntryService.apply_equipment_carry_forward``) rather than
+        re-deriving it. It used to load every ``equipment_id`` in the unit's
+        prior year and inline the set as ``NOT IN (...)`` — and unlike the
+        equipment page, this runs on *every* module GET.
         """
-        scope = await self._equipment_module_scope(carbon_report_module_id)
-        if scope is None:
-            return 0
-        unit_id, current_year = scope
-        prev_ids = await self.get_prior_year_equipment_ids(unit_id, current_year)
-        if not prev_ids:
-            return 0
         active = DataEntry.data["active_usage_hours_per_week"].as_string()
         standby = DataEntry.data["standby_usage_hours_per_week"].as_string()
         count = (
@@ -794,7 +793,7 @@ class DataEntryRepository:
                     col(DataEntry.data_entry_type_id).in_(
                         list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
                     ),
-                    DataEntry.data["equipment_id"].as_string().notin_(list(prev_ids)),
+                    DataEntry.data["is_new"].as_boolean(),
                     or_(active.is_(None), standby.is_(None)),
                 )
             )
