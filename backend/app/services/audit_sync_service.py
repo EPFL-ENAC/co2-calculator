@@ -5,6 +5,7 @@ with Elasticsearch:
     pending -> syncing -> synced/failed with retry capability.
 """
 
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -27,7 +28,22 @@ class AuditSyncService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = AuditDocumentRepository(session)
-        self.es_client = ElasticsearchClient()
+        self._es_client: ElasticsearchClient | None = None
+
+    async def _get_es_client(self) -> ElasticsearchClient:
+        """Construct the sync Elasticsearch client off the event loop.
+
+        ``ElasticsearchClient.__init__`` does a blocking TCP+TLS handshake
+        plus a blocking ``.info()`` probe — expensive enough, and called
+        often enough (fresh per ``AuditSyncService`` instance, i.e. per
+        ``BackgroundTasks`` invocation), that constructing it inline was
+        blocking the event loop on every audit-trail write (#2050 Track
+        I3). Memoized per instance so repeat calls on the same service
+        (bulk sync, retry) don't re-probe.
+        """
+        if self._es_client is None:
+            self._es_client = await asyncio.to_thread(ElasticsearchClient)
+        return self._es_client
 
     async def sync_single_audit_record(self, audit_id: int) -> bool:
         """Sync a single audit record to Elasticsearch with status tracking.
@@ -90,7 +106,8 @@ class AuditSyncService:
                 "synced_at": audit_record.synced_at,
             }
 
-            success = self.es_client.sync_audit_record(audit_dict)
+            es_client = await self._get_es_client()
+            success = await asyncio.to_thread(es_client.sync_audit_record, audit_dict)
 
             if success:
                 # Update status to synced
@@ -224,7 +241,10 @@ class AuditSyncService:
             # Bulk sync with Elasticsearch (only non-skipped records)
             sync_stats: AuditSyncStats
             if audit_dicts:
-                sync_stats = self.es_client.bulk_sync_audit_records(audit_dicts)
+                es_client = await self._get_es_client()
+                sync_stats = await asyncio.to_thread(
+                    es_client.bulk_sync_audit_records, audit_dicts
+                )
             else:
                 sync_stats = {"success": 0, "failed": 0, "errors": [], "conflicts": []}
 

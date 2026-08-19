@@ -114,7 +114,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
             return unit_id[1:]
         return unit_id
 
-    def _bind_connection(
+    async def _bind_connection(
         self, conn: ConnectorConnection, service: ConnectorConnectionService
     ) -> None:
         """Bind a stored connection's fields + operational knobs onto this
@@ -131,7 +131,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
         self.username = conn.username
         self.client_id = conn.client_id
         self.secret_id = conn.secret_id
-        self.secret_value = service.get_decrypted_secret(conn)
+        self.secret_value = await service.get_decrypted_secret(conn)
         # SSRF guard on use too (defense in depth): the stored URL may have
         # been written before an allowlist tightening.
         validate_external_url(conn.server_url)
@@ -164,7 +164,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
                 f"No datasource (LUID) set for module {self.MODULE_TYPE.name} "
                 "— set one in the API connect form."
             )
-        self._bind_connection(conn, service)
+        await self._bind_connection(conn, service)
         self.datasource_luid = ds.connector_luid
         self.module_type_id = self.config.get("module_type_id")
         self._credentials_loaded = True
@@ -188,7 +188,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
         # returns a generic detail instead of a raw HTTP 500.
         probe = cls({}, None, None, data_session=db)
         try:
-            probe._bind_connection(conn, service)
+            await probe._bind_connection(conn, service)
             jwt_token = probe._generate_jwt()
             session = probe._create_session()
             x_auth = await probe._signin_with_jwt(session, jwt_token)

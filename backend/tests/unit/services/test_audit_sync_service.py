@@ -34,16 +34,12 @@ def mock_es_client():
 @pytest.fixture
 def audit_sync_service(mock_session, mock_es_client):
     """Create an AuditSyncService instance with mocked dependencies."""
-    # Patch the ElasticsearchClient to avoid initialization issues
-    with patch(
-        "app.services.audit_sync_service.ElasticsearchClient"
-    ) as mock_es_constructor:
-        mock_es_constructor.return_value = mock_es_client
-        # Create the service with the mock session
-        service = AuditSyncService(mock_session)
-        # Replace the ES client with our mock
-        service.es_client = mock_es_client
-        return service
+    # #2050 Track I3: the client is now lazily constructed off the event
+    # loop (_get_es_client), memoized on _es_client. Pre-seeding that
+    # attribute means _get_es_client() never calls the real constructor.
+    service = AuditSyncService(mock_session)
+    service._es_client = mock_es_client
+    return service
 
 
 @pytest.fixture
@@ -85,7 +81,7 @@ class TestAuditSyncService:
         mock_repo.get_by_id = AsyncMock(return_value=sample_audit_record)
         audit_sync_service.repo = mock_repo
 
-        audit_sync_service.es_client.sync_audit_record.return_value = True
+        audit_sync_service._es_client.sync_audit_record.return_value = True
 
         # Execute
         result = await audit_sync_service.sync_single_audit_record(1)
@@ -95,7 +91,7 @@ class TestAuditSyncService:
         assert sample_audit_record.sync_status == SyncStatusEnum.SYNCED
         assert sample_audit_record.synced_at is not None
         assert sample_audit_record.sync_error is None
-        audit_sync_service.es_client.sync_audit_record.assert_called_once()
+        audit_sync_service._es_client.sync_audit_record.assert_called_once()
         mock_session.add.assert_called()
         mock_session.flush.assert_awaited()
         mock_session.commit.assert_awaited()
@@ -120,7 +116,7 @@ class TestAuditSyncService:
         assert sample_audit_record.sync_status == SyncStatusEnum.SYNCED
         assert sample_audit_record.synced_at is not None
         # Should not call ES client for already synced records
-        audit_sync_service.es_client.sync_audit_record.assert_not_called()
+        audit_sync_service._es_client.sync_audit_record.assert_not_called()
         mock_session.add.assert_not_called()
         mock_session.flush.assert_not_called()
         mock_session.commit.assert_not_called()
@@ -144,7 +140,7 @@ class TestAuditSyncService:
         assert result is False
         assert sample_audit_record.sync_status == SyncStatusEnum.FAILED
         # Should not call ES client for already failed records
-        audit_sync_service.es_client.sync_audit_record.assert_not_called()
+        audit_sync_service._es_client.sync_audit_record.assert_not_called()
         mock_session.add.assert_not_called()
         mock_session.flush.assert_not_called()
         mock_session.commit.assert_not_called()
@@ -163,7 +159,7 @@ class TestAuditSyncService:
 
         # Assert
         assert result is False
-        audit_sync_service.es_client.sync_audit_record.assert_not_called()
+        audit_sync_service._es_client.sync_audit_record.assert_not_called()
         mock_session.add.assert_not_called()
         mock_session.flush.assert_not_called()
 
@@ -176,7 +172,7 @@ class TestAuditSyncService:
         mock_repo.get_by_id = AsyncMock(return_value=sample_audit_record)
         audit_sync_service.repo = mock_repo
 
-        audit_sync_service.es_client.sync_audit_record.return_value = False
+        audit_sync_service._es_client.sync_audit_record.return_value = False
 
         # Execute
         result = await audit_sync_service.sync_single_audit_record(1)
@@ -185,7 +181,7 @@ class TestAuditSyncService:
         assert result is False
         assert sample_audit_record.sync_status == SyncStatusEnum.FAILED
         assert sample_audit_record.sync_error == "Failed to sync to Elasticsearch"
-        audit_sync_service.es_client.sync_audit_record.assert_called_once()
+        audit_sync_service._es_client.sync_audit_record.assert_called_once()
         mock_session.add.assert_called()
         mock_session.flush.assert_awaited()
         mock_session.commit.assert_awaited()
@@ -199,7 +195,7 @@ class TestAuditSyncService:
         mock_repo.get_by_id = AsyncMock(return_value=sample_audit_record)
         audit_sync_service.repo = mock_repo
 
-        audit_sync_service.es_client.sync_audit_record.side_effect = Exception(
+        audit_sync_service._es_client.sync_audit_record.side_effect = Exception(
             "Test error"
         )
 
@@ -210,7 +206,7 @@ class TestAuditSyncService:
         assert result is False
         assert sample_audit_record.sync_status == SyncStatusEnum.FAILED
         assert sample_audit_record.sync_error == "Test error"
-        audit_sync_service.es_client.sync_audit_record.assert_called_once()
+        audit_sync_service._es_client.sync_audit_record.assert_called_once()
         mock_session.add.assert_called()
         mock_session.flush.assert_awaited()
         mock_session.commit.assert_awaited()
@@ -228,7 +224,7 @@ class TestAuditSyncService:
         ]
         audit_sync_service.repo = mock_repo
 
-        audit_sync_service.es_client.sync_audit_record.return_value = True
+        audit_sync_service._es_client.sync_audit_record.return_value = True
         # Simulate an exception during the first flush (syncing state)
         mock_session.flush.side_effect = Exception("Flush error")
 
@@ -238,7 +234,7 @@ class TestAuditSyncService:
         # Assert
         assert result is False
         # ES client should not be called because the flush failed before ES call
-        audit_sync_service.es_client.sync_audit_record.assert_not_called()
+        audit_sync_service._es_client.sync_audit_record.assert_not_called()
         # Should be called at least once for setting syncing state
         assert mock_session.add.call_count >= 1
         assert mock_session.flush.call_count >= 1
@@ -281,7 +277,7 @@ class TestAuditSyncService:
         mock_session.exec = AsyncMock(return_value=mock_result)
 
         # Mock ES client response
-        audit_sync_service.es_client.bulk_sync_audit_records.return_value = {
+        audit_sync_service._es_client.bulk_sync_audit_records.return_value = {
             "success": [{"id": 1}, {"id": 2}, {"id": 3}],
             "errors": [],
             "conflicts": [],
@@ -294,7 +290,7 @@ class TestAuditSyncService:
         assert result["synced"] == 3
         assert result["failed"] == 0
         assert result["total"] == 3
-        audit_sync_service.es_client.bulk_sync_audit_records.assert_called_once()
+        audit_sync_service._es_client.bulk_sync_audit_records.assert_called_once()
         # Each record gets add() called twice: once for syncing state,
         # once for final state
         assert mock_session.add.call_count == 6
@@ -336,7 +332,7 @@ class TestAuditSyncService:
         mock_session.exec = AsyncMock(return_value=mock_result)
 
         # Mock ES client response with mixed results
-        audit_sync_service.es_client.bulk_sync_audit_records.return_value = {
+        audit_sync_service._es_client.bulk_sync_audit_records.return_value = {
             "success": [{"id": 1}, {"id": 3}],  # Records 1 and 3 succeed
             "errors": [{"id": 2}],  # Record 2 fails
             "conflicts": [],
@@ -349,7 +345,7 @@ class TestAuditSyncService:
         assert result["synced"] == 2
         assert result["failed"] == 1
         assert result["total"] == 3
-        audit_sync_service.es_client.bulk_sync_audit_records.assert_called_once()
+        audit_sync_service._es_client.bulk_sync_audit_records.assert_called_once()
         # Each record gets add() called twice: once for syncing state,
         # once for final state
         assert mock_session.add.call_count == 6
@@ -371,7 +367,7 @@ class TestAuditSyncService:
         assert result["synced"] == 0
         assert result["failed"] == 0
         assert result["total"] == 0
-        audit_sync_service.es_client.bulk_sync_audit_records.assert_not_called()
+        audit_sync_service._es_client.bulk_sync_audit_records.assert_not_called()
         mock_session.add.assert_not_called()
         mock_session.flush.assert_not_called()
 
@@ -410,7 +406,7 @@ class TestAuditSyncService:
         mock_session.exec = AsyncMock(return_value=mock_result)
 
         # Mock ES client response with all failures
-        audit_sync_service.es_client.bulk_sync_audit_records.return_value = {
+        audit_sync_service._es_client.bulk_sync_audit_records.return_value = {
             "success": [],
             "errors": [{"id": 1}, {"id": 2}],
             "conflicts": [],
@@ -423,7 +419,7 @@ class TestAuditSyncService:
         assert result["synced"] == 0
         assert result["failed"] == 2
         assert result["total"] == 2
-        audit_sync_service.es_client.bulk_sync_audit_records.assert_called_once()
+        audit_sync_service._es_client.bulk_sync_audit_records.assert_called_once()
         # Each record gets add() called twice: once for syncing state,
         # once for final state
         assert mock_session.add.call_count == 4
@@ -444,7 +440,7 @@ class TestAuditSyncService:
         assert result["failed"] == 0
         assert result["total"] == 0
         assert "error" in result
-        audit_sync_service.es_client.bulk_sync_audit_records.assert_not_called()
+        audit_sync_service._es_client.bulk_sync_audit_records.assert_not_called()
         mock_session.add.assert_not_called()
         mock_session.flush.assert_not_called()
 
@@ -725,3 +721,94 @@ class TestAuditSyncService:
         assert result["success"] == 0
         assert result["failed"] == 0
         assert "error" in result
+
+
+class TestAuditSyncServiceOffLoop:
+    """#2050 Track I3 regression: the sync ES client must never be
+    constructed or called directly on the event loop — both are blocking
+    (TCP+TLS handshake, blocking HTTP). Asserts the ``asyncio.to_thread``
+    dispatch itself, not just that the mock got called, since a call
+    without ``to_thread`` would pass every other assertion in this file
+    identically while still blocking the loop in production.
+    """
+
+    async def test_get_es_client_constructs_off_the_event_loop(self, mock_session):
+        with patch(
+            "app.services.audit_sync_service.asyncio.to_thread",
+            new=AsyncMock(return_value=MagicMock()),
+        ) as mock_to_thread:
+            with patch(
+                "app.services.audit_sync_service.ElasticsearchClient"
+            ) as mock_ctor:
+                service = AuditSyncService(mock_session)
+                await service._get_es_client()
+
+        mock_to_thread.assert_called_once_with(mock_ctor)
+
+    async def test_get_es_client_memoizes_across_calls(self, mock_session):
+        service = AuditSyncService(mock_session)
+        sentinel = MagicMock()
+        with patch(
+            "app.services.audit_sync_service.asyncio.to_thread",
+            new=AsyncMock(return_value=sentinel),
+        ) as mock_to_thread:
+            first = await service._get_es_client()
+            second = await service._get_es_client()
+
+        assert first is sentinel
+        assert second is sentinel
+        mock_to_thread.assert_called_once()  # second call must not re-probe
+
+    async def test_sync_single_audit_record_dispatches_via_to_thread(
+        self, audit_sync_service, sample_audit_record
+    ):
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id = AsyncMock(return_value=sample_audit_record)
+        audit_sync_service.repo = mock_repo
+
+        with patch(
+            "app.services.audit_sync_service.asyncio.to_thread",
+            new=AsyncMock(return_value=True),
+        ) as mock_to_thread:
+            await audit_sync_service.sync_single_audit_record(1)
+
+        mock_to_thread.assert_called_once()
+        args = mock_to_thread.call_args.args
+        assert args[0] is audit_sync_service._es_client.sync_audit_record
+
+    async def test_bulk_sync_dispatches_via_to_thread(
+        self, audit_sync_service, mock_session
+    ):
+        pending_record = AuditDocument(
+            id=1,
+            entity_type="test_entity",
+            entity_id=1,
+            version=1,
+            is_current=True,
+            data_snapshot={},
+            change_type="CREATE",
+            changed_by=1,
+            changed_at=datetime.utcnow(),
+            handler_id="h",
+            handled_ids=[],
+            ip_address="127.0.0.1",
+            route_path="/test",
+            route_payload={},
+            current_hash="h",
+            sync_status=SyncStatusEnum.PENDING,
+            sync_error=None,
+            synced_at=None,
+        )
+        mock_result = MagicMock()
+        mock_result.all = MagicMock(return_value=[pending_record])
+        mock_session.exec = AsyncMock(return_value=mock_result)
+
+        with patch(
+            "app.services.audit_sync_service.asyncio.to_thread",
+            new=AsyncMock(return_value={"success": [1], "errors": [], "conflicts": []}),
+        ) as mock_to_thread:
+            await audit_sync_service.sync_pending_audit_records(batch_size=10)
+
+        mock_to_thread.assert_called_once()
+        args = mock_to_thread.call_args.args
+        assert args[0] is audit_sync_service._es_client.bulk_sync_audit_records
