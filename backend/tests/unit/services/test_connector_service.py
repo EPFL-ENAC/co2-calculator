@@ -1,4 +1,5 @@
 import time
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -31,7 +32,7 @@ async def test_save_encrypts_blank_keeps_and_read_hides_secret(db_session, monke
     conn = await service.save_connection(ConnectorType.EPFL_TABLEAU, base)
     await db_session.commit()
     assert conn.secret_value_encrypted != "the-real-secret"
-    assert service.get_decrypted_secret(conn) == "the-real-secret"
+    assert await service.get_decrypted_secret(conn) == "the-real-secret"
 
     # blank secret on update keeps the stored value
     base.username = "changed"
@@ -39,7 +40,7 @@ async def test_save_encrypts_blank_keeps_and_read_hides_secret(db_session, monke
     conn2 = await service.save_connection(ConnectorType.EPFL_TABLEAU, base)
     await db_session.commit()
     assert conn2.username == "changed"
-    assert service.get_decrypted_secret(conn2) == "the-real-secret"
+    assert await service.get_decrypted_secret(conn2) == "the-real-secret"
 
     read = service.to_read(conn2)
     assert read.has_secret is True
@@ -104,3 +105,45 @@ async def test_save_rejects_disallowed_server_url(db_session, monkeypatch):
                 secret_value="v",
             ),
         )
+
+
+@pytest.mark.asyncio
+async def test_encrypt_and_decrypt_dispatch_via_to_thread(db_session, monkeypatch):
+    """#2050 Track I3 regression: the Scrypt KDF is deliberately CPU-heavy
+    and must never run inline on the event loop — proves the dispatch
+    itself, not just the round-tripped value (which would pass identically
+    whether or not `to_thread` is used).
+    """
+    monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
+    monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
+    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "epfl.ch")
+    crypto.get_settings.cache_clear()
+    url_safety.get_settings.cache_clear()
+
+    service = ConnectorConnectionService(db_session)
+    base = ConnectorConnectionCreate(
+        label="EPFL Tableau",
+        server_url="https://tableau.epfl.ch/",
+        username="u",
+        client_id="c",
+        secret_id="s",
+        secret_value="the-real-secret",
+    )
+
+    with patch(
+        "app.services.connector_service.asyncio.to_thread",
+        new=AsyncMock(return_value="encrypted-token"),
+    ) as mock_to_thread:
+        conn = await service.save_connection(ConnectorType.EPFL_TABLEAU, base)
+
+    mock_to_thread.assert_called_once_with(crypto.encrypt_secret, "the-real-secret")
+    assert conn.secret_value_encrypted == "encrypted-token"
+
+    with patch(
+        "app.services.connector_service.asyncio.to_thread",
+        new=AsyncMock(return_value="the-real-secret"),
+    ) as mock_to_thread:
+        result = await service.get_decrypted_secret(conn)
+
+    mock_to_thread.assert_called_once_with(crypto.decrypt_secret, "encrypted-token")
+    assert result == "the-real-secret"
