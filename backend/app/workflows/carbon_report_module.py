@@ -171,9 +171,11 @@ class CarbonReportModuleWorkflow:
                     detail="Failed to create item",
                 )
 
-            await DataEntryEmissionService(self.session).upsert_by_data_entry(
-                data_entry_response=item
-            )
+            # #2050 J4: ``create``, not ``upsert_by_data_entry`` — the entry
+            # was inserted a few statements ago and cannot have emissions to
+            # replace, so upsert's pre-delete lookup is a guaranteed-empty
+            # SELECT. The update path below keeps using upsert.
+            await DataEntryEmissionService(self.session).create(item)
             await CarbonReportModuleService(self.session).recompute_stats(
                 carbon_report_module.id
             )

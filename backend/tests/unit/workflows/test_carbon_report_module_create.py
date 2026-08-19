@@ -56,6 +56,9 @@ def _make_workflow_deps():
     )
 
     emission_service = MagicMock()
+    # #2050 J4: the create path calls ``create`` (no pre-delete lookup to
+    # waste); the update path still calls ``upsert_by_data_entry``.
+    emission_service.create = AsyncMock()
     emission_service.upsert_by_data_entry = AsyncMock()
     module_service = MagicMock()
     module_service.recompute_stats = AsyncMock()
