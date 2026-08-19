@@ -298,7 +298,46 @@ async def test_headcount_member_post_statement_budget(
 # walks a progressive fallback chain (B1..B4) and _fetch_factors memoizes it
 # only when the caller passes a factor_query_cache, which every bulk path
 # does and no interactive path did.
-STATEMENT_BUDGET = 13
+STATEMENT_BUDGET = 12
 # One per emission leaf is the ceiling worth defending: factor resolution
 # must not scale with the fallback chain's depth.
 FACTOR_LOOKUP_BUDGET = 1
+
+
+@pytest.mark.asyncio
+async def test_duplicate_member_post_still_returns_422(
+    pg_app, make_unit, make_carbon_report, make_carbon_report_module
+):
+    """#2050 J4: the uniqueness pre-check became a unique index. The HTTP
+    contract must not move — the frontend keys on this exact detail string.
+    """
+    async with pg_app["factory"]() as session:
+        carbon_report_id = await _seed(
+            session, make_unit, make_carbon_report, make_carbon_report_module
+        )
+
+    payload = {
+        "name": "Test Member",
+        "user_institutional_id": "M-001",
+        "sius_code": "51",
+        "fte": 0.8,
+        "headcount_category": "food",
+        "headcount_class": "vegetarian",
+    }
+    url = f"/v1/carbon-reports/{carbon_report_id}/modules/headcount/member"
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        first = await client.post(url, json=payload)
+        second = await client.post(url, json=payload)
+
+    assert first.status_code in (200, 201), first.text
+    assert second.status_code == 422
+    assert second.json()["detail"] == "DUPLICATE_INSTITUTIONAL_ID"
+
+    # A second role for the same person is a different key, so it is accepted.
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        other_role = await client.post(url, json={**payload, "sius_code": "54"})
+    assert other_role.status_code in (200, 201), other_role.text

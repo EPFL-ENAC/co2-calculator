@@ -131,24 +131,6 @@ class CarbonReportModuleWorkflow:
                 detail=f"Invalid item_data for creation: {str(e)}",
             )
 
-        if (
-            data_entry_type == DataEntryTypeEnum.member
-            and validated_data.model_dump().get("user_institutional_id")
-        ):
-            member_data = validated_data.model_dump()
-            uid = member_data["user_institutional_id"]
-            sius_code = member_data["sius_code"]
-            is_unique = await DataEntryService(self.session).check_member_role_unique(
-                carbon_report_module_id=carbon_report_module.id,
-                uid=uid,
-                sius_code=sius_code,
-            )
-            if not is_unique:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="DUPLICATE_INSTITUTIONAL_ID",
-                )
-
         if data_entry_type in (
             DataEntryTypeEnum.planner_purchase,
             DataEntryTypeEnum.planner_purchase_budget,
@@ -193,6 +175,14 @@ class CarbonReportModuleWorkflow:
             await self.session.commit()
         except IntegrityError as e:
             await self.session.rollback()
+            # #2050 J4: the member-role uniqueness pre-check is gone. The
+            # unique index reports the same condition, without the
+            # check-then-act race two concurrent POSTs used to both win.
+            if "uq_member_role_per_module" in str(e.orig):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="DUPLICATE_INSTITUTIONAL_ID",
+                ) from e
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
