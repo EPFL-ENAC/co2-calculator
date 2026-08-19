@@ -562,8 +562,8 @@ async def test_get_stats(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_get_total_per_field(db_session: AsyncSession):
-    """Test getting total sum for a specific field."""
+async def test_get_headcount_fte_breakdown(db_session: AsyncSession):
+    """All three headcount FTE figures come back from one query (#2050 I2)."""
     service = DataEntryService(db_session)
 
     # Create test module
@@ -588,13 +588,15 @@ async def test_get_total_per_field(db_session: AsyncSession):
     db_session.add_all(entries)
     await db_session.flush()
 
-    result = await service.get_total_per_field(
-        field_name="fte",
+    breakdown = await service.get_headcount_fte_breakdown(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.member.value,
     )
 
-    assert result == pytest.approx(5.0, rel=0.01)
+    assert breakdown.total_fte == pytest.approx(5.0, rel=0.01)
+    assert breakdown.member_fte_by_sius_code == {"unknown": pytest.approx(5.0)}
+    # No student entries seeded — 0.0, not None: the sum of nothing is zero,
+    # unlike a member group that exists with no FTE recorded.
+    assert breakdown.student_fte == pytest.approx(0.0)
 
 
 @pytest.mark.asyncio

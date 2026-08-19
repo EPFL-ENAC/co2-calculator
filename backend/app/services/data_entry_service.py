@@ -837,19 +837,6 @@ class DataEntryService:
             carbon_report_module_id=carbon_report_module_id,
         )
 
-    async def get_total_per_field(
-        self,
-        field_name: str,
-        carbon_report_module_id: int,
-        data_entry_type_id: int | None,
-    ) -> float | None:
-        """Get total sum of a specific field for a given module and data entry type."""
-        return await self.repo.get_total_per_field(
-            field_name=field_name,
-            carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=data_entry_type_id,
-        )
-
     async def get_headcount_members(
         self,
         carbon_report_module_id: int,
