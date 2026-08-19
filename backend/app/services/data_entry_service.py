@@ -20,6 +20,7 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.repositories.data_entry_repo import (
     EQUIPMENT_DATA_ENTRY_TYPE_IDS,
     DataEntryRepository,
+    HeadcountFteBreakdown,
 )
 from app.schemas.carbon_report_response import (
     ModuleResponse,
@@ -826,6 +827,14 @@ class DataEntryService:
         return TripsMapResponse(
             legs=[TripLeg(**leg) for leg in legs],
             dropped_count=dropped,
+        )
+
+    async def get_headcount_fte_breakdown(
+        self, carbon_report_module_id: int
+    ) -> HeadcountFteBreakdown:
+        """Total, student and per-sius_code member FTE in one round trip."""
+        return await self.repo.get_headcount_fte_breakdown(
+            carbon_report_module_id=carbon_report_module_id,
         )
 
     async def get_total_per_field(

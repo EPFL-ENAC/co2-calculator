@@ -34,6 +34,16 @@ from app.schemas.data_entry import (
 
 logger = get_logger(__name__)
 
+
+class HeadcountFteBreakdown(BaseModel):
+    """The three FTE figures the headcount module page needs (#2050 I2)."""
+
+    total_fte: float
+    student_fte: float
+    # None where the group exists but recorded no FTE — distinct from 0.0.
+    member_fte_by_sius_code: dict[str, float | None]
+
+
 # Default filter map when handler doesn't provide one
 DEFAULT_FILTER_MAP = {"name": DataEntry.data["name"].as_string()}
 
@@ -1507,6 +1517,47 @@ class DataEntryRepository:
             )
 
         return legs, dropped
+
+    async def get_headcount_fte_breakdown(
+        self, carbon_report_module_id: int
+    ) -> HeadcountFteBreakdown:
+        """Every FTE figure the headcount module page needs, in one query.
+
+        The route used to ask three times over the same table, module and
+        field — total, members grouped by sius_code, students — and on dev
+        each round trip costs ~160ms (#2050 Track G2). One GROUP BY over
+        ``(data_entry_type_id, sius_code)`` carries all three.
+        """
+        sius_code = DataEntry.data["sius_code"].as_string()
+        fte = DataEntry.data["fte"].as_float()
+        statement = (
+            select(
+                col(DataEntry.data_entry_type_id),
+                sius_code.label("sius_code"),
+                func.sum(fte).label("total_fte"),
+            )
+            .where(col(DataEntry.carbon_report_module_id) == carbon_report_module_id)
+            .group_by(col(DataEntry.data_entry_type_id), sius_code)
+        )
+        rows = (await self.session.execute(statement)).all()
+
+        total_fte = 0.0
+        student_fte = 0.0
+        member_fte_by_sius_code: dict[str, float | None] = {}
+        for data_entry_type_id, code, group_fte in rows:
+            total_fte += group_fte or 0.0
+            if data_entry_type_id == DataEntryTypeEnum.student.value:
+                student_fte += group_fte or 0.0
+            if data_entry_type_id == DataEntryTypeEnum.member.value:
+                # A NULL sum stays None rather than 0.0 — the group exists
+                # but has no FTE recorded, which is not the same as zero.
+                label = str(code) if code is not None else "unknown"
+                member_fte_by_sius_code[label] = group_fte
+        return HeadcountFteBreakdown(
+            total_fte=total_fte,
+            student_fte=student_fte,
+            member_fte_by_sius_code=member_fte_by_sius_code,
+        )
 
     async def get_total_per_field(
         self,

@@ -308,23 +308,17 @@ async def get_module(
     total_annual_fte = None
     total_kg_co2eq = None
     if module_id == "headcount":
-        total_annual_fte = await DataEntryService(db).get_total_per_field(
-            field_name="fte",
+        # #2050 Track I: one round trip, not three. These asked the same
+        # table for the same field over the same module; on dev a round
+        # trip costs ~160ms, so the count was the cost (Track G2).
+        fte = await DataEntryService(db).get_headcount_fte_breakdown(
             carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=None,
         )
-        member_stats: dict = await DataEntryService(db).get_stats(
-            carbon_report_module_id=carbon_report_module_id,
-            aggregate_by="sius_code",
-            aggregate_field="fte",
-            data_entry_type_id=DataEntryTypeEnum.member.value,
-        )
-        student_total: float | None = await DataEntryService(db).get_total_per_field(
-            field_name="fte",
-            carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=DataEntryTypeEnum.student.value,
-        )
-        module_data.stats = {**member_stats, "student": student_total}
+        total_annual_fte = fte.total_fte
+        module_data.stats = {
+            **fte.member_fte_by_sius_code,
+            "student": fte.student_fte,
+        }
     else:
         module_data.stats = await DataEntryEmissionService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,

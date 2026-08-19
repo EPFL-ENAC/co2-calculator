@@ -16,6 +16,7 @@ from app.core.role_priority import pick_role_for_institutional_id, role_priority
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope
+from app.repositories.data_entry_repo import HeadcountFteBreakdown
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -526,8 +527,14 @@ async def test_get_module_headcount_does_not_raise_name_error():
 
     data_svc = MagicMock()
     data_svc.get_module_data = AsyncMock(return_value=module_data)
-    data_svc.get_total_per_field = AsyncMock(return_value=10.0)
-    data_svc.get_stats = AsyncMock(return_value={"10208": 5.0})
+    # #2050 Track I: the three FTE round trips collapsed into one call.
+    data_svc.get_headcount_fte_breakdown = AsyncMock(
+        return_value=HeadcountFteBreakdown(
+            total_fte=10.0,
+            student_fte=4.0,
+            member_fte_by_sius_code={"10208": 5.0},
+        )
+    )
 
     unit = MagicMock()
     unit.institutional_id = UNIT_IID
@@ -555,3 +562,4 @@ async def test_get_module_headcount_does_not_raise_name_error():
 
     assert result.totals.total_kg_co2eq is None
     assert result.totals.total_annual_fte == 10.0
+    assert result.stats == {"10208": 5.0, "student": 4.0}

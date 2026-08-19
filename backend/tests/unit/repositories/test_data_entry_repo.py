@@ -1830,3 +1830,83 @@ async def test_get_submodule_data_planner_headcount_uses_rollup_total(
     # dispatch has nothing observable to change. (It would be equivalent
     # anyway: the rollup row's primary_factor_id is min(leaf factor ids),
     # exactly what the generic path's func.min(primary_factor_id) produced.)
+
+
+# ======================================================================
+# #2050 Track I lever 2 — one query where the route made three
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_headcount_fte_breakdown_matches_the_three_queries_it_replaces(
+    db_session: AsyncSession,
+):
+    """The headcount branch of ``GET .../modules/{module_id}`` issued three
+    sequential round trips over the same table, same module and same
+    ``fte`` field: total FTE, member FTE grouped by sius_code, and student
+    FTE. On dev each round trip costs ~160ms (#2050 G2), so the count is
+    the cost, not the queries themselves.
+
+    Asserted as equivalence against the three calls it replaces rather
+    than against hand-written expected values: that is what makes it a
+    safe swap, and it cannot drift if either side changes.
+    """
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    # Two sius_codes for members, one student, plus an entry with no
+    # sius_code at all (get_stats labels that group "unknown") and one
+    # with no fte (a NULL that must not become 0.0 silently).
+    seed = [
+        (DataEntryTypeEnum.member, {"sius_code": "51", "fte": 2.0}),
+        (DataEntryTypeEnum.member, {"sius_code": "51", "fte": 3.5}),
+        (DataEntryTypeEnum.member, {"sius_code": "62", "fte": 1.25}),
+        (DataEntryTypeEnum.member, {"fte": 4.0}),
+        (DataEntryTypeEnum.student, {"sius_code": "51", "fte": 7.0}),
+        (DataEntryTypeEnum.student, {"sius_code": "51"}),
+    ]
+    for data_entry_type, data in seed:
+        db_session.add(
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=data_entry_type,
+                status=DataEntryStatusEnum.VALIDATED,
+                data=data,
+            )
+        )
+    await db_session.flush()
+
+    repo = DataEntryRepository(db_session)
+
+    expected_total = await repo.get_total_per_field(
+        field_name="fte",
+        carbon_report_module_id=module.id,
+        data_entry_type_id=None,
+    )
+    expected_member_stats = await repo.get_stats(
+        carbon_report_module_id=module.id,
+        aggregate_by="sius_code",
+        aggregate_field="fte",
+        data_entry_type_id=DataEntryTypeEnum.member.value,
+    )
+    expected_student_total = await repo.get_total_per_field(
+        field_name="fte",
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.student.value,
+    )
+
+    breakdown = await repo.get_headcount_fte_breakdown(
+        carbon_report_module_id=module.id
+    )
+
+    assert breakdown.total_fte == pytest.approx(expected_total)
+    assert breakdown.student_fte == pytest.approx(expected_student_total)
+    assert breakdown.member_fte_by_sius_code == expected_member_stats
+    # Guard against the equivalence passing vacuously on empty results.
+    assert breakdown.total_fte > 0
+    assert set(breakdown.member_fte_by_sius_code) == {"51", "62", "unknown"}
