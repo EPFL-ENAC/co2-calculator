@@ -3,7 +3,7 @@ status: in-progress
 issue: 2050
 last_updated: 2026-08-19
 title: "Backend compute performance — pod stability, worker split, request-path profiling"
-summary: "Six-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081); profile compute cost (Track C), which rules out a language rewrite; then fix the simulator-plan reference-year PATCH end to end — recalc and prefill N+1s, Pydantic's per-instance default_factory tax across every SQLModel table, Core INSERT…RETURNING, and Tracks D/E's redundant recomputes — taking it 960ms → 271.4ms (PRs #2083, #2152). Track F reopens the per-year prefill fan-out behind a 21.89s dev trace whose bottleneck is not traced SQL. Track G (2026-08-18) dates ~30 real dev/stage traces against the fix-merge timestamps: every slow stage trace predates #2050 entirely (stage is still pre-#2050, unrelated to any bug); dev's two biggest traces (80s, 21.89s) predate Track F's async-job fix; but plain module-detail GETs — never in this plan's scope — still cost 1-2.2s post-fix from the same connection-checkout + sequential-small-query pattern Tracks A/C/D/E already diagnosed and fixed elsewhere, and one 32s outlier has a genuinely untraced non-DB gap needing its own repro. Track H root-causes one of those G2 traces exactly: `planner_headcount` was missing from `get_submodule_data`'s `is_headcount_entry` tuple, so it fell through to an unfiltered whole-table `data_entry_emissions` aggregation (825ms) instead of the already-built, already-populated rollup-row fast path — a one-line fix, the highest-confidence item in the plan. A second 'critical' trace turned out to be stage's SQL instrumentation being off by design (C1's OTel-tax follow-up), not a new blind spot. Track I (2026-08-19) answers a process-pool/worker-count proposal against this plan's own measurements (rejected, same ceiling that closed the Rust question), confirms Track B is live on dev/stage but **entirely absent on prod**, and ships fixes for 310-e item 8's never-done sync-in-async audit — a synchronous Loki log handler on the root logger, an unthreaded audit→Elasticsearch sync (independently corroborated live by Track G3's own trace), and unthreaded connector-credential decryption — plus a read-only confirmation that DB-pool exhaustion is pod-local (SQLAlchemy QueuePool, 30/pod) rather than Postgres-side (27/100 in use), and a proposal to instrument the pool metric that answers that question without a manual kubectl exec next time. Track J (2026-08-19) delivers what Track H exposed and what H8 scoped: prepare_create had six silent fallbacks that published a wrong-but-plausible total (a dropped emission leaf, an unresolvable year used anyway, an unmapped type, a wrong-year factor, a factor_id resolving to nothing, an unflushed id) — all now raise, with two impossible-state guards deleted outright; and the headcount module GET's three sequential FTE round trips collapse into one GROUP BY. Lever 1 (the 289-620ms per-request `connect` span) deliberately ships nothing: the span turns out to wrap pool *checkout*, not physical connect, so G2's reading of it was wrong, and A3's 1-core recommendation is unapplyable at 3 replicas under a documented 2-core namespace quota — both remaining options need numbers that arrive free from H6's now-merged 100%-sampled SQL tracing. Track J then took the interactive write path from 50 SQL statements to 12 (24 factor lookups to 1) across eight measured steps, each holding its gain with a ratchet in a Postgres-backed statement-budget test, without making anything the caller reads back eventually consistent."
+summary: "Six-track plan against dev-platform slowness and intermittent 504s: bound /ready and move job dispatch off API pods (Tracks A/B, PR #2081); profile compute cost (Track C), which rules out a language rewrite; then fix the simulator-plan reference-year PATCH end to end — recalc and prefill N+1s, Pydantic's per-instance default_factory tax across every SQLModel table, Core INSERT…RETURNING, and Tracks D/E's redundant recomputes — taking it 960ms → 271.4ms (PRs #2083, #2152). Track F reopens the per-year prefill fan-out behind a 21.89s dev trace whose bottleneck is not traced SQL. Track G (2026-08-18) dates ~30 real dev/stage traces against the fix-merge timestamps: every slow stage trace predates #2050 entirely (stage is still pre-#2050, unrelated to any bug); dev's two biggest traces (80s, 21.89s) predate Track F's async-job fix; but plain module-detail GETs — never in this plan's scope — still cost 1-2.2s post-fix from the same connection-checkout + sequential-small-query pattern Tracks A/C/D/E already diagnosed and fixed elsewhere, and one 32s outlier has a genuinely untraced non-DB gap needing its own repro. Track H root-causes one of those G2 traces exactly: `planner_headcount` was missing from `get_submodule_data`'s `is_headcount_entry` tuple, so it fell through to an unfiltered whole-table `data_entry_emissions` aggregation (825ms) instead of the already-built, already-populated rollup-row fast path — a one-line fix, the highest-confidence item in the plan. A second 'critical' trace turned out to be stage's SQL instrumentation being off by design (C1's OTel-tax follow-up), not a new blind spot. Track I (2026-08-19) answers a process-pool/worker-count proposal against this plan's own measurements (rejected, same ceiling that closed the Rust question), confirms Track B is live on dev/stage but **entirely absent on prod**, and ships fixes for 310-e item 8's never-done sync-in-async audit — a synchronous Loki log handler on the root logger, an unthreaded audit→Elasticsearch sync (independently corroborated live by Track G3's own trace), and unthreaded connector-credential decryption — plus a read-only confirmation that DB-pool exhaustion is pod-local (SQLAlchemy QueuePool, 30/pod) rather than Postgres-side (27/100 in use), and a proposal to instrument the pool metric that answers that question without a manual kubectl exec next time. Track J (2026-08-19) delivers what Track H exposed and what H8 scoped: prepare_create had six silent fallbacks that published a wrong-but-plausible total (a dropped emission leaf, an unresolvable year used anyway, an unmapped type, a wrong-year factor, a factor_id resolving to nothing, an unflushed id) — all now raise, with two impossible-state guards deleted outright; and the headcount module GET's three sequential FTE round trips collapse into one GROUP BY. Lever 1 (the 289-620ms per-request `connect` span) deliberately ships nothing: the span turns out to wrap pool *checkout*, not physical connect, so G2's reading of it was wrong, and A3's 1-core recommendation is unapplyable at 3 replicas under a documented 2-core namespace quota — both remaining options need numbers that arrive free from H6's now-merged 100%-sampled SQL tracing. Track J then took the interactive write path from 50 SQL statements to 12 (24 factor lookups to 1) across eight measured steps, each holding its gain with a ratchet in a Postgres-backed statement-budget test, without making anything the caller reads back eventually consistent. J8 then found the submodule GET aggregating the entire data_entry_emissions table on every request - 444.6ms of a 475ms trace, for a submodule holding one entry - and restricted it to the module, 7.5x faster at 1M rows; that same trace also shows connection checkout at 1.7ms rather than G2's 289-620ms, which if it holds retires lever 1 entirely."
 ---
 
 # Backend compute performance (#2050)
@@ -3129,17 +3129,94 @@ in the write-path plan's Outcome section, along with three incidental findings
 an index partial only on Postgres, and the integration schema coming from
 `create_all` rather than Alembic).
 
+### J8 — the submodule GET was aggregating the whole emissions table
+
+`GET /carbon-reports/{id}/modules/process-emissions/process_emissions` took
+**648ms on dev** for a submodule holding **one** entry and returning **947
+bytes** — on the same page where the `POST` that created it took 85.7ms.
+
+Trace `a58c5e` (dev, 2026-08-19) attributes the 475.1ms it captured with no
+ambiguity at all:
+
+|                               | ms        | share   |
+| ----------------------------- | --------- | ------- |
+| connection checkout           | 1.7       | 0.4%    |
+| 8 identity/permission queries | ~15       | 3%      |
+| **the page query**            | **444.6** | **94%** |
+| `count(*)`                    | 3.5       | 0.7%    |
+
+**The cause.** The page query's aggregation subquery carried no module
+restriction, so it grouped every row in `data_entry_emissions` (250k-1M in
+real environments) and the join then discarded all but this page's. The outer
+`WHERE` cannot narrow it: a predicate cannot be pushed through a `GROUP BY`.
+
+```sql
+LEFT OUTER JOIN (
+  SELECT data_entry_id, sum(kg_co2eq), min(primary_factor_id)
+  FROM data_entry_emissions
+  WHERE emission_type_id NOT IN (rollup ids)
+  GROUP BY data_entry_id            -- the whole table, every request
+) AS anon_1 ON data_entries.id = anon_1.data_entry_id
+WHERE data_entries.carbon_report_module_id = ...
+```
+
+This is the same defect [Track H](#track-h--the-825ms-submodule-get-root-caused-the-critical-patch-explained)
+fixed for headcount by reading its rollup row — still live for every type
+resolving through the generic branch: process emissions, equipment, purchases,
+research facilities, external cloud/AI. And it is the same shape
+`get_professional_travel_trip_legs` **already** restricts by `data_entry_id`,
+with a comment reading _"(~700k rows) on every call ... dominates the query
+(seconds on a cold cache)"_. Somebody hit this before and fixed one call site;
+the two hot ones never got it.
+
+**The fix** (PR #2195) applies that same restriction to the generic branch and
+to the buildings fallback aggregation, which had it too. Measured against 1M
+background rows:
+
+|        | 50k rows | 1M rows | ratio    |
+| ------ | -------- | ------- | -------- |
+| before | 10.8 ms  | 68.7 ms | **×6.3** |
+| after  | 4.2 ms   | 9.2 ms  | **×2.2** |
+
+7.5× faster at production volume; the 444ms query should land near 60ms on
+dev, and the whole GET near 80ms. `get_stats` and `recompute_stats` were
+checked and are already scoped — they join `data_entries` and filter on the
+module before grouping, so the two fixed sites were the only unrestricted ones.
+
+**Two things this trace settles beyond the fix:**
+
+1. **`connect` was 1.7ms**, not the 289-620ms G2 recorded on 2026-08-18. If
+   that holds across other dev traces, **lever 1 is dead** and should be
+   struck rather than left standing as the supposed next big win. One or two
+   more traces decide it — see the priority order below.
+2. **Statement count was not the problem here** — 12 statements, 11 of them
+   ≈2ms. J4's write-path work and this are different failure modes: round-trip
+   count versus a single query doing unbounded work. Both needed measuring
+   before they could be told apart.
+
+**Method note worth keeping.** The regression test asserts _scaling
+invariance_, not a wall-clock budget, for the reason Track H's own perf test
+records: local hardware is fast enough that an absolute millisecond budget
+passes on the broken query too. The slope discriminates, and the slope is
+hardware-independent.
+
 ### Track J priority order
 
-1. **Read the `connect` breakdown** off a post-H6 dev trace. One trace
-   answers the question lever 1 has been blocked on since G2.
-2. **`kubectl describe quota`** on the dev namespace — the other missing
-   number, and it bounds every CPU option.
-3. **Then** pick lever 1's fix from evidence.
-4. **Widen J2's batching** to the non-headcount branch if a G2 trace shows
-   it there too.
-5. **Thread the resolved report/module through the write workflow** — J4's
-   duplicate reads, ~7 statements, no new architecture.
+1. ~~**Read the `connect` breakdown** off a post-H6 dev trace.~~ **Done** —
+   trace `a58c5e` shows **1.7ms**, not 289-620ms. Confirm on one or two more
+   dev traces, then **strike lever 1**: if checkout is no longer expensive,
+   the 300-600ms it promised does not exist, and leaving it in this plan
+   points the next person at a solved problem.
+2. **Verify the J8 fix on dev** with a trace of the same GET, plus one on a
+   submodule with many rows (equipment or purchases) to confirm cost now
+   tracks the page's own rows rather than the table.
+3. **Find a slow request that is _not_ this pattern.** Both large findings so
+   far — H's 825ms and J8's 648ms — were the same defect. What is unmeasured
+   is whichever endpoint is slow for a different reason.
+4. ~~**Widen J2's batching** to the non-headcount branch~~ — superseded: J8
+   shows the non-headcount cost was this aggregation, not round trips.
+5. ~~**Thread the resolved report/module through the write workflow**~~ —
+   **done** in J4 (PR #2191).
 6. **Audit the remaining fallback sites** listed but not converted in J1's
    sweep — `_get_report_for_data_entry` returning None on a missing
    module, the cross-unit `source_data_entry_id` rejection, and the
