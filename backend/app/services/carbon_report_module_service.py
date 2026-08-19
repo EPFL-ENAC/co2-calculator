@@ -465,23 +465,7 @@ class CarbonReportModuleService:
         emission_repo = DataEntryEmissionRepository(self.session)
         pairs = await emission_repo.get_stats_pair_many(carbon_report_module_ids)
 
-        count_rows = (
-            await self.session.execute(
-                select(
-                    col(DataEntry.carbon_report_module_id),
-                    func.count(),
-                )
-                .where(
-                    col(DataEntry.carbon_report_module_id).in_(
-                        carbon_report_module_ids
-                    ),
-                )
-                .group_by(col(DataEntry.carbon_report_module_id))
-            )
-        ).all()
-        counts = {module_id: count for module_id, count in count_rows}
-
-        fte_by_module = await self._headcount_fte_by_module(modules)
+        counts, fte_by_module = await self._entry_counts_and_fte(modules)
         year_by_report = await self._years_by_report(modules)
 
         now_utc = int(datetime.now(UTC).timestamp())
@@ -540,28 +524,42 @@ class CarbonReportModuleService:
         """
         await self.recompute_stats_many([carbon_report_module_id])
 
-    async def _headcount_fte_by_module(
+    async def _entry_counts_and_fte(
         self, modules: Sequence[CarbonReportModule]
-    ) -> dict[int, float]:
-        """Sum FTE per headcount module so its stats carry total_fte."""
-        headcount_ids = [
+    ) -> tuple[dict[int, int], dict[int, float]]:
+        """Entry count per module and FTE sum per headcount module, one query.
+
+        #2050 J4: these were two grouped queries over the same table for the
+        same module ids. The headcount-only restriction on the FTE sum is
+        applied in Python — filtering it in SQL is what forced the second
+        query, and a non-headcount module must still carry no FTE at all.
+        """
+        module_ids = [m.id for m in modules if m.id is not None]
+        if not module_ids:
+            return {}, {}
+        headcount_ids = {
             m.id
             for m in modules
             if m.id is not None and m.module_type_id == ModuleTypeEnum.headcount
-        ]
-        if not headcount_ids:
-            return {}
+        }
         rows = (
             await self.session.execute(
                 select(
                     col(DataEntry.carbon_report_module_id),
+                    func.count(),
                     func.sum(DataEntry.data["fte"].as_float()),
                 )
-                .where(col(DataEntry.carbon_report_module_id).in_(headcount_ids))
+                .where(col(DataEntry.carbon_report_module_id).in_(module_ids))
                 .group_by(col(DataEntry.carbon_report_module_id))
             )
         ).all()
-        return {module_id: float(total or 0.0) for module_id, total in rows}
+        counts = {module_id: count for module_id, count, _ in rows}
+        fte = {
+            module_id: float(total or 0.0)
+            for module_id, _, total in rows
+            if module_id in headcount_ids
+        }
+        return counts, fte
 
     async def _years_by_report(
         self, modules: Sequence[CarbonReportModule]
