@@ -2553,6 +2553,102 @@ Shipping a pool pre-warm or a `pre_ping` flip before that would be a guess
 dressed as a safe default, and would muddy the very measurement that
 settles it.
 
+### I4 — the interactive write, measured: 50 statements → 29
+
+The lead's read of the POST path (2026-08-19): _"that's like way way too
+many span/statement and sql statements; my guidelines is like 2-3
+statements max per http request... this is a complete workflow, this should
+not live inside a single HTTP request"_, with a proposal to move it to a
+job and show a "computing" state.
+
+The shape of that diagnosis was right. Three of the specific costs were
+not, and the real one was somewhere nobody had looked. New test
+`tests/integration/services/data_ingestion/test_headcount_post_statement_budget_pg.py`
+counts statements through the real HTTP route on real Postgres.
+
+**Baseline: 50 statements for one headcount-member POST.**
+
+| statements | what                                                                   |
+| ---------- | ---------------------------------------------------------------------- |
+| 1-5        | identity + permission resolve, denormalized scope                      |
+| 6          | `INSERT data_entries`                                                  |
+| 7-11       | audit document (re-reads the entry and module, version select, insert) |
+| 12-14      | report/module re-read to resolve the factor year                       |
+| **15-38**  | **24 × `SELECT factors`**                                              |
+| 39-40      | pre-delete select, then **one** batched emissions INSERT               |
+| 41-46      | `recompute_stats_many` — set-based                                     |
+| 47-50      | report rollup                                                          |
+
+What this settles:
+
+- **Emission INSERTs were never the problem.** `bulk_create` is
+  `add_all` + one `flush`, which Postgres batches into a single statement.
+  The "10-20 inserts" was 10-20 ORM objects, one round trip.
+- **Stats recompute was never the problem either.** `recompute_stats` is a
+  thin wrapper over the already-set-based `recompute_stats_many`; module +
+  report cost ~10 statements between them, and there is no project-level
+  recompute in this path at all.
+- **The N+1 was Strategy B3 in `_fetch_factors`**, which looped
+  `get_subtree_leaves(q.emission_type)` and issued one query _per leaf_.
+  Headcount's three roots (food/waste/commuting) expand to 24 leaves → 24
+  queries. Fixed with one `IN` over the subtree, which the code already had
+  in hand before the first query. **Now 29 statements, 3 factor lookups.**
+
+**Two wrong turns the measurement caught**, both worth keeping on record
+because both were plausible enough to have shipped:
+
+1. My first fix memoized Strategy B for interactive callers — every bulk
+   path passes a `factor_query_cache` and no interactive path did, which
+   looked exactly like the gap. The count did not move by one statement:
+   all 24 lookups are **distinct**, so no memo can collapse them. The
+   harness now reports `distinct_factor_lookups` next to the total, since
+   that single number is what separates "the same query repeated" (memo) from
+   "a different query per leaf" (one combined query).
+2. The rig first used the conftest's asyncpg engine; it now uses psycopg3 to
+   match `app/db.py`. Statement batching is driver-dependent, so counting on
+   the wrong driver measures the wrong thing.
+
+**Incidental finding, not fixed:** `audit_documents.changed_at` is
+`TIMESTAMP WITHOUT TIME ZONE` but the audit writer hands it a tz-aware
+`datetime.now(UTC)`. psycopg accepts it by silently dropping the tzinfo;
+asyncpg refuses outright. Production is psycopg so nothing is broken today,
+but the column and the value disagree, and every stored audit timestamp has
+had its offset discarded rather than converted.
+
+### I5 — on moving the write to a job
+
+The proposal is feasible: `fire_and_forget_or_defer_to_poller` already
+gives immediate in-process dispatch with the 2s poller only as a safety
+net, SSE exists, and `recompute_stats_many` **already** bumps a module to
+`IN_PROGRESS` when its data changes. The plumbing is largely built.
+
+It is still not the next move, for two reasons:
+
+1. **Most of the cost was not work that needed moving.** 21 of the 50
+   statements were a query pattern, not a workload. Offloading would have
+   moved the same 24 factor queries off the request and left the user
+   watching a spinner for them.
+2. **It reintroduces the failure Track I just removed.** An
+   `emissions: computing` state means the table, graph, module total, report
+   total _and the validation gate_ must each render "not final yet"
+   honestly. That is a correct use of a status, but it is a wide surface,
+   and the validation gate is the sharp edge — a module must not be
+   validatable while its stats are known-stale.
+
+**The split worth building, if 29 is still too many:** keep synchronous
+exactly what the user is looking at (entry insert, emissions insert, this
+module's stats) and offload only the report/project rollups, which nobody
+is watching and which the runner already handles. That needs no new status.
+
+On the 2-3 statement guideline: reachable for reads, not for a write that
+must return a recomputed total. The irreducible floor here is roughly 6-8.
+The nearest remaining win is the **duplicate reads**: statements 1-5 resolve
+the report and module, then 7-8 and 12-14 read them again, because
+`DataEntryService`, `DataEntryEmissionService` and
+`CarbonReportModuleService` are constructed separately and each memoizes
+per instance. Threading the already-resolved pair through the workflow
+should take 29 to roughly 22 with no architectural change.
+
 ### Track I priority order
 
 1. **Read the `connect` breakdown** off a post-H6 dev trace. One trace
@@ -2562,7 +2658,9 @@ settles it.
 3. **Then** pick lever 1's fix from evidence.
 4. **Widen I2's batching** to the non-headcount branch if a G2 trace shows
    it there too.
-5. **Audit the remaining fallback sites** listed but not converted in I1's
+5. **Thread the resolved report/module through the write workflow** — I4's
+   duplicate reads, ~7 statements, no new architecture.
+6. **Audit the remaining fallback sites** listed but not converted in I1's
    sweep — `_get_report_for_data_entry` returning None on a missing
    module, the cross-unit `source_data_entry_id` rejection, and the
    invalid-percentage / invalid-override parses. Each needs its own
