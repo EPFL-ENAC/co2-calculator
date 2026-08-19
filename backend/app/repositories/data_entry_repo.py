@@ -36,7 +36,7 @@ logger = get_logger(__name__)
 
 
 class HeadcountFteBreakdown(BaseModel):
-    """The three FTE figures the headcount module page needs (#2050 I2)."""
+    """The three FTE figures the headcount module page needs (#2050 J2)."""
 
     total_fte: float
     student_fte: float

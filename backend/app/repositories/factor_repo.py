@@ -428,7 +428,7 @@ class FactorRepository:
 
         Strategy B3 resolves a whole emission subtree, and used to call
         a since-removed per-type lookup once per leaf — 24 queries for one
-        headcount member POST, measured (#2050 I4). The subtree is known up
+        headcount member POST, measured (#2050 J4). The subtree is known up
         front, so it belongs in one ``IN``.
 
         Args:

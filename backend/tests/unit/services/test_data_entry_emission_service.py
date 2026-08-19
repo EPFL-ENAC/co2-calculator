@@ -510,7 +510,7 @@ class TestApplyFormula:
         assert result == pytest.approx(200.0)
 
     def test_missing_quantity_raises_naming_the_entry_field(self):
-        """#2050 Track I: returned None, and the caller dropped the leaf."""
+        """#2050 Track J: returned None, and the caller dropped the leaf."""
         from app.models.data_entry_emission import EmissionComputation
         from app.modules.emissions import EmissionType
 
@@ -528,7 +528,7 @@ class TestApplyFormula:
             service._apply_formula(ctx, factor_values, comp)
 
     def test_missing_formula_key_raises_naming_the_factor_field(self):
-        """#2050 Track I: returned None, and the caller dropped the leaf."""
+        """#2050 Track J: returned None, and the caller dropped the leaf."""
         from app.models.data_entry_emission import EmissionComputation
         from app.modules.emissions import EmissionType
 
@@ -544,7 +544,7 @@ class TestApplyFormula:
             service._apply_formula(ctx, factor_values, comp)
 
     def test_no_keys_raises_as_a_misconfiguration(self):
-        """#2050 Track I: a computation with neither a formula_func nor the
+        """#2050 Track J: a computation with neither a formula_func nor the
         key pair cannot be computed at all — that is a configuration bug,
         not a data gap, and it used to return None like any other.
         """
@@ -580,7 +580,7 @@ class TestApplyFormula:
         assert result == pytest.approx(15.0)
 
     def test_formula_func_returning_none_raises_with_the_null_inputs(self):
-        """#2050 Track I: the common real case (an unmatched reference-data
+        """#2050 Track J: the common real case (an unmatched reference-data
         lookup) lands here, and the old call-site diagnostic printed two
         empty lists for it because it only knew about key-based configs.
         The reason has to come from here, where the branch is known.
@@ -603,7 +603,7 @@ class TestApplyFormula:
 
 
 class TestPrepareCreate:
-    # #2050 Track I: the former ``test_none_data_entry`` and
+    # #2050 Track J: the former ``test_none_data_entry`` and
     # ``test_no_data_entry_type`` cases are gone with the guards they
     # pinned. Both described states the types make impossible —
     # ``prepare_create`` takes ``DataEntry | DataEntryResponse`` (not
@@ -2152,7 +2152,7 @@ class TestPercentageOverrideSnapshotSource:
 
 
 # ---------------------------------------------------------------------------
-# #2050 Track I — prepare_create fails hard instead of publishing a
+# #2050 Track J — prepare_create fails hard instead of publishing a
 # wrong-but-plausible number
 # ---------------------------------------------------------------------------
 #
@@ -2192,7 +2192,7 @@ def _patched_handler(computations: list[EmissionComputation]):
 
 @pytest.mark.asyncio
 async def test_prepare_create_raises_when_a_formula_returns_none():
-    """#2050 Track I: the leaf-dropping fallback that started this.
+    """#2050 Track J: the leaf-dropping fallback that started this.
 
     A factor missing the key the formula needs used to log a warning and
     ``continue``, so an entry declaring three leaves silently produced
@@ -2235,7 +2235,7 @@ async def test_prepare_create_raises_when_a_formula_returns_none():
 
 @pytest.mark.asyncio
 async def test_prepare_create_raises_on_unhandled_data_entry_type():
-    """#2050 Track I: an unmapped type used to return [] — zero emissions,
+    """#2050 Track J: an unmapped type used to return [] — zero emissions,
     indistinguishable from an entry that genuinely emits nothing.
     """
     service = _make_service()
@@ -2257,7 +2257,7 @@ async def test_prepare_create_raises_on_unhandled_data_entry_type():
 
 @pytest.mark.asyncio
 async def test_prepare_create_raises_when_year_cannot_be_determined():
-    """#2050 Track I: this site logged "factors may not match" and then
+    """#2050 Track J: this site logged "factors may not match" and then
     used the mismatched factors anyway — it named its own defect in the
     log line and carried on.
     """
@@ -2279,7 +2279,7 @@ async def test_prepare_create_raises_when_year_cannot_be_determined():
 
 @pytest.mark.asyncio
 async def test_fetch_factors_raises_when_the_factor_is_the_wrong_year():
-    """#2050 Track I: a factor from the wrong year made ``_fetch_factors``
+    """#2050 Track J: a factor from the wrong year made ``_fetch_factors``
     return [], so the leaf loop never ran — a silent zero that also slips
     past the missing-key raise, because there is no factor left to fail on.
     """
@@ -2302,7 +2302,7 @@ async def test_fetch_factors_raises_when_the_factor_is_the_wrong_year():
 
 @pytest.mark.asyncio
 async def test_fetch_factors_raises_when_a_referenced_factor_is_missing():
-    """#2050 Track I: the quietest site of all — a computation naming a
+    """#2050 Track J: the quietest site of all — a computation naming a
     factor_id that resolves to nothing returned [] with no log line at
     all, so the entry contributed zero and left no evidence.
     """

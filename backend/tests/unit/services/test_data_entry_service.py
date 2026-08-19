@@ -569,7 +569,7 @@ async def test_get_stats(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_get_headcount_fte_breakdown(db_session: AsyncSession):
-    """All three headcount FTE figures come back from one query (#2050 I2)."""
+    """All three headcount FTE figures come back from one query (#2050 J2)."""
     service = DataEntryService(db_session)
 
     # Create test module
@@ -779,7 +779,7 @@ async def test_submodule_read_writes_no_audit_row(
 async def test_create_returns_fully_populated_response_without_refresh(
     db_session: AsyncSession,
 ):
-    """#2050 I4: ``create`` no longer refreshes the row it just inserted, so
+    """#2050 J4: ``create`` no longer refreshes the row it just inserted, so
     every field the response carries must already be populated. A column with
     a database-side default (rather than a Python-side one) would come back
     None here — that is what this test is for.

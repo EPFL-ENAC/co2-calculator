@@ -358,7 +358,7 @@ async def test_building_room_without_ref_data_fails_loudly(pg_dsn):
     ``BuildingRoomService.get_room`` returns ``None``, so the formula's
     surface input is ``None`` and no leaf can be computed.
 
-    #2050 Track I changed what happens next. This used to drop every
+    #2050 Track J changed what happens next. This used to drop every
     leaf silently ("skip, not default"), which left the building
     contributing **zero** to its unit's total — a wrong total that looks
     complete, which the guardrails rank as the worst failure this project

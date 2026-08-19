@@ -272,7 +272,7 @@ class DataEntryService:
         # top level domain)
         await self.session.flush()
         # No refresh: INSERT … RETURNING already supplied ``id``, and every
-        # other column was set in Python before the flush (#2050 I4 — one of
+        # other column was set in Python before the flush (#2050 J4 — one of
         # two SELECTs that re-read a row we had just written).
 
         if not await self.is_simulator_module(carbon_report_module_id):

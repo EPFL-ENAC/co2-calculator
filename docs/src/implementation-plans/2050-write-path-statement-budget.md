@@ -3,7 +3,7 @@ status: in-progress
 issue: 2050
 last_updated: 2026-08-19
 title: "Write-path statement budget — 29 SQL statements to 8"
-summary: "Implementation plan for the interactive write path's statement-count reduction (#2050 Track I4/I5). One headcount-member POST costs 29 SQL statements after the B3 subtree fix (50 before), and twelve of them re-read three rows because four services are each constructed with only a session and re-derive identity independently. Eight tasks, each lowering the STATEMENT_BUDGET ratchet in test_headcount_post_statement_budget_pg.py: drop two redundant session.refresh calls, skip the audit head lookup on CREATE, skip the pre-delete SELECT on create, merge the count and FTE aggregates, thread the resolved (report, project, module) through the workflow, batch factor prefetch across emission roots, dispatch the report rollup, and replace the member uniqueness pre-check with a unique index. Lands at 8, against an irreducible synchronous floor of 7 for 'insert an entry and return fresh module stats'."
+summary: "Implementation plan for the interactive write path's statement-count reduction (#2050 Track J4/I5). One headcount-member POST costs 29 SQL statements after the B3 subtree fix (50 before), and twelve of them re-read three rows because four services are each constructed with only a session and re-derive identity independently. Eight tasks, each lowering the STATEMENT_BUDGET ratchet in test_headcount_post_statement_budget_pg.py: drop two redundant session.refresh calls, skip the audit head lookup on CREATE, skip the pre-delete SELECT on create, merge the count and FTE aggregates, thread the resolved (report, project, module) through the workflow, batch factor prefetch across emission roots, dispatch the report rollup, and replace the member uniqueness pre-check with a unique index. Lands at 8, against an irreducible synchronous floor of 7 for 'insert an entry and return fresh module stats'."
 ---
 
 # Write-path statement budget: 29 → 8 (#2050)
@@ -28,7 +28,7 @@ the caller reads back stays synchronous and fresh.
 psycopg3, Alembic, pytest + testcontainers.
 
 **Spec:** [`2050-backend-compute-performance.md`](2050-backend-compute-performance.md)
-— Track I4 is the measurement this plan acts on, Track I5 is the recorded
+— Track J4 is the measurement this plan acts on, Track J5 is the recorded
 decision on why the write stays synchronous. Read both before Task 1.
 
 ## Global Constraints
@@ -170,7 +170,7 @@ show "computing" in the UI. Three reasons that is not this plan:
    and shown a spinner for them.
 2. **Tasks 1–6 reach 13 with no async at all**, so the latency argument for
    dispatching the user-visible half is spent.
-3. **It re-creates the failure Track I just removed.** An
+3. **It re-creates the failure Track J just removed.** An
    `emissions: computing` state means the table, graph, module total, report
    total _and the validation gate_ must each render "not final yet" honestly.
    The validation gate is the sharp edge: a module must not be validatable
@@ -333,7 +333,7 @@ with:
         # top level domain)
         await self.session.flush()
         # No refresh: INSERT … RETURNING already supplied ``id``, and every
-        # other column was set in Python before the flush (#2050 I4 — this
+        # other column was set in Python before the flush (#2050 J4 — this
         # was one of two SELECTs that re-read a row we just wrote).
 ```
 
@@ -350,7 +350,7 @@ with:
 
 ```python
         # No refresh: the row's values were all set above, and ``id`` came
-        # back from the INSERT (#2050 I4).
+        # back from the INSERT (#2050 J4).
         logger.info(
 ```
 
@@ -488,7 +488,7 @@ In `create_version`, replace:
 with:
 
 ```python
-        # #2050 I4: a CREATE's entity id came from the sequence moments ago,
+        # #2050 J4: a CREATE's entity id came from the sequence moments ago,
         # so no prior version can exist — the FOR UPDATE head lookup locks
         # nothing and returns nothing. Skipping it removes one statement from
         # every interactive write. A real collision (two CREATEs for one id)
@@ -641,7 +641,7 @@ replace:
 with:
 
 ```python
-            # #2050 I4: ``create``, not ``upsert_by_data_entry`` — the entry
+            # #2050 J4: ``create``, not ``upsert_by_data_entry`` — the entry
             # was inserted three statements ago and cannot have emissions to
             # replace, so upsert's pre-delete lookup is a guaranteed-empty
             # SELECT. The update path keeps using upsert.
@@ -781,7 +781,7 @@ In `backend/app/services/carbon_report_module_service.py`, delete
     ) -> tuple[dict[int, int], dict[int, float]]:
         """Entry count per module and FTE sum per headcount module, one query.
 
-        #2050 I4: these were two grouped queries over the same table for the
+        #2050 J4: these were two grouped queries over the same table for the
         same module ids. The headcount-only restriction on the FTE sum is
         applied in Python, since filtering it in SQL is what forced the
         second query.
@@ -984,7 +984,7 @@ Expected: FAIL — `module 'app.api.v1.carbon_report_module' has no attribute 'W
 Create `backend/app/schemas/write_scope.py`:
 
 ```python
-"""The identity an interactive write already resolved (#2050 I4).
+"""The identity an interactive write already resolved (#2050 J4).
 
 ``resolve_report_module`` reads the carbon report, its project and the
 module before any route body runs. Four services then re-derived the same
@@ -1060,7 +1060,7 @@ async def resolve_write_scope(
     Same resolution as :func:`resolve_report_module`, but it keeps the
     project type that plan scoping already loaded instead of throwing it
     away — that one fact is what ``is_simulator_module`` needed its own
-    three-table JOIN to answer (#2050 I4).
+    three-table JOIN to answer (#2050 J4).
     """
     report, module = await resolve_report_module(
         carbon_report_id, module_id, db, current_user, action
@@ -1213,7 +1213,7 @@ query:
 and immediately after the docstring, before the `module_ids` set is built:
 
 ```python
-        # #2050 I4: an interactive write already resolved the report, so the
+        # #2050 J4: an interactive write already resolved the report, so the
         # year/unit stamp needs no query of its own. Bulk callers pass no
         # scope and keep the batched lookup below.
         if scope is not None and scope.module.id is not None:
@@ -1241,7 +1241,7 @@ In `prepare_create`, seed the existing per-instance memo from the scope so
 memo that already exists rather than adding a second mechanism:
 
 ```python
-        # #2050 I4: the route already resolved this module's report. Seeding
+        # #2050 J4: the route already resolved this module's report. Seeding
         # the existing memo means _get_report_for_data_entry (and the year
         # resolution below) cost nothing, instead of re-reading the module,
         # report and project.
@@ -1297,7 +1297,7 @@ Inside, replace:
 with:
 
 ```python
-        # #2050 I4: an interactive write knows its report's year already.
+        # #2050 J4: an interactive write knows its report's year already.
         year_by_report = prefetched_years or await self._years_by_report(modules)
 ```
 
@@ -1467,7 +1467,7 @@ In `backend/app/services/data_entry_emission_service.py`:
     ) -> None:
         """Resolve every Strategy-B3 criteria in these computations at once.
 
-        #2050 I4: ``_fetch_factors`` queried one subtree per emission root —
+        #2050 J4: ``_fetch_factors`` queried one subtree per emission root —
         three for a headcount member. All the subtrees are known before the
         first query, so one ``IN`` covers them, and the per-criteria results
         are seeded into the cache ``_fetch_factors`` already consults.
@@ -1534,7 +1534,7 @@ extract it into a shared helper. In `_fetch_factors`, replace the inline
 
         Extracted so ``_prime_factor_query_cache`` and ``_fetch_factors``
         cannot drift — two spellings of this tuple would silently make the
-        prime a no-op (#2050 I4).
+        prime a no-op (#2050 J4).
         """
         return (
             q.data_entry_type,
@@ -1555,7 +1555,7 @@ emission-type loop. Hoist the resolution, prime, then iterate:
 ```python
         # Resolve every computation up front so the factor prefetch below
         # sees all of them, then prime the Strategy-B memo in one query
-        # (#2050 I4). resolve_computations is pure, so hoisting it also stops
+        # (#2050 J4). resolve_computations is pure, so hoisting it also stops
         # it running twice.
         computations_by_type: list[tuple[EmissionType, list[EmissionComputation]]] = [
             (emission_type, handler.resolve_computations(data_entry, emission_type, ctx))
@@ -1575,7 +1575,7 @@ default it once near the top of `prepare_create`:
 
 ```python
         # A cache scoped to one invocation cannot go stale — factors do not
-        # change mid-call — so interactive callers get one too (#2050 I4).
+        # change mid-call — so interactive callers get one too (#2050 J4).
         if factor_query_cache is None:
             factor_query_cache = {}
 ```
@@ -1670,7 +1670,7 @@ the user just created, and nothing the caller reads back depends on it.
 Create `backend/tests/integration/services/data_ingestion/test_report_rollup_dispatch_pg.py`:
 
 ```python
-"""#2050 I4: the report rollup runs after the response, not inside it.
+"""#2050 J4: the report rollup runs after the response, not inside it.
 
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
@@ -1737,7 +1737,7 @@ inline.
 Create `backend/app/tasks/report_rollup.py`:
 
 ```python
-"""Detached report-stats rollup (#2050 I4).
+"""Detached report-stats rollup (#2050 J4).
 
 A report's stats scan every module in the report, so the work grows with the
 report rather than with the entry a user just created — and nothing the
@@ -1803,7 +1803,7 @@ rolling them up itself. Replace:
 with:
 
 ```python
-        # #2050 I4: the report rollup is dispatched by the caller after the
+        # #2050 J4: the report rollup is dispatched by the caller after the
         # commit, not run here — it scans every module in the report, which
         # is work proportional to the report rather than to the entry that
         # triggered it.
@@ -1815,7 +1815,7 @@ Initialize it in `__init__` so the attribute always exists:
 
 ```python
         # Reports whose stats the last recompute left stale, for the caller
-        # to dispatch (#2050 I4).
+        # to dispatch (#2050 J4).
         self.stale_report_ids: set[int] = set()
 ```
 
@@ -1861,7 +1861,7 @@ returns:
         background_tasks=background_tasks,
         scope=scope,
     )
-    # #2050 I4: after the commit, so the detached rollup sees this write's
+    # #2050 J4: after the commit, so the detached rollup sees this write's
     # module stats.
     schedule_report_rollup({carbon_report_module.carbon_report_id})
 ```
@@ -1961,7 +1961,7 @@ concurrent POSTs both pass the check.
 Create `backend/tests/integration/services/data_ingestion/test_member_uniqueness_pg.py`:
 
 ```python
-"""#2050 I4: member role uniqueness is enforced by the database.
+"""#2050 J4: member role uniqueness is enforced by the database.
 
 The pre-check it replaces was both a statement and a check-then-act race.
 
@@ -2054,7 +2054,7 @@ false-positive `drop_index` calls it invented, and make its body exactly:
 
 ```python
 def upgrade() -> None:
-    # #2050 I4: replaces a check-then-act SELECT in the create workflow.
+    # #2050 J4: replaces a check-then-act SELECT in the create workflow.
     # Partial + expression index, so not expressible in model code: the key
     # lives inside the JSON ``data`` column and applies to member rows only.
     # A person can hold several roles in a unit, so sius_code is part of the
@@ -2116,7 +2116,7 @@ where a reader looks for it, in `backend/app/models/data_entry.py` on the
     # A unique partial expression index enforces one (module, person, role)
     # per member row — see the ``uq_member_role_per_module`` migration. It
     # cannot live here: the key is inside ``data`` and applies only to
-    # data_entry_type_id = member (#2050 I4).
+    # data_entry_type_id = member (#2050 J4).
 ```
 
 - [ ] **Step 5: Verify the DB rejects duplicates**
@@ -2158,7 +2158,7 @@ violation, so the HTTP contract is unchanged:
 ```python
         except IntegrityError as e:
             await self.session.rollback()
-            # #2050 I4: the member-role uniqueness pre-check is gone; the
+            # #2050 J4: the member-role uniqueness pre-check is gone; the
             # unique index reports the same condition, without the
             # check-then-act race two concurrent POSTs used to win.
             if "uq_member_role_per_module" in str(e.orig):
@@ -2188,7 +2188,7 @@ Append to `backend/tests/integration/services/data_ingestion/test_headcount_post
 async def test_duplicate_member_post_still_returns_422(
     pg_app, make_unit, make_carbon_report, make_carbon_report_module
 ):
-    """#2050 I4: the uniqueness pre-check became a unique index. The HTTP
+    """#2050 J4: the uniqueness pre-check became a unique index. The HTTP
     contract must not move — the frontend keys on this exact detail string.
     """
     async with pg_app["factory"]() as session:
@@ -2263,11 +2263,11 @@ cd backend && uv run pytest \
 
 - [ ] **Step 2: Add an I6 section to the 2050 plan**
 
-Under Track I, add a short `### I6 — delivered` section with: the final
+Under Track J, add a short `### J6 — delivered` section with: the final
 number, the eight tasks and what each saved, the final statement list, and
 anything that came out higher than this plan predicted (with the reason).
 Update that file's frontmatter `last_updated` and extend its `summary:` with
-one clause about I6, mirroring how I4/I5 were added.
+one clause about I6, mirroring how J4/J5 were added.
 
 - [ ] **Step 3: Flip this plan's status**
 

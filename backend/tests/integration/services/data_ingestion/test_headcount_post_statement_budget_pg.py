@@ -1,4 +1,4 @@
-"""Statement budget for the interactive headcount-member write (#2050 I4).
+"""Statement budget for the interactive headcount-member write (#2050 J4).
 
 The question this answers, from the lead: *"we POST a new data_entry for
 headcount_member and it does the following ... that's like way way too many
@@ -277,23 +277,23 @@ async def test_headcount_member_post_statement_budget(
     # the emissions INSERT, and this module's stats refresh are all
     # irreducible. What is *not* irreducible is per-emission-type factor
     # resolution — the bulk paths pass a shared FactorResolver and factor
-    # query cache, and this path passes none (#2050 I4).
+    # query cache, and this path passes none (#2050 J4).
     assert log.total <= STATEMENT_BUDGET, (
         f"one member POST issued {log.total} statements, budget is "
-        f"{STATEMENT_BUDGET} (#2050 I4).\n{log.breakdown()}\n{log.numbered()}"
+        f"{STATEMENT_BUDGET} (#2050 J4).\n{log.breakdown()}\n{log.numbered()}"
     )
     assert log.factor_lookups <= FACTOR_LOOKUP_BUDGET, (
         f"one member POST issued {log.factor_lookups} factor lookups for "
         f"{len(_HEADCOUNT_LEAVES)} emission leaves, budget is "
         f"{FACTOR_LOOKUP_BUDGET}. Factor resolution must not scale with the "
-        f"number of emission types on the entry (#2050 I4).\n{log.numbered()}"
+        f"number of emission types on the entry (#2050 J4).\n{log.numbered()}"
     )
 
 
 # Ratchets, measured on the seeded fixture above. Lower them when the path
 # gets cheaper; never raise them without a written reason in plan 2050.
 #
-# Baseline before #2050 I4: total=50, factor_lookups=24 for an entry with
+# Baseline before #2050 J4: total=50, factor_lookups=24 for an entry with
 # three emission leaves — eight factor queries per leaf, because Strategy B
 # walks a progressive fallback chain (B1..B4) and _fetch_factors memoizes it
 # only when the caller passes a factor_query_cache, which every bulk path

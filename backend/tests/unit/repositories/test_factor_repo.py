@@ -318,7 +318,7 @@ async def test_get_by_classification_override_handler_sql_includes_override_null
 
 
 # ======================================================================
-# #2050 I4 — one query for a whole emission subtree
+# #2050 J4 — one query for a whole emission subtree
 # ======================================================================
 
 
@@ -326,7 +326,7 @@ async def test_get_by_classification_override_handler_sql_includes_override_null
 async def test_list_by_emission_types_returns_all_types_in_one_query(db_session):
     """Strategy B3 used to loop ``get_subtree_leaves`` and issue one
     ``list_by_emission_type`` query per leaf — 24 queries for a single
-    headcount member POST (#2050 I4). This is the set-based replacement.
+    headcount member POST (#2050 J4). This is the set-based replacement.
     """
     repo = FactorRepository(db_session)
     wanted = [EmissionType.food__vegetarian, EmissionType.commuting__cycling]

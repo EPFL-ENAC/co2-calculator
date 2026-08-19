@@ -2407,410 +2407,6 @@ whether the fix is a config change or a lifespan change.
    `member`/`student`/`planner_headcount`/`building` alike.
 8. **H4's dev-side repro** of the stage PATCH — unblocked once H6 merges.
 
-## Track I — the two levers, 2026-08-19
-
-H8 named two levers between the merged Track H fix and a <200 ms dev
-response. This track is what came of starting them, on branch
-`fix/2050-track-h-levers`.
-
-### I1 — the silent fallbacks, removed
-
-Not originally a lever, but it turned out to sit underneath the Track H
-caveat and the lead escalated it: _"I really don't like those
-silent-fallback... It should fail hard."_ `prepare_create` had six ways to
-return a number that looked complete and was not:
-
-| site                            | was                                                      | now                                        |
-| ------------------------------- | -------------------------------------------------------- | ------------------------------------------ |
-| formula returns None            | `logger.warning` + `continue` — leaf dropped             | `raise ValueError` naming the missing keys |
-| year unresolvable               | `logger.warning("factors may not match")` then used them | `raise ValueError`                         |
-| unmapped data entry type        | `return []`                                              | `raise ValueError`                         |
-| factor from the wrong year      | `logger.warning` + `return []`                           | `raise ValueError`                         |
-| `factor_id` resolves to nothing | `return []`, **no log at all**                           | `raise ValueError`                         |
-| `data_entry.id is None`         | `logger.error` + `return []`                             | `raise ValueError`                         |
-
-Two further guards were **deleted** rather than converted — a `None`
-`data_entry` and a `None` `data_entry_type` describe states the types make
-impossible (the parameter is not optional; `data_entry_type` is a property
-over a non-nullable `int` column). Only a `MagicMock` ever reached them,
-and two tests existed that did exactly that. Per the guardrails' _"no
-guards for states the types make impossible"_, the guards and their tests
-went together.
-
-The last two rows matter more than they look: an empty factor list means
-the leaf loop never runs, so the entry contributes **zero** and the
-missing-key raise never fires. They were silent zeros hiding behind the
-loud failure.
-
-**Blast radius, checked before writing the raises rather than after.**
-`emission_recalculation.py:173-210` already records a per-entry failure in
-`error_details` and continues the batch; only session/connection-fatal
-errors abort. So these raises surface bad data per entry without stalling
-the pipeline that plans 1215/1219/1559/1723 exist to protect. Full unit
-suite green (2115).
-
-**Two things the unit suite structurally could not catch**, found by
-running `tests/integration/services/data_ingestion` (219 passed, plus one
-pre-existing failure in `test_submodule_sort_search_matrix_pg` verified
-failing identically with the pre-change service). Unit fixtures have
-complete factor data, so nothing there exercises these branches — the
-all-green unit run was weaker evidence than it looked.
-
-1. **The raise fired with an empty explanation.** `missing context keys
-[], missing factor keys []` — both lists empty, in the most common real
-   case. The call-site diagnostic only understood key-based computations; a
-   `formula_func` that declines has no keys to report. The reason now comes
-   from `_apply_formula`, the only place that knows which branch failed,
-   and it names the null input: _"Null inputs on the entry:
-   ['room_surface_square_meter']"_. `_apply_formula` returns `float` now,
-   not `float | None`.
-2. **One test pinned the old behaviour on purpose.**
-   `test_building_room_without_ref_data_skips_leaf_emissions` documented
-   the contract as _"That's 'skip', not 'default'."_ The intent was sound —
-   don't invent a number — but the effect was that a building whose room
-   is absent from reference data contributes **zero** to its unit's total.
-   That is a wrong total that looks complete, which the guardrails rank as
-   the worst failure this project can have. Renamed to `_fails_loudly`; it
-   now asserts the message names the missing input. **The data outcome is
-   unchanged** — the entry survives, no leaf rows are written — what
-   changed is that the gap appears in the job's `error_details` instead of
-   only in a log nobody reads.
-
-**Expect a flood on the first recalc after this merges.** With 250K-1M
-persisted entries and a DB that survives deploys, every entry with
-incomplete factor data now reports an error instead of quietly producing a
-partial number. That is the intended behaviour, not a regression, but it
-should be a stated expectation. The `year is None` raise is the widest of
-the six: any report lacking a resolvable year fails every entry under it.
-
-**Interactive writes now 500.** `app/main.py` registers handlers only for
-the permission errors, so a POST/PATCH on an entry with incomplete factors
-surfaces as a 500 rather than a 4xx. Loud, which is what was asked for,
-and recorded here as a decision rather than left to be discovered. Worth
-revisiting as a 422 with the missing-input message in the body — the
-message is now specific enough to be useful to a user.
-
-### I2 — lever 2, delivered: one query where the route made three
-
-The headcount branch of `GET .../modules/{module_id}` issued three
-sequential round trips over the same table, same module and same `fte`
-field — total FTE, member FTE grouped by `sius_code`, student FTE. At
-dev's measured ~160 ms per round trip (G2) the _count_ was the cost, not
-the queries. Now one `GROUP BY (data_entry_type_id, sius_code)` via
-`DataEntryRepository.get_headcount_fte_breakdown`.
-
-`asyncio.gather` was considered and rejected: one `AsyncSession` is not
-concurrency-safe, and separate sessions mean more pool checkouts — the
-exact cost lever 1 is about.
-
-The test asserts **equivalence against the three calls it replaces**
-rather than against hand-written values, so it cannot drift if either side
-changes, and it seeds the two edges that would otherwise be silently
-wrong: an entry with no `sius_code` (grouped as `"unknown"`) and one with
-no `fte` (a NULL sum that must stay `None`, not become `0.0`).
-
-Scope note: this is the headcount branch only. The `else` branch is a
-single `get_stats` call already. Before claiming this addresses any
-specific G2 trace, confirm which module that trace was for.
-
-### I3 — lever 1: measured, scoped, and deliberately not guessed
-
-Two findings, one of which changes the diagnosis.
-
-**The `connect` span is pool checkout, not physical connect.** The
-instrumentation wraps `sqlalchemy.engine.base.Engine.connect`
-(`opentelemetry/instrumentation/sqlalchemy/__init__.py:253-257`), which
-fires on _every_ request whether or not a physical connection is reused.
-So three-for-three `connect` spans is **not** evidence that connections
-are being re-opened, which is how G2 read it. What the span certainly
-contains, given `pool_pre_ping=True` (`app/db.py:60`), is a `SELECT 1`
-round trip on every checkout — roughly 160 ms of dev's 289-620 ms, on the
-same RTT as G2's other queries.
-
-`pool_pre_ping` is nonetheless **load-bearing** and should not simply be
-removed: `emission_recalculation.py` explicitly handles
-`connection_invalidated`, which says connections really do drop here.
-Removing the ping would convert a 160 ms cost into user-visible errors.
-
-**A3's CPU bump is not applyable as written.** Dev runs the backend at
-`minReplicas: 3` × `cpu: 300m` = 900 m. A3 recommended `1` core, which at
-three replicas is 3000 m. The stage overlay records this namespace
-family's `compute-resources` quota as **2 cores**, and that the worker pod
-was refused scheduling outright for exactly this reason. Applying A3
-verbatim would repeat that incident.
-
-**Therefore lever 1 ships nothing yet, on purpose.** The remaining
-candidates — raise CPU within quota, trade replicas for cores, tune
-`DB_POOL_SIZE`/`DB_MAX_OVERFLOW`, add `pool_recycle` — all depend on two
-numbers nobody has yet: the namespace's actual quota and headroom
-(`kubectl describe quota`), and the `connect` span's internal breakdown.
-The second arrives on its own now that H6's 100%-sampled SQL
-instrumentation is merged: with `sqlalchemy` instrumentation enabled, the
-pre-ping `SELECT 1` becomes its own child span, which settles queue-wait
-vs ping vs handshake by inspection rather than argument.
-
-Shipping a pool pre-warm or a `pre_ping` flip before that would be a guess
-dressed as a safe default, and would muddy the very measurement that
-settles it.
-
-### I4 — the interactive write, measured: 50 statements → 29
-
-The lead's read of the POST path (2026-08-19): _"that's like way way too
-many span/statement and sql statements; my guidelines is like 2-3
-statements max per http request... this is a complete workflow, this should
-not live inside a single HTTP request"_, with a proposal to move it to a
-job and show a "computing" state.
-
-The shape of that diagnosis was right. Three of the specific costs were
-not, and the real one was somewhere nobody had looked. New test
-`tests/integration/services/data_ingestion/test_headcount_post_statement_budget_pg.py`
-counts statements through the real HTTP route on real Postgres.
-
-**Baseline: 50 statements for one headcount-member POST.**
-
-| statements | what                                                                   |
-| ---------- | ---------------------------------------------------------------------- |
-| 1-5        | identity + permission resolve, denormalized scope                      |
-| 6          | `INSERT data_entries`                                                  |
-| 7-11       | audit document (re-reads the entry and module, version select, insert) |
-| 12-14      | report/module re-read to resolve the factor year                       |
-| **15-38**  | **24 × `SELECT factors`**                                              |
-| 39-40      | pre-delete select, then **one** batched emissions INSERT               |
-| 41-46      | `recompute_stats_many` — set-based                                     |
-| 47-50      | report rollup                                                          |
-
-What this settles:
-
-- **Emission INSERTs were never the problem.** `bulk_create` is
-  `add_all` + one `flush`, which Postgres batches into a single statement.
-  The "10-20 inserts" was 10-20 ORM objects, one round trip.
-- **Stats recompute was never the problem either.** `recompute_stats` is a
-  thin wrapper over the already-set-based `recompute_stats_many`; module +
-  report cost ~10 statements between them, and there is no project-level
-  recompute in this path at all.
-- **The N+1 was Strategy B3 in `_fetch_factors`**, which looped
-  `get_subtree_leaves(q.emission_type)` and issued one query _per leaf_.
-  Headcount's three roots (food/waste/commuting) expand to 24 leaves → 24
-  queries. Fixed with one `IN` over the subtree, which the code already had
-  in hand before the first query. **Now 29 statements, 3 factor lookups.**
-
-**Two wrong turns the measurement caught**, both worth keeping on record
-because both were plausible enough to have shipped:
-
-1. My first fix memoized Strategy B for interactive callers — every bulk
-   path passes a `factor_query_cache` and no interactive path did, which
-   looked exactly like the gap. The count did not move by one statement:
-   all 24 lookups are **distinct**, so no memo can collapse them. The
-   harness now reports `distinct_factor_lookups` next to the total, since
-   that single number is what separates "the same query repeated" (memo) from
-   "a different query per leaf" (one combined query).
-2. The rig first used the conftest's asyncpg engine; it now uses psycopg3 to
-   match `app/db.py`. Statement batching is driver-dependent, so counting on
-   the wrong driver measures the wrong thing.
-
-**Incidental finding, not fixed:** `audit_documents.changed_at` is
-`TIMESTAMP WITHOUT TIME ZONE` but the audit writer hands it a tz-aware
-`datetime.now(UTC)`. psycopg accepts it by silently dropping the tzinfo;
-asyncpg refuses outright. Production is psycopg so nothing is broken today,
-but the column and the value disagree, and every stored audit timestamp has
-had its offset discarded rather than converted.
-
-### I5 — on moving the write to a job
-
-The proposal is feasible: `fire_and_forget_or_defer_to_poller` already
-gives immediate in-process dispatch with the 2s poller only as a safety
-net, SSE exists, and `recompute_stats_many` **already** bumps a module to
-`IN_PROGRESS` when its data changes. The plumbing is largely built.
-
-It is still not the next move, for two reasons:
-
-1. **Most of the cost was not work that needed moving.** 21 of the 50
-   statements were a query pattern, not a workload. Offloading would have
-   moved the same 24 factor queries off the request and left the user
-   watching a spinner for them.
-2. **It reintroduces the failure Track I just removed.** An
-   `emissions: computing` state means the table, graph, module total, report
-   total _and the validation gate_ must each render "not final yet"
-   honestly. That is a correct use of a status, but it is a wide surface,
-   and the validation gate is the sharp edge — a module must not be
-   validatable while its stats are known-stale.
-
-**The split worth building, if 29 is still too many:** keep synchronous
-exactly what the user is looking at (entry insert, emissions insert, this
-module's stats) and offload only the report/project rollups, which nobody
-is watching and which the runner already handles. That needs no new status.
-
-On the 2-3 statement guideline: reachable for reads, not for a write that
-must return a recomputed total. The irreducible floor here is roughly 6-8.
-The nearest remaining win is the **duplicate reads**: statements 1-5 resolve
-the report and module, then 7-8 and 12-14 read them again, because
-`DataEntryService`, `DataEntryEmissionService` and
-`CarbonReportModuleService` are constructed separately and each memoizes
-per instance. Threading the already-resolved pair through the workflow
-should take 29 to roughly 22 with no architectural change.
-
-### Track I priority order
-
-1. **Read the `connect` breakdown** off a post-H6 dev trace. One trace
-   answers the question lever 1 has been blocked on since G2.
-2. **`kubectl describe quota`** on the dev namespace — the other missing
-   number, and it bounds every CPU option.
-3. **Then** pick lever 1's fix from evidence.
-4. **Widen I2's batching** to the non-headcount branch if a G2 trace shows
-   it there too.
-5. **Thread the resolved report/module through the write workflow** — I4's
-   duplicate reads, ~7 statements, no new architecture.
-6. **Audit the remaining fallback sites** listed but not converted in I1's
-   sweep — `_get_report_for_data_entry` returning None on a missing
-   module, the cross-unit `source_data_entry_id` rejection, and the
-   invalid-percentage / invalid-override parses. Each needs its own
-   verdict; they are less clearly wrong than the six above.
-
-## Priority order
-
-C1, C2, and C3's measurement phase are all now done (2026-08-12); this
-reorders the remaining implementation work by confirmed value instead of
-investigation order.
-
-1. ~~**A1** — bound `/ready`, drop Accred from it.~~ **Done** — draft PR
-   #2081.
-2. **C1's jemalloc `Dockerfile` line** — fully measured, zero risk,
-   independent of everything else; still open, ship whenever.
-3. ~~**A2, A3** — rollout strategy, replica count, CPU requests.~~ **Done**
-   — draft PR #2081.
-4. ~~**C3** — implement the confirmed fixes (shared `FactorResolver` +
-   set-based delete in `_recalculate_report_emissions`, drop the duplicate
-   `list_by_module`, add the yield, bring the regression test over).~~
-   **Done** — branch `perf/2050-simulator-plan-n1-fix`. Was the largest
-   confirmed lever in the plan: O(N) round trips per PATCH, 50% of
-   statements at N=8000 being a single avoidable SELECT+DELETE-per-entry
-   pattern, plus a second per-entry N+1 (percentage-override lookup) found
-   only once the first fix's own regression test still showed O(N) scaling
-   — see C3's status note above. **Follow-up done 2026-08-17**: the same
-   percentage-override N+1 and the duplicate `list_by_module` call were
-   still live in `_prefill_reference_modules`'s own path
-   (`_persist_prefill_entries`), which this fix never touched — see the
-   2026-08-17 status update above. The `asyncio.sleep(0)` yield is still
-   outstanding.
-5. ~~**B** — worker split (also resolves A4).~~ **Implemented, disabled by
-   default** — draft PR #2081 ships `worker.enabled=false`; flipping it on
-   any real environment is a separate follow-up.
-6. ~~**C2's follow-up finding** — ~65-67% of recalc wall clock is
-   `DataEntryEmission(...)` ORM/Pydantic construction on rows that are never
-   individually persisted.~~ **Done**, same day as the C3 follow-up above:
-   `prepare_create` (shared by the recalc workflow and both simulator-plan
-   paths) now builds `DataEntryEmissionRow` — a plain dataclass — instead,
-   materializing a real ORM row only at the two call sites that genuinely
-   `session.add()` one (`create`, `upsert_by_data_entry`). Surfaced a second,
-   general instance of the same tax (Pydantic's per-instance
-   `default_factory` signature introspection, not specific to
-   `DataEntryEmission`) — fixed across every `table=True` model in
-   `app/models/`, not just this one.
-7. **C1's OTel rerun found a bigger, separate lever than musl vs glibc** —
-   instrumentation alone costs this app ~37% throughput / +58-94% latency
-   (span-per-SQL-statement overhead, not export cost). Doesn't change the
-   Alpine decision, but deserves its own follow-up issue (scoping which
-   libraries get auto-instrumented, sampling, `OTEL_PYTHON_EXCLUDED_URLS`)
-   — a bigger single lever than C1's jemalloc line or C2's ORM-construction
-   finding on its own, and — since the tax scales with SQL statement count
-   — one that C3's fix already shrinks as a side effect on the endpoint it
-   touches, without anyone having to tune OTel to get that partial win.
-
-8. ~~**D** — the two redundant-recompute findings (upfront module-clear of
-   modules that self-clear during rebuild; per-module stats recompute
-   superseded by a later full recalc).~~ **Done 2026-08-17** — branch
-   `perf/2050-simulator-plan-track-d-e`, PR #2152. 346.7ms → 302.1ms.
-9. ~~**E** — tiers 1 and 2: `set_reference_year` skips prefill's own
-   emission compute entirely (`compute_emissions=False`), and
-   `_prefill_reference_modules` batches its `get_module` calls into one
-   `list_modules` per side.~~ **Done 2026-08-17**, same branch/PR.
-   302.1ms → **271.4ms**, closing a 960ms → 271.4ms chain (-71.7%).
-   Tiers 8/9 (batch `list_by_module` and flatten row-inserts across module
-   types) remain proposals — estimated ~3-8ms local / ~15-40ms dev, a
-   guess rather than a measurement.
-10. **F** — the per-year fan-out, reopened 2026-08-17 by an 11-year
-    plan-range PATCH at 3144ms local and a 21.89s `/years/{year}` on dev.
-    F1 (buildings `prefetch_slice`) is **done**; F2 is a queued deletion;
-    F0's local 5k-entry measurement gates F3 vs. write-volume work; F4
-    (the job route) is required for the stated ceilings regardless. See
-    Track F for why this is not simply "more of Track E".
-11. **G** — dated trace review, 2026-08-18: confirms stage needs a promotion
-    (not a fix), confirms dev's two biggest historical traces predate Track
-    F4, and surfaces one genuinely new, unaddressed pattern — plain
-    module-detail GETs paying the same connection-checkout + sequential-
-    query costs Tracks A/C/D/E already fixed elsewhere, just never applied
-    to this route. See Track G's own priority order for the four follow-ups.
-12. **H** — root-caused one of Track G's own G2 traces: `planner_headcount`
-    was simply missing from `is_headcount_entry`'s tuple in
-    `get_submodule_data`, so it fell through to an unfiltered whole-table
-    aggregation the rollup-row fast path (already built for
-    `member`/`student`, already populated on the write side for
-    `planner_headcount` too) exists specifically to avoid. **The single
-    highest-confidence, lowest-effort fix in this entire plan** — see
-    Track H for the one-line diff and its equivalence test.
-13. **I** — checked a process-pool/worker-count proposal against this
-    plan's own measurements (rejected, same Amdahl ceiling as the closed
-    Rust question) and finished 310-e item 8's sync-in-async audit,
-    deferred since the 2026-06-15 incident. Confirmed `worker.enabled` is
-    live on dev (`co2-calculator-worker`, 6+ days up) and configured on
-    stage, but **absent entirely on prod** — the biggest single finding in
-    this track, flagged for the lead. Fixed and shipped, this branch:
-    synchronous Loki log handler on the root logger (now behind a
-    `QueueHandler`), unthreaded audit→Elasticsearch sync via
-    `BackgroundTasks` (now `asyncio.to_thread`, the same defect Track G3's
-    live trace independently caught from the other direction), and
-    unthreaded connector-credential Scrypt KDF (same fix). Also confirmed,
-    read-only against dev's live Postgres: the pool exhaustion mechanism
-    behind A1/A4/H8's `connect`-span cost is pod-local (SQLAlchemy
-    `QueuePool`, 30 connections/pod) not Postgres-side (27/100 in use
-    today) — and proposed the metric that would make that a dashboard
-    instead of a manual `kubectl exec` next time. No recalculation or
-    pipeline internals touched. See Track I.
-
-A0 runs alongside 1–3 as verification.
-
-## On rewriting in another language
-
-**The measurements argue against this more strongly than originally
-anticipated, not less — but the reasoning changed with C2's follow-up
-pass.** `prepare` dominates recalc at ~77% of wall time, with `validate`
-(pure-Python Pydantic construction) under 1% — but `prepare`'s own cost
-turned out to be ~94% ORM/Pydantic **object construction**
-(`DataEntryEmission(...)`, `table=True`), not DB round trips as first
-assumed; every DB-adjacent stage inside it (`fetch_factors`, `pre_compute`,
-`resolver.resolve`) measured as cheap and O(1), confirming the existing
-cache/slice design works as intended. C3 separately found the request-path
-cost is a round-trip count problem (O(N) SELECT+DELETE pairs plus, once
-found, an O(N) percentage-override lookup) — a genuine compute problem, not
-a hot pure-Python loop.
-
-That object-construction cost **is** CPU-bound Python/framework overhead —
-the kind a rewrite generically helps with. But porting it isn't the
-indicated fix: the objects being expensively constructed are never
-individually persisted (`bulk_replace_for_entries` COPYs them), so the
-actual fix is architectural — stop building the full SQLAlchemy-mapped
-model in the hot loop, keep it only where the API path truly
-`session.add()`s one — not a language port of the formula layer. That
-targeted fix, still unimplemented (see C2's status note above), is
-strictly cheaper than a rewrite and doesn't touch — let alone risk
-duplicating — the formula source of truth.
-
-Pure-Python compute is typically 10–50× slower than Rust or Go for actual
-CPU-bound arithmetic, but that gain applies to a share of the total time
-that these measurements now show is small, and is better captured by the
-targeted fix above than by porting the formula layer. Reimplementing it
-either duplicates the source of truth — the drifted-published-number
-failure this project fears most — or means porting all of it. **Closed,
-not just deferred**, unless a future profile on a _different_ workload
-shows a genuinely compute-bound hot path this plan didn't cover.
-
-Expected stacking: A1 alone ends the 504s; C1's jemalloc line recovers
-~11 percentage points of the alloc-churn gap for one line of Dockerfile;
-A3 + B on a properly requested worker brings `dev` toward `dev2`
-throughput (~2.4×); C3's fix removes an O(N)-round-trip N+1 that was 50%
-avoidable SELECT+DELETE traffic at production scale — this is now the
-single largest confirmed win in the plan.
-
 ## Track I — a process-pool/worker-count proposal, checked against this plan, plus the audit 310-e item 8 never did
 
 2026-08-19. A generic "make CPU-bound FastAPI non-blocking" writeup was
@@ -3253,3 +2849,407 @@ published emission numbers — logging/audit/crypto plumbing, not the
 guardrails' "written plan reviewed by both maintainers" category — so
 they shipped directly rather than staying a proposal, each with its own
 regression test, in keeping with "the lead is away, ship small."
+
+## Track J — the two levers, 2026-08-19
+
+H8 named two levers between the merged Track H fix and a <200 ms dev
+response. This track is what came of starting them, on branch
+`fix/2050-track-h-levers`.
+
+### J1 — the silent fallbacks, removed
+
+Not originally a lever, but it turned out to sit underneath the Track H
+caveat and the lead escalated it: _"I really don't like those
+silent-fallback... It should fail hard."_ `prepare_create` had six ways to
+return a number that looked complete and was not:
+
+| site                            | was                                                      | now                                        |
+| ------------------------------- | -------------------------------------------------------- | ------------------------------------------ |
+| formula returns None            | `logger.warning` + `continue` — leaf dropped             | `raise ValueError` naming the missing keys |
+| year unresolvable               | `logger.warning("factors may not match")` then used them | `raise ValueError`                         |
+| unmapped data entry type        | `return []`                                              | `raise ValueError`                         |
+| factor from the wrong year      | `logger.warning` + `return []`                           | `raise ValueError`                         |
+| `factor_id` resolves to nothing | `return []`, **no log at all**                           | `raise ValueError`                         |
+| `data_entry.id is None`         | `logger.error` + `return []`                             | `raise ValueError`                         |
+
+Two further guards were **deleted** rather than converted — a `None`
+`data_entry` and a `None` `data_entry_type` describe states the types make
+impossible (the parameter is not optional; `data_entry_type` is a property
+over a non-nullable `int` column). Only a `MagicMock` ever reached them,
+and two tests existed that did exactly that. Per the guardrails' _"no
+guards for states the types make impossible"_, the guards and their tests
+went together.
+
+The last two rows matter more than they look: an empty factor list means
+the leaf loop never runs, so the entry contributes **zero** and the
+missing-key raise never fires. They were silent zeros hiding behind the
+loud failure.
+
+**Blast radius, checked before writing the raises rather than after.**
+`emission_recalculation.py:173-210` already records a per-entry failure in
+`error_details` and continues the batch; only session/connection-fatal
+errors abort. So these raises surface bad data per entry without stalling
+the pipeline that plans 1215/1219/1559/1723 exist to protect. Full unit
+suite green (2115).
+
+**Two things the unit suite structurally could not catch**, found by
+running `tests/integration/services/data_ingestion` (219 passed, plus one
+pre-existing failure in `test_submodule_sort_search_matrix_pg` verified
+failing identically with the pre-change service). Unit fixtures have
+complete factor data, so nothing there exercises these branches — the
+all-green unit run was weaker evidence than it looked.
+
+1. **The raise fired with an empty explanation.** `missing context keys
+[], missing factor keys []` — both lists empty, in the most common real
+   case. The call-site diagnostic only understood key-based computations; a
+   `formula_func` that declines has no keys to report. The reason now comes
+   from `_apply_formula`, the only place that knows which branch failed,
+   and it names the null input: _"Null inputs on the entry:
+   ['room_surface_square_meter']"_. `_apply_formula` returns `float` now,
+   not `float | None`.
+2. **One test pinned the old behaviour on purpose.**
+   `test_building_room_without_ref_data_skips_leaf_emissions` documented
+   the contract as _"That's 'skip', not 'default'."_ The intent was sound —
+   don't invent a number — but the effect was that a building whose room
+   is absent from reference data contributes **zero** to its unit's total.
+   That is a wrong total that looks complete, which the guardrails rank as
+   the worst failure this project can have. Renamed to `_fails_loudly`; it
+   now asserts the message names the missing input. **The data outcome is
+   unchanged** — the entry survives, no leaf rows are written — what
+   changed is that the gap appears in the job's `error_details` instead of
+   only in a log nobody reads.
+
+**Expect a flood on the first recalc after this merges.** With 250K-1M
+persisted entries and a DB that survives deploys, every entry with
+incomplete factor data now reports an error instead of quietly producing a
+partial number. That is the intended behaviour, not a regression, but it
+should be a stated expectation. The `year is None` raise is the widest of
+the six: any report lacking a resolvable year fails every entry under it.
+
+**Interactive writes now 500.** `app/main.py` registers handlers only for
+the permission errors, so a POST/PATCH on an entry with incomplete factors
+surfaces as a 500 rather than a 4xx. Loud, which is what was asked for,
+and recorded here as a decision rather than left to be discovered. Worth
+revisiting as a 422 with the missing-input message in the body — the
+message is now specific enough to be useful to a user.
+
+### J2 — lever 2, delivered: one query where the route made three
+
+The headcount branch of `GET .../modules/{module_id}` issued three
+sequential round trips over the same table, same module and same `fte`
+field — total FTE, member FTE grouped by `sius_code`, student FTE. At
+dev's measured ~160 ms per round trip (G2) the _count_ was the cost, not
+the queries. Now one `GROUP BY (data_entry_type_id, sius_code)` via
+`DataEntryRepository.get_headcount_fte_breakdown`.
+
+`asyncio.gather` was considered and rejected: one `AsyncSession` is not
+concurrency-safe, and separate sessions mean more pool checkouts — the
+exact cost lever 1 is about.
+
+The test asserts **equivalence against the three calls it replaces**
+rather than against hand-written values, so it cannot drift if either side
+changes, and it seeds the two edges that would otherwise be silently
+wrong: an entry with no `sius_code` (grouped as `"unknown"`) and one with
+no `fte` (a NULL sum that must stay `None`, not become `0.0`).
+
+Scope note: this is the headcount branch only. The `else` branch is a
+single `get_stats` call already. Before claiming this addresses any
+specific G2 trace, confirm which module that trace was for.
+
+### J3 — lever 1: measured, scoped, and deliberately not guessed
+
+Two findings, one of which changes the diagnosis.
+
+**The `connect` span is pool checkout, not physical connect.** The
+instrumentation wraps `sqlalchemy.engine.base.Engine.connect`
+(`opentelemetry/instrumentation/sqlalchemy/__init__.py:253-257`), which
+fires on _every_ request whether or not a physical connection is reused.
+So three-for-three `connect` spans is **not** evidence that connections
+are being re-opened, which is how G2 read it. What the span certainly
+contains, given `pool_pre_ping=True` (`app/db.py:60`), is a `SELECT 1`
+round trip on every checkout — roughly 160 ms of dev's 289-620 ms, on the
+same RTT as G2's other queries.
+
+`pool_pre_ping` is nonetheless **load-bearing** and should not simply be
+removed: `emission_recalculation.py` explicitly handles
+`connection_invalidated`, which says connections really do drop here.
+Removing the ping would convert a 160 ms cost into user-visible errors.
+
+**A3's CPU bump is not applyable as written.** Dev runs the backend at
+`minReplicas: 3` × `cpu: 300m` = 900 m. A3 recommended `1` core, which at
+three replicas is 3000 m. The stage overlay records this namespace
+family's `compute-resources` quota as **2 cores**, and that the worker pod
+was refused scheduling outright for exactly this reason. Applying A3
+verbatim would repeat that incident.
+
+**Therefore lever 1 ships nothing yet, on purpose.** The remaining
+candidates — raise CPU within quota, trade replicas for cores, tune
+`DB_POOL_SIZE`/`DB_MAX_OVERFLOW`, add `pool_recycle` — all depend on two
+numbers nobody has yet: the namespace's actual quota and headroom
+(`kubectl describe quota`), and the `connect` span's internal breakdown.
+The second arrives on its own now that H6's 100%-sampled SQL
+instrumentation is merged: with `sqlalchemy` instrumentation enabled, the
+pre-ping `SELECT 1` becomes its own child span, which settles queue-wait
+vs ping vs handshake by inspection rather than argument.
+
+Shipping a pool pre-warm or a `pre_ping` flip before that would be a guess
+dressed as a safe default, and would muddy the very measurement that
+settles it.
+
+### J4 — the interactive write, measured: 50 statements → 29
+
+The lead's read of the POST path (2026-08-19): _"that's like way way too
+many span/statement and sql statements; my guidelines is like 2-3
+statements max per http request... this is a complete workflow, this should
+not live inside a single HTTP request"_, with a proposal to move it to a
+job and show a "computing" state.
+
+The shape of that diagnosis was right. Three of the specific costs were
+not, and the real one was somewhere nobody had looked. New test
+`tests/integration/services/data_ingestion/test_headcount_post_statement_budget_pg.py`
+counts statements through the real HTTP route on real Postgres.
+
+**Baseline: 50 statements for one headcount-member POST.**
+
+| statements | what                                                                   |
+| ---------- | ---------------------------------------------------------------------- |
+| 1-5        | identity + permission resolve, denormalized scope                      |
+| 6          | `INSERT data_entries`                                                  |
+| 7-11       | audit document (re-reads the entry and module, version select, insert) |
+| 12-14      | report/module re-read to resolve the factor year                       |
+| **15-38**  | **24 × `SELECT factors`**                                              |
+| 39-40      | pre-delete select, then **one** batched emissions INSERT               |
+| 41-46      | `recompute_stats_many` — set-based                                     |
+| 47-50      | report rollup                                                          |
+
+What this settles:
+
+- **Emission INSERTs were never the problem.** `bulk_create` is
+  `add_all` + one `flush`, which Postgres batches into a single statement.
+  The "10-20 inserts" was 10-20 ORM objects, one round trip.
+- **Stats recompute was never the problem either.** `recompute_stats` is a
+  thin wrapper over the already-set-based `recompute_stats_many`; module +
+  report cost ~10 statements between them, and there is no project-level
+  recompute in this path at all.
+- **The N+1 was Strategy B3 in `_fetch_factors`**, which looped
+  `get_subtree_leaves(q.emission_type)` and issued one query _per leaf_.
+  Headcount's three roots (food/waste/commuting) expand to 24 leaves → 24
+  queries. Fixed with one `IN` over the subtree, which the code already had
+  in hand before the first query. **Now 29 statements, 3 factor lookups.**
+
+**Two wrong turns the measurement caught**, both worth keeping on record
+because both were plausible enough to have shipped:
+
+1. My first fix memoized Strategy B for interactive callers — every bulk
+   path passes a `factor_query_cache` and no interactive path did, which
+   looked exactly like the gap. The count did not move by one statement:
+   all 24 lookups are **distinct**, so no memo can collapse them. The
+   harness now reports `distinct_factor_lookups` next to the total, since
+   that single number is what separates "the same query repeated" (memo) from
+   "a different query per leaf" (one combined query).
+2. The rig first used the conftest's asyncpg engine; it now uses psycopg3 to
+   match `app/db.py`. Statement batching is driver-dependent, so counting on
+   the wrong driver measures the wrong thing.
+
+**Incidental finding, not fixed:** `audit_documents.changed_at` is
+`TIMESTAMP WITHOUT TIME ZONE` but the audit writer hands it a tz-aware
+`datetime.now(UTC)`. psycopg accepts it by silently dropping the tzinfo;
+asyncpg refuses outright. Production is psycopg so nothing is broken today,
+but the column and the value disagree, and every stored audit timestamp has
+had its offset discarded rather than converted.
+
+### J5 — on moving the write to a job
+
+The proposal is feasible: `fire_and_forget_or_defer_to_poller` already
+gives immediate in-process dispatch with the 2s poller only as a safety
+net, SSE exists, and `recompute_stats_many` **already** bumps a module to
+`IN_PROGRESS` when its data changes. The plumbing is largely built.
+
+It is still not the next move, for two reasons:
+
+1. **Most of the cost was not work that needed moving.** 21 of the 50
+   statements were a query pattern, not a workload. Offloading would have
+   moved the same 24 factor queries off the request and left the user
+   watching a spinner for them.
+2. **It reintroduces the failure Track I just removed.** An
+   `emissions: computing` state means the table, graph, module total, report
+   total _and the validation gate_ must each render "not final yet"
+   honestly. That is a correct use of a status, but it is a wide surface,
+   and the validation gate is the sharp edge — a module must not be
+   validatable while its stats are known-stale.
+
+**The split worth building, if 29 is still too many:** keep synchronous
+exactly what the user is looking at (entry insert, emissions insert, this
+module's stats) and offload only the report/project rollups, which nobody
+is watching and which the runner already handles. That needs no new status.
+
+On the 2-3 statement guideline: reachable for reads, not for a write that
+must return a recomputed total. The irreducible floor here is roughly 6-8.
+The nearest remaining win is the **duplicate reads**: statements 1-5 resolve
+the report and module, then 7-8 and 12-14 read them again, because
+`DataEntryService`, `DataEntryEmissionService` and
+`CarbonReportModuleService` are constructed separately and each memoizes
+per instance. Threading the already-resolved pair through the workflow
+should take 29 to roughly 22 with no architectural change.
+
+### Track J priority order
+
+1. **Read the `connect` breakdown** off a post-H6 dev trace. One trace
+   answers the question lever 1 has been blocked on since G2.
+2. **`kubectl describe quota`** on the dev namespace — the other missing
+   number, and it bounds every CPU option.
+3. **Then** pick lever 1's fix from evidence.
+4. **Widen J2's batching** to the non-headcount branch if a G2 trace shows
+   it there too.
+5. **Thread the resolved report/module through the write workflow** — J4's
+   duplicate reads, ~7 statements, no new architecture.
+6. **Audit the remaining fallback sites** listed but not converted in J1's
+   sweep — `_get_report_for_data_entry` returning None on a missing
+   module, the cross-unit `source_data_entry_id` rejection, and the
+   invalid-percentage / invalid-override parses. Each needs its own
+   verdict; they are less clearly wrong than the six above.
+
+## Priority order
+
+C1, C2, and C3's measurement phase are all now done (2026-08-12); this
+reorders the remaining implementation work by confirmed value instead of
+investigation order.
+
+1. ~~**A1** — bound `/ready`, drop Accred from it.~~ **Done** — draft PR
+   #2081.
+2. **C1's jemalloc `Dockerfile` line** — fully measured, zero risk,
+   independent of everything else; still open, ship whenever.
+3. ~~**A2, A3** — rollout strategy, replica count, CPU requests.~~ **Done**
+   — draft PR #2081.
+4. ~~**C3** — implement the confirmed fixes (shared `FactorResolver` +
+   set-based delete in `_recalculate_report_emissions`, drop the duplicate
+   `list_by_module`, add the yield, bring the regression test over).~~
+   **Done** — branch `perf/2050-simulator-plan-n1-fix`. Was the largest
+   confirmed lever in the plan: O(N) round trips per PATCH, 50% of
+   statements at N=8000 being a single avoidable SELECT+DELETE-per-entry
+   pattern, plus a second per-entry N+1 (percentage-override lookup) found
+   only once the first fix's own regression test still showed O(N) scaling
+   — see C3's status note above. **Follow-up done 2026-08-17**: the same
+   percentage-override N+1 and the duplicate `list_by_module` call were
+   still live in `_prefill_reference_modules`'s own path
+   (`_persist_prefill_entries`), which this fix never touched — see the
+   2026-08-17 status update above. The `asyncio.sleep(0)` yield is still
+   outstanding.
+5. ~~**B** — worker split (also resolves A4).~~ **Implemented, disabled by
+   default** — draft PR #2081 ships `worker.enabled=false`; flipping it on
+   any real environment is a separate follow-up.
+6. ~~**C2's follow-up finding** — ~65-67% of recalc wall clock is
+   `DataEntryEmission(...)` ORM/Pydantic construction on rows that are never
+   individually persisted.~~ **Done**, same day as the C3 follow-up above:
+   `prepare_create` (shared by the recalc workflow and both simulator-plan
+   paths) now builds `DataEntryEmissionRow` — a plain dataclass — instead,
+   materializing a real ORM row only at the two call sites that genuinely
+   `session.add()` one (`create`, `upsert_by_data_entry`). Surfaced a second,
+   general instance of the same tax (Pydantic's per-instance
+   `default_factory` signature introspection, not specific to
+   `DataEntryEmission`) — fixed across every `table=True` model in
+   `app/models/`, not just this one.
+7. **C1's OTel rerun found a bigger, separate lever than musl vs glibc** —
+   instrumentation alone costs this app ~37% throughput / +58-94% latency
+   (span-per-SQL-statement overhead, not export cost). Doesn't change the
+   Alpine decision, but deserves its own follow-up issue (scoping which
+   libraries get auto-instrumented, sampling, `OTEL_PYTHON_EXCLUDED_URLS`)
+   — a bigger single lever than C1's jemalloc line or C2's ORM-construction
+   finding on its own, and — since the tax scales with SQL statement count
+   — one that C3's fix already shrinks as a side effect on the endpoint it
+   touches, without anyone having to tune OTel to get that partial win.
+
+8. ~~**D** — the two redundant-recompute findings (upfront module-clear of
+   modules that self-clear during rebuild; per-module stats recompute
+   superseded by a later full recalc).~~ **Done 2026-08-17** — branch
+   `perf/2050-simulator-plan-track-d-e`, PR #2152. 346.7ms → 302.1ms.
+9. ~~**E** — tiers 1 and 2: `set_reference_year` skips prefill's own
+   emission compute entirely (`compute_emissions=False`), and
+   `_prefill_reference_modules` batches its `get_module` calls into one
+   `list_modules` per side.~~ **Done 2026-08-17**, same branch/PR.
+   302.1ms → **271.4ms**, closing a 960ms → 271.4ms chain (-71.7%).
+   Tiers 8/9 (batch `list_by_module` and flatten row-inserts across module
+   types) remain proposals — estimated ~3-8ms local / ~15-40ms dev, a
+   guess rather than a measurement.
+10. **F** — the per-year fan-out, reopened 2026-08-17 by an 11-year
+    plan-range PATCH at 3144ms local and a 21.89s `/years/{year}` on dev.
+    F1 (buildings `prefetch_slice`) is **done**; F2 is a queued deletion;
+    F0's local 5k-entry measurement gates F3 vs. write-volume work; F4
+    (the job route) is required for the stated ceilings regardless. See
+    Track F for why this is not simply "more of Track E".
+11. **G** — dated trace review, 2026-08-18: confirms stage needs a promotion
+    (not a fix), confirms dev's two biggest historical traces predate Track
+    F4, and surfaces one genuinely new, unaddressed pattern — plain
+    module-detail GETs paying the same connection-checkout + sequential-
+    query costs Tracks A/C/D/E already fixed elsewhere, just never applied
+    to this route. See Track G's own priority order for the four follow-ups.
+12. **H** — root-caused one of Track G's own G2 traces: `planner_headcount`
+    was simply missing from `is_headcount_entry`'s tuple in
+    `get_submodule_data`, so it fell through to an unfiltered whole-table
+    aggregation the rollup-row fast path (already built for
+    `member`/`student`, already populated on the write side for
+    `planner_headcount` too) exists specifically to avoid. **The single
+    highest-confidence, lowest-effort fix in this entire plan** — see
+    Track H for the one-line diff and its equivalence test.
+13. **I** — checked a process-pool/worker-count proposal against this
+    plan's own measurements (rejected, same Amdahl ceiling as the closed
+    Rust question) and finished 310-e item 8's sync-in-async audit,
+    deferred since the 2026-06-15 incident. Confirmed `worker.enabled` is
+    live on dev (`co2-calculator-worker`, 6+ days up) and configured on
+    stage, but **absent entirely on prod** — the biggest single finding in
+    this track, flagged for the lead. Fixed and shipped, this branch:
+    synchronous Loki log handler on the root logger (now behind a
+    `QueueHandler`), unthreaded audit→Elasticsearch sync via
+    `BackgroundTasks` (now `asyncio.to_thread`, the same defect Track G3's
+    live trace independently caught from the other direction), and
+    unthreaded connector-credential Scrypt KDF (same fix). Also confirmed,
+    read-only against dev's live Postgres: the pool exhaustion mechanism
+    behind A1/A4/H8's `connect`-span cost is pod-local (SQLAlchemy
+    `QueuePool`, 30 connections/pod) not Postgres-side (27/100 in use
+    today) — and proposed the metric that would make that a dashboard
+    instead of a manual `kubectl exec` next time. No recalculation or
+    pipeline internals touched. See Track I.
+
+A0 runs alongside 1–3 as verification.
+
+## On rewriting in another language
+
+**The measurements argue against this more strongly than originally
+anticipated, not less — but the reasoning changed with C2's follow-up
+pass.** `prepare` dominates recalc at ~77% of wall time, with `validate`
+(pure-Python Pydantic construction) under 1% — but `prepare`'s own cost
+turned out to be ~94% ORM/Pydantic **object construction**
+(`DataEntryEmission(...)`, `table=True`), not DB round trips as first
+assumed; every DB-adjacent stage inside it (`fetch_factors`, `pre_compute`,
+`resolver.resolve`) measured as cheap and O(1), confirming the existing
+cache/slice design works as intended. C3 separately found the request-path
+cost is a round-trip count problem (O(N) SELECT+DELETE pairs plus, once
+found, an O(N) percentage-override lookup) — a genuine compute problem, not
+a hot pure-Python loop.
+
+That object-construction cost **is** CPU-bound Python/framework overhead —
+the kind a rewrite generically helps with. But porting it isn't the
+indicated fix: the objects being expensively constructed are never
+individually persisted (`bulk_replace_for_entries` COPYs them), so the
+actual fix is architectural — stop building the full SQLAlchemy-mapped
+model in the hot loop, keep it only where the API path truly
+`session.add()`s one — not a language port of the formula layer. That
+targeted fix, still unimplemented (see C2's status note above), is
+strictly cheaper than a rewrite and doesn't touch — let alone risk
+duplicating — the formula source of truth.
+
+Pure-Python compute is typically 10–50× slower than Rust or Go for actual
+CPU-bound arithmetic, but that gain applies to a share of the total time
+that these measurements now show is small, and is better captured by the
+targeted fix above than by porting the formula layer. Reimplementing it
+either duplicates the source of truth — the drifted-published-number
+failure this project fears most — or means porting all of it. **Closed,
+not just deferred**, unless a future profile on a _different_ workload
+shows a genuinely compute-bound hot path this plan didn't cover.
+
+Expected stacking: A1 alone ends the 504s; C1's jemalloc line recovers
+~11 percentage points of the alloc-churn gap for one line of Dockerfile;
+A3 + B on a properly requested worker brings `dev` toward `dev2`
+throughput (~2.4×); C3's fix removes an O(N)-round-trip N+1 that was 50%
+avoidable SELECT+DELETE traffic at production scale — this is now the
+single largest confirmed win in the plan.

@@ -275,7 +275,7 @@ class AuditDocumentService:
             raise e
 
         # No refresh: every value was set above and ``id`` came back from the
-        # INSERT (#2050 I4).
+        # INSERT (#2050 J4).
         logger.info(
             f"Created version {new_version} for {entity_type}:{entity_id} "
             f"({change_type}) by {changed_by or 'unknown'}"

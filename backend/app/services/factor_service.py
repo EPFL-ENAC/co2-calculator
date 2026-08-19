@@ -123,7 +123,7 @@ class FactorService:
         emission_types: list[EmissionType],
         year: int | None = None,
     ) -> list[Factor]:
-        """List all factors for a set of emission types, in one query (#2050 I4).
+        """List all factors for a set of emission types, in one query (#2050 J4).
 
         Args:
             emission_types: Emission types to match

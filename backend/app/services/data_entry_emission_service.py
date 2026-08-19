@@ -472,7 +472,7 @@ class DataEntryEmissionService:
                 # reference year drives factor lookup.
                 year = await resolve_factor_year(self.session, report)
         if year is None:
-            # #2050 Track I: this used to warn "factors may not match" and
+            # #2050 Track J: this used to warn "factors may not match" and
             # then use them anyway — naming its own defect in a log line.
             # Year selects the factor, so an unresolvable year means every
             # number below is priced off an arbitrary year's factor.
@@ -509,7 +509,7 @@ class DataEntryEmissionService:
             factor=primary_factor,
         )
         if emission_types is None:
-            # #2050 Track I: an unmapped type returned [], which is
+            # #2050 Track J: an unmapped type returned [], which is
             # indistinguishable downstream from "this entry emits nothing".
             raise ValueError(
                 f"No emission types are mapped for "
@@ -630,7 +630,7 @@ class DataEntryEmissionService:
                     continue
 
                 for factor in factors:
-                    # #2050 Track I: _apply_formula raises with the specific
+                    # #2050 Track J: _apply_formula raises with the specific
                     # reason rather than returning None for the caller to
                     # drop. Dropping the leaf produced a total that looked
                     # complete but was missing a term; for rollup types the
@@ -767,7 +767,7 @@ class DataEntryEmissionService:
                 factor = by_id.get(comp.factor_id)
             if factor is None:
                 factor = await factor_service.get(comp.factor_id)
-            # #2050 Track I: both of these returned [] — the year mismatch
+            # #2050 Track J: both of these returned [] — the year mismatch
             # with a warning, the missing factor with nothing at all. An
             # empty factor list means the leaf loop in prepare_create never
             # runs, so the entry contributes zero and the missing-key raise
@@ -848,7 +848,7 @@ class DataEntryEmissionService:
             #     e.g. all sub-factors for "food" (vegetarian, non-vegetarian)
             #     Used when handler doesn't specify kind/subkind
             elif q.emission_type is not None:
-                # #2050 I4: one query for the whole subtree. This looped the
+                # #2050 J4: one query for the whole subtree. This looped the
                 # leaves and queried per node — 24 factor SELECTs for one
                 # headcount member POST (3 roots whose subtrees hold 24
                 # leaves), measured in
