@@ -2407,6 +2407,126 @@ whether the fix is a config change or a lifespan change.
    `member`/`student`/`planner_headcount`/`building` alike.
 8. **H4's dev-side repro** of the stage PATCH — unblocked once H6 merges.
 
+## Track I — the two levers, 2026-08-19
+
+H8 named two levers between the merged Track H fix and a <200 ms dev
+response. This track is what came of starting them, on branch
+`fix/2050-track-h-levers`.
+
+### I1 — the silent fallbacks, removed
+
+Not originally a lever, but it turned out to sit underneath the Track H
+caveat and the lead escalated it: _"I really don't like those
+silent-fallback... It should fail hard."_ `prepare_create` had six ways to
+return a number that looked complete and was not:
+
+| site                            | was                                                      | now                                        |
+| ------------------------------- | -------------------------------------------------------- | ------------------------------------------ |
+| formula returns None            | `logger.warning` + `continue` — leaf dropped             | `raise ValueError` naming the missing keys |
+| year unresolvable               | `logger.warning("factors may not match")` then used them | `raise ValueError`                         |
+| unmapped data entry type        | `return []`                                              | `raise ValueError`                         |
+| factor from the wrong year      | `logger.warning` + `return []`                           | `raise ValueError`                         |
+| `factor_id` resolves to nothing | `return []`, **no log at all**                           | `raise ValueError`                         |
+| `data_entry.id is None`         | `logger.error` + `return []`                             | `raise ValueError`                         |
+
+Two further guards were **deleted** rather than converted — a `None`
+`data_entry` and a `None` `data_entry_type` describe states the types make
+impossible (the parameter is not optional; `data_entry_type` is a property
+over a non-nullable `int` column). Only a `MagicMock` ever reached them,
+and two tests existed that did exactly that. Per the guardrails' _"no
+guards for states the types make impossible"_, the guards and their tests
+went together.
+
+The last two rows matter more than they look: an empty factor list means
+the leaf loop never runs, so the entry contributes **zero** and the
+missing-key raise never fires. They were silent zeros hiding behind the
+loud failure.
+
+**Blast radius, checked before writing the raises rather than after.**
+`emission_recalculation.py:173-210` already records a per-entry failure in
+`error_details` and continues the batch; only session/connection-fatal
+errors abort. So these raises surface bad data per entry without stalling
+the pipeline that plans 1215/1219/1559/1723 exist to protect. Full unit
+suite green (2115).
+
+### I2 — lever 2, delivered: one query where the route made three
+
+The headcount branch of `GET .../modules/{module_id}` issued three
+sequential round trips over the same table, same module and same `fte`
+field — total FTE, member FTE grouped by `sius_code`, student FTE. At
+dev's measured ~160 ms per round trip (G2) the _count_ was the cost, not
+the queries. Now one `GROUP BY (data_entry_type_id, sius_code)` via
+`DataEntryRepository.get_headcount_fte_breakdown`.
+
+`asyncio.gather` was considered and rejected: one `AsyncSession` is not
+concurrency-safe, and separate sessions mean more pool checkouts — the
+exact cost lever 1 is about.
+
+The test asserts **equivalence against the three calls it replaces**
+rather than against hand-written values, so it cannot drift if either side
+changes, and it seeds the two edges that would otherwise be silently
+wrong: an entry with no `sius_code` (grouped as `"unknown"`) and one with
+no `fte` (a NULL sum that must stay `None`, not become `0.0`).
+
+Scope note: this is the headcount branch only. The `else` branch is a
+single `get_stats` call already. Before claiming this addresses any
+specific G2 trace, confirm which module that trace was for.
+
+### I3 — lever 1: measured, scoped, and deliberately not guessed
+
+Two findings, one of which changes the diagnosis.
+
+**The `connect` span is pool checkout, not physical connect.** The
+instrumentation wraps `sqlalchemy.engine.base.Engine.connect`
+(`opentelemetry/instrumentation/sqlalchemy/__init__.py:253-257`), which
+fires on _every_ request whether or not a physical connection is reused.
+So three-for-three `connect` spans is **not** evidence that connections
+are being re-opened, which is how G2 read it. What the span certainly
+contains, given `pool_pre_ping=True` (`app/db.py:60`), is a `SELECT 1`
+round trip on every checkout — roughly 160 ms of dev's 289-620 ms, on the
+same RTT as G2's other queries.
+
+`pool_pre_ping` is nonetheless **load-bearing** and should not simply be
+removed: `emission_recalculation.py` explicitly handles
+`connection_invalidated`, which says connections really do drop here.
+Removing the ping would convert a 160 ms cost into user-visible errors.
+
+**A3's CPU bump is not applyable as written.** Dev runs the backend at
+`minReplicas: 3` × `cpu: 300m` = 900 m. A3 recommended `1` core, which at
+three replicas is 3000 m. The stage overlay records this namespace
+family's `compute-resources` quota as **2 cores**, and that the worker pod
+was refused scheduling outright for exactly this reason. Applying A3
+verbatim would repeat that incident.
+
+**Therefore lever 1 ships nothing yet, on purpose.** The remaining
+candidates — raise CPU within quota, trade replicas for cores, tune
+`DB_POOL_SIZE`/`DB_MAX_OVERFLOW`, add `pool_recycle` — all depend on two
+numbers nobody has yet: the namespace's actual quota and headroom
+(`kubectl describe quota`), and the `connect` span's internal breakdown.
+The second arrives on its own now that H6's 100%-sampled SQL
+instrumentation is merged: with `sqlalchemy` instrumentation enabled, the
+pre-ping `SELECT 1` becomes its own child span, which settles queue-wait
+vs ping vs handshake by inspection rather than argument.
+
+Shipping a pool pre-warm or a `pre_ping` flip before that would be a guess
+dressed as a safe default, and would muddy the very measurement that
+settles it.
+
+### Track I priority order
+
+1. **Read the `connect` breakdown** off a post-H6 dev trace. One trace
+   answers the question lever 1 has been blocked on since G2.
+2. **`kubectl describe quota`** on the dev namespace — the other missing
+   number, and it bounds every CPU option.
+3. **Then** pick lever 1's fix from evidence.
+4. **Widen I2's batching** to the non-headcount branch if a G2 trace shows
+   it there too.
+5. **Audit the remaining fallback sites** listed but not converted in I1's
+   sweep — `_get_report_for_data_entry` returning None on a missing
+   module, the cross-unit `source_data_entry_id` rejection, and the
+   invalid-percentage / invalid-override parses. Each needs its own
+   verdict; they are less clearly wrong than the six above.
+
 ## Priority order
 
 C1, C2, and C3's measurement phase are all now done (2026-08-12); this
