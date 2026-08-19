@@ -677,14 +677,18 @@ class DataEntryRepository:
         """Return the set of ``equipment_id`` present in the unit's most recent
         prior year (issue #259). Empty set when there is no prior-year
         equipment data, in which case nothing is flagged new.
+
+        Ingest-only since #2050 J10: called once per (unit, year) while a CSV
+        lands, never per page render.
         """
         prior_year = await self._prior_equipment_year(unit_id, current_year)
         if prior_year is None:
             return set()
+        equipment_id = DataEntry.data["equipment_id"].as_string()
         rows = (
             (
                 await self.session.execute(
-                    select(DataEntry.data["equipment_id"].as_string())
+                    select(equipment_id)
                     .where(
                         col(DataEntry.unit_id) == unit_id,
                         col(DataEntry.year) == prior_year,
@@ -833,7 +837,6 @@ class DataEntryRepository:
             DataEntryTypeEnum.planner_headcount.value,
         )
         is_equipment_entry = data_entry_type_id in EQUIPMENT_DATA_ENTRY_TYPE_IDS
-        prev_equipment_ids: set[str] = set()
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
 
         # Classification-resolved factor in SQL (plan 1661-sql-factor-resolution):
@@ -1171,25 +1174,18 @@ class DataEntryRepository:
             sort_map["destination_name"] = DestLocation.name
 
         if is_equipment_entry:
-            scope = await self._equipment_module_scope(carbon_report_module_id)
-            if scope is not None:
-                prev_equipment_ids = await self.get_prior_year_equipment_ids(*scope)
-            if prev_equipment_ids:
-                is_new_expr = (
-                    DataEntry.data["equipment_id"]
-                    .as_string()
-                    .notin_(list(prev_equipment_ids))
-                )
-
-                missing_usage_expr = or_(
-                    DataEntry.data["active_usage_hours_per_week"].as_string().is_(None),
-                    DataEntry.data["standby_usage_hours_per_week"]
-                    .as_string()
-                    .is_(None),
-                )
-                statement = statement.order_by(
-                    desc(and_(is_new_expr, missing_usage_expr))
-                )
+            # #2050 J10: ``is_new`` is stamped at ingest and stored on the row
+            # (DataEntryService.apply_equipment_carry_forward), so this reads
+            # it instead of re-deriving it. Deriving it here meant pulling the
+            # unit's entire prior-year id set into Python and inlining it as
+            # thousands of bind parameters — 1711ms on dev to render 20 rows.
+            is_new_expr = DataEntry.data["is_new"].as_boolean()
+            missing_usage_expr = or_(
+                DataEntry.data["active_usage_hours_per_week"].as_string().is_(None),
+                DataEntry.data["standby_usage_hours_per_week"].as_string().is_(None),
+            )
+            # New equipment still missing its usage floats to the top.
+            statement = statement.order_by(desc(and_(is_new_expr, missing_usage_expr)))
 
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
@@ -1308,9 +1304,7 @@ class DataEntryRepository:
             }
 
             if is_equipment_entry:
-                enriched_data["is_new"] = bool(prev_equipment_ids) and (
-                    data_entry.data.get("equipment_id") not in prev_equipment_ids
-                )
+                enriched_data["is_new"] = bool(data_entry.data.get("is_new", False))
 
             if is_travel_entry:
                 distance_km = (

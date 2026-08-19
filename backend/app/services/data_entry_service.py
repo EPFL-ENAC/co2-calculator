@@ -65,6 +65,7 @@ class DataEntryService:
         self.repo = DataEntryRepository(session)
         self.versioning = versioning_service or AuditDocumentService(session)
         self._prior_equipment_usage_cache: dict[tuple[int, int], dict[str, dict]] = {}
+        self._prior_equipment_ids_cache: dict[tuple[int, int], set[str]] = {}
 
     async def get_stats(
         self,
@@ -223,15 +224,25 @@ class DataEntryService:
     async def apply_equipment_carry_forward(
         self, data_entries: list[DataEntry]
     ) -> None:
-        """Carry equipment usage hours forward from the unit's most recent
-        prior year, matched by ``equipment_id`` (issue #259).
+        """Carry prior-year state onto incoming equipment entries (issue #259).
 
-        Each usage field is taken independently: a value set last year wins
-        over whatever the ingest file supplies; a field last year left unset
-        stays unset and keeps tracking the factor default (then the spec's
-        12/156 fallback in the emission formula). Prior-year maps are cached
-        per ``(unit_id, year)`` on the service instance, so a 50k-row ingest
-        costs one lookup query per unit/year, never one per entry.
+        Two things, both decided once at ingest and then stored on the row:
+
+        **Usage hours.** Each field is taken independently: a value set last
+        year wins over whatever the ingest file supplies; a field last year
+        left unset stays unset and keeps tracking the factor default (then the
+        spec's 12/156 fallback in the emission formula).
+
+        **``is_new``.** True when this ``equipment_id`` did not exist in the
+        unit's most recent prior year. #2050 J10 moved this here from the read
+        path, where it was re-derived on every page load by pulling the unit's
+        entire prior-year id set into Python — 1711ms on dev to render 20 rows.
+        It is a fact about the import, so it belongs on the row. Rows created
+        by hand never pass through here and stay ``is_new`` false.
+
+        Prior-year lookups are cached per ``(unit_id, year)`` on the service
+        instance, so a 50k-row ingest costs one query per unit/year, never one
+        per entry.
         """
         equipment = [
             e
@@ -252,9 +263,24 @@ class DataEntryService:
                     entry.unit_id, entry.year
                 )
                 self._prior_equipment_usage_cache[scope] = prior_usage
+            prior_ids = self._prior_equipment_ids_cache.get(scope)
+            if prior_ids is None:
+                prior_ids = await self.repo.get_prior_year_equipment_ids(
+                    entry.unit_id, entry.year
+                )
+                self._prior_equipment_ids_cache[scope] = prior_ids
+
             prior = prior_usage.get(entry.data["equipment_id"])
             if prior:
                 entry.data = {**entry.data, **prior}
+            # An empty prior year means the unit's first campaign: nothing is
+            # new. The usage map cannot stand in for the id set — it drops rows
+            # whose prior year set no usage fields at all.
+            entry.data = {
+                **entry.data,
+                "is_new": bool(prior_ids)
+                and entry.data["equipment_id"] not in prior_ids,
+            }
 
     async def create(
         self,
