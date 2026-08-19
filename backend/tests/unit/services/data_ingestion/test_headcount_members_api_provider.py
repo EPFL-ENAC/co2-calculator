@@ -5,7 +5,7 @@ the test pins the mapping, not the datasource), unit-prefix stripping edge
 cases, skip-row rules, and factory registration.
 """
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -270,3 +270,110 @@ class TestFactoryRegistration:
             EntityType.MODULE_PER_YEAR,
         )
         assert provider_class is HeadcountMembersApiProvider
+
+
+# ---------------------------------------------------------------------------
+# _load_data — role uniqueness (#2050 J4)
+# ---------------------------------------------------------------------------
+
+
+class TestLoadDataRoleUniqueness:
+    """``uq_member_role_per_module`` rejects a duplicate (module, person, role).
+
+    The CSV provider has always skipped such a row and carried on
+    (``base_csv_provider``'s ``seen_institutional_ids``); this provider had no
+    check at all, so one duplicated person in the upstream export would have
+    failed the whole bulk_create — and with it the whole sync job — on data we
+    do not control. Same rule, same per-row outcome.
+    """
+
+    @pytest.mark.asyncio
+    async def test_duplicate_role_within_one_feed_is_skipped_not_inserted(self):
+        provider = _make_provider()
+        created: list = []
+
+        async def _bulk_create(entries, *_args, **_kwargs):
+            created.extend(entries)
+            return entries
+
+        service = AsyncMock()
+        service.bulk_create = AsyncMock(side_effect=_bulk_create)
+
+        rows = [
+            {
+                "carbon_report_module_id": 7,
+                "user_institutional_id": "123456",
+                "sius_code": "51",
+                "name": "A",
+                "fte": 0.5,
+            },
+            # Same person, same role, same module — the duplicate.
+            {
+                "carbon_report_module_id": 7,
+                "user_institutional_id": "123456",
+                "sius_code": "51",
+                "name": "A",
+                "fte": 0.4,
+            },
+        ]
+
+        with patch(
+            "app.services.data_ingestion.api_providers."
+            "headcount_members_api_provider.DataEntryService",
+            return_value=service,
+        ):
+            result = await provider._load_data(rows)
+
+        assert len(created) == 1
+        assert result["inserted"] == 1
+        assert result["skipped_duplicates"] == 1
+
+    @pytest.mark.asyncio
+    async def test_second_role_and_other_modules_are_kept(self):
+        """The key is (module, person, role): a second role for the same person,
+        and the same role in another module, are both legitimate (#951).
+        """
+        provider = _make_provider()
+        created: list = []
+
+        async def _bulk_create(entries, *_args, **_kwargs):
+            created.extend(entries)
+            return entries
+
+        service = AsyncMock()
+        service.bulk_create = AsyncMock(side_effect=_bulk_create)
+
+        rows = [
+            {
+                "carbon_report_module_id": 7,
+                "user_institutional_id": "123456",
+                "sius_code": "51",
+                "name": "A",
+                "fte": 0.5,
+            },
+            {
+                "carbon_report_module_id": 7,
+                "user_institutional_id": "123456",
+                "sius_code": "54",
+                "name": "A",
+                "fte": 0.3,
+            },
+            {
+                "carbon_report_module_id": 9,
+                "user_institutional_id": "123456",
+                "sius_code": "51",
+                "name": "A",
+                "fte": 0.2,
+            },
+        ]
+
+        with patch(
+            "app.services.data_ingestion.api_providers."
+            "headcount_members_api_provider.DataEntryService",
+            return_value=service,
+        ):
+            result = await provider._load_data(rows)
+
+        assert len(created) == 3
+        assert result["inserted"] == 3
+        assert result["skipped_duplicates"] == 0

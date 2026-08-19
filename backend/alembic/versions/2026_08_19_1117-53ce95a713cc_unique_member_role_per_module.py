@@ -74,23 +74,36 @@ def upgrade() -> None:
             "Resolve them, then re-run this migration."
         )
 
-    op.create_index(
-        "uq_member_role_per_module",
-        "data_entries",
-        [
-            "carbon_report_module_id",
-            sa.literal_column("(data ->> 'user_institutional_id')"),
-            sa.literal_column("(data ->> 'sius_code')"),
-        ],
-        unique=True,
-        postgresql_where=sa.text(_INDEX_WHERE),
-    )
+    # CONCURRENTLY: ``data_entries`` reaches ~1M rows in real environments
+    # (the lead, 2026-08-19), and a plain CREATE INDEX takes an exclusive lock
+    # for the whole build — every write to the table blocks behind it. The
+    # trade is that it cannot run inside a transaction, hence the autocommit
+    # block, and that a failed build leaves an INVALID index behind rather
+    # than rolling back. The DROP below covers a retry after such a failure;
+    # the duplicate check above removes the one cause we can foresee.
+    with op.get_context().autocommit_block():
+        op.execute("DROP INDEX IF EXISTS uq_member_role_per_module")
+        op.create_index(
+            "uq_member_role_per_module",
+            "data_entries",
+            [
+                "carbon_report_module_id",
+                sa.literal_column("(data ->> 'user_institutional_id')"),
+                sa.literal_column("(data ->> 'sius_code')"),
+            ],
+            unique=True,
+            postgresql_where=sa.text(_INDEX_WHERE),
+            postgresql_concurrently=True,
+        )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index(
-        "uq_member_role_per_module",
-        table_name="data_entries",
-        postgresql_where=sa.text(_INDEX_WHERE),
-    )
+    # Concurrently here too: DROP INDEX also takes an exclusive lock.
+    with op.get_context().autocommit_block():
+        op.drop_index(
+            "uq_member_role_per_module",
+            table_name="data_entries",
+            postgresql_where=sa.text(_INDEX_WHERE),
+            postgresql_concurrently=True,
+        )
