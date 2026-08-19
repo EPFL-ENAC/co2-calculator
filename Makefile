@@ -110,6 +110,10 @@ clean-db:
 	docker compose down -v
 	docker volume rm co2-calculator_postgres-data-18 || true
 
+.PHONY: dev-tmux
+dev-tmux: ## Start backend/frontend/claude/shell in a tmux session (or attach if running)
+	./scripts/tmux-dev.sh
+
 # =============================================================================
 # Development - Local Trace Inspection (Tempo + Grafana)
 # =============================================================================
