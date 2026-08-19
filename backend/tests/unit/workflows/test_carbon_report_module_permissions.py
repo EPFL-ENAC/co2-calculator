@@ -2,8 +2,9 @@
 
 update(): 403 FIELD_NOT_EDITABLE on a changed field outside the row's
 provenance-branch policy, value-diffed (echoed-unchanged locked fields must
-not 403). delete(): 403 unless the row is user-branch. Planner rows are
-exempt regardless of source.
+not 403). delete(): 403 unless the row is user-branch. Planner-kind types
+are exempt regardless of source; planner snapshot rows are user-branch and
+additionally own percentage_of_reference_year (#2176).
 """
 
 from types import SimpleNamespace
@@ -182,6 +183,32 @@ async def test_update_user_row_whitelisted_field_succeeds():
             data_entry_type_id=DataEntryTypeEnum.other.value,
             item_id=1,
             item_data={"equipment_class": "Something else"},
+            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            request_context={},
+            background_tasks=MagicMock(),
+        )
+
+    data_entry_service.update.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_planner_snapshot_row_percentage_succeeds():
+    """The planner slider PATCHes percentage_of_reference_year, a field in no
+    module whitelist — a PLANNER_SNAPSHOT row must accept it (#2176).
+    """
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        {**_EXISTING_EQUIPMENT_DATA, "percentage_of_reference_year": 100},
+        source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
+    )
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        await workflow.update(
+            carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+            data_entry_type_id=DataEntryTypeEnum.other.value,
+            item_id=1,
+            item_data={"percentage_of_reference_year": 50},
             current_user=SimpleNamespace(id=5, institutional_id="352707"),
             request_context={},
             background_tasks=MagicMock(),

@@ -3,11 +3,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.data_entry_permissions import (
-    ALWAYS_WRITABLE_FIELDS,
     can_delete,
-    editable_fields,
     is_policy_exempt,
     provenance_of,
+    writable_fields_for_row,
 )
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
@@ -287,10 +286,8 @@ class CarbonReportModuleWorkflow:
             module_type = ModuleTypeEnum(carbon_report_module.module_type_id)
             # DataEntryService.get() (line 226) always raises on a missing
             # entry, never returns None — existing_entry is guaranteed here.
-            provenance = provenance_of(existing_entry.source)
-            allowed = (
-                editable_fields(module_type, data_entry_type, provenance)
-                | ALWAYS_WRITABLE_FIELDS
+            allowed = writable_fields_for_row(
+                module_type, data_entry_type, existing_entry.source
             )
             # Diffs the caller's literal item_data, not update_payload — the
             # latter can carry dependent-field resets from
