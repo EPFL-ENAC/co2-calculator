@@ -392,24 +392,36 @@ export default {
     fr: 'Pourcentage global',
   },
   planner_equipment_mode_per_line_hint: {
-    en: 'Each prefilled equipment gets its own percentage of the reference year, starting at 0%.',
-    fr: "Chaque équipement prérempli reçoit son propre pourcentage de l'année de référence, à 0% au départ.",
+    en: 'Each prefilled equipment gets its own percentage of the reference year, starting at 100%.',
+    fr: "Chaque équipement prérempli reçoit son propre pourcentage de l'année de référence, à 100% au départ.",
   },
   planner_equipment_mode_global_hint: {
     en: 'One percentage of the reference year is applied to every prefilled line at once.',
     fr: "Un pourcentage de l'année de référence est appliqué à toutes les lignes préremplies en une fois.",
+  },
+  planner_equipment_reference_total: {
+    en: 'Reference year total: {value} t CO₂-eq',
+    fr: "Total de l'année de référence : {value} t CO₂-eq",
+  },
+  planner_equipment_global_result: {
+    en: 'Planned result: {value} t CO₂-eq',
+    fr: 'Résultat prévu : {value} t CO₂-eq',
+  },
+  planner_equipment_reference_error: {
+    en: 'Could not load the reference year total.',
+    fr: "Impossible de charger le total de l'année de référence.",
   },
   planner_equipment_global_error: {
     en: 'Could not apply the percentage',
     fr: "Impossible d'appliquer le pourcentage",
   },
   planner_equipment_switch_to_global_message: {
-    en: 'The percentages entered per line and the budgets per equipment type will be reset so one global percentage can be used instead. Equipment added by hand keeps its values.',
-    fr: "Les pourcentages saisis par ligne et les budgets par type d'équipement seront réinitialisés afin d'utiliser un pourcentage global. Les équipements ajoutés à la main conservent leurs valeurs.",
+    en: 'The percentages entered per line and the budgets per equipment type will be reset so one global percentage can be used instead. Equipment added by hand will be deleted.',
+    fr: "Les pourcentages saisis par ligne et les budgets par type d'équipement seront réinitialisés afin d'utiliser un pourcentage global. Les équipements ajoutés à la main seront supprimés.",
   },
   planner_equipment_switch_to_per_line_message: {
-    en: 'The global percentage and the equipment budget will be reset so each line can be planned on its own. Equipment added by hand keeps its values.',
-    fr: 'Le pourcentage global et le budget équipements seront réinitialisés afin de planifier chaque ligne individuellement. Les équipements ajoutés à la main conservent leurs valeurs.',
+    en: 'The global percentage and the equipment budget will be reset so each line can be planned on its own. Equipment added by hand will be deleted.',
+    fr: 'Le pourcentage global et le budget équipements seront réinitialisés afin de planifier chaque ligne individuellement. Les équipements ajoutés à la main seront supprimés.',
   },
   planner_equipment_switch_error: {
     en: 'Could not switch the planning mode.',

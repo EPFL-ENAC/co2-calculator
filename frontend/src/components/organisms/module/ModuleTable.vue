@@ -732,12 +732,14 @@ const onFilesUploaded = async (filePaths: string[]) => {
           unit: props.unitId,
           year: String(props.year),
           carbonReportId: props.carbonReportId,
+          excludeSnapshots: props.excludeSnapshots,
         });
         moduleStore.getModuleData(
           props.moduleType as Module,
           props.unitId,
           String(props.year),
           props.carbonReportId,
+          props.excludeSnapshots,
         );
 
         const errorCaption = formatRowErrors(payload);
@@ -876,6 +878,8 @@ type CommonProps = {
    * driven by the module-level value and stay read-only (#1981).
    */
   percentageLocked?: boolean;
+  /** Grant equipment global mode: list only manually added entries (#1981). */
+  excludeSnapshots?: boolean;
   threshold: Threshold;
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
@@ -896,6 +900,7 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
   showReferenceColumns: false,
   projectYearsCount: null,
   percentageLocked: false,
+  excludeSnapshots: false,
   moduleColor: undefined,
   moduleColorLighter: undefined,
 });
@@ -2058,6 +2063,7 @@ async function onRequest(request: {
       unit: props.unitId,
       year: String(props.year),
       carbonReportId: props.carbonReportId,
+      excludeSnapshots: props.excludeSnapshots,
     });
   } else {
     // Only change page if sort didn't change
@@ -2067,6 +2073,7 @@ async function onRequest(request: {
       unit: props.unitId,
       year: String(props.year),
       carbonReportId: props.carbonReportId,
+      excludeSnapshots: props.excludeSnapshots,
     });
   }
 }
@@ -2091,6 +2098,7 @@ watch(
           unit: props.unitId,
           year: String(props.year),
           carbonReportId: props.carbonReportId,
+          excludeSnapshots: props.excludeSnapshots,
         });
         moduleStore.getSubmoduleTaxonomy(
           props.moduleType,
@@ -2120,6 +2128,7 @@ onMounted(async () => {
       unit: props.unitId,
       year: String(props.year),
       carbonReportId: props.carbonReportId,
+      excludeSnapshots: props.excludeSnapshots,
     });
     moduleStore.getSubmoduleTaxonomy(
       props.moduleType,

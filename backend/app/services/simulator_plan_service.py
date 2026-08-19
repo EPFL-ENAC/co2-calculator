@@ -726,12 +726,6 @@ class SimulatorPlanService:
             # up empty; it batches every such module's stats refresh into one
             # call instead of one per module (plan #2050 Track F6).
             return 0
-        # Grant equipment plans from scratch: every prefilled line starts at
-        # 0% and the user raises what the project actually uses (#1981).
-        # Everywhere else the snapshot starts as a full copy of the baseline.
-        default_percentage = (
-            0 if report.is_grant and module_type_id == ModuleTypeEnum.equipment else 100
-        )
         plain_copy = module_type_id in PLANNER_PLAIN_COPY_MODULE_TYPES
         rows = [
             {
@@ -748,7 +742,7 @@ class SimulatorPlanService:
                 if plain_copy
                 else {
                     **src.data,
-                    "percentage_of_reference_year": default_percentage,
+                    "percentage_of_reference_year": 100,
                     "source_data_entry_id": src.id,
                 },
             }
