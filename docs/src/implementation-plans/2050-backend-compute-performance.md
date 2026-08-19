@@ -2711,6 +2711,25 @@ benefit from the loop staying responsive mid-job. **Decision: keep all
 five, on every environment, unconditionally.** They cost nothing and the
 downside of removing one on the wrong environment is a repeat incident.
 
+**Re-reviewed 2026-08-19, prompted directly** ("we'll deploy to prod
+soon, so maybe we should review the decisions"): promoting
+`worker.enabled=true` to prod does not change this call, and the answer
+is not "revisit once promoted" — it's decided now, for both states.
+Post-promotion, prod's CSV/factor-merge work moves to the worker pod,
+same as dev/stage today; the yields become defense-in-depth there rather
+than the primary mitigation, exactly as already described for dev/stage
+above. They stay in place regardless, for two independent reasons that
+don't expire at promotion time: (1) a worker-pod crash-loop or a
+temporarily reverted `worker.enabled` (e.g. during an incident rollback)
+would silently lose this protection if it depended on remembering to
+re-add code that was deleted; (2) the worker pod's own liveness probe
+and `runner.py` heartbeat cadence benefit from these yields exactly as
+much as an API pod's `/healthz` does — Track B moved _where_ the CPU
+work runs, not whether a long synchronous stretch inside it can still
+starve that process's own event loop. There is no environment or
+timeline where deleting these five yields is the right move; this is
+closed, not reopened by promotion.
+
 One gap in this bucket, already logged and still open: the priority-order
 section above flags "the `asyncio.sleep(0)` yield is still outstanding"
 for `_recalculate_report_emissions` — checked again here,
@@ -2845,6 +2864,80 @@ above are missing.
 `openpyxl`/`pandas` in the app (only in seed scripts, which run offline,
 not in request paths).
 
+### I3a — the actual (non-Loki) log path, audited
+
+Loki was never wired up (I3.1's own finding). So what actually receives
+a backend log or unhandled exception today? Checked directly, not
+assumed — three candidate paths, one confirmed working, one confirmed
+configured-but-going-nowhere, one confirmed absent entirely.
+
+**1. JSON stdout — the base handler, always active, works.**
+`core/logging.py`'s `json_handler = logging.StreamHandler(sys.stdout)`
+is unconditional (`logging.basicConfig(..., handlers=[json_handler],
+force=True)`) — every log line lands in the container's stdout stream
+regardless of any other config, which is what `oc logs`/`kubectl logs`
+reads. Whether OpenShift forwards that further into a cluster-level
+long-term log store (EFK, a platform Loki instance, etc.) is a
+cluster-admin-scoped question this investigation can't answer from a
+project-namespace login — flagged as unverified, not claimed either way.
+
+**2. OTel logs pipeline — configured on the app side, silently
+dropped on the collector side. A real gap, same shape as the Loki
+finding.**
+Every env sets `OTEL_LOGS_EXPORTER: otlp` and
+`OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: true` — the SDK
+auto-instruments Python's `logging` module and ships log records via
+OTLP. But the otel-collector's own `service.pipelines` (confirmed in
+both dev's and stage's `kustomization.yaml` inline `otel-collector`
+helmChart block) defines only `traces` and `metrics` — **no `logs:`
+entry at all.** OTLP log records arriving at the collector's `otlp`
+receiver have no pipeline to route them through, so they're accepted
+and discarded. The app is configured as if logs are being collected;
+they aren't, anywhere. (Stage also carries a standalone, unreferenced
+`otel/cm-otel-collector.yaml` + `deploy-otel-collector.yaml` — not in
+that overlay's `resources:` list, so not deployed; its own pipeline is
+`metrics`-only too, doesn't change this finding.)
+
+Mechanical fix, mirroring the existing `traces`/`metrics` pipeline shape
+exactly — a maintainer call on _where_ logs should land (same
+`enac-it-otel` endpoint as traces, most likely), not something to guess
+and apply here:
+
+```yaml
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      exporters: [otlphttp/enac-it-otel]
+```
+
+**3. Sentry/GlitchTip — wired for the frontend, absent from the
+backend entirely.**
+`APP_SENTRY_DSN` (→ `enac-it-glitchtip.epfl.ch`) is set in every env's
+**`frontend.env`** block, all three pointing at the same GlitchTip
+project. Checked the backend the same way: no `APP_SENTRY_DSN` (or any
+`SENTRY`/`GLITCHTIP` key) in any `backend.env`/`backend.secrets` block in
+any overlay, no `sentry_sdk` import anywhere in `backend/app`, no
+Sentry/GlitchTip dependency in `backend/pyproject.toml`. **The backend
+has no dedicated error-tracking destination at all** — an unhandled
+exception's only trace today is #1 (stdout, unverified downstream) and
+whatever the OTel _traces_ pipeline captures as a span status (which
+does work — #C1's "GlitchTip export" trace citations elsewhere in this
+plan are trace exports reaching GlitchTip via OTLP, not a standing
+`sentry_sdk` integration; worth being precise about that distinction
+rather than assuming backend error tracking exists because the frontend
+has it).
+
+**Net**: today, a backend exception is visible via OTel traces (working)
+and stdout (working, downstream fate unverified) — not via Loki (dead
+code path until I3.1, and never configured), not via the OTel logs
+pipeline (configured, silently dropped), not via Sentry/GlitchTip
+(never wired up for the backend at all). Two gaps here are real and
+actionable, not touched in this pass since they're operational
+decisions, not bugs: wire the collector's `logs:` pipeline (above), and
+decide whether the backend should get the same GlitchTip wiring the
+frontend already has.
+
 ### I4 — recommended order
 
 1. ~~**I1** — resolve whether Track B is actually live.~~ **Done.**
@@ -2860,9 +2953,24 @@ not in request paths).
    branch.**
 5. **Do not** build a `ProcessPoolExecutor`, and **do not** raise uvicorn
    worker count per pod — both closed above, with numbers.
-6. **New, from I1/I1a**: promote worker.enabled + the CPU/pool overrides
-   to prod (an environment change, the lead's call — flagged, not
-   actioned), and add the pool/connection monitoring proposed in I1a.
+6. ~~**I1a — the pool gauge.**~~ **Done, this branch.**
+   `db.read_pool_state` + an OTel `ObservableGauge`
+   (`db.pool.connections`), routed through infra that already exists.
+   Grafana panel not added (hand-tuned dashboard JSON, not a template) —
+   PromQL left in I1a for whoever adds one.
+7. ~~**I2 — re-review given imminent prod promotion.**~~ **Done.**
+   Decision unchanged and now explicit for both pre- and post-promotion
+   states: keep all five yields, unconditionally, permanently — see I2's
+   2026-08-19 addendum for why promotion doesn't reopen this.
+8. **New, from I3a**: the OTel collector has no `logs:` pipeline in any
+   env — `OTEL_LOGS_EXPORTER: otlp` ships log records into a dead end.
+   Mechanical fix given in I3a, needs a maintainer call on destination
+   before applying. Separately: the backend has no Sentry/GlitchTip
+   wiring at all (frontend does) — a real gap, not sized or actioned
+   here, the lead's call whether to close it.
+9. **New, from I1/I1a**: promote `worker.enabled` + the CPU/pool
+   overrides to prod — draft PR prepared (see I1's table), not merged,
+   the lead's call on timing.
 
 None of I3's three fixes touched recalculation, pipeline internals, or
 published emission numbers — logging/audit/crypto plumbing, not the
