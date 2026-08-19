@@ -35,9 +35,6 @@ class CarbonReportModuleWorkflow:
 
     def __init__(self, session: AsyncSession):
         self.session = session
-        # Reports whose stats a deferred rollup left stale, for the route to
-        # dispatch once the transaction has committed (#2050 J4).
-        self.stale_report_ids: set[int] = set()
 
     async def _check_planner_purchase_exclusivity(
         self,
@@ -164,14 +161,14 @@ class CarbonReportModuleWorkflow:
             # replace, so upsert's pre-delete lookup is a guaranteed-empty
             # SELECT. The update path below keeps using upsert.
             await DataEntryEmissionService(self.session).create(item, scope=scope)
-            module_service = CarbonReportModuleService(self.session)
-            # #2050 J4: this module's stats stay in the request (the caller is
-            # looking at them); the report rollup is deferred and dispatched by
-            # the route after the commit.
-            await module_service.recompute_stats(
-                carbon_report_module.id, scope=scope, defer_report_rollup=True
+            # #2050 J9: the report rollup stays in this transaction. J4
+            # deferred it on the premise that nobody reads report totals in
+            # this interaction; the frontend's own waterfall disproves that —
+            # it fetches report-stats right after the write, and that endpoint
+            # serves the persisted carbon_reports.stats column.
+            await CarbonReportModuleService(self.session).recompute_stats(
+                carbon_report_module.id, scope=scope
             )
-            self.stale_report_ids = module_service.stale_report_ids
             await self.session.commit()
         except IntegrityError as e:
             await self.session.rollback()
