@@ -501,6 +501,7 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
     carbonReportId?: number,
+    excludeSnapshots?: boolean,
   ) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
@@ -508,8 +509,9 @@ export const useModuleStore = defineStore('modules', () => {
     state.error = null;
     state.data = null;
     try {
+      const base = await modulePath(moduleType, unit, year, carbonReportId);
       state.data = (await api
-        .get(await modulePath(moduleType, unit, year, carbonReportId))
+        .get(excludeSnapshots ? `${base}?exclude_snapshots=true` : base)
         .json()) as ModuleResponse;
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -529,6 +531,7 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
     carbonReportId?: number,
+    excludeSnapshots?: boolean,
   ) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
@@ -537,7 +540,9 @@ export const useModuleStore = defineStore('modules', () => {
 
     state.data = null;
     try {
-      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}?preview_limit=0`;
+      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}?preview_limit=0${
+        excludeSnapshots ? '&exclude_snapshots=true' : ''
+      }`;
       state.data = (await api.get(path).json()) as ModuleResponse;
       if (state.data?.data_entry_types_total_items) {
         state.moduleTotalsMap[moduleType] =
@@ -581,12 +586,15 @@ export const useModuleStore = defineStore('modules', () => {
     unit,
     year,
     carbonReportId,
+    excludeSnapshots,
   }: {
     moduleType: Module;
     submoduleType: string;
     unit: number;
     year: string;
     carbonReportId?: number;
+    /** Grant equipment global mode: list only manually added entries (#1981). */
+    excludeSnapshots?: boolean;
   }) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
@@ -611,6 +619,9 @@ export const useModuleStore = defineStore('modules', () => {
       const filterTerm = state.filterTermSubmodule[submoduleType];
       if (filterTerm && filterTerm.trim().length > 0) {
         queryParams.append('filter', filterTerm.trim());
+      }
+      if (excludeSnapshots) {
+        queryParams.append('exclude_snapshots', 'true');
       }
       const url = `${await modulePath(moduleType, unit, year, carbonReportId)}/${encodeURIComponent(
         submoduleType,

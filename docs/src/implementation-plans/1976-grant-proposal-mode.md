@@ -146,11 +146,12 @@ Grant section renders **before** (not instead of) the year sections.
 
 - In the Project Grant section only, Equipment carries a "Planning mode"
   toggle: **Manual entry per line** (each prefilled line has its own
-  reference-year percentage — grant prefill starts at 0% instead of the
-  planner's usual 100%) vs **Global percentage** (one value applied to all
-  prefilled lines at once). Adding an equipment through the usual form
-  stays available in both modes; hand-added lines are untouched by the
-  global value.
+  reference-year percentage, prefilled at the planner's usual 100%) vs
+  **Global percentage** (one value applied to all prefilled lines at
+  once, shown beside the aggregated reference-year total it scales).
+  Adding an equipment through the usual form stays available in both
+  modes; hand-added lines are untouched by the global value but a
+  confirmed mode switch deletes them.
 - Global mode: `PATCH
 /carbon-reports/{id}/modules/{module_type_id}/reference-percentage`
   (`{percentage: 0..100}`, grant reports only) updates every snapshot
