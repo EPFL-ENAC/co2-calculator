@@ -715,6 +715,14 @@ export default {
     en: 'Cohere',
     fr: 'Cohere',
   },
+  'charts-ai-provider-github-subcategory': {
+    en: 'GitHub Copilot',
+    fr: 'GitHub Copilot',
+  },
+  'charts-ai-provider-microsoft-subcategory': {
+    en: 'Microsoft Copilot',
+    fr: 'Microsoft Copilot',
+  },
   'charts-ai-provider-others-subcategory': {
     en: 'Others',
     fr: 'Autres',

@@ -1,7 +1,12 @@
 """Emission resolution for the buildings module."""
 
 from app.modules.emissions.buckets import StatBucket
-from app.modules.emissions.taxonomy import EmissionType, FactorLike
+from app.modules.emissions.taxonomy import (
+    EmissionType,
+    EmissionTypeResolutionError,
+    FactorLike,
+    canonical_token,
+)
 
 # Buildings straddles the scope bands: fuel combustion and thermal heating are
 # direct scope-1 emissions, electrically driven rooms are scope 2, and
@@ -72,23 +77,28 @@ def resolve_building_rooms(
     if heating_leaf is not None:
         energies.append(heating_leaf)
 
-    room_type = (data.get("room_type") or "").lower()
-    suffix = f"__{room_type}" if room_type in _VALID_ROOM_TYPES else ""
+    room_type = canonical_token(data.get("room_type"))
+    if room_type not in _VALID_ROOM_TYPES:
+        raise EmissionTypeResolutionError(
+            f"No emission type for building room_type {room_type!r} — "
+            f"expected one of {sorted(_VALID_ROOM_TYPES)}"
+        )
 
-    result = []
-    for energy in energies:
-        parent = f"buildings__rooms__{energy}"
-        try:
-            result.append(EmissionType[f"{parent}{suffix}"])
-        except KeyError:
-            result.append(EmissionType[parent])
-    return result
+    # Every energy carries the same per-room-type leaf set, so a missing one
+    # is a taxonomy gap, not a data problem — let the KeyError surface.
+    return [
+        EmissionType[f"buildings__rooms__{energy}__{room_type}"] for energy in energies
+    ]
 
 
 def resolve_combustion(data: dict) -> list[EmissionType]:
-    name = (data.get("name") or "").lower().replace(" ", "_")
+    name = canonical_token(data.get("name"))
     emission_type_name = f"{EmissionType.buildings__combustion.name}__{name}"
     try:
         return [EmissionType[emission_type_name]]
     except KeyError:
-        return [EmissionType.buildings__combustion]
+        raise EmissionTypeResolutionError(
+            f"No emission type for combustion fuel {name!r} "
+            f"(looked for EmissionType.{emission_type_name}). Either correct "
+            f"the CSV or add the leaf to app/modules/emissions/taxonomy.py."
+        ) from None

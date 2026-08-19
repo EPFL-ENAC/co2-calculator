@@ -18,6 +18,7 @@ from app.models.data_ingestion import (
 from app.models.factor import Factor
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.user import User
+from app.modules.emissions.taxonomy import EmissionTypeResolutionError
 from app.modules_planner.purchase.derived_factors import (
     PURCHASE_SOURCE_TYPES,
     derive_planner_purchase_factors,
@@ -376,15 +377,15 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                     converted = self._convert_value(value)
                     values[field_name] = converted
 
-            # Resolve emission_type_id using external function
-            try:
-                emission_type_id = get_factor_emission_type_id(
-                    data_entry_type, classification
-                )
-            except Exception as e:
-                error_msg = f"Emission type resolution failed: {e}"
-                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg
+            # #2091: an unmappable emission type aborts the upload instead
+            # of skipping the row. Skipping commits every *other* row, so the
+            # factor table ends up half-updated and the module quietly loses
+            # a category — the failure the operator never sees. Malformed
+            # values (bad float, missing column) keep their skip semantics
+            # below; only emission-type resolution escalates.
+            emission_type_id = get_factor_emission_type_id(
+                data_entry_type, classification
+            )
 
             # Validate the payload (ensures data types are correct)
             # but use our manually built classification/values dicts
@@ -421,6 +422,10 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 year=self.year,
             )
             return factor, None
+        except EmissionTypeResolutionError as resolution_error:
+            raise EmissionTypeResolutionError(
+                f"Row {row_idx}: {resolution_error}"
+            ) from resolution_error
         except Exception as row_error:
             logger.error(f"Row {row_idx}: Error processing row: {str(row_error)}")
             error_msg = f"Row processing error: {row_error}"

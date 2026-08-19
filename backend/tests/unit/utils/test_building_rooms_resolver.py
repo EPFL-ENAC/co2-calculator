@@ -13,6 +13,7 @@ import pytest
 from app.models.factor import Factor
 from app.modules.buildings.emissions import resolve_building_rooms
 from app.modules.emissions import EmissionType
+from app.modules.emissions.taxonomy import EmissionTypeResolutionError
 
 _HEATING_LEAVES = {
     EmissionType.buildings__rooms__heating_electric,
@@ -43,10 +44,12 @@ def test_office_thermal_emits_only_thermal_leaf() -> None:
     assert _heating(result) == {EmissionType.buildings__rooms__heating_thermal__office}
 
 
-def test_zz_level_electric_emits_only_electric_leaf() -> None:
-    # No room_type → generic ZZ-level leaves.
-    result = resolve_building_rooms({}, _factor("electric"))
-    assert _heating(result) == {EmissionType.buildings__rooms__heating_electric}
+def test_missing_room_type_fails_loud() -> None:
+    # #2091: a missing/unknown room_type used to drop the suffix and land on
+    # buildings__rooms__heating_electric — an intermediate node that already
+    # sums its six room-type children.
+    with pytest.raises(EmissionTypeResolutionError, match="room_type"):
+        resolve_building_rooms({}, _factor("electric"))
 
 
 def test_never_emits_both_heating_leaves() -> None:

@@ -1,7 +1,10 @@
 """Emission resolution for process emissions."""
 
 from app.modules.emissions.buckets import StatBucket
-from app.modules.emissions.taxonomy import EmissionType
+from app.modules.emissions.taxonomy import (
+    EmissionType,
+    EmissionTypeResolutionError,
+)
 
 STAT_BUCKETS: tuple[StatBucket, ...] = (
     StatBucket(
@@ -18,24 +21,29 @@ _PROCESS_GAS_MAP: dict[str, EmissionType] = {
     "refrigerants": EmissionType.process_emissions__refrigerants,
     "refrigerant": EmissionType.process_emissions__refrigerants,
     # Descriptive names: factor rows (processemissions_factors.csv
-    # `category`) spell the gas out. The taxonomy has no leaf per
-    # fluorinated gas, so every synthetic/F-gas here — SF6, NF3, HFCs,
-    # PFCs, fluorinated ethers, perfluoropolyethers — rolls into the
-    # existing "refrigerants" bucket (#2091: finer-grained buckets are a
-    # taxonomy decision for the lead, not made here).
+    # `category`) spell the gas out, one leaf per gas family (#2091).
     "carbon dioxide (co2)": EmissionType.process_emissions__co2,
     "methane (ch4)": EmissionType.process_emissions__ch4,
     "nitrous oxide (n2o)": EmissionType.process_emissions__n2o,
+    # SF6 and NF3 are not refrigerants either, but they were outside the
+    # #2091 split request — left here deliberately, not by oversight.
     "sulfur hexafluoride (sf6)": EmissionType.process_emissions__refrigerants,
     "nitrogen trifluoride (nf3)": EmissionType.process_emissions__refrigerants,
-    "hydrofluorocarbons (hfcs)": EmissionType.process_emissions__refrigerants,
-    "perfluorinated compounds": EmissionType.process_emissions__refrigerants,
-    "fluorinated ethers": EmissionType.process_emissions__refrigerants,
-    "perfluoropolyethers": EmissionType.process_emissions__refrigerants,
+    "hydrofluorocarbons (hfcs)": EmissionType.process_emissions__hfcs,
+    "perfluorinated compounds": (
+        EmissionType.process_emissions__perfluorinated_compounds
+    ),
+    "fluorinated ethers": EmissionType.process_emissions__fluorinated_ethers,
+    "perfluoropolyethers": EmissionType.process_emissions__perfluoropolyethers,
 }
 
 
-def resolve_process_emissions(data: dict) -> list[EmissionType] | None:
+def resolve_process_emissions(data: dict) -> list[EmissionType]:
     gas = data.get("category", (data.get("kind", "") or "")).lower()
     emission_type = _PROCESS_GAS_MAP.get(gas)
-    return [emission_type] if emission_type else None
+    if emission_type is None:
+        raise EmissionTypeResolutionError(
+            f"No emission type for process-emissions category {gas!r} — "
+            f"expected one of {sorted(_PROCESS_GAS_MAP)}"
+        )
+    return [emission_type]

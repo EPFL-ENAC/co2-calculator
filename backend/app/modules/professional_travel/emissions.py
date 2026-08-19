@@ -1,7 +1,10 @@
 """Emission resolution for professional travel."""
 
 from app.modules.emissions.buckets import StatBucket
-from app.modules.emissions.taxonomy import EmissionType
+from app.modules.emissions.taxonomy import (
+    EmissionType,
+    EmissionTypeResolutionError,
+)
 
 STAT_BUCKETS: tuple[StatBucket, ...] = (
     StatBucket(
@@ -20,13 +23,22 @@ _TRAIN_CLASS_MAP: dict[str, EmissionType] = {
 }
 
 
-def resolve_plane(data: dict) -> list[EmissionType] | None:
+def _resolve_cabin(
+    data: dict, cabin_map: dict[str, EmissionType], mode: str
+) -> list[EmissionType]:
     cabin = (data.get("cabin_class") or "").lower()
-    emission_type = _PLANE_CABIN_MAP.get(cabin)
-    return [emission_type] if emission_type else None
+    emission_type = cabin_map.get(cabin)
+    if emission_type is None:
+        raise EmissionTypeResolutionError(
+            f"No emission type for {mode} cabin_class {cabin!r} — "
+            f"expected one of {sorted(cabin_map)}"
+        )
+    return [emission_type]
 
 
-def resolve_train(data: dict) -> list[EmissionType] | None:
-    cabin = (data.get("cabin_class") or "").lower()
-    emission_type = _TRAIN_CLASS_MAP.get(cabin)
-    return [emission_type] if emission_type else None
+def resolve_plane(data: dict) -> list[EmissionType]:
+    return _resolve_cabin(data, _PLANE_CABIN_MAP, "plane")
+
+
+def resolve_train(data: dict) -> list[EmissionType]:
+    return _resolve_cabin(data, _TRAIN_CLASS_MAP, "train")

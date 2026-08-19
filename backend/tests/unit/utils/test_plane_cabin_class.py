@@ -8,6 +8,7 @@ that unknown or missing values return ``None`` (no emission produced).
 import pytest
 
 from app.modules.emissions import EmissionType
+from app.modules.emissions.taxonomy import EmissionTypeResolutionError
 from app.modules.professional_travel.emissions import resolve_plane
 
 
@@ -39,8 +40,7 @@ def test_resolve_plane_maps_class_to_emission_type(
         {},  # missing key
     ],
 )
-def test_resolve_plane_returns_none_for_unknown_class(data: dict) -> None:
-    result = resolve_plane(data)
-    assert result is None, (
-        f"data={data!r}: expected None for unknown cabin class, got {result}"
-    )
+def test_resolve_plane_raises_for_unknown_class(data: dict) -> None:
+    # #2091: None was indistinguishable from "this row emits nothing".
+    with pytest.raises(EmissionTypeResolutionError, match="cabin_class"):
+        resolve_plane(data)
