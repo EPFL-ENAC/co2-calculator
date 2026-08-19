@@ -2,12 +2,24 @@
 
 set -e
 
-SESSION="dev"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_NAME="$(basename -s .git "$(git -C "$ROOT" config --get remote.origin.url)")"
+BRANCH="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)"
+# One session per branch/worktree, so parallel worktrees don't collide
+# (and matches wt's own $WT_REPO_NAME/$WT_BRANCH session naming).
+SESSION="$REPO_NAME/$BRANCH"
+
+attach() {
+    if [ -n "$TMUX" ]; then
+        tmux switch-client -t "$SESSION"
+    else
+        tmux attach-session -t "$SESSION"
+    fi
+}
 
 # Don't create it twice
 if tmux has-session -t "$SESSION" 2>/dev/null; then
-    tmux attach-session -t "$SESSION"
+    attach
     exit 0
 fi
 
@@ -30,4 +42,4 @@ tmux new-window -t "$SESSION" -n shell -c "$ROOT"
 tmux select-window -t "$SESSION:shell"
 
 # Attach
-tmux attach-session -t "$SESSION"
+attach
