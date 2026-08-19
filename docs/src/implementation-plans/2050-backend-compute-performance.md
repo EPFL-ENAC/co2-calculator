@@ -2449,6 +2449,47 @@ errors abort. So these raises surface bad data per entry without stalling
 the pipeline that plans 1215/1219/1559/1723 exist to protect. Full unit
 suite green (2115).
 
+**Two things the unit suite structurally could not catch**, found by
+running `tests/integration/services/data_ingestion` (219 passed, plus one
+pre-existing failure in `test_submodule_sort_search_matrix_pg` verified
+failing identically with the pre-change service). Unit fixtures have
+complete factor data, so nothing there exercises these branches — the
+all-green unit run was weaker evidence than it looked.
+
+1. **The raise fired with an empty explanation.** `missing context keys
+[], missing factor keys []` — both lists empty, in the most common real
+   case. The call-site diagnostic only understood key-based computations; a
+   `formula_func` that declines has no keys to report. The reason now comes
+   from `_apply_formula`, the only place that knows which branch failed,
+   and it names the null input: _"Null inputs on the entry:
+   ['room_surface_square_meter']"_. `_apply_formula` returns `float` now,
+   not `float | None`.
+2. **One test pinned the old behaviour on purpose.**
+   `test_building_room_without_ref_data_skips_leaf_emissions` documented
+   the contract as _"That's 'skip', not 'default'."_ The intent was sound —
+   don't invent a number — but the effect was that a building whose room
+   is absent from reference data contributes **zero** to its unit's total.
+   That is a wrong total that looks complete, which the guardrails rank as
+   the worst failure this project can have. Renamed to `_fails_loudly`; it
+   now asserts the message names the missing input. **The data outcome is
+   unchanged** — the entry survives, no leaf rows are written — what
+   changed is that the gap appears in the job's `error_details` instead of
+   only in a log nobody reads.
+
+**Expect a flood on the first recalc after this merges.** With 250K-1M
+persisted entries and a DB that survives deploys, every entry with
+incomplete factor data now reports an error instead of quietly producing a
+partial number. That is the intended behaviour, not a regression, but it
+should be a stated expectation. The `year is None` raise is the widest of
+the six: any report lacking a resolvable year fails every entry under it.
+
+**Interactive writes now 500.** `app/main.py` registers handlers only for
+the permission errors, so a POST/PATCH on an entry with incomplete factors
+surfaces as a 500 rather than a 4xx. Loud, which is what was asked for,
+and recorded here as a decision rather than left to be discovered. Worth
+revisiting as a 422 with the missing-input message in the body — the
+message is now specific enough to be useful to a user.
+
 ### I2 — lever 2, delivered: one query where the route made three
 
 The headcount branch of `GET .../modules/{module_id}` issued three
