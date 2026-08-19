@@ -2243,8 +2243,8 @@ with them is the point of the fix — but it is worth knowing it exists.
 
 `82c2de` (H4) could not be root-caused because stage inherits the chart
 default `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "sqlalchemy,psycopg"`.
-Prepared on branch `debug/2050-track-h-full-tracing` in
-`openshift-app-config` (**not pushed** — needs a maintainer's call):
+Pushed as branch `debug/2050-track-h-full-tracing` in
+`openshift-app-config` (`4f34268`, 2026-08-19; the lead handles the merge):
 
 - **stage** gains `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: ""` (SQL spans
   visible, mirroring dev) and `OTEL_TRACES_SAMPLER: "always_on"`.
@@ -2262,6 +2262,133 @@ instrumentation. Both are temporary: C1 measured SQL instrumentation at
 ~2/3 of the OTel throughput tax, so revert once the stage PATCH is
 root-caused.
 
+### H7 — the GET, drawn
+
+**Which query shape runs, and why the old one could not be made fast.**
+
+```mermaid
+flowchart TD
+    REQ["GET .../modules/{module_id}/{submodule_id}<br/>data_entry_type_id = planner_headcount (80)"]
+    REQ --> D{"is_headcount_entry?<br/>data_entry_repo.py:754"}
+    D -->|"BEFORE — tuple listed member + student only,<br/>so planner_headcount fell through"| S1
+    D -->|"AFTER — tuple now includes planner_headcount"| F1
+
+    S1["generic branch, repo.py:891<br/>SELECT data_entry_id, SUM(kg_co2eq), MIN(primary_factor_id)<br/>FROM data_entry_emissions<br/>WHERE emission_type_id NOT IN (rollup types)<br/>GROUP BY data_entry_id"]
+    S1 --> S2["No module filter inside the subquery.<br/>The module restriction is a JOIN qual on data_entries,<br/>which Postgres cannot push through a GROUP BY —<br/>so the aggregate is computed over EVERY row first,<br/>then joined and thrown away."]
+    S2 --> S3["HashAggregate over the whole table<br/>cost grows linearly with total table size<br/>65 ms local @ 1M rows · ~825 ms on dev"]
+
+    F1["rollup branch, repo.py:852<br/>LEFT JOIN data_entry_emissions AS rollup<br/>ON rollup.data_entry_id = data_entries.id<br/>AND rollup.emission_type_id = headcount<br/>AND rollup.scope IS NULL"]
+    F1 --> F2["The total was already computed at write time by<br/>prepare_create and stored on one row.<br/>Indexed lookup, only this page's rows are touched."]
+    F2 --> F3["cost independent of table size<br/>6 ms local @ 1M rows · ~80 ms projected on dev"]
+```
+
+The key point is `S2`: the old shape was not a slow query that tuning
+could rescue. Nothing in it can be indexed away, because the work it does
+is _by construction_ proportional to the whole table — the filter that
+would have made it cheap sits on the other side of a join it cannot cross.
+The rollup row already existed for this type; the branch simply never read
+it.
+
+**Where the milliseconds actually go, before and after.** Same request,
+dev, at production volume:
+
+```
+BEFORE  ├─ connect (pool checkout)   ~300–620 ms  ████████████
+        ├─ aggregation query          ~825 ms     ████████████████████████████████
+        ├─ units + counts queries     ~300–480 ms ███████████████
+        └─ total                      ~1.4–1.9 s
+
+AFTER   ├─ connect (pool checkout)   ~300–620 ms  ████████████   <- now dominant
+   (H)  ├─ rollup JOIN                 ~80 ms     ███
+        ├─ units + counts queries     ~300–480 ms ███████████████
+        └─ total                      ~700–1180 ms
+
+TARGET  └─ total                       <200 ms
+```
+
+This fix removes the single largest bar. It does **not** get this endpoint
+under 200 ms in dev on its own — see H8.
+
+**The single-leaf caveat, drawn.** This is the one behaviour the fix
+changes for the worse, and it is only reachable when factor data is
+incomplete:
+
+```mermaid
+flowchart TD
+    A["planner_headcount entry<br/>declares 3 leaves: food, waste, commuting<br/>(registry.py:148)"] --> B{"Does _apply_formula return<br/>a value for each leaf?"}
+    B -->|"all 3 resolve"| C["3 leaf rows written"]
+    B -->|"factor row missing, or a formula/<br/>multiplier key absent from it →<br/>service.py:621 logs a warning and skips the leaf"| DD["only 1 leaf row written<br/>the other 2 are silently dropped"]
+    C --> E{"more than one leaf row?<br/>service.py:674"}
+    DD --> E
+    E -->|"yes"| F["rollup row written<br/>kg_co2eq = sum(leaves), scope = NULL"]
+    E -->|"no — a single leaf"| G["NO rollup row is written"]
+    F --> H["GET's LEFT JOIN matches it<br/>→ correct total displayed"]
+    G --> I["GET's LEFT JOIN finds no match<br/>→ total is NULL, UI shows a blank cell<br/>(before the fix, the generic SUM<br/>would have shown that one leaf's value)"]
+```
+
+Read plainly: **the blank cell is not caused by this fix.** The fix makes
+an existing data problem visible. The actual defect is upstream at
+`data_entry_emission_service.py:621` — a missing factor is swallowed with
+`logger.warning(...)` + `continue`, which is precisely the pattern
+[the guardrails](../contributing/guardrails.md) name as a silent fallback
+(_"a log line nobody reads is a silent fallback"_). An entry that should
+have three emission leaves quietly gets one, and every downstream consumer
+inherits a number that is wrong-but-plausible.
+
+`member`/`student` have behaved this way since rollups shipped, so this is
+inherited, not introduced — but "inherited" is not "fine". The correct
+follow-up is to make the skip loud where it happens, not to special-case
+the read path around it. Filed as a separate concern rather than folded
+into this fix, since it changes ingestion behaviour for four data entry
+types at once.
+
+### H8 — what it actually takes to reach <200 ms in dev
+
+H7's budget makes the remaining gap explicit. With Track H merged, the
+submodule GET on dev is still ~700–1180 ms, and **none** of what is left
+is query-plan work. Three levers, in descending confidence:
+
+**1. The `connect` span — 289–620 ms, per request (G2).**
+Present on all three post-fix `modules/{module_id}` dev traces
+(`0626c0` 559.5 ms, `54c69f` 620.0 ms, `ce06f1` 289.3 ms). An established
+connection does not cost half a second; this is checkout contention,
+`pool_pre_ping`'s extra round trip, or a genuinely new connection being
+opened per request. Three things to check, in order, none of which need
+more trace reading:
+
+- Is Track A3's CPU-request bump (`100m` → `1` core) actually applied on
+  dev? At 100m the pod is CPU-throttled, and a TLS handshake plus the
+  asyncio loop's own scheduling stretch into exactly this shape.
+- What are `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` on dev? Stage sets
+  `DB_POOL_SIZE: "20"`; dev is unverified. A pool smaller than the
+  concurrent request count turns checkout into a queue.
+- Is `pool_pre_ping` on? It costs one round trip per checkout — cheap
+  locally, not cheap against dev's DB.
+
+Pre-warming the pool in the FastAPI lifespan is the likely fix once the
+above says which of the three it is. Expected recovery: **~300–600 ms**,
+the single biggest remaining item.
+
+**2. The 3–4 sequential un-batched queries — ~300–480 ms (G2).**
+Units lookup, per-type entry counts, emission sums, and on some routes a
+`SELECT users` that re-reads the current user the JWT already carries.
+This is the same "round-trip count, not query speed" shape Tracks C, D and
+E each fixed already; applied here it means one combined query instead of
+four sequential ones. Expected recovery: **~200–350 ms**. Needs its own
+plan before touching the route (mirror C/D/E, don't invent a shape).
+
+**3. Everything else is already inside budget.** Post-H the actual data
+work is ~80 ms. There is no third mystery — G2's timeline accounted for
+100% of its 1198.7 ms with zero unexplained Python time.
+
+**300–600 ms + 200–350 ms recovered from a ~700–1180 ms baseline lands at
+roughly 100–500 ms.** That reaches the target at the good end and misses
+it at the bad end, which is the honest statement: lever 1 alone is not
+guaranteed to be sufficient, and the two together probably are. The
+100%-sampled SQL tracing from H6 is what turns "probably" into a number —
+it will show whether `connect` is queueing or handshaking, which decides
+whether the fix is a config change or a lifespan change.
+
 ### Track H priority order
 
 1. ~~**H2 — the one-line `is_headcount_entry` fix**~~ — **done**, with
@@ -2269,10 +2396,16 @@ root-caused.
 2. ~~**H1's verification EXPLAIN**~~ — superseded by H5's scaling
    measurement.
 3. **Land the fix**: PR `fix/2050-planner-headcount-rollup` → `dev`.
-4. **H6's tracing overrides** — needs a maintainer to approve pushing
-   `debug/2050-track-h-full-tracing` in `openshift-app-config`.
-5. **H4's dev-side repro** of the stage PATCH — unblocked once H6 lands,
-   or doable immediately on dev.
+4. ~~**H6's tracing overrides**~~ — pushed 2026-08-19, merge is the lead's.
+5. **H8 lever 1 — the `connect` span.** Biggest remaining item by far, and
+   it is a config question (`kubectl describe` + `DB_POOL_SIZE`), not a
+   code question. Do this before writing any more query code.
+6. **H8 lever 2 — batch the module-detail GET's sequential queries.**
+   Needs its own plan first (G2 says the same).
+7. **The silent factor skip** at `data_entry_emission_service.py:621` —
+   see H7's third diagram. Correctness, not performance; affects
+   `member`/`student`/`planner_headcount`/`building` alike.
+8. **H4's dev-side repro** of the stage PATCH — unblocked once H6 merges.
 
 ## Priority order
 
