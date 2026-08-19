@@ -91,10 +91,6 @@ spec:
             # on boot missing required Settings fields (#2050, caught on
             # dev's first real worker.enabled deploy; unit/integration
             # tests mock Settings and never exercise this).
-            {{- range $key, $value := .Values.backend.env }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
             {{- range $key, $value := .Values.worker.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
