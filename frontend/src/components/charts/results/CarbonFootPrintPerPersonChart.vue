@@ -345,7 +345,6 @@ const seriesArray = computed(() => {
     const encode = s.encode as { x?: unknown; y?: unknown } | undefined;
     const key = isPrintMode.value ? encode?.x : encode?.y;
     const visible = isCategoryVisible(String(key ?? ''));
-    console.log(key, visible);
     return visible;
   });
 });
@@ -612,13 +611,19 @@ const downloadCSV = () => {
   flex-direction: column;
 }
 
+/* #2027: a definite height, not min-height. vue-echarts 8.1.0 renders an
+   <x-vue-echarts> custom element carrying its own `height: 100%`, and its
+   resize observer skips any resize where a dimension is 0 — so a chart that
+   measures zero once at init stays a zero-height canvas forever: fully
+   populated, no error, nothing drawn. Every chart that kept working through
+   the 8.0.1 -> 8.1.0 bump sets a definite height; the two that broke were the
+   two using min-height. Keep it definite. */
 .chart {
   width: 100%;
-  min-height: 420px;
+  height: 420px;
 }
 
 .chart--print {
-  min-height: unset;
   height: 120px !important;
 }
 
