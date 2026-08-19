@@ -40,11 +40,14 @@ function validate() {
   });
 }
 
-// #2050: the button is html-type="submit" inside this q-form, so its click
-// already triggers the form's native submit -> handleSubmit -> validate().
-// A second @click="validate" on the button used to fire validate() (and so
-// authStore.login()) twice per click, sending two concurrent OAuth logins
-// for the same user and racing the backend's audit trail.
+// #2050: the button is type="submit" inside this q-form (QBtn's real native-
+// type prop — an earlier "html-type" here wasn't a recognized prop at all,
+// so the button silently rendered as type="button" and never submitted the
+// form; a since-removed @click="validate" was the only thing that ever
+// triggered login). One click -> native submit -> handleSubmit -> validate().
+// Do not also bind @click on the button: that used to fire validate() (and
+// so authStore.login()) twice per click, racing the backend's audit trail
+// with two concurrent OAuth logins for the same user.
 const handleSubmit = async (event: SubmitEvent) => {
   event.preventDefault();
   validate();
@@ -87,7 +90,7 @@ const buttonLabel = computed(() => {
       <!-- submit button -->
       <div class="login__button">
         <q-btn
-          html-type="submit"
+          type="submit"
           :fullwidth="true"
           :label="buttonLabel"
           :disabled="loading"
