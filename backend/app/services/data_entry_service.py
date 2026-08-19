@@ -352,6 +352,7 @@ class DataEntryService:
                 route_path=request_context.get("route_path"),
                 route_payload=request_context.get("route_payload"),
                 background_tasks=background_tasks,
+                entity_is_new=True,
             )
 
         # 5. return response

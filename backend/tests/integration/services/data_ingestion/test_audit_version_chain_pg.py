@@ -21,10 +21,10 @@ pytestmark = pytest.mark.asyncio
 
 
 async def test_create_version_chain_survives_skipping_the_head_lookup(pg_dsn):
-    """#2050 J4: a CREATE no longer queries for a previous version — a fresh
-    entity id cannot have one. The chain must still come out correct: version
-    1 with no previous_hash, and a following UPDATE chained onto it with the
-    old head demoted.
+    """#2050 J4: ``entity_is_new=True`` skips the previous-version query — a
+    freshly minted entity id cannot have one. The chain must still come out
+    correct: version 1 with no previous_hash, and a following UPDATE chained
+    onto it with the old head demoted.
     """
     url = pg_dsn.replace("postgresql+asyncpg", "postgresql+psycopg")
     engine = create_async_engine(url, future=True)
@@ -39,6 +39,7 @@ async def test_create_version_chain_survives_skipping_the_head_lookup(pg_dsn):
                 change_type=AuditChangeTypeEnum.CREATE,
                 changed_by=1,
                 handler_id="TEST-USER",
+                entity_is_new=True,
             )
             assert created.version == 1
             assert created.previous_hash is None

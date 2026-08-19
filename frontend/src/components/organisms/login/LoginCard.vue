@@ -40,6 +40,11 @@ function validate() {
   });
 }
 
+// #2050: the button is html-type="submit" inside this q-form, so its click
+// already triggers the form's native submit -> handleSubmit -> validate().
+// A second @click="validate" on the button used to fire validate() (and so
+// authStore.login()) twice per click, sending two concurrent OAuth logins
+// for the same user and racing the backend's audit trail.
 const handleSubmit = async (event: SubmitEvent) => {
   event.preventDefault();
   validate();
@@ -92,7 +97,6 @@ const buttonLabel = computed(() => {
           text-color="white"
           width="100px"
           no-caps
-          @click="validate"
         />
       </div>
     </q-form>
