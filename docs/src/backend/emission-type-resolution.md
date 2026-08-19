@@ -126,16 +126,50 @@ half-updated factor table that reports a plausible total is not.
 Malformed _values_ — a bad float, a missing column — keep their
 skip-and-continue semantics. Only emission-type resolution escalates.
 
+## Where a leaf has to be wired
+
+A leaf is only half-shipped when it resolves. It also has to survive
+aggregation and reach a chart with a label and a colour — five files, and
+nothing used to fail when they drifted apart.
+
+```mermaid
+flowchart LR
+    T["EmissionType leaf<br/>taxonomy.py"] --> B["StatBucket<br/>expands from a root<br/>by subtree"]
+    T --> G["emission-taxonomy.gen.ts<br/>make gen-emission-taxonomy"]
+    B --> S["stats: by_emission_type<br/>keyed by numeric id"]
+    G --> A["emissionStatsAdapter<br/>id to name, last __ segment"]
+    S --> A
+    A --> L{"additional bucket?"}
+    L -->|yes| L1["charts-KEY-subcategory<br/>built dynamically"]
+    L -->|no| L2["RESULTS_SUBCATEGORY_LABEL_KEYS"]
+    L1 --> C["CHART_SUBCATEGORY_COLOR_SCHEMES"]
+    L2 --> C
+```
+
+Buckets expand from their roots through `get_all_nodes`, so a leaf added
+under an existing root joins its bucket automatically — that half needs no
+edit. The frontend half does not: an unmapped label renders the raw key to
+the user, and an unmapped colour drops every unmapped segment onto one
+shared shade, so several become indistinguishable in the same doughnut.
+
+`tests/unit/modules/test_emission_taxonomy_rendering_coverage.py` asserts
+all of it, including that the generated TypeScript mirror is current.
+
 ## Adding a module or a factor category
 
 1. Add the leaf to `EmissionType`. **Append, never renumber** — those ints
    are persisted on `data_entry_emission` rows and survive deploys.
-2. Regenerate the frontend mirror: `make gen-emission-taxonomy`.
-3. If it shows in a chart, add its label to `frontend/src/constant/charts.ts`
-   and both locales in `frontend/src/i18n/results.ts`.
-4. Map the CSV spelling in the module's resolver. Declare aliases; do not
+2. Regenerate the frontend mirror: `cd backend && make gen-emission-taxonomy`.
+3. Add the label under the key the adapter derives — the **last `__`
+   segment** of the name. Additional buckets (food, waste, commuting,
+   embodied energy) use the dynamic `charts-<key>-subcategory` i18n key;
+   every other bucket goes through `RESULTS_SUBCATEGORY_LABEL_KEYS` in
+   `frontend/src/constant/charts.ts`. Both locales, always.
+4. Add a colour in `CHART_SUBCATEGORY_COLOR_SCHEMES` when the bucket
+   renders more than one segment.
+5. Map the CSV spelling in the module's resolver. Declare aliases; do not
    widen the matching.
-5. Dry-run the real CSVs before the back-office does:
+6. Dry-run the real CSVs before the back-office does:
 
    ```bash
    cd backend && uv run python scripts/audit_emission_type_resolution.py INPUT_DATA

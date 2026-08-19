@@ -74,8 +74,19 @@ the row, committed every other row, and finished `IngestionResult.WARNING`.
    `external__ai__provider_{github,microsoft}`.
 8. **Reference page** with mermaid diagrams:
    [Emission Type Resolution](../backend/emission-type-resolution.md).
-9. **`scripts/audit_emission_type_resolution.py`** — dry-runs a directory of
-   factor CSVs, exits non-zero on anything that would abort an upload.
+9. **Rendering coverage closed and pinned.** Adding a leaf touches five
+   files; nothing failed when they drifted, so the new leaves reached the
+   charts as raw keys (`neon_tubes`, `batteries`, `chemical_waste`,
+   `incineration_waste_bio_chem_ani`) sharing one fallback shade. Three
+   pre-existing gaps surfaced with them — `ln2` and the plane
+   `business`/`eco` cabins had i18n strings that were never wired into
+   `RESULTS_SUBCATEGORY_LABEL_KEYS`, and `construction_and_renovation` had
+   no string at all. All fixed, and
+   `test_emission_taxonomy_rendering_coverage.py` now asserts bucket
+   membership, scope, single-counting, label reachability, colour
+   distinctness, and that the generated TS mirror is current.
+10. **`scripts/audit_emission_type_resolution.py`** — dry-runs a directory of
+    factor CSVs, exits non-zero on anything that would abort an upload.
 
 ## Divergence from the issue as written
 
