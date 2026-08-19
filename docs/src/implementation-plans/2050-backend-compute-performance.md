@@ -2884,6 +2884,19 @@ project-namespace login — flagged as unverified, not claimed either way.
 **2. OTel logs pipeline — configured on the app side, silently
 dropped on the collector side. A real gap, same shape as the Loki
 finding.**
+
+> **Status: resolved, 2026-08-19 — disabled at the source, not fixed by
+> building a pipeline.** Maintainer call: logs are already covered by
+> the platform (OpenShift's own stdout capture) alongside Tempo/Grafana
+> for traces+metrics; this app was never meant to be a second, competing
+> logs path, and there's no appetite to stand one up. `OTEL_LOGS_EXPORTER:
+none` + `OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: false` in
+> all three envs — [openshift-app-config PR #6](https://github.com/EPFL-ENAC/openshift-app-config/pull/6).
+> Stops the app building/sending log records nobody reads; zero
+> observable behavior change (they were already going nowhere). The
+> mechanical fix below (an actual `logs:` pipeline) is the road not
+> taken — kept here for the record, not because it's still open.
+
 Every env sets `OTEL_LOGS_EXPORTER: otlp` and
 `OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: true` — the SDK
 auto-instruments Python's `logging` module and ships log records via
@@ -2913,30 +2926,36 @@ service:
 
 **3. Sentry/GlitchTip — wired for the frontend, absent from the
 backend entirely.**
-`APP_SENTRY_DSN` (→ `enac-it-glitchtip.epfl.ch`) is set in every env's
-**`frontend.env`** block, all three pointing at the same GlitchTip
-project. Checked the backend the same way: no `APP_SENTRY_DSN` (or any
-`SENTRY`/`GLITCHTIP` key) in any `backend.env`/`backend.secrets` block in
-any overlay, no `sentry_sdk` import anywhere in `backend/app`, no
-Sentry/GlitchTip dependency in `backend/pyproject.toml`. **The backend
-has no dedicated error-tracking destination at all** — an unhandled
-exception's only trace today is #1 (stdout, unverified downstream) and
-whatever the OTel _traces_ pipeline captures as a span status (which
-does work — #C1's "GlitchTip export" trace citations elsewhere in this
-plan are trace exports reaching GlitchTip via OTLP, not a standing
-`sentry_sdk` integration; worth being precise about that distinction
-rather than assuming backend error tracking exists because the frontend
-has it).
 
-**Net**: today, a backend exception is visible via OTel traces (working)
-and stdout (working, downstream fate unverified) — not via Loki (dead
-code path until I3.1, and never configured), not via the OTel logs
-pipeline (configured, silently dropped), not via Sentry/GlitchTip
-(never wired up for the backend at all). Two gaps here are real and
-actionable, not touched in this pass since they're operational
-decisions, not bugs: wire the collector's `logs:` pipeline (above), and
-decide whether the backend should get the same GlitchTip wiring the
-frontend already has.
+> **Status: decided, 2026-08-19 — staying absent, deliberately.**
+> Maintainer call: no GlitchTip/Sentry wiring wanted for the backend.
+> The existing trio (Tempo-adjacent traces, Grafana metrics, OpenShift
+> stdout logs) is the intended observability stack; error visibility
+> comes from the OTel traces pipeline's span status, not a dedicated
+> error tracker. Not a gap — the finding below is accurate as of
+> 2026-08-19, it's just not being closed.
+> `APP_SENTRY_DSN` (→ `enac-it-glitchtip.epfl.ch`) is set in every env's
+> **`frontend.env`** block, all three pointing at the same GlitchTip
+> project. Checked the backend the same way: no `APP_SENTRY_DSN` (or any
+> `SENTRY`/`GLITCHTIP` key) in any `backend.env`/`backend.secrets` block in
+> any overlay, no `sentry_sdk` import anywhere in `backend/app`, no
+> Sentry/GlitchTip dependency in `backend/pyproject.toml`. **The backend
+> has no dedicated error-tracking destination at all** — an unhandled
+> exception's only trace today is #1 (stdout, unverified downstream) and
+> whatever the OTel _traces_ pipeline captures as a span status (which
+> does work — #C1's "GlitchTip export" trace citations elsewhere in this
+> plan are trace exports reaching GlitchTip via OTLP, not a standing
+> `sentry_sdk` integration; worth being precise about that distinction
+> rather than assuming backend error tracking exists because the frontend
+> has it).
+
+**Net, as of 2026-08-19**: a backend exception is visible via OTel
+traces (working) and stdout (working, downstream fate unverified) —
+not via Loki (dead code path, non-blocking now, never configured), not
+via the OTel logs pipeline (deliberately disabled at the source, not
+built out), not via Sentry/GlitchTip (deliberately staying absent from
+the backend). Both open questions from the first pass are now decided,
+not just found — see the status notes on #2 and #3 above.
 
 ### I4 — recommended order
 
@@ -2962,12 +2981,10 @@ frontend already has.
    Decision unchanged and now explicit for both pre- and post-promotion
    states: keep all five yields, unconditionally, permanently — see I2's
    2026-08-19 addendum for why promotion doesn't reopen this.
-8. **New, from I3a**: the OTel collector has no `logs:` pipeline in any
-   env — `OTEL_LOGS_EXPORTER: otlp` ships log records into a dead end.
-   Mechanical fix given in I3a, needs a maintainer call on destination
-   before applying. Separately: the backend has no Sentry/GlitchTip
-   wiring at all (frontend does) — a real gap, not sized or actioned
-   here, the lead's call whether to close it.
+8. ~~**I3a — the OTel-logs dead end.**~~ **Done.** Disabled at the
+   source in all three envs rather than building the collector a `logs:`
+   pipeline — [PR #6](https://github.com/EPFL-ENAC/openshift-app-config/pull/6).
+   Sentry/GlitchTip for the backend: decided to stay absent, not a gap.
 9. **New, from I1/I1a**: promote `worker.enabled` + the CPU/pool
    overrides to prod — draft PR prepared (see I1's table), not merged,
    the lead's call on timing.
