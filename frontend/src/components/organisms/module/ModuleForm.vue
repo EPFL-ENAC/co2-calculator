@@ -826,6 +826,11 @@ function init() {
     }
     errors[i.id] = null;
   });
+  // Form-hidden fields are skipped by the visible-field loop above; their
+  // declared defaults must still land in `form` so buildPayload sends them.
+  (props.fields ?? []).forEach((i) => {
+    if (i.hideIn?.form && i.default !== undefined) form[i.id] = i.default;
+  });
   // Mirrored factor fields without a rendered input must still exist in
   // `form`, or the factor mirror skips them (`fieldId in entity` guard).
   factorValueFieldIds.forEach((id) => {

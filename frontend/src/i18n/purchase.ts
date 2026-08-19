@@ -66,8 +66,8 @@ export default {
     fr: 'Unité',
   },
   [`${MODULES.Purchase}.inputs.coef_to_kg`]: {
-    en: 'Conversion coefficient to kg CO₂-eq',
-    fr: 'Coefficient de conversion en kg CO₂-eq',
+    en: 'Conversion coefficient to kg',
+    fr: 'Coefficient de conversion en kg',
   },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-table-title`]:
     {
