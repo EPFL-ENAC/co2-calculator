@@ -215,8 +215,16 @@ class AuditDocumentService:
         # mutation keyed on the row it just changed, so two writers can only
         # collide by editing the same entry at once — a real conflict, which
         # the IntegrityError surfaces rather than papers over (#1958).
-        # Get current version to compute diff and hash chain
-        current = await self.get_current_version(entity_type, entity_id)
+        # Get current version to compute diff and hash chain.
+        # #2050 J4: a CREATE's entity id came from the sequence moments ago, so
+        # no prior version can exist — the FOR UPDATE head lookup would lock
+        # nothing and return nothing. Skipping it removes one statement from
+        # every interactive write. A genuine collision (two CREATEs for one id)
+        # still surfaces: audit_document_one_current_idx makes the flush below
+        # raise IntegrityError rather than quietly writing a second version 1.
+        current = None
+        if change_type is not AuditChangeTypeEnum.CREATE:
+            current = await self.get_current_version(entity_type, entity_id)
 
         if current:
             new_version = current.version + 1

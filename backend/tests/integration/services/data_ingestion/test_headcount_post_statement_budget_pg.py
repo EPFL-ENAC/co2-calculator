@@ -298,7 +298,7 @@ async def test_headcount_member_post_statement_budget(
 # walks a progressive fallback chain (B1..B4) and _fetch_factors memoizes it
 # only when the caller passes a factor_query_cache, which every bulk path
 # does and no interactive path did.
-STATEMENT_BUDGET = 27
+STATEMENT_BUDGET = 26
 # One per emission leaf is the ceiling worth defending: factor resolution
 # must not scale with the fallback chain's depth.
 FACTOR_LOOKUP_BUDGET = 3
