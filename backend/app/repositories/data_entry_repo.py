@@ -854,6 +854,14 @@ class DataEntryRepository:
         ):
             resolved_factor_id = self._resolved_factor_id(handler, data_entry_type_id)
 
+        # The entries this page can possibly show. Both aggregation subqueries
+        # below restrict to it: a GROUP BY over the whole data_entry_emissions
+        # table cannot be narrowed by the outer WHERE (#2050 J8).
+        module_entry_ids = select(col(DataEntry.id)).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        )
+
         if is_buildings_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
             # The rollup row (emission_type_id == buildings__rooms) stores the
@@ -864,10 +872,17 @@ class DataEntryRepository:
             ].value
             RollupEmission = aliased(DataEntryEmission)
             # Fallback for legacy rows created before rollups existed.
-            building_emission_agg_q = select(
-                DataEntryEmission.data_entry_id,
-                func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
-            ).group_by(col(DataEntryEmission.data_entry_id))
+            # #2050 J8: restricted to this module's entries — see the generic
+            # branch below for why an unrestricted GROUP BY here scans the
+            # whole emissions table on every request.
+            building_emission_agg_q = (
+                select(
+                    DataEntryEmission.data_entry_id,
+                    func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
+                )
+                .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+                .group_by(col(DataEntryEmission.data_entry_id))
+            )
             if ROLLUP_EMISSION_TYPE_IDS:
                 building_emission_agg_q = building_emission_agg_q.where(
                     col(DataEntryEmission.emission_type_id).notin_(
@@ -962,13 +977,26 @@ class DataEntryRepository:
         else:
             # --- Aggregation subquery for multi-emission entries ---
             # Exclude rollup rows so future rollup types are never double-counted.
-            emission_agg_q = select(
-                DataEntryEmission.data_entry_id,
-                func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
-                func.min(DataEntryEmission.primary_factor_id).label(
-                    "primary_factor_id"
-                ),
-            ).group_by(col(DataEntryEmission.data_entry_id))
+            #
+            # #2050 J8: restricted to this module's entries. Without it the
+            # GROUP BY runs over every row in data_entry_emissions (250k-1M in
+            # real environments) and the join then discards all but this page's
+            # — the outer WHERE cannot help, since a predicate cannot be pushed
+            # through a GROUP BY. That cost a 648ms GET on dev for a submodule
+            # holding one entry. Same restriction
+            # get_professional_travel_trip_legs already applies for the same
+            # reason.
+            emission_agg_q = (
+                select(
+                    DataEntryEmission.data_entry_id,
+                    func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
+                    func.min(DataEntryEmission.primary_factor_id).label(
+                        "primary_factor_id"
+                    ),
+                )
+                .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+                .group_by(col(DataEntryEmission.data_entry_id))
+            )
             if ROLLUP_EMISSION_TYPE_IDS:
                 emission_agg_q = emission_agg_q.where(
                     col(DataEntryEmission.emission_type_id).notin_(
