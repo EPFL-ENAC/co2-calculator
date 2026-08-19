@@ -419,24 +419,38 @@ class FactorRepository:
         result = await self.session.exec(stmt)
         return len(result.all())
 
-    async def list_by_emission_type(
+    async def list_by_emission_types(
         self,
-        emission_type: EmissionType,
+        emission_types: list[EmissionType],
         year: int | None = None,
     ) -> list[Factor]:
-        """List all factors for a given emission type.
+        """List all factors for a set of emission types, in one query.
+
+        Strategy B3 resolves a whole emission subtree, and used to call
+        a since-removed per-type lookup once per leaf — 24 queries for one
+        headcount member POST, measured (#2050 I4). The subtree is known up
+        front, so it belongs in one ``IN``.
 
         Args:
-            emission_type: Emission type filter
+            emission_types: Emission types to match (empty → no query, no rows)
             year: Optional year filter for year-scoped factors
         """
-        conditions = [col(Factor.emission_type_id) == emission_type.value]
-
-        # Add year filter if provided
+        if not emission_types:
+            return []
+        conditions = [
+            col(Factor.emission_type_id).in_([e.value for e in emission_types])
+        ]
         if year is not None:
             conditions.append(col(Factor.year) == year)
 
-        stmt = select(Factor).where(*conditions)
+        # The per-leaf loop this replaces returned rows grouped by leaf, in
+        # subtree order. An IN gives no order at all, and emission rows are
+        # written in the order factors come back, so pin it.
+        stmt = (
+            select(Factor)
+            .where(*conditions)
+            .order_by(col(Factor.emission_type_id), col(Factor.id))
+        )
         result = await self.session.exec(stmt)
         return list(result.all())
 

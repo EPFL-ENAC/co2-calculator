@@ -848,13 +848,19 @@ class DataEntryEmissionService:
             #     e.g. all sub-factors for "food" (vegetarian, non-vegetarian)
             #     Used when handler doesn't specify kind/subkind
             elif q.emission_type is not None:
-                all_nodes = get_subtree_leaves(q.emission_type)
-                emission_factors = []
-                for node in all_nodes:
-                    node_factors = await factor_service.list_by_emission_type(
-                        EmissionType(node), year=year
-                    )
-                    emission_factors.extend(node_factors)
+                # #2050 I4: one query for the whole subtree. This looped the
+                # leaves and queried per node — 24 factor SELECTs for one
+                # headcount member POST (3 roots whose subtrees hold 24
+                # leaves), measured in
+                # test_headcount_post_statement_budget_pg.py. The subtree is
+                # known before the first query, so it belongs in one IN.
+                emission_factors = await factor_service.list_by_emission_types(
+                    [
+                        EmissionType(node)
+                        for node in get_subtree_leaves(q.emission_type)
+                    ],
+                    year=year,
+                )
                 # we should also filter by data_entry_type in case we have factors
                 # for other types with the same emission_type in the subtree,
                 # but for now we don't have this case in our seed data
@@ -865,9 +871,6 @@ class DataEntryEmissionService:
                         for f in emission_factors
                         if f.data_entry_type_id == q.data_entry_type
                     ]
-                # should get all factors children of the emission type,
-                # not just those with matching kind
-                # factors = await factor_service.list_by_emission_type(q.emission_type)
                 result.extend(emission_factors)
 
             # B4: Broadest — by data_entry_type only

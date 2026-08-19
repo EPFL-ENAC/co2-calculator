@@ -315,3 +315,62 @@ async def test_get_by_classification_override_handler_sql_includes_override_null
     # "average" rows (those without purchase_additional_code) are eligible.
     assert "purchase_additional_code" in sql
     assert "IS NULL" in sql.upper()
+
+
+# ======================================================================
+# #2050 I4 — one query for a whole emission subtree
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_list_by_emission_types_returns_all_types_in_one_query(db_session):
+    """Strategy B3 used to loop ``get_subtree_leaves`` and issue one
+    ``list_by_emission_type`` query per leaf — 24 queries for a single
+    headcount member POST (#2050 I4). This is the set-based replacement.
+    """
+    repo = FactorRepository(db_session)
+    wanted = [EmissionType.food__vegetarian, EmissionType.commuting__cycling]
+    for emission_type in [*wanted, EmissionType.waste__incineration]:
+        db_session.add(
+            Factor(
+                emission_type_id=emission_type.value,
+                data_entry_type_id=DataEntryTypeEnum.member.value,
+                classification={},
+                values={"ef_kg_co2eq_per_unit": 1.0},
+                year=2025,
+            )
+        )
+    # Same emission type, wrong year — the year filter must still apply.
+    db_session.add(
+        Factor(
+            emission_type_id=EmissionType.food__vegetarian.value,
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            classification={},
+            values={"ef_kg_co2eq_per_unit": 9.0},
+            year=2024,
+        )
+    )
+    await db_session.flush()
+
+    found = await repo.list_by_emission_types(wanted, year=2025)
+
+    assert {f.emission_type_id for f in found} == {e.value for e in wanted}
+    assert len(found) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_by_emission_types_empty_input_queries_nothing(db_session):
+    """An empty subtree must not degenerate into an unfiltered table scan."""
+    repo = FactorRepository(db_session)
+    db_session.add(
+        Factor(
+            emission_type_id=EmissionType.food__vegetarian.value,
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            classification={},
+            values={"ef_kg_co2eq_per_unit": 1.0},
+            year=2025,
+        )
+    )
+    await db_session.flush()
+
+    assert await repo.list_by_emission_types([], year=2025) == []
