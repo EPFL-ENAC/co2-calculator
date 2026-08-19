@@ -1,0 +1,39 @@
+# Per-repo wt config — overrides the [hooks] in ~/.config/wt/config.toml
+# for this repo only. See https://github.com/timvw/wt
+#
+# Hook env vars available below:
+#   $WT_PATH  $WT_BRANCH  $WT_MAIN  $WT_REPO_NAME  $WT_REPO_HOST  $WT_REPO_OWNER
+[hooks]
+
+# Run when a NEW branch worktree is created (wt create)
+post_create = [
+  # 1. Seed local, gitignored dev files from the main checkout so the worktree
+  #    runs immediately. These aren't tracked by git, so they're branch-
+  #    independent -- $WT_MAIN has the current copies on disk no matter what's
+  #    checked out there.
+  '''test -f "$WT_MAIN/backend/.env" && cp "$WT_MAIN/backend/.env" "$WT_PATH/backend/.env" && echo "copied backend/.env" || true''',
+  '''test -f "$WT_MAIN/frontend/.env.local" && cp "$WT_MAIN/frontend/.env.local" "$WT_PATH/frontend/.env.local" && echo "copied frontend/.env.local" || true''',
+  '''test -d "$WT_MAIN/backend/INPUT_DATA" && cp -R "$WT_MAIN/backend/INPUT_DATA" "$WT_PATH/backend/INPUT_DATA" && echo "copied backend/INPUT_DATA" || true''',
+
+  # 2. Build/install deps only if the repo has a Makefile with an `install` target
+  '''cd "$WT_PATH" && test -f Makefile && grep -qE "^install:" Makefile && make install || true''',
+
+  # 3. Open a tmux window in the current session (falls back to a detached
+  #    session when run outside tmux), cd'd into the worktree, running Claude
+  '''tmux new-window -n "$WT_BRANCH" -c "$WT_PATH" "claude -n '$WT_REPO_NAME/$WT_BRANCH'" 2>/dev/null || tmux new-session -d -s "$WT_REPO_NAME/$WT_BRANCH" -c "$WT_PATH" "claude -n '$WT_REPO_NAME/$WT_BRANCH'" 2>/dev/null; echo "tmux window: $WT_REPO_NAME/$WT_BRANCH"''',
+]
+
+# Run when an EXISTING branch is checked out into a worktree (wt co / pr / mr)
+post_checkout = [
+  '''test -f "$WT_MAIN/backend/.env" && cp "$WT_MAIN/backend/.env" "$WT_PATH/backend/.env" && echo "copied backend/.env" || true''',
+  '''test -f "$WT_MAIN/frontend/.env.local" && cp "$WT_MAIN/frontend/.env.local" "$WT_PATH/frontend/.env.local" && echo "copied frontend/.env.local" || true''',
+  '''test -d "$WT_MAIN/backend/INPUT_DATA" && cp -R "$WT_MAIN/backend/INPUT_DATA" "$WT_PATH/backend/INPUT_DATA" && echo "copied backend/INPUT_DATA" || true''',
+  '''cd "$WT_PATH" && test -f Makefile && grep -qE "^install:" Makefile && make install || true''',
+  '''tmux new-window -n "$WT_BRANCH" -c "$WT_PATH" || tmux new-session -d -s "$WT_REPO_NAME/$WT_BRANCH" -c "$WT_PATH" 2>/dev/null; echo "tmux window: $WT_REPO_NAME/$WT_BRANCH"''',
+]
+
+# Run before a worktree is removed (wt rm) — tear down its tmux window/session
+pre_remove = [
+  '''tmux kill-window -t "$WT_BRANCH" 2>/dev/null || true''',
+  '''tmux kill-session -t "$WT_REPO_NAME/$WT_BRANCH" 2>/dev/null || true''',
+]
