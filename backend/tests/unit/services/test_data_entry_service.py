@@ -7,11 +7,17 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.audit import AuditDocument
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
-from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
+from app.models.data_entry import (
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryStatusEnum,
+    DataEntryTypeEnum,
+)
 from app.models.location import Location, TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User, UserProvider
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
+from app.schemas.user import UserRead
 from app.services.data_entry_service import DataEntryService
 
 # ======================================================================
@@ -767,3 +773,55 @@ async def test_submodule_read_writes_no_audit_row(
         )
 
     assert await _audit_count(db_session, module.id) == 0
+
+
+@pytest.mark.asyncio
+async def test_create_returns_fully_populated_response_without_refresh(
+    db_session: AsyncSession,
+):
+    """#2050 I4: ``create`` no longer refreshes the row it just inserted, so
+    every field the response carries must already be populated. A column with
+    a database-side default (rather than a Python-side one) would come back
+    None here — that is what this test is for.
+    """
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    service = DataEntryService(db_session)
+    user = User(
+        id=1,
+        email="test@example.com",
+        provider=UserProvider.DEFAULT,
+        institutional_id="default-1441",
+    )
+    created = await service.create(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.member.value,
+        user=UserRead.model_validate(user),
+        data=DataEntryCreate(
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=module.id,
+            data={
+                "name": "A",
+                "user_institutional_id": "M-1",
+                "sius_code": "51",
+                "fte": 1.0,
+            },
+        ),
+        source=DataEntrySourceEnum.USER_MANUAL.value,
+        created_by_id=user.id,
+    )
+
+    assert created.id is not None
+    assert created.data_entry_type_id == DataEntryTypeEnum.member.value
+    assert created.carbon_report_module_id == module.id
+    assert created.data["fte"] == 1.0
+    assert created.source == DataEntrySourceEnum.USER_MANUAL.value
+    # A None here would mean the row's defaults only exist server-side and the
+    # refresh was load-bearing after all.
+    assert created.status is not None
