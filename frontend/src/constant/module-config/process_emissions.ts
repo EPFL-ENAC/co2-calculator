@@ -26,7 +26,7 @@ const processEmissionsFields: ModuleField[] = [
     optionsId: 'subkind',
     labelKey: `${MODULES.ProcessEmissions}.inputs.subcategory`,
     type: 'select',
-    required: false,
+    required: true,
     sortable: true,
     editableInline: true,
     inputTypeName: 'QSelect',
@@ -34,12 +34,6 @@ const processEmissionsFields: ModuleField[] = [
     ratio: '1/3',
     hideIn: { form: false },
     columnSize: 'lg',
-    conditionalVisibility: {
-      showWhen: {
-        fieldId: 'category',
-        value: 'Refrigerant',
-      },
-    },
     icon: 'o_category',
     tooltip:
       'module-process-emissions-submodule-process_emissions-table-subcategory',

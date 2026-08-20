@@ -129,8 +129,8 @@ skip-and-continue semantics. Only emission-type resolution escalates.
 ## Where a leaf has to be wired
 
 A leaf is only half-shipped when it resolves. It also has to survive
-aggregation and reach a chart with a label and a colour — five files, and
-nothing used to fail when they drifted apart.
+aggregation and reach a chart with a label and a colour, and nothing used
+to fail when the files involved drifted apart.
 
 ```mermaid
 flowchart LR
@@ -141,19 +141,41 @@ flowchart LR
     S --> A
     A --> L{"additional bucket?"}
     L -->|yes| L1["charts-KEY-subcategory<br/>built dynamically"]
-    L -->|no| L2["RESULTS_SUBCATEGORY_LABEL_KEYS"]
+    L -->|no| K["CATEGORY_CHART_KEYS<br/>useEmissionTreemap.ts<br/>drops unlisted keys"]
+    K --> L2["RESULTS_SUBCATEGORY_LABEL_KEYS"]
     L1 --> C["CHART_SUBCATEGORY_COLOR_SCHEMES"]
     L2 --> C
 ```
 
 Buckets expand from their roots through `get_all_nodes`, so a leaf added
 under an existing root joins its bucket automatically — that half needs no
-edit. The frontend half does not: an unmapped label renders the raw key to
-the user, and an unmapped colour drops every unmapped segment onto one
-shared shade, so several become indistinguishable in the same doughnut.
+edit. The frontend half does not, and it fails in two distinct ways:
+
+- **Unmapped label or colour → renders wrong.** The raw key shows to the
+  user; unmapped segments all fall onto one shared shade.
+- **Key missing from `CATEGORY_CHART_KEYS` → does not render at all.** The
+  Results treemap, `EmissionBreakdownChart` and `EmissionTypeBreakdownChart`
+  all iterate and filter through that list, so a segment it does not name
+  is silently dropped from every non-additional chart — the failure mode
+  that hid the six new process-emission gases. Its order is the charts'
+  display order. (Its comment used to claim it mirrors a backend list; it
+  is frontend-only truth now.)
+
+Beyond the shared maps, one chart keeps its own wiring:
+`ModuleCarbonFootprintChart.vue` builds one stacked-bar series and one
+dataset dimension per key. Process emissions derives both from
+`CATEGORY_CHART_KEYS`; the other categories are still written out by
+hand, so a new key there means a new series **and** a new dimension.
+(`GenericEmissionTreeMapChart.vue` and `PlannerGrantComparisonChart.vue`
+used to hold duplicate label maps; both now import
+`RESULTS_SUBCATEGORY_LABEL_KEYS`.)
 
 `tests/unit/modules/test_emission_taxonomy_rendering_coverage.py` asserts
-all of it, including that the generated TypeScript mirror is current.
+the shared maps — bucket membership, scope, label on the right path,
+colour, that every non-additional leaf's YY key appears in
+`CATEGORY_CHART_KEYS`, and that the generated TypeScript mirror is
+current. The one thing it does **not** cover is the footprint chart's
+series/dimensions; that you check by looking at the Results page.
 
 ## Adding a module or a factor category
 
@@ -166,10 +188,28 @@ all of it, including that the generated TypeScript mirror is current.
    every other bucket goes through `RESULTS_SUBCATEGORY_LABEL_KEYS` in
    `frontend/src/constant/charts.ts`. Both locales, always.
 4. Add a colour in `CHART_SUBCATEGORY_COLOR_SCHEMES` when the bucket
-   renders more than one segment.
-5. Map the CSV spelling in the module's resolver. Declare aliases; do not
+   renders more than one segment. Process emissions and purchases generate
+   an interpolated scale from a key list in the same file — for those, add
+   the key to the list and the shade comes for free.
+5. Non-additional bucket? Add the key to `CATEGORY_CHART_KEYS` in
+   `frontend/src/composables/useEmissionTreemap.ts`, in display position —
+   an unlisted key is silently dropped from every Results chart, not
+   rendered raw. Forgetting this fails
+   `test_module_bucket_leaves_reach_category_chart_keys`, which names the
+   leaf.
+6. Add the series + dataset dimension in `ModuleCarbonFootprintChart.vue`
+   (process emissions reads `CATEGORY_CHART_KEYS`, everything else is
+   hand-written).
+7. Map the CSV spelling in the module's resolver. Declare aliases; do not
    widen the matching.
-6. Dry-run the real CSVs before the back-office does:
+8. Never key frontend behaviour on a literal category string. The module
+   form's class/subclass options come from the year's factor CSV via the
+   class-subclass map, so new categories appear by themselves — but a
+   hardcoded value in a module config or `ModuleTable` check (the old
+   `Refrigerant` subcategory gate) breaks silently the day the CSV
+   spelling changes. Derive from the subclass map instead: subcategory
+   input and requiredness follow "this category has subclasses".
+9. Dry-run the real CSVs before the back-office does:
 
    ```bash
    cd backend && uv run python scripts/audit_emission_type_resolution.py INPUT_DATA

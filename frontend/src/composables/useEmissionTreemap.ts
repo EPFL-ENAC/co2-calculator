@@ -58,9 +58,21 @@ export function normalizeParentKey(
   return baseKey;
 }
 
-// Mirrors backend CATEGORY_CHART_KEYS in emission_breakdown.py
+// Category → YY keys rendered by the Results charts, in display order.
+// Keys not listed here are silently dropped from every non-additional chart.
 export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
-  process_emissions: ['co2', 'ch4', 'n2o', 'refrigerants'],
+  process_emissions: [
+    'co2',
+    'ch4',
+    'n2o',
+    'refrigerants',
+    'hfcs',
+    'perfluorinated_compounds',
+    'fluorinated_ethers',
+    'perfluoropolyethers',
+    'sf6',
+    'nf3',
+  ],
   buildings_energy_combustion: ['combustion', 'heating_thermal'],
   buildings_room: ['heating_electric', 'cooling', 'ventilation', 'lighting'],
   equipment: ['scientific', 'it', 'other'],
