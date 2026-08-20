@@ -96,7 +96,6 @@ def _build_report_stats(modules, is_simulator: bool = False) -> dict:
         bucket_nodes.bucket.key
         for module_type, bucket_nodes in ORDERED_STAT_BUCKETS
         if module_type.value in validated_module_type_ids
-        and bucket_nodes.bucket.key in buckets
     ]
     validated_total_kg = sum(
         (module.stats or {}).get("total", 0.0) or 0.0
