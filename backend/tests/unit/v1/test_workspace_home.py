@@ -84,3 +84,41 @@ async def test_home_year_config_carries_min_configurable_year():
 
     assert config is not None
     assert config.min_configurable_year == wh_module.settings.MIN_CONFIGURABLE_YEAR
+
+
+@pytest.mark.asyncio
+async def test_project_plans_are_filtered_by_plan_policy(monkeypatch):
+    from app.models.user import OwnScope, Role, RoleName, User
+    from app.schemas.simulator_plan import SimulatorPlanRead
+
+    db = _db()
+    unit = MagicMock()
+    unit.institutional_id = "0184"
+    db.get = AsyncMock(return_value=unit)
+    _patch_common(monkeypatch, existing_report=_report())
+
+    def _plan(plan_id, created_by, shared):
+        return SimulatorPlanRead(
+            id=plan_id,
+            unit_id=1,
+            name=f"p{plan_id}",
+            created_by=created_by,
+            is_viewable_by_unit_members=shared,
+        )
+
+    plan_service = MagicMock()
+    plan_service.list_plans = AsyncMock(
+        return_value=[_plan(1, 2, False), _plan(2, 1, True), _plan(3, 1, False)]
+    )
+    monkeypatch.setattr(wh_module, "SimulatorPlanService", lambda _db: plan_service)
+    user = User(id=2, institutional_id="2", email="2@x")
+    user.roles = [
+        Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="0184"))
+    ]
+
+    response = await wh_module.get_workspace_home(
+        unit_id=1, year=2025, db=db, current_user=user
+    )
+
+    assert [p.id for p in response.project_plans] == [1, 2]
+    assert "can_manage" not in SimulatorPlanRead.model_fields

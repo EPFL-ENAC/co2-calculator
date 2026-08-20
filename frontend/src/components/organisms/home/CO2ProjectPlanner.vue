@@ -8,6 +8,7 @@ import {
   useSimulatorPlansStore,
   type SimulatorPlan,
 } from 'src/stores/simulatorPlans';
+import { useAuthStore } from 'src/stores/auth';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { parseUtcDate } from 'src/utils/date';
 import { formatTonnesCO2 } from 'src/utils/number';
@@ -17,6 +18,7 @@ const route = useRoute();
 const router = useRouter();
 const workspaceStore = useWorkspaceStore();
 const plansStore = useSimulatorPlansStore();
+const authStore = useAuthStore();
 
 // workspaceGuard ensures selectedUnit is always set before the home page
 // renders (same invariant as SimulationExplorePage).
@@ -221,12 +223,12 @@ onMounted(() => {
                     dense
                     flat
                     class="action-btn action-btn--delete"
-                    :disable="!props.row.can_manage"
+                    :disable="!authStore.hasUserCanDeletePlan(props.row)"
                     @click="onAskDelete(props.row)"
                   >
                     <q-tooltip class="tooltip action-tooltip" :offset="[0, 8]">
                       {{
-                        props.row.can_manage
+                        authStore.hasUserCanDeletePlan(props.row)
                           ? $t('common_delete')
                           : $t('planner_delete_creator_only')
                       }}

@@ -176,8 +176,10 @@ Extends the esquisse in `api/v1/simulator_plan.py`:
 Decided with product (2026-07-15): plans stay unit-scoped (esquisse's
 `require_unit_access`; unit-less users out of scope). A plan is visible to
 non-creator unit members only when `is_viewable_by_unit_members` is true,
-and shared plans are **read-only** for non-creators — only the creator (or
-backoffice) mutates. Enforced in `_require_plan_unit_access`.
+and shared plans were **read-only** for non-creators — only the creator (or
+backoffice) mutated. Superseded: #1922 made shared plans editable by unit
+members (deletion stays creator-only), and #2043 moved the rule into
+`PlanPolicy` — see [2043](2043-planner-plan-policy-permission.md).
 
 ## Slices
 

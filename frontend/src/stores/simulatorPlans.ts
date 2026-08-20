@@ -27,7 +27,6 @@ export interface SimulatorPlan {
   /** Set when the PATCH deferred its prefill to a background job; poll it
    * before trusting the plan years (backend plan #2050 Track F4). */
   prefill_job_id?: number | null;
-  can_manage: boolean;
 }
 
 export interface SimulatorPlanModule {
