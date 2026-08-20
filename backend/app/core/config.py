@@ -435,6 +435,14 @@ class Settings(BaseSettings):
         ),
     )
 
+    IT_RESEARCH_FACILITY_IDS: str = Field(
+        default="",
+        description=(
+            "Comma-separated list of research facility IDs whose emissions "
+            "are classified as IT facilities (e.g., '0616,1027,1902')"
+        ),
+    )
+
     # Background job safety (Plan 310A + auto-recovery sweep, PR #998)
     STALE_JOB_TIMEOUT_MINUTES: int = Field(
         default=5,
