@@ -1,7 +1,7 @@
 ---
 issue: 1489
 status: in-progress
-last_updated: 2026-08-19
+last_updated: 2026-08-20
 title: "Data-validation audit and hardening — backend as single source of truth"
 summary:
   "Slice 1 of #1489: a systematic audit of every documented data rule (back-office
@@ -39,6 +39,13 @@ passed). Probe scripts were throwaway (session scratchpad, not committed). The _
 columns record rule-level test existence found by inspection, not mutation-verified
 coverage.
 
+**Re-baselined 2026-08-20** against `dev` at `39a5dcdb` (95 commits landed while this
+audit was in review). Every probe was re-run at the new HEAD. Material changes:
+**F-1 is fixed** (#2216 makes unknown reference-CSV columns a hard error, with a
+regression test on the #1545 fixture), and the #2091 / #2050 / #1186 series removed
+several of the silent-degradation paths F-11 pointed at. F-2 (residual), F-3 (mostly),
+F-4, F-5, F-6, F-7 were re-verified **still open** at `39a5dcdb`.
+
 ## A. Path-level behavior matrix
 
 The headline result: most holes are **per-path mechanics**, shared by every module
@@ -46,7 +53,7 @@ that flows through the path — not per-field rules.
 
 | Behavior                                                       | P1a reference CSVs (`csv_providers/reference_data.py`)                                             | P1b factor CSVs (`base_factor_csv_provider.py`)                                                                                                                            | P2 entry CSVs (`base_csv_provider.py`)                                                                                                        | P3 form input (`schemas/data_entry.py` + module DTOs)                                                                                                                                                           | P4 reduction-objective CSVs (`schemas/year_configuration.py:191-265`) |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Unknown column / key                                           | ⚠️ warn-only, never fails the job (`:253-258`) → **F-1**                                           | ⚠️ no check at all                                                                                                                                                         | ⚠️ silently dropped by `filtered_row` (`:1234-1239`); columns named `data` or `status` **survive** the filter (they are DTO fields) → **F-4** | ⚠️ swept into persisted `data` — verified on **all 15** Create DTOs → **F-5**                                                                                                                                   | ⚠️ no unknown-column check (`missing = expected - actual` only)       |
+| Unknown column / key                                           | ✅ hard error since #2216 (was warn-only → **F-1**, fixed)                                         | ⚠️ no check at all                                                                                                                                                         | ⚠️ silently dropped by `filtered_row` (`:1234-1239`); columns named `data` or `status` **survive** the filter (they are DTO fields) → **F-4** | ⚠️ swept into persisted `data` — verified on **all 15** Create DTOs → **F-5**                                                                                                                                   | ⚠️ no unknown-column check (`missing = expected - actual` only)       |
 | Missing required column                                        | ✅ fails, but checked against the **first row only** (`:235-252`)                                  | ✅ per-row DTO `ValidationError`                                                                                                                                           | ✅ fails only if **all of the first 5 rows** lack it (`:346-356`)                                                                             | ✅ pydantic required fields                                                                                                                                                                                     | ✅ full header check, every row validated, all errors collected       |
 | Strictness switch                                              | n/a                                                                                                | `strict_column_validation` read (`:302`) but **set nowhere** in `app/`                                                                                                     | same flag read (`:327`), **set nowhere** → **F-4**                                                                                            | n/a                                                                                                                                                                                                             | n/a                                                                   |
 | Type-coercion failure                                          | ⚠️ `_to_float('abc') → None`, `_to_float(None) → None` — silent NULL (`:541-550`) → **F-2**        | ⚠️ `_convert_value` keeps the raw **string** for optional numerics (`:649-658`); DTO-validated output is **discarded** — hand-built dicts persisted (`:392-421`) → **F-3** | ✅ per-row DTO error, recorded in `row_errors`                                                                                                | ✅ rejected (`float_parsing`); numeric strings coerced (`'1.5' → 1.5`) — but coercion _failures_ fall through to pydantic silently at debug level (`data_entry.py:63-66`)                                       | ✅ per-row pydantic model, ranges enforced                            |
@@ -186,20 +193,26 @@ the pattern to copy. (Unknown columns still unchecked, folded into F-4's fix fam
 Classification: `code-gap` (fix in a slice below) · `doc-stale` (section D) ·
 `test-gap` (regression test ships with the owning slice).
 
-- **F-1 · code-gap · S1** — Reference-CSV header validation cannot fail on a typo'd
-  optional column: unknown columns are warn-only (`reference_data.py:253-258`),
-  required columns are checked against the first row only, and building-rooms ingest
-  is delete-then-reinsert — so #1545's typo wiped every `room_surface_square_meter`
-  while the job reported SUCCESS. Reproduced with the committed fixture (section A).
-- **F-2 · code-gap · S1** — `_to_float` (`reference_data.py:541-550`) maps absent
-  _and unparseable_ values to `None` silently: `_to_float('abc') → None`. A wrong
-  decimal separator NULLs data with no row error.
-- **F-3 · code-gap · S2** — Factor providers validate rows but persist the
+- **F-1 · ~~code-gap~~ FIXED by #2216 (2026-08-20)** — Reference-CSV header
+  validation could not fail on a typo'd optional column: unknown columns were
+  warn-only, and building-rooms ingest is delete-then-reinsert — so #1545's typo
+  wiped every `room_surface_square_meter` while the job reported SUCCESS
+  (reproduced with the committed fixture). #2216 turns unknown columns into a hard
+  `ValueError` before anything is deleted, with a regression test on that fixture.
+  Re-verified: the fixture is now rejected.
+- **F-2 · code-gap · S2** — Still open after #2216: `_to_float`
+  (`reference_data.py`) maps a _present but unparseable_ value to `None` silently —
+  `_to_float('12,5') → None` (re-probed at `39a5dcdb`). A wrong decimal separator
+  still NULLs data with no row error; only the column-name vector is closed.
+- **F-3 · code-gap (partial) · S2** — Factor providers validate rows but persist the
   **unvalidated** hand-built dicts: `handler.validate_create(...)`'s return value is
   discarded (`base_factor_csv_provider.py:392-421` — the comment says "don't rely on
   validated DTO", mirroring `seed_generic_factors.py`), and `_convert_value` keeps raw
   strings when `float()` fails. DTO coercions/normalizations never reach the DB; a
-  typo'd optional numeric lands as a string in `Factor.values`.
+  typo'd optional numeric lands as a string in `Factor.values`. _Update 2026-08-20:_
+  #2091 hardened the adjacent step — an unmappable emission type now **aborts the
+  whole upload** instead of skipping the row — but the discarded-DTO and
+  raw-string-passthrough parts were re-checked and remain.
 - **F-4 · code-gap · S3** — Entry-CSV header check samples 5 rows and fails only if
   _all_ lack the required columns; `strict_column_validation` is read in both base
   providers but set nowhere; unknown columns are silently dropped by `filtered_row`
@@ -234,16 +247,27 @@ Classification: `code-gap` (fix in a slice below) · `doc-stale` (section D) ·
 - **F-10 · code-gap · S4** — Whitespace-only required strings: equipment, headcount
   and common-RF strip/reject; process_emissions (probe: `category: '   '` accepted),
   purchase and others don't. Inconsistent within one codebase.
-- **F-11 · observation (pipeline) · flagged to lead** — Referential mismatches
-  (category/class/code vs factors) resolve at compute time to **silently empty
-  computations** — pinned by `test_resolve_computations_without_factor_id_returns_empty`
-  and `test_unit_mismatch_between_entry_and_factor_returns_none`. This is the
-  mechanism that turned #1545's NULLs into "results not calculated" with no error,
-  and it sits in recalculation/pipeline internals (310-series) — **not audited
-  further here** per guardrails; needs the lead.
+- **F-11 · observation (pipeline) · being addressed by the lead** — Referential
+  mismatches (category/class/code vs factors) resolved at compute time to
+  **silently empty computations** — the mechanism that turned #1545's NULLs into
+  "results not calculated" with no error. _Update 2026-08-20:_ the lead is actively
+  closing these: #2091 ("resolve an emission type or fail hard, never degrade",
+  SF6/NF3 leaves), #2050 ("fail hard instead of publishing a wrong-but-plausible
+  total", six silent fallbacks removed, `_apply_formula` now raises its reason),
+  and #1186 (plane unknown-IATA raises instead of silently zero-emission; train
+  not-found station is a hard row error; API creates missing a resolved
+  `natural_key` rejected). The compute path remains outside this audit's scope
+  (pipeline internals, 310-series) — the residual question for the lead is whether
+  any `returns_empty` branches are still reachable after that series.
 - **F-12 · observation · deferred** — Four different validation-error envelopes reach
   the frontend plus the async job channel. Unifying them is an architecture change —
-  parked until the lead is back.
+  parked pending a decision with the lead.
+- **F-13 · code-gap (FE) · S6 — new since re-baseline** — #2061 (`8609717a`) gives
+  the Explorer's external-AI form a prefilled `fte_count` of `0`
+  (`explorerDefault: 0` in `external-cloud-and-ai.ts`), but both the frontend rule
+  (`min: 0.1`) and the backend validator (`fte_count >= 0.1`) reject 0 — so the
+  Explorer now pre-fills a value that cannot be submitted unchanged. Confirm
+  whether that friction is intended before S6 touches the field.
 - **Constraint (S5)** — `percentage_of_reference_year` deliberately rides the F-5
   sweep into `data` (`data_entry_permissions.py:65-68`). Any F-5/F-6 fix must keep it
   working — the clean route is promoting it to an explicit field.
@@ -268,16 +292,16 @@ deliberate. **No code slice fixes these**; the doc (or a data-manager decision) 
 Ordered; each is one small PR to `dev` with its own regression test. S1–S2 are
 independent and can go in parallel. This audit is **S0** (docs only).
 
-| Slice  | Scope                                                                                                                                                                                                                                                                                                                                           | Owner findings            | Gate                                                                              |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------- |
-| **S1** | #1545: strict reference-CSV headers — fail on unknown _and_ missing columns against the full header set; `_to_float` failure on a present value = row error; a failed validation must never reach the delete-then-reinsert. Regression test = the committed wrong-column fixture.                                                               | F-1, F-2                  | none — plain bug fix                                                              |
-| **S2** | Factor providers persist `validate_create`'s validated output; unparseable numerics = row error, not raw-string passthrough.                                                                                                                                                                                                                    | F-3                       | none                                                                              |
-| **S3** | Entry-CSV strict columns: reject unknown columns (incl. `data`/`status`), validate the full header not a 5-row sample — smallest diff wins (likely: enable + harden `strict_column_validation`); surface through the existing `row_errors` channel.                                                                                             | F-4                       | **lead heads-up** — flips a default for all entry ingestion                       |
-| **S4** | Backend DTO consistency fixes: animal-RF validators (use ≥ 0, non-empty ids), whitespace-strip on required strings everywhere, digits-only `user_institutional_id` (if confirmed).                                                                                                                                                              | F-7 (DTO part), F-9, F-10 | none                                                                              |
-| **S5** | `unflatten_payload` hardening: reject unknown keys on create, close the `data`-key bypass, promote `percentage_of_reference_year` to an explicit field, revisit `status` settability and the planner/embodied-energy exemptions. First inventory every FE-sent key not in a Create DTO (`power_w`, kwh fields, `room_surface_square_meter`, …). | F-5, F-6, F-7             | **lead sign-off** — permission scoping                                            |
-| **S6** | Frontend config parity: required flags, min/max bounds, drop the 0.001 minimums (or confirm them), integer check for `int` fields, trim before required. Mechanical edits to `module-config/*.ts` + the shared validator only.                                                                                                                  | F-8, F-9                  | none                                                                              |
-| **S7** | Frontend↔backend contract test, phase (a): a backend script exports effective DTO constraints (required/type/enum/range) to a committed JSON fixture + a freshness test; a frontend Playwright unit spec (existing `tests/unit` pure-function pattern) walks `MODULES_CONFIG` against it. No CI plumbing.                                       | pins S6 permanently       | **async ack** — adjacent to ADR-020, but derived _from_ the backend so SSoT holds |
-| **S8** | Real-backend Playwright e2e validation suite (needs CI postgres+backend, `/api` proxy for the preview server, `login-test`). Anchor: the `test.fixme` at `frontend/tests/integration/backoffice-config.spec.ts:408`.                                                                                                                            | —                         | **parked with the lead**, like F-11, F-12 and the doc-automation bonus            |
+| Slice      | Scope                                                                                                                                                                                                                                                                                                                                           | Owner findings            | Gate                                                                              |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------- |
+| ~~**S1**~~ | **Shipped as #2216 (2026-08-20, by the lead)** while this audit was in review: unknown reference-CSV columns are a hard error before the delete-then-reinsert, regression-tested on the wrong-column fixture. The `_to_float` residual (F-2) moves to S2.                                                                                       | F-1 ✅                    | done                                                                              |
+| **S2**     | Factor providers persist `validate_create`'s validated output; unparseable numerics = row error, not raw-string passthrough — in both `_convert_value` (factors) and `_to_float` (reference data, the F-2 residual).                                                                                                                            | F-2, F-3                  | none                                                                              |
+| **S3**     | Entry-CSV strict columns: reject unknown columns (incl. `data`/`status`), validate the full header not a 5-row sample — smallest diff wins (likely: enable + harden `strict_column_validation`); surface through the existing `row_errors` channel.                                                                                             | F-4                       | **lead heads-up** — flips a default for all entry ingestion                       |
+| **S4**     | Backend DTO consistency fixes: animal-RF validators (use ≥ 0, non-empty ids), whitespace-strip on required strings everywhere, digits-only `user_institutional_id` (if confirmed).                                                                                                                                                              | F-7 (DTO part), F-9, F-10 | none                                                                              |
+| **S5**     | `unflatten_payload` hardening: reject unknown keys on create, close the `data`-key bypass, promote `percentage_of_reference_year` to an explicit field, revisit `status` settability and the planner/embodied-energy exemptions. First inventory every FE-sent key not in a Create DTO (`power_w`, kwh fields, `room_surface_square_meter`, …). | F-5, F-6, F-7             | **lead sign-off** — permission scoping                                            |
+| **S6**     | Frontend config parity: required flags, min/max bounds, drop the 0.001 minimums (or confirm them), integer check for `int` fields, trim before required. Mechanical edits to `module-config/*.ts` + the shared validator only.                                                                                                                  | F-8, F-9, F-13            | none                                                                              |
+| **S7**     | Frontend↔backend contract test, phase (a): a backend script exports effective DTO constraints (required/type/enum/range) to a committed JSON fixture + a freshness test; a frontend Playwright unit spec (existing `tests/unit` pure-function pattern) walks `MODULES_CONFIG` against it. No CI plumbing.                                       | pins S6 permanently       | **async ack** — adjacent to ADR-020, but derived _from_ the backend so SSoT holds |
+| **S8**     | Real-backend Playwright e2e validation suite (needs CI postgres+backend, `/api` proxy for the preview server, `login-test`). Anchor: the `test.fixme` at `frontend/tests/integration/backoffice-config.spec.ts:408`.                                                                                                                            | —                         | **parked with the lead**, like F-11, F-12 and the doc-automation bonus            |
 
 ## Verification of this slice
 
