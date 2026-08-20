@@ -252,9 +252,10 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             )
         unknown = keys - expected_columns
         if unknown:
-            logger.warning(
-                f"Reference CSV has unexpected columns (ignored): "
-                f"{', '.join(sorted(unknown))}"
+            raise ValueError(
+                "CSV has unexpected columns: "
+                f"{', '.join(sorted(unknown))}. "
+                f"Expected: {', '.join(sorted(expected_columns))}"
             )
 
     async def _ingest_locations(
