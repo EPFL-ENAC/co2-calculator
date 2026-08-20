@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, Index, text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
@@ -55,13 +55,29 @@ class CarbonProjectBase(SQLModel):
 
 
 class CarbonProject(CarbonProjectBase, table=True):
-    # Uniqueness is enforced by two partial indexes managed in the migration
-    # (Postgres-only; the SQLite unit-test schema is intentionally
-    # unconstrained):
-    # - uq_carbon_projects_unit_type_nonplan: one project per (unit_id,
-    #   carbon_report_type) for Calculator / Simulator_Explore
-    # - uq_carbon_projects_unit_plan_name: unique (unit_id, name) among
-    #   Simulator_Plan projects (the name is a URL identifier)
     __tablename__ = "carbon_projects"
+
+    __table_args__ = (
+        # Two partial unique indexes. ddl_if gates both to Postgres: the
+        # SQLite unit-test schema is intentionally unconstrained here.
+        # One project per (unit_id, carbon_report_type) for Calculator /
+        # Simulator_Explore; a unit may hold multiple Simulator_Plan
+        # projects instead, unique per (unit_id, name) since the name is a
+        # URL identifier.
+        Index(
+            "uq_carbon_projects_unit_type_nonplan",
+            "unit_id",
+            "carbon_report_type",
+            unique=True,
+            postgresql_where=text("carbon_report_type != 'Simulator_Plan'"),
+        ).ddl_if(dialect="postgresql"),
+        Index(
+            "uq_carbon_projects_unit_plan_name",
+            "unit_id",
+            "name",
+            unique=True,
+            postgresql_where=text("carbon_report_type = 'Simulator_Plan'"),
+        ).ddl_if(dialect="postgresql"),
+    )
 
     id: int | None = Field(default=None, primary_key=True, index=True)

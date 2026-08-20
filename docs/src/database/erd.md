@@ -34,7 +34,7 @@ erDiagram
     VARCHAR room_type
   }
   carbon_projects {
-    VARCHAR carbon_report_type
+    VARCHAR carbon_report_type "indexed"
     DATETIME created_at
     INTEGER created_by FK
     INTEGER end_year "indexed"
