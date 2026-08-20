@@ -742,17 +742,24 @@ async def test_plane_unknown_iata_persists_entry_without_emission(
     pg_dsn, monkeypatch, tmp_path
 ) -> None:
     """Discovery: an unknown destination IATA causes
-    ``LocationService.get_location_by_iata`` to return ``None``,
-    ``pre_compute`` returns ``{}``, and ``resolve_computations`` is
-    never asked for an EmissionComputation against an empty haul
-    category.
+    ``LocationService.get_location_by_iata`` to return ``None``.
 
-    Observed behaviour as of 310-D: the data entry persists with a
-    ``CSV_MODULE_PER_YEAR`` source but no emission row is computed.
-    The 1-1 invariant is intentionally NOT asserted here — the contract
-    we pin instead is "missing location → entry without emission",
-    which is the legitimate semantics for unresolvable trips and the
-    motivation for the discovery test in the spec.
+    CSV ingestion itself doesn't resolve IATA codes — that only happens
+    later, in ``pre_compute``, during the chained ``emission_recalc`` job.
+    So the entry still persists here regardless of the #1186-follow-up fix
+    below (unlike train's ingest-time ``enrich_csv_row`` guard, plane has
+    no CSV-time station lookup to reject at). The 1-1 invariant is
+    intentionally NOT asserted — the contract pinned is "missing location →
+    entry without emission".
+
+    #1186 follow-up: ``pre_compute`` now *raises* on an unresolved IATA
+    instead of silently returning ``{}``. That raise is caught per-entry by
+    ``EmissionRecalculationWorkflow`` (doesn't abort the recalc job for
+    other entries) and turns the chained ``emission_recalc`` job's result
+    into ``IngestionResult.WARNING`` instead of a silent ``SUCCESS`` with a
+    log line nobody reads — but this test only inspects the CSV parent job
+    and the final entry/emission counts, both unaffected by that change, so
+    it doesn't assert on the child job's result directly.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

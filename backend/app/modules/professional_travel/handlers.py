@@ -194,17 +194,18 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
             session, origin_iata, destination_iata, slice_cache
         )
         if not origin or not dest:
-            logger.warning(
-                "plane.pre_compute: skipping entry id=%s — IATA not found "
-                "in locations table (origin_iata=%r resolved=%s, "
-                "destination_iata=%r resolved=%s)",
-                getattr(data_entry, "id", None),
-                origin_iata,
-                origin is not None,
-                destination_iata,
-                dest is not None,
+            # #1186 follow-up: was a WARNING + ``return {}`` — the entry
+            # persisted with silent zero emissions. Raising surfaces a 422
+            # on create/update (CarbonReportModuleWorkflow's #2050 J1
+            # ``except ValueError``) and a per-entry, batch-safe error
+            # during recalc (EmissionRecalculationWorkflow isolates each
+            # entry's exception and keeps processing the rest of the slice).
+            raise ValueError(
+                f"data_entry_id={getattr(data_entry, 'id', None)}, "
+                f"origin_iata={origin_iata!r} resolved={origin is not None}, "
+                f"destination_iata={destination_iata!r} resolved={dest is not None}: "
+                f"IATA not found in locations table."
             )
-            return {}
         distance_one_trip_km = calculate_plane_distance(
             origin_airport=origin,
             dest_airport=dest,
