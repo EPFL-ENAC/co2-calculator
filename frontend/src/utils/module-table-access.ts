@@ -74,3 +74,16 @@ export function resolvePlannerFormDefaults(
   }
   return defaults;
 }
+
+/** Field-config `explorerDefault`s — Explorer's own fixed defaults (#2000), never the Calculator's. */
+export function resolveExplorerFormDefaults(
+  fields: ModuleField[],
+): Record<string, unknown> {
+  const defaults: Record<string, unknown> = {};
+  for (const field of fields) {
+    if (field.explorerDefault !== undefined) {
+      defaults[field.id] = field.explorerDefault;
+    }
+  }
+  return defaults;
+}

@@ -286,6 +286,7 @@ import {
 } from 'src/composables/useModuleIconColors';
 import {
   canShowModuleForm,
+  resolveExplorerFormDefaults,
   resolvePlannerFormDefaults,
 } from 'src/utils/module-table-access';
 import { submoduleTooltipKey, type TooltipScope } from 'src/utils/tooltipScope';
@@ -298,12 +299,16 @@ const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
 
 onMounted(() => {
+  // The timeline store only ever holds the Calculator's report (#2000) — an
+  // Explorer table has no validated state of its own, so fetching it here
+  // would just be wasted, unused traffic.
   const needsFte = props.submodule.moduleFields?.some(
     (f) => f.defaultFrom === 'total_fte',
   );
   const carbonReportId = timelineStore.currentCarbonReportId;
   if (
     needsFte &&
+    !props.isExplorer &&
     carbonReportId &&
     carbonReportId !== moduleStore.validatedTotalsCarbonReportId
   ) {
@@ -319,7 +324,10 @@ const formDefaults = computed<Record<string, unknown> | undefined>(() => {
     fields,
     props.carbonReportId != null,
   );
-  if (validatedTotals) {
+  if (props.isExplorer) {
+    // Explorer never shows the Calculator's validated FTE total (#2000).
+    Object.assign(defaults, resolveExplorerFormDefaults(fields));
+  } else if (validatedTotals) {
     for (const field of fields) {
       if (field.defaultFrom === 'total_fte') {
         defaults[field.id] = Math.round(validatedTotals.total_fte);

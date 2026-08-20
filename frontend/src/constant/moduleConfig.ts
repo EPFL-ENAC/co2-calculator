@@ -69,6 +69,8 @@ export interface ModuleField {
   defaultFrom?: 'total_fte';
   /** Pre-filled only in the Planner (i.e. when the form's report has a `carbonReportId`). */
   plannerDefault?: string;
+  /** Pre-filled only in the Explorer — overrides `defaultFrom` there. */
+  explorerDefault?: number;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
   optionOrder?: string[]; // Explicit ordering of options by value
