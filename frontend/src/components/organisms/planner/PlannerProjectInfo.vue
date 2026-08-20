@@ -280,6 +280,8 @@ async function generateSections() {
   const end = endYearInput.value;
   if (!yearsValid.value || generatingSections.value) return;
 
+  const grantSectionAdded =
+    grantProposalInput.value && !props.plan.is_grant_proposal;
   const payload: SimulatorPlanUpdatePayload = {
     is_grant_proposal: grantProposalInput.value,
     with_year_sections: yearByYearChecked.value,
@@ -294,6 +296,7 @@ async function generateSections() {
   try {
     const updated = await plansStore.updatePlan(props.plan.id, payload);
     yearByYearInput.value = null;
+    if (grantSectionAdded) await defaultGrantReferenceYear();
     emit('updated', updated);
     $q.notify({ type: 'positive', message: t('planner_sections_generated') });
   } catch {
@@ -303,6 +306,24 @@ async function generateSections() {
     });
   } finally {
     generatingSections.value = false;
+  }
+}
+
+async function defaultGrantReferenceYear() {
+  if (props.plan.default_factor_year === null) return;
+  const grantYear = plansStore.planYears.find(
+    (y) => y.is_grant && y.reference_year === null,
+  );
+  if (!grantYear) return;
+  try {
+    await plansStore.setReferenceYear(
+      props.plan.id,
+      grantYear.year,
+      props.plan.default_factor_year - 1,
+      true,
+    );
+  } catch {
+    $q.notify({ type: 'negative', message: t('planner_reference_year_error') });
   }
 }
 
