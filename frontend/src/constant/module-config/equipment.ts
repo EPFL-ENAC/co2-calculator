@@ -34,6 +34,9 @@ const equipmentIdField: ModuleField = {
     table: true,
   },
   ratio: '1/1',
+  // #1995: Planner doesn't always know the asset tag yet; Calculator keeps it
+  // free-entry since it ties usage-hours history across years (#2005).
+  plannerDefault: 'Unknown',
 };
 
 const baseModuleFields: ModuleField[] = [

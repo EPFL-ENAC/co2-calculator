@@ -284,7 +284,10 @@ import {
   getSubmoduleIconColor,
   getSubmoduleLighterColor,
 } from 'src/composables/useModuleIconColors';
-import { canShowModuleForm } from 'src/utils/module-table-access';
+import {
+  canShowModuleForm,
+  resolvePlannerFormDefaults,
+} from 'src/utils/module-table-access';
 import { submoduleTooltipKey, type TooltipScope } from 'src/utils/tooltipScope';
 interface Option {
   label: string;
@@ -310,12 +313,17 @@ onMounted(() => {
 
 const formDefaults = computed<Record<string, unknown> | undefined>(() => {
   const validatedTotals = moduleStore.state.validatedTotals;
-  if (!validatedTotals) return undefined;
+  const fields = props.submodule.moduleFields ?? [];
 
-  const defaults: Record<string, unknown> = {};
-  for (const field of props.submodule.moduleFields ?? []) {
-    if (field.defaultFrom === 'total_fte') {
-      defaults[field.id] = Math.round(validatedTotals.total_fte);
+  const defaults: Record<string, unknown> = resolvePlannerFormDefaults(
+    fields,
+    props.carbonReportId != null,
+  );
+  if (validatedTotals) {
+    for (const field of fields) {
+      if (field.defaultFrom === 'total_fte') {
+        defaults[field.id] = Math.round(validatedTotals.total_fte);
+      }
     }
   }
   return Object.keys(defaults).length > 0 ? defaults : undefined;

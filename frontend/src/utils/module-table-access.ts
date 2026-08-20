@@ -1,3 +1,5 @@
+import type { ModuleField } from 'src/constant/moduleConfig';
+
 /**
  * Who may interact with a module table's rows, across the three contexts a
  * table renders in: Calculator, Explorer and Planner.
@@ -56,4 +58,19 @@ export function hasRowEditPermission(
   ctx: Omit<ModuleTableAccess, 'isValidated' | 'disable'>,
 ): boolean {
   return ctx.isExplorer || ctx.isPlanner || ctx.canEdit;
+}
+
+/** Field-config `plannerDefault`s, active only when the form is in a Planner report (#1995). */
+export function resolvePlannerFormDefaults(
+  fields: ModuleField[],
+  isPlanner: boolean,
+): Record<string, unknown> {
+  const defaults: Record<string, unknown> = {};
+  if (!isPlanner) return defaults;
+  for (const field of fields) {
+    if (field.plannerDefault !== undefined) {
+      defaults[field.id] = field.plannerDefault;
+    }
+  }
+  return defaults;
 }
