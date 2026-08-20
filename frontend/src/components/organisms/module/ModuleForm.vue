@@ -1069,7 +1069,12 @@ function validateField(i: ModuleField) {
       : $t('validation_required');
     if (effectiveType === 'checkbox' || effectiveType === 'boolean') {
       if (!v) errors[i.id] = requiredMsg;
-    } else if (v === '' || v === null || v === undefined) {
+    } else if (
+      v === null ||
+      v === undefined ||
+      (typeof v === 'string' && v.trim() === '')
+    ) {
+      // Whitespace-only counts as empty — the backend rejects it (#1489).
       errors[i.id] = requiredMsg;
     }
   }
