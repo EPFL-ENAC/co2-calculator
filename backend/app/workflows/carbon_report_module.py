@@ -250,6 +250,21 @@ class CarbonReportModuleWorkflow:
                 detail="Database integrity error.",
             ) from e
 
+        except ValueError as e:
+            # #2050 J1's fail-hard raises (unresolvable factors, formulas
+            # that can't produce a value, ...) are data problems, not bugs —
+            # the message already names the missing input, so surface it
+            # instead of the generic 500 below.
+            await self.session.rollback()
+            logger.warning(
+                f"Data entry rejected for "
+                f"module_id={carbon_report_module.module_type_id}: {e}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(e),
+            ) from e
+
         except Exception as e:
             await self.session.rollback()
             logger.error(
@@ -433,6 +448,15 @@ class CarbonReportModuleWorkflow:
             # upsert could fail if emission factor lookup fails, but we still want to
             # return the updated item
             await self.session.commit()
+        except ValueError as e:
+            # See create()'s matching clause: #2050 J1's fail-hard raises
+            # name the missing input, so surface it instead of a generic 500.
+            await self.session.rollback()
+            logger.warning(f"Data entry update rejected for item_id={item_id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(e),
+            ) from e
         except Exception as e:
             await self.session.rollback()
             logger.error(

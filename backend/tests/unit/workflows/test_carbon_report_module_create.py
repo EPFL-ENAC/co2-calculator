@@ -197,3 +197,51 @@ async def test_create_stamps_source_manual_and_created_by_id():
     call_kwargs = data_entry_service.create.call_args.kwargs
     assert call_kwargs["source"] == DataEntrySourceEnum.USER_MANUAL.value
     assert call_kwargs["created_by_id"] == _CURRENT_USER.id
+
+
+@pytest.mark.asyncio
+async def test_create_value_error_from_emission_service_returns_422():
+    """A #2050 J1 fail-hard ValueError (e.g. a formula that can't produce a
+    value) must surface as 422 with its own message, not a generic 500 —
+    regression for the bare "Failed to create data entry" response that gave
+    no clue which factor/entry was the problem.
+    """
+    session, data_entry_service, emission_service, module_service = (
+        _make_workflow_deps()
+    )
+    emission_service.create = AsyncMock(
+        side_effect=ValueError(
+            "data_entry_id=9237, emission_type='research_facilities__facilities', "
+            "factor_id=37756: The formula for "
+            "'research_facilities__facilities' could not produce a value."
+        )
+    )
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with (
+        patch(
+            "app.workflows.carbon_report_module.DataEntryService",
+            return_value=data_entry_service,
+        ),
+        patch(
+            "app.workflows.carbon_report_module.DataEntryEmissionService",
+            return_value=emission_service,
+        ),
+        patch(
+            "app.workflows.carbon_report_module.CarbonReportModuleService",
+            return_value=module_service,
+        ),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await workflow.create(
+                carbon_report_module=MagicMock(id=42, module_type_id=6),
+                data_entry_type_id=DataEntryTypeEnum.member.value,
+                item_data=_member_item_data("54"),
+                current_user=_CURRENT_USER,
+                request_context={},
+                background_tasks=MagicMock(),
+            )
+
+    assert exc_info.value.status_code == 422
+    assert "factor_id=37756" in exc_info.value.detail
+    session.rollback.assert_awaited()
