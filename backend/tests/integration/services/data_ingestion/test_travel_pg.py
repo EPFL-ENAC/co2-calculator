@@ -827,12 +827,13 @@ async def test_plane_unknown_iata_persists_entry_without_emission(
 
 
 @pytest.mark.asyncio
-async def test_train_unknown_station_persists_entry_without_emission(
+async def test_train_unknown_station_is_rejected_as_row_error(
     pg_dsn, monkeypatch, tmp_path
 ) -> None:
-    """Train mirror of the unknown-IATA discovery test: unknown station
-    name → no Location → ``pre_compute`` returns ``{}`` → entry without
-    emission.
+    """#1186: unlike plane's unknown-IATA path (persist, 0 emissions), an
+    unresolvable train station name is now a hard row error — the row never
+    gets a chance to persist with a silently-missing natural_key. Supersedes
+    the "mirror plane" behavior this test used to pin (#1183 discovery test).
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -874,17 +875,18 @@ async def test_train_unknown_station_persists_entry_without_emission(
         provider_class=ModulePerYearCSVProvider,
     )
     assert parent.state == IngestionState.FINISHED
+    assert parent.result == IngestionResult.ERROR, (
+        f"the only row is unresolvable — nothing processed; got {parent.result}"
+    )
 
     async with Sf() as s:
         n_entries, n_emissions = await _count_entries_and_emissions_for_module(
             s, module_id=module_id
         )
-        assert n_entries == 1, (
-            f"unknown-station entry should still persist; got {n_entries}"
+        assert n_entries == 0, (
+            f"unknown-station row must be rejected, not persisted; got {n_entries}"
         )
-        assert n_emissions == 0, (
-            f"unknown-station entry should yield 0 emissions; got {n_emissions}"
-        )
+        assert n_emissions == 0
 
     await engine.dispose()
 
