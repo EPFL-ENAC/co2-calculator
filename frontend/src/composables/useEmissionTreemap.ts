@@ -58,7 +58,8 @@ export function normalizeParentKey(
   return baseKey;
 }
 
-// Mirrors backend CATEGORY_CHART_KEYS in emission_breakdown.py
+// Category → YY keys rendered by the Results charts, in display order.
+// Keys not listed here are silently dropped from every non-additional chart.
 export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
   process_emissions: [
     'co2',
