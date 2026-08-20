@@ -1,6 +1,12 @@
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from app.schemas.data_entry import (
     DataEntryCreate,
@@ -74,6 +80,14 @@ class DiscardClientSurfaceMixin:
 class BuildingRoomHandlerCreate(DiscardClientSurfaceMixin, DataEntryCreate):
     building_name: str
     room_name: str
+
+    @field_validator("building_name", "room_name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     room_type: str
     room_allocation_ratio: float | None = None
     note: str | None = None
@@ -97,6 +111,14 @@ class BuildingRoomHandlerCreate(DiscardClientSurfaceMixin, DataEntryCreate):
 class BuildingRoomHandlerUpdate(DiscardClientSurfaceMixin, DataEntryUpdate):
     building_name: str | None = None
     room_name: str | None = None
+
+    @field_validator("building_name", "room_name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     room_type: str | None = None
     room_allocation_ratio: float | None = None
     note: str | None = None
@@ -131,6 +153,13 @@ class EnergyCombustionHandlerCreate(DataEntryCreate):
     quantity: float
     note: str | None = None
 
+    @field_validator("name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     @field_validator("quantity", mode="after")
     @classmethod
     def validate_quantity(cls, v: float) -> float:
@@ -143,6 +172,13 @@ class EnergyCombustionHandlerUpdate(DataEntryUpdate):
     name: str | None = None
     quantity: float | None = None
     note: str | None = None
+
+    @field_validator("name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
 
     @field_validator("quantity", mode="after")
     @classmethod

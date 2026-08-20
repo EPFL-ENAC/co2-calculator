@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import field_validator, model_validator
+from pydantic import ValidationInfo, field_validator, model_validator
 
 from app.schemas.data_entry import (
     DataEntryCreate,
@@ -32,6 +32,14 @@ class PurchaseCentralizedHandlerResponse(DataEntryResponseGen):
 
 class PurchaseHandlerCreate(DataEntryCreate):
     name: str
+
+    @field_validator("name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     supplier: str | None = None
     quantity: float | None = None
     total_spent_amount: float
@@ -99,6 +107,13 @@ class PurchaseCentralizedHandlerCreate(DataEntryCreate):
     coef_to_kg: float
     note: str | None = None
 
+    @field_validator("name", "unit", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     @field_validator("annual_consumption", "coef_to_kg", mode="after")
     @classmethod
     def validate_positive(cls, v: float) -> float:
@@ -109,6 +124,14 @@ class PurchaseCentralizedHandlerCreate(DataEntryCreate):
 
 class PurchaseHandlerUpdate(DataEntryUpdate):
     name: str | None = None
+
+    @field_validator("name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     supplier: str | None = None
     quantity: float | None = None
     total_spent_amount: float | None = None
@@ -186,6 +209,13 @@ class PurchaseCentralizedHandlerUpdate(DataEntryUpdate):
     annual_consumption: float | None = None
     coef_to_kg: float | None = None
     note: str | None = None
+
+    @field_validator("name", "unit", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
 
     @field_validator("annual_consumption", "coef_to_kg", mode="after")
     @classmethod

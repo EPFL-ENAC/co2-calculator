@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ValidationInfo, field_validator
 
 from app.schemas.data_entry import (
     DataEntryCreate,
@@ -92,6 +92,14 @@ class ProfessionalTravelPlaneHandlerCreate(
 ):
     origin_iata: str  ## IATA code
     destination_iata: str  ## IATA code
+
+    @field_validator("origin_iata", "destination_iata", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     user_institutional_id: str | None
     departure_date: date | None = None
     number_of_trips: int = 1
@@ -133,6 +141,19 @@ class ProfessionalTravelTrainHandlerCreate(
     note: str | None = None
     # __kg_co2eq_override__ for kg_co2eq
 
+    @field_validator(
+        "origin_name",
+        "destination_name",
+        "origin_country_code",
+        "destination_country_code",
+        mode="after",
+    )
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     @field_validator("number_of_trips", mode="after")
     @classmethod
     def validate_number_of_trips(cls, v: int) -> int:
@@ -151,6 +172,13 @@ class ProfessionalTravelPlaneHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
     number_of_trips: int | None = None
     note: str | None = None
 
+    @field_validator("origin_iata", "destination_iata", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
 
 class ProfessionalTravelTrainHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
     # traveler_name: Optional[str] = None
@@ -158,6 +186,14 @@ class ProfessionalTravelTrainHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
     origin_name: str | None = None
     destination_name: str | None = None
     origin_natural_key: str | None = None
+
+    @field_validator("origin_name", "destination_name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     destination_natural_key: str | None = None
     cabin_class: str | None = None
     departure_date: date | None = None
