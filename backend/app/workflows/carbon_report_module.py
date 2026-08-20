@@ -10,6 +10,7 @@ from app.core.data_entry_permissions import (
 )
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.carbon_report import CarbonReport
 from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -25,7 +26,9 @@ from app.schemas.write_scope import WriteScope
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
+from app.services.exchange_rates_service import ExchangeRatesService
 from app.services.module_handler_service import ModuleHandlerService
+from app.utils.factor_year import resolve_factor_year
 
 logger = get_logger(__name__)
 
@@ -91,6 +94,61 @@ class CarbonReportModuleWorkflow:
                 detail="PURCHASES_GLOBAL_BUDGET_EXISTS",
             )
 
+    @staticmethod
+    def _planner_purchase_scopes(dump: dict) -> list[dict]:
+        """The DTO dump carries the payload twice: flat and nested under
+        ``data`` (the stored dict) — both must agree.
+        """
+        payload = dump.get("data")
+        return [dump] + ([payload] if isinstance(payload, dict) else [])
+
+    async def _convert_planner_purchase_amount(
+        self,
+        carbon_report_module: CarbonReportModuleRead,
+        dump: dict,
+    ) -> dict:
+        """Stored planner purchase amounts are always EUR.
+
+        ``currency`` is transport-only: it names the currency the submitted
+        amount is denominated in. A non-EUR amount is converted here at the
+        report's factor year's average ECB rate; the key is never stored.
+        """
+        scopes = self._planner_purchase_scopes(dump)
+        currency = "eur"
+        for scope in scopes:
+            currency = scope.pop("currency", None) or currency
+        amount = next(
+            (
+                scope["amount_eur"]
+                for scope in scopes
+                if scope.get("amount_eur") is not None
+            ),
+            None,
+        )
+        if currency == "eur" or amount is None:
+            return dump
+        report = await self.session.get(
+            CarbonReport, carbon_report_module.carbon_report_id
+        )
+        year = await resolve_factor_year(self.session, report) if report else None
+        if year is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="PURCHASES_CURRENCY_RATE_UNAVAILABLE",
+            )
+        try:
+            rate = ExchangeRatesService().get_exchange_rate_to_eur(year, currency)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="PURCHASES_CURRENCY_RATE_UNAVAILABLE",
+            ) from e
+        converted = amount * rate
+        for scope in scopes:
+            if "amount_eur" in scope:
+                scope["amount_eur"] = converted
+        return dump
+
     async def create(
         self,
         carbon_report_module: CarbonReportModuleRead,
@@ -136,6 +194,12 @@ class CarbonReportModuleWorkflow:
                 carbon_report_module.id,
                 data_entry_type,
                 validated_data.model_dump(),
+            )
+            data_entry_create = DataEntryCreate(
+                **await self._convert_planner_purchase_amount(
+                    carbon_report_module,
+                    validated_data.model_dump(exclude_unset=True),
+                )
             )
 
         try:
@@ -277,6 +341,15 @@ class CarbonReportModuleWorkflow:
                 validated_data.model_dump(),
                 exclude_entry_id=item_id,
             )
+            update_data = validated_data.model_dump(exclude_unset=True)
+            if "amount_eur" in item_data:
+                update_data = await self._convert_planner_purchase_amount(
+                    carbon_report_module, update_data
+                )
+            else:
+                for scope in self._planner_purchase_scopes(update_data):
+                    scope.pop("currency", None)
+            data_entry_update = DataEntryUpdate(**update_data)
         if current_user.id is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

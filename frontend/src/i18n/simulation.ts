@@ -460,8 +460,12 @@ export default {
     fr: "Impossible d'enregistrer l'utilisation de la plateforme",
   },
   planner_purchase_amount_label: {
-    en: 'Amount (EUR)',
-    fr: 'Montant (EUR)',
+    en: 'Amount',
+    fr: 'Montant',
+  },
+  planner_currency_rates_unavailable: {
+    en: 'Exchange rates are not available for this year, amounts stay in EUR.',
+    fr: 'Les taux de change ne sont pas disponibles pour cette année, les montants restent en EUR.',
   },
   planner_purchase_mode_global: {
     en: 'Global budget',

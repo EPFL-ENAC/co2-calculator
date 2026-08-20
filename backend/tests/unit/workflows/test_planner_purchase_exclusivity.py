@@ -124,6 +124,82 @@ async def test_update_excludes_edited_row_from_duplicate_scan():
     )
 
 
+def _dump(amount: float, currency: str | None) -> dict:
+    payload = {"purchase_category": "services", "amount_eur": amount}
+    if currency is not None:
+        payload["currency"] = currency
+    return {
+        "data_entry_type_id": DataEntryTypeEnum.planner_purchase.value,
+        "carbon_report_module_id": 1,
+        **payload,
+        "data": dict(payload),
+    }
+
+
+def _conversion_workflow() -> CarbonReportModuleWorkflow:
+    return CarbonReportModuleWorkflow(
+        MagicMock(get=AsyncMock(return_value=MagicMock()))
+    )
+
+
+@pytest.mark.asyncio
+async def test_non_eur_amount_converted_and_currency_stripped():
+    workflow = _conversion_workflow()
+    patch(
+        "app.workflows.carbon_report_module.resolve_factor_year",
+        AsyncMock(return_value=2025),
+    ).start()
+    rates = MagicMock()
+    rates.get_exchange_rate_to_eur.return_value = 0.94
+    patch(
+        "app.workflows.carbon_report_module.ExchangeRatesService",
+        return_value=rates,
+    ).start()
+    out = await workflow._convert_planner_purchase_amount(
+        MagicMock(carbon_report_id=3), _dump(1000.0, "chf")
+    )
+    assert out["amount_eur"] == pytest.approx(940.0)
+    assert out["data"]["amount_eur"] == pytest.approx(940.0)
+    assert "currency" not in out
+    assert "currency" not in out["data"]
+    rates.get_exchange_rate_to_eur.assert_called_once_with(2025, "chf")
+
+
+@pytest.mark.asyncio
+async def test_eur_amount_stored_verbatim_without_rate_lookup():
+    workflow = _conversion_workflow()
+    rates_cls = patch("app.workflows.carbon_report_module.ExchangeRatesService").start()
+    for currency in ("eur", None):
+        out = await workflow._convert_planner_purchase_amount(
+            MagicMock(carbon_report_id=3), _dump(1000.0, currency)
+        )
+        assert out["amount_eur"] == 1000.0
+        assert out["data"]["amount_eur"] == 1000.0
+        assert "currency" not in out["data"]
+    rates_cls.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_unavailable_rate_rejected_as_422():
+    workflow = _conversion_workflow()
+    patch(
+        "app.workflows.carbon_report_module.resolve_factor_year",
+        AsyncMock(return_value=2030),
+    ).start()
+    rates = MagicMock()
+    rates.get_exchange_rate_to_eur.side_effect = ValueError("no data")
+    patch(
+        "app.workflows.carbon_report_module.ExchangeRatesService",
+        return_value=rates,
+    ).start()
+    with pytest.raises(HTTPException) as exc:
+        await workflow._convert_planner_purchase_amount(
+            MagicMock(carbon_report_id=3), _dump(1000.0, "chf")
+        )
+    assert exc.value.status_code == 422
+    assert exc.value.detail == "PURCHASES_CURRENCY_RATE_UNAVAILABLE"
+
+
 @pytest.mark.asyncio
 async def test_update_rejects_change_to_existing_category():
     """PATCHing a row's category to one another row already uses is rejected."""

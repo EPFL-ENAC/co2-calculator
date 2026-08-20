@@ -3,44 +3,59 @@
     <!-- The backend accepts a global budget XOR per-category totals (PRD
          #1555), so the two modes are one explicit choice rather than two
          tables the user discovers are incompatible. -->
-    <div class="planner-purchase__header">
-      <div class="planner-purchase-mode row items-center no-wrap">
-        <button
-          type="button"
-          class="planner-purchase-mode__label text-body1"
-          :class="mode === 'global' ? 'text-weight-medium' : 'text-grey-6'"
-          :disabled="disable || switching"
-          :aria-pressed="mode === 'global'"
-          @click="onModeRequest('global')"
-        >
-          {{ $t('planner_purchase_mode_global') }}
-        </button>
-        <q-toggle
-          :model-value="mode === 'per_category'"
-          color="info"
-          keep-color
-          size="lg"
-          :disable="disable || switching"
-          @update:model-value="
-            (on: boolean) => onModeRequest(on ? 'per_category' : 'global')
-          "
-        />
-        <button
-          type="button"
-          class="planner-purchase-mode__label text-body1"
-          :class="
-            mode === 'per_category' ? 'text-weight-medium' : 'text-grey-6'
-          "
-          :disabled="disable || switching"
-          :aria-pressed="mode === 'per_category'"
-          @click="onModeRequest('per_category')"
-        >
-          {{ $t('planner_purchase_mode_per_category') }}
-        </button>
+    <div class="planner-purchase__header row items-center justify-between">
+      <div>
+        <div class="planner-purchase-mode row items-center no-wrap">
+          <button
+            type="button"
+            class="planner-purchase-mode__label text-body1"
+            :class="mode === 'global' ? 'text-weight-medium' : 'text-grey-6'"
+            :disabled="disable || switching"
+            :aria-pressed="mode === 'global'"
+            @click="onModeRequest('global')"
+          >
+            {{ $t('planner_purchase_mode_global') }}
+          </button>
+          <q-toggle
+            :model-value="mode === 'per_category'"
+            color="info"
+            keep-color
+            size="lg"
+            :disable="disable || switching"
+            @update:model-value="
+              (on: boolean) => onModeRequest(on ? 'per_category' : 'global')
+            "
+          />
+          <button
+            type="button"
+            class="planner-purchase-mode__label text-body1"
+            :class="
+              mode === 'per_category' ? 'text-weight-medium' : 'text-grey-6'
+            "
+            :disabled="disable || switching"
+            :aria-pressed="mode === 'per_category'"
+            @click="onModeRequest('per_category')"
+          >
+            {{ $t('planner_purchase_mode_per_category') }}
+          </button>
+        </div>
+        <div class="text-body2 text-grey-7">
+          {{ $t('planner_purchase_mode_hint') }}
+        </div>
       </div>
-      <div class="text-body2 text-grey-7">
-        {{ $t('planner_purchase_mode_hint') }}
-      </div>
+      <q-select
+        :model-value="currency"
+        :options="CURRENCY_OPTIONS"
+        emit-value
+        map-options
+        outlined
+        dense
+        options-dense
+        class="planner-purchase__currency"
+        :label="$t('planner_budget_currency_label')"
+        :disable="disable || switching || savingKey !== null"
+        @update:model-value="onCurrencyChange"
+      />
     </div>
 
     <q-separator />
@@ -90,7 +105,7 @@
             dense
             hide-bottom-space
             min="0"
-            suffix="EUR"
+            :suffix="currencyLabel(currency)"
             :aria-label="$t('planner_purchase_amount_label')"
             :disable="disable || switching || savingKey === row.key"
             :loading="savingKey === row.key"
@@ -147,6 +162,7 @@ import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
 import { api } from 'src/api/http';
+import { CURRENCY_OPTIONS, currencyLabel } from 'src/constant/currencies';
 import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
 import { formatTonnesCO2 } from 'src/utils/number';
 
@@ -205,6 +221,10 @@ const props = defineProps<{
   disable: boolean;
   /** Set in the Project Grant section: multiply kg over the plan's years. */
   projectYearsCount?: number | null;
+  /** Grant plans carry a budget currency; it seeds the selector. */
+  budgetCurrency?: string | null;
+  /** The year whose average ECB rate converts amounts, matching the backend. */
+  factorYear?: number | null;
 }>();
 
 const $q = useQuasar();
@@ -212,6 +232,12 @@ const { t } = useI18n();
 const plansStore = useSimulatorPlansStore();
 
 const mode = ref<Mode>('global');
+// Amounts are stored in EUR; the selected currency only denominates what the
+// user types and sees. `eurPerUnit` converts both ways at the factor year's
+// average rate — the same rate the backend applies on write.
+const currency = ref<string>('eur');
+const eurPerUnit = ref<number>(1);
+let ratesByCode: Record<string, number> | null = null;
 const savingKey = ref<string | null>(null);
 const switching = ref(false);
 const confirmOpen = ref(false);
@@ -266,8 +292,28 @@ async function fetchItems(target: Mode): Promise<SubmoduleItem[]> {
   }
 }
 
+async function rateFor(code: string): Promise<number | null> {
+  if (code === 'eur') return 1;
+  if (props.factorYear == null) return null;
+  if (ratesByCode === null) {
+    try {
+      ratesByCode = await api
+        .get(`exchange-rates/${props.factorYear}`, { skipErrorCodes: [404] })
+        .json<Record<string, number>>();
+    } catch {
+      return null;
+    }
+  }
+  return ratesByCode[code] ?? null;
+}
+
+function toDisplay(amountEur: number | null | undefined): number | null {
+  if (amountEur == null) return null;
+  return Math.round((amountEur / eurPerUnit.value) * 100) / 100;
+}
+
 function fillRow(row: PurchaseRow, item: SubmoduleItem | undefined) {
-  row.amount = item?.amount_eur ?? null;
+  row.amount = toDisplay(item?.amount_eur);
   row.saved = row.amount;
   row.entryId = item?.id ?? null;
   // A saved amount always reads a figure: a category the reference year has no
@@ -361,8 +407,12 @@ async function persist(row: PurchaseRow) {
       const created = await api
         .post(pathFor(mode.value), {
           json: row.category
-            ? { purchase_category: row.category, amount_eur: amount }
-            : { amount_eur: amount },
+            ? {
+                purchase_category: row.category,
+                amount_eur: amount,
+                currency: currency.value,
+              }
+            : { amount_eur: amount, currency: currency.value },
           skipErrorCodes: [422],
         })
         .json<{ id: number }>();
@@ -370,7 +420,7 @@ async function persist(row: PurchaseRow) {
     } else {
       await api
         .patch(`${pathFor(mode.value)}/${row.entryId}`, {
-          json: { amount_eur: amount },
+          json: { amount_eur: amount, currency: currency.value },
           skipErrorCodes: [422],
         })
         .json();
@@ -392,6 +442,32 @@ async function persist(row: PurchaseRow) {
 
 function filledRows(target: Mode): PurchaseRow[] {
   return rowsFor(target).filter((row) => row.entryId !== null);
+}
+
+async function seedCurrency() {
+  const seeded = (props.budgetCurrency || 'eur').toLowerCase();
+  if (seeded === 'eur') return;
+  const rate = await rateFor(seeded);
+  if (rate === null) return;
+  currency.value = seeded;
+  eurPerUnit.value = rate;
+}
+
+async function onCurrencyChange(next: string) {
+  if (next === currency.value) return;
+  const rate = await rateFor(next);
+  if (rate === null) {
+    $q.notify({
+      type: 'negative',
+      message: t('planner_currency_rates_unavailable'),
+    });
+    return;
+  }
+  // A pending blur-save must land before the rows are re-read and converted.
+  await saveQueue;
+  currency.value = next;
+  eurPerUnit.value = rate;
+  await load();
 }
 
 function onModeRequest(next: Mode) {
@@ -432,7 +508,10 @@ async function confirmSwitch() {
   }
 }
 
-onMounted(load);
+onMounted(async () => {
+  await seedCurrency();
+  await load();
+});
 </script>
 
 <style scoped lang="scss">
@@ -441,6 +520,10 @@ onMounted(load);
 // The stripes run edge to edge, so only the mode choice above them is inset.
 .planner-purchase__header {
   padding: tokens.$spacing-md;
+}
+
+.planner-purchase__currency {
+  width: tokens.$planner-grid-amount-input-width;
 }
 
 .planner-purchase-table {
