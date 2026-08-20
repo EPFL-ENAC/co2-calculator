@@ -8,6 +8,8 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
 from app.services.data_ingestion.csv_providers.reference_data import (
+    BUILDING_ROOMS_EXPECTED_COLUMNS,
+    BUILDING_ROOMS_REQUIRED_COLUMNS,
     LOCATIONS_REQUIRED_COLUMNS,
     ReferenceDataCSVProvider,
 )
@@ -77,6 +79,22 @@ def test_validate_headers_accepts_full_set():
         LOCATIONS_REQUIRED_COLUMNS,
         LOCATIONS_REQUIRED_COLUMNS,
     )
+
+
+def test_validate_headers_rejects_unknown_columns():
+    # Regression test for #1545: a misspelled column (e.g.
+    # room_surface_square_meters instead of room_surface_square_meter) must
+    # fail loudly rather than silently resolving to None on every row.
+    csv_text = (
+        "building_location,building_name,room_name,room_surface_square_meters\n"
+        "ECUBLENS,GC,AI0122,12\n"
+    )
+    with pytest.raises(ValueError, match="unexpected columns"):
+        ReferenceDataCSVProvider._validate_headers(
+            csv_text,
+            BUILDING_ROOMS_REQUIRED_COLUMNS,
+            BUILDING_ROOMS_EXPECTED_COLUMNS,
+        )
 
 
 def test_parse_locations_filters_by_transport_mode():
