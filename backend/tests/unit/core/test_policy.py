@@ -655,9 +655,9 @@ class TestRequirePlanScopeForReport:
 
 
 class TestCheckModulePermissionForReport:
-    """Explore reports and Grant Proposal plan reports drop the module gate
-    to unit membership (#1988, #1983); effective plan-year and Calculator
-    reports delegate to the strict per-module gate.
+    """Explore and plan reports (grant and plan years alike) drop the module
+    gate to unit membership (#1988, #1983, #2120); Calculator reports
+    delegate to the strict per-module gate.
     """
 
     @staticmethod
@@ -713,31 +713,37 @@ class TestCheckModulePermissionForReport:
         assert result is unit
 
     @pytest.mark.asyncio
-    async def test_plan_report_delegates_to_unit_gate(self):
+    async def test_plan_year_report_passes_for_std_unit_member(self):
         from app.models.carbon_report import CarbonReportType
 
         unit = self._unit("0184")
-        user = self._std_user("0184")
-        db = self._db(CarbonReportType.SIMULATOR_PLAN, unit)
         with patch(
             "app.core.policy.check_module_permission_for_unit",
-            AsyncMock(return_value=unit),
+            AsyncMock(),
         ) as delegate:
             result = await check_module_permission_for_report(
-                current_user=user,
+                current_user=self._std_user("0184"),
                 module_id="equipment",
                 action="edit",
-                db=db,
-                report=self._report(unit_id=7),
+                db=self._db(CarbonReportType.SIMULATOR_PLAN, unit),
+                report=self._report(is_grant=False),
             )
         assert result is unit
-        delegate.assert_awaited_once_with(
-            current_user=user,
-            module_id="equipment",
-            action="edit",
-            db=db,
-            unit_id=7,
-        )
+        delegate.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_plan_year_report_denies_std_of_other_unit(self):
+        from app.models.carbon_report import CarbonReportType
+
+        with pytest.raises(HTTPException) as exc:
+            await check_module_permission_for_report(
+                current_user=self._std_user("9999"),
+                module_id="equipment",
+                action="edit",
+                db=self._db(CarbonReportType.SIMULATOR_PLAN, self._unit("0184")),
+                report=self._report(is_grant=False),
+            )
+        assert exc.value.status_code == 403
 
     @pytest.mark.asyncio
     async def test_grant_plan_report_passes_for_std_unit_member(self):

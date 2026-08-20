@@ -712,9 +712,8 @@ async def check_module_permission_for_report(
     Calculator reports keep the full per-module permission gate
     (``check_module_permission_for_unit``). Explore and plan reports (grant
     and plan years alike) drop to unit membership: any unit member gets
-    every module's input form there (#1983, #2120 — a standard user's
-    reference prefill stays hidden or skipped at the data layer). Plan
-    creator/share rules are enforced separately by
+    every module's input form there. Plan creator/share rules are enforced
+    separately by
     ``require_plan_scope_for_report``, and the professional-travel own-rows
     filter stays keyed on the caller's role at the data layer.
 
