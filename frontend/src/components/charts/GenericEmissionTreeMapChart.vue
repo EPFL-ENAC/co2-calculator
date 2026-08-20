@@ -18,7 +18,10 @@ import { usePrintMode } from 'src/composables/print/usePrintMode';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
 import { useColorblindStore } from 'src/stores/colorblind';
 
-import { buildChartDecal } from 'src/constant/charts';
+import {
+  buildChartDecal,
+  RESULTS_SUBCATEGORY_LABEL_KEYS,
+} from 'src/constant/charts';
 import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
 
@@ -26,81 +29,8 @@ const { t } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
 
-const LABEL_KEY_MAP: Record<string, string> = {
-  // process_emissions
-  co2: 'process-emissions.category.co2',
-  ch4: 'process-emissions.category.ch4',
-  n2o: 'process-emissions.category.n2o',
-  refrigerants: 'process-emissions.category.refrigerants',
-  refrigerant: 'process-emissions.category.refrigerants',
-  hfcs: 'process-emissions.category.hfcs',
-  perfluorinated_compounds:
-    'process-emissions.category.perfluorinated_compounds',
-  fluorinated_ethers: 'process-emissions.category.fluorinated_ethers',
-  perfluoropolyethers: 'process-emissions.category.perfluoropolyethers',
-  sf6: 'process-emissions.category.sf6',
-  nf3: 'process-emissions.category.nf3',
-  // buildings
-  combustion: 'charts-energy-combustion-subcategory',
-  natural_gas: 'charts-natural-gas-subcategory',
-  heating_oil: 'charts-heating-oil-subcategory',
-  biomethane: 'charts-biomethane-subcategory',
-  propane: 'charts-propane-subcategory',
-  pellets: 'charts-pellets-subcategory',
-  forest_chips: 'charts-forest-chips-subcategory',
-  wood_logs: 'charts-wood-logs-subcategory',
-  heating_thermal: 'charts-heating-thermal-subcategory',
-  heating_electric: 'charts-heating-elec-subcategory',
-  lighting: 'charts-lighting-subcategory',
-  cooling: 'charts-cooling-subcategory',
-  ventilation: 'charts-ventilation-subcategory',
-  laboratories: 'charts-laboratories-subcategory',
-  office: 'charts-office-subcategory',
-  archives: 'charts-archives-subcategory',
-  libraries: 'charts-libraries-subcategory',
-  auditoriums: 'charts-auditoriums-subcategory',
-  miscellaneous: 'charts-miscellaneous-subcategory',
-  // equipment
-  scientific: 'charts-scientific-subcategory',
-  it: 'charts-equipment-it',
-  other: 'charts-other-equipment-subcategory',
-  // external cloud & AI
-  stockage: 'charts-stockage-subcategory',
-  virtualisation: 'charts-virtualisation-subcategory',
-  calcul: 'charts-calcul-subcategory',
-  provider: 'charts-ai-provider-subcategory',
-  ai_provider: 'charts-ai-provider-subcategory',
-  ai: 'charts-ai-provider-subcategory',
-  clouds: 'charts-clouds-subcategory',
-  // purchases
-  scientific_equipment: 'charts-scientific-subcategory',
-  it_equipment: 'charts-equipment-it',
-  consumable_accessories: 'charts-consumables-subcategory',
-  biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
-  services: 'charts-services-subcategory',
-  vehicles: 'charts-vehicles-subcategory',
-  other_purchases: 'charts-other-purchases-subcategory',
-  centralized: 'charts-purchases-centralized-subcategory',
-  goods_and_services: 'charts-global-budget-subcategory',
-  // research facilities
-  facilities: 'charts-research-facilities-subcategory',
-  it_facilities: 'charts-research-it-facilities-subcategory',
-  animal: 'charts-research-animal-subcategory',
-  animal_facilities: 'charts-research-animal-subcategory',
-  rodent: 'charts-animal-rodent-subcategory',
-  fish: 'charts-animal-fish-subcategory',
-  // professional travel
-  plane: 'charts-plane-subcategory',
-  train: 'charts-train-subcategory',
-  // professional travel ZZ items
-  class_1: 'charts-class-1-subcategory',
-  class_2: 'charts-class-2-subcategory',
-  business: 'charts-business-class-subcategory',
-  eco: 'charts-eco-class-subcategory',
-};
-
 function resolveLabel(raw: string): string {
-  const key = LABEL_KEY_MAP[raw];
+  const key = RESULTS_SUBCATEGORY_LABEL_KEYS[raw];
   return key ? t(key) : raw.replace(/_/g, ' ');
 }
 

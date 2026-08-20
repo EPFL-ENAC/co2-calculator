@@ -31,6 +31,7 @@ CHARTS_TS = FRONTEND / "constant" / "charts.ts"
 RESULTS_I18N = FRONTEND / "i18n" / "results.ts"
 PROCESS_I18N = FRONTEND / "i18n" / "process_emissions.ts"
 TAXONOMY_TS = FRONTEND / "types" / "emission-taxonomy.gen.ts"
+TREEMAP_TS = FRONTEND / "composables" / "useEmissionTreemap.ts"
 
 
 def _object_literal(source: str, name: str) -> dict[str, str]:
@@ -47,6 +48,29 @@ def _colour_schemes(source: str) -> dict[str, set[str]]:
         name: set(re.findall(r"^\s+'?([A-Za-z0-9_-]+)'?:", body, re.M))
         for name, body in blocks
     }
+
+
+def _category_chart_keys(source: str) -> dict[str, list[str]]:
+    match = re.search(r"CATEGORY_CHART_KEYS[^=]*=\s*\{", source)
+    if match is None:
+        raise AssertionError(
+            "CATEGORY_CHART_KEYS not found — did useEmissionTreemap.ts move?"
+        )
+    body = source[match.end() : source.index("\n};", match.end())]
+    return {
+        name: re.findall(r"'([a-z0-9_]+)'", keys)
+        for name, keys in re.findall(r"(\w+): \[(.*?)\]", body, re.S)
+    }
+
+
+def _purchases_prefix_map(source: str) -> list[tuple[str, str]]:
+    match = re.search(r"PURCHASES_PREFIX_MAP[^=]*=\s*\[", source)
+    if match is None:
+        raise AssertionError(
+            "PURCHASES_PREFIX_MAP not found — did useEmissionTreemap.ts move?"
+        )
+    body = source[match.end() : source.index("\n];", match.end())]
+    return re.findall(r"\['([a-z_]+)', '([a-z_]+)'\]", body)
 
 
 def _leaves_by_bucket() -> list[tuple[str, bool, list[EmissionType]]]:
@@ -135,6 +159,47 @@ def test_every_leaf_reaches_a_translated_label() -> None:
 
     assert not unlabelled, (
         f"these render as a raw key in the results charts: {sorted(unlabelled)}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("bucket_key", "additional", "leaves"),
+    [case for case in _leaves_by_bucket() if not case[1]],
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_module_bucket_leaves_reach_category_chart_keys(
+    bucket_key: str, additional: bool, leaves: list[EmissionType]
+) -> None:
+    """Non-additional Results charts iterate CATEGORY_CHART_KEYS.
+
+    A YY key the list does not name is not rendered raw — the segment is
+    silently dropped from the treemap and both breakdown charts, which is
+    how the six new process-emission gases went missing (#2091 follow-up).
+    """
+    source = TREEMAP_TS.read_text()
+    listed = _category_chart_keys(source).get(bucket_key)
+    assert listed is not None, f"{bucket_key} missing from CATEGORY_CHART_KEYS"
+    prefix_map = _purchases_prefix_map(source)
+
+    def yy_key(leaf: EmissionType) -> str:
+        parts = leaf.name.split("__")
+        key = parts[-2] if len(parts) >= 3 else parts[-1]
+        if bucket_key == "purchases":
+            for prefix, canonical in prefix_map:
+                if key.startswith(prefix):
+                    return canonical
+        return key
+
+    missing = sorted(
+        {
+            f"{leaf.name} (as {yy_key(leaf)})"
+            for leaf in leaves
+            if yy_key(leaf) not in listed
+        }
+    )
+    assert not missing, (
+        f"{bucket_key}: not in CATEGORY_CHART_KEYS, so silently dropped "
+        f"from the Results charts: {missing}"
     )
 
 

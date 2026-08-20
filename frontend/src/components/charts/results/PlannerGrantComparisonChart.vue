@@ -61,6 +61,7 @@ import { useI18n } from 'vue-i18n';
 import {
   CHART_CATEGORY_COLOR_SCALES,
   RESULTS_CATEGORY_LABEL_KEYS,
+  RESULTS_SUBCATEGORY_LABEL_KEYS,
 } from 'src/constant/charts';
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
@@ -163,50 +164,9 @@ function segmentValue(row: CategoryRow | undefined, segment: string): number {
 
 const SHADE_ORDER = ['darker', 'dark', 'default', 'light', 'lighter'] as const;
 
-// Segment key → i18n key, mirroring the subcategory names of
-// ModuleCarbonFootprintChart so the two Results tooltips read alike.
-const SEGMENT_LABEL_KEYS: Record<string, string> = {
-  co2: 'process-emissions.category.co2',
-  ch4: 'process-emissions.category.ch4',
-  n2o: 'process-emissions.category.n2o',
-  refrigerants: 'process-emissions.category.refrigerants',
-  hfcs: 'process-emissions.category.hfcs',
-  perfluorinated_compounds:
-    'process-emissions.category.perfluorinated_compounds',
-  fluorinated_ethers: 'process-emissions.category.fluorinated_ethers',
-  perfluoropolyethers: 'process-emissions.category.perfluoropolyethers',
-  sf6: 'process-emissions.category.sf6',
-  nf3: 'process-emissions.category.nf3',
-  combustion: 'charts-energy-combustion-subcategory',
-  heating_thermal: 'charts-heating-thermal-subcategory',
-  heating_electric: 'charts-heating-elec-subcategory',
-  cooling: 'charts-cooling-subcategory',
-  ventilation: 'charts-ventilation-subcategory',
-  lighting: 'charts-lighting-subcategory',
-  scientific: 'charts-scientific-subcategory',
-  it: 'charts-equipment-it',
-  other: 'charts-other-equipment-subcategory',
-  scientific_equipment: 'charts-scientific-subcategory',
-  it_equipment: 'charts-equipment-it',
-  consumable_accessories: 'charts-consumables-subcategory',
-  biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
-  services: 'charts-services-subcategory',
-  vehicles: 'charts-vehicles-subcategory',
-  other_purchases: 'charts-other-purchases-subcategory',
-  centralized: 'charts-purchases-centralized-subcategory',
-  goods_and_services: 'charts-global-budget-subcategory',
-  clouds: 'charts-clouds-subcategory',
-  ai: 'charts-ai-subcategory',
-  plane: 'charts-plane-subcategory',
-  train: 'charts-train-subcategory',
-  facilities: 'charts-research-facilities-subcategory',
-  it_facilities: 'charts-research-it-facilities-subcategory',
-  animal: 'charts-research-animal-subcategory',
-};
-
 // Same fallback convention as the main chart: an unmapped key shows raw.
 function segmentLabel(segment: string): string {
-  const key = SEGMENT_LABEL_KEYS[segment];
+  const key = RESULTS_SUBCATEGORY_LABEL_KEYS[segment];
   return key ? t(key) : segment;
 }
 

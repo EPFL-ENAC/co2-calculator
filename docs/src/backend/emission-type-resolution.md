@@ -161,21 +161,21 @@ edit. The frontend half does not, and it fails in two distinct ways:
   display order. (Its comment used to claim it mirrors a backend list; it
   is frontend-only truth now.)
 
-Beyond the shared maps, three charts keep their own wiring:
-
-- `ModuleCarbonFootprintChart.vue` builds one stacked-bar series and one
-  dataset dimension per key. Process emissions derives both from
-  `CATEGORY_CHART_KEYS`; the other categories are still written out by
-  hand, so a new key there means a new series **and** a new dimension.
-- `GenericEmissionTreeMapChart.vue` (`LABEL_KEY_MAP`) and
-  `PlannerGrantComparisonChart.vue` (`SEGMENT_LABEL_KEYS`) hold local
-  label maps that fall back to the raw key.
+Beyond the shared maps, one chart keeps its own wiring:
+`ModuleCarbonFootprintChart.vue` builds one stacked-bar series and one
+dataset dimension per key. Process emissions derives both from
+`CATEGORY_CHART_KEYS`; the other categories are still written out by
+hand, so a new key there means a new series **and** a new dimension.
+(`GenericEmissionTreeMapChart.vue` and `PlannerGrantComparisonChart.vue`
+used to hold duplicate label maps; both now import
+`RESULTS_SUBCATEGORY_LABEL_KEYS`.)
 
 `tests/unit/modules/test_emission_taxonomy_rendering_coverage.py` asserts
 the shared maps — bucket membership, scope, label on the right path,
-colour, and that the generated TypeScript mirror is current. It does **not**
-cover `CATEGORY_CHART_KEYS`, the footprint chart's series/dimensions, or
-the local label maps; those you check by looking at the Results page.
+colour, that every non-additional leaf's YY key appears in
+`CATEGORY_CHART_KEYS`, and that the generated TypeScript mirror is
+current. The one thing it does **not** cover is the footprint chart's
+series/dimensions; that you check by looking at the Results page.
 
 ## Adding a module or a factor category
 
@@ -194,12 +194,12 @@ the local label maps; those you check by looking at the Results page.
 5. Non-additional bucket? Add the key to `CATEGORY_CHART_KEYS` in
    `frontend/src/composables/useEmissionTreemap.ts`, in display position —
    an unlisted key is silently dropped from every Results chart, not
-   rendered raw.
-6. Wire the charts with their own maps: a series + dataset dimension in
-   `ModuleCarbonFootprintChart.vue` (process emissions reads
-   `CATEGORY_CHART_KEYS`, everything else is hand-written), and the label
-   in `GenericEmissionTreeMapChart.vue` and
-   `PlannerGrantComparisonChart.vue`.
+   rendered raw. Forgetting this fails
+   `test_module_bucket_leaves_reach_category_chart_keys`, which names the
+   leaf.
+6. Add the series + dataset dimension in `ModuleCarbonFootprintChart.vue`
+   (process emissions reads `CATEGORY_CHART_KEYS`, everything else is
+   hand-written).
 7. Map the CSV spelling in the module's resolver. Declare aliases; do not
    widen the matching.
 8. Never key frontend behaviour on a literal category string. The module
