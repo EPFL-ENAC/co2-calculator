@@ -495,6 +495,8 @@ import EquipmentPowerFeedbackDialog from 'src/components/molecules/EquipmentPowe
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import { useFactorsStore } from 'src/stores/factors';
+import { resolveFactorYear } from 'src/utils/factor-year';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { useAuthStore } from 'src/stores/auth';
 import {
@@ -1885,7 +1887,11 @@ function isComplete(row: ModuleRow) {
       return false;
     }
 
-    if (row.category === 'Refrigerants') {
+    const subclasses =
+      useFactorsStore().subclassOptionMapByKey[
+        `${props.submoduleType}:${resolveFactorYear(props.factorYear, props.year)}`
+      ]?.[String(row.category)];
+    if (subclasses?.length) {
       return (
         row.subcategory !== null &&
         row.subcategory !== undefined &&

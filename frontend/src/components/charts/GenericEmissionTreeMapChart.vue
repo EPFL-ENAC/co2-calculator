@@ -33,6 +33,13 @@ const LABEL_KEY_MAP: Record<string, string> = {
   n2o: 'process-emissions.category.n2o',
   refrigerants: 'process-emissions.category.refrigerants',
   refrigerant: 'process-emissions.category.refrigerants',
+  hfcs: 'process-emissions.category.hfcs',
+  perfluorinated_compounds:
+    'process-emissions.category.perfluorinated_compounds',
+  fluorinated_ethers: 'process-emissions.category.fluorinated_ethers',
+  perfluoropolyethers: 'process-emissions.category.perfluoropolyethers',
+  sf6: 'process-emissions.category.sf6',
+  nf3: 'process-emissions.category.nf3',
   // buildings
   combustion: 'charts-energy-combustion-subcategory',
   natural_gas: 'charts-natural-gas-subcategory',

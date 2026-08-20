@@ -17,6 +17,7 @@ import { buildCarbonFootprintCsvRows } from 'src/utils/results-csv';
 import { type Module } from 'src/constant/modules';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import { CATEGORY_TO_SUBMODULE } from 'src/composables/useModuleIconColors';
+import { CATEGORY_CHART_KEYS } from 'src/composables/useEmissionTreemap';
 import { useColorblindStore } from 'src/stores/colorblind';
 import { isModuleFullyAvailable } from 'src/composables/useModuleAvailability';
 import {
@@ -928,66 +929,21 @@ const chartOption = computed((): EChartsOption => {
   // Build series array first (will be used to extract mapping)
   const seriesArray = [
     // Process Emissions — YY subcategories
-    {
-      name: t('process-emissions.category.co2'),
+    ...(CATEGORY_CHART_KEYS['process_emissions'] ?? []).map((key) => ({
+      name: t(`process-emissions.category.${key}`),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'co2' },
+      encode: { x: 'category', y: key },
       itemStyle: {
         color: getSubcategoryColor(
           'process_emissions',
-          'co2',
+          key,
           colors.value.apricot.darker,
         ),
       },
       label: { show: false },
-    },
-    {
-      name: t('process-emissions.category.ch4'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'ch4' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'ch4',
-          colors.value.apricot.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('process-emissions.category.n2o'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'n2o' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'n2o',
-          colors.value.apricot.default,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('process-emissions.category.refrigerants'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'refrigerants' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'refrigerants',
-          colors.value.apricot.light,
-        ),
-      },
-      label: { show: false },
-    },
+    })),
 
     {
       name: t('charts-energy-combustion-subcategory'),
@@ -1389,10 +1345,7 @@ const chartOption = computed((): EChartsOption => {
     dataset: {
       dimensions: [
         'category',
-        'co2',
-        'ch4',
-        'n2o',
-        'refrigerants',
+        ...(CATEGORY_CHART_KEYS['process_emissions'] ?? []),
         'process_emissions',
         'lighting',
         'cooling',

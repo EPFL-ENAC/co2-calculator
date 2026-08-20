@@ -526,12 +526,24 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       forest_chips: colors.value.apricot.lighter,
       wood_logs: colors.value.yellow.darker,
     },
-    process_emissions: {
-      co2: colors.value.peach.darker,
-      ch4: colors.value.peach.dark,
-      n2o: colors.value.peach.default,
-      refrigerants: colors.value.peach.light,
-    },
+    process_emissions: (() => {
+      const keys = [
+        'co2',
+        'ch4',
+        'n2o',
+        'refrigerants',
+        'hfcs',
+        'perfluorinated_compounds',
+        'fluorinated_ethers',
+        'perfluoropolyethers',
+        'sf6',
+        'nf3',
+      ];
+      const { darker, lighter } = colors.value.peach;
+      const shade = (i: number) =>
+        lerpHex(darker, lighter, i / (keys.length - 1));
+      return Object.fromEntries(keys.map((k, i) => [k, shade(i)]));
+    })(),
     equipment: {
       scientific: colors.value.plum.darker,
       it: colors.value.plum.dark,

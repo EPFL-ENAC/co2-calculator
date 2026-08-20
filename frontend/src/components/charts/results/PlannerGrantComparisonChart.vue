@@ -170,6 +170,13 @@ const SEGMENT_LABEL_KEYS: Record<string, string> = {
   ch4: 'process-emissions.category.ch4',
   n2o: 'process-emissions.category.n2o',
   refrigerants: 'process-emissions.category.refrigerants',
+  hfcs: 'process-emissions.category.hfcs',
+  perfluorinated_compounds:
+    'process-emissions.category.perfluorinated_compounds',
+  fluorinated_ethers: 'process-emissions.category.fluorinated_ethers',
+  perfluoropolyethers: 'process-emissions.category.perfluoropolyethers',
+  sf6: 'process-emissions.category.sf6',
+  nf3: 'process-emissions.category.nf3',
   combustion: 'charts-energy-combustion-subcategory',
   heating_thermal: 'charts-heating-thermal-subcategory',
   heating_electric: 'charts-heating-elec-subcategory',
