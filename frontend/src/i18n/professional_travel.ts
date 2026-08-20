@@ -168,6 +168,10 @@ export default {
     en: 'Origin and destination cannot be the same',
     fr: "L'origine et la destination ne peuvent pas être identiques",
   },
+  [`${MODULES.ProfessionalTravel}-error-location-not-selected`]: {
+    en: 'Select a location from the suggestions',
+    fr: 'Sélectionnez un lieu dans les suggestions',
+  },
   [`${MODULES.ProfessionalTravel}-field-traveler-empty-headcount`]: {
     en: 'No headcount members found. Add members in the Headcount module first.',
     fr: 'Aucun membre du personnel trouvé. Ajoutez des membres dans le module Personnel.',
