@@ -710,13 +710,10 @@ async def check_module_permission_for_report(
     """Module gate for report-addressed routes.
 
     Calculator reports keep the full per-module permission gate
-    (``check_module_permission_for_unit``). Explore reports and Grant
-    Proposal plan reports drop to unit membership: any unit member gets
-    every module's input form there (#1983 — a standard user's reference
-    prefill stays hidden at the data layer). Effective plan-year reports
-    keep the per-module gate, so a standard user only reaches their
-    own-scoped modules (professional travel, external cloud & AI). Plan
-    creator/share rules are enforced separately by
+    (``check_module_permission_for_unit``). Explore and plan reports (grant
+    and plan years alike) drop to unit membership: any unit member gets
+    every module's input form there. Plan creator/share rules are enforced
+    separately by
     ``require_plan_scope_for_report``, and the professional-travel own-rows
     filter stays keyed on the caller's role at the data layer.
 
@@ -725,12 +722,9 @@ async def check_module_permission_for_report(
     """
     if report.carbon_project_id is not None:
         project = await db.get(CarbonProject, report.carbon_project_id)
-        if project is not None and (
-            project.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE
-            or (
-                project.carbon_report_type == CarbonReportType.SIMULATOR_PLAN
-                and bool(getattr(report, "is_grant", False))
-            )
+        if project is not None and project.carbon_report_type in (
+            CarbonReportType.SIMULATOR_EXPLORE,
+            CarbonReportType.SIMULATOR_PLAN,
         ):
             unit = await db.get(Unit, report.unit_id)
             if unit is None:
