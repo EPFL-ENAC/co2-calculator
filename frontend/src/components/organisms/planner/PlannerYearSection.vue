@@ -959,12 +959,6 @@ const grantYearsCount = computed<number | null>(() =>
 // Grant sections open every module's input form to any unit member; the
 // effective year sections follow the workspace module permissions, so a
 // standard user only sees Travel and External Clouds & AI (#1983).
-const visibleModules = computed<PlannerModuleConfig[]>(() =>
-  PLANNER_MODULES.filter(
-    (config) =>
-      props.yearData.is_grant || authStore.canUserAccessModule(config.module),
-  ),
-);
 
 const selfTraveler = computed<PlannerSelfTraveler | null>(() => {
   const institutionalId = authStore.user?.institutional_id;
@@ -975,7 +969,7 @@ const selfTraveler = computed<PlannerSelfTraveler | null>(() => {
 });
 
 const moduleEntries = computed<ModuleEntry[]>(() =>
-  visibleModules.value.map((config) => ({
+  PLANNER_MODULES.map((config) => ({
     config,
     module: props.yearData.modules.find(
       (m) => m.module_type_id === getModuleTypeId(config.module),
