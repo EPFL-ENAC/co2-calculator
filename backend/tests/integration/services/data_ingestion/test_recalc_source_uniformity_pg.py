@@ -50,6 +50,9 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions import EmissionType
+from app.modules.professional_travel.handlers import (
+    ProfessionalTravelPlaneModuleHandler,
+)
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
@@ -69,11 +72,13 @@ from .conftest import seeded_year_with_units
 # To avoid seeding ``locations`` rows just to satisfy plane's
 # ``pre_compute`` (which reads origin/destination IATA → Location to
 # derive distance_km + haul_category), we stamp ``distance_km`` and
-# ``haul_category`` directly into ``entry.data``.  ``pre_compute`` then
-# returns ``{}`` (no Location resolved → early return) and the existing
-# ``data_entry.data`` keys flow through to ctx unchanged — exact same
-# code path the production recompute exercises once Locations are
-# already cached on the row.
+# ``haul_category`` directly into ``entry.data`` and monkeypatch
+# ``pre_compute`` to hand them straight to ``ctx`` instead of resolving
+# IATA codes at all. (#1186 follow-up: an unresolved IATA now *raises*
+# instead of returning ``{}``, so the old "let the lookup fail and reuse
+# entry.data" trick no longer applies — this test was never about IATA
+# resolution, so it stubs the hook out entirely rather than seed fake
+# geography just to satisfy it.)
 _YEAR = 2025
 _HAUL = "long_haul"
 _CABIN = "economy"
@@ -103,12 +108,27 @@ def _plane_entry_data(*, suffix: str) -> dict:
     }
 
 
+async def _stub_pre_compute(self, data_entry, session, *, slice_cache=None) -> dict:
+    """Stand-in for the real IATA→Location resolution: this test's rows
+    carry no real airport data, so hand back the pre-stamped values from
+    ``_plane_entry_data`` directly instead of exercising the lookup.
+    """
+    return {
+        "distance_one_trip_km": _DISTANCE_KM,
+        "haul_category": _HAUL,
+        "distance_km": _DISTANCE_KM * data_entry.data.get("number_of_trips", 1),
+    }
+
+
 @pytest.mark.asyncio
-async def test_recalc_uniform_across_source_types(pg_dsn) -> None:
+async def test_recalc_uniform_across_source_types(pg_dsn, monkeypatch) -> None:
     """Three plane DataEntries with three distinct ``source`` states all
     recompute against the new factor — none stays at its initial value,
     none has its ``source`` field mutated.
     """
+    monkeypatch.setattr(
+        ProfessionalTravelPlaneModuleHandler, "pre_compute", _stub_pre_compute
+    )
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

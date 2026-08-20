@@ -170,6 +170,22 @@ class CarbonReportModuleWorkflow:
 
             validated_data = handler.validate_create(create_payload)
 
+            # DTO-level ``str | None`` is intentional (CSV rows validate
+            # before ``enrich_csv_row`` resolves the natural_key — #1186) so
+            # this can't be a pydantic required-field check. API/UI creates
+            # always carry the resolved natural_key from the station
+            # autocomplete (ModuleForm's direction-input guard, #1186); a
+            # payload missing it means that guard was bypassed or a raw API
+            # client skipped station lookup.
+            if data_entry_type == DataEntryTypeEnum.train and (
+                not create_payload.get("origin_natural_key")
+                or not create_payload.get("destination_natural_key")
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="TRAIN_STATION_NOT_RESOLVED",
+                )
+
             data_entry_create = DataEntryCreate(
                 **validated_data.model_dump(exclude_unset=True)
             )

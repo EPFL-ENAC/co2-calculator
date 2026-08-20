@@ -44,6 +44,10 @@ Re-upload via the backoffice **train station reference** slot
 
 ## 3. Required country_code in the trip resolver
 
+> **Superseded by #1186**: the `not_found` (0 matches) case described below
+> as "persist, don't error" was changed to a hard row error — see
+> [1186-train-natural-key-validation.md](1186-train-natural-key-validation.md).
+
 `enrich_csv_row` now **rejects** any train CSV row that lacks a
 `{role}_country_code` for an endpoint without a precomputed
 `{role}_natural_key` — before any station lookup. There is no `CH` default.

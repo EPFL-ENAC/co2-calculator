@@ -194,17 +194,18 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
             session, origin_iata, destination_iata, slice_cache
         )
         if not origin or not dest:
-            logger.warning(
-                "plane.pre_compute: skipping entry id=%s — IATA not found "
-                "in locations table (origin_iata=%r resolved=%s, "
-                "destination_iata=%r resolved=%s)",
-                getattr(data_entry, "id", None),
-                origin_iata,
-                origin is not None,
-                destination_iata,
-                dest is not None,
+            # #1186 follow-up: was a WARNING + ``return {}`` — the entry
+            # persisted with silent zero emissions. Raising surfaces a 422
+            # on create/update (CarbonReportModuleWorkflow's #2050 J1
+            # ``except ValueError``) and a per-entry, batch-safe error
+            # during recalc (EmissionRecalculationWorkflow isolates each
+            # entry's exception and keeps processing the rest of the slice).
+            raise ValueError(
+                f"data_entry_id={getattr(data_entry, 'id', None)}, "
+                f"origin_iata={origin_iata!r} resolved={origin is not None}, "
+                f"destination_iata={destination_iata!r} resolved={dest is not None}: "
+                f"IATA not found in locations table."
             )
-            return {}
         distance_one_trip_km = calculate_plane_distance(
             origin_airport=origin,
             dest_airport=dest,
@@ -336,10 +337,11 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
           - missing country_code: row fails — operator must supply it.
           - ambiguous (>1 match): row fails — operator must hand-curate the
             upstream data (or pick a more specific name).
-          - not_found (0 matches): mirror the plane unknown-IATA path —
-            persist the entry without ``natural_key``; ``pre_compute`` logs
-            a WARNING and skips emission. Operator sees the gap in
-            entry-vs-emission counts.
+          - not_found (0 matches): row fails — operator must fix the name or
+            supply {role}_natural_key directly. (#1186: previously persisted
+            the entry with a WARNING and no natural_key, mirroring plane's
+            unknown-IATA path; that silent zero-emission gap is why this
+            issue exists.)
         """
         enriched = dict(data)
         loc_service = LocationService(session)
@@ -370,13 +372,11 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
                     f"{role} station {name!r} in {country_code}: {reason} "
                     f"— supply {role}_country_code or fix the upstream data",
                 )
-            logger.warning(
-                "Train CSV row: %s station %r not found in locations table "
-                "(country_code=%s). Entry will persist but emission cannot "
-                "be computed.",
-                role,
-                name,
-                country_code,
+            return (
+                data,
+                f"{role} station {name!r} not found in locations table for "
+                f"country {country_code!r} — check spelling or supply "
+                f"{role}_natural_key directly",
             )
         return enriched, None
 

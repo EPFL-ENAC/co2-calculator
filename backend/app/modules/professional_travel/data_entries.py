@@ -113,7 +113,11 @@ class ProfessionalTravelTrainHandlerCreate(
     user_institutional_id: str | None
     origin_name: str
     destination_name: str
-    # check if necessary after migration to new reference location for train
+    # Optional here (unlike plane's origin_iata) because CSV rows validate
+    # before enrich_csv_row resolves the natural_key from origin_name +
+    # origin_country_code (#1183). The API path has no such staging: a
+    # missing natural_key there is rejected in
+    # CarbonReportModuleWorkflow.create (#1186), not by this DTO.
     origin_natural_key: str | None = None
     destination_natural_key: str | None = None
     # Required for CSV rows lacking a precomputed ``*_natural_key``: the

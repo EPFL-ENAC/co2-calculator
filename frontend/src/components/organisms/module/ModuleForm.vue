@@ -338,6 +338,7 @@ import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptio
 import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
 import { resolveFactorYear } from 'src/utils/factor-year';
 import { createFieldInteractionTracker } from 'src/utils/fieldInteraction';
+import { isTravelLocationResolved } from 'src/utils/directionLocationValidation';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import {
   MODULES,
@@ -999,6 +1000,36 @@ function validateField(i: ModuleField) {
       if (!form.destination || form.destination === '') {
         errors.destination = requiredMsg;
         return false;
+      }
+
+      // #1186: typing a name without picking an autocomplete suggestion
+      // leaves the resolved identifier (origin_iata/origin_natural_key)
+      // unset even though the free-text field above looks filled in.
+      const travelMode = getTravelMode();
+      if (travelMode) {
+        const notSelectedMsg = $t(
+          `${MODULES.ProfessionalTravel}-error-location-not-selected`,
+        );
+        if (
+          !isTravelLocationResolved(
+            travelMode,
+            form.origin_iata,
+            form.origin_natural_key,
+          )
+        ) {
+          errors.origin = notSelectedMsg;
+          return false;
+        }
+        if (
+          !isTravelLocationResolved(
+            travelMode,
+            form.destination_iata,
+            form.destination_natural_key,
+          )
+        ) {
+          errors.destination = notSelectedMsg;
+          return false;
+        }
       }
     }
 
