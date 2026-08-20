@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from enum import Enum
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, Index, text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
@@ -60,6 +60,21 @@ class ConnectorDatasource(SQLModel, table=True):
     """One datasource (LUID) for one module, owned by a connection."""
 
     __tablename__ = "connector_datasources"
+
+    __table_args__ = (
+        # One active datasource per module target. Postgres treats each NULL
+        # as distinct, so the raw column can't be indexed directly — coalesce
+        # it into the expression instead. ddl_if gates to Postgres: SQLite
+        # drops the partial WHERE, turning this into an unconditional unique
+        # and breaking tests that legitimately reuse (module_type_id, None).
+        Index(
+            "uq_active_datasource_per_module",
+            "module_type_id",
+            text("COALESCE(data_entry_type_id, 0)"),
+            unique=True,
+            postgresql_where=text("is_active = true"),
+        ).ddl_if(dialect="postgresql"),
+    )
 
     id: int | None = Field(default=None, primary_key=True, index=True)
     connection_id: int = Field(
