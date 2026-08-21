@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 1402
-last_updated: 2026-08-21
+last_updated: 2026-08-22
 title: "Split Grafana p99 Latency Alerting by Endpoint Class; Add GlitchTip Alerting"
 summary: "Separate p99 latency alert thresholds for upload/job/pipeline endpoints from normal API calls, exclude SSE streams from duration-based alerting, and add error-rate alerting on GlitchTip."
 ---
@@ -96,7 +96,7 @@ code disproves. Put this first."):
   which is why the original problem statement got this wrong.
 - **T2's index hypothesis is refuted, and now settled.** `backend/app/models/factor.py:98-103`
   already has `Index("ix_factors_data_entry_type_year", "data_entry_type_id",
-  "year")`. Row counts (2026-08-21): `building`=846, `other_purchases`=20,915
+"year")`. Row counts (2026-08-21): `building`=846, `other_purchases`=20,915
   — ~25×, tracking the observed ~19× query-time / ~13× serialisation-time
   ratios. Confirmed genuine large-result-set cost, not an indexing gap.
   `values`/`classification` are both consumed by `ModuleHandlerService.get_taxonomy`
@@ -106,17 +106,44 @@ code disproves. Put this first."):
   real architecture decision — filed as
   [co2-calculator#2258](https://github.com/EPFL-ENAC/co2-calculator/issues/2258)
   rather than improvised here.
-- **P0-3/P0-4 is answered from source, not blocked on cluster access.**
+- **P0-3/P0-4 — answered from source, then confirmed live.**
   `opentelemetry-instrumentation-asgi`'s `TraceMiddleware.__call__` records
   the old-semconv duration histogram (`name=MetricInstruments.HTTP_SERVER_DURATION`,
   unit `ms` — this is exactly `http_server_duration_milliseconds`) with
   `duration_attrs_old[HTTP_TARGET] = target` unconditionally set whenever a
-  target is resolved. **`http_target` is attached to this histogram at the
-  SDK level.** The one open unknown is whether the OTel Collector's `filter`
-  processor (referenced by name only in the ops repo's Helm values, default
-  config not visible from here) strips it before the Prometheus exporter —
-  confirm with the P0-3 PromQL count-by query once cluster access exists,
-  then write the path exclusion on `http_target`, not a guessed `http_route`.
+  target is resolved. The P0-3 count-by query was then run against both dev
+  and stage: **`http_target` is present and populated; `http_route` never
+  appears.** The exclusion is written on `http_target`, not a guessed
+  `http_route`. No longer blocked on anything.
+- **§2's "the matcher is probably a no-op" — REFUTED.** The v3 plan's
+  headline diagnosis was that `http_target!~"^.*upload.*$"` matched nothing
+  because the label was absent, making every "we filtered uploads and it
+  didn't help" conclusion meaningless. The live query disproves it: the
+  label exists, and `/api/temp-upload` does contain "upload", so the old
+  exclusion **did** exclude uploads. It was never a no-op — it filtered the
+  wrong thing. §2's _second_ reason is the real one: uploads are 1.1% of
+  request-time and streams were 95%, so excluding uploads removed almost
+  nothing from the tail. Worth stating plainly because the no-op theory is
+  what justified months of confusion, and it was wrong.
+- **P0-6 ("we have never measured probe latency") — REFUTED.**
+  `/api/healthz` and `/api/ready` both appear in
+  `http_server_duration_milliseconds`. The
+  `OTEL_PYTHON_FASTAPI_EXCLUDED_URLS: "/api/health"` override is
+  empirically a **no-op** — if it matched, those series would not exist.
+  (Probable mechanism: kubelet hits the pod directly at `/healthz`, and the
+  `/api` prefix exists only in the _synthesized_ `http.target`.) Probes are
+  now `route_class="probe"` with their own panel. ⚠️ That no-op is
+  load-bearing — "fixing" it would delete probe metrics and with them the
+  head-of-line-blocking canary this whole investigation wanted.
+- **The `/api`-prefix bug has a third instance, still open.** The
+  collector's `tail_sampling` `drop-health` policy matches `http.target`
+  exactly against `/health`, `/healthz`, `/ready`; the real values are
+  `/api/healthz`, `/api/ready`. Exact match fails, and with
+  `invert_match: true` the trace is **kept** — so probe traces are exported
+  to Tempo on every probe interval on every pod, when the intent was to
+  drop them. Same bug class as the two already fixed. Being fixed
+  separately under #2049; recorded here because it belongs to the same
+  root cause as everything else in this plan.
 
 ## Done (2026-08-21)
 
@@ -141,7 +168,7 @@ code disproves. Put this first."):
     Left commented out with the reason, rather than shipping a rule that
     still can't fire.
   - `Watchdog` left disabled: only useful wired to an external heartbeat
-    consumer that alarms on its *absence*; nobody notices one more email in
+    consumer that alarms on its _absence_; nobody notices one more email in
     the shared receiver. `BackendMetricsAbsent` above is the alert that
     actually detects something.
   - `alertmanager-email.yaml` `repeatInterval`: 4h → 24h (a stuck `warning`
@@ -150,7 +177,7 @@ code disproves. Put this first."):
     dashboard JSON doesn't even have the DB Pool Usage panel at all.
   - **PR [openshift-app-config#8](https://github.com/EPFL-ENAC/openshift-app-config/pull/8) — merged.**
 - [x] Verified `http_target` live (dev + stage, `count by (http_target,
-      http_route, http_method) (http_server_duration_milliseconds_count{...})`):
+    http_route, http_method) (http_server_duration_milliseconds_count{...})`):
       it's populated and already collapsed to a literal `/api/{tail}` (e.g.
       `/v1/sync/dispatch` → `/api/dispatch`, `/v1/year-configuration/{year}` →
       `/api/{year}`). `http_route` never appears. **Retraction (same day):**
@@ -169,7 +196,7 @@ code disproves. Put this first."):
       `tail_sampling` (traces) carried forward unchanged.
       `LatencyP50High`/`P95High`/`P99High` (dev+stage) now filter on
       `route_class="api"` instead of a per-rule suffix regex — this removes
-      streams *and* uploads *and* jobs from the normal-API latency alert in
+      streams _and_ uploads _and_ jobs from the normal-API latency alert in
       one place, not three. Known fragility: the job/upload/probe
       classification still keys off `http_target` tail patterns (no
       `http_route` to match on), with a `POST`-only guard on the
@@ -181,12 +208,12 @@ code disproves. Put this first."):
       `route_class="api"` instead of `probe`/`job`. Root cause:
       `backend/app/main.py:324` sets `root_path=settings.API_DOCS_PREFIX`
       (`"/api"`, never overridden per-env), which the ASGI instrumentation
-      prepends to *every* target — confirmed via `/healthz` itself, which
+      prepends to _every_ target — confirmed via `/healthz` itself, which
       bypasses the Route/HAProxy entirely (kubelet hits the pod directly)
       and still showed up as `/api/healthz`, proving the prefix is app-side.
       The `probe`/`job` patterns were anchored assuming no prefix; `stream`/
       `upload` worked by accident (unanchored `.*` absorbed it). Fixed both
-      anchored patterns to include `/api`. This landed *after* #9 had
+      anchored patterns to include `/api`. This landed _after_ #9 had
       already merged, so it's in a new PR:
       [openshift-app-config#10](https://github.com/EPFL-ENAC/openshift-app-config/pull/10) (merged).
 - [x] Pulled real numbers instead of guessing:
@@ -230,6 +257,29 @@ code disproves. Put this first."):
       `sum by (le, route_class)`, `unit: ms` (was unset), a real 1000ms
       threshold line (was a leftover unrendered default), exemplars on
       (were off). Dashboard version bumped for both overlays.
+- [x] Added the `route_class="probe"` panel — PR
+      [openshift-app-config#12](https://github.com/EPFL-ENAC/openshift-app-config/pull/12)
+      (merged). The plan expected this to need a new backend metric; it
+      didn't, because probes were already instrumented (P0-6 correction
+      above). Probe latency during a burst is the direct picture of
+      head-of-line blocking, and it is now charted.
+
+## Status
+
+**#1402's functional scope is complete and live in dev + stage.** All four
+alerting/dashboard PRs are merged (ops
+[#8](https://github.com/EPFL-ENAC/openshift-app-config/pull/8),
+[#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9),
+[#10](https://github.com/EPFL-ENAC/openshift-app-config/pull/10),
+[#11](https://github.com/EPFL-ENAC/openshift-app-config/pull/11)), plus the
+probe panel ([#12](https://github.com/EPFL-ENAC/openshift-app-config/pull/12)).
+
+What remains is **not code** — it is one observation that can only be made
+while a real import is running, and a short ops note. Both are listed as
+unchecked in Steps below. The issue should not close until the import
+verification has actually been done: the whole failure mode this plan warns
+about is shipping the measurement fix, watching the emails stop, and
+declaring victory.
 
 ## Steps
 
@@ -252,12 +302,24 @@ code disproves. Put this first."):
       `sum by (le, route_class)`, `unit: ms` (was unset), a real 1000ms
       threshold line (was a leftover unrendered default), exemplars on
       (were off). Dashboard version bumped for both overlays.
-- [ ] The `route_class="probe"` panel and a `pipeline_duration_seconds`
-      business metric/alert for the pipeline itself (§4.9.6/§4.7.7's
-      `PipelineSlow`) need a *new backend metric*, not just ops-repo config
-      — moved to
-      [2049-optimize-pipeline-performance.md](2049-optimize-pipeline-performance.md)
-      rather than kept here, since it's backend code work, not alerting.
+- [x] `route_class="probe"` panel (§4.9.6) — done, PR
+      [openshift-app-config#12](https://github.com/EPFL-ENAC/openshift-app-config/pull/12)
+      (merged). Needed no new metric after all: probes turned out to be
+      instrumented already (see the P0-6 correction above), so this is the
+      head-of-line-blocking canary the plan asked for, live on both
+      overlays. Threshold line at 500ms — a probe should be trivially cheap
+      regardless of what else the pod is doing.
+- [ ] A `pipeline_duration_seconds` business metric/alert (§4.7.7's
+      `PipelineSlow`) — **not done, and gated.** Unlike the probe panel this
+      genuinely needs a new backend metric, which means hooking pipeline
+      completion in `runner.py` / `_chain.py` / `_pipeline_reconciler.py` —
+      recalculation internals, which the guardrails gate on a written plan
+      reviewed by both maintainers, however additive the metric itself is.
+      Tracked as C4 in
+      [2049-optimize-pipeline-performance.md](2049-optimize-pipeline-performance.md).
+      This is the metric that should eventually carry the 201s number that
+      used to fire `LatencyP99High` — a 3.4-minute pipeline is a product
+      fact and belongs on a business dashboard, not in an HTTP histogram.
 - [ ] Re-verify the tail-based classification (`dispatch`, `units`,
       `jobs.*`, `workers`, `active-pipelines.*`, `recalculation-status`,
       `pipelines.*`, `health/stale-stats`, `admin/recompute-stats`,
