@@ -1,7 +1,7 @@
 ---
-status: proposed
+status: in-progress
 issue: 1402
-last_updated: 2026-07-07
+last_updated: 2026-08-21
 title: "Split Grafana p99 Latency Alerting by Endpoint Class; Add GlitchTip Alerting"
 summary: "Separate p99 latency alert thresholds for upload/job/pipeline endpoints from normal API calls, exclude SSE streams from duration-based alerting, and add error-rate alerting on GlitchTip."
 ---
@@ -80,24 +80,93 @@ of scope for this issue; flag as a follow-up if backend 5xx visibility is
 needed beyond what's already surfaced via the frontend's HTTP-5xx
 `captureMessage` path (`frontend/src/api/http.ts`).
 
+## Contradictions found while executing (2026-08-21)
+
+Per this plan's own output contract ("Contradictions: anything here that the
+code disproves. Put this first."):
+
+- **"No OTel SDK instrumentation wired into `backend/app`" (Problem section,
+  above) is false.** `backend/Dockerfile:27,72` runs
+  `opentelemetry-bootstrap -a requirements | uv pip install ...` and starts
+  the app under `opentelemetry-instrument uvicorn ...`. Auto-instrumentation
+  is active in every deployed pod (confirmed by the ops repo's own
+  `OTEL_PYTHON_FASTAPI_EXCLUDED_URLS` / `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS`
+  env vars and by real SQLAlchemy/psycopg spans in the v3 traces below). The
+  local dev `.venv` just doesn't have the bootstrap-installed instrumentors,
+  which is why the original problem statement got this wrong.
+- **T2's index hypothesis is refuted.** `backend/app/models/factor.py:98-103`
+  already has `Index("ix_factors_data_entry_type_year", "data_entry_type_id",
+  "year")`. The 1338 ms `factors` query for `purchase/other_purchases` is not
+  a missing-index problem. Remaining unknown: row count for that
+  `(data_entry_type_id, year)` pair vs the fast one — one `SELECT count(*)`,
+  not a design decision. `values`/`classification` are both consumed by
+  `ModuleHandlerService.get_taxonomy` (`backend/app/services/module_handler_service.py:76-124`),
+  so narrowing the column list isn't free — whatever fixes this is either
+  row-count-driven or a real caching decision, not a quick patch.
+- **P0-3/P0-4 is answered from source, not blocked on cluster access.**
+  `opentelemetry-instrumentation-asgi`'s `TraceMiddleware.__call__` records
+  the old-semconv duration histogram (`name=MetricInstruments.HTTP_SERVER_DURATION`,
+  unit `ms` — this is exactly `http_server_duration_milliseconds`) with
+  `duration_attrs_old[HTTP_TARGET] = target` unconditionally set whenever a
+  target is resolved. **`http_target` is attached to this histogram at the
+  SDK level.** The one open unknown is whether the OTel Collector's `filter`
+  processor (referenced by name only in the ops repo's Helm values, default
+  config not visible from here) strips it before the Prometheus exporter —
+  confirm with the P0-3 PromQL count-by query once cluster access exists,
+  then write the path exclusion on `http_target`, not a guessed `http_route`.
+
+## Done (2026-08-21)
+
+- [x] GlitchTip alert rule (new-issue / error-rate) confirmed configured on
+      the hosted instance — done outside this repo.
+- [x] `openshift-app-config` `dev`+`stage` overlays (branch
+      `fix/1402-alerting-dev-stage`, uncommitted, **not pushed**):
+  - Fixed the "DB Pool Usage" Grafana panel on stage — a copy-paste typo
+    queried `db_pool_connections{namespace="svc1751d-co2-calculator-stage"}`
+    (dev's `d` prefix + stage's suffix, a namespace that doesn't exist).
+  - `HighErrorRate`: 0.5 → 0.02, scoped to `5..` only (was lumping `4..`),
+    with a traffic-floor guard (`> 0.1 req/s`) so one 5xx in a quiet
+    namespace can't read as a 100% error rate.
+  - Added `BackendMetricsAbsent` (`absent(http_server_duration_milliseconds_count{...})`)
+    as the in-band deadman — fires if the backend stops reporting entirely,
+    which every other rule in the file silently depends on.
+  - `PodHighCPU` disabled rather than "fixed": the quota/period math was
+    wrong (divided by raw microseconds, ratio ~1e-5 vs threshold 0.9, could
+    never fire) — but backend/worker set `requests.cpu` with no
+    `limits.cpu` here (HPA targets are request-relative, e.g. 1600%), so
+    `container_spec_cpu_quota` doesn't exist for these pods either way.
+    Left commented out with the reason, rather than shipping a rule that
+    still can't fire.
+  - `Watchdog` left disabled: only useful wired to an external heartbeat
+    consumer that alarms on its *absence*; nobody notices one more email in
+    the shared receiver. `BackendMetricsAbsent` above is the alert that
+    actually detects something.
+  - `alertmanager-email.yaml` `repeatInterval`: 4h → 24h (a stuck `warning`
+    was sending 6 emails/day).
+  - Prod overlay untouched (scoped to dev/stage per instruction); prod's
+    dashboard JSON doesn't even have the DB Pool Usage panel at all.
+
 ## Steps
 
-- [ ] Confirm in the ops repo (`enack8s-app-config` / `openshift-app-config`)
-      which metric/labels the current p99 alert queries (ingress duration
-      histogram, labeled by path or router name) — this repo has no
-      visibility into that config.
+- [x] Confirm in the ops repo which metric/labels the current p99 alert
+      queries — **`http_target` (raw request path) is confirmed at the SDK
+      level** (see Contradictions above); whether the collector's `filter`
+      processor forwards it to Prometheus is the one remaining unknown.
+- [ ] Run the P0-3 check once cluster access exists:
+      `count by (http_target, http_route, http_method) (http_server_duration_milliseconds_count{namespace="svc1751d-co2-calculator-dev"})`.
+      If `http_target` is present and populated, write the alert split on it.
 - [ ] Pull 2-4 weeks of historical p99 for `/files` and `/sync/*` (excluding
       `/stream` routes) from existing dashboards to set a realistic
       threshold for the jobs/upload/pipeline group (don't guess a number
       the team will immediately silence).
 - [ ] In the ops repo, split the single alert rule into two: normal-API
       (keep existing threshold) and jobs/upload/pipeline (new looser
-      threshold + longer eval window), both excluding `*/stream` paths.
+      threshold + longer eval window), both excluding `*/stream` paths on
+      `http_target`.
 - [ ] Exclude `/sync/jobs/{job_id}/stream` and `/sync/pipelines/{pipeline_id}/stream`
-      from both latency alert groups (path-negative match).
-- [ ] Configure a GlitchTip alert rule on the frontend project: new-issue
-      notification + error-rate-spike threshold, routed to the same
-      channel as the Grafana alerts.
+      from both latency alert groups (path-negative match on `http_target`).
+- [x] Configure a GlitchTip alert rule on the frontend project — done
+      outside this repo.
 - [ ] Document the two alert groups and thresholds in a short ops note, so
       the split isn't tribal knowledge living only in the ops repo.
 - [ ] Verify: trigger a CSV upload and a normal read endpoint in
