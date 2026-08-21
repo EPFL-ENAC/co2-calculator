@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.factor_taxonomy_cache import taxonomy_cache
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
@@ -111,6 +112,7 @@ class FactorRepository:
         self.session.add(factor)
         await self.session.flush()
         await self.session.refresh(factor)
+        taxonomy_cache.clear()
         return factor
 
     async def bulk_create(self, factors: list[Factor]) -> list[Factor]:
@@ -119,6 +121,7 @@ class FactorRepository:
         await self.session.flush()
         for factor in factors:
             await self.session.refresh(factor)
+        taxonomy_cache.clear()
         return factors
 
     async def upsert_factors(
@@ -149,7 +152,9 @@ class FactorRepository:
 
         bind = self.session.get_bind()
         if bind.dialect.driver == "psycopg":
-            return await self._upsert_via_copy(factors, current_job_id)
+            affected = await self._upsert_via_copy(factors, current_job_id)
+            taxonomy_cache.clear()
+            return affected
 
         # Non-psycopg drivers (asyncpg test fixtures): VALUES-based
         # upsert, partitioned by year-presence.
@@ -170,6 +175,7 @@ class FactorRepository:
             affected += await self._upsert_subset(
                 no_year, current_job_id, year_present=False
             )
+        taxonomy_cache.clear()
         return affected
 
     async def _upsert_via_copy(
@@ -317,6 +323,7 @@ class FactorRepository:
             ),
         )
         result = await self.session.execute(stmt)
+        taxonomy_cache.clear()
         # rowcount is a CursorResult attribute on DML; cast away the
         # narrower Result[Any] type Pyright infers from session.execute.
         return getattr(result, "rowcount", 0) or 0
@@ -332,6 +339,7 @@ class FactorRepository:
 
         await self.session.flush()
         await self.session.refresh(factor)
+        taxonomy_cache.clear()
         return factor
 
     async def delete(self, factor_id: int) -> bool:
@@ -342,6 +350,7 @@ class FactorRepository:
 
         await self.session.delete(factor)
         await self.session.flush()
+        taxonomy_cache.clear()
         return True
 
     async def bulk_delete(self, factor_ids: list[int]) -> None:
@@ -354,6 +363,7 @@ class FactorRepository:
             await self.session.delete(factor)
 
         await self.session.flush()
+        taxonomy_cache.clear()
 
     async def list_id_by_data_entry_type(
         self,

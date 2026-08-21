@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.factor_taxonomy_cache import TAXONOMY_CACHE_TTL_SECONDS
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
     ModuleTypeEnum,
@@ -17,6 +18,13 @@ from app.services.module_handler_service import ModuleHandlerService
 
 router = APIRouter()
 
+# Mirrors the server-side cache TTL (#2258): the browser doesn't need to
+# re-fetch identical taxonomy data across the ~11 parallel calls one report
+# page load fires. `private` because the endpoint sits behind auth. Stacked
+# on top of the server TTL, worst-case staleness after an ingestion job is
+# ~2x this value (see docs/src/implementation-plans/2258-cache-factors-query.md).
+_CACHE_CONTROL = f"private, max-age={int(TAXONOMY_CACHE_TTL_SECONDS)}"
+
 
 @router.get(
     "/module_type/{module_type}",
@@ -24,6 +32,7 @@ router = APIRouter()
     response_model_exclude_none=True,
 )
 async def get_taxonomy_for_module_type(
+    response: Response,
     module_type: ModuleTypeEnum,
     year: int = Query(
         default_factory=lambda: datetime.now().year,
@@ -36,6 +45,7 @@ async def get_taxonomy_for_module_type(
     # Taxonomies are year-parameterized classification metadata with no unit
     # data; authentication is the only gate — the simulators render every
     # module's form for any unit member.
+    response.headers["Cache-Control"] = _CACHE_CONTROL
     handler_service = ModuleHandlerService(db)
     nodes = []
     for data_entry_type in get_data_entry_types_for_module_type(module_type):
@@ -55,6 +65,7 @@ async def get_taxonomy_for_module_type(
     response_model_exclude_none=True,
 )
 async def get_taxonomy_for_data_entry_type(
+    response: Response,
     data_entry_type: DataEntryTypeEnum,
     year: int = Query(
         default_factory=lambda: datetime.now().year,
@@ -70,6 +81,7 @@ async def get_taxonomy_for_data_entry_type(
     # Taxonomies are year-parameterized classification metadata with no unit
     # data; authentication is the only gate — the simulators render every
     # module's form for any unit member.
+    response.headers["Cache-Control"] = _CACHE_CONTROL
     handler = BaseModuleHandler.get_by_type(data_entry_type)
     handler_service = ModuleHandlerService(db)
     return await handler_service.get_taxonomy(handler, data_entry_type, year)
@@ -81,6 +93,7 @@ async def get_taxonomy_for_data_entry_type(
     response_model_exclude_none=True,
 )
 async def get_taxonomy_for_module(
+    response: Response,
     module: str,
     year: int = Query(
         default_factory=lambda: datetime.now().year,
@@ -94,7 +107,9 @@ async def get_taxonomy_for_module(
     if module_name not in ModuleTypeEnum.__members__:
         raise HTTPException(status_code=404, detail="Module not found")
     module_type = ModuleTypeEnum[module_name]
-    return await get_taxonomy_for_module_type(module_type, year, db, current_user)
+    return await get_taxonomy_for_module_type(
+        response, module_type, year, db, current_user
+    )
 
 
 @router.get(
@@ -103,6 +118,7 @@ async def get_taxonomy_for_module(
     response_model_exclude_none=True,
 )
 async def get_taxonomy_for_module_data_entry(
+    response: Response,
     module: str,
     data_entry: str,
     year: int = Query(
@@ -130,5 +146,5 @@ async def get_taxonomy_for_module_data_entry(
             detail=f"Data entry type {data_entry} does not belong to module {module}",
         )
     return await get_taxonomy_for_data_entry_type(
-        data_entry_type, year, db, current_user
+        response, data_entry_type, year, db, current_user
     )
