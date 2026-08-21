@@ -1305,7 +1305,12 @@ async def job_stream_by_id(
         # pipeline_stream_by_id's existing "event: ping" heartbeat, which
         # this endpoint never had.
         seconds_since_heartbeat = 0
-        heartbeat_interval_seconds = 15
+        # #2049 T7-followup: this only advances in 2s (poll interval)
+        # increments, so a >=15 threshold's first reachable value is 16 --
+        # silently reproducing the exact 16s gap the trace flagged. 14 is
+        # the largest multiple-of-2-safe threshold that still guarantees
+        # a ping within <15s of quiet.
+        heartbeat_interval_seconds = 14
 
         while True:
             if await request.is_disconnected():
@@ -1775,7 +1780,10 @@ async def pipeline_stream_by_id(
     # feel real-time, but spread the heartbeat across many polls so the
     # ping packet is rare.  Defaults match the existing job-stream poll.
     poll_interval_seconds = 2
-    heartbeat_interval_seconds = 15
+    # #2049 T7-followup: see job_stream_by_id's identical comment -- a
+    # >=15 threshold advancing in 2s steps only ever fires at 16s,
+    # reproducing the exact gap width #2049's trace flagged as the risk.
+    heartbeat_interval_seconds = 14
 
     async def event_generator():
         last_snapshot: list[dict] | None = None

@@ -39,17 +39,22 @@ alerting.
   connection count on the DBaaS, which needs direct DB access. A
   ready-for-review proposal is written up below.
 - [x] **T5** — `event_loop_lag_seconds` probe. Done:
-  [co2-calculator#2263](https://github.com/EPFL-ENAC/co2-calculator/pull/2263).
+      [co2-calculator#2263](https://github.com/EPFL-ENAC/co2-calculator/pull/2263).
 - **T6** — batch/bound the frontend's 31-request page-load fan-out.
   Frontend track, do after T1/T2 land (may shrink the problem for free).
 - [x] **T7 — keepalive + response headers.** Done:
-  [co2-calculator#2262](https://github.com/EPFL-ENAC/co2-calculator/pull/2262)
-  (`job_stream_by_id` now has the heartbeat `pipeline_stream_by_id` already
-  did; both SSE endpoints set `Cache-Control: no-cache` and
-  `X-Accel-Buffering: no`). **T7's path-scoped `/v1/sync` Route with its
-  own HAProxy timeout is NOT done** — an infra/routing change to
-  production traffic paths, needs a written plan reviewed by both
-  maintainers. A ready-for-review proposal is written up below.
+      [co2-calculator#2262](https://github.com/EPFL-ENAC/co2-calculator/pull/2262)
+      (`job_stream_by_id` now has the heartbeat `pipeline_stream_by_id` already
+      did; both SSE endpoints set `Cache-Control: no-cache` and
+      `X-Accel-Buffering: no`). **T7's path-scoped `/v1/sync` Route with its
+      own HAProxy timeout is NOT done** — an infra/routing change to
+      production traffic paths, needs a written plan reviewed by both
+      maintainers. A ready-for-review proposal is written up below.
+- [x] **T7-followup** — heartbeat gap bound fixed (the shipped heartbeat
+      could still reach 16s, see [below](#t7-followup-heartbeat-gap-bound-last-event-id-and-not-found-consistency)),
+      `Last-Event-ID` investigated and deliberately not built, not-found
+      consistency between the two SSE siblings investigated and left as-is.
+      Done: co2-calculator#TODO_PR.
 - **T8** — drop the duplicate psycopg OTel instrumentor, suppress
   per-chunk ASGI spans. Sequence _after_ T1 is verified (the `connect`
   span is what proves the pooling fix).
@@ -61,12 +66,12 @@ alerting.
   required. **Investigation of pipeline execution itself — treat any
   resulting code change as pipeline internals, same review gate as T1.**
 - [x] The `route_class="probe"` Grafana panel — done:
-  [openshift-app-config#12](https://github.com/EPFL-ENAC/openshift-app-config/pull/12).
-  No new metric needed, `route_class` already exists.
-  **A `pipeline_duration_seconds` business metric is NOT done** — it
-  needs hooking into `runner.py`/`_chain.py`/`_pipeline_reconciler.py`,
-  which are recalculation internals, same review gate as T1/T7/T11 even
-  though the metric itself would be purely additive.
+      [openshift-app-config#12](https://github.com/EPFL-ENAC/openshift-app-config/pull/12).
+      No new metric needed, `route_class` already exists.
+      **A `pipeline_duration_seconds` business metric is NOT done** — it
+      needs hooking into `runner.py`/`_chain.py`/`_pipeline_reconciler.py`,
+      which are recalculation internals, same review gate as T1/T7/T11 even
+      though the metric itself would be purely additive.
 
 ## Ready-for-review proposals (T1, T7)
 
@@ -158,9 +163,76 @@ with no other headers):
    independently of this one.
 
 `Last-Event-ID` support (resuming a dropped stream instead of restarting
-from scratch) is bigger than the above three and not drafted here — it
-needs a decision on what "resume" means for a poll-based (not
-event-sourced) stream implementation first.
+from scratch) was investigated in the T7-followup below and deliberately
+not built — see that section for why.
+
+### T7-followup — heartbeat gap bound, `Last-Event-ID`, and not-found consistency
+
+A second pass over both SSE handlers, prompted by the same trace evidence
+above. One real bug fixed, two things investigated and deliberately not
+built.
+
+**Fixed: the shipped heartbeat could still reach a 16s gap.** Both
+handlers accumulate `seconds_since_heartbeat` in 2s steps (the poll
+interval) and fired the ping on `>= 15`. 15 is not itself a reachable
+value on a 2s-stepped counter — the sequence is …12, 14, 16 — so the
+_first_ tick that satisfies `>= 15` is 16, not 15. That silently
+reproduced the exact 16-second zero-byte gap item 1 above was written to
+eliminate (the trace's t+68.5→t+84.6 and t+157.2→t+173.4 windows).
+Changed `heartbeat_interval_seconds` from 15 to 14 in both
+`job_stream_by_id` and `pipeline_stream_by_id` — 14 is the largest
+threshold whose first reachable multiple of 2 is still under 15, so the
+guarantee ("a proxy with a 15s+ idle timeout never sees a quiet gap")
+now actually holds. Regression tests pin the bound: both
+`test_job_stream_heartbeat_fires_within_15s_not_16` (existing heartbeat
+test file) and the new
+`tests/unit/v1/test_data_sync_pipeline_stream_heartbeat.py` disconnect
+after exactly 7 quiet polls (14s elapsed) and assert the ping already
+fired — both fail against the old `>= 15` threshold and pass against
+`>= 14`.
+
+**Investigated, not built: `Last-Event-ID`.** Neither handler ever emits
+an SSE `id:` line, so a reconnecting browser has no `Last-Event-ID` value
+to send in the first place — there is no id space to resume from without
+inventing one from scratch, which is exactly the "bigger than the above
+three" call already made above. More importantly, both handlers already
+re-derive the full current DB state on the very first poll after any
+(re)connection: `last_status`/`last_snapshot` start as `None`, and `None
+!= current_status` is always true, so the first tick after a fresh
+connection always emits the current, correct, complete state regardless
+of what the client had seen before. A dropped-and-reconnected client
+therefore never loses information and never sees stale information — it
+just harmlessly re-receives a fresh snapshot one poll interval later than
+where it left off. That is the failure mode `Last-Event-ID` exists to
+prevent, and it does not occur here. Building resume machinery anyway
+would add real complexity (synthetic per-poll IDs, a server-side "what
+has this client already seen" check) for no behavior change a client can
+observe. Conclusion: no bug, don't build it.
+
+**Investigated, left as-is: not-found handling differs between the two
+siblings.** `job_stream_by_id` opens the stream unconditionally and
+reports a nonexistent `job_id` as an in-stream `data:` event
+(`"status_message": "Job not found"`) on the first poll, then closes.
+`pipeline_stream_by_id` instead 404s _before_ the stream opens (see its
+docstring). These are genuinely different contracts on the same kind of
+resource, and the difference is real — but changing `job_stream_by_id` to
+match would be a status-code contract change (200 → 404) on the only
+endpoint that reads a single job's live state, consumed today by a live
+`EventSource` in `frontend/src/stores/backofficeDataManagement.ts`
+(`subscribeToJobUpdates`, five call sites: `useDataEntryDialog.ts`,
+`useRecalculation.ts` ×2, `useSubmoduleConfig.ts`,
+`UploadCardReferences.vue`, `ModuleTable.vue`). Every one of those call
+sites passes a `job_id` the caller just created — no code path in this
+repo hard-deletes a `DataIngestionJob` or `Pipeline` row, so the
+"job disappears mid-stream" scenario the in-stream event guards against
+does not happen in practice today. The store's `onerror` handler already
+unsubscribes on any connection close (unlike the pipeline-stream
+composable, which deliberately relies on native `EventSource` retry — see
+`usePipelineStream.ts`'s own comment on that WHATWG quirk), so even the
+theoretical case does not strand a subscription. No demonstrated broken
+consumer, no reachable code path today → not worth an API contract
+change under "defer, don't improvise." Revisit only if a future change
+introduces real job/pipeline deletion.
 
 ---
 

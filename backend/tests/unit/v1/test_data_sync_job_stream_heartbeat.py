@@ -84,10 +84,9 @@ async def test_job_stream_emits_heartbeat_on_quiet_connection(monkeypatch):
     fake_user = MagicMock()
     fake_user.calculate_permissions = lambda: {"backoffice.configuration": ["view"]}
 
-    # 15s heartbeat / 2s poll interval = one real state-change event
-    # (poll 1, resets the clock) then 8 more identical polls (16s
-    # accumulated) before disconnecting -- enough for exactly one
-    # heartbeat to fire.
+    # 14s heartbeat / 2s poll interval = one real state-change event
+    # (poll 1, resets the clock) then several identical polls before
+    # disconnecting -- enough for exactly one heartbeat to fire.
     request = _FakeRequest(n_polls_before_disconnect=9)
 
     response = await data_sync_module.job_stream_by_id(
@@ -106,3 +105,52 @@ async def test_job_stream_emits_heartbeat_on_quiet_connection(monkeypatch):
     )
     # First event is the real initial state (job just appeared as RUNNING).
     assert events[0].startswith("data: ")
+
+
+@pytest.mark.asyncio
+async def test_job_stream_heartbeat_fires_within_15s_not_16(monkeypatch):
+    """#2049 T7-followup: the heartbeat must fire in <15s of quiet, not 16s.
+
+    ``seconds_since_heartbeat`` only advances in 2s (poll interval) steps,
+    so a ``>= 15`` threshold's first reachable value is 16 -- silently
+    reproducing the exact 16s gap the trace flagged as the keepalive risk
+    (t+68.5 -> t+84.6 in the #2049 trace). Disconnecting after exactly 7
+    quiet polls (14s elapsed since the one real event) proves the bound:
+    under the old threshold=15 the ping would not have fired yet at this
+    point (next multiple of 2 reaching 15 is 16, one poll later); under
+    the fixed threshold=14 it must already have fired.
+    """
+    monkeypatch.setattr(data_sync_module, "DataIngestionRepository", _FakeRepo)
+    monkeypatch.setattr(
+        data_sync_module.db_module, "SessionLocal", lambda: _FakeSessionCM()
+    )
+
+    async def _instant_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(data_sync_module.asyncio, "sleep", _instant_sleep)
+
+    fake_user = MagicMock()
+    fake_user.calculate_permissions = lambda: {"backoffice.configuration": ["view"]}
+
+    # Poll 1 emits the real state-change event and resets the clock, then
+    # every poll's 2s sleep (including poll 1's own) adds to it: 7 polls *
+    # 2s = 14, so the ping must fire by poll 7 -- the last one that runs
+    # before the 8th ``is_disconnected()`` call ends the stream.
+    request = _FakeRequest(n_polls_before_disconnect=7)
+
+    response = await data_sync_module.job_stream_by_id(
+        job_id=1, request=request, current_user=fake_user
+    )
+
+    events: list[str] = []
+    async for chunk in response.body_iterator:
+        events.append(chunk if isinstance(chunk, str) else chunk.decode())
+        if len(events) > 15:  # safety valve, don't loop forever on a regression
+            break
+
+    assert any(e.startswith("event: ping") for e in events), (
+        "Heartbeat did not fire within 14s of quiet -- "
+        "heartbeat_interval_seconds regressed to a value only reachable "
+        "at 16s (e.g. 15), reproducing the gap #2049's trace flagged."
+    )
