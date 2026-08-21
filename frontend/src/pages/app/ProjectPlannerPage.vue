@@ -83,6 +83,7 @@
             :expanded-keys="expandedKeys"
             :project-years-count="projectYearsCount"
             @toggle-module="onToggleModule"
+            @collapse-all="expandedKeys = []"
           />
         </div>
 

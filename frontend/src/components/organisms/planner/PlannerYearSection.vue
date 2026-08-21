@@ -565,6 +565,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   toggleModule: [payload: { key: string; module: Module; open: boolean }];
+  collapseAll: [];
 }>();
 
 const $q = useQuasar();
@@ -1020,13 +1021,7 @@ async function onReferenceYearChange(referenceYear: number | null) {
       props.yearData.is_grant,
     );
     referenceYearDialogOpen.value = false;
-    // The prefilled modules were rebuilt from the new baseline; refresh this
-    // section's open modules so their rows appear without a manual reload.
-    const prefix = `${sectionKey.value}-`;
-    for (const key of props.expandedKeys) {
-      if (!key.startsWith(prefix)) continue;
-      await refreshExpandedModule(key.slice(prefix.length) as Module);
-    }
+    emit('collapseAll');
     if (equipmentMode.value === 'global') {
       globalPercentage.value = 100;
       appliedGlobalPercentage.value = 100;
