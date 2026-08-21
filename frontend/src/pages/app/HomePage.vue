@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent } from 'vue';
+import { computed, defineAsyncComponent, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES_LIST } from 'src/constant/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
@@ -67,6 +67,8 @@ const firstEditableModule = computed(() =>
 const isPrincipalUser = computed(() =>
   authStore.hasUserCanValidateModuleStatus(),
 );
+
+const isAboutDialogOpen = ref(false);
 
 // Drives the role-scoped i18n keys (co2_calculator_role_*, _access_*_title/_body).
 const userType = computed(() =>
@@ -145,20 +147,72 @@ const calculatorUpdates = computed(() => {
             <h1 class="text-h2 q-mb-none">{{ $t('co2_calculator_title') }}</h1>
           </div>
           <q-btn
-            type="a"
-            target="_blank"
-            rel="noopener noreferrer"
-            color="grey-4"
-            text-color="primary"
+            color="info"
             :label="$t('co2_calculator_about')"
             icon="o_info"
             unelevated
             no-caps
             outline
+            dense
             size="sm"
-            class="text-weight-medium"
+            padding="4px 10px 4px 8px"
+            class="text-weight-medium about-btn"
+            @click="isAboutDialogOpen = true"
           />
         </div>
+
+        <q-dialog v-model="isAboutDialogOpen">
+          <q-card class="about-dialog">
+            <q-card-section
+              class="row items-center no-wrap about-dialog__header"
+            >
+              <q-icon name="o_info" size="xs" color="info" class="q-mr-sm" />
+              <span class="text-subtitle1 text-weight-medium col">
+                {{ $t('co2_calculator_about') }}
+              </span>
+              <q-btn
+                v-close-popup
+                flat
+                round
+                dense
+                size="sm"
+                icon="o_close"
+                color="grey-7"
+              />
+            </q-card-section>
+            <q-separator />
+            <q-card-section class="about-dialog__body">
+              <div class="about-dialog__item">
+                <div class="about-dialog__icon">
+                  <q-icon
+                    name="o_arrow_circle_right"
+                    size="22px"
+                    color="info"
+                  />
+                </div>
+                <p class="text-body2 text-grey-9 q-mb-none">
+                  {{ $t('co2_calculator_about_paragraph_1') }}
+                </p>
+              </div>
+              <div class="about-dialog__item">
+                <div class="about-dialog__icon">
+                  <q-icon name="o_upload_file" size="24px" color="info" />
+                </div>
+                <p class="text-body2 text-grey-9 q-mb-none">
+                  {{ $t('co2_calculator_about_paragraph_2') }}
+                </p>
+              </div>
+              <div class="about-dialog__item">
+                <div class="about-dialog__icon">
+                  <q-icon name="o_visibility" size="24px" color="info" />
+                </div>
+                <p class="text-body2 text-grey-9 q-mb-none">
+                  {{ $t('co2_calculator_about_paragraph_3') }}
+                </p>
+              </div>
+            </q-card-section>
+          </q-card>
+        </q-dialog>
 
         <p class="text-body1 section-intro">
           {{ $t('home_intro_1_part_1')
@@ -449,6 +503,48 @@ const calculatorUpdates = computed(() => {
 
 <style scoped lang="scss">
 @use 'src/css/02-tokens' as tokens;
+
+.about-btn :deep(.q-icon.on-left) {
+  margin-right: tokens.$spacing-sm;
+  font-size: 1.25em;
+}
+
+.about-dialog {
+  width: 100%;
+  max-width: 520px;
+  border-radius: tokens.$radius-default;
+}
+
+.about-dialog__header {
+  padding: tokens.$spacing-md tokens.$spacing-md tokens.$spacing-md
+    tokens.$spacing-xl;
+}
+
+.about-dialog__body {
+  display: grid;
+  grid-template-columns: tokens.$spacing-xl 1fr;
+  column-gap: tokens.$spacing-xl;
+  row-gap: tokens.$spacing-xl;
+  padding: tokens.$spacing-xxl;
+}
+
+.about-dialog__item {
+  display: contents;
+
+  p {
+    font-size: tokens.$text-size-sm;
+    line-height: tokens.$text-line-height-lg;
+  }
+}
+
+.about-dialog__icon {
+  display: flex;
+  align-self: start;
+  align-items: center;
+  justify-content: center;
+  width: tokens.$spacing-xl;
+  height: tokens.$spacing-xl;
+}
 
 // Full-width band pinned under the header; its content is constrained to the
 // same centered container width as the page-grid sections below.

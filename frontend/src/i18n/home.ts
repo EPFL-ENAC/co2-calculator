@@ -128,6 +128,18 @@ export default {
     en: 'About',
     fr: 'À propos',
   },
+  co2_calculator_about_paragraph_1: {
+    en: 'Click “Start” to complete the modules and get a comprehensive estimation of your unit’s carbon footprint. You can then review your results and export your report.',
+    fr: "Cliquez sur « Démarrer » pour remplir les modules et obtenir une estimation complète de l'empreinte carbone de votre unité. Vous pourrez ensuite consulter vos résultats et exporter vos données.",
+  },
+  co2_calculator_about_paragraph_2: {
+    en: 'Most of the data is loaded automatically, but some can be entered manually or imported via a CSV file. Use the left-hand menu to navigate between modules, edit them, or validate your data.',
+    fr: 'La majorité des données sont intégrées automatiquement, mais certaines peuvent être saisies manuellement ou importées via un fichier CSV. Le menu de gauche vous permet de naviguer entre les modules pour les modifier ou les valider.',
+  },
+  co2_calculator_about_paragraph_3: {
+    en: 'You can enable “Colorblind” mode in the top right corner to adjust the display.',
+    fr: "Le mode « Daltonien » est accessible en haut à droite pour adapter l'affichage.",
+  },
   co2_calculator_chart_title: {
     en: 'My unit CO₂ Assessment {year}',
     fr: 'Bilan CO₂ de mon unité {year}',
