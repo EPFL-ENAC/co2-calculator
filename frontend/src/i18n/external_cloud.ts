@@ -6,12 +6,16 @@ export default {
     fr: 'Clouds externes & IA',
   },
   [`${MODULES.ExternalCloudAndAI}-description`]: {
-    en: 'Enter your external clouds usage data to estimate the carbon footprint.',
-    fr: "Saisissez vos données relatives à l'utilisation de clouds externes pour estimer leur empreinte carbone.",
+    en: 'Enter your external cloud and AI usage.,
+    fr: "Saisissez vos données d'utilisation de clouds externes et l'IA.",
   },
   [`${MODULES.ExternalCloudAndAI}-title-subtext`]: {
-    en: 'This module calculates the carbon footprint associated with the use of external cloud services and AI. Some cells may or may not be editable depending on the type of service selected. For external cloud services, it is necessary to enter the provider name, used type of service (compute or storage), spending and associated currency. For AI services, it is necessary to enter the provider name, type of use (text, code or image generation), number of users and frequency of use.',
-    fr: "Ce module calcule l'empreinte carbone liée à l'utilisation de services de clouds externes et d'intelligence artificielle. Certaines cellules seront ou non éditables en fonction du type de service sélectionné. Pour les services de clouds externes, il est nécessaire de saisir le nom du fournisseur, le type de service utilisé (calcul ou stockage), le montant dépensé et la devise associée. Pour les services d'IAs, il faut fournir le nom du fournisseur, le type d'utilisation (génération de texte, de code ou d'image), le nombre d'utilisateurs et la fréquence d'utilisation.",
+    en: 'This module helps you estimate the carbon footprint of external cloud and AI service usage.
+
+To identify all usage across your unit, review licenses, subscriptions, and invoices paid over the past year. Be sure to include individual use of everyday tools, such as shared online storage or AI assistants (for writing, translation, or code generation,...).',
+    fr: "Ce module vous aide à estimer l'empreinte carbone liée à l'utilisation de services cloud externes et d'intelligence artificielle.
+  
+Afin d'identifier l'ensemble des usages de votre unité, basez-vous sur les licences, abonnements ou factures réglés l'année écoulée. Veillez également à inclure les usages individuels des outils du quotidien, comme le stockage partagé en ligne ou les assistants IA (rédaction, traduction, génération de code,...).",
   },
   [`${MODULES.ExternalCloudAndAI}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/external-cloud/',
