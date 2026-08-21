@@ -7,7 +7,7 @@ export default {
     fr: 'Personnel',
   },
   [`${MODULES.Headcount}-description`]: {
-    en: 'Review your unit's members and their full-time equivalents (FTEs).',
+    en: `Review your unit's members and their full-time equivalents (FTEs).`,
     fr: 'Vérifiez les membres de l’unité et leurs équivalents plein-temps (EPT)',
   },
   [`${MODULES.Headcount}-title-subtext`]: {
