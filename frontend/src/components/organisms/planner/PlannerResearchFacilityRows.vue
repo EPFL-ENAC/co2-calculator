@@ -6,33 +6,16 @@
 
     <template v-if="!hideBudget">
       <q-separator />
-      <div class="q-pa-md">
-        <div class="text-weight-medium q-mb-sm">
-          {{ $t('planner_budget_section_title') }}
-        </div>
-        <q-input
-          v-model.number="budgetInput"
-          class="planner-rf__budget"
-          type="number"
-          outlined
-          dense
-          hide-bottom-space
-          min="0"
-          :suffix="currencyLabel(budgetCurrency)"
-          :label="
-            $t('planner_submodule_budget_label', {
-              submodule: $t(MODULES.ResearchFacilities),
-            })
-          "
-          :loading="savingBudget"
-          :disable="disable"
-          @blur="saveBudget"
-          @keyup.enter="saveBudget"
-        />
-        <div class="text-body2 text-grey-7 q-mt-sm">
-          {{ $t('planner_submodule_budget_hint') }}
-        </div>
-      </div>
+      <planner-submodule-budget
+        class="q-pa-md"
+        :carbon-report-id="carbonReportId"
+        :module-type-id="getModuleTypeId(MODULES.ResearchFacilities)"
+        :submodule="BUDGET_KEY"
+        :name="$t(MODULES.ResearchFacilities)"
+        :currency="budgetCurrency"
+        :saved="grantBudgets?.[BUDGET_KEY]"
+        :disable="disable"
+      />
     </template>
 
     <q-separator />
@@ -146,7 +129,7 @@ import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
 import { api } from 'src/api/http';
-import { currencyLabel } from 'src/constant/currencies';
+import PlannerSubmoduleBudget from 'src/components/organisms/planner/PlannerSubmoduleBudget.vue';
 import {
   enumSubmodule,
   MODULES,
@@ -154,7 +137,6 @@ import {
 } from 'src/constant/modules';
 import { getModuleTypeId } from 'src/constant/moduleStates';
 import { useModuleStore } from 'src/stores/modules';
-import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
 
 /**
  * Project Grant research-facilities grid (#1980): a dropdown offers the
@@ -215,7 +197,6 @@ const props = defineProps<{
 const $q = useQuasar();
 const { t, n } = useI18n();
 const moduleStore = useModuleStore();
-const plansStore = useSimulatorPlansStore();
 
 const GROUPS: { sub: RfSub; titleKey: string }[] = [
   {
@@ -240,10 +221,6 @@ const visibleGroups = computed(() =>
 // One budget for the whole module, stored under the module name — the same
 // convention as the single-grid modules (#1978).
 const BUDGET_KEY = MODULES.ResearchFacilities;
-const budgetInput = ref<number | null>(
-  props.grantBudgets?.[BUDGET_KEY] ?? null,
-);
-const savingBudget = ref(false);
 
 function selectedRowsOf(sub: RfSub): RfRow[] {
   return rows.value.filter((row) => row.sub === sub && row.selected);
@@ -428,26 +405,6 @@ function createPayload(row: RfRow, use: number): Record<string, unknown> {
   return payload;
 }
 
-async function saveBudget() {
-  const raw = budgetInput.value;
-  const value =
-    typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : null;
-  if (value === (props.grantBudgets?.[BUDGET_KEY] ?? null)) return;
-  savingBudget.value = true;
-  try {
-    await plansStore.setSubmoduleBudget(
-      props.carbonReportId,
-      getModuleTypeId(MODULES.ResearchFacilities),
-      BUDGET_KEY,
-      value,
-    );
-  } catch {
-    $q.notify({ type: 'negative', message: t('planner_grant_budget_error') });
-  } finally {
-    savingBudget.value = false;
-  }
-}
-
 onMounted(async () => {
   await Promise.all(GROUPS.map((group) => loadGroup(group.sub)));
 });
@@ -474,10 +431,6 @@ onMounted(async () => {
 
 .planner-rf__group-header {
   padding: tokens.$spacing-md;
-}
-
-.planner-rf__budget {
-  max-width: 240px;
 }
 
 .planner-rf-table {
