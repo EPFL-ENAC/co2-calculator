@@ -6,16 +6,16 @@ export default {
     fr: 'Clouds externes & IA',
   },
   [`${MODULES.ExternalCloudAndAI}-description`]: {
-    en: 'Enter your external cloud and AI usage.,
+    en: `Enter your external cloud and AI usage.`,
     fr: "Saisissez vos données d'utilisation de clouds externes et l'IA.",
   },
   [`${MODULES.ExternalCloudAndAI}-title-subtext`]: {
-    en: 'This module helps you estimate the carbon footprint of external cloud and AI service usage.
+    en: `This module helps you estimate the carbon footprint of external cloud and AI service usage.
 
-To identify all usage across your unit, review licenses, subscriptions, and invoices paid over the past year. Be sure to include individual use of everyday tools, such as shared online storage or AI assistants (for writing, translation, or code generation,...).',
-    fr: "Ce module vous aide à estimer l'empreinte carbone liée à l'utilisation de services cloud externes et d'intelligence artificielle.
+To identify all usage across your unit, review licenses, subscriptions, and invoices paid over the past year. Be sure to include individual use of everyday tools, such as shared online storage or AI assistants (for writing, translation, or code generation,...).`,
+    fr: `Ce module vous aide à estimer l'empreinte carbone liée à l'utilisation de services cloud externes et d'intelligence artificielle.
   
-Afin d'identifier l'ensemble des usages de votre unité, basez-vous sur les licences, abonnements ou factures réglés l'année écoulée. Veillez également à inclure les usages individuels des outils du quotidien, comme le stockage partagé en ligne ou les assistants IA (rédaction, traduction, génération de code,...).",
+Afin d'identifier l'ensemble des usages de votre unité, basez-vous sur les licences, abonnements ou factures réglés l'année écoulée. Veillez également à inclure les usages individuels des outils du quotidien, comme le stockage partagé en ligne ou les assistants IA (rédaction, traduction, génération de code,...).`,
   },
   [`${MODULES.ExternalCloudAndAI}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/external-cloud/',
