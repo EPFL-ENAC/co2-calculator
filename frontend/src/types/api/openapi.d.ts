@@ -2591,11 +2591,6 @@ export interface components {
              */
             category: "footprint" | "population" | "scenarios";
         };
-        /** Body_upload_temp_files_v1_files_temp_upload_post */
-        Body_upload_temp_files_v1_files_temp_upload_post: {
-            /** Files */
-            files: string[];
-        };
         /** BuildingRoomBuildingResponse */
         BuildingRoomBuildingResponse: {
             /** Building Location */
@@ -6444,7 +6439,10 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_upload_temp_files_v1_files_temp_upload_post"];
+                "multipart/form-data": {
+                    /** Files */
+                    files: string[];
+                };
             };
         };
         responses: {

@@ -4,6 +4,7 @@ import base64
 import datetime
 import os
 import urllib.parse
+from typing import cast
 
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from enacit4r_files.services import (
@@ -17,13 +18,15 @@ from enacit4r_files.utils.files import FileChecker
 from fastapi import (
     APIRouter,
     Depends,
-    File,
     HTTPException,
     Query,
+    Request,
     Response,
     UploadFile,
     status,
 )
+from opentelemetry import trace
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.api.deps import get_current_user
 from app.core.config import get_settings
@@ -136,6 +139,88 @@ def validate_upload_mimetype(file: UploadFile) -> None:
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail=f"Unsupported content type '{declared}'",
         )
+
+
+# upload_temp_files parses the body manually (see docstring) so FastAPI
+# never generates a requestBody for it; reproduce the multipart/File schema
+# by hand so the OpenAPI contract (and the generated frontend client) don't
+# regress.
+TEMP_UPLOAD_REQUEST_BODY = {
+    "content": {
+        "multipart/form-data": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "files": {
+                        "type": "array",
+                        "items": {"type": "string", "format": "binary"},
+                        "title": "Files",
+                    }
+                },
+                "required": ["files"],
+                "title": "Body_upload_temp_files_v1_files_temp_upload_post",
+            }
+        }
+    },
+    "required": True,
+}
+
+
+def _require_upload_files(
+    raw_files: list[str | StarletteUploadFile],
+) -> list[UploadFile]:
+    """Narrow parsed multipart 'files' parts to actual file uploads.
+
+    Manual body parsing (needed so auth runs before the body is read, see
+    ``upload_temp_files``) skips FastAPI's automatic UploadFile validation,
+    so a plain form value sent under the same field name must be rejected
+    explicitly instead of crashing downstream on ``.filename``. It also
+    means ``request.form()`` hands back Starlette's base ``UploadFile``
+    (``fastapi.UploadFile`` is a subclass FastAPI's own validation layer
+    would normally construct), so the check narrows against the base class.
+
+    Raises:
+        HTTPException: 422 when a 'files' part isn't a file upload.
+    """
+    for item in raw_files:
+        if not isinstance(item, StarletteUploadFile):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="'files' must be file uploads",
+            )
+    return cast(list[UploadFile], raw_files)
+
+
+def _record_request_content_length(request: Request) -> None:
+    """Attach the declared body size to the current span, when present.
+
+    Lets slow-client-vs-large-file be told apart in traces (#2261);
+    best-effort only — a missing or malformed header must not fail the
+    upload, it only means the attribute is absent from the trace.
+    """
+    content_length = request.headers.get("content-length")
+    if content_length is None:
+        return
+    try:
+        size = int(content_length)
+    except ValueError:
+        return
+    trace.get_current_span().set_attribute("http.request_content_length", size)
+
+
+async def _write_temp_files(files: list[UploadFile]) -> list[FileNode]:
+    """Validate and write already-parsed uploads to a fresh /tmp folder."""
+    if not files:
+        raise HTTPException(
+            status_code=400, detail="At least one file must be provided"
+        )
+    for file in files:
+        validate_upload_mimetype(file)
+    current_time = datetime.datetime.now(datetime.UTC)
+    # generate unique name for the files' base folder in S3
+    folder_name = str(current_time.timestamp()).replace(".", "")
+    folder_path = f"tmp/{folder_name}"
+    return [await files_store.write_file(file, folder=folder_path) for file in files]
 
 
 def build_attachment_disposition(file_path: str) -> str:
@@ -314,10 +399,10 @@ async def get_file(
     response_model=list[FileNode],
     response_model_exclude_none=True,
     description="Upload any assets to file storage in the /tmp folder",
-    dependencies=[Depends(file_checker.check_size)],
+    openapi_extra={"requestBody": TEMP_UPLOAD_REQUEST_BODY},
 )
 async def upload_temp_files(
-    files: list[UploadFile] = File(description="Multiple file upload"),
+    request: Request,
     current_user: User = Depends(get_current_user),
 ):
     """Upload files to the /tmp folder in the file storage.
@@ -325,6 +410,14 @@ async def upload_temp_files(
     **Required Permission**: `backoffice.configuration.edit`
 
     Used for temporary file uploads before processing (e.g., CSV imports).
+
+    Takes the raw ``Request`` instead of a typed ``UploadFile`` body param
+    and parses the multipart body only after the permission check below.
+    FastAPI/Starlette otherwise read the *entire* body unconditionally
+    before resolving any dependency the moment a route declares a
+    File/Form param (``fastapi/routing.py``: ``body = await request.form()``
+    runs ahead of ``solve_dependencies()``), which let an unauthenticated
+    caller push an arbitrary payload through before being rejected (#2261).
     """
     perms = current_user.calculate_permissions()
     can_upload = has_permission(perms, "backoffice.configuration", "edit") or any(
@@ -341,24 +434,15 @@ async def upload_temp_files(
             ),
         )
 
-    logger.info(
-        "File upload to /tmp requested",
-        extra={"user_id": current_user.id, "file_count": len(files)},
-    )
-    if not files:
-        raise HTTPException(
-            status_code=400, detail="At least one file must be provided"
+    _record_request_content_length(request)
+    async with request.form() as form:
+        files = _require_upload_files(form.getlist("files"))
+        await file_checker.check_size(files)
+        logger.info(
+            "File upload to /tmp requested",
+            extra={"user_id": current_user.id, "file_count": len(files)},
         )
-    for file in files:
-        validate_upload_mimetype(file)
-    current_time = datetime.datetime.now(datetime.UTC)
-    # generate unique name for the files' base folder in S3
-    folder_name = str(current_time.timestamp()).replace(".", "")
-    folder_path = f"tmp/{folder_name}"
-    children = [
-        await files_store.write_file(file, folder=folder_path) for file in files
-    ]
-    return children
+        return await _write_temp_files(files)
 
 
 @router.delete(
