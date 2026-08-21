@@ -81,8 +81,34 @@ class DataIngestionProvider(ABC):
             return processing_path
         logger.info(f"Moving file from {tmp_path} to {processing_path}")
         if not await self.files_store.move_file(tmp_path, processing_path):
-            raise Exception(f"Failed to move file from {tmp_path} to {processing_path}")
+            raise Exception(
+                f"Failed to move file from {tmp_path} to {processing_path}: "
+                f"{await self._diagnose_move_failure(tmp_path)}"
+            )
         return processing_path
+
+    async def _diagnose_move_failure(self, source_path: str) -> str:
+        """Best-effort detail for a failed move, since ``FilesStore.move_file``
+        (vendored ``enacit4r-files``) swallows the real storage exception and
+        returns a bare ``False`` (#2220). Distinguishing "source already gone"
+        from "source still present, storage error" is the most we can add
+        without patching that dependency.
+
+        Note: this check is itself another existence probe on ``source_path``
+        — on an S3 backend, a "source already gone" case surfaces as one more
+        ``HeadObject`` 404, same as the routine idempotency check above. That
+        is expected here (failure path only) and shouldn't be alerted on any
+        more than the routine check should.
+        """
+        if not await self.files_store.file_exists(source_path):
+            return (
+                f"source {source_path} no longer exists (likely already "
+                "consumed by a concurrent or prior attempt)"
+            )
+        return (
+            f"source {source_path} is still present; the storage backend's "
+            "move_file failed for an unreported reason — see its logs"
+        )
 
     async def _move_to_processed(self, processing_path: str) -> str:
         """Move an ingested file from ``processing/`` to ``processed/<job_id>/``.
@@ -102,7 +128,8 @@ class DataIngestionProvider(ABC):
         logger.info(f"Moving file from {processing_path} to {processed_path}")
         if not await self.files_store.move_file(processing_path, processed_path):
             logger.warning(
-                f"Failed to move file from {processing_path} to {processed_path}"
+                f"Failed to move file from {processing_path} to {processed_path}: "
+                f"{await self._diagnose_move_failure(processing_path)}"
             )
             return processing_path
         return processed_path

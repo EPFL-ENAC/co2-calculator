@@ -106,6 +106,37 @@ async def test_move_to_processing_raises_on_genuine_move_failure():
         await provider._move_to_processing("tmp/abc/data.csv")
 
 
+@pytest.mark.asyncio
+async def test_move_to_processing_failure_distinguishes_missing_source():
+    """#2220: ``FilesStore.move_file`` (vendored ``enacit4r-files``) swallows
+    the real storage exception and returns a bare ``False`` — the raised
+    message must still say *why*, distinguishing "source already gone" (a
+    concurrent/prior attempt consumed it) from "source present, storage
+    error" instead of the old bare "Failed to move file".
+    """
+    provider = _make_provider()
+    provider._files_store = MagicMock()
+    # First call: destination doesn't exist (must attempt the move).
+    # Second call: diagnosing the failure — source is also gone.
+    provider._files_store.file_exists = AsyncMock(side_effect=[False, False])
+    provider._files_store.move_file = AsyncMock(return_value=False)
+
+    with pytest.raises(Exception, match="no longer exists"):
+        await provider._move_to_processing("tmp/abc/data.csv")
+
+
+@pytest.mark.asyncio
+async def test_move_to_processing_failure_reports_source_still_present():
+    provider = _make_provider()
+    provider._files_store = MagicMock()
+    # Destination missing, then source still present at diagnosis time.
+    provider._files_store.file_exists = AsyncMock(side_effect=[False, True])
+    provider._files_store.move_file = AsyncMock(return_value=False)
+
+    with pytest.raises(Exception, match="still present"):
+        await provider._move_to_processing("tmp/abc/data.csv")
+
+
 # ======================================================================
 # _move_to_processed
 # ======================================================================
@@ -154,3 +185,19 @@ async def test_move_to_processed_failure_is_non_fatal():
     result = await provider._move_to_processed("processing/7/data.csv")
 
     assert result == "processing/7/data.csv"
+
+
+@pytest.mark.asyncio
+async def test_move_to_processed_failure_logs_diagnosis(caplog):
+    """#2220: the non-fatal warning should also carry the same
+    missing-source-vs-storage-error diagnosis, not a bare message.
+    """
+    provider = _make_provider()
+    provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(side_effect=[False, False])
+    provider._files_store.move_file = AsyncMock(return_value=False)
+
+    with caplog.at_level("WARNING"):
+        await provider._move_to_processed("processing/7/data.csv")
+
+    assert "no longer exists" in caplog.text
