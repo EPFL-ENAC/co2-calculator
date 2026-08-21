@@ -207,7 +207,25 @@ code disproves. Put this first."):
       `JobLatencySLOBreach` (>5% of job-class requests over the 10s bucket,
       since that's the last one this histogram can resolve) — proportion-
       of-slow-requests per §4.2, not a raw quantile, with a traffic floor
-      on both. PR [openshift-app-config#10](https://github.com/EPFL-ENAC/openshift-app-config/pull/10).
+      on both. PR [openshift-app-config#10](https://github.com/EPFL-ENAC/openshift-app-config/pull/10) (merged).
+- [x] Found and fixed a second tail collision, same class as the
+      `year-configuration/{year}` one: `GET /v1/units` (plain CRUD list,
+      meant to stay `api`) and `POST /v1/sync/units` (recalculation
+      trigger, meant to be `job`) both collapse to the identical
+      `http.target = "/api/units"` — `GET` was silently landing in
+      `route_class="job"`. Same `http.method` guard pattern. PR
+      [openshift-app-config#11](https://github.com/EPFL-ENAC/openshift-app-config/pull/11) (merged).
+- [x] Filed the general fix as a follow-up rather than patch every
+      collision as it's found:
+      [co2-calculator#2260](https://github.com/EPFL-ENAC/co2-calculator/issues/2260)
+      — two `http.method`-guarded collisions found live in one session is a
+      pattern, not a coincidence. Proposes either enabling OTel's new
+      semconv (`http.route`, which should carry the real unique template
+      instead of the collapsed/collision-prone `http.target`) or
+      restructuring router prefixes so no two routers can produce the same
+      leaf shape. Root cause of the `/v1/<router-prefix>` disappearing in
+      the first place still isn't confirmed — flagged as the first step of
+      whichever direction gets picked.
 
 ## Steps
 
