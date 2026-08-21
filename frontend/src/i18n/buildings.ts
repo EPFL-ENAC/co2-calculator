@@ -10,8 +10,8 @@ export default {
     fr: 'Local | Locaux',
   },
   [`${MODULES.Buildings}-description`]: {
-    en: 'Review your unit's space usage.',
-    fr: "Vérifiez les données d’utilisation de vos locaux.",
+    en: `Review your unit's space usage.`,
+    fr: 'Vérifiez les données d’utilisation de vos locaux.',
   },
   [`${MODULES.Buildings}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/building/',
