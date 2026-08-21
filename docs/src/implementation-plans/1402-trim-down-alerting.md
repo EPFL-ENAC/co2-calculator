@@ -176,7 +176,7 @@ code disproves. Put this first."):
       `http_route` to match on), with a `POST`-only guard on the
       `year-configuration/{year}` tail to avoid catching GET/PATCH on the
       same tail. Verify against real traffic once a pipeline runs in stage.
-      **PR [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9) — open.**
+      **PR [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9) — merged.**
 - [x] Fixed a real classification bug in the above, found by querying the
       live label breakdown: `/healthz` and `/dispatch` were both landing in
       `route_class="api"` instead of `probe`/`job`. Root cause:
@@ -187,7 +187,9 @@ code disproves. Put this first."):
       and still showed up as `/api/healthz`, proving the prefix is app-side.
       The `probe`/`job` patterns were anchored assuming no prefix; `stream`/
       `upload` worked by accident (unanchored `.*` absorbed it). Fixed both
-      anchored patterns to include `/api`. Same PR #9.
+      anchored patterns to include `/api`. This landed *after* #9 had
+      already merged, so it's in a new PR:
+      [openshift-app-config#10](https://github.com/EPFL-ENAC/openshift-app-config/pull/10).
 - [x] Pulled real numbers instead of guessing:
   - `factors` row counts: `building`=846, `other_purchases`=20,915 — the
     1338 ms query is a genuine large-result-set problem, not a missing
@@ -205,7 +207,7 @@ code disproves. Put this first."):
       `JobLatencySLOBreach` (>5% of job-class requests over the 10s bucket,
       since that's the last one this histogram can resolve) — proportion-
       of-slow-requests per §4.2, not a raw quantile, with a traffic floor
-      on both. Same PR #9.
+      on both. PR [openshift-app-config#10](https://github.com/EPFL-ENAC/openshift-app-config/pull/10).
 
 ## Steps
 
@@ -217,15 +219,17 @@ code disproves. Put this first."):
 - [x] Exclude `/sync/jobs/{job_id}/stream` and `/sync/pipelines/{pipeline_id}/stream`
       (and uploads and jobs) from the normal-API latency alerts via
       `route_class="api"` — done, PR
-      [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9).
+      [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9)
+      (merged).
 - [x] Pull 2-4 weeks of historical p99 for `route_class="upload"`/`"job"` and
       set a threshold from it — done, see Done section above.
 - [x] Add the `route_class="upload"`/`"job"` latency alert — done
       (`UploadLatencySLOBreach`, `JobLatencySLOBreach`), see Done section.
 - [x] Split the Grafana "Latency percentile" panel by `route_class` (§4.9.1)
-      — done, same PR #9: `sum by (le, route_class)`, `unit: ms` (was unset),
-      a real 1000ms threshold line (was a leftover unrendered default),
-      exemplars on (were off). Dashboard version bumped for both overlays.
+      — done, PR [openshift-app-config#10](https://github.com/EPFL-ENAC/openshift-app-config/pull/10):
+      `sum by (le, route_class)`, `unit: ms` (was unset), a real 1000ms
+      threshold line (was a leftover unrendered default), exemplars on
+      (were off). Dashboard version bumped for both overlays.
 - [ ] Add the `route_class="probe"` panel (§4.9.6) and a
       `pipeline_duration_seconds`-based alert for the pipeline itself
       (§4.7.7's `PipelineSlow`) — not started; needs a new backend metric.
