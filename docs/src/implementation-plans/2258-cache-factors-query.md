@@ -57,7 +57,7 @@ built tree is a safe cache candidate.
   — grepped, confirmed. These don't get explicit invalidation and rely
   solely on the TTL, same as the cross-process case below. This is
   acceptable in practice: seeding runs as a one-off CLI/`make
-  seed-*` invocation against a dev/local database, not as a live
+seed-*` invocation against a dev/local database, not as a live
   ingestion path against a warm production cache.
 - `Cache-Control: private, max-age=60` on all four `/v1/taxonomies/*`
   routes, mirroring the server TTL, so the browser stops re-issuing the
