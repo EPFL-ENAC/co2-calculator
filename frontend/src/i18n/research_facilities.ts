@@ -17,12 +17,12 @@ export default {
     fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/services/',
   },
   [`${MODULES.ResearchFacilities}-title-subtext`]: {
-    en: 'This module helps you estimate the carbon footprint from your unit's use of EPFL internal research facilities.
+    en: `This module helps you estimate the carbon footprint from your unit's use of EPFL internal research facilities.
 The carbon footprint allocated to units for each research facility is calculated based on its process emissions, energy combustion, building usage, equipment, and purchases. Depending on the facility, this allocation is based either on funding ratio (billed costs), usage time ratio, or on the number of housing.
-Note that if these activities were conducted using your unit’s own standalone resources, their carbon footprint would be significantly higher. Shared use of research facilities helps reduce this overall impact.',
-    fr: "Ce module vous aide à estimer l'empreinte carbone liée à l'utilisation des infrastructures de recherche internes EPFL par votre unité.
+Note that if these activities were conducted using your unit’s own standalone resources, their carbon footprint would be significantly higher. Shared use of research facilities helps reduce this overall impact.`,
+    fr: `Ce module vous aide à estimer l'empreinte carbone liée à l'utilisation des infrastructures de recherche internes EPFL par votre unité.
 L'empreinte carbone de chaque infrastructure de recherche attribuée aux unités est calculée sur la base de ses émissions de procédés, de sa combustion d'énergie, de ses bâtiments, de ses équipements et de ses achats. Selon l'infrastructure, cette répartition s'effectue soit sur la base du ratio de financement (facturation), soit du ratio du temps d'utilisation ou le nombre d'hébergement.
-Notez que si ces activités étaient menées avec des moyens propres à l'unité, leur empreinte carbone serait nettement plus élevée. L'utilisation mutualisée d'infrastructures de recherche permet de réduire cet impact global.",
+Notez que si ces activités étaient menées avec des moyens propres à l'unité, leur empreinte carbone serait nettement plus élevée. L'utilisation mutualisée d'infrastructures de recherche permet de réduire cet impact global.`,
   },
   [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities}-table-title`]:
     {
