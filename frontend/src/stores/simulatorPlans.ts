@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { api } from 'src/api/http';
+import { pollUntilPrefilled } from 'src/composables/pollUntilPrefilled';
 import type { ReportStats } from 'src/utils/emissionStatsAdapter';
 
 /**
@@ -23,6 +24,9 @@ export interface SimulatorPlan {
   created_at: string | null;
   creator_name: string | null;
   total_tonnes_co2eq: number | null;
+  /** Set when the PATCH deferred its prefill to a background job; poll it
+   * before trusting the plan years (backend plan #2050 Track F4). */
+  prefill_job_id?: number | null;
   can_manage: boolean;
 }
 
@@ -50,6 +54,15 @@ export interface SimulatorPlanYear {
   budget_currency: string | null;
   stats: Record<string, unknown> | null;
   modules: SimulatorPlanModule[];
+  /** See {@link SimulatorPlan.prefill_job_id}. */
+  prefill_job_id?: number | null;
+}
+
+export interface SimulatorPlanPrefillStatus {
+  job_id: number;
+  finished: boolean;
+  result: string | null;
+  status_message: string | null;
 }
 
 export interface SimulatorPlanUpdatePayload {
@@ -85,6 +98,11 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
   const aggregateLoading = ref(false);
 
   const plansStale = ref(false);
+
+  // True while a deferred prefill job is still running for the open plan —
+  // its year sections exist but are still empty, so the page shows a
+  // "building" state instead of a misleading zero (plan #2050 Track F4).
+  const prefillRunning = ref(false);
 
   async function fetchPlans(unitId: number): Promise<void> {
     loading.value = true;
@@ -130,6 +148,30 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
   }
 
   /**
+   * Wait for a deferred prefill job to reach its terminal state.
+   *
+   * The plan PATCHes persist their metadata change immediately and hand the
+   * (potentially tens of thousands of rows) copy of a reference year to a
+   * background job. Until it finishes the year sections are empty, so the
+   * caller must not render them as real results.
+   */
+  async function waitForPrefill(
+    planId: number,
+    jobId: number,
+  ): Promise<SimulatorPlanPrefillStatus | null> {
+    prefillRunning.value = true;
+    try {
+      return await pollUntilPrefilled(() =>
+        api
+          .get(`project-plans/${planId}/prefill/${jobId}`)
+          .json<SimulatorPlanPrefillStatus>(),
+      );
+    } finally {
+      prefillRunning.value = false;
+    }
+  }
+
+  /**
    * PATCH the plan (name / year range / lab visibility). Changing the year
    * range, grant flag or year-sections flag syncs the plan's reports
    * server-side, so the years list and the results aggregate are refetched
@@ -142,15 +184,15 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     const rangeChange =
       payload.start_year !== undefined || payload.end_year !== undefined;
     const plan = await api
-      .patch(`project-plans/${planId}`, {
-        json: payload,
-        // A range change prefills every new year report from the default
-        // reference year, same workload as setReferenceYear below.
-        ...(rangeChange ? { timeout: 300000 } : {}),
-      })
+      .patch(`project-plans/${planId}`, { json: payload })
       .json<SimulatorPlan>();
 
     markPlansStale();
+    // New year sections are created empty and filled by a background job;
+    // refetching before it finishes would show them as legitimately zero.
+    if (plan.prefill_job_id != null) {
+      await waitForPrefill(planId, plan.prefill_job_id);
+    }
     if (
       rangeChange ||
       payload.is_grant_proposal !== undefined ||
@@ -221,14 +263,19 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     const updated = await api
       .patch(`project-plans/${planId}/years/${year}`, {
         json: { reference_year: referenceYear, is_grant: isGrant },
-        timeout: 300000, // 5 minutes; TODO: backend to make a background task instead!
       })
       .json<SimulatorPlanYear>();
     planYears.value = planYears.value.map((y) =>
       y.id === updated.id ? updated : y,
     );
+    // `updated` was serialised before the prefill ran, so its modules are
+    // still empty — wait, then refetch to get the copied rows and stats.
+    if (updated.prefill_job_id != null) {
+      await waitForPrefill(planId, updated.prefill_job_id);
+      await fetchPlanYears(planId);
+    }
     await refreshAggregateIfActive();
-    return updated;
+    return planYears.value.find((y) => y.id === updated.id) ?? updated;
   }
 
   /** Replace one module inside its plan-year, immutably, in local state. */
@@ -342,6 +389,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     loading,
     planYears,
     planYearsLoading,
+    prefillRunning,
     activePlanId,
     aggregateStats,
     grantStats,

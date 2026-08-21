@@ -32,6 +32,7 @@ The CO₂ calculator, the CO₂ project planner and the CO₂ explorer show the 
 | Where you see the (ℹ) icon in the app                     | Key pattern                                           |
 | --------------------------------------------------------- | ----------------------------------------------------- |
 | Header of the "Project information" box (project planner) | `planner-project-info-section-title`                  |
+| "Grant proposal" checkbox, "Project information" box      | `planner-grant-proposal-title`                        |
 | Header of the "Project Grant" section (project planner)   | `planner-grant-section-title`                         |
 | Header of a project-year section (project planner)        | `planner-year-section-title`                          |
 | Next to a module title, Project Grant section             | `planner-grant-module-{module}-title`                 |

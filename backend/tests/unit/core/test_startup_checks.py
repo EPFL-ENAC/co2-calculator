@@ -17,6 +17,8 @@ from app.main import assert_security_settings
 def _settings(**overrides) -> SimpleNamespace:
     defaults = {
         "LOCAL_ENVIRONMENT": False,
+        "JWT_HMAC_KEY": "jwt-key",
+        "SESSION_HMAC_KEY": "session-key",
         "CREDENTIALS_ENCRYPTION_KEY": "key",
         "CREDENTIALS_ENCRYPTION_SALT": "salt",
         "CONNECTOR_ALLOWED_HOST_SUFFIXES": "epfl.ch",
@@ -38,6 +40,8 @@ def test_local_environment_skips_check_even_if_all_empty():
 @pytest.mark.parametrize(
     "missing_field",
     [
+        "JWT_HMAC_KEY",
+        "SESSION_HMAC_KEY",
         "CREDENTIALS_ENCRYPTION_KEY",
         "CREDENTIALS_ENCRYPTION_SALT",
         "CONNECTOR_ALLOWED_HOST_SUFFIXES",

@@ -34,6 +34,8 @@ def assert_security_settings(settings) -> None:
     missing = [
         name
         for name in (
+            "JWT_HMAC_KEY",
+            "SESSION_HMAC_KEY",
             "CREDENTIALS_ENCRYPTION_KEY",
             "CREDENTIALS_ENCRYPTION_SALT",
             "CONNECTOR_ALLOWED_HOST_SUFFIXES",
@@ -329,7 +331,7 @@ app = FastAPI(
 # Add this after creating the FastAPI app
 app.add_middleware(
     SessionMiddleware,
-    secret_key=settings.SECRET_KEY,
+    secret_key=settings.SESSION_HMAC_KEY,
     session_cookie="session",
     max_age=60,  # 1 minute - only needed during OAuth flow
     same_site="lax",

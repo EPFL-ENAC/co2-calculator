@@ -408,6 +408,13 @@ export const RESULTS_SUBCATEGORY_LABEL_KEYS: Record<string, string> = {
   n2o: 'process-emissions.category.n2o',
   refrigerants: 'process-emissions.category.refrigerants',
   refrigerant: 'process-emissions.category.refrigerants',
+  sf6: 'process-emissions.category.sf6',
+  nf3: 'process-emissions.category.nf3',
+  hfcs: 'process-emissions.category.hfcs',
+  perfluorinated_compounds:
+    'process-emissions.category.perfluorinated_compounds',
+  fluorinated_ethers: 'process-emissions.category.fluorinated_ethers',
+  perfluoropolyethers: 'process-emissions.category.perfluoropolyethers',
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',
@@ -437,10 +444,13 @@ export const RESULTS_SUBCATEGORY_LABEL_KEYS: Record<string, string> = {
   services: 'charts-services-subcategory',
   vehicles: 'charts-vehicles-subcategory',
   centralized: 'charts-purchases-centralized-subcategory',
+  ln2: 'charts-ln2-subcategory',
   other_purchases: 'charts-other-purchases-subcategory',
   goods_and_services: 'charts-global-budget-subcategory',
   plane: 'charts-plane-subcategory',
   train: 'charts-train-subcategory',
+  business: 'charts-business-class-subcategory',
+  eco: 'charts-eco-class-subcategory',
   class_1: 'charts-class-1-subcategory',
   class_2: 'charts-class-2-subcategory',
   clouds: 'charts-clouds-subcategory',
@@ -452,6 +462,8 @@ export const RESULTS_SUBCATEGORY_LABEL_KEYS: Record<string, string> = {
   provider_anthropic: 'charts-ai-provider-anthropic-subcategory',
   provider_mistral_ai: 'charts-ai-provider-mistral-ai-subcategory',
   provider_cohere: 'charts-ai-provider-cohere-subcategory',
+  provider_github: 'charts-ai-provider-github-subcategory',
+  provider_microsoft: 'charts-ai-provider-microsoft-subcategory',
   provider_others: 'charts-ai-provider-others-subcategory',
   stockage: 'charts-stockage-subcategory',
   virtualisation: 'charts-virtualisation-subcategory',
@@ -514,12 +526,24 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       forest_chips: colors.value.apricot.lighter,
       wood_logs: colors.value.yellow.darker,
     },
-    process_emissions: {
-      co2: colors.value.peach.darker,
-      ch4: colors.value.peach.dark,
-      n2o: colors.value.peach.default,
-      refrigerants: colors.value.peach.light,
-    },
+    process_emissions: (() => {
+      const keys = [
+        'co2',
+        'ch4',
+        'n2o',
+        'refrigerants',
+        'hfcs',
+        'perfluorinated_compounds',
+        'fluorinated_ethers',
+        'perfluoropolyethers',
+        'sf6',
+        'nf3',
+      ];
+      const { darker, lighter } = colors.value.peach;
+      const shade = (i: number) =>
+        lerpHex(darker, lighter, i / (keys.length - 1));
+      return Object.fromEntries(keys.map((k, i) => [k, shade(i)]));
+    })(),
     equipment: {
       scientific: colors.value.plum.darker,
       it: colors.value.plum.dark,
@@ -602,6 +626,10 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       inert_waste: colors.value.aqua.light,
       organic_waste_food_leftovers: colors.value.mint.darker,
       cooking_vegetable_oil: colors.value.mint.dark,
+      incineration_waste_bio_chem_ani: colors.value.skyBlue.darker,
+      batteries: colors.value.mint.default,
+      neon_tubes: colors.value.mint.light,
+      chemical_waste: colors.value.mint.lighter,
       // Display category keys — 9 shades: periwinkle steps interleaved with cobalt midpoints
       domestic: colors.value.periwinkle.darker, // #A5ADD8 — step 1
       organic: colors.value.cobalt.darker, // #B0B7DE — step 2

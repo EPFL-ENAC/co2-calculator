@@ -8,8 +8,11 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
 from app.services.data_ingestion.csv_providers.reference_data import (
+    BUILDING_ROOMS_EXPECTED_COLUMNS,
+    BUILDING_ROOMS_REQUIRED_COLUMNS,
     LOCATIONS_REQUIRED_COLUMNS,
     ReferenceDataCSVProvider,
+    _to_float,
 )
 from app.services.data_ingestion.provider_factory import ProviderFactory
 
@@ -77,6 +80,22 @@ def test_validate_headers_accepts_full_set():
         LOCATIONS_REQUIRED_COLUMNS,
         LOCATIONS_REQUIRED_COLUMNS,
     )
+
+
+def test_validate_headers_rejects_unknown_columns():
+    # Regression test for #1545: a misspelled column (e.g.
+    # room_surface_square_meters instead of room_surface_square_meter) must
+    # fail loudly rather than silently resolving to None on every row.
+    csv_text = (
+        "building_location,building_name,room_name,room_surface_square_meters\n"
+        "ECUBLENS,GC,AI0122,12\n"
+    )
+    with pytest.raises(ValueError, match="unexpected columns"):
+        ReferenceDataCSVProvider._validate_headers(
+            csv_text,
+            BUILDING_ROOMS_REQUIRED_COLUMNS,
+            BUILDING_ROOMS_EXPECTED_COLUMNS,
+        )
 
 
 def test_parse_locations_filters_by_transport_mode():
@@ -185,3 +204,20 @@ def test_reference_ingest_handler_is_registered():
     bootstrap_handlers()
     handler = get_handler("reference_ingest")
     assert callable(handler)
+
+
+def test_to_float_blank_and_dash_are_none() -> None:
+    assert _to_float(None) is None
+    assert _to_float("") is None
+    assert _to_float("  ") is None
+    assert _to_float("-") is None
+    assert _to_float("18.5") == 18.5
+
+
+def test_to_float_rejects_unparseable_present_value() -> None:
+    """#1489 (audit F-2): a present-but-unparseable numeric (wrong decimal
+    separator, stray text) must fail the upload, not silently become NULL —
+    the same failure mode as #1545's typo'd column, one level down.
+    """
+    with pytest.raises(ValueError, match="Invalid numeric value"):
+        _to_float("12,5")

@@ -518,7 +518,14 @@ async def test_recover_endpoint_stale(
 async def test_recover_endpoint_not_stale(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ):
-    recent_time = datetime.now(UTC) - timedelta(minutes=5)
+    # Derive from the setting rather than hardcoding: STALE_JOB_TIMEOUT_MINUTES
+    # defaults to 5, so a flat "5 minutes ago" sat exactly on the boundary and
+    # counted as stale — the endpoint recovered the job and returned 200.
+    # Half the window is unambiguously fresh whatever the value becomes.
+    from app.core.config import get_settings
+
+    stale_after = get_settings().STALE_JOB_TIMEOUT_MINUTES
+    recent_time = datetime.now(UTC) - timedelta(minutes=stale_after / 2)
     job = _make_job(
         state=IngestionState.RUNNING,
         locked_by="pod-1",

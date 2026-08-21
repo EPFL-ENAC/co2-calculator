@@ -13,10 +13,25 @@ from app.services.data_entry_emission_service import (
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
     BaseTableauApiProvider,
+    CaptionSpec,
     StatsDict,
 )
 
 logger = get_logger(__name__)
+
+# Sentinel ``user_institutional_id`` values for a traveler not tied to a
+# resolvable Headcount identity (#1153, revised to the -1/null scheme —
+# see docs/src/implementation-plans/1153-traveler-sentinel-resolution-prd.md).
+# Must match the same-named constants in
+# frontend/src/constant/module-config/traveler-options.ts.
+# - INTERNAL: traveler has a SCIPER but it doesn't resolve against this
+#   report's Headcount roster. Not assigned by ingestion (a Tableau row
+#   either has a SCIPER or doesn't) — read-time resolution only, defined
+#   here for centralized reuse (tests, future create-DTO validation).
+# - EXTERNAL: traveler has no SCIPER at all. Ingestion assigns this on a
+#   blank/None/whitespace SCIPER.
+TRAVELER_OTHER_INTERNAL = "-1"
+TRAVELER_OTHER_EXTERNAL = None
 
 
 class ProfessionalTravelApiProvider(BaseTableauApiProvider):
@@ -40,27 +55,54 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
     # loud instead of silently dropping a column. Do NOT add "IN_Centre
     # financier" here — the Tableau service team requires the calculated
     # "Centre financier" field.
-    REQUIRED_CAPTIONS: list[str] = [
-        "OUT_CO2_CORRECTED",
-        "OUT_DISTANCE_CORRECTED",
-        "SCIPER",
-        "Centre financier",
-        "IN_Departure date",
-        "IN_Segment class",
-        "IN_Segment destination airport code",
-        "IN_Segment origin airport code",
-        "IN_Supplier",
-        "IN_Ticket number",
-        "PASSENGER_TYPE",
-        "ROUND_TRIP",
-        "TRANSPORT_TYPE",
-        "Number of trips",
+    REQUIRED_CAPTIONS: list[CaptionSpec] = [
+        CaptionSpec("OUT_CO2_CORRECTED"),
+        CaptionSpec("OUT_DISTANCE_CORRECTED"),
+        CaptionSpec("SCIPER"),
+        CaptionSpec("Centre financier"),
+        CaptionSpec("IN_Departure date"),
+        CaptionSpec("IN_Segment class"),
+        CaptionSpec("IN_Segment destination airport code"),
+        CaptionSpec("IN_Segment origin airport code"),
+        CaptionSpec("IN_Supplier"),
+        CaptionSpec("IN_Ticket number"),
+        CaptionSpec("PASSENGER_TYPE"),
+        CaptionSpec("ROUND_TRIP"),
+        CaptionSpec("TRANSPORT_TYPE"),
+        CaptionSpec("Number of trips"),
     ]
+
+    # Feed-quality diagnostics only — OUT_* fields are Tableau-computed and
+    # always present, so they're excluded from the missing-value count.
+    MISSING_VALUE_FIELDS: list[str] = [
+        c.field
+        for c in REQUIRED_CAPTIONS
+        if c.field not in ("OUT_CO2_CORRECTED", "OUT_DISTANCE_CORRECTED")
+    ]
+
+    def _log_missing_field_stats(self, raw_data: list[dict[str, Any]]) -> None:
+        """Log how many raw rows are missing each tracked field.
+
+        Counted against the full raw feed (not the year-filtered subset)
+        so this reflects overall feed quality, not just what survives
+        filtering. Diagnostic only — not surfaced in job stats/metadata.
+        """
+        counts = {field: 0 for field in self.MISSING_VALUE_FIELDS}
+        for record in raw_data:
+            for field in self.MISSING_VALUE_FIELDS:
+                if not str(record.get(field) or "").strip():
+                    counts[field] += 1
+
+        if any(counts.values()):
+            logger.info(
+                f"Travel feed missing-value counts (of {len(raw_data)} rows): {counts}"
+            )
 
     async def transform_data(
         self, raw_data: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         try:
+            self._log_missing_field_stats(raw_data)
             transformed = []
 
             for record in raw_data:
@@ -71,10 +113,15 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
                 if (not departure_date) or (departure_date.year != self.config["year"]):
                     continue
 
-                # Validate SCIPER
-                sciper = record.get("SCIPER")
-                if not sciper or str(sciper).strip() == "":
-                    continue
+                # SCIPER is optional (#1153): a traveler with no EPFL SCIPER
+                # still gets ingested, tagged with the external-traveler
+                # sentinel instead of being dropped.
+                sciper_raw = record.get("SCIPER")
+                sciper = (
+                    sciper_raw
+                    if sciper_raw and str(sciper_raw).strip()
+                    else TRAVELER_OTHER_EXTERNAL
+                )
 
                 # Validate IATA codes
                 origin_iata: str = record.get("IN_Segment origin airport code") or ""

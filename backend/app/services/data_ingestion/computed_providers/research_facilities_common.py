@@ -47,10 +47,14 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
         Returns:
             ``{"kg_co2eq_sum": <total float>}``, or ``None`` if
             ``researchfacility_id`` is absent (factor is skipped, not errored).
+            A closed unit (``is_active=False``) with no CarbonReport for the
+            year gets an explicit ``0.0`` — it has stopped reporting, so it
+            has nothing left to sum, not an unknown value.
 
         Raises:
-            ValueError: When the Unit or CarbonReport cannot be found — these
-                        are surfaced as errors, not silent skips.
+            ValueError: When the Unit cannot be found, or an active unit has
+                        no CarbonReport for the year — these are surfaced as
+                        errors, not silent skips.
         """
         # Skip if kg_co2eq_sum is not missing (already computed)
         if factor.values.get("kg_co2eq_sum") is not None:
@@ -88,6 +92,11 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
             unit.id, year
         )
         if carbon_report is None:
+            if not unit.is_active:
+                # A closed unit not having a report for this year is the
+                # expected case, not a gap: it stopped reporting, so its
+                # research facility has no more emissions to sum.
+                return {"kg_co2eq_sum": 0.0}
             raise ValueError(
                 f"CarbonReport not found for unit_id={unit.id}, year={year} "
                 f"(researchfacility_id={researchfacility_id!r})"

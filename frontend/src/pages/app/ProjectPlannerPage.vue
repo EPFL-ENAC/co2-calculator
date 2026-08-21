@@ -55,20 +55,36 @@
         @updated="onPlanUpdated"
       />
 
+      <!-- Prefill runs in the background: the year sections already exist
+           but are still empty, so say so rather than render them as zero. -->
+      <q-banner
+        v-if="plansStore.prefillRunning"
+        dense
+        class="bg-info text-white q-mb-md"
+        data-testid="planner-prefill-running"
+      >
+        <template #avatar>
+          <q-spinner size="1.5em" />
+        </template>
+        {{ $t('planner_prefill_running') }}
+      </q-banner>
+
       <!-- One section per year of the range -->
       <template v-if="plansStore.planYears.length">
-        <planner-year-section
-          v-for="yearData in plansStore.planYears"
-          :key="yearData.id"
-          :plan-id="plan.id"
-          :year-data="yearData"
-          :unit-id="unitId"
-          :default-factor-year="plan.default_factor_year"
-          :reference-year-options="referenceYearOptions"
-          :expanded-keys="expandedKeys"
-          :project-years-count="projectYearsCount"
-          @toggle-module="onToggleModule"
-        />
+        <div class="year-sections">
+          <planner-year-section
+            v-for="yearData in plansStore.planYears"
+            :key="yearData.id"
+            :plan-id="plan.id"
+            :year-data="yearData"
+            :unit-id="unitId"
+            :default-factor-year="plan.default_factor_year"
+            :reference-year-options="referenceYearOptions"
+            :expanded-keys="expandedKeys"
+            :project-years-count="projectYearsCount"
+            @toggle-module="onToggleModule"
+          />
+        </div>
 
         <!-- Whole-plan results: every year of the range summed together -->
         <q-card flat bordered>
@@ -154,12 +170,14 @@
                 })
               "
               :bordered="false"
+              :enforce-module-activation="false"
             />
             <ModuleCarbonFootprintChart
               v-else
               :breakdown-data="breakdown"
               :title="$t('planner_results_chart_title', { name: plan.name })"
               :bordered="false"
+              :enforce-module-activation="false"
             />
 
             <q-separator />
@@ -340,6 +358,13 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.year-sections {
+  display: grid;
+  gap: tokens.$spacing-md;
+}
+
 .results-blocks {
   display: grid;
   grid-template-columns: 1fr;

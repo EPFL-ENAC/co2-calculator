@@ -9,7 +9,7 @@ from sqlalchemy import Select, and_, asc, desc, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import aliased
-from sqlmodel import col, delete, select
+from sqlmodel import col, delete, insert, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -34,6 +34,16 @@ from app.schemas.data_entry import (
 
 logger = get_logger(__name__)
 
+
+class HeadcountFteBreakdown(BaseModel):
+    """The three FTE figures the headcount module page needs (#2050 J2)."""
+
+    total_fte: float
+    student_fte: float
+    # None where the group exists but recorded no FTE — distinct from 0.0.
+    member_fte_by_sius_code: dict[str, float | None]
+
+
 # Default filter map when handler doesn't provide one
 DEFAULT_FILTER_MAP = {"name": DataEntry.data["name"].as_string()}
 
@@ -44,6 +54,11 @@ EQUIPMENT_DATA_ENTRY_TYPE_IDS = {
     DataEntryTypeEnum.it.value,
     DataEntryTypeEnum.other.value,
 }
+
+EQUIPMENT_USAGE_FIELDS = (
+    "active_usage_hours_per_week",
+    "standby_usage_hours_per_week",
+)
 
 # COPY target for ``bulk_copy`` — every non-defaulted data_entries column.
 # ``id`` is omitted so the sequence assigns it server-side.
@@ -160,6 +175,40 @@ class DataEntryRepository:
                         )
                     )
         return len(db_objs)
+
+    async def bulk_insert_returning_ids(self, rows: list[dict]) -> list[int]:
+        """Bulk INSERT via Core (not the ORM), returning ids in ``rows`` order.
+
+        For callers that need ids back immediately but not real ORM/
+        session-tracked objects — contrast ``bulk_create`` (returns real
+        objects, one INSERT per call but ORM-instantiates every row first)
+        and ``bulk_copy`` (COPY, fastest, but never populates ids at all).
+        ``rows`` are plain column-value dicts: no ``DataEntry(...)``
+        construction, so none of the per-instance SQLAlchemy mapper/
+        Pydantic-validation cost `DataEntryEmissionRow` was introduced to
+        avoid (plan #2050 §C2/C3) applies here either — the same tax on the
+        model one level up.
+
+        ``sort_by_parameter_order`` is SQLAlchemy's documented guarantee
+        that RETURNING rows line up with ``rows``' order — the only
+        contractual way to get that; without it, ordering is
+        implementation-defined per backend/driver/batch-size, not something
+        to rely on even where it happens to work in ad hoc testing (checked
+        up to N=2000 against local Postgres/psycopg — order held either
+        way here, but that's this stack's current behavior, not the API
+        contract). insertmanyvalues still batches every row into one round
+        trip on Postgres regardless of count. Requires the
+        params-as-second-argument form of ``execute`` — a multi-row
+        ``.values(rows)`` INSERT can't be order-sorted (verified; raises
+        ``CompileError``).
+        """
+        if not rows:
+            return []
+        stmt = insert(DataEntry).returning(
+            col(DataEntry.id), sort_by_parameter_order=True
+        )
+        result = await self.session.execute(stmt, rows)
+        return [row[0] for row in result.all()]
 
     async def bulk_delete(
         self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum
@@ -602,37 +651,50 @@ class DataEntryRepository:
         else:
             return statement.order_by(desc(sort_expr))
 
-    async def get_prior_year_equipment_ids(
+    async def _prior_equipment_year(
         self, unit_id: int, current_year: int
-    ) -> set[str]:
-        """Return the set of ``equipment_id`` present in the unit's most recent
-        prior year (issue #259).
-
-        "Previous year" is the greatest year strictly before ``current_year``
-        that still has equipment entries for the unit — robust to skipped
-        years. Returns an empty set when the unit has no earlier equipment data
-        (e.g. its first campaign year), in which case nothing is flagged new.
+    ) -> int | None:
+        """Return the unit's most recent year with equipment entries strictly
+        before ``current_year`` — robust to skipped years. ``None`` when the
+        unit has no earlier equipment data (e.g. its first campaign year).
         """
-        type_ids = list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
         prior_year = (
             await self.session.execute(
                 select(func.max(DataEntry.year)).where(
                     col(DataEntry.unit_id) == unit_id,
                     col(DataEntry.year) < current_year,
-                    col(DataEntry.data_entry_type_id).in_(type_ids),
+                    col(DataEntry.data_entry_type_id).in_(
+                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                    ),
                 )
             )
         ).scalar_one_or_none()
+        return int(prior_year) if prior_year is not None else None
+
+    async def get_prior_year_equipment_ids(
+        self, unit_id: int, current_year: int
+    ) -> set[str]:
+        """Return the set of ``equipment_id`` present in the unit's most recent
+        prior year (issue #259). Empty set when there is no prior-year
+        equipment data, in which case nothing is flagged new.
+
+        Ingest-only since #2050 J10: called once per (unit, year) while a CSV
+        lands, never per page render.
+        """
+        prior_year = await self._prior_equipment_year(unit_id, current_year)
         if prior_year is None:
             return set()
+        equipment_id = DataEntry.data["equipment_id"].as_string()
         rows = (
             (
                 await self.session.execute(
-                    select(DataEntry.data["equipment_id"].as_string())
+                    select(equipment_id)
                     .where(
                         col(DataEntry.unit_id) == unit_id,
                         col(DataEntry.year) == prior_year,
-                        col(DataEntry.data_entry_type_id).in_(type_ids),
+                        col(DataEntry.data_entry_type_id).in_(
+                            list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                        ),
                     )
                     .distinct()
                 )
@@ -641,6 +703,50 @@ class DataEntryRepository:
             .all()
         )
         return {r for r in rows if r is not None}
+
+    async def get_prior_year_equipment_usage(
+        self, unit_id: int, current_year: int
+    ) -> dict[str, dict]:
+        """Map ``equipment_id`` -> usage values set in the unit's most recent
+        prior year (issue #259 carry-forward).
+
+        Single query per (unit, year): only the ``equipment_id`` and the two
+        usage fields travel over the wire, so a 50k-row prior year stays cheap.
+        Only fields actually set in the prior row appear in each dict, so the
+        caller can merge without inventing values the prior year never had.
+        """
+        prior_year = await self._prior_equipment_year(unit_id, current_year)
+        if prior_year is None:
+            return {}
+        rows = (
+            await self.session.execute(
+                select(
+                    DataEntry.data["equipment_id"].as_string(),
+                    *(DataEntry.data[field] for field in EQUIPMENT_USAGE_FIELDS),
+                )
+                .where(
+                    col(DataEntry.unit_id) == unit_id,
+                    col(DataEntry.year) == prior_year,
+                    col(DataEntry.data_entry_type_id).in_(
+                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                    ),
+                )
+                .order_by(col(DataEntry.id))
+            )
+        ).all()
+        usage_by_equipment: dict[str, dict] = {}
+        for equipment_id, *values in rows:
+            if not equipment_id:
+                continue
+            usage = {
+                field: value
+                for field, value in zip(EQUIPMENT_USAGE_FIELDS, values)
+                if value is not None
+            }
+            if not usage:
+                continue
+            usage_by_equipment.setdefault(equipment_id, {}).update(usage)
+        return usage_by_equipment
 
     async def _equipment_module_scope(
         self, carbon_report_module_id: int
@@ -667,16 +773,15 @@ class DataEntryRepository:
     async def count_incomplete_new_equipment(self, carbon_report_module_id: int) -> int:
         """Count equipment that is new vs the previous year (issue #259) yet is
         still missing usage data (active or standby hours). Returns ``0`` for
-        non-equipment modules and for units with no prior-year equipment data,
-        so it is safe to call unconditionally on any module.
+        non-equipment modules, so it is safe to call unconditionally on any
+        module.
+
+        #2050 J11: reads the ``is_new`` flag stamped at ingest
+        (``DataEntryService.apply_equipment_carry_forward``) rather than
+        re-deriving it. It used to load every ``equipment_id`` in the unit's
+        prior year and inline the set as ``NOT IN (...)`` — and unlike the
+        equipment page, this runs on *every* module GET.
         """
-        scope = await self._equipment_module_scope(carbon_report_module_id)
-        if scope is None:
-            return 0
-        unit_id, current_year = scope
-        prev_ids = await self.get_prior_year_equipment_ids(unit_id, current_year)
-        if not prev_ids:
-            return 0
         active = DataEntry.data["active_usage_hours_per_week"].as_string()
         standby = DataEntry.data["standby_usage_hours_per_week"].as_string()
         count = (
@@ -688,7 +793,7 @@ class DataEntryRepository:
                     col(DataEntry.data_entry_type_id).in_(
                         list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
                     ),
-                    DataEntry.data["equipment_id"].as_string().notin_(list(prev_ids)),
+                    DataEntry.data["is_new"].as_boolean(),
                     or_(active.is_(None), standby.is_(None)),
                 )
             )
@@ -716,13 +821,21 @@ class DataEntryRepository:
         OriginLocation: Any = None
         DestLocation: Any = None
         traveler_name_subq: Any = None
-        is_buildings_entry = data_entry_type_id in (DataEntryTypeEnum.building.value,)
+        is_buildings_entry = data_entry_type_id in (
+            DataEntryTypeEnum.building.value,
+            DataEntryTypeEnum.building_embodied_energy.value,
+        )
         is_headcount_entry = data_entry_type_id in (
             DataEntryTypeEnum.member.value,
             DataEntryTypeEnum.student.value,
+            # #2050 Track H: planner_headcount already gets a rollup row
+            # from prepare_create (DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION maps
+            # it to EmissionType.headcount, same as member/student) — it
+            # was just never wired to read it, so it fell through to the
+            # unfiltered whole-table aggregation below (825ms in production).
+            DataEntryTypeEnum.planner_headcount.value,
         )
         is_equipment_entry = data_entry_type_id in EQUIPMENT_DATA_ENTRY_TYPE_IDS
-        prev_equipment_ids: set[str] = set()
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
 
         # Classification-resolved factor in SQL (plan 1661-sql-factor-resolution):
@@ -743,6 +856,14 @@ class DataEntryRepository:
         ):
             resolved_factor_id = self._resolved_factor_id(handler, data_entry_type_id)
 
+        # The entries this page can possibly show. Both aggregation subqueries
+        # below restrict to it: a GROUP BY over the whole data_entry_emissions
+        # table cannot be narrowed by the outer WHERE (#2050 J8).
+        module_entry_ids = select(col(DataEntry.id)).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        )
+
         if is_buildings_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
             # The rollup row (emission_type_id == buildings__rooms) stores the
@@ -753,10 +874,17 @@ class DataEntryRepository:
             ].value
             RollupEmission = aliased(DataEntryEmission)
             # Fallback for legacy rows created before rollups existed.
-            building_emission_agg_q = select(
-                DataEntryEmission.data_entry_id,
-                func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
-            ).group_by(col(DataEntryEmission.data_entry_id))
+            # #2050 J8: restricted to this module's entries — see the generic
+            # branch below for why an unrestricted GROUP BY here scans the
+            # whole emissions table on every request.
+            building_emission_agg_q = (
+                select(
+                    DataEntryEmission.data_entry_id,
+                    func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
+                )
+                .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+                .group_by(col(DataEntryEmission.data_entry_id))
+            )
             if ROLLUP_EMISSION_TYPE_IDS:
                 building_emission_agg_q = building_emission_agg_q.where(
                     col(DataEntryEmission.emission_type_id).notin_(
@@ -851,13 +979,26 @@ class DataEntryRepository:
         else:
             # --- Aggregation subquery for multi-emission entries ---
             # Exclude rollup rows so future rollup types are never double-counted.
-            emission_agg_q = select(
-                DataEntryEmission.data_entry_id,
-                func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
-                func.min(DataEntryEmission.primary_factor_id).label(
-                    "primary_factor_id"
-                ),
-            ).group_by(col(DataEntryEmission.data_entry_id))
+            #
+            # #2050 J8: restricted to this module's entries. Without it the
+            # GROUP BY runs over every row in data_entry_emissions (250k-1M in
+            # real environments) and the join then discards all but this page's
+            # — the outer WHERE cannot help, since a predicate cannot be pushed
+            # through a GROUP BY. That cost a 648ms GET on dev for a submodule
+            # holding one entry. Same restriction
+            # get_professional_travel_trip_legs already applies for the same
+            # reason.
+            emission_agg_q = (
+                select(
+                    DataEntryEmission.data_entry_id,
+                    func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
+                    func.min(DataEntryEmission.primary_factor_id).label(
+                        "primary_factor_id"
+                    ),
+                )
+                .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+                .group_by(col(DataEntryEmission.data_entry_id))
+            )
             if ROLLUP_EMISSION_TYPE_IDS:
                 emission_agg_q = emission_agg_q.where(
                     col(DataEntryEmission.emission_type_id).notin_(
@@ -868,6 +1009,14 @@ class DataEntryRepository:
 
             entities = [DataEntry, emission_agg.c.total_kg_co2eq, Factor]
             if is_travel_entry:
+                # Both TRAVELER_OTHER_INTERNAL ("-1") and External-other
+                # (real SQL NULL) rely on this equality never spuriously
+                # matching a MemberEntry: no real SCIPER is ever "-1", and
+                # SQL's NULL = NULL evaluates to NULL (not true) — so an
+                # External-other travel row can never match a Headcount
+                # member who also has no SCIPER yet (#951 made that
+                # optional too). See
+                # 1153-traveler-sentinel-resolution-prd.md §5.
                 # A person can hold multiple headcount roles (sius_code) in the
                 # same unit, so a plain JOIN on (uid, module) can match >1
                 # MemberEntry row and fan out/duplicate every travel row for
@@ -1024,25 +1173,18 @@ class DataEntryRepository:
             sort_map["destination_name"] = DestLocation.name
 
         if is_equipment_entry:
-            scope = await self._equipment_module_scope(carbon_report_module_id)
-            if scope is not None:
-                prev_equipment_ids = await self.get_prior_year_equipment_ids(*scope)
-            if prev_equipment_ids:
-                is_new_expr = (
-                    DataEntry.data["equipment_id"]
-                    .as_string()
-                    .notin_(list(prev_equipment_ids))
-                )
-
-                missing_usage_expr = or_(
-                    DataEntry.data["active_usage_hours_per_week"].as_string().is_(None),
-                    DataEntry.data["standby_usage_hours_per_week"]
-                    .as_string()
-                    .is_(None),
-                )
-                statement = statement.order_by(
-                    desc(and_(is_new_expr, missing_usage_expr))
-                )
+            # #2050 J10: ``is_new`` is stamped at ingest and stored on the row
+            # (DataEntryService.apply_equipment_carry_forward), so this reads
+            # it instead of re-deriving it. Deriving it here meant pulling the
+            # unit's entire prior-year id set into Python and inlining it as
+            # thousands of bind parameters — 1711ms on dev to render 20 rows.
+            is_new_expr = DataEntry.data["is_new"].as_boolean()
+            missing_usage_expr = or_(
+                DataEntry.data["active_usage_hours_per_week"].as_string().is_(None),
+                DataEntry.data["standby_usage_hours_per_week"].as_string().is_(None),
+            )
+            # New equipment still missing its usage floats to the top.
+            statement = statement.order_by(desc(and_(is_new_expr, missing_usage_expr)))
 
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
@@ -1161,9 +1303,7 @@ class DataEntryRepository:
             }
 
             if is_equipment_entry:
-                enriched_data["is_new"] = bool(prev_equipment_ids) and (
-                    data_entry.data.get("equipment_id") not in prev_equipment_ids
-                )
+                enriched_data["is_new"] = bool(data_entry.data.get("is_new", False))
 
             if is_travel_entry:
                 distance_km = (
@@ -1184,6 +1324,13 @@ class DataEntryRepository:
                 enriched_data["room_surface_square_meter"] = (
                     building_room.room_surface_square_meter
                 )
+                # Embodied rows persist only room_name — building_name is
+                # reference data; parents keep their own stored value.
+                if (
+                    data_entry_type_id
+                    == DataEntryTypeEnum.building_embodied_energy.value
+                ):
+                    enriched_data["building_name"] = building_room.building_name
 
             source_entry_id = data_entry.data.get("source_data_entry_id")
             if source_entry_id is not None:
@@ -1391,6 +1538,47 @@ class DataEntryRepository:
             )
 
         return legs, dropped
+
+    async def get_headcount_fte_breakdown(
+        self, carbon_report_module_id: int
+    ) -> HeadcountFteBreakdown:
+        """Every FTE figure the headcount module page needs, in one query.
+
+        The route used to ask three times over the same table, module and
+        field — total, members grouped by sius_code, students — and on dev
+        each round trip costs ~160ms (#2050 Track G2). One GROUP BY over
+        ``(data_entry_type_id, sius_code)`` carries all three.
+        """
+        sius_code = DataEntry.data["sius_code"].as_string()
+        fte = DataEntry.data["fte"].as_float()
+        statement = (
+            select(
+                col(DataEntry.data_entry_type_id),
+                sius_code.label("sius_code"),
+                func.sum(fte).label("total_fte"),
+            )
+            .where(col(DataEntry.carbon_report_module_id) == carbon_report_module_id)
+            .group_by(col(DataEntry.data_entry_type_id), sius_code)
+        )
+        rows = (await self.session.execute(statement)).all()
+
+        total_fte = 0.0
+        student_fte = 0.0
+        member_fte_by_sius_code: dict[str, float | None] = {}
+        for data_entry_type_id, code, group_fte in rows:
+            total_fte += group_fte or 0.0
+            if data_entry_type_id == DataEntryTypeEnum.student.value:
+                student_fte += group_fte or 0.0
+            if data_entry_type_id == DataEntryTypeEnum.member.value:
+                # A NULL sum stays None rather than 0.0 — the group exists
+                # but has no FTE recorded, which is not the same as zero.
+                label = str(code) if code is not None else "unknown"
+                member_fte_by_sius_code[label] = group_fte
+        return HeadcountFteBreakdown(
+            total_fte=total_fte,
+            student_fte=student_fte,
+            member_fte_by_sius_code=member_fte_by_sius_code,
+        )
 
     async def get_total_per_field(
         self,

@@ -9,7 +9,9 @@ scrub installed on the ``uvicorn.access`` logger.
 """
 
 import logging
+import logging.handlers
 
+from app.core import logging as logging_module
 from app.core.logging import _RedactSensitiveQueryStringFilter, setup_logging
 
 
@@ -97,3 +99,40 @@ def test_setup_logging_installs_redactor_on_uvicorn_access():
         "uvicorn.access should have _RedactSensitiveQueryStringFilter "
         "installed; otherwise OAuth callback URLs land in logs verbatim."
     )
+
+
+def test_loki_handler_is_wrapped_in_a_queue_not_attached_directly(monkeypatch):
+    """#2050 Track I3 regression: LokiHandler.emit() does a blocking httpx
+    POST. Attached straight to the root logger, every logger.info()+ call
+    anywhere in the app would block the event loop for up to `timeout`
+    seconds under Loki degradation. The fix must be a QueueHandler on the
+    root logger — QueueHandler.emit() only ever enqueues, so this is a
+    structural (not timing-based) proof the blocking call can't happen
+    inline, regardless of how slow Loki is when the listener thread runs.
+    """
+    monkeypatch.setattr(logging_module.settings, "LOKI_ENABLED", True)
+    monkeypatch.setattr(logging_module.settings, "LOKI_URL", "http://loki.example:3100")
+
+    try:
+        setup_logging()
+
+        root_handlers = logging.getLogger().handlers
+        queue_handlers = [
+            h for h in root_handlers if isinstance(h, logging.handlers.QueueHandler)
+        ]
+        assert queue_handlers, (
+            "Loki must be reached via a QueueHandler, not a bare LokiHandler "
+            "on the root logger — a direct attachment blocks every log call."
+        )
+        assert not any(
+            isinstance(h, logging_module.LokiHandler) for h in root_handlers
+        ), "LokiHandler must live behind the queue, not on the root logger directly."
+    finally:
+        # Tear down: drop the QueueHandler so it doesn't leak into other
+        # tests' log output. The listener thread it started is registered
+        # via atexit and cleans up at interpreter shutdown — acceptable for
+        # a config-time handler that's expected to live for process
+        # lifetime in production too.
+        for h in logging.getLogger().handlers[:]:
+            if isinstance(h, logging.handlers.QueueHandler):
+                logging.getLogger().removeHandler(h)

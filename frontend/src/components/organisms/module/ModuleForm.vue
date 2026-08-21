@@ -79,7 +79,7 @@
                     })
                   "
                   :error="!!errors[inp.id]"
-                  :error-message="errors[inp.id]"
+                  :error-message="errors[inp.id] ?? ''"
                   :required="inp.required"
                   :dense="true"
                   :outlined="true"
@@ -220,6 +220,7 @@
                 :emit-value="inp.type === 'select'"
                 :map-options="inp.type === 'select'"
                 @update:model-value="(val: unknown) => (form[inp.id] = val)"
+                @focus="fieldInteraction.markInteracted(inp.id)"
                 @blur="normalizeField(inp)"
               >
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
@@ -336,6 +337,8 @@ import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
 import { resolveFactorYear } from 'src/utils/factor-year';
+import { createFieldInteractionTracker } from 'src/utils/fieldInteraction';
+import { isTravelLocationResolved } from 'src/utils/directionLocationValidation';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import {
   MODULES,
@@ -512,6 +515,9 @@ function normalizeField(inp: ModuleField): void {
       }
     }
   }
+  // Quasar defers this blur past reset(), so a blur on a field the user never
+  // touched is the form clearing itself, not an empty answer (#2072).
+  if (!fieldInteraction.shouldValidateOnBlur(inp.id)) return;
   validateField(inp);
 }
 
@@ -650,6 +656,7 @@ const emit = defineEmits<{
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
+const fieldInteraction = createFieldInteractionTracker();
 
 const kindFieldId = computed(() => {
   const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
@@ -820,6 +827,11 @@ function init() {
     }
     errors[i.id] = null;
   });
+  // Form-hidden fields are skipped by the visible-field loop above; their
+  // declared defaults must still land in `form` so buildPayload sends them.
+  (props.fields ?? []).forEach((i) => {
+    if (i.hideIn?.form && i.default !== undefined) form[i.id] = i.default;
+  });
   // Mirrored factor fields without a rendered input must still exist in
   // `form`, or the factor mirror skips them (`fieldId in entity` guard).
   factorValueFieldIds.forEach((id) => {
@@ -989,6 +1001,36 @@ function validateField(i: ModuleField) {
         errors.destination = requiredMsg;
         return false;
       }
+
+      // #1186: typing a name without picking an autocomplete suggestion
+      // leaves the resolved identifier (origin_iata/origin_natural_key)
+      // unset even though the free-text field above looks filled in.
+      const travelMode = getTravelMode();
+      if (travelMode) {
+        const notSelectedMsg = $t(
+          `${MODULES.ProfessionalTravel}-error-location-not-selected`,
+        );
+        if (
+          !isTravelLocationResolved(
+            travelMode,
+            form.origin_iata,
+            form.origin_natural_key,
+          )
+        ) {
+          errors.origin = notSelectedMsg;
+          return false;
+        }
+        if (
+          !isTravelLocationResolved(
+            travelMode,
+            form.destination_iata,
+            form.destination_natural_key,
+          )
+        ) {
+          errors.destination = notSelectedMsg;
+          return false;
+        }
+      }
     }
 
     // Check if origin and destination are the same
@@ -1027,7 +1069,12 @@ function validateField(i: ModuleField) {
       : $t('validation_required');
     if (effectiveType === 'checkbox' || effectiveType === 'boolean') {
       if (!v) errors[i.id] = requiredMsg;
-    } else if (v === '' || v === null || v === undefined) {
+    } else if (
+      v === null ||
+      v === undefined ||
+      (typeof v === 'string' && v.trim() === '')
+    ) {
+      // Whitespace-only counts as empty — the backend rejects it (#1489).
       errors[i.id] = requiredMsg;
     }
   }
@@ -1161,6 +1208,7 @@ function reset() {
     }
     errors[i.id] = null;
   });
+  fieldInteraction.clear();
   dateInputKey.value++;
 }
 

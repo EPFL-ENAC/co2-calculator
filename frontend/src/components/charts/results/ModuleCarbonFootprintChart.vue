@@ -14,11 +14,17 @@ import {
   ADDITIONAL_DATA_ICON,
 } from 'src/constant/charts';
 import { buildCarbonFootprintCsvRows } from 'src/utils/results-csv';
-import type { Module } from 'src/constant/modules';
+import { type Module } from 'src/constant/modules';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
-import { SUBMODULE_TO_CATEGORY } from 'src/composables/useModuleIconColors';
+import { CATEGORY_TO_SUBMODULE } from 'src/composables/useModuleIconColors';
+import { CATEGORY_CHART_KEYS } from 'src/composables/useEmissionTreemap';
 import { useColorblindStore } from 'src/stores/colorblind';
 import { isModuleFullyAvailable } from 'src/composables/useModuleAvailability';
+import {
+  useModuleCategoriesAvailability,
+  ADDITIONAL_HEADCOUNT_CATEGORY_KEYS as ADDITIONAL_HEADCOUNT_CATEGORIES,
+  ADDITIONAL_BUILDINGS_CATEGORY_KEYS as ADDITIONAL_BUILDINGS_CATEGORIES,
+} from 'src/composables/results/useModuleCategoriesAvailability';
 import {
   TooltipComponent,
   LegendComponent,
@@ -48,6 +54,7 @@ import { formatTonnesForChart } from 'src/utils/number';
 import { stackShade } from 'src/utils/chart-shades';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
+import { downloadCsv, escapeCsvValue } from 'src/utils/csvDownload';
 
 const props = defineProps({
   breakdownData: {
@@ -89,6 +96,19 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /**
+   * Hide categories whose module/submodule is deactivated in the current
+   * year's back-office config. Defaults on for single-year workspace
+   * contexts; callers that aggregate data across multiple years/units with
+   * no single "current year" config loaded (e.g. the back-office Reporting
+   * page) must opt out — yearConfigStore only ever holds one year's config,
+   * so applying it there would silently hide every category or apply an
+   * arbitrary year's rules to the aggregate.
+   */
+  enforceModuleActivation: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 const emit = defineEmits<{ (e: 'compareYears'): void }>();
@@ -96,6 +116,7 @@ const emit = defineEmits<{ (e: 'compareYears'): void }>();
 const { t, locale } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
+const { isCategoryModuleActive } = useModuleCategoriesAvailability();
 
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
@@ -118,16 +139,6 @@ const labelToKey = computed<Record<string, string>>(() => {
   }
   return map;
 });
-
-// Categories that share a module but need a distinct icon-box color scale
-// (buildings has two bars). Derived from SUBMODULE_TO_CATEGORY (useModuleIconColors)
-// so the two maps can't drift out of sync.
-const CATEGORY_TO_SUBMODULE: Record<string, string> = Object.fromEntries(
-  Object.entries(SUBMODULE_TO_CATEGORY).map(([submodule, category]) => [
-    category,
-    submodule,
-  ]),
-);
 
 type IconAxisItem = {
   label: string;
@@ -703,6 +714,21 @@ const datasetSource = computed(() => {
     allData = [...baseData, ...additionalData];
   }
 
+  // Drop categories whose module is deactivated in the backoffice config —
+  // they shouldn't render at all (not even greyed out). Skipped when the
+  // caller has no single-year config loaded (see enforceModuleActivation).
+  if (props.enforceModuleActivation) {
+    allData = allData.filter((item) => {
+      const rawKey = String(
+        item.category_key ??
+          labelToKey.value[String(item.category ?? '')] ??
+          item.category ??
+          '',
+      );
+      return isCategoryModuleActive(rawKey);
+    });
+  }
+
   // Partition into additional and main categories
   const additional = [];
   const main = [];
@@ -869,8 +895,6 @@ const additionalSeriesData = computed(() => {
   ];
 });
 
-const ADDITIONAL_HEADCOUNT_CATEGORIES = ['commuting', 'food', 'waste'];
-
 const additionalHeadcountLabels = computed(
   () =>
     new Set(
@@ -880,8 +904,6 @@ const additionalHeadcountLabels = computed(
       }),
     ),
 );
-
-const ADDITIONAL_BUILDINGS_CATEGORIES = ['embodied_energy'];
 
 const additionalBuildingsLabels = computed(
   () =>
@@ -907,66 +929,21 @@ const chartOption = computed((): EChartsOption => {
   // Build series array first (will be used to extract mapping)
   const seriesArray = [
     // Process Emissions — YY subcategories
-    {
-      name: t('process-emissions.category.co2'),
+    ...(CATEGORY_CHART_KEYS['process_emissions'] ?? []).map((key) => ({
+      name: t(`process-emissions.category.${key}`),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'co2' },
+      encode: { x: 'category', y: key },
       itemStyle: {
         color: getSubcategoryColor(
           'process_emissions',
-          'co2',
+          key,
           colors.value.apricot.darker,
         ),
       },
       label: { show: false },
-    },
-    {
-      name: t('process-emissions.category.ch4'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'ch4' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'ch4',
-          colors.value.apricot.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('process-emissions.category.n2o'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'n2o' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'n2o',
-          colors.value.apricot.default,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('process-emissions.category.refrigerants'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'refrigerants' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'refrigerants',
-          colors.value.apricot.light,
-        ),
-      },
-      label: { show: false },
-    },
+    })),
 
     {
       name: t('charts-energy-combustion-subcategory'),
@@ -1368,10 +1345,7 @@ const chartOption = computed((): EChartsOption => {
     dataset: {
       dimensions: [
         'category',
-        'co2',
-        'ch4',
-        'n2o',
-        'refrigerants',
+        ...(CATEGORY_CHART_KEYS['process_emissions'] ?? []),
         'process_emissions',
         'lighting',
         'cooling',
@@ -1438,10 +1412,7 @@ const downloadPNG = () =>
   downloadEchartAsPng(chartRef.value?.chart, 'module-carbon-footprint');
 
 const downloadCSV = () => {
-  const escape = (v: unknown) => {
-    const s = String(v ?? '');
-    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const escape = escapeCsvValue;
 
   const rows = buildCarbonFootprintCsvRows(
     datasetSource.value,
@@ -1461,11 +1432,10 @@ const downloadCSV = () => {
     ),
   ].join('\n');
 
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = `module-carbon-footprint-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadCsv(
+    csv,
+    `module-carbon-footprint-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`,
+  );
 };
 </script>
 
@@ -1666,9 +1636,16 @@ const downloadCSV = () => {
   width: 100%;
 }
 
+/* #2027: a definite height, not min-height. vue-echarts 8.1.0 renders an
+   <x-vue-echarts> custom element carrying its own `height: 100%`, and its
+   resize observer skips any resize where a dimension is 0 — so a chart that
+   measures zero once at init stays a zero-height canvas forever: fully
+   populated, no error, nothing drawn. Every chart that kept working through
+   the 8.0.1 -> 8.1.0 bump sets a definite height; the two that broke were the
+   two using min-height. Keep it definite. */
 .chart {
   width: 100%;
-  min-height: 420px;
+  height: 420px;
 }
 
 /* Overlay layer: transparent to pointer events except on the icon buttons,
@@ -1726,7 +1703,7 @@ const downloadCSV = () => {
 }
 
 .chart--print {
-  min-height: 320px;
+  height: 320px;
 }
 
 @media (max-width: 1320px) {

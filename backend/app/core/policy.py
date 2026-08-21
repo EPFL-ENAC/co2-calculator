@@ -15,6 +15,7 @@ from app.models.unit import Unit
 from app.models.user import (
     GlobalScope,
     Role,
+    RoleName,
     UnitScope,
     User,
     calculate_user_permissions,
@@ -539,6 +540,25 @@ def require_unit_access(current_user: User, unit: Unit | None) -> None:
         )
 
 
+def has_global_or_principal_access_for_unit(
+    current_user: User,
+    unit: Unit | None,
+) -> bool:
+    """Return whether the user has global or principal access for the unit.
+
+    ``RoleScope.institutional_id`` always stores ``Unit.institutional_id``.
+    """
+    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
+        return True
+    if unit is None:
+        return False
+    return (
+        unit.institutional_id is not None
+        and pick_role_for_institutional_id(current_user.roles, unit.institutional_id)
+        == RoleName.CO2_USER_PRINCIPAL
+    )
+
+
 def plan_is_visible_to(current_user: User, project: Any) -> bool:
     """Whether a Simulator Plan project is visible to the user.
 
@@ -566,21 +586,27 @@ def plan_can_manage(current_user: User, project: Any) -> bool:
 
 async def require_plan_scope_for_report(
     db: AsyncSession, current_user: User, report: Any, action: str
-) -> None:
+) -> CarbonProject | None:
     """Enforce Simulator Plan scoping when ``report`` belongs to a plan.
 
     No-op for Calculator/Explore reports (and reports with no project). The
     single place every report-addressed write consults so plan visibility
     rules can't be forgotten on a new route.
+
+    Returns the report's ``CarbonProject`` when it has one, so a caller that
+    needs the project type does not pay a second lookup for a row this
+    function already loaded (#2050 J4). ``None`` when the report has no
+    project.
     """
     if report.carbon_project_id is None:
-        return
+        return None
     project = await db.get(CarbonProject, report.carbon_project_id)
     if (
         project is not None
         and project.carbon_report_type == CarbonReportType.SIMULATOR_PLAN
     ):
         require_plan_access(current_user, project, action)
+    return project
 
 
 def require_plan_access(current_user: User, project: Any, action: str) -> None:
@@ -684,13 +710,10 @@ async def check_module_permission_for_report(
     """Module gate for report-addressed routes.
 
     Calculator reports keep the full per-module permission gate
-    (``check_module_permission_for_unit``). Explore reports and Grant
-    Proposal plan reports drop to unit membership: any unit member gets
-    every module's input form there (#1983 — a standard user's reference
-    prefill stays hidden at the data layer). Effective plan-year reports
-    keep the per-module gate, so a standard user only reaches their
-    own-scoped modules (professional travel, external cloud & AI). Plan
-    creator/share rules are enforced separately by
+    (``check_module_permission_for_unit``). Explore and plan reports (grant
+    and plan years alike) drop to unit membership: any unit member gets
+    every module's input form there. Plan creator/share rules are enforced
+    separately by
     ``require_plan_scope_for_report``, and the professional-travel own-rows
     filter stays keyed on the caller's role at the data layer.
 
@@ -699,12 +722,9 @@ async def check_module_permission_for_report(
     """
     if report.carbon_project_id is not None:
         project = await db.get(CarbonProject, report.carbon_project_id)
-        if project is not None and (
-            project.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE
-            or (
-                project.carbon_report_type == CarbonReportType.SIMULATOR_PLAN
-                and bool(getattr(report, "is_grant", False))
-            )
+        if project is not None and project.carbon_report_type in (
+            CarbonReportType.SIMULATOR_EXPLORE,
+            CarbonReportType.SIMULATOR_PLAN,
         ):
             unit = await db.get(Unit, report.unit_id)
             if unit is None:

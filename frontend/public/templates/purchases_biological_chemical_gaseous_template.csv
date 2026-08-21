@@ -1,2 +1,2 @@
-name,supplier,quantity,total_spent_amount,currency,purchase_institutional_code,purchase_additional_code,purchase_institutional_description,note
+﻿name,supplier,quantity,total_spent_amount,currency,purchase_institutional_code,purchase_additional_code,purchase_institutional_description,note
 "Lav'oeil Hexafluorine®, 500 ml, bouteill",Tinovamed GmbH,1.0,179.0,chf,B,NB34,,

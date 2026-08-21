@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ValidationInfo, field_validator
 
 from app.schemas.data_entry import (
     DataEntryCreate,
@@ -58,7 +58,7 @@ class DepartureDateMixin(BaseModel):
 
 
 class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
-    user_institutional_id: str
+    user_institutional_id: str | None
     origin_iata: str
     destination_iata: str
     cabin_class: str | None = None
@@ -74,7 +74,7 @@ class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryRespon
 
 
 class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
-    user_institutional_id: str
+    user_institutional_id: str | None
     origin_name: str
     destination_name: str
     cabin_class: str | None = None
@@ -92,7 +92,15 @@ class ProfessionalTravelPlaneHandlerCreate(
 ):
     origin_iata: str  ## IATA code
     destination_iata: str  ## IATA code
-    user_institutional_id: str
+
+    @field_validator("origin_iata", "destination_iata", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
+    user_institutional_id: str | None
     departure_date: date | None = None
     number_of_trips: int = 1
     cabin_class: str
@@ -110,10 +118,14 @@ class ProfessionalTravelPlaneHandlerCreate(
 class ProfessionalTravelTrainHandlerCreate(
     TrainCabinClassValidationMixin, DepartureDateMixin, DataEntryCreate
 ):
-    user_institutional_id: str
+    user_institutional_id: str | None
     origin_name: str
     destination_name: str
-    # check if necessary after migration to new reference location for train
+    # Optional here (unlike plane's origin_iata) because CSV rows validate
+    # before enrich_csv_row resolves the natural_key from origin_name +
+    # origin_country_code (#1183). The API path has no such staging: a
+    # missing natural_key there is rejected in
+    # CarbonReportModuleWorkflow.create (#1186), not by this DTO.
     origin_natural_key: str | None = None
     destination_natural_key: str | None = None
     # Required for CSV rows lacking a precomputed ``*_natural_key``: the
@@ -128,6 +140,19 @@ class ProfessionalTravelTrainHandlerCreate(
     cabin_class: str
     note: str | None = None
     # __kg_co2eq_override__ for kg_co2eq
+
+    @field_validator(
+        "origin_name",
+        "destination_name",
+        "origin_country_code",
+        "destination_country_code",
+        mode="after",
+    )
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
 
     @field_validator("number_of_trips", mode="after")
     @classmethod
@@ -147,6 +172,13 @@ class ProfessionalTravelPlaneHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
     number_of_trips: int | None = None
     note: str | None = None
 
+    @field_validator("origin_iata", "destination_iata", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
 
 class ProfessionalTravelTrainHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
     # traveler_name: Optional[str] = None
@@ -154,6 +186,14 @@ class ProfessionalTravelTrainHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
     origin_name: str | None = None
     destination_name: str | None = None
     origin_natural_key: str | None = None
+
+    @field_validator("origin_name", "destination_name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     destination_natural_key: str | None = None
     cabin_class: str | None = None
     departure_date: date | None = None

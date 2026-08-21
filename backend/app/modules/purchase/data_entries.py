@@ -1,12 +1,13 @@
 from typing import Any
 
-from pydantic import field_validator, model_validator
+from pydantic import ValidationInfo, field_validator, model_validator
 
 from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.utils.currencies import SUPPORTED_CURRENCIES
 
 
 class PurchaseHandlerResponse(DataEntryResponseGen):
@@ -31,6 +32,14 @@ class PurchaseCentralizedHandlerResponse(DataEntryResponseGen):
 
 class PurchaseHandlerCreate(DataEntryCreate):
     name: str
+
+    @field_validator("name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     supplier: str | None = None
     quantity: float | None = None
     total_spent_amount: float
@@ -85,19 +94,9 @@ class PurchaseHandlerCreate(DataEntryCreate):
         if v is None:
             return "chf"
         normalized_v = v.strip().lower()
-        valid_currencies = [
-            "aud",
-            "cad",
-            "chf",
-            "cny",
-            "eur",
-            "gbp",
-            "jpy",
-            "sek",
-            "usd",
-        ]
-        if normalized_v not in valid_currencies:
-            raise ValueError(f"Currency must be one of: {valid_currencies}")
+        if normalized_v not in SUPPORTED_CURRENCIES:
+            allowed = ", ".join(sorted(SUPPORTED_CURRENCIES))
+            raise ValueError(f"Currency must be one of: {allowed}")
         return normalized_v
 
 
@@ -107,6 +106,13 @@ class PurchaseCentralizedHandlerCreate(DataEntryCreate):
     annual_consumption: float
     coef_to_kg: float
     note: str | None = None
+
+    @field_validator("name", "unit", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
 
     @field_validator("annual_consumption", "coef_to_kg", mode="after")
     @classmethod
@@ -118,6 +124,14 @@ class PurchaseCentralizedHandlerCreate(DataEntryCreate):
 
 class PurchaseHandlerUpdate(DataEntryUpdate):
     name: str | None = None
+
+    @field_validator("name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     supplier: str | None = None
     quantity: float | None = None
     total_spent_amount: float | None = None
@@ -150,19 +164,9 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
         if v is None:
             return v
         normalized_v = v.strip().lower()
-        valid_currencies = [
-            "aud",
-            "cad",
-            "chf",
-            "cny",
-            "eur",
-            "gbp",
-            "jpy",
-            "sek",
-            "usd",
-        ]
-        if normalized_v not in valid_currencies:
-            raise ValueError(f"Currency must be one of: {valid_currencies}")
+        if normalized_v not in SUPPORTED_CURRENCIES:
+            allowed = ", ".join(sorted(SUPPORTED_CURRENCIES))
+            raise ValueError(f"Currency must be one of: {allowed}")
         return normalized_v
 
     @model_validator(mode="before")
@@ -205,6 +209,13 @@ class PurchaseCentralizedHandlerUpdate(DataEntryUpdate):
     annual_consumption: float | None = None
     coef_to_kg: float | None = None
     note: str | None = None
+
+    @field_validator("name", "unit", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
 
     @field_validator("annual_consumption", "coef_to_kg", mode="after")
     @classmethod

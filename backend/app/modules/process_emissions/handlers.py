@@ -34,7 +34,7 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
             Factor.classification[subkind_field].as_string(),
             DataEntry.data["subcategory"].as_string(),
         ),
-        "quantity": DataEntry.data["quantity"].as_float(),
+        "quantity_kg": DataEntry.data["quantity_kg"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
@@ -81,7 +81,7 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
             return []
 
         def _process_formula(ctx: dict, factor_values: dict):
-            quantity_kg = ctx.get("quantity")
+            quantity_kg = ctx.get("quantity_kg")
             if quantity_kg is None or quantity_kg < 0:
                 return None
             gwp = factor_values.get("ef_kg_co2eq_per_unit")

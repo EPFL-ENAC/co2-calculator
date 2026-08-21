@@ -7,6 +7,7 @@ from datetime import datetime
 from sqlalchemy import Float, ForeignKey
 from sqlmodel import JSON, TIMESTAMP, Column, Field, Integer, SQLModel
 
+from app.models._field_defaults import default_dict, default_utcnow
 from app.models.data_entry import DataEntryTypeEnum
 from app.modules.emissions import EmissionType
 
@@ -136,12 +137,12 @@ class DataEntryEmissionBase(SQLModel):
         description="Scope (1/2/3) for leaf rows; NULL for rollup rows",
     )
     meta: dict = Field(
-        default_factory=dict,
+        default_factory=default_dict,
         sa_column=Column(JSON),
         description="Calculation inputs and factors_used array for full traceability",
     )
     computed_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=default_utcnow,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, index=True),
         description="Timestamp when emission was computed",
     )
@@ -212,4 +213,44 @@ class DataEntryEmission(DataEntryEmissionBase, table=True):
         return (
             f"<DataEntryEmission data_entry={self.data_entry_id} "
             f"type={self.emission_type_id}: {self.kg_co2eq} kgCO2eq>"
+        )
+
+
+@dataclass
+class DataEntryEmissionRow:
+    """Plain-dataclass mirror of ``DataEntryEmissionBase``'s persisted columns.
+
+    ``prepare_create`` builds these instead of real ``DataEntryEmission``
+    instances (``table=True`` — SQLAlchemy-mapped + Pydantic-validated) in its
+    per-factor/per-emission-type hot loop. Constructing the real model there
+    profiled at ~65-67% of total recalc wall clock (plan #2050 §C2) — mostly
+    ``default_factory`` signature introspection (Pydantic checking whether
+    ``dict``/``datetime.utcnow`` take a ``validated_data`` arg) and ORM
+    instance-state setup that bulk callers never need: ``bulk_copy``'s COPY
+    path reads these as plain attributes, and none of them are ever
+    individually ``session.add()``ed. Callers that DO need a real mapped
+    instance (``session.add()``, populated ``.id`` after flush) call
+    ``to_orm()`` — the single-entry API path, not the hot loop.
+    """
+
+    data_entry_id: int
+    emission_type_id: int
+    kg_co2eq: float
+    primary_factor_id: int | None = None
+    additional_value: float | None = None
+    scope: int | None = None
+    meta: dict = field(default_factory=dict)
+    computed_at: datetime = field(default_factory=datetime.utcnow)
+
+    def to_orm(self) -> DataEntryEmission:
+        """Materialize a real mapped row — only where `session.add()` is needed."""
+        return DataEntryEmission(
+            data_entry_id=self.data_entry_id,
+            emission_type_id=self.emission_type_id,
+            primary_factor_id=self.primary_factor_id,
+            kg_co2eq=self.kg_co2eq,
+            additional_value=self.additional_value,
+            scope=self.scope,
+            meta=self.meta,
+            computed_at=self.computed_at,
         )

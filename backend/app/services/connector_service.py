@@ -5,6 +5,8 @@ Encrypts/decrypts the stored secret, enforces the SSRF guard on
 ``has_secret`` flag is ever returned).
 """
 
+import asyncio
+
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.crypto import decrypt_secret, encrypt_secret
@@ -64,11 +66,15 @@ class ConnectorConnectionService:
         target.client_id = payload.client_id
         target.secret_id = payload.secret_id
         if payload.secret_value:
-            target.secret_value_encrypted = encrypt_secret(payload.secret_value)
+            # Scrypt (n=2**14) is deliberately CPU-heavy — off the event
+            # loop, same as get_decrypted_secret below (#2050 Track I3).
+            target.secret_value_encrypted = await asyncio.to_thread(
+                encrypt_secret, payload.secret_value
+            )
         return await self.repo.upsert(target)
 
-    def get_decrypted_secret(self, conn: ConnectorConnection) -> str:
-        return decrypt_secret(conn.secret_value_encrypted)
+    async def get_decrypted_secret(self, conn: ConnectorConnection) -> str:
+        return await asyncio.to_thread(decrypt_secret, conn.secret_value_encrypted)
 
     def to_read(self, conn: ConnectorConnection) -> ConnectorConnectionRead:
         if conn.id is None:

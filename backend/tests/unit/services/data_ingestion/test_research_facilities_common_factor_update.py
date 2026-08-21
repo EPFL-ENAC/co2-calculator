@@ -34,8 +34,8 @@ def _make_factor(
     return factor
 
 
-def _make_unit(unit_id: int = 1) -> SimpleNamespace:
-    return SimpleNamespace(id=unit_id)
+def _make_unit(unit_id: int = 1, is_active: bool = True) -> SimpleNamespace:
+    return SimpleNamespace(id=unit_id, is_active=is_active)
 
 
 def _make_carbon_report(
@@ -124,6 +124,39 @@ async def test_carbon_report_not_found_raises_value_error():
 
         with pytest.raises(ValueError, match="CarbonReport not found"):
             await provider.compute_factor_values(factor, 2025, session)
+
+
+@pytest.mark.asyncio
+async def test_closed_unit_with_no_carbon_report_returns_zero_sum():
+    """A closed unit (is_active=False) with no CarbonReport for the year is
+    the expected case, not a gap — it stopped reporting, so 0.0 is the
+    correct total, not an error.
+
+    Regression: dev incident, factor for CLIMACT-GE (a closed unit) never
+    got a kg_co2eq_sum, so every research-facilities entry against it
+    422'd forever — the recompute had no report to sum from and raised
+    instead of writing the (correct) zero.
+    """
+    provider = _make_provider()
+    factor = _make_factor("RF-CLOSED", None)
+    session = MagicMock()
+
+    with (
+        patch(
+            "app.services.data_ingestion.computed_providers.research_facilities_common.UnitRepository"
+        ) as MockUnitRepo,
+        patch(
+            "app.services.data_ingestion.computed_providers.research_facilities_common.CarbonReportRepository"
+        ) as MockCRRepo,
+    ):
+        MockUnitRepo.return_value.get_by_institutional_id = AsyncMock(
+            return_value=_make_unit(1, is_active=False)
+        )
+        MockCRRepo.return_value.get_by_unit_and_year = AsyncMock(return_value=None)
+
+        result = await provider.compute_factor_values(factor, 2025, session)
+
+    assert result == {"kg_co2eq_sum": 0.0}
 
 
 @pytest.mark.asyncio

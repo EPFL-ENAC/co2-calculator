@@ -27,7 +27,7 @@ Three boundaries pinned by tests. The module docstring at
 | Boundary         | Trusted artefact                                                            | Untrusted artefact                                              | Test that pins it                                                   |
 | ---------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
 | IdP → backend    | `userinfo` claims from `authorize_access_token` (signed by IdP)             | Query params, headers, request body on `/callback`              | `test_callback_binds_session_to_idp_institutional_id`               |
-| Backend → cookie | JWTs minted by `_set_auth_cookies`, signed with `settings.SECRET_KEY`       | Anything else the client could return as evidence of identity   | `test_auth_cookies_secure_when_cookie_secure_true`                  |
+| Backend → cookie | JWTs minted by `_set_auth_cookies`, signed with `settings.JWT_HMAC_KEY`     | Anything else the client could return as evidence of identity   | `test_auth_cookies_secure_when_cookie_secure_true`                  |
 | Cookie → backend | `decode_jwt(cookie)` payload after signature + algorithm + `exp` validation | Cookie body in transit, query params, headers carrying identity | `test_jwt_expired_rejected`, `test_jwt_tampered_signature_rejected` |
 
 `/auth/login-test` deliberately bypasses boundary 1; its only safeguard
@@ -95,7 +95,7 @@ Claims minted by `_set_auth_cookies` in `backend/app/api/v1/auth.py`:
 | `type`             | `"access"` or `"refresh"` — see `TOKEN_TYPE_ACCESS` / `TOKEN_TYPE_REFRESH` constants |
 | `exp`              | UTC expiry                                                                           |
 
-Algorithm: `HS256`. Key: `settings.SECRET_KEY` (single shared symmetric
+Algorithm: `HS256`. Key: `settings.JWT_HMAC_KEY` (single shared symmetric
 secret — see [ADR-012](../architecture-decision-records/012-jwt-authentication-strategy.md)).
 
 Validation path in `backend/app/core/security.py`:

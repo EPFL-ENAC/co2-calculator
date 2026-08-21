@@ -37,6 +37,7 @@ import {
   formatTooltipTonnes,
   formatTooltipPopulation,
 } from 'src/utils/chart-tooltip-extractors';
+import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
 
 interface Props {
   hideResearchFacilities?: boolean;
@@ -72,6 +73,7 @@ const yearConfigStore = useYearConfigStore();
 const workspaceStore = useWorkspaceStore();
 const colorblindStore = useColorblindStore();
 const isColorblind = computed(() => colorblindStore.enabled);
+const { isCategoryModuleActive } = useModuleCategoriesAvailability();
 
 const currentYear = computed(
   () => workspaceStore.selectedYear ?? new Date().getFullYear(),
@@ -473,7 +475,7 @@ const epflSeriesData = computed<EpflSeriesPayload | null>(() => {
     ...Object.keys(baselineByCat).filter(
       (k) => !TOOLTIP_CATEGORY_ORDER.includes(k as never),
     ),
-  ];
+  ].filter(isCategoryModuleActive);
 
   const totalColor = accentColorHex.value ?? colors.value.cobalt.darker;
   const totalLineData = [

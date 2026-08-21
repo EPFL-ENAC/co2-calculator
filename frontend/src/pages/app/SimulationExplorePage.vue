@@ -55,7 +55,16 @@
 
             <q-separator />
 
-            <template v-if="m.type === MODULES.Headcount">
+            <template v-if="m.type === MODULES.ResearchFacilities">
+              <PlannerResearchFacilityRows
+                v-if="carbonReportId != null"
+                :carbon-report-id="carbonReportId"
+                :factor-year="year"
+                hide-budget
+                :disable="false"
+              />
+            </template>
+            <template v-else-if="m.type === MODULES.Headcount">
               <p class="text-body2 text-grey-7 q-px-lg q-pt-md q-mb-md">
                 {{ $t('simulation_headcount_fte_hint') }}
               </p>
@@ -123,8 +132,9 @@
           <q-separator />
 
           <ModuleCarbonFootprintChart
-            :breakdown-data="filteredBreakdown"
+            :breakdown-data="breakdown"
             :bordered="false"
+            :enforce-module-activation="false"
           />
 
           <q-separator />
@@ -157,6 +167,7 @@ import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
+import PlannerResearchFacilityRows from 'src/components/organisms/planner/PlannerResearchFacilityRows.vue';
 import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import {
@@ -241,16 +252,7 @@ const totalTonnesCo2eq = computed(() => {
   return moduleTotal || breakdown.total_tonnes_co2eq || 0;
 });
 
-const filteredBreakdown = computed(() => {
-  const bd = moduleStore.state.emissionBreakdown;
-  if (!bd) return bd;
-  return {
-    ...bd,
-    module_breakdown: bd.module_breakdown.filter(
-      (entry) => entry.category !== 'research_facilities',
-    ),
-  };
-});
+const breakdown = computed(() => moduleStore.state.emissionBreakdown);
 
 async function fetchEmissionBreakdown() {
   const carbonReportId = workspaceStore.selectedCarbonReport?.id;
@@ -263,7 +265,10 @@ async function prefetchSubmoduleCounts() {
   // data_entry_types_total_items covers all submodule counts in a single response.
   await moduleStore.prefetchAllModuleCounts(
     modules.value
-      .filter((m) => m.type !== MODULES.Headcount)
+      .filter(
+        (m) =>
+          m.type !== MODULES.Headcount && m.type !== MODULES.ResearchFacilities,
+      )
       .map((m) => ({
         type: m.type,
         unit: unitId.value,

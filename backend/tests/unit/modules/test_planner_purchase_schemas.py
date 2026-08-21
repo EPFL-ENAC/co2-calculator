@@ -38,6 +38,43 @@ def test_planner_purchase_rejects_negative_amount():
         )
 
 
+def test_planner_purchase_currency_normalizes_and_defaults():
+    dto = PlannerPurchaseCreate(
+        data_entry_type_id=DataEntryTypeEnum.planner_purchase.value,
+        carbon_report_module_id=1,
+        purchase_category="services",
+        amount_eur=1500.0,
+        currency=" CHF ",
+    )
+    assert dto.currency == "chf"
+
+    dto = PlannerPurchaseBudgetCreate(
+        data_entry_type_id=DataEntryTypeEnum.planner_purchase_budget.value,
+        carbon_report_module_id=1,
+        amount_eur=1500.0,
+        currency="",
+    )
+    assert dto.currency is None
+
+    dto = PlannerPurchaseBudgetCreate(
+        data_entry_type_id=DataEntryTypeEnum.planner_purchase_budget.value,
+        carbon_report_module_id=1,
+        amount_eur=1500.0,
+    )
+    assert dto.currency is None
+
+
+def test_planner_purchase_rejects_unknown_currency():
+    with pytest.raises(ValueError):
+        PlannerPurchaseCreate(
+            data_entry_type_id=DataEntryTypeEnum.planner_purchase.value,
+            carbon_report_module_id=1,
+            purchase_category="services",
+            amount_eur=1500.0,
+            currency="btc",
+        )
+
+
 def test_submodule_total_resolves_matching_purchases_emission():
     resolved = resolve_emission_types(
         DataEntryTypeEnum.planner_purchase, {"purchase_category": "vehicles"}

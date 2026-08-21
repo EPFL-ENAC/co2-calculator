@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionState
+from app.modules.emissions.taxonomy import EmissionTypeResolutionError
 from app.services.data_ingestion import base_factor_csv_provider
 from app.services.data_ingestion.base_factor_csv_provider import BaseFactorCSVProvider
 
@@ -586,3 +587,172 @@ async def test_upsert_batch_falls_back_to_batch_size_when_rowcount_negative():
     reported = await provider._upsert_batch(batch, factor_repo)
 
     assert reported == 3, "negative rowcount should fall back to len(batch)"
+
+
+@pytest.mark.asyncio
+async def test_process_row_unmapped_emission_type_aborts_upload(monkeypatch):
+    """#2091: an unmappable emission type must NOT become a skipped row.
+
+    Skipping commits every other row, so the factor table ends up
+    half-updated with a category quietly missing, and the job finishes
+    ``WARNING`` — a result nobody reads. The whole upload has to fail so
+    the operator fixes the CSV and re-uploads.
+    """
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
+    handler.classification_fields = ["headcount_class"]
+    handler.value_fields = []
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
+    )
+    stats = _build_stats()
+
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+
+    def unmapped(*args, **kwargs):
+        raise EmissionTypeResolutionError("no leaf for 'neon tubes'")
+
+    monkeypatch.setattr(
+        base_factor_csv_provider, "get_factor_emission_type_id", unmapped
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "expected_columns": {"data_entry_type", "headcount_class"},
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
+
+    with pytest.raises(EmissionTypeResolutionError) as excinfo:
+        await provider._process_row(
+            row={"data_entry_type": "member", "headcount_class": "recycling"},
+            row_idx=7,
+            setup_result=setup_result,
+            stats=stats,
+            max_row_errors=5,
+            factor_service=MagicMock(),
+        )
+
+    assert "Row 7" in str(excinfo.value), "the operator needs the row number"
+    assert "neon tubes" in str(excinfo.value)
+    assert stats["rows_skipped"] == 0, (
+        "an unmapped emission type is not a skippable row error"
+    )
+    assert stats["row_errors"] == []
+
+
+@pytest.mark.asyncio
+async def test_process_row_malformed_value_still_skips(monkeypatch):
+    """The escalation is scoped: only emission-type failures abort.
+
+    A bad float or a missing column keeps its existing skip-and-continue
+    semantics, so #2091 does not turn every messy CSV into a hard stop.
+    """
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
+    handler.classification_fields = ["kind"]
+    handler.value_fields = []
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
+    )
+    stats = _build_stats()
+    handler.validate_create.side_effect = ValueError("bad payload")
+
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x"},
+        row_idx=2,
+        setup_result={
+            "handlers": [handler],
+            "expected_columns": {"data_entry_type", "kind"},
+            "valid_entry_types": [DataEntryTypeEnum.member],
+        },
+        stats=stats,
+        max_row_errors=5,
+        factor_service=MagicMock(),
+    )
+
+    assert factor is None
+    assert "Validation error" in error_msg
+    assert stats["rows_skipped"] == 1
+
+
+@pytest.mark.asyncio
+async def test_process_row_persists_dto_coerced_values(monkeypatch):
+    """#1489 (audit F-3): what reaches Factor.values is the DTO-validated
+    value, not _convert_value's lenient parse. An int-typed field arriving as
+    "2" must persist as int 2, not float 2.0 — before the fix the validated
+    DTO was discarded and the hand-built dict was persisted verbatim.
+    """
+
+    class _CoercingPayload(BaseModel):
+        kind: str
+        hours: int
+
+    handler_mock = MagicMock()
+    handler_mock.category_field = "data_entry_type"
+    handler_mock.classification_fields = ["kind"]
+    handler_mock.value_fields = ["hours"]
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "year": 2024, "handlers": [handler_mock]},
+        data_session=MagicMock(),
+    )
+    stats = _build_stats()
+
+    handler = MagicMock()
+    handler.classification_fields = ["kind"]
+    handler.value_fields = ["hours"]
+    handler.validate_create.side_effect = lambda payload: (
+        _CoercingPayload.model_validate(
+            {k: v for k, v in payload.items() if k in ("kind", "hours")}
+        )
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+    factor_service = MagicMock()
+    factor_service.prepare_create = AsyncMock(return_value=SimpleNamespace(id=1))
+
+    setup_result = {
+        "handlers": [handler_mock],
+        "expected_columns": {"data_entry_type", "kind", "hours"},
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x", "hours": "2"},
+        row_idx=3,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        factor_service=factor_service,
+    )
+
+    assert error_msg is None
+    persisted = factor_service.prepare_create.await_args.kwargs["values"]
+    assert persisted["hours"] == 2
+    assert isinstance(persisted["hours"], int)
+    # classification stays the hand-built dict (310B identity contract)
+    assert factor_service.prepare_create.await_args.kwargs["classification"] == {
+        "kind": "x"
+    }

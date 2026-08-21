@@ -13,6 +13,7 @@ import PrintReportShell from 'src/components/organisms/print/PrintReportShell.vu
 import ResultsPrintModulePage from 'src/components/organisms/print/ResultsPrintModulePage.vue';
 import { useResultsPrintData } from 'src/composables/print/useResultsPrintData';
 import { useModuleStore } from 'src/stores/modules';
+import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
 
 const {
   resultsSummary,
@@ -50,6 +51,7 @@ const {
 
 const moduleStore = useModuleStore();
 const { t } = useI18n();
+const { anyAdditionalCategoryActive } = useModuleCategoriesAvailability();
 
 const yearComparisonPct = computed(
   () => resultsSummary.value?.unit_totals.year_comparison_percentage ?? null,
@@ -233,7 +235,6 @@ onMounted(async () => {
             :validated-categories="validatedCategories"
             :headcount-validated="headcountValidatedForPerPerson"
             :view-additional-data="viewAdditionalData"
-            :print-mode="true"
           />
         </section>
       </ReportPage>
@@ -280,7 +281,8 @@ onMounted(async () => {
         v-if="
           viewAdditionalData &&
           additionalBreakdown.length > 0 &&
-          additionalChartsValidated
+          additionalChartsValidated &&
+          anyAdditionalCategoryActive
         "
         :title="$t('results_additional_title')"
         :scope="scopeLabel"

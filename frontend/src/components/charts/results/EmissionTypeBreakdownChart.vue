@@ -83,23 +83,32 @@ function sortSegmentKeys(
   segmentTotals?: Map<string, number>,
 ): string[] {
   return keys.slice().sort((a, b) => {
-    const aSuffix = a.split('_').pop() ?? a;
-    const bSuffix = b.split('_').pop() ?? b;
-    const aIdx = ROOM_TYPE_SEGMENT_ORDER.indexOf(aSuffix);
-    const bIdx = ROOM_TYPE_SEGMENT_ORDER.indexOf(bSuffix);
-    if (aIdx === -1 && bIdx === -1) {
-      if (
-        segmentTotals &&
-        a.startsWith(COMBUSTION_SEGMENT_PREFIX) &&
-        b.startsWith(COMBUSTION_SEGMENT_PREFIX)
-      ) {
-        return (segmentTotals.get(b) ?? 0) - (segmentTotals.get(a) ?? 0);
-      }
-      return 0;
+    const aRoomIdx = ROOM_TYPE_SEGMENT_ORDER.indexOf(a.split('_').pop() ?? a);
+    const bRoomIdx = ROOM_TYPE_SEGMENT_ORDER.indexOf(b.split('_').pop() ?? b);
+
+    const aIsRoomType = aRoomIdx !== -1;
+    const bIsRoomType = bRoomIdx !== -1;
+
+    // Both are room-type segments → use the predefined display order.
+    if (aIsRoomType && bIsRoomType) return aRoomIdx - bRoomIdx;
+
+    // Only one is a room-type segment → room-type comes first.
+    if (aIsRoomType) return -1;
+    if (bIsRoomType) return 1;
+
+    // Neither is a room-type segment.
+    // Combustion fuel segments are sorted largest-first so the biggest
+    // fuel source always appears on the left of the heating bar.
+    const bothAreCombustion =
+      segmentTotals &&
+      a.startsWith(COMBUSTION_SEGMENT_PREFIX) &&
+      b.startsWith(COMBUSTION_SEGMENT_PREFIX);
+    if (bothAreCombustion) {
+      return (segmentTotals!.get(b) ?? 0) - (segmentTotals!.get(a) ?? 0);
     }
-    if (aIdx === -1) return 1;
-    if (bIdx === -1) return -1;
-    return aIdx - bIdx;
+
+    // All other segments keep their original backend order.
+    return 0;
   });
 }
 

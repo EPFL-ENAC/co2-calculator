@@ -1,4 +1,12 @@
-from pydantic import BaseModel, ConfigDict, field_validator
+from typing import TYPE_CHECKING
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from app.schemas.data_entry import (
     DataEntryCreate,
@@ -54,9 +62,32 @@ VALID_ROOM_TYPES: list[str | None] = [
 ]
 
 
-class BuildingRoomHandlerCreate(DataEntryCreate):
+class DiscardClientSurfaceMixin:
+    """The room surface is resolved from the ``BuildingRoom`` reference
+    table (read enrichment, ``pre_compute``, embodied-energy derivation) —
+    a client-sent value is display-only and must never be persisted.
+    """
+
+    if TYPE_CHECKING:
+        data: dict
+
+    @model_validator(mode="after")
+    def discard_client_surface(self):
+        self.data.pop("room_surface_square_meter", None)
+        return self
+
+
+class BuildingRoomHandlerCreate(DiscardClientSurfaceMixin, DataEntryCreate):
     building_name: str
     room_name: str
+
+    @field_validator("building_name", "room_name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     room_type: str
     room_allocation_ratio: float | None = None
     note: str | None = None
@@ -77,9 +108,17 @@ class BuildingRoomHandlerCreate(DataEntryCreate):
         return v
 
 
-class BuildingRoomHandlerUpdate(DataEntryUpdate):
+class BuildingRoomHandlerUpdate(DiscardClientSurfaceMixin, DataEntryUpdate):
     building_name: str | None = None
     room_name: str | None = None
+
+    @field_validator("building_name", "room_name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     room_type: str | None = None
     room_allocation_ratio: float | None = None
     note: str | None = None
@@ -114,6 +153,13 @@ class EnergyCombustionHandlerCreate(DataEntryCreate):
     quantity: float
     note: str | None = None
 
+    @field_validator("name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     @field_validator("quantity", mode="after")
     @classmethod
     def validate_quantity(cls, v: float) -> float:
@@ -127,6 +173,13 @@ class EnergyCombustionHandlerUpdate(DataEntryUpdate):
     quantity: float | None = None
     note: str | None = None
 
+    @field_validator("name", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     @field_validator("quantity", mode="after")
     @classmethod
     def validate_quantity(cls, v: float | None) -> float | None:
@@ -135,13 +188,31 @@ class EnergyCombustionHandlerUpdate(DataEntryUpdate):
         return v
 
 
+class DiscardClientBuildingFieldsMixin(DiscardClientSurfaceMixin):
+    """Embodied-energy rows persist only ``room_name`` — building_name (like
+    the surface) resolves from the ``BuildingRoom`` reference table, so a
+    client-sent value must never be persisted.
+    """
+
+    @model_validator(mode="after")
+    def discard_client_building_name(self):
+        self.data.pop("building_name", None)
+        return self
+
+
 class BuildingEmbodiedEnergyHandlerResponse(DataEntryResponseGen):
-    building_name: str
-
-
-class BuildingEmbodiedEnergyHandlerCreate(DataEntryCreate):
-    building_name: str
-
-
-class BuildingEmbodiedEnergyHandlerUpdate(DataEntryUpdate):
+    room_name: str
     building_name: str | None = None
+    room_surface_square_meter: float | None = None
+
+
+class BuildingEmbodiedEnergyHandlerCreate(
+    DiscardClientBuildingFieldsMixin, DataEntryCreate
+):
+    room_name: str
+
+
+class BuildingEmbodiedEnergyHandlerUpdate(
+    DiscardClientBuildingFieldsMixin, DataEntryUpdate
+):
+    room_name: str | None = None

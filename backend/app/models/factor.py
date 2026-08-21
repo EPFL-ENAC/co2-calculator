@@ -4,6 +4,8 @@ from sqlalchemy import ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import JSON, Column, Field, Integer, SQLModel
 
+from app.models._field_defaults import default_dict
+
 
 class FactorBase(SQLModel):
     """Base factor model with shared fields."""
@@ -21,7 +23,7 @@ class FactorBase(SQLModel):
         description="""Scope to specific data entry type (e.g., scientific, student)""",
     )
     classification: dict = Field(
-        default_factory=dict,
+        default_factory=default_dict,
         sa_column=Column(
             JSON().with_variant(JSONB(astext_type=Text()), "postgresql"),
         ),
@@ -32,7 +34,7 @@ class FactorBase(SQLModel):
             regardless of Python dict insertion order.""",
     )
     values: dict = Field(
-        default_factory=dict,
+        default_factory=default_dict,
         sa_column=Column(JSON),
         description="""Factor values as JSON
             (e.g., {active_power_w: 100, standby_power_w: 10})""",

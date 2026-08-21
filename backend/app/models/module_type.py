@@ -49,11 +49,21 @@ PLANNER_PREFILLED_MODULE_TYPES: set[ModuleTypeEnum] = {
     ModuleTypeEnum.external_cloud_and_ai,
 }
 
+# Simulator Plan plain-copy modules: reference-year rows are copied as normal
+# editable planner entries, without the ``percentage_of_reference_year`` /
+# ``source_data_entry_id`` reference mechanism (#2018). The frontend keeps
+# ``behavior === 'empty'`` for them, so no reference columns render.
+PLANNER_PLAIN_COPY_MODULE_TYPES: set[ModuleTypeEnum] = {
+    ModuleTypeEnum.professional_travel,
+}
+
 # Simulator Plan modules emptied when a plan-year's reference year changes.
 # The prefilled ones are rebuilt from the new baseline; purchase is manual
 # input whose classes and factors are resolved against the reference year, so
 PLANNER_REFERENCE_SCOPED_MODULE_TYPES: set[ModuleTypeEnum] = (
-    PLANNER_PREFILLED_MODULE_TYPES | {ModuleTypeEnum.purchase}
+    PLANNER_PREFILLED_MODULE_TYPES
+    | PLANNER_PLAIN_COPY_MODULE_TYPES
+    | {ModuleTypeEnum.purchase}
 )
 
 # corresponding data_entry_type enum for each module type
@@ -103,6 +113,14 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.animal_facilities,
     ],
     # Add more if needed for other modules
+}
+
+
+# Data-entry types derived from a parent type's rows instead of being
+# ingested directly. Bulk ingestion deletes and recreates them together
+# with the parent rows and fans out a sibling emission_recalc job per entry.
+DERIVED_DATA_ENTRY_TYPES: dict[DataEntryTypeEnum, list[DataEntryTypeEnum]] = {
+    DataEntryTypeEnum.building: [DataEntryTypeEnum.building_embodied_energy],
 }
 
 

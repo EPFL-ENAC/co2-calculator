@@ -1,0 +1,35 @@
+# Same as otel-collector-config.yaml, plus a Tempo exporter for traces.
+# Only mounted when the observability overlay is active (see
+# docker-compose.observability.yml) — the default docker-compose.yml keeps
+# traces on the plain `debug` exporter so a normal `docker compose up` never
+# depends on Tempo being up.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:9464
+    enable_open_metrics: true
+  debug:
+    verbosity: detailed
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [debug, otlp/tempo]
+    metrics:
+      receivers: [otlp]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      exporters: [debug]

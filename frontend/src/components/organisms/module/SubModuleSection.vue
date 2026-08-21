@@ -82,6 +82,7 @@
           :show-reference-columns="showReferenceColumns"
           :project-years-count="projectYearsCount"
           :percentage-locked="percentageLocked"
+          :exclude-snapshots="excludeSnapshots"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -210,6 +211,7 @@
           :show-reference-columns="showReferenceColumns"
           :project-years-count="projectYearsCount"
           :percentage-locked="percentageLocked"
+          :exclude-snapshots="excludeSnapshots"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -282,7 +284,11 @@ import {
   getSubmoduleIconColor,
   getSubmoduleLighterColor,
 } from 'src/composables/useModuleIconColors';
-import { canShowModuleForm } from 'src/utils/module-table-access';
+import {
+  canShowModuleForm,
+  resolveExplorerFormDefaults,
+  resolvePlannerFormDefaults,
+} from 'src/utils/module-table-access';
 import { submoduleTooltipKey, type TooltipScope } from 'src/utils/tooltipScope';
 interface Option {
   label: string;
@@ -293,12 +299,16 @@ const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
 
 onMounted(() => {
+  // The timeline store only ever holds the Calculator's report (#2000) — an
+  // Explorer table has no validated state of its own, so fetching it here
+  // would just be wasted, unused traffic.
   const needsFte = props.submodule.moduleFields?.some(
     (f) => f.defaultFrom === 'total_fte',
   );
   const carbonReportId = timelineStore.currentCarbonReportId;
   if (
     needsFte &&
+    !props.isExplorer &&
     carbonReportId &&
     carbonReportId !== moduleStore.validatedTotalsCarbonReportId
   ) {
@@ -308,12 +318,20 @@ onMounted(() => {
 
 const formDefaults = computed<Record<string, unknown> | undefined>(() => {
   const validatedTotals = moduleStore.state.validatedTotals;
-  if (!validatedTotals) return undefined;
+  const fields = props.submodule.moduleFields ?? [];
 
-  const defaults: Record<string, unknown> = {};
-  for (const field of props.submodule.moduleFields ?? []) {
-    if (field.defaultFrom === 'total_fte') {
-      defaults[field.id] = Math.round(validatedTotals.total_fte);
+  const defaults: Record<string, unknown> = resolvePlannerFormDefaults(
+    fields,
+    props.carbonReportId != null,
+  );
+  if (props.isExplorer) {
+    // Explorer never shows the Calculator's validated FTE total (#2000).
+    Object.assign(defaults, resolveExplorerFormDefaults(fields));
+  } else if (validatedTotals) {
+    for (const field of fields) {
+      if (field.defaultFrom === 'total_fte') {
+        defaults[field.id] = Math.round(validatedTotals.total_fte);
+      }
     }
   }
   return Object.keys(defaults).length > 0 ? defaults : undefined;
@@ -337,6 +355,8 @@ type CommonProps = {
   projectYearsCount?: number | null;
   /** Grant equipment global mode: per-row % controls read-only (#1981). */
   percentageLocked?: boolean;
+  /** Grant equipment global mode: list only manually added entries (#1981). */
+  excludeSnapshots?: boolean;
   /** Planner Project Grant: show this submodule's budget field (#1978). */
   showGrantBudget?: boolean;
   /** The submodule's saved share of the grant budget. */
@@ -370,6 +390,7 @@ const props = withDefaults(
     showReferenceColumns: undefined,
     projectYearsCount: null,
     percentageLocked: false,
+    excludeSnapshots: false,
     showGrantBudget: false,
     grantBudget: null,
     grantBudgetCurrency: null,

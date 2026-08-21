@@ -449,12 +449,12 @@ export default {
     fr: "Désactiver l'import CSV et le modèle",
   },
   data_management_uncertainty_title: {
-    en: 'Uncertainty',
-    fr: 'Incertitude',
+    en: 'Confidence',
+    fr: 'Confiance',
   },
   data_management_uncertainty_description: {
-    en: 'Indicate the uncertainty level associated with the data entered in this module.',
-    fr: "Indiquez le niveau d'incertitude associé aux données saisies dans ce module.",
+    en: 'Indicate the confidence level associated with the data entered in this module.',
+    fr: 'Indiquez le niveau de confiance associé aux données saisies dans ce module.',
   },
   data_management_uncertainty_none: {
     en: 'None',
@@ -610,8 +610,8 @@ export default {
     fr: 'Le pourcentage de réduction doit être compris entre 0 et 100',
   },
   year_config_reference_year_error: {
-    en: 'Reference year must be a valid year',
-    fr: "L'année de référence doit être une année valide",
+    en: 'Reference year must be between {min} and {max}',
+    fr: "L'année de référence doit être comprise entre {min} et {max}",
   },
   uploading_file: {
     en: 'Uploading file…',

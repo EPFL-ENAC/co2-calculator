@@ -393,7 +393,7 @@ def build_energy_combustion() -> dict:
 
 def build_building_embodied_energy() -> dict:
     return {
-        "building_name": fake.last_name() + " Hall",
+        "room_name": f"R{random.randint(100, 999)}",  # nosec B311
     }
 
 
@@ -401,7 +401,7 @@ def build_process_emissions() -> dict:
     return {
         "category": fake.word(),
         "subcategory": maybe(fake.word()),
-        "quantity": round(random.uniform(0, 5000), 2),  # nosec B311
+        "quantity_kg": round(random.uniform(0, 5000), 2),  # nosec B311
         "note": maybe(fake.sentence(nb_words=6)),
     }
 

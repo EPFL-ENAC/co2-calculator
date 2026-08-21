@@ -281,6 +281,8 @@
               :key="factorScopedKey(entry.config.module)"
               :carbon-report-id="yearData.id"
               :project-years-count="grantYearsCount"
+              :budget-currency="yearData.budget_currency"
+              :factor-year="factorYear"
               :disable="entry.module?.is_active === false"
             />
             <!-- Grant proposals plan RF use from the reference year's whole
@@ -413,6 +415,26 @@
                       @blur="applyGlobalPercentage"
                       @keyup.enter="applyGlobalPercentage"
                     />
+                    <div
+                      v-if="equipmentReferenceTotalKg !== null"
+                      class="q-ml-md text-body2 text-no-wrap"
+                    >
+                      {{
+                        $t('planner_equipment_reference_total', {
+                          value: formatTonnes(equipmentReferenceTotalKg),
+                        })
+                      }}
+                    </div>
+                  </div>
+                  <div
+                    v-if="equipmentPlannedKg(entry) !== null"
+                    class="text-body2 text-grey-7 q-mt-xs"
+                  >
+                    {{
+                      $t('planner_equipment_global_result', {
+                        value: formatTonnes(equipmentPlannedKg(entry) ?? 0),
+                      })
+                    }}
                   </div>
                 </template>
                 <q-dialog
@@ -468,6 +490,7 @@
                 "
                 :project-years-count="grantYearsCount"
                 :percentage-locked="isGlobalEquipment(entry.config.module)"
+                :exclude-snapshots="isGlobalEquipment(entry.config.module)"
                 :show-grant-budgets="
                   yearData.is_grant && !isGlobalEquipment(entry.config.module)
                 "
@@ -489,6 +512,8 @@ import { computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
+import { api } from 'src/api/http';
+import { formatTonnesCO2 } from 'src/utils/number';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
@@ -548,7 +573,7 @@ const authStore = useAuthStore();
 const moduleStore = useModuleStore();
 const plansStore = useSimulatorPlansStore();
 
-const yearOpen = ref(true);
+const yearOpen = ref(false);
 const settingReferenceYear = ref(false);
 const referenceYearDialogOpen = ref(false);
 const togglingModuleId = ref<number | null>(null);
@@ -688,9 +713,10 @@ function isGrantEquipmentModule(module: Module): boolean {
 // percentage to every prefilled line at once (#1981). View state only, the
 // entries are the same either way.
 const equipmentMode = ref<'per_line' | 'global'>('per_line');
-const globalPercentage = ref(0);
+const globalPercentage = ref(100);
 const appliedGlobalPercentage = ref<number | null>(null);
 const applyingGlobalPercentage = ref(false);
+const equipmentReferenceTotalKg = ref<number | null>(null);
 // Bumped after a global apply: the table remounts and refetches its
 // submodule rows, whose percentages all changed server-side.
 const equipmentTableTick = ref(0);
@@ -719,9 +745,51 @@ function abandonedBudgetKeys(mode: 'per_line' | 'global'): string[] {
     : [MODULES.Equipment];
 }
 
-// The loaded table totals when they belong to this module, the plan-year
-// stats otherwise (the module store slot is shared across expanded modules).
-function equipmentTotalKg(entry: ModuleEntry): number {
+interface EquipmentSnapshotItem {
+  id: number;
+  reference_kg_co2eq: number | null;
+  percentage_of_reference_year: number | null;
+  submodule: string;
+}
+
+async function fetchEquipmentSnapshotRows(): Promise<EquipmentSnapshotItem[]> {
+  const lists = await Promise.all(
+    Object.values(SUBMODULE_EQUIPMENT_TYPES).map((sub) =>
+      api
+        .get(
+          `carbon-reports/${props.yearData.id}/modules/equipment/${sub}?page=1&limit=1000`,
+        )
+        .json<{ items: Omit<EquipmentSnapshotItem, 'submodule'>[] }>()
+        .then((res) => res.items.map((item) => ({ ...item, submodule: sub }))),
+    ),
+  );
+  return lists.flat();
+}
+
+// Only snapshot rows carry a reference percentage; a null marks an equipment
+// added by hand, which a confirmed mode switch deletes.
+async function deleteManualEquipmentRows() {
+  const items = await fetchEquipmentSnapshotRows();
+  await Promise.all(
+    items
+      .filter((item) => item.percentage_of_reference_year === null)
+      .map((item) =>
+        api.delete(
+          `carbon-reports/${props.yearData.id}/modules/equipment/${item.submodule}/${item.id}`,
+        ),
+      ),
+  );
+}
+
+function equipmentReferenceSum(items: EquipmentSnapshotItem[]): number {
+  return items.reduce((sum, item) => sum + (item.reference_kg_co2eq ?? 0), 0);
+}
+
+// Backend-computed plan total: the snapshot lines at the applied global
+// percentage plus any manually added equipment. The loaded module data when
+// it belongs to this module, the plan-year stats otherwise (the module store
+// slot is shared across expanded modules).
+function equipmentPlannedKg(entry: ModuleEntry): number | null {
   const data = moduleStore.state.data;
   if (
     entry.module &&
@@ -731,19 +799,12 @@ function equipmentTotalKg(entry: ModuleEntry): number {
     return data.totals.total_kg_co2eq;
   }
   const total = entry.module?.stats?.total;
-  return typeof total === 'number' ? total : 0;
+  return typeof total === 'number' ? total : null;
 }
 
-// Prefilled lines all at 0% produce no kg, so an untouched module switches
-// silently; budgets of the mode being left count as data too.
-function equipmentHasDataToLose(entry: ModuleEntry): boolean {
-  const budgets = entry.module?.budgets ?? {};
-  if (
-    abandonedBudgetKeys(equipmentMode.value).some((key) => budgets[key] != null)
-  ) {
-    return true;
-  }
-  return equipmentTotalKg(entry) > 0;
+// Same scale and rounding as the Calculator module banner (formatTonnesCO2).
+function formatTonnes(kg: number): string {
+  return formatTonnesCO2(kg / 1000);
 }
 
 function equipmentModeControlsDisabled(entry: ModuleEntry): boolean {
@@ -755,17 +816,30 @@ function equipmentModeControlsDisabled(entry: ModuleEntry): boolean {
   );
 }
 
-function onEquipmentModeRequest(next: 'per_line' | 'global') {
+// Switching always confirms through the dialog: the confirmed switch resets
+// every line to 100% and clears the abandoned mode's budgets, so the user
+// must see what they are about to lose before it happens.
+async function onEquipmentModeRequest(next: 'per_line' | 'global') {
   if (next === equipmentMode.value || switchingEquipmentMode.value) return;
-  const entry = equipmentEntry();
-  if (entry && equipmentHasDataToLose(entry)) {
-    pendingEquipmentMode.value = next;
-    equipmentSwitchDialogOpen.value = true;
-    return;
+  if (next === 'global') {
+    switchingEquipmentMode.value = true;
+    try {
+      equipmentReferenceTotalKg.value = equipmentReferenceSum(
+        await fetchEquipmentSnapshotRows(),
+      );
+    } catch {
+      equipmentReferenceTotalKg.value = null;
+      $q.notify({
+        type: 'negative',
+        message: t('planner_equipment_reference_error'),
+      });
+      return;
+    } finally {
+      switchingEquipmentMode.value = false;
+    }
   }
-  equipmentMode.value = next;
-  globalPercentage.value = 0;
-  appliedGlobalPercentage.value = null;
+  pendingEquipmentMode.value = next;
+  equipmentSwitchDialogOpen.value = true;
 }
 
 async function confirmEquipmentSwitch() {
@@ -774,10 +848,11 @@ async function confirmEquipmentSwitch() {
   if (next === null || !entry?.module) return;
   switchingEquipmentMode.value = true;
   try {
+    await deleteManualEquipmentRows();
     await plansStore.setModuleReferencePercentage(
       props.yearData.id,
       entry.module.module_type_id,
-      0,
+      100,
     );
     const budgets = entry.module.budgets ?? {};
     for (const key of abandonedBudgetKeys(equipmentMode.value)) {
@@ -795,9 +870,10 @@ async function confirmEquipmentSwitch() {
     equipmentMode.value = next;
     pendingEquipmentMode.value = null;
     equipmentSwitchDialogOpen.value = false;
-    globalPercentage.value = 0;
-    appliedGlobalPercentage.value = 0;
+    globalPercentage.value = 100;
+    appliedGlobalPercentage.value = next === 'global' ? 100 : null;
     await refreshExpandedModule(MODULES.Equipment);
+    await plansStore.refreshAggregateIfActive();
     equipmentTableTick.value += 1;
   } catch {
     $q.notify({
@@ -837,6 +913,7 @@ async function applyGlobalPercentage() {
     // The rows' percentages and kg changed; refresh totals and remount the
     // table so its rows refetch.
     await refreshExpandedModule(MODULES.Equipment);
+    await plansStore.refreshAggregateIfActive();
     equipmentTableTick.value += 1;
   } catch {
     $q.notify({
@@ -882,12 +959,6 @@ const grantYearsCount = computed<number | null>(() =>
 // Grant sections open every module's input form to any unit member; the
 // effective year sections follow the workspace module permissions, so a
 // standard user only sees Travel and External Clouds & AI (#1983).
-const visibleModules = computed<PlannerModuleConfig[]>(() =>
-  PLANNER_MODULES.filter(
-    (config) =>
-      props.yearData.is_grant || authStore.canUserAccessModule(config.module),
-  ),
-);
 
 const selfTraveler = computed<PlannerSelfTraveler | null>(() => {
   const institutionalId = authStore.user?.institutional_id;
@@ -898,7 +969,7 @@ const selfTraveler = computed<PlannerSelfTraveler | null>(() => {
 });
 
 const moduleEntries = computed<ModuleEntry[]>(() =>
-  visibleModules.value.map((config) => ({
+  PLANNER_MODULES.map((config) => ({
     config,
     module: props.yearData.modules.find(
       (m) => m.module_type_id === getModuleTypeId(config.module),
@@ -930,6 +1001,7 @@ async function refreshExpandedModule(module: Module) {
     props.unitId,
     String(props.yearData.year),
     props.yearData.id,
+    isGlobalEquipment(module),
   );
 }
 
@@ -954,6 +1026,23 @@ async function onReferenceYearChange(referenceYear: number | null) {
     for (const key of props.expandedKeys) {
       if (!key.startsWith(prefix)) continue;
       await refreshExpandedModule(key.slice(prefix.length) as Module);
+    }
+    if (equipmentMode.value === 'global') {
+      globalPercentage.value = 100;
+      appliedGlobalPercentage.value = 100;
+      try {
+        equipmentReferenceTotalKg.value = equipmentReferenceSum(
+          await fetchEquipmentSnapshotRows(),
+        );
+      } catch {
+        equipmentReferenceTotalKg.value = null;
+        $q.notify({
+          type: 'negative',
+          message: t('planner_equipment_reference_error'),
+        });
+      }
+    } else {
+      equipmentReferenceTotalKg.value = null;
     }
   } catch {
     $q.notify({ type: 'negative', message: t('planner_reference_year_error') });

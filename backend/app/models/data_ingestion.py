@@ -8,6 +8,7 @@ from sqlalchemy import DateTime as SADateTime
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
+from app.models._field_defaults import default_dict
 from app.models.user import UserProvider
 
 # from app.models.user import UserProvider
@@ -223,7 +224,7 @@ class DataIngestionJobBase(SQLModel):
 
     _meta_comment = "NULLABLE: Additional metadata as json"
     meta: dict | None = Field(
-        default_factory=dict,
+        default_factory=default_dict,
         sa_column=Column(JSON),
         description=_meta_comment,
     )

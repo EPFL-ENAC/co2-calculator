@@ -84,6 +84,7 @@ const inactiveModules = computed(() =>
         :title="$t('planner_print_year_chart_title', { year: pageTitle })"
         :view-additional-data="true"
         :print-mode="true"
+        :enforce-module-activation="false"
       />
     </section>
   </ReportPage>

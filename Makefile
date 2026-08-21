@@ -32,6 +32,10 @@ help: ## Show available targets
 	@echo "  make stop-db          Stop database services"
 	@echo "  make clean-db         Clean database (remove volumes)"
 	@echo ""
+	@echo "🔭 Local Trace Inspection:"
+	@echo "  make run-observability   Start Tempo + Grafana, re-point otel at Tempo"
+	@echo "  make stop-observability  Stop them"
+	@echo ""
 	@echo "🔍 CI Validation (use before pushing to dev/stage/main):"
 	@echo "  make ci               Run all CI checks (lint + type-check + test + build)"
 	@echo "  make lint             Run all linters"
@@ -105,6 +109,27 @@ connect-db:
 clean-db:
 	docker compose down -v
 	docker volume rm co2-calculator_postgres-data-18 || true
+
+.PHONY: dev-tmux
+dev-tmux: ## Start backend/frontend/claude/shell in a tmux session (or attach if running)
+	./scripts/tmux-dev.sh
+
+# =============================================================================
+# Development - Local Trace Inspection (Tempo + Grafana)
+# =============================================================================
+# Optional overlay on top of the base otel collector (which by default only
+# logs traces to stdout) — for viewing a request's trace waterfall locally,
+# the same way GlitchTip/Tempo shows it in dev/stage. See
+# docker-compose.observability.yml.
+
+.PHONY: run-observability
+run-observability:
+	docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d otel tempo grafana
+	@echo "Grafana: http://localhost:3001  (already logged in — Explore → Tempo, search by service.name=backend)"
+
+.PHONY: stop-observability
+stop-observability:
+	docker compose -f docker-compose.yml -f docker-compose.observability.yml down
 
 # =============================================================================
 # CI/CD - Validation Commands

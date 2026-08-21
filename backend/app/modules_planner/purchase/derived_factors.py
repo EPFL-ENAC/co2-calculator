@@ -6,8 +6,9 @@ planner factor is the mean over its codes, and the global one is the mean of
 those category means — so it weights categories equally rather than following
 whichever category happens to carry the most codes.
 
-Both sides are per EUR, the currency the Calculator's purchase factors are
-uploaded in, so nothing is converted anywhere.
+Both sides are per EUR: the planner factors always are, and a Calculator
+purchase factor whose ``currency`` classification is set to anything else is
+skipped from the averages rather than converted.
 
 Derivation runs as part of a purchase factor upload, for the year that upload
 covers — planner reports resolve every factor from their reference year, so a
@@ -105,6 +106,13 @@ async def _collect_source_efs(
     )
     efs: dict[str, list[float]] = {category: [] for category in SOURCE_TYPE_BY_CATEGORY}
     for factor in (await session.exec(stmt)).all():
+        currency = (factor.classification or {}).get("currency")
+        if currency and str(currency).strip().lower() != "eur":
+            logger.warning(
+                f"Factor {factor.id} is denominated in {currency}, not EUR — "
+                "skipping it in the planner purchase factor averages"
+            )
+            continue
         ef = factor.values.get(SOURCE_EF_KEY)
         if ef is None:
             raise ValueError(

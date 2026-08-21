@@ -8,8 +8,10 @@ real engine at import time from whatever ``DB_URL`` is in the test
 environment) or mocking ``create_async_engine`` through a module reload.
 """
 
+from sqlalchemy.pool import NullPool, QueuePool
+
 from app.core.config import Settings
-from app.db import _pool_kwargs
+from app.db import _pool_kwargs, read_pool_state
 
 
 def test_pool_kwargs_passes_settings_through_for_postgres():
@@ -53,3 +55,24 @@ def test_max_concurrent_jobs_default_matches_plan():
     alternate.
     """
     assert Settings.model_fields["MAX_CONCURRENT_JOBS"].default == 4
+
+
+def test_read_pool_state_reads_queuepool_live_counts():
+    """#2050 Track I1a: the OTel gauge callback's data source. QueuePool
+    is the only pool type in production (Postgres) -- checked_out/size/
+    overflow must come back as the pool's real, live numbers.
+    """
+    pool = QueuePool(creator=lambda: None, pool_size=15, max_overflow=5)
+
+    state = read_pool_state(pool)
+
+    assert state == {"checked_out": 0, "size": 15, "overflow": -15}
+
+
+def test_read_pool_state_none_for_non_queuepool():
+    """Sqlite's NullPool has no checkedout()/size()/overflow() -- must
+    return None, not raise, so the gauge callback can just skip it.
+    """
+    pool = NullPool(creator=lambda: None)
+
+    assert read_pool_state(pool) is None

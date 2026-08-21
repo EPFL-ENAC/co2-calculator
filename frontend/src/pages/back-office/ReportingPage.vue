@@ -278,9 +278,14 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
         class="q-mt-xl"
         style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px"
       >
+        <!-- This page aggregates data across an admin-chosen set of years/units
+             with no single "current year" loaded into yearConfigStore, so the
+             charts' default module/submodule-activation filtering (which reads
+             that single-year config) must be disabled here. -->
         <ModuleCarbonFootprintChart
           :breakdown-data="reportingEmissionBreakdown"
           :title="$t('backoffice_reporting_aggregated_results_title')"
+          :enforce-module-activation="false"
         />
         <CarbonFootPrintPerPersonChart
           :per-person-breakdown="
@@ -294,6 +299,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
           "
           :show-validation-placeholder="false"
           :title="$t('backoffice_reporting_aggregated_results_per_fte_title')"
+          :enforce-module-activation="false"
         />
       </q-card>
       <EmissionBreakdownChart

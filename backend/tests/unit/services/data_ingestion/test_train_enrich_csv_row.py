@@ -100,3 +100,35 @@ async def test_train_enrich_normalizes_country_code_case_for_lookup(
     assert err is None
     assert captured["Berne"] == "DE"
     assert captured["Geneva"] == "CH"
+
+
+@pytest.mark.asyncio
+async def test_train_enrich_not_found_is_a_hard_row_error(monkeypatch) -> None:
+    """#1186: zero station matches must reject the row, not persist it
+    silently. Supersedes #1183's original choice to mirror plane's
+    unknown-IATA behavior here — warn-and-persist on a WARNING nobody reads
+    is a silent fallback, not real parity.
+    """
+
+    async def _fake_resolve(self, name: str, country_code: str):
+        return None, "not_found"
+
+    monkeypatch.setattr(
+        "app.modules.professional_travel.handlers."
+        "LocationService.resolve_train_station_for_csv",
+        _fake_resolve,
+    )
+
+    handler = ProfessionalTravelTrainModuleHandler()
+    data = {
+        "origin_name": "Atlantis",
+        "origin_country_code": "CH",
+        "destination_name": "Geneva",
+        "destination_natural_key": "train:ch:geneva:46.2104:6.1428",
+    }
+
+    enriched, err = await handler.enrich_csv_row(data, MagicMock())
+
+    assert err is not None
+    assert "Atlantis" in err
+    assert "origin_natural_key" not in enriched

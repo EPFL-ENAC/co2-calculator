@@ -1,8 +1,9 @@
 from typing import Any
 
-from sqlmodel import func
+from sqlmodel import col, func
 
 from app.core.logging import get_logger
+from app.models.building_room import BuildingRoom
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -27,6 +28,38 @@ from app.schemas.data_entry import BaseModuleHandler
 from app.services.building_room_service import BuildingRoomService
 
 logger = get_logger(__name__)
+
+
+async def _prefetch_rooms(entries: list[Any], session: Any) -> dict:
+    """Bulk-load a slice's rooms once instead of one lookup per entry.
+
+    Rooms are ref-data (year-independent), so the whole slice resolves in a
+    single ``IN`` query and ``pre_compute`` reads it in-memory via
+    ``slice_cache``.
+    """
+    room_names = {
+        entry.data.get("room_name") for entry in entries if entry.data.get("room_name")
+    }
+    if not room_names:
+        return {}
+    rooms = await BuildingRoomService(session).get_rooms_by_names(sorted(room_names))
+    # First row per name wins, matching get_room's `.first()`.
+    rooms_by_name: dict[str, Any] = {}
+    for room in rooms:
+        rooms_by_name.setdefault(room.room_name, room)
+    return {"rooms": rooms_by_name}
+
+
+async def _resolve_room(
+    room_name: str, session: Any, slice_cache: dict | None
+) -> Any | None:
+    """Room from the slice cache when a bulk caller prefetched one, else a
+    per-entry lookup (single-entry create/update path).
+    """
+    cached_rooms = (slice_cache or {}).get("rooms")
+    if cached_rooms is not None:
+        return cached_rooms.get(room_name)
+    return await BuildingRoomService(session).get_room(room_name=room_name)
 
 
 class BuildingRoomModuleHandler(BaseModuleHandler):
@@ -69,8 +102,24 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         EmissionType.buildings__rooms__heating_thermal: "heating_kwh_per_square_meter",
     }
 
-    async def pre_compute(self, data_entry: Any, session: Any) -> dict:
-        """Call RoomService to get room surface by room_name"""
+    async def prefetch_slice(
+        self,
+        entries: list[Any],
+        session: Any,
+        *,
+        year: int | None = None,
+    ) -> dict:
+        return await _prefetch_rooms(entries, session)
+
+    async def pre_compute(
+        self, data_entry: Any, session: Any, *, slice_cache: dict | None = None
+    ) -> dict:
+        """Call RoomService to get room surface by room_name
+
+        ``slice_cache`` (from ``prefetch_slice``) supplies the slice's rooms
+        in-memory during a recalc; absent it (single-entry create/update),
+        the per-entry lookup below runs unchanged.
+        """
         room_name = data_entry.data.get("room_name")
         building_name = data_entry.data.get("building_name")
         if not room_name or not building_name:
@@ -87,8 +136,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
                 building_name,
             )
             return {}
-        service = BuildingRoomService(session)
-        room = await service.get_room(room_name=room_name)
+        room = await _resolve_room(room_name, session, slice_cache)
         if room is None:
             # Same "no leaf rows" outcome as the missing-name branch
             # above — log so the operator can chase the missing
@@ -115,8 +163,6 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         kwh_field: str,
     ) -> float | None:
         """Compute kg_co2eq from surface × kwh_per_m² × ef × conversion."""
-        # room_surface_square_meter should be resolve like travel! from room
-
         surface = ctx.get("room_surface_square_meter")
         ratio = ctx.get("room_allocation_ratio")
         kwh_per_m2 = factor_values.get(kwh_field)
@@ -298,16 +344,58 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
         # Same coalesce as filter_map — sort must follow the displayed value.
         "building_name": func.coalesce(
             Factor.classification["building_name"].as_string(),
-            DataEntry.data["building_name"].as_string(),
+            col(BuildingRoom.building_name),
         ),
+        "room_name": DataEntry.data["room_name"].as_string(),
     }
 
     filter_map = {
         "building_name": func.coalesce(
             Factor.classification["building_name"].as_string(),
-            DataEntry.data["building_name"].as_string(),
+            col(BuildingRoom.building_name),
         ),
+        "room_name": DataEntry.data["room_name"].as_string(),
     }
+
+    async def prefetch_slice(
+        self,
+        entries: list[Any],
+        session: Any,
+        *,
+        year: int | None = None,
+    ) -> dict:
+        return await _prefetch_rooms(entries, session)
+
+    async def pre_compute(
+        self, data_entry: Any, session: Any, *, slice_cache: dict | None = None
+    ) -> dict:
+        """Resolve building_name and room surface from ``BuildingRoom``.
+
+        The persisted payload is only ``{"room_name"}``; everything else is
+        reference data resolved here at compute time. An unresolvable room
+        yields no context, so the formula produces no emission (the module's
+        "skip, don't default" semantic).
+        """
+        room_name = data_entry.data.get("room_name")
+        if not room_name:
+            logger.warning(
+                "embodied_energy.pre_compute: skipping entry id=%s — missing room_name",
+                getattr(data_entry, "id", None),
+            )
+            return {}
+        room = await _resolve_room(room_name, session, slice_cache)
+        if room is None:
+            logger.warning(
+                "embodied_energy.pre_compute: skipping entry id=%s — room "
+                "not found in BuildingRoom ref-data (room_name=%r)",
+                getattr(data_entry, "id", None),
+                room_name,
+            )
+            return {}
+        return {
+            "building_name": room.building_name,
+            "room_surface_square_meter": room.room_surface_square_meter,
+        }
 
     def to_response(
         self,
@@ -322,7 +410,6 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 "source": data_entry.source,
                 **d,
-                "building_name": d.get("building_name"),
             }
         )
 
@@ -353,7 +440,7 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
                     data_entry_type=DataEntryTypeEnum.building_embodied_energy,
                     kind=None,
                     subkind=None,
-                    context={"building_name": data_entry.data.get("building_name")},
+                    context={"building_name": ctx.get("building_name")},
                     fallbacks={"building_name": "default"},
                 ),
                 formula_func=_building_embodied_energy_formula,

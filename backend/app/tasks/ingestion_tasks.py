@@ -21,10 +21,12 @@ from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionResult,
 )
+from app.models.module_type import DERIVED_DATA_ENTRY_TYPES
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks._chain import EMISSION_RECALC_DEDUP, chain_job
@@ -501,6 +503,21 @@ async def _chain_emission_recalc_for_data_ingest(
                 "year": year,
             }
         ]
+        # Derived types get a parallel recalc sibling — their rows were
+        # created synchronously by the ingest, so no ordering dependency.
+        try:
+            pinned = DataEntryTypeEnum(job.data_entry_type_id)
+        except ValueError:
+            pinned = None
+        if pinned is not None:
+            targets.extend(
+                {
+                    "module_type_id": job.module_type_id,
+                    "data_entry_type_id": derived.value,
+                    "year": year,
+                }
+                for derived in DERIVED_DATA_ENTRY_TYPES.get(pinned, [])
+            )
     else:
         # Multi-det data ingest (e.g. headcount.csv covers member +
         # student in one upload).  Late import avoids the

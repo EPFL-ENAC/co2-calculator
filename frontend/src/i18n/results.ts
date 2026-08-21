@@ -715,6 +715,14 @@ export default {
     en: 'Cohere',
     fr: 'Cohere',
   },
+  'charts-ai-provider-github-subcategory': {
+    en: 'GitHub Copilot',
+    fr: 'GitHub Copilot',
+  },
+  'charts-ai-provider-microsoft-subcategory': {
+    en: 'Microsoft Copilot',
+    fr: 'Microsoft Copilot',
+  },
   'charts-ai-provider-others-subcategory': {
     en: 'Others',
     fr: 'Autres',
@@ -882,6 +890,26 @@ export default {
   results_additional_embodied_energy_breakdown_title: {
     en: 'Breakdown of construction and renovation carbon footprint by category',
     fr: "Répartition de l'empreinte carbone des constructions et rénovations par catégorie",
+  },
+  'charts-incineration-waste-bio-chem-ani-subcategory': {
+    en: 'Incineration waste (bio/chem/animal)',
+    fr: 'Déchets incinérés (bio/chim/animal)',
+  },
+  'charts-batteries-subcategory': {
+    en: 'Batteries',
+    fr: 'Piles',
+  },
+  'charts-neon-tubes-subcategory': {
+    en: 'Neon tubes',
+    fr: 'Tubes néon',
+  },
+  'charts-chemical-waste-subcategory': {
+    en: 'Chemical waste',
+    fr: 'Déchets chimiques',
+  },
+  'charts-construction-and-renovation-subcategory': {
+    en: 'Construction & renovation',
+    fr: 'Construction et rénovation',
   },
   'charts-embodied-energy-subcategory': {
     en: 'Embodied energy',

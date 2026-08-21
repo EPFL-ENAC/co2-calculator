@@ -49,12 +49,26 @@
     <q-separator />
 
     <q-card-section>
-      <q-checkbox
-        v-model="grantProposalInput"
-        :label="$t('planner_grant_proposal_checkbox')"
-        color="info"
-        size="sm"
-      />
+      <div class="row items-center q-gutter-x-sm">
+        <q-checkbox
+          v-model="grantProposalInput"
+          :label="$t('planner_grant_proposal_checkbox')"
+          color="info"
+          size="sm"
+        />
+        <q-icon
+          v-if="grantProposalTooltip"
+          :name="outlinedInfo"
+          size="16px"
+          color="grey-6"
+          class="cursor-pointer"
+          :aria-label="$t('module-info-label')"
+        >
+          <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+            {{ grantProposalTooltip }}
+          </q-tooltip>
+        </q-icon>
+      </div>
       <div class="text-body2 text-grey-7">
         {{ $t('planner_grant_proposal_hint') }}
       </div>
@@ -142,13 +156,13 @@ import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import { useRoute } from 'vue-router';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import { runtimeConfig } from 'src/config/runtime';
 
 import {
   useSimulatorPlansStore,
   type SimulatorPlan,
   type SimulatorPlanUpdatePayload,
 } from 'src/stores/simulatorPlans';
-import { useYearConfigStore } from 'src/stores/yearConfig';
 
 const props = defineProps<{ plan: SimulatorPlan }>();
 const emit = defineEmits<{ updated: [plan: SimulatorPlan] }>();
@@ -157,9 +171,9 @@ const { t } = useI18n();
 const $q = useQuasar();
 const route = useRoute();
 const plansStore = useSimulatorPlansStore();
-const yearConfigStore = useYearConfigStore();
 
 const sectionTooltip = computed(() => t('planner-project-info-section-title'));
+const grantProposalTooltip = computed(() => t('planner-grant-proposal-title'));
 
 const nameInput = ref(props.plan.name);
 const startYearInput = ref<number | null>(props.plan.start_year ?? null);
@@ -192,14 +206,11 @@ const isViewableByUnitMembers = computed({
   set: (value: boolean) => void saveShareWithLab(value),
 });
 
-// Plans span from the earliest configurable Calculator year
-// (settings.MIN_CONFIGURABLE_YEAR — no reference data before it) up to ten
-// years ahead. Bounded selects replace free-form validation entirely.
-const YEARS_AHEAD = 10;
-const maxYear = computed(() => new Date().getFullYear() + YEARS_AHEAD);
-const minYear = computed(
-  () => yearConfigStore.minConfigurableYear ?? new Date().getFullYear(),
-);
+// Project horizon (steering-committee decision, per-pod configurable via
+// APP_PLANNER_MIN_YEAR / APP_PLANNER_MAX_YEAR). Bounded selects replace
+// free-form validation entirely.
+const MIN_YEAR = runtimeConfig.plannerMinYear;
+const MAX_YEAR = runtimeConfig.plannerMaxYear;
 
 function yearRange(
   from: number,
@@ -215,14 +226,14 @@ function yearRange(
 }
 
 const startYearOptions = computed(() =>
-  yearRange(minYear.value, maxYear.value, startYearInput.value),
+  yearRange(MIN_YEAR, MAX_YEAR, startYearInput.value),
 );
 
 // End year can't precede the chosen start year.
 const endYearOptions = computed(() =>
   yearRange(
-    Math.max(minYear.value, startYearInput.value ?? minYear.value),
-    maxYear.value,
+    Math.max(MIN_YEAR, startYearInput.value ?? MIN_YEAR),
+    MAX_YEAR,
     endYearInput.value,
   ),
 );
@@ -269,6 +280,8 @@ async function generateSections() {
   const end = endYearInput.value;
   if (!yearsValid.value || generatingSections.value) return;
 
+  const grantSectionAdded =
+    grantProposalInput.value && !props.plan.is_grant_proposal;
   const payload: SimulatorPlanUpdatePayload = {
     is_grant_proposal: grantProposalInput.value,
     with_year_sections: yearByYearChecked.value,
@@ -283,6 +296,7 @@ async function generateSections() {
   try {
     const updated = await plansStore.updatePlan(props.plan.id, payload);
     yearByYearInput.value = null;
+    if (grantSectionAdded) await defaultGrantReferenceYear();
     emit('updated', updated);
     $q.notify({ type: 'positive', message: t('planner_sections_generated') });
   } catch {
@@ -292,6 +306,24 @@ async function generateSections() {
     });
   } finally {
     generatingSections.value = false;
+  }
+}
+
+async function defaultGrantReferenceYear() {
+  if (props.plan.default_factor_year === null) return;
+  const grantYear = plansStore.planYears.find(
+    (y) => y.is_grant && y.reference_year === null,
+  );
+  if (!grantYear) return;
+  try {
+    await plansStore.setReferenceYear(
+      props.plan.id,
+      grantYear.year,
+      props.plan.default_factor_year - 1,
+      true,
+    );
+  } catch {
+    $q.notify({ type: 'negative', message: t('planner_reference_year_error') });
   }
 }
 

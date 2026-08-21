@@ -119,11 +119,19 @@ export const useAuthStore = defineStore('auth', () => {
     return inflight;
   }
 
+  // #2050: a second click (or a stray duplicate handler) before the browser
+  // has actually navigated away must not fire a second OAuth login for the
+  // same user — two concurrent /auth/callback hits race the backend's audit
+  // trail. loading never resets to false here: the page is about to unload.
   function login_test(role: string) {
+    if (loading.value) return;
+    loading.value = true;
     window.location.replace(`${API_LOGIN_TEST_URL}?role=${role}`);
   }
 
   function login() {
+    if (loading.value) return;
+    loading.value = true;
     window.location.replace(API_LOGIN_URL);
   }
 

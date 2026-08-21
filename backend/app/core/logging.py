@@ -1,7 +1,10 @@
 """Logging configuration for the application."""
 
+import atexit
 import json
 import logging
+import logging.handlers
+import queue
 import re
 import sys
 from datetime import UTC, datetime
@@ -209,7 +212,12 @@ def setup_logging() -> None:
     # Scrub OAuth/token query params from access logs (see filter docstring).
     logging.getLogger("uvicorn.access").addFilter(_RedactSensitiveQueryStringFilter())
 
-    # Optional: add Loki handler if enabled
+    # Optional: add Loki handler if enabled. LokiHandler.emit() does a
+    # blocking httpx POST — attached directly to the root logger that would
+    # stall the event loop on every logger.info()+ call, anywhere in the
+    # app, for up to `timeout` seconds under Loki degradation (#2050 Track
+    # I3). QueueHandler/QueueListener moves that POST onto its own thread:
+    # emit() only ever does a non-blocking queue push.
     if settings.LOKI_ENABLED and settings.LOKI_URL:
         loki_handler = LokiHandler(
             loki_url=settings.LOKI_URL,
@@ -220,7 +228,15 @@ def setup_logging() -> None:
         )
         # Use the same JSON line format for Loki
         loki_handler.setFormatter(JsonFormatter())
-        logging.getLogger().addHandler(loki_handler)
+        loki_queue: queue.Queue = queue.Queue(-1)
+        queue_handler = logging.handlers.QueueHandler(loki_queue)
+        queue_handler.setLevel(log_level)
+        listener = logging.handlers.QueueListener(
+            loki_queue, loki_handler, respect_handler_level=True
+        )
+        listener.start()
+        atexit.register(listener.stop)
+        logging.getLogger().addHandler(queue_handler)
 
     logging.getLogger(__name__).info(
         "Logging configured",

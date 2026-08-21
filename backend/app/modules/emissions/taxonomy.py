@@ -5,8 +5,40 @@ relationships. Display semantics (scope bands, chart buckets) are declared
 per module as ``StatBucket``s — see ``app.modules.emissions.buckets``.
 """
 
+import re
 from enum import Enum
 from typing import Protocol
+
+# =============================================================================
+# Resolution failure
+# =============================================================================
+
+
+class EmissionTypeResolutionError(ValueError):
+    """A CSV value has no emission type, and no default may stand in for it.
+
+    Raised by the per-module resolvers in ``app/modules/*/emissions.py``.
+    Distinct from a plain ``ValueError`` because the factor-CSV provider
+    lets it abort the whole upload rather than skipping the row (#2091):
+    a factor filed under the wrong node produces a plausible-looking total
+    that is silently wrong, which is worse than a rejected upload.
+    """
+
+
+_NON_TOKEN = re.compile(r"[^a-z0-9]+")
+
+
+def canonical_token(value: str | None) -> str:
+    """Canonicalise one CSV cell into an ``EmissionType`` name segment.
+
+    Separator-only canonicalisation — ``"domestic waste"``,
+    ``"non-ferrous metals"`` and ``"organic waste (lawn)"`` become
+    ``domestic_waste``, ``non_ferrous_metals`` and ``organic_waste_lawn``,
+    which is how the taxonomy already spells them. It never *chooses* a
+    node: anything that does not land on a declared name still raises.
+    """
+    return _NON_TOKEN.sub("_", (value or "").strip().lower()).strip("_")
+
 
 # =============================================================================
 # EmissionType enum
@@ -32,6 +64,7 @@ class EmissionType(int, Enum):
     waste = 20000
     waste__incineration = 20001
     waste__incineration__domestic_waste = 2000101
+    waste__incineration__incineration_waste_bio_chem_ani = 2000102
     waste__composting = 20002
     waste__composting__organic_waste_lawn = 2000201
     waste__biogas = 20003
@@ -51,6 +84,9 @@ class EmissionType(int, Enum):
     waste__recycling__textile = 2000411
     waste__recycling__toner_and_ink_cartridges = 2000412
     waste__recycling__inert_waste = 2000413
+    waste__recycling__batteries = 2000414
+    waste__recycling__neon_tubes = 2000415
+    waste__recycling__chemical_waste = 2000416
     commuting = 30000
     commuting__walking = 30001
     commuting__cycling = 30002
@@ -140,6 +176,12 @@ class EmissionType(int, Enum):
     process_emissions__co2 = 70200
     process_emissions__n2o = 70300
     process_emissions__refrigerants = 70400
+    process_emissions__hfcs = 70500
+    process_emissions__perfluorinated_compounds = 70600
+    process_emissions__fluorinated_ethers = 70700
+    process_emissions__perfluoropolyethers = 70800
+    process_emissions__sf6 = 70900
+    process_emissions__nf3 = 71000
 
     # -------------------------------------------------------------------------
     # Equipment
@@ -189,6 +231,8 @@ class EmissionType(int, Enum):
     external__ai__provider_openai = 110204
     external__ai__provider_cohere = 110205
     external__ai__provider_others = 110206
+    external__ai__provider_github = 110207
+    external__ai__provider_microsoft = 110208
 
     # -------------------------------------------------------------------------
     # Properties — derived lookups via private tables defined below

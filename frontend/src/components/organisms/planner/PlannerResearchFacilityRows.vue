@@ -4,34 +4,36 @@
       {{ $t('planner_rf_hint') }}
     </div>
 
-    <q-separator />
-    <div class="q-pa-md">
-      <div class="text-weight-medium q-mb-sm">
-        {{ $t('planner_budget_section_title') }}
+    <template v-if="!hideBudget">
+      <q-separator />
+      <div class="q-pa-md">
+        <div class="text-weight-medium q-mb-sm">
+          {{ $t('planner_budget_section_title') }}
+        </div>
+        <q-input
+          v-model.number="budgetInput"
+          class="planner-rf__budget"
+          type="number"
+          outlined
+          dense
+          hide-bottom-space
+          min="0"
+          :suffix="currencyLabel(budgetCurrency)"
+          :label="
+            $t('planner_submodule_budget_label', {
+              submodule: $t(MODULES.ResearchFacilities),
+            })
+          "
+          :loading="savingBudget"
+          :disable="disable"
+          @blur="saveBudget"
+          @keyup.enter="saveBudget"
+        />
+        <div class="text-body2 text-grey-7 q-mt-sm">
+          {{ $t('planner_submodule_budget_hint') }}
+        </div>
       </div>
-      <q-input
-        v-model.number="budgetInput"
-        class="planner-rf__budget"
-        type="number"
-        outlined
-        dense
-        hide-bottom-space
-        min="0"
-        :suffix="currencyLabel(budgetCurrency)"
-        :label="
-          $t('planner_submodule_budget_label', {
-            submodule: $t(MODULES.ResearchFacilities),
-          })
-        "
-        :loading="savingBudget"
-        :disable="disable"
-        @blur="saveBudget"
-        @keyup.enter="saveBudget"
-      />
-      <div class="text-body2 text-grey-7 q-mt-sm">
-        {{ $t('planner_submodule_budget_hint') }}
-      </div>
-    </div>
+    </template>
 
     <q-separator />
     <div class="q-pa-md">
@@ -151,6 +153,7 @@ import {
   SUBMODULE_RESEARCH_FACILITIES_TYPES,
 } from 'src/constant/modules';
 import { getModuleTypeId } from 'src/constant/moduleStates';
+import { useModuleStore } from 'src/stores/modules';
 import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
 
 /**
@@ -160,6 +163,9 @@ import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
  * CPU, housing, ...). Factors, and therefore the metric and the computed
  * kgCO₂eq, come from the reference year. A group (research facilities /
  * animal facilities) only renders once it holds a row.
+ *
+ * The Simulator Explorer reuses the same grid without the grant budget
+ * section (#2004).
  */
 
 type RfSub = 'research-facilities' | 'animal_facilities';
@@ -202,11 +208,13 @@ const props = defineProps<{
   projectYearsCount?: number | null;
   grantBudgets?: Record<string, number> | null;
   budgetCurrency?: string | null;
+  hideBudget?: boolean;
   disable: boolean;
 }>();
 
 const $q = useQuasar();
 const { t, n } = useI18n();
+const moduleStore = useModuleStore();
 const plansStore = useSimulatorPlansStore();
 
 const GROUPS: { sub: RfSub; titleKey: string }[] = [
@@ -401,7 +409,7 @@ async function persist(row: RfRow) {
     }
     row.saved = use;
     bindEntries(row.sub, await fetchEntries(row.sub));
-    await plansStore.refreshAggregateIfActive();
+    await moduleStore.refreshEmissionBreakdownIfNeeded();
   } catch {
     $q.notify({ type: 'negative', message: t('planner_rf_save_error') });
   } finally {

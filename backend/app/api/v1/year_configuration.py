@@ -42,6 +42,8 @@ from app.models.user import User
 from app.models.year_configuration import YearConfiguration
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.year_configuration import (
+    MAX_REDUCTION_YEAR,
+    MIN_REDUCTION_YEAR,
     FileCategory,
     FileMetadata,
     FileUploadResponse,
@@ -803,6 +805,7 @@ async def update_year_configuration(
     Validates:
     - reduction_percentage must be between 0 and 1
     - target_year must be > year
+    - reference_year must be between MIN_REDUCTION_YEAR and MAX_REDUCTION_YEAR
 
     Creates audit entry in audit_documents.
 
@@ -840,6 +843,15 @@ async def update_year_configuration(
                     detail=(
                         f"reduction_percentage ({reduction_pct}) must be "
                         f"between 0 and 1"
+                    ),
+                )
+            reference_year = goal.get("reference_year", 0)
+            if not (MIN_REDUCTION_YEAR <= reference_year <= MAX_REDUCTION_YEAR):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"reference_year ({reference_year}) must be between "
+                        f"{MIN_REDUCTION_YEAR} and {MAX_REDUCTION_YEAR}"
                     ),
                 )
 

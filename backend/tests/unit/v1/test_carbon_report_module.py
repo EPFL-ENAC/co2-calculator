@@ -12,10 +12,13 @@ import pytest
 from fastapi import HTTPException
 
 import app.api.v1.carbon_report_module as crm
+from app.core.constants import ModuleStatus
 from app.core.role_priority import pick_role_for_institutional_id, role_priority_case
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope
+from app.repositories.data_entry_repo import HeadcountFteBreakdown
+from app.schemas.carbon_report import CarbonReportModuleRead, CarbonReportRead
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -68,15 +71,21 @@ def _resolved(module_id=1, unit_id=1, year=2024):
 
 @pytest.mark.asyncio
 async def test_resolve_report_module_returns_pair():
+    # Real read models, not MagicMocks: resolve_report_module now projects
+    # them out of a validated WriteScope (#2050 J4), so a mock with
+    # MagicMock attributes would fail validation rather than pass through.
     db = MagicMock()
-    report = MagicMock()
-    report.carbon_project_id = None
-    mock_module = MagicMock()
-    mock_module.id = 42
+    report = CarbonReportRead(id=1, year=2025, unit_id=1, carbon_project_id=None)
+    module = CarbonReportModuleRead(
+        id=42,
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status=ModuleStatus.IN_PROGRESS,
+    )
     report_service = MagicMock()
     report_service.get = AsyncMock(return_value=report)
     module_service = MagicMock()
-    module_service.get_module = AsyncMock(return_value=mock_module)
+    module_service.get_module = AsyncMock(return_value=module)
 
     with (
         patch.object(crm, "CarbonReportService", return_value=report_service),
@@ -86,7 +95,7 @@ async def test_resolve_report_module_returns_pair():
             1, "headcount", db, _user()
         )
 
-    assert got_report is report
+    assert got_report.id == report.id
     assert got_module.id == 42
 
 
@@ -526,8 +535,14 @@ async def test_get_module_headcount_does_not_raise_name_error():
 
     data_svc = MagicMock()
     data_svc.get_module_data = AsyncMock(return_value=module_data)
-    data_svc.get_total_per_field = AsyncMock(return_value=10.0)
-    data_svc.get_stats = AsyncMock(return_value={"10208": 5.0})
+    # #2050 Track J: the three FTE round trips collapsed into one call.
+    data_svc.get_headcount_fte_breakdown = AsyncMock(
+        return_value=HeadcountFteBreakdown(
+            total_fte=10.0,
+            student_fte=4.0,
+            member_fte_by_sius_code={"10208": 5.0},
+        )
+    )
 
     unit = MagicMock()
     unit.institutional_id = UNIT_IID
@@ -555,3 +570,30 @@ async def test_get_module_headcount_does_not_raise_name_error():
 
     assert result.totals.total_kg_co2eq is None
     assert result.totals.total_annual_fte == 10.0
+    assert result.stats == {"10208": 5.0, "student": 4.0}
+
+
+# ======================================================================
+# #2050 J4 — WriteScope threads resolved identity through the write
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_write_scope_carries_year_and_unit_from_the_report():
+    """WriteScope is the carrier that stops four services re-reading the
+    report, project and module the route already resolved.
+    """
+    report = MagicMock()
+    report.year = 2025
+    report.unit_id = 7
+    module = MagicMock()
+    module.id = 42
+
+    scope = crm.WriteScope.model_construct(
+        report=report, module=module, is_simulator=False
+    )
+
+    assert scope.year == 2025
+    assert scope.unit_id == 7
+    assert scope.module.id == 42
+    assert scope.is_simulator is False

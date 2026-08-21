@@ -10,7 +10,6 @@ from typing import Any
 
 from fastapi import BackgroundTasks
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -102,8 +101,15 @@ class AuditDocumentService:
         self, entity_type: str, entity_id: int
     ) -> AuditDocument | None:
         """Get the current (is_current=True) version for an entity.
-        Get current version and lock it (FOR UPDATE)
-        to prevent concurrent version creation.
+
+        ``FOR UPDATE`` blocks a second reader while a first is mid-write, but
+        it does not make two concurrent creates for the same entity
+        correct: once the first writer commits, its row no longer matches
+        ``is_current = true``, so the second reader's re-checked WHERE
+        clause drops it and this returns None even though a head exists.
+        The second writer then collides with the first on
+        ``audit_document_one_current_idx`` instead of chaining onto it — an
+        existing, tracked gap (#1958), not something this lock closes.
         """
         stmt = (
             select(AuditDocument)
@@ -183,6 +189,7 @@ class AuditDocumentService:
         route_payload: dict | None = None,
         handled_ids: list[str] | None = None,
         background_tasks: BackgroundTasks | None = None,
+        entity_is_new: bool = False,
     ) -> AuditDocument:
         """Create a new version for an entity.
 
@@ -200,6 +207,8 @@ class AuditDocumentService:
             route_payload: Route payload/parameters
             handled_ids: List of user provider codes whose data was affected
             background_tasks: FastAPI BackgroundTasks object to schedule async tasks
+            entity_is_new: The caller minted the entity id in this request, so
+                no prior version can exist and the head lookup is skipped
 
         Returns:
             The newly created AuditDocument
@@ -212,20 +221,33 @@ class AuditDocumentService:
         if route_payload is not None:
             route_payload = jsonable_encoder(route_payload)
 
-        # Serialize concurrent writers on the same entity: the head read,
-        # version increment and is_current flip below are a read-modify-write
-        # that two parallel requests (e.g. the print page fetching plane and
-        # train at once, both auditing the same CarbonReportModule) would race,
-        # violating audit_document_one_current_idx. The advisory xact lock is
-        # released at commit/rollback; the second writer then sees the new head.
-        if self.session.get_bind().dialect.name == "postgresql":
-            await self.session.execute(
-                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
-                {"key": f"{entity_type}:{entity_id}"},
-            )
-
-        # Get current version to compute diff and hash chain
-        current = await self.get_current_version(entity_type, entity_id)
+        # No lock guards the head swap below: every remaining caller audits a
+        # mutation keyed on the row it just changed, so two writers can only
+        # collide by editing the same entry at once — a real conflict, which
+        # the IntegrityError surfaces rather than papers over (#1958).
+        # Get current version to compute diff and hash chain.
+        # #2050 J4: when the caller minted the entity id moments ago, no prior
+        # version can exist — the FOR UPDATE head lookup would lock nothing and
+        # return nothing. Skipping it removes one statement from every
+        # interactive write. The skip is an explicit caller opt-in, NOT keyed
+        # on change_type: auth logs event-style CREATEs against reused entity
+        # ids (the logging-in user), which have a head to chain onto. A genuine
+        # collision (two writers minting one id) still surfaces:
+        # audit_document_one_current_idx makes the flush below raise
+        # IntegrityError rather than quietly writing a second version 1.
+        #
+        # A concurrent, *non-minted* collision (two real logins for the same
+        # user racing get_current_version) surfaces the same way today rather
+        # than retrying: a hand-rolled retry-on-conflict here needs a
+        # SAVEPOINT that unwinds only this insert without touching business
+        # data an earlier step in the same transaction already staged, and
+        # every SQLAlchemy 2.0 async shape tried for that (2026-08-19)
+        # either deactivated the outer transaction or broke the DBAPI
+        # connection outright. Tracked as a follow-up rather than shipped
+        # half-verified; see the plan's Outcome section.
+        current = None
+        if not entity_is_new:
+            current = await self.get_current_version(entity_type, entity_id)
 
         if current:
             new_version = current.version + 1
@@ -283,8 +305,8 @@ class AuditDocumentService:
             )
             raise e
 
-        await self.session.refresh(doc_version)
-
+        # No refresh: every value was set above and ``id`` came back from the
+        # INSERT (#2050 J4).
         logger.info(
             f"Created version {new_version} for {entity_type}:{entity_id} "
             f"({change_type}) by {changed_by or 'unknown'}"

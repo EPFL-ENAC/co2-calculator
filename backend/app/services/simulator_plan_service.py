@@ -5,26 +5,39 @@ A "plan" (project planner project) is a ``CarbonProject`` row with
 shown in the project planner routes.
 """
 
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.core.policy import has_global_or_principal_access_for_unit
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
-from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry import (
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryStatusEnum,
+    DataEntryTypeEnum,
+)
+from app.models.data_entry_emission import DataEntryEmissionRow
 from app.models.module_type import (
+    PLANNER_PLAIN_COPY_MODULE_TYPES,
     PLANNER_PREFILLED_MODULE_TYPES,
     PLANNER_REFERENCE_SCOPED_MODULE_TYPES,
     ModuleTypeEnum,
 )
+from app.models.unit import Unit
 from app.models.user import User
 from app.modules_planner.headcount import PLANNER_STUDENT_CODE
 from app.repositories.carbon_project_repo import CarbonProjectRepository
 from app.repositories.data_entry_repo import DataEntryRepository
-from app.schemas.carbon_report import CarbonReportCreate, CarbonReportRead
+from app.schemas.carbon_report import (
+    CarbonReportCreate,
+    CarbonReportModuleRead,
+    CarbonReportRead,
+)
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.schemas.simulator_plan import (
     SimulatorPlanRead,
@@ -40,6 +53,22 @@ from app.utils.report_stats import merge_report_stats
 logger = get_logger(__name__)
 
 DEFAULT_PLAN_NAME = "new-project"
+
+
+@dataclass
+class _ReferenceCache:
+    """The reference year's side of a prefill, read once per job.
+
+    Every plan year of one plan copies from the *same* reference report,
+    so without this the job re-reads that report, its modules and — the
+    expensive part — all of its entries once per year: 40 of the 90
+    ``list_by_module`` calls in a measured 10-year prefill were the same
+    rows fetched ten times (plan #2050 Track F6).
+    """
+
+    reports: dict[tuple[int, int], CarbonReport | None] = field(default_factory=dict)
+    modules: dict[int, dict[int, CarbonReportModuleRead]] = field(default_factory=dict)
+    entries: dict[int, list[DataEntry]] = field(default_factory=dict)
 
 
 def _next_available_name(base: str, existing: set[str]) -> str:
@@ -170,8 +199,11 @@ class SimulatorPlanService:
 
     async def update_plan(
         self, plan_id: int, update: SimulatorPlanUpdate
-    ) -> SimulatorPlanRead | None:
+    ) -> tuple[SimulatorPlanRead, list[int]] | None:
         """Apply a PATCH to a plan; returns None if the plan does not exist.
+
+        Returns the updated plan and the report ids still needing prefill —
+        the caller enqueues that work (plan #2050 Track F4).
 
         Renaming to the current name is a no-op; a collision with another
         plan of the same unit raises ``ValueError``. When the plan ends up
@@ -202,12 +234,12 @@ class SimulatorPlanService:
         ):
             raise ValueError("start_year must be <= end_year")
         project = await self._flush_guarded(self.repo.create(project))
-        await self._sync_year_reports(
+        needs_prefill = await self._sync_year_reports(
             project,
             default_reference_year=update.default_reference_year,
             with_year_sections=update.with_year_sections,
         )
-        return await self._read_with_creator(project)
+        return await self._read_with_creator(project), needs_prefill
 
     async def _sync_year_reports(
         self,
@@ -215,7 +247,7 @@ class SimulatorPlanService:
         default_reference_year: int | None = None,
         *,
         with_year_sections: bool | None = None,
-    ) -> None:
+    ) -> list[int]:
         """Make the plan's reports match ``start_year..end_year``, one per year.
 
         Out-of-range reports are deleted together with their entries
@@ -235,6 +267,12 @@ class SimulatorPlanService:
         A plan that ends up with per-year sections is also forced back to
         private (``is_viewable_by_unit_members = False``): those sections
         carry the unit's real annual data, which only the creator may see.
+
+        Returns the ids of the reports that still need prefilling. Creating
+        the reports is cheap; copying a reference year into them is not (a
+        10-year range over a large baseline runs to tens of thousands of
+        rows), so that part is handed to the ``simulator_plan_prefill`` job
+        rather than run inside the request — plan #2050 Track F4.
         """
         if project.id is None:
             raise ValueError("project must be persisted before use")
@@ -242,7 +280,7 @@ class SimulatorPlanService:
         grant_report = next((r for r in reports if r.is_grant), None)
         if project.start_year is None or project.end_year is None:
             await self._sync_grant_report(project, grant_report)
-            return
+            return []
         want_years = with_year_sections
         if want_years is None:
             want_years = not reports or any(not r.is_grant for r in reports)
@@ -261,6 +299,7 @@ class SimulatorPlanService:
                 existing_years.add(report.year)
             elif report.id is not None:
                 await self.report_service.delete(report.id)
+        needs_prefill: list[int] = []
         for year in sorted(target_years - existing_years):
             report_read = await self.report_service.create(
                 CarbonReportCreate(
@@ -271,15 +310,13 @@ class SimulatorPlanService:
                 )
             )
             if default_reference_year is not None:
-                # Prefill computes the copied rows' emissions itself; only
-                # the report rollup is missing (no other entries exist yet).
-                await self._prefill_reference_modules(report_read)
-                await self.report_service.recompute_report_stats(report_read.id)
+                needs_prefill.append(report_read.id)
         if want_years and project.is_viewable_by_unit_members:
             project.is_viewable_by_unit_members = False
             self.session.add(project)
             await self.session.flush()
         await self._sync_grant_report(project, grant_report)
+        return needs_prefill
 
     async def _sync_grant_report(
         self, project: CarbonProject, grant_report: CarbonReport | None
@@ -336,7 +373,7 @@ class SimulatorPlanService:
         reference_year: int | None,
         *,
         is_grant: bool = False,
-    ) -> SimulatorPlanYearRead | None:
+    ) -> tuple[SimulatorPlanYearRead, list[int]] | None:
         """Set or remove the baseline year of one plan-year report; None if missing.
 
         ``is_grant`` targets the Project Grant report, which shares its year
@@ -351,7 +388,10 @@ class SimulatorPlanService:
         about it before calling this.
 
         The remaining entries get their emissions recomputed, since factor
-        lookup follows the reference year.
+        lookup follows the reference year — deferred to the
+        ``simulator_plan_prefill`` job, whose id the caller returns so the
+        client can wait for it (plan #2050 Track F4). Returns the year and
+        the report ids needing that work; an unchanged baseline needs none.
         """
         reports = await self.repo.list_reports_for_project(plan_id)
         report = next(
@@ -359,18 +399,81 @@ class SimulatorPlanService:
         )
         if report is None:
             return None
+        needs_prefill: list[int] = []
         if report.reference_year != reference_year:
             report.reference_year = reference_year
             self.session.add(report)
             await self.session.flush()
-            await self._prefill_reference_modules(report)
+            if report.id is not None:
+                needs_prefill.append(report.id)
+        return await self._year_read(report), needs_prefill
+
+    async def prefill_reports(self, report_ids: list[int]) -> int:
+        """Prefill and recompute whole reports; returns how many ran.
+
+        The ``simulator_plan_prefill`` job's entry point (plan #2050 Track
+        F4) — the expensive half of both plan PATCHes, lifted out of the
+        request. Safe to re-run after a crashed or preempted job: prefill
+        empties each module before rebuilding it, so a retry converges
+        instead of duplicating rows.
+
+        Prefill only inserts the copied rows; the recalc right after
+        computes every entry's emissions (and every touched module's stats)
+        from scratch — it has to, since it also covers modules prefill never
+        touches, like purchase's manual rows.
+
+        A standard user's Ongoing plan never carries the unit baseline:
+        non-grant years of a plan whose creator has neither global nor
+        principal access to the unit are wiped instead of copied, so no
+        reference-year rows show up in their tables, stats or charts. The
+        reference year itself stays set — it keeps driving factor lookup
+        and purchase classes for the rows they add themselves. Grant
+        reports keep the copy; their snapshot is hidden from standard
+        viewers at the read layer instead.
+        """
+        reports = await self.repo.list_reports_by_ids(report_ids)
+        ref_cache = _ReferenceCache()
+        baseline_access: dict[int | None, bool] = {}
+        for report in reports:
+            project_id = report.carbon_project_id
+            if project_id not in baseline_access:
+                baseline_access[
+                    project_id
+                ] = await self._plan_creator_has_baseline_access(project_id)
+            await self._prefill_reference_modules(
+                report,
+                ref_cache=ref_cache,
+                allow_reference_copy=report.is_grant or baseline_access[project_id],
+            )
             await self._recalculate_report_emissions(report)
-        return await self._year_read(report)
+        return len(reports)
+
+    async def _plan_creator_has_baseline_access(self, project_id: int | None) -> bool:
+        """Whether the plan's creator may see the unit's reference-year data.
+
+        True for global-scope and unit-principal creators; False for
+        standard users — and, defensively, for plans whose creator can no
+        longer be resolved.
+        """
+        if project_id is None:
+            return True
+        project = await self.repo.get_plan(project_id)
+        if project is None or project.created_by is None:
+            return False
+        creator = await self.session.get(User, project.created_by)
+        if creator is None:
+            return False
+        unit = await self.session.get(Unit, project.unit_id)
+        return has_global_or_principal_access_for_unit(creator, unit)
 
     async def _prefill_reference_modules(
-        self, report: CarbonReport | CarbonReportRead
+        self,
+        report: CarbonReport | CarbonReportRead,
+        *,
+        ref_cache: _ReferenceCache | None = None,
+        allow_reference_copy: bool = True,
     ) -> None:
-        """Empty every reference-scoped module and rebuild the prefilled ones.
+        """Empty every reference-scoped module, rebuild prefilled + copied ones.
 
         Runs on reference-year set/change/removal (there is no manual prefill
         trigger). The modules are emptied first, so a module never mixes two
@@ -381,6 +484,19 @@ class SimulatorPlanService:
         has no Calculator report for the unit there is nothing to copy and they stay
         empty —  showing the previous baseline's rows under a new reference year
         would be a lie.
+
+        Inserts the copied rows only; the caller computes emissions for the
+        whole report in one batched pass right after (both callers do — plan
+        #2050 Track F2).
+
+        ``ref_cache`` lets a multi-report job read the reference side once
+        instead of once per plan year; omit it and this call reads its own
+        (plan #2050 Track F6).
+
+        ``allow_reference_copy=False`` runs the wipe without the rebuild —
+        every reference-scoped module ends up empty, exactly like a report
+        with no reference year. Used for non-grant years of plans created
+        by standard users, who must not receive the unit's baseline.
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
@@ -390,43 +506,142 @@ class SimulatorPlanService:
             for m in modules
             if m.module_type_id in PLANNER_REFERENCE_SCOPED_MODULE_TYPES
         ]
-        prefilled = [
-            m for m in scoped if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
+        rebuilt = [
+            m
+            for m in scoped
+            if m.module_type_id
+            in PLANNER_PREFILLED_MODULE_TYPES | PLANNER_PLAIN_COPY_MODULE_TYPES
         ]
-        await self._clear_module_entries([m.id for m in scoped if m.id is not None])
-        if report.reference_year is None:
-            return
-        ref_report = await self.repo.get_calculator_report(
-            report.unit_id, report.reference_year
+
+        ref_report = None
+        if allow_reference_copy and report.reference_year is not None:
+            ref_key = (report.unit_id, report.reference_year)
+            if ref_cache is not None and ref_key in ref_cache.reports:
+                ref_report = ref_cache.reports[ref_key]
+            else:
+                ref_report = await self.repo.get_calculator_report(
+                    report.unit_id, report.reference_year
+                )
+                if ref_cache is not None:
+                    ref_cache.reports[ref_key] = ref_report
+        # The grant RF grid starts from the reference year's platform list,
+        # not from copied entries (#1980) — left empty for the user's own
+        # selection. Grant travel is planned from scratch too (#2018). Both
+        # stay out of ``will_rebuild`` below, which decides both what gets
+        # prefilled and what the upfront clear must still cover — they
+        # never self-clear (prefill is never called for them), so the
+        # upfront clear is their only chance to empty out.
+        will_rebuild = (
+            [
+                m
+                for m in rebuilt
+                if not (
+                    report.is_grant
+                    and m.module_type_id
+                    in (
+                        ModuleTypeEnum.research_facilities,
+                        ModuleTypeEnum.professional_travel,
+                    )
+                )
+            ]
+            if ref_report is not None
+            else []
         )
-        if ref_report is None:
+        will_rebuild_ids = {m.module_type_id for m in will_rebuild}
+        # Only clear modules upfront that won't self-clear when rebuilt
+        # below — prefill_module_from_reference/prefill_headcount_from_
+        # reference each delete-then-rebuild their own module already
+        # (plan #2050 Track D finding 1); clearing them here too is
+        # thrown-away work, never observable (nothing commits mid-request).
+        cleared = [
+            m.id
+            for m in scoped
+            if m.id is not None and m.module_type_id not in will_rebuild_ids
+        ]
+        await self._clear_module_entries(cleared)
+        if ref_report is None or ref_report.id is None or not will_rebuild_ids:
+            if cleared:
+                await self.report_service.module_service.recompute_stats_many(
+                    sorted(cleared)
+                )
             return
-        for module_type_id in sorted(m.module_type_id for m in prefilled):
-            # The grant RF grid starts from the reference year's platform
-            # list, not from copied entries (#1980) — cleared above, left
-            # empty for the user's own selection.
-            if report.is_grant and module_type_id == ModuleTypeEnum.research_facilities:
-                continue
+        # One list_modules for the reference side (the plan side is already
+        # `modules`/`will_rebuild`, fetched once above) instead of one
+        # get_module per module type on each side — a real get_module call
+        # for every rebuilt type, twice, otherwise (plan #2050 Track E
+        # tier 2).
+        if ref_cache is not None and ref_report.id in ref_cache.modules:
+            ref_modules_by_type = ref_cache.modules[ref_report.id]
+        else:
+            ref_modules_by_type = {
+                m.module_type_id: m
+                for m in await self.report_service.module_service.list_modules(
+                    ref_report.id
+                )
+            }
+            if ref_cache is not None:
+                ref_cache.modules[ref_report.id] = ref_modules_by_type
+        plan_modules_by_type = {m.module_type_id: m for m in will_rebuild}
+        emptied: list[int] = []
+        for module_type_id in sorted(will_rebuild_ids):
+            plan_module = plan_modules_by_type[module_type_id]
             if module_type_id == ModuleTypeEnum.headcount:
-                await self.prefill_headcount_from_reference(
-                    report, ref_report=ref_report
+                copied = await self.prefill_headcount_from_reference(
+                    report,
+                    ref_report=ref_report,
+                    plan_module=plan_module,
+                    ref_module=ref_modules_by_type.get(module_type_id),
+                    ref_cache=ref_cache,
                 )
             else:
-                await self.prefill_module_from_reference(
-                    report, module_type_id, ref_report=ref_report
+                copied = await self.prefill_module_from_reference(
+                    report,
+                    module_type_id,
+                    ref_report=ref_report,
+                    plan_module=plan_module,
+                    ref_module=ref_modules_by_type.get(module_type_id),
+                    ref_cache=ref_cache,
                 )
+            if copied == 0 and plan_module.id is not None:
+                emptied.append(plan_module.id)
+        # Modules cleared above and modules prefill left empty are the same
+        # case — neither appears in _recalculate_report_emissions's
+        # entry-driven module set, so both need a stats refresh here. One
+        # call for all of them keeps the report rollup behind it to a single
+        # run per report (plan #2050 Track F6).
+        stale = cleared + emptied
+        if stale:
+            await self.report_service.module_service.recompute_stats_many(sorted(stale))
+
+    async def _reference_entries(
+        self,
+        ref_module_id: int,
+        ref_cache: _ReferenceCache | None,
+    ) -> list[DataEntry]:
+        """The reference module's entries, read once per job when cached.
+
+        These are the rows every plan year copies, so a 10-year prefill
+        otherwise fetches the same set ten times (plan #2050 Track F6).
+        """
+        if ref_cache is not None and ref_module_id in ref_cache.entries:
+            return ref_cache.entries[ref_module_id]
+        entries = await DataEntryRepository(self.session).list_by_module(ref_module_id)
+        if ref_cache is not None:
+            ref_cache.entries[ref_module_id] = entries
+        return entries
 
     async def _clear_module_entries(self, module_ids: list[int]) -> None:
-        """Delete every data entry of the given modules and refresh their stats.
+        """Delete every data entry of the given modules.
 
-        Emissions follow through the ``data_entry_id`` cascade.
+        Emissions follow through the ``data_entry_id`` cascade. Stats are
+        *not* refreshed here: the caller folds these modules in with the
+        ones prefill leaves empty and refreshes both in a single
+        ``recompute_stats_many``, so the report rollup behind it runs once
+        per report instead of once per group (plan #2050 Track F6).
         """
         if not module_ids:
             return
         await DataEntryRepository(self.session).bulk_delete_by_modules(module_ids)
-        await self.report_service.module_service.recompute_stats_many(
-            sorted(module_ids)
-        )
 
     async def _year_read(self, report: CarbonReport) -> SimulatorPlanYearRead:
         """Build the per-year DTO (report + its modules)."""
@@ -450,21 +665,32 @@ class SimulatorPlanService:
         module_type_id: int,
         *,
         ref_report: CarbonReport | None = None,
+        plan_module: CarbonReportModuleRead | None = None,
+        ref_module: CarbonReportModuleRead | None = None,
+        ref_cache: _ReferenceCache | None = None,
     ) -> int:
         """Rebuild a plan module from the reference-year Calculator entries.
 
         Destructive and idempotent: the module's entries are deleted first, then
         the reference year's are copied at ``percentage_of_reference_year =
         100``. Each copy keeps ``source_data_entry_id`` so the % slider computes
-        against the live reference entry. Returns the copied count.
+        against the live reference entry. Plain-copy modules
+        (``PLANNER_PLAIN_COPY_MODULE_TYPES``) skip both fields: their copies are
+        ordinary editable entries whose emissions recompute from the row data.
+        Returns the copied count.
 
-        The copy + emission-compute loop is batched by
-        ``_persist_prefill_entries`` — see plan/perf notes on this function.
+        Emissions are not computed here — the caller recomputes the whole
+        report in one batched pass right after (plan #2050 Track F2).
 
         Args:
             ref_report: The reference year's Calculator report, when the
                 caller (``_prefill_reference_modules``) already looked it up
                 for the whole rebuild — skips the redundant refetch here.
+            plan_module: The plan-year's own module, when the caller already
+                has it (``_prefill_reference_modules`` always does — it
+                lists every module up front) — skips the redundant
+                ``get_module`` here (plan #2050 Track E tier 2).
+            ref_module: Same, for the reference year's module.
 
         Raises ValueError when the report has no reference year or the
         reference year has no Calculator report/module for the unit.
@@ -474,7 +700,8 @@ class SimulatorPlanService:
         if report.reference_year is None:
             raise ValueError("Set a reference year before prefilling")
         module_service = self.report_service.module_service
-        plan_module = await module_service.get_module(report.id, module_type_id)
+        if plan_module is None:
+            plan_module = await module_service.get_module(report.id, module_type_id)
         if plan_module is None or plan_module.id is None:
             raise ValueError(f"Module {module_type_id} not found on the plan year")
         if ref_report is None:
@@ -485,52 +712,53 @@ class SimulatorPlanService:
             raise ValueError(
                 f"No Calculator report for reference year {report.reference_year}"
             )
-        ref_module = await module_service.get_module(ref_report.id, module_type_id)
+        if ref_module is None:
+            ref_module = await module_service.get_module(ref_report.id, module_type_id)
         if ref_module is None or ref_module.id is None:
             raise ValueError(f"Module {module_type_id} not found on the reference year")
 
         entry_repo = DataEntryRepository(self.session)
         await entry_repo.bulk_delete_by_modules([plan_module.id])
 
-        src_entries = await entry_repo.list_by_module(ref_module.id)
+        src_entries = await self._reference_entries(ref_module.id, ref_cache)
         if not src_entries:
-            await self.report_service.module_service.recompute_stats_many(
-                [plan_module.id]
-            )
+            # Returning 0 tells _prefill_reference_modules this module ended
+            # up empty; it batches every such module's stats refresh into one
+            # call instead of one per module (plan #2050 Track F6).
             return 0
-        # Grant equipment plans from scratch: every prefilled line starts at
-        # 0% and the user raises what the project actually uses (#1981).
-        # Everywhere else the snapshot starts as a full copy of the baseline.
-        default_percentage = (
-            0 if report.is_grant and module_type_id == ModuleTypeEnum.equipment else 100
-        )
-        copies: list[DataEntry] = []
-        for src in await entry_repo.list_by_module(ref_module.id):
-            copy = DataEntry(
-                data_entry_type_id=src.data_entry_type_id,
-                carbon_report_module_id=plan_module.id,
-                unit_id=report.unit_id,
-                year=report.year,
-                source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
-                data={
+        plain_copy = module_type_id in PLANNER_PLAIN_COPY_MODULE_TYPES
+        rows = [
+            {
+                "data_entry_type_id": src.data_entry_type_id,
+                "carbon_report_module_id": plan_module.id,
+                "unit_id": report.unit_id,
+                "year": report.year,
+                "source": DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
+                "status": DataEntryStatusEnum.PENDING,
+                "created_by_id": None,
+                "created_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
+                "data": dict(src.data)
+                if plain_copy
+                else {
                     **src.data,
-                    "percentage_of_reference_year": default_percentage,
+                    "percentage_of_reference_year": 100,
                     "source_data_entry_id": src.id,
                 },
-            )
-            self.session.add(copy)
-            copies.append(copy)
-
-        await self._persist_prefill_entries(
-            copies, plan_module.id, year=report.reference_year
-        )
-        return len(copies)
+            }
+            for src in src_entries
+        ]
+        await self._bulk_insert_entries(rows)
+        return len(rows)
 
     async def prefill_headcount_from_reference(
         self,
         report: CarbonReport | CarbonReportRead,
         *,
         ref_report: CarbonReport | None = None,
+        plan_module: CarbonReportModuleRead | None = None,
+        ref_module: CarbonReportModuleRead | None = None,
+        ref_cache: _ReferenceCache | None = None,
     ) -> int:
         """Rebuild the plan's headcount grid from the reference-year members.
 
@@ -541,15 +769,21 @@ class SimulatorPlanService:
         FTE, for the user to lower to the project's share; a category nobody
         staffed gets no row, leaving its input blank. Destructive and
         idempotent — the grid is emptied first. Returns the rows created.
+
+        Args:
+            plan_module: see ``prefill_module_from_reference``'s docstring —
+                same contract (plan #2050 Track E tier 2).
+            ref_module: same.
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
         if report.reference_year is None:
             raise ValueError("Set a reference year before prefilling")
         module_service = self.report_service.module_service
-        plan_module = await module_service.get_module(
-            report.id, ModuleTypeEnum.headcount
-        )
+        if plan_module is None:
+            plan_module = await module_service.get_module(
+                report.id, ModuleTypeEnum.headcount
+            )
         if plan_module is None or plan_module.id is None:
             raise ValueError("Headcount module not found on the plan year")
         if ref_report is None:
@@ -560,9 +794,10 @@ class SimulatorPlanService:
             raise ValueError(
                 f"No Calculator report for reference year {report.reference_year}"
             )
-        ref_module = await module_service.get_module(
-            ref_report.id, ModuleTypeEnum.headcount
-        )
+        if ref_module is None:
+            ref_module = await module_service.get_module(
+                ref_report.id, ModuleTypeEnum.headcount
+            )
         if ref_module is None or ref_module.id is None:
             raise ValueError("Headcount module not found on the reference year")
 
@@ -570,7 +805,7 @@ class SimulatorPlanService:
         await entry_repo.bulk_delete_by_modules([plan_module.id])
 
         fte_by_code: dict[str, float] = {}
-        for src in await entry_repo.list_by_module(ref_module.id):
+        for src in await self._reference_entries(ref_module.id, ref_cache):
             if src.data_entry_type_id == DataEntryTypeEnum.member:
                 code = src.data.get("sius_code")
             elif src.data_entry_type_id == DataEntryTypeEnum.student:
@@ -590,84 +825,68 @@ class SimulatorPlanService:
                 continue
             fte_by_code[code] = fte_by_code.get(code, 0.0) + fte
 
-        rows = [
-            DataEntry(
-                data_entry_type_id=DataEntryTypeEnum.planner_headcount,
-                carbon_report_module_id=plan_module.id,
-                unit_id=report.unit_id,
-                year=report.year,
-                source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
-                data={"sius_code": code, "fte": fte},
-            )
+        row_dicts = [
+            {
+                "data_entry_type_id": DataEntryTypeEnum.planner_headcount.value,
+                "carbon_report_module_id": plan_module.id,
+                "unit_id": report.unit_id,
+                "year": report.year,
+                "source": DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
+                "status": DataEntryStatusEnum.PENDING,
+                "created_by_id": None,
+                "created_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
+                "data": {"sius_code": code, "fte": fte},
+            }
             for code, fte in sorted(fte_by_code.items())
             if fte > 0
         ]
-        for row in rows:
-            self.session.add(row)
-
-        await self._persist_prefill_entries(
-            rows, plan_module.id, year=report.reference_year
-        )
+        rows = await self._bulk_insert_entries(row_dicts)
+        # An empty result is reported to the caller (see
+        # prefill_module_from_reference) rather than refreshing stats here:
+        # an empty module never appears in _recalculate_report_emissions's
+        # entry-driven module set, so it still needs one — batched.
         return len(rows)
 
-    async def _persist_prefill_entries(
-        self, entries: list[DataEntry], module_id: int, *, year: int
-    ) -> None:
-        """Flush new prefill rows, compute their emissions, refresh the stats.
+    async def _bulk_insert_entries(self, rows: list[dict]) -> list[DataEntryResponse]:
+        """INSERT ``rows`` via Core, wrapping each with its assigned id.
 
-        Batched (one flush for the whole set, one shared
-        ``FactorResolver``/factor-query cache, one grouped ``prefetch_slice``
-        per data_entry_type, one bulk emission insert) so an N-row module costs
-        a small constant number of round trips instead of ``O(N)``.
+        Returns the ``DataEntryResponse`` shape ``prepare_create``
+        already accepts — no ``DataEntry(...)`` ORM
+        instance is ever constructed for a prefill batch, since these rows
+        are never individually ``session.add()``ed (only ``create``/
+        ``upsert_by_data_entry`` need that — see
+        ``DataEntryEmissionRow``'s docstring for the same pattern one model
+        over). Plan #2050 §C2/C3 follow-up: this is what the request's
+        remaining `INSERT INTO data_entries` + preceding gap in a live trace
+        turned out to be — per-row SQLAlchemy mapper/instance-state
+        overhead, not a query-count problem (that part was already fixed).
         """
-        if not entries:
-            await self.report_service.module_service.recompute_stats_many([module_id])
-            return
-        # One round trip for the whole batch (vs. one flush per row) —
-        # needed so every row gets its id before emissions are computed.
-        await self.session.flush()
-
-        emission_svc = DataEntryEmissionService(self.session)
-        factor_resolver = FactorResolver(self.session)
-        factor_query_cache: dict = {}
-
-        # Group by data_entry_type_id: a module can mix subtypes (e.g.
-        # headcount's student/member rows), and prefetch_slice/handler
-        # selection are per-type, same as the recalc workflow.
-        by_type: dict[int, list[DataEntry]] = {}
-        for entry in entries:
-            by_type.setdefault(entry.data_entry_type_id, []).append(entry)
-
-        prepared_emissions = []
-        for data_entry_type_id, group in by_type.items():
-            handler = BaseModuleHandler.get_by_type(
-                DataEntryTypeEnum(data_entry_type_id)
+        if not rows:
+            return []
+        ids = await DataEntryRepository(self.session).bulk_insert_returning_ids(rows)
+        return [
+            DataEntryResponse(
+                id=row_id,
+                data_entry_type_id=row["data_entry_type_id"],
+                carbon_report_module_id=row["carbon_report_module_id"],
+                data=row["data"],
+                source=row["source"],
+                status=row["status"],
             )
-            slice_cache = await handler.prefetch_slice(group, self.session, year=year)
-            for entry in group:
-                prepared_emissions.extend(
-                    await emission_svc.prepare_create(
-                        DataEntryResponse.model_validate(entry),
-                        year=year,
-                        factor_resolver=factor_resolver,
-                        factor_query_cache=factor_query_cache,
-                        slice_cache=slice_cache,
-                    )
-                )
-        # Single bulk insert: the rows are brand new, so unlike
-        # upsert_by_data_entry there is nothing stale to delete first.
-        await emission_svc.bulk_create(prepared_emissions)
+            for row_id, row in zip(ids, rows, strict=True)
+        ]
 
-        await self.report_service.module_service.recompute_stats_many([module_id])
-
-    async def _recalculate_report_emissions(self, report: CarbonReport) -> None:
+    async def _recalculate_report_emissions(
+        self, report: CarbonReport | CarbonReportRead
+    ) -> None:
         """Recompute emissions of the report's entries + refresh stats.
 
         Factor lookup follows the reference year, so every entry of the report
         has to be recomputed when it changes.
 
-        Batched like ``_persist_prefill_entries`` and the recalc workflow —
-        see ``_prepare_recalc_emissions`` — instead of the old per-entry
+        Batched like the recalc workflow — see
+        ``_prepare_recalc_emissions`` — instead of the old per-entry
         ``upsert_by_data_entry`` loop, measured at 39x more SQL statements
         for a 40x entry-count increase (plan #2050 section C3).
         """
@@ -702,7 +921,7 @@ class SimulatorPlanService:
 
     async def _prepare_recalc_emissions(
         self, entries: list[DataEntry], *, year: int | None, unit_id: int | None
-    ) -> tuple[list[int], list[DataEntryEmission]]:
+    ) -> tuple[list[int], list[DataEntryEmissionRow]]:
         """Compute emissions for ``entries``, sharing resolver/cache/slice state.
 
         Groups by ``data_entry_type_id`` (a report mixes module types, each
@@ -727,7 +946,7 @@ class SimulatorPlanService:
             by_type.setdefault(entry.data_entry_type_id, []).append(entry)
 
         entry_ids: list[int] = []
-        prepared_emissions: list[DataEntryEmission] = []
+        prepared_emissions: list[DataEntryEmissionRow] = []
         for data_entry_type_id, group in by_type.items():
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry_type_id)

@@ -1,5 +1,6 @@
 """Emission resolution for research facilities."""
 
+from app.core.config import get_settings
 from app.modules.emissions.buckets import StatBucket
 from app.modules.emissions.taxonomy import EmissionType
 
@@ -9,19 +10,14 @@ STAT_BUCKETS: tuple[StatBucket, ...] = (
     ),
 )
 
-_IT_RESEARCH_FACILITY_IDS: frozenset[str] = frozenset(
-    {
-        "0616",  # ISIC-ITDMP
-        "1027",  # IMAGING-GE
-        "1202",  # RCP-GE
-        "1800",  # DCI-GE
-        "1902",  # SCITAS-GE
-        "1915",  # SCALA-GE
-        "1916",  # SDSC-GE
-        "2043",  # CIBM-GE
-        "2044",  # CIBM-MRI
-    }
-)
+
+def _it_research_facility_ids() -> frozenset[str]:
+    return frozenset(
+        fid.strip()
+        for fid in get_settings().IT_RESEARCH_FACILITY_IDS.split(",")
+        if fid.strip()
+    )
+
 
 _ANIMAL_TYPE_EMISSIONS: dict[str, EmissionType] = {
     "rodent": EmissionType.research_facilities__animal__rodent,
@@ -31,7 +27,7 @@ _ANIMAL_TYPE_EMISSIONS: dict[str, EmissionType] = {
 
 def resolve_research_facilities(data: dict) -> list[EmissionType]:
     facility_id = (data.get("researchfacility_id") or "").strip()
-    if facility_id in _IT_RESEARCH_FACILITY_IDS:
+    if facility_id in _it_research_facility_ids():
         return [EmissionType.research_facilities__it_facilities]
     return [EmissionType.research_facilities__facilities]
 

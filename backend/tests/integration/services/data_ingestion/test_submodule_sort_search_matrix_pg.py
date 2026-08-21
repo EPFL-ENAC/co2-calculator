@@ -75,16 +75,28 @@ def _is_float_expr(expr: Any) -> bool:
 
 def _order_checkable(expr: Any, det_has_factor: bool) -> bool:
     """True when the sort key must order by the synthesized values: it reads
-    entry data (coalesce fallbacks included), or it reads the factor tables
-    and this det got matched factors seeded (kind-carrying handlers).
+    entry data (coalesce fallbacks included), it reads ``building_rooms``
+    (mirrored rooms are always seeded for such maps), or it reads the factor
+    tables and this det got matched factors seeded (kind-carrying handlers).
     """
     try:
         sql = str(expr.compile(compile_kwargs={"literal_binds": False}))
     except Exception:
         return False
-    if "data_entries.data" in sql:
+    if "data_entries.data" in sql or "building_rooms" in sql:
         return True
-    return det_has_factor and ("factors" in sql or "building_rooms" in sql)
+    return det_has_factor and "factors" in sql
+
+
+def _maps_read_building_rooms(handler: Any) -> bool:
+    for expr in {**handler.sort_map, **handler.filter_map}.values():
+        try:
+            sql = str(expr.compile(compile_kwargs={"literal_binds": False}))
+        except Exception:
+            continue
+        if "building_rooms" in sql:
+            return True
+    return False
 
 
 def _synth_data(handler: Any, det: DataEntryTypeEnum, variant: str) -> dict:
@@ -135,6 +147,20 @@ async def _seed_det(
                     classification=dict(entry.data),
                     values=dict(entry.data),
                     year=_YEAR,
+                )
+            )
+    # Handlers whose maps read the joined ``building_rooms`` table (embodied
+    # energy resolves building_name from ref-data, not entry data) get a
+    # mirroring room per entry, so joined keys are genuinely searchable.
+    if _maps_read_building_rooms(handler):
+        for entry in (entry_a, entry_b):
+            session.add(
+                BuildingRoom(
+                    building_location="LOC-MATRIX",
+                    building_name=entry.data.get("building_name", "B-MATRIX"),
+                    room_name=entry.data["room_name"],
+                    room_type=entry.data.get("room_type"),
+                    room_surface_square_meter=1.0,
                 )
             )
     await session.commit()

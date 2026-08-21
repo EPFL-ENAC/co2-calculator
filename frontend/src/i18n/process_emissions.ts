@@ -70,11 +70,37 @@ export default {
     en: 'Refrigerant',
     fr: 'Fluide frigorigène',
   },
+  // #2091: each fluorinated-gas family is its own leaf; they used to
+  // share process_emissions__refrigerants.
+  [`${MODULES.ProcessEmissions}.category.sf6`]: {
+    en: 'SF₆',
+    fr: 'SF₆',
+  },
+  [`${MODULES.ProcessEmissions}.category.nf3`]: {
+    en: 'NF₃',
+    fr: 'NF₃',
+  },
+  [`${MODULES.ProcessEmissions}.category.hfcs`]: {
+    en: 'HFCs',
+    fr: 'HFC',
+  },
+  [`${MODULES.ProcessEmissions}.category.perfluorinated_compounds`]: {
+    en: 'Perfluorinated compounds',
+    fr: 'Composés perfluorés',
+  },
+  [`${MODULES.ProcessEmissions}.category.fluorinated_ethers`]: {
+    en: 'Fluorinated ethers',
+    fr: 'Éthers fluorés',
+  },
+  [`${MODULES.ProcessEmissions}.category.perfluoropolyethers`]: {
+    en: 'Perfluoropolyethers',
+    fr: 'Perfluoropolyéthers',
+  },
   [`${MODULES.ProcessEmissions}.inputs.subcategory`]: {
     en: 'Sub-category',
     fr: 'Sous-catégorie',
   },
-  [`${MODULES.ProcessEmissions}.inputs.quantity`]: {
+  [`${MODULES.ProcessEmissions}.inputs.quantity_kg`]: {
     en: 'Quantity (kg)',
     fr: 'Quantité (kg)',
   },

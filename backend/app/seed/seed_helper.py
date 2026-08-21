@@ -22,16 +22,11 @@ versionapi = settings.FORMULA_VERSION_SHA256_SHORT
 def get_factor_emission_type_id(
     data_entry_type: DataEntryTypeEnum, factor: dict
 ) -> int:
-    emission_type_result = resolve_factor_emission_type(
+    """Raises ``EmissionTypeResolutionError`` when the row maps to nothing."""
+    return resolve_factor_emission_type(
         data_entry_type=data_entry_type,
         factor=factor,
-    )
-    if emission_type_result is None:
-        raise ValueError(
-            f"Unknown emission type resolution for data entry type "
-            f"{data_entry_type} with factor {factor}"
-        )
-    return emission_type_result.value
+    ).value
 
 
 async def get_carbon_report_module_id(
@@ -114,8 +109,8 @@ async def load_factors_map(
             key_full = (
                 f"{pf.data_entry_type_id}:"
                 f"{pf_year}:"
-                f"{(pf.classification.get(kind_field, '') or '').lower()}:"
-                f"{(pf.classification.get(subkind_field, '') or '').lower()}"
+                f"{normalize_kind(pf.classification.get(kind_field, '') or '')}:"
+                f"{normalize_kind(pf.classification.get(subkind_field, '') or '')}"
             )
             factors_map[key_full] = pf
 
@@ -123,7 +118,7 @@ async def load_factors_map(
         key_kind = (
             f"{pf.data_entry_type_id}:"
             f"{pf_year}:"
-            f"{pf.classification.get(kind_field, '').lower()}"
+            f"{normalize_kind(pf.classification.get(kind_field, '') or '')}"
         )
         if key_kind not in factors_map:
             factors_map[key_kind] = pf
@@ -133,10 +128,13 @@ async def load_factors_map(
 
 
 def normalize_kind(kind: str) -> str:
-    """Normalize kind for case-insensitive matching."""
-    # Class names are mostly unique in table_power.csv
-    # Just normalize to lowercase for matching
-    return kind.lower().strip()
+    """Normalize kind for case- and whitespace-insensitive matching.
+
+    Collapses runs of internal whitespace too: backoffice CSV exports
+    (e.g. "Other furniture  equipment") carry stray double spaces the
+    canonical factor CSV doesn't, which `.strip()` alone doesn't fix.
+    """
+    return " ".join(kind.lower().split())
 
 
 def is_in_factors_map(

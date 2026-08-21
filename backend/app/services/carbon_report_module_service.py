@@ -21,6 +21,7 @@ from app.modules.emissions import (
 )
 from app.modules.emissions.buckets import BucketNodes
 from app.modules.emissions.registry import MODULE_STAT_BUCKETS
+from app.modules.emissions.taxonomy import EmissionType
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -30,27 +31,34 @@ from app.schemas.carbon_report import (
     CarbonReportRead,
 )
 from app.schemas.data_entry import DataEntryResponse
+from app.schemas.write_scope import WriteScope
 from app.services.data_entry_emission_service import DataEntryEmissionService
 
 logger = get_logger(__name__)
 
-# Per-module IT top-class detail persisted into module stats:
-# stats key, data entry types to group, and the classification field.
-_IT_TOP_CLASS_SPECS: dict[ModuleTypeEnum, tuple[str, list[DataEntryTypeEnum], str]] = {
+# Per-module IT top-class detail persisted into module stats: stats key,
+# data entry types to group, the classification field, and an optional
+# emission-type filter for types whose IT share is resolved per entry.
+_IT_TOP_CLASS_SPECS: dict[
+    ModuleTypeEnum, tuple[str, list[DataEntryTypeEnum], str, list[int] | None]
+] = {
     ModuleTypeEnum.equipment: (
         "equipment_it",
         [DataEntryTypeEnum.it],
         "equipment_class",
+        None,
     ),
     ModuleTypeEnum.purchase: (
         "purchases_it",
         [DataEntryTypeEnum.it_equipment],
         "purchase_institutional_code",
+        None,
     ),
     ModuleTypeEnum.research_facilities: (
         "research_facilities_it",
         [DataEntryTypeEnum.research_facilities],
         "researchfacility_name",
+        [EmissionType.research_facilities__it_facilities.value],
     ),
 }
 
@@ -417,7 +425,11 @@ class CarbonReportModuleService:
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
     async def recompute_stats_many(
-        self, carbon_report_module_ids: list[int], *, bump_status: bool = True
+        self,
+        carbon_report_module_ids: list[int],
+        *,
+        bump_status: bool = True,
+        prefetched_years: dict[int, int] | None = None,
     ) -> int:
         """Set-based stats recompute for the aggregation job.
 
@@ -458,24 +470,9 @@ class CarbonReportModuleService:
         emission_repo = DataEntryEmissionRepository(self.session)
         pairs = await emission_repo.get_stats_pair_many(carbon_report_module_ids)
 
-        count_rows = (
-            await self.session.execute(
-                select(
-                    col(DataEntry.carbon_report_module_id),
-                    func.count(),
-                )
-                .where(
-                    col(DataEntry.carbon_report_module_id).in_(
-                        carbon_report_module_ids
-                    ),
-                )
-                .group_by(col(DataEntry.carbon_report_module_id))
-            )
-        ).all()
-        counts = {module_id: count for module_id, count in count_rows}
-
-        fte_by_module = await self._headcount_fte_by_module(modules)
-        year_by_report = await self._years_by_report(modules)
+        counts, fte_by_module = await self._entry_counts_and_fte(modules)
+        # #2050 J4: an interactive write knows its report's year already.
+        year_by_report = prefetched_years or await self._years_by_report(modules)
 
         now_utc = int(datetime.now(UTC).timestamp())
         refreshed = 0
@@ -522,7 +519,12 @@ class CarbonReportModuleService:
         await report_service.recompute_report_stats_many(sorted(report_ids))
         return refreshed
 
-    async def recompute_stats(self, carbon_report_module_id: int) -> None:
+    async def recompute_stats(
+        self,
+        carbon_report_module_id: int,
+        *,
+        scope: WriteScope | None = None,
+    ) -> None:
         """Recompute and persist the stats JSON for a single module.
 
         Thin wrapper over the set-based :meth:`recompute_stats_many` so the
@@ -530,31 +532,53 @@ class CarbonReportModuleService:
         the IN_PROGRESS status bump, and the report rollup. A missing or
         unmapped module is skipped there (no stats written), matching the
         prior early-return behaviour.
-        """
-        await self.recompute_stats_many([carbon_report_module_id])
 
-    async def _headcount_fte_by_module(
+        ``scope`` lets an interactive write hand over the report year it has
+        already resolved, instead of paying a query for it (#2050 J4).
+        """
+        prefetched_years = None
+        if scope is not None and scope.report.id is not None and scope.year is not None:
+            prefetched_years = {scope.report.id: scope.year}
+        await self.recompute_stats_many(
+            [carbon_report_module_id], prefetched_years=prefetched_years
+        )
+
+    async def _entry_counts_and_fte(
         self, modules: Sequence[CarbonReportModule]
-    ) -> dict[int, float]:
-        """Sum FTE per headcount module so its stats carry total_fte."""
-        headcount_ids = [
+    ) -> tuple[dict[int, int], dict[int, float]]:
+        """Entry count per module and FTE sum per headcount module, one query.
+
+        #2050 J4: these were two grouped queries over the same table for the
+        same module ids. The headcount-only restriction on the FTE sum is
+        applied in Python — filtering it in SQL is what forced the second
+        query, and a non-headcount module must still carry no FTE at all.
+        """
+        module_ids = [m.id for m in modules if m.id is not None]
+        if not module_ids:
+            return {}, {}
+        headcount_ids = {
             m.id
             for m in modules
             if m.id is not None and m.module_type_id == ModuleTypeEnum.headcount
-        ]
-        if not headcount_ids:
-            return {}
+        }
         rows = (
             await self.session.execute(
                 select(
                     col(DataEntry.carbon_report_module_id),
+                    func.count(),
                     func.sum(DataEntry.data["fte"].as_float()),
                 )
-                .where(col(DataEntry.carbon_report_module_id).in_(headcount_ids))
+                .where(col(DataEntry.carbon_report_module_id).in_(module_ids))
                 .group_by(col(DataEntry.carbon_report_module_id))
             )
         ).all()
-        return {module_id: float(total or 0.0) for module_id, total in rows}
+        counts = {module_id: count for module_id, count, _ in rows}
+        fte = {
+            module_id: float(total or 0.0)
+            for module_id, _, total in rows
+            if module_id in headcount_ids
+        }
+        return counts, fte
 
     async def _years_by_report(
         self, modules: Sequence[CarbonReportModule]
@@ -614,13 +638,14 @@ class CarbonReportModuleService:
         spec = _IT_TOP_CLASS_SPECS.get(ModuleTypeEnum(module.module_type_id))
         if spec is None or module.id is None:
             return {}
-        stats_key, data_entry_types, group_by_field = spec
+        stats_key, data_entry_types, group_by_field, emission_type_ids = spec
         emission_repo = DataEntryEmissionRepository(self.session)
         rows = await emission_repo.get_top_class_breakdown(
             carbon_report_module_ids=[module.id],
             data_entry_types=data_entry_types,
             group_by_field=group_by_field,
             report_year=report_year,
+            emission_type_ids=emission_type_ids,
         )
         return {"it_top_classes": {stats_key: rows}}
 
@@ -659,14 +684,18 @@ class CarbonReportModuleService:
         emission_repo = DataEntryEmissionRepository(self.session)
         top_classes: dict[str, list] = {}
         for module_type, module_ids in module_ids_by_type.items():
-            stats_key, data_entry_types, group_by_field = _IT_TOP_CLASS_SPECS[
-                module_type
-            ]
+            (
+                stats_key,
+                data_entry_types,
+                group_by_field,
+                emission_type_ids,
+            ) = _IT_TOP_CLASS_SPECS[module_type]
             top_classes[stats_key] = await emission_repo.get_top_class_breakdown(
                 carbon_report_module_ids=module_ids,
                 data_entry_types=data_entry_types,
                 group_by_field=group_by_field,
                 report_year=report_year,
+                emission_type_ids=emission_type_ids,
             )
         return top_classes
 

@@ -34,16 +34,7 @@ export function useSimulationExplorePrintData() {
     sumBreakdownTonnes(moduleStore.state.emissionBreakdown),
   );
 
-  const filteredBreakdown = computed(() => {
-    const bd = moduleStore.state.emissionBreakdown;
-    if (!bd) return bd;
-    return {
-      ...bd,
-      module_breakdown: bd.module_breakdown.filter(
-        (entry) => entry.category !== 'research_facilities',
-      ),
-    };
-  });
+  const breakdown = computed(() => moduleStore.state.emissionBreakdown);
 
   const exploreModules = computed(() =>
     getExploreModules(yearConfigStore.getModule),
@@ -156,7 +147,7 @@ export function useSimulationExplorePrintData() {
     currentYear,
     loading,
     totalTonnesCo2eq,
-    filteredBreakdown,
+    breakdown,
     exploreModules,
     submoduleRows,
     headcountMembers,

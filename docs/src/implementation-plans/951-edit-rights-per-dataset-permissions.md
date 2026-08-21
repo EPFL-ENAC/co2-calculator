@@ -622,6 +622,10 @@ the row was user-created, reversing this plan's earlier framing of it as
   just skips the check, no change needed there. The frontend create form
   never marked this field `required` in the first place — it was the
   backend DTO alone that was stricter than the UI already assumed.
+  **Reverted by #2138** (2026-08-17): success criteria changed back —
+  `user_institutional_id` is mandatory at creation again, backend
+  (`str | None = None` → `str`) and frontend (`required: true` added). See
+  `docs/src/implementation-plans/2138-headcount-user-institutional-id-mandatory.md`.
 
 **Not extended to Prof. Travel's "Traveler"** (same underlying
 `user_institutional_id` field, same matrix wording) — it needs the same

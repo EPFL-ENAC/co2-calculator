@@ -23,6 +23,16 @@ class BuildingRoomRepository:
         result = await self.session.exec(stmt)
         return result.first()
 
+    async def get_rooms_by_names(self, room_names: list[str]) -> list[BuildingRoom]:
+        """Get rooms by name in one query (bulk form of ``get_room``)."""
+        if not room_names:
+            return []
+        stmt = select(BuildingRoom).where(
+            col(BuildingRoom.room_name).in_(room_names),
+        )
+        result = await self.session.exec(stmt)
+        return list(result.all())
+
     async def list_buildings(self) -> list[dict]:
         """Return distinct buildings with location and name."""
         stmt = (

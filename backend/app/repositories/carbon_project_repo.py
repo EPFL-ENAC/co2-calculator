@@ -150,6 +150,18 @@ class CarbonProjectRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
+    async def list_reports_by_ids(self, report_ids: list[int]) -> list[CarbonReport]:
+        """Return the given carbon reports, ordered by year."""
+        if not report_ids:
+            return []
+        statement = (
+            select(CarbonReport)
+            .where(col(CarbonReport.id).in_(report_ids))
+            .order_by(col(CarbonReport.year))
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
     async def create(self, project: CarbonProject) -> CarbonProject:
         """Persist and flush a new carbon project."""
         self.session.add(project)

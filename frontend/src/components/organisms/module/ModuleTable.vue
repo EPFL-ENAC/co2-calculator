@@ -495,6 +495,8 @@ import EquipmentPowerFeedbackDialog from 'src/components/molecules/EquipmentPowe
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import { useFactorsStore } from 'src/stores/factors';
+import { resolveFactorYear } from 'src/utils/factor-year';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { useAuthStore } from 'src/stores/auth';
 import {
@@ -505,7 +507,8 @@ import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { PermissionAction } from 'src/stores/auth';
 import { getTemplateFileName } from 'src/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
-import { resolveTravelerName } from 'src/constant/module-config/traveler-options';
+import { CARBON_PROJECT } from 'src/constant/carbon-project';
+import { resolveTravelerCellText } from 'src/constant/module-config/traveler-options';
 import type {
   Module,
   ConditionalSubmoduleProps,
@@ -731,12 +734,14 @@ const onFilesUploaded = async (filePaths: string[]) => {
           unit: props.unitId,
           year: String(props.year),
           carbonReportId: props.carbonReportId,
+          excludeSnapshots: props.excludeSnapshots,
         });
         moduleStore.getModuleData(
           props.moduleType as Module,
           props.unitId,
           String(props.year),
           props.carbonReportId,
+          props.excludeSnapshots,
         );
 
         const errorCaption = formatRowErrors(payload);
@@ -875,6 +880,8 @@ type CommonProps = {
    * driven by the module-level value and stay read-only (#1981).
    */
   percentageLocked?: boolean;
+  /** Grant equipment global mode: list only manually added entries (#1981). */
+  excludeSnapshots?: boolean;
   threshold: Threshold;
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
@@ -895,6 +902,7 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
   showReferenceColumns: false,
   projectYearsCount: null,
   percentageLocked: false,
+  excludeSnapshots: false,
   moduleColor: undefined,
   moduleColorLighter: undefined,
 });
@@ -1343,19 +1351,16 @@ function renderCell(
     const iata = row['destination_iata'] as string | undefined;
     return iata ? `${name ?? iata} (${iata})` : (name ?? '-');
   }
-  // Resolve traveler name from loaded headcount members (user_institutional_id
-  // is the source of truth). Sentinels and unmatched SCIPERs are handled by the
-  // shared resolver (issue #1153).
   if (col.field === 'traveler_name') {
     const user_institutional_id = row['user_institutional_id'] as
-      string | undefined;
-    if (user_institutional_id == null) return '-';
-    const member = headcountMembersMap.value.get(user_institutional_id);
-    if (member) return member;
-    if (user_institutional_id === authStore.user?.institutional_id) {
-      return authStore.displayName;
-    }
-    return resolveTravelerName(user_institutional_id, undefined, $t);
+      string | null | undefined;
+    return resolveTravelerCellText(
+      user_institutional_id,
+      headcountMembersMap.value,
+      authStore.user?.institutional_id,
+      authStore.displayName,
+      $t,
+    );
   }
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
@@ -1595,6 +1600,8 @@ async function commitInline(
   const rawVal = row[col.field];
 
   const valueToSave = (() => {
+    // Clear any previous error before validating
+    setError(row, col, null);
     if (isUsageField) {
       const activeVal = Number(row['active_usage_hours_per_week']) || 0;
       const standbyVal = Number(row['standby_usage_hours_per_week']) || 0;
@@ -1603,7 +1610,6 @@ async function commitInline(
         setError(row, col, validation.error);
         return null;
       }
-      setError(row, col, null);
       // parse raw value to number to ensure consistent type (could be string from input)
       const parsedVal = Number(rawVal);
       return Number.isFinite(parsedVal) ? parsedVal : rawVal;
@@ -1614,7 +1620,6 @@ async function commitInline(
         setError(row, col, validation.error);
         return null;
       }
-      setError(row, col, null);
       return validation.parsed;
     }
     if (isNumeric) {
@@ -1639,7 +1644,6 @@ async function commitInline(
         setError(row, col, $t('validation_must_be_at_most', { max: col.max }));
         return null;
       }
-      setError(row, col, null);
       return n;
     }
     return rawVal;
@@ -1877,13 +1881,17 @@ function isComplete(row: ModuleRow) {
     );
   }
   if (props.moduleType === MODULES.ProcessEmissions) {
-    const baseRequired = ['category', 'quantity'];
+    const baseRequired = ['category', 'quantity_kg'];
     const hasBaseRequired = hasRequiredValues(row, baseRequired);
     if (!hasBaseRequired) {
       return false;
     }
 
-    if (row.category === 'Refrigerants') {
+    const subclasses =
+      useFactorsStore().subclassOptionMapByKey[
+        `${props.submoduleType}:${resolveFactorYear(props.factorYear, props.year)}`
+      ]?.[String(row.category)];
+    if (subclasses?.length) {
       return (
         row.subcategory !== null &&
         row.subcategory !== undefined &&
@@ -2061,6 +2069,7 @@ async function onRequest(request: {
       unit: props.unitId,
       year: String(props.year),
       carbonReportId: props.carbonReportId,
+      excludeSnapshots: props.excludeSnapshots,
     });
   } else {
     // Only change page if sort didn't change
@@ -2070,6 +2079,7 @@ async function onRequest(request: {
       unit: props.unitId,
       year: String(props.year),
       carbonReportId: props.carbonReportId,
+      excludeSnapshots: props.excludeSnapshots,
     });
   }
 }
@@ -2094,6 +2104,7 @@ watch(
           unit: props.unitId,
           year: String(props.year),
           carbonReportId: props.carbonReportId,
+          excludeSnapshots: props.excludeSnapshots,
         });
         moduleStore.getSubmoduleTaxonomy(
           props.moduleType,
@@ -2123,6 +2134,7 @@ onMounted(async () => {
       unit: props.unitId,
       year: String(props.year),
       carbonReportId: props.carbonReportId,
+      excludeSnapshots: props.excludeSnapshots,
     });
     moduleStore.getSubmoduleTaxonomy(
       props.moduleType,
@@ -2131,16 +2143,27 @@ onMounted(async () => {
     );
   }
 
-  // For professional travel, pre-load headcount members to resolve traveler names in the table
+  // For professional travel, pre-load headcount members to resolve traveler names
+  // in the table. Plan reports hold no member roster, so planner tables
+  // (carbonReportId set) read the reference year's Calculator roster instead —
+  // copied reference rows carry real institutional ids (#2018). Units without a
+  // Calculator report for that year fail the lookup and keep the fallback labels.
   if (
     props.moduleType === MODULES.ProfessionalTravel &&
     props.unitId &&
     props.year
   ) {
     try {
-      const members: HeadcountMemberDropdownItem[] = await getHeadcountMembers(
-        await moduleStore.resolveCarbonReportId(props.unitId, props.year),
-      );
+      const rosterReportId =
+        props.carbonReportId != null
+          ? await moduleStore.resolveCarbonReportId(
+              props.unitId,
+              props.factorYear ?? props.year,
+              CARBON_PROJECT.calculator,
+            )
+          : await moduleStore.resolveCarbonReportId(props.unitId, props.year);
+      const members: HeadcountMemberDropdownItem[] =
+        await getHeadcountMembers(rosterReportId);
       headcountMembersMap.value = new Map(
         members.map((m) => [m.institutional_id, m.name]),
       );

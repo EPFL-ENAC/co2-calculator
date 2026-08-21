@@ -44,7 +44,7 @@ Install dependencies and configure your environment:
 ```bash
 make install
 cp .env.example .env
-# Edit .env: set DB_URL, SECRET_KEY, OIDC_* variables
+# Edit .env: set DB_URL, JWT_HMAC_KEY, SESSION_HMAC_KEY, OIDC_* variables
 ```
 
 Run migrations and start the server:
@@ -136,7 +136,8 @@ Copy `.env.example` to `.env` and set these variables:
 DB_URL=postgresql://user:pass@localhost:5432/co2calculator
 
 # Security (generate: openssl rand -hex 32)
-SECRET_KEY=your-secret-key-here
+JWT_HMAC_KEY=your-jwt-signing-key-here
+SESSION_HMAC_KEY=your-session-signing-key-here
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # OAuth/OIDC (see backend/.env.example for full set + Keycloak variant)
@@ -151,7 +152,7 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 See [Auth Flow](../architecture/04-auth-flow.md) for how the OAuth/OIDC
 settings are used.
 
-For production: set `DEBUG=false`, use strong `SECRET_KEY`, and
+For production: set `DEBUG=false`, use strong, distinct `JWT_HMAC_KEY`/`SESSION_HMAC_KEY`, and
 restrict `CORS_ORIGINS` to your frontend domain.
 
 ## Background Processing
@@ -229,7 +230,7 @@ docker-compose logs -f backend
 Critical checklist:
 
 1. Set `DEBUG=false`
-2. Generate secure `SECRET_KEY`: `openssl rand -hex 32`
+2. Generate secure, distinct `JWT_HMAC_KEY` / `SESSION_HMAC_KEY`: `openssl rand -hex 32` (run twice)
 3. Rotate database credentials regularly
 4. Restrict `CORS_ORIGINS` to your frontend domain
 5. Use Gunicorn with Uvicorn workers:

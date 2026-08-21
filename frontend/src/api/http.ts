@@ -86,12 +86,14 @@ export const api = ky.create({
           try {
             // Clone the response to read the body without consuming it
             const clonedResponse = res.clone();
-            let responseBody: { detail?: string } | null = null;
+            let responseBody: {
+              detail?: string | { code?: string };
+            } | null = null;
 
             if (!clonedResponse.bodyUsed) {
               try {
                 responseBody = (await clonedResponse.json()) as {
-                  detail?: string;
+                  detail?: string | { code?: string };
                 };
               } catch (jsonError) {
                 // Response might not be JSON
@@ -102,8 +104,19 @@ export const api = ky.create({
               }
             }
 
+            const detail = responseBody?.detail;
+            // An object detail (e.g. FIELD_NOT_EDITABLE) is a row-level
+            // business denial the caller surfaces itself — not a page-access
+            // denial, so no redirect: let ky throw to the caller's catch.
+            if (typeof detail === 'object' && detail !== null) {
+              return;
+            }
+
             // Extract detail from response body
-            const errorDetail = responseBody?.detail || 'Permission denied';
+            const errorDetail =
+              typeof detail === 'string' && detail
+                ? detail
+                : 'Permission denied';
 
             // Try to parse permission path and action from error message
             // Pattern: "Permission denied: {path}.{action} required"

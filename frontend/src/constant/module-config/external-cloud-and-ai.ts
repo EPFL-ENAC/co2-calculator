@@ -143,6 +143,9 @@ const externalAIFields: ModuleField[] = [
     sortable: true,
     hideIn: { table: false },
     defaultFrom: 'total_fte',
+    // #2000: Calculator defaults to Headcount's validated total; Explorer
+    // has no validated state of its own, so it defaults to 0 instead.
+    explorerDefault: 0,
     columnSize: 'sm',
     tooltip:
       'module-external-cloud-and-ai-submodule-external_ai-table-fte_count',

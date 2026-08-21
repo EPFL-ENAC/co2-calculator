@@ -17,6 +17,7 @@ import {
   type MergedUnitsContext,
 } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import { buildUnitPerimeterLabel } from 'src/utils/unitPerimeterLabel';
 
 export function useResultsPrintData() {
@@ -25,6 +26,7 @@ export function useResultsPrintData() {
   const workspaceStore = useWorkspaceStore();
   const timelineStore = useTimelineStore();
   const moduleStore = useModuleStore();
+  const yearConfigStore = useYearConfigStore();
 
   const unitParam = computed(() => String(route.params.unit ?? ''));
   const yearParam = computed(() =>
@@ -247,6 +249,12 @@ export function useResultsPrintData() {
 
     workspaceStore.setUnit(validUnit);
     workspaceStore.setYear(workspaceStore.selectedParams?.year || null);
+
+    // ModuleCarbonFootprintChart/CarbonFootPrintPerPersonChart hide categories
+    // for deactivated modules via useModuleCategoriesAvailability, which reads
+    // yearConfigStore.config — this page bypasses the shared workspaceGuard
+    // (own print layout, no `module` route param), so nothing else loads it.
+    await yearConfigStore.fetchConfig(yearParam.value);
 
     await workspaceStore.selectCarbonReportForYear(
       workspaceStore.selectedUnit.id,

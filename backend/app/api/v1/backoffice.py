@@ -394,7 +394,7 @@ async def export_reporting(
                 ]
             )
 
-        content = output.getvalue()
+        content = "\ufeff" + output.getvalue()
         return StreamingResponse(
             iter([content]),
             media_type="text/csv",
@@ -497,7 +497,7 @@ async def report_usage(
             writer.writerow(headers)
             for row in data:
                 writer.writerow([row.get(h, "") for h in headers])
-        content = output.getvalue()
+        content = "\ufeff" + output.getvalue()
         return StreamingResponse(
             iter([content]),
             media_type="text/csv",
@@ -557,7 +557,7 @@ async def report_detailed(
                         json.dumps(data, indent=2, default=str), encoding="utf-8"
                     )
                 else:
-                    with open(file_path, "w", newline="", encoding="utf-8") as f:
+                    with open(file_path, "w", newline="", encoding="utf-8-sig") as f:
                         writer = csv.writer(f)
                         # Build a stable header list across all rows to avoid
                         # misalignment
@@ -652,7 +652,7 @@ async def report_results(
             writer.writerow(headers)
             for row in data:
                 writer.writerow([row.get(h, "") for h in headers])
-        content = output.getvalue()
+        content = "\ufeff" + output.getvalue()
         return StreamingResponse(
             iter([content]),
             media_type="text/csv",

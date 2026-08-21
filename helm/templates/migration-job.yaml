@@ -66,11 +66,16 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
-            - name: SECRET_KEY
+            - name: JWT_HMAC_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
-                  key: {{ .Values.backend.existingSecret.keys.secretKeyKey | default "SECRET_KEY" }}
+                  key: {{ .Values.backend.existingSecret.keys.jwtHmacKeyKey | default "JWT_HMAC_KEY" }}
+            - name: SESSION_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.sessionHmacKeyKey | default "SESSION_HMAC_KEY" }}
             - name: OAUTH_CLIENT_ID
               valueFrom:
                 secretKeyRef:

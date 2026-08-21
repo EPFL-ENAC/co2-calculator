@@ -90,9 +90,23 @@ class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
                 return None
             # Compute share of use and apply to total emissions
             total_use = factor_values.get("total_use")
-            kg_co2eq_sum = factor_values.get("kg_co2eq_sum")
-            if total_use is None or kg_co2eq_sum is None:
+            if total_use is None:
                 return None
+            kg_co2eq_sum = factor_values.get("kg_co2eq_sum")
+            if kg_co2eq_sum is None:
+                # kg_co2eq_sum is optional at factor creation — it's meant to
+                # be filled by ResearchFacilitiesCommonFactorUpdateProvider's
+                # computed backfill (purchases + equipment + buildings +
+                # process/combustion emissions for the facility's unit), not
+                # required upfront. Reaching here means that backfill hasn't
+                # run yet for this factor, not that the entry is malformed.
+                researchfacility_name = ctx.get("researchfacility_name", "Unknown")
+                raise ValueError(
+                    f"Missing kg_co2eq_sum for research facility "
+                    f"{researchfacility_name!r} — the computed backfill "
+                    "for this facility's factor hasn't run yet, or found "
+                    "nothing to sum."
+                )
             use_share = use / total_use if total_use > 0 else 0
             return use_share * kg_co2eq_sum
 

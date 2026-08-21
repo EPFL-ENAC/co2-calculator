@@ -12,8 +12,12 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions import EmissionType
+from app.modules.emissions.registry import emission_type_scope
 from app.repositories.data_entry_repo import DEFAULT_FILTER_MAP, DataEntryRepository
 from app.schemas.data_entry import DataEntryUpdate
+from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
+    TRAVELER_OTHER_INTERNAL,
+)
 
 # ======================================================================
 # CRUD Operation Tests
@@ -224,6 +228,65 @@ async def test_bulk_create_data_entries(db_session: AsyncSession):
     assert all(entry.id is not None for entry in result)
     assert result[0].data["name"] == "Trip 0"
     assert result[4].data["name"] == "Trip 4"
+
+
+@pytest.mark.asyncio
+async def test_bulk_insert_returning_ids_preserves_row_order(db_session: AsyncSession):
+    """Returned ids must map back to ``rows`` in submitted order.
+
+    Pins the API contract ``bulk_insert_returning_ids`` relies on
+    (``sort_by_parameter_order=True`` on the Core INSERT's RETURNING) —
+    without it, row/id ordering is implementation-defined per SQLAlchemy's
+    own docs, not something to rely on even where it happens to hold in ad
+    hoc testing (plan #2050 §C2/C3 follow-up, where this replaced per-row
+    ``DataEntry(...)`` ORM construction for the Simulator Plan prefill copy
+    path — a silent reorder here would misattribute one entry's data to
+    another's id). Note: this specific test doesn't reproduce a failure
+    without the flag on SQLite (small single-statement batches don't
+    trigger reordering here) — it pins the contract, not an observed local
+    bug; the flag was verified against real Postgres/psycopg separately.
+    Uses a distinguishing marker per row rather than trusting sequential-id
+    assumptions, so a genuine reorder would fail this even if ids still
+    happened to come back sorted.
+    """
+    repo = DataEntryRepository(db_session)
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    rows = [
+        {
+            "data_entry_type_id": DataEntryTypeEnum.plane.value,
+            "carbon_report_module_id": module.id,
+            "data": {"marker": i},
+            "status": DataEntryStatusEnum.PENDING,
+            "year": None,
+            "unit_id": None,
+            "source": None,
+            "created_by_id": None,
+        }
+        for i in range(20)
+    ]
+
+    ids = await repo.bulk_insert_returning_ids(rows)
+    assert len(ids) == 20
+
+    from sqlmodel import select
+
+    stmt = select(DataEntry).where(DataEntry.id.in_(ids))
+    by_id = {e.id: e.data["marker"] for e in (await db_session.exec(stmt)).all()}
+    assert [by_id[row_id] for row_id in ids] == list(range(20))
+
+
+@pytest.mark.asyncio
+async def test_bulk_insert_returning_ids_empty_rows(db_session: AsyncSession):
+    """No rows in, no round trip, empty list out."""
+    repo = DataEntryRepository(db_session)
+    assert await repo.bulk_insert_returning_ids([]) == []
 
 
 @pytest.mark.asyncio
@@ -1084,7 +1147,7 @@ async def test_get_submodule_data_populates_reference_kg_for_snapshot_rows(
         carbon_report_module_id=ref_module.id,
         data_entry_type_id=DataEntryTypeEnum.process_emissions,
         status=DataEntryStatusEnum.PENDING,
-        data={"category": "Refrigerant", "subcategory": "NF3", "quantity": 50},
+        data={"category": "Refrigerant", "subcategory": "NF3", "quantity_kg": 50},
         year=2025,
     )
     db_session.add(source_entry)
@@ -1126,7 +1189,7 @@ async def test_get_submodule_data_populates_reference_kg_for_snapshot_rows(
         data={
             "category": "Refrigerant",
             "subcategory": "NF3",
-            "quantity": 50,
+            "quantity_kg": 50,
             "source_data_entry_id": source_entry.id,
             "percentage_of_reference_year": 40,
         },
@@ -1136,7 +1199,7 @@ async def test_get_submodule_data_populates_reference_kg_for_snapshot_rows(
         carbon_report_module_id=plan_module.id,
         data_entry_type_id=DataEntryTypeEnum.process_emissions,
         status=DataEntryStatusEnum.PENDING,
-        data={"category": "CH4", "quantity": 65},
+        data={"category": "CH4", "quantity_kg": 65},
         year=2027,
     )
     db_session.add_all([snapshot_entry, plain_entry])
@@ -1553,3 +1616,297 @@ async def test_detach_handles_none_attached_and_already_detached(
     await db_session.flush()
     repo._detach(None, entry, other)
     assert other not in db_session.sync_session
+
+
+# ======================================================================
+# Traveler sentinel resolution matrix (#1153, -1/null scheme)
+# ======================================================================
+
+
+def _plane_entry(module_id: int, sciper: str | None) -> DataEntry:
+    return DataEntry(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data={
+            "user_institutional_id": sciper,
+            "origin_iata": "GVA",
+            "destination_iata": "ZRH",
+            "cabin_class": "economy",
+        },
+    )
+
+
+def _member_entry(module_id: int, sciper: str | None, name: str) -> DataEntry:
+    return DataEntry(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.member,
+        status=DataEntryStatusEnum.PENDING,
+        data={
+            "user_institutional_id": sciper,
+            "name": name,
+            "sius_code": "51",
+            "fte": 1.0,
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_traveler_resolution_matrix(db_session: AsyncSession):
+    """PRD §4 matrix, driven through the real get_submodule_data query.
+
+    Every row must round-trip its stored user_institutional_id unchanged
+    (never overwritten by the resolver), regardless of whether a Headcount
+    match exists.
+
+    traveler_name's resolution *outcome* isn't independently observable
+    here: ProfessionalTravelPlaneHandlerResponse doesn't declare that field,
+    so model_validate silently drops it before it ever reaches
+    response.items. The "NULL = NULL never spuriously matches" property is
+    ANSI SQL three-valued-logic semantics (a database-engine guarantee, not
+    application logic) — this test can't and doesn't need to re-verify it
+    beyond confirming the query doesn't crash when a second NULL-valued
+    member row exists (see the module_a member seed below).
+    """
+    repo = DataEntryRepository(db_session)
+
+    module_a = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    module_b = CarbonReportModule(
+        carbon_report_id=2,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module_a)
+    db_session.add(module_b)
+    await db_session.flush()
+
+    # Headcount: "123456" is a member of module_a's report only.
+    db_session.add(_member_entry(module_a.id, "123456", "Ada Lovelace"))
+    # A second module_a member with no SCIPER yet (#951 made it optional).
+    # Guards against NULL-fan-out/crash risk: the correlated subquery's
+    # .limit(1) exists so that if a driver/dialect ever treated
+    # NULL = NULL as true, matching >1 row would raise "more than one row
+    # returned by a subquery used as an expression" instead of silently
+    # mis-resolving a name. Not a name-resolution check (unobservable here).
+    db_session.add(_member_entry(module_a.id, None, "No Sciper Yet"))
+    # A different unit/year's Headcount also has "999999" — must NOT resolve
+    # to module_a's travel row with the same SCIPER (unit isolation, PRD §4).
+    db_session.add(_member_entry(module_b.id, "999999", "Wrong Unit Person"))
+    await db_session.flush()
+
+    rows = {
+        "matched": _plane_entry(module_a.id, "123456"),
+        "external": _plane_entry(module_a.id, None),
+        "internal_explicit": _plane_entry(module_a.id, TRAVELER_OTHER_INTERNAL),
+        "unresolved_source_id": _plane_entry(module_a.id, "45005"),
+        "wrong_unit_match": _plane_entry(module_a.id, "999999"),
+    }
+    for entry in rows.values():
+        db_session.add(entry)
+    await db_session.flush()
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module_a.id,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    by_id = {item.id: item for item in response.items}
+
+    # Every stored value survives unchanged — resolution never rewrites data.
+    assert by_id[rows["matched"].id].user_institutional_id == "123456"
+    assert by_id[rows["external"].id].user_institutional_id is None
+    assert (
+        by_id[rows["internal_explicit"].id].user_institutional_id
+        == TRAVELER_OTHER_INTERNAL
+    )
+    assert by_id[rows["unresolved_source_id"].id].user_institutional_id == "45005"
+    assert by_id[rows["wrong_unit_match"].id].user_institutional_id == "999999"
+
+
+# ======================================================================
+# #2050 Track H — planner_headcount missing from is_headcount_entry
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_planner_headcount_uses_rollup_total(
+    db_session: AsyncSession,
+):
+    """planner_headcount must read its total from the rollup row (the fast
+    path member/student already use), not by summing the individual leaves
+    itself (the slow, unfiltered ``else``-branch path — 825ms in production
+    at real volume, #2050 Track H).
+
+    In real data the rollup row's value always equals the sum of its
+    leaves (``prepare_create`` computes it that way), so a realistic seed
+    can't distinguish "which query ran" by value alone — both paths would
+    happen to agree. This test deliberately seeds a rollup row whose value
+    does NOT match the sum of its leaves, so the two candidate code paths
+    diverge observably: reading the rollup row directly returns 99.0/factor
+    42; re-summing the three leaves would return 18.0/factor 1. Before the
+    fix (``is_headcount_entry`` missing ``planner_headcount``), this test
+    fails with 18.0 — pinning that the *shape* of the query changed, not
+    just that some number came back.
+    """
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.planner_headcount,
+        status=DataEntryStatusEnum.VALIDATED,
+        data={"sius_code": "51", "fte": 2.0},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    leaves = [
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.food.value,
+            kg_co2eq=10.0,
+            primary_factor_id=1,
+            scope=emission_type_scope(EmissionType.food),
+        ),
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.waste.value,
+            kg_co2eq=5.0,
+            primary_factor_id=1,
+            scope=emission_type_scope(EmissionType.waste),
+        ),
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.commuting.value,
+            kg_co2eq=3.0,
+            primary_factor_id=1,
+            scope=emission_type_scope(EmissionType.commuting),
+        ),
+        # The rollup row prepare_create already writes for this type today
+        # (DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION already maps planner_headcount
+        # -> EmissionType.headcount). Deliberately mismatched vs the leaves'
+        # sum/factor — see docstring — to make the test discriminating.
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.headcount.value,
+            kg_co2eq=99.0,
+            primary_factor_id=42,
+            scope=None,
+            meta={"is_rollup": True},
+        ),
+    ]
+    db_session.add_all(leaves)
+    await db_session.flush()
+
+    repo = DataEntryRepository(db_session)
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.planner_headcount.value,
+        limit=100,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.kg_co2eq == pytest.approx(99.0)
+    # kg_co2eq is the only assertable difference: is_headcount_entry is read
+    # twice, so the fix also stops resolved_factor_id being computed here —
+    # but PlannerHeadCountResponse exposes no factor field, so that second
+    # dispatch has nothing observable to change. (It would be equivalent
+    # anyway: the rollup row's primary_factor_id is min(leaf factor ids),
+    # exactly what the generic path's func.min(primary_factor_id) produced.)
+
+
+# ======================================================================
+# #2050 Track J lever 2 — one query where the route made three
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_headcount_fte_breakdown_matches_the_three_queries_it_replaces(
+    db_session: AsyncSession,
+):
+    """The headcount branch of ``GET .../modules/{module_id}`` issued three
+    sequential round trips over the same table, same module and same
+    ``fte`` field: total FTE, member FTE grouped by sius_code, and student
+    FTE. On dev each round trip costs ~160ms (#2050 G2), so the count is
+    the cost, not the queries themselves.
+
+    Asserted as equivalence against the three calls it replaces rather
+    than against hand-written expected values: that is what makes it a
+    safe swap, and it cannot drift if either side changes.
+    """
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    # Two sius_codes for members, one student, plus an entry with no
+    # sius_code at all (get_stats labels that group "unknown") and one
+    # with no fte (a NULL that must not become 0.0 silently).
+    seed = [
+        (DataEntryTypeEnum.member, {"sius_code": "51", "fte": 2.0}),
+        (DataEntryTypeEnum.member, {"sius_code": "51", "fte": 3.5}),
+        (DataEntryTypeEnum.member, {"sius_code": "62", "fte": 1.25}),
+        (DataEntryTypeEnum.member, {"fte": 4.0}),
+        (DataEntryTypeEnum.student, {"sius_code": "51", "fte": 7.0}),
+        (DataEntryTypeEnum.student, {"sius_code": "51"}),
+    ]
+    for data_entry_type, data in seed:
+        db_session.add(
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=data_entry_type,
+                status=DataEntryStatusEnum.VALIDATED,
+                data=data,
+            )
+        )
+    await db_session.flush()
+
+    repo = DataEntryRepository(db_session)
+
+    expected_total = await repo.get_total_per_field(
+        field_name="fte",
+        carbon_report_module_id=module.id,
+        data_entry_type_id=None,
+    )
+    expected_member_stats = await repo.get_stats(
+        carbon_report_module_id=module.id,
+        aggregate_by="sius_code",
+        aggregate_field="fte",
+        data_entry_type_id=DataEntryTypeEnum.member.value,
+    )
+    expected_student_total = await repo.get_total_per_field(
+        field_name="fte",
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.student.value,
+    )
+
+    breakdown = await repo.get_headcount_fte_breakdown(
+        carbon_report_module_id=module.id
+    )
+
+    assert breakdown.total_fte == pytest.approx(expected_total)
+    assert breakdown.student_fte == pytest.approx(expected_student_total)
+    assert breakdown.member_fte_by_sius_code == expected_member_stats
+    # Guard against the equivalence passing vacuously on empty results.
+    assert breakdown.total_fte > 0
+    assert set(breakdown.member_fte_by_sius_code) == {"51", "62", "unknown"}

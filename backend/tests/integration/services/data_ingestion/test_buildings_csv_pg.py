@@ -17,10 +17,12 @@ Buildings has three data-entry types (``MODULE_TYPE_TO_DATA_ENTRY_TYPES``):
   thermal — selected by the factor's energy_type; #1575).
 * ``energy_combustion`` — straight ``quantity × ef`` formula keyed by
   ``(unit, name)`` factor classification.
-* ``building_embodied_energy`` — *derived*: rows are created post-hoc
-  by ``EmbodiedEnergyWorkflow.post_create`` from the corresponding
-  ``building`` entry.  No CSV ingest path; covered for Strategy-B
-  recalc propagation only.
+* ``building_embodied_energy`` — *derived*: the ``EmbodiedEnergyWorkflow``
+  reconcile (interactive) and bulk derivation (ingest) keep one companion
+  per parent ``building`` entry.  The persisted payload is only
+  ``{"room_name"}``; ``pre_compute`` resolves ``building_name`` and
+  ``room_surface_square_meter`` from ``BuildingRoom``.  Covered here for
+  Strategy-B recalc propagation only.
 
 What this file pins
 ===================
@@ -351,15 +353,23 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
 
 
 @pytest.mark.asyncio
-async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
+async def test_building_room_without_ref_data_fails_loudly(pg_dsn):
     """When no ``BuildingRoom`` matches the ``room_name`` on the entry,
-    ``BuildingRoomService.get_room`` returns ``None`` and the
-    formula's surface input is ``None`` — every leaf computes to
-    ``None`` and is dropped before persistence.
+    ``BuildingRoomService.get_room`` returns ``None``, so the formula's
+    surface input is ``None`` and no leaf can be computed.
 
-    Discovery contract: the entry itself stays in place (the CSV path
-    didn't fail), but no leaf emission rows appear and the rollup row
-    is absent / zero.  That's "skip", not "default".
+    #2050 Track J changed what happens next. This used to drop every
+    leaf silently ("skip, not default"), which left the building
+    contributing **zero** to its unit's total — a wrong total that looks
+    complete, which the guardrails rank as the worst failure this project
+    can have, and which no log line reading "skipped" would surface to
+    the person publishing the number.
+
+    Now it raises, naming the null input. The data outcome is unchanged
+    (the entry survives, no leaf rows are written, because recalc records
+    a per-entry error and moves on — ``emission_recalculation.py:173``);
+    what changed is that the gap is now visible in the job's
+    ``error_details`` instead of only in a log nobody reads.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -405,8 +415,12 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
         assert entry.id is not None
         entry_id = entry.id
 
-    async with Sf() as s:
-        await _initial_compute(s, entry_id)
+    # The failure names the missing input, not just "could not compute":
+    # an unknown room shows up as a null room_surface_square_meter, and
+    # that string is what the person reading error_details has to act on.
+    with pytest.raises(ValueError, match="room_surface_square_meter"):
+        async with Sf() as s:
+            await _initial_compute(s, entry_id)
 
     rows = await _read_emissions(pg_dsn, entry_id)
     leaf_rows = [
@@ -417,7 +431,8 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
         f"got {[(r.emission_type_id, r.kg_co2eq) for r in leaf_rows]}"
     )
 
-    # The DataEntry itself must still exist — ref-data miss is non-fatal.
+    # The DataEntry itself must still exist — the raise is per entry, and
+    # the ingestion that created the row is not rolled back by it.
     async with Sf() as s:
         entry = await s.get(DataEntry, entry_id)
         assert entry is not None, "DataEntry must survive a ref-data miss"
@@ -540,6 +555,10 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
     ``primary_factor_id`` and the handler walks the live B-classification
     query in ``_fetch_factors`` for every entry.
 
+    Entries persist only ``{"room_name"}``; the surface and building name
+    resolve from the seeded ``BuildingRoom`` rows via the handler's
+    batched ``prefetch_slice``/``pre_compute`` pair.
+
     Distinct from the Strategy-B test's single-entry case.  The "exception"
     in the Unit-3 spec is that ALL embodied-energy DataEntry rows must
     propagate a factor change, including those that share a factor:
@@ -566,6 +585,26 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
     async with Sf() as s:
         module_id = await _seed_unit_module(s)
 
+        s.add_all(
+            [
+                BuildingRoom(
+                    building_location="EPFL",
+                    building_name="BC",
+                    room_name="BC-150",
+                    room_type="office",
+                    room_surface_square_meter=50.0,
+                ),
+                BuildingRoom(
+                    building_location="EPFL",
+                    building_name="AAB",
+                    room_name="AAB-010",
+                    room_type="office",
+                    room_surface_square_meter=80.0,
+                ),
+            ]
+        )
+        await s.commit()
+
         # The factor's ``classification`` carries ``building_name=default`` so
         # the handler's fallback (B-classification fallback chain) catches
         # both BC and AAB entries via the ``fallbacks={'building_name':
@@ -586,12 +625,12 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
         entry_a = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.building_embodied_energy.value,
             carbon_report_module_id=module_id,
-            data={"building_name": "BC", "room_surface_square_meter": 50.0},
+            data={"room_name": "BC-150"},
         )
         entry_b = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.building_embodied_energy.value,
             carbon_report_module_id=module_id,
-            data={"building_name": "AAB", "room_surface_square_meter": 80.0},
+            data={"room_name": "AAB-010"},
         )
         s.add_all([entry_a, entry_b])
         await s.commit()

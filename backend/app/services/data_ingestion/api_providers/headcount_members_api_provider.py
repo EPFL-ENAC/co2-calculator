@@ -17,6 +17,7 @@ from app.schemas.user import UserRead
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
     BaseTableauApiProvider,
+    CaptionSpec,
     StatsDict,
 )
 
@@ -62,12 +63,12 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
     #     "user_institutional_id",
     #     "ISODate",
 
-    REQUIRED_CAPTIONS: list[str] = [
-        CAPTION_NAME,
-        CAPTION_SCIPER,
-        CAPTION_SIUS,
-        CAPTION_FTE,
-        CAPTION_UNIT,
+    REQUIRED_CAPTIONS: list[CaptionSpec] = [
+        CaptionSpec(CAPTION_NAME),
+        CaptionSpec(CAPTION_SCIPER),
+        CaptionSpec(CAPTION_SIUS),
+        CaptionSpec(CAPTION_FTE),
+        CaptionSpec(CAPTION_UNIT),
     ]
 
     async def transform_data(
@@ -131,13 +132,36 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
         runner-driven recalc chain (plan 310-D), same as the travel path.
         """
         entries = []
+        # #2050 J4: one (module, person, role) per member row, enforced by
+        # uq_member_role_per_module. A duplicate in the upstream export would
+        # otherwise fail this whole bulk_create — and with it the sync job — on
+        # data we do not control. Skipping the row mirrors what the CSV
+        # provider has always done (base_csv_provider's seen_institutional_ids).
+        seen_roles: set[tuple[int, str, str]] = set()
+        skipped_duplicates = 0
         for item in data:
             carbon_report_module_id = item.get("carbon_report_module_id")
             if not carbon_report_module_id:
                 continue
+            role_key = (
+                int(carbon_report_module_id),
+                str(item.get("user_institutional_id") or ""),
+                str(item.get("sius_code") or ""),
+            )
+            if role_key in seen_roles:
+                skipped_duplicates += 1
+                continue
+            seen_roles.add(role_key)
             entries.append(self._build_data_entry(item, carbon_report_module_id))
+        if skipped_duplicates:
+            # Counts only, never row contents — this is personal data (A09).
+            logger.warning(
+                "Headcount sync skipped %s duplicate (module, person, role) "
+                "rows from the upstream export",
+                skipped_duplicates,
+            )
         if not entries:
-            return {"inserted": 0}
+            return {"inserted": 0, "skipped_duplicates": skipped_duplicates}
         service = DataEntryService(self.data_session)
         data_entries_response = await service.bulk_create(
             entries,
@@ -147,4 +171,7 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
             created_by_id=self.job_id,
         )
         await self.data_session.flush()
-        return {"inserted": len(data_entries_response)}
+        return {
+            "inserted": len(data_entries_response),
+            "skipped_duplicates": skipped_duplicates,
+        }

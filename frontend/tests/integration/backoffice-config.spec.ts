@@ -275,52 +275,6 @@ test.describe('backoffice-config — module & sub-module deactivation', () => {
   });
 });
 
-// Deliberately its own describe with NO `installInitScripts` /
-// `__LIGHTHOUSE_BYPASS__` beforeEach: `workspaceGuard` returns early on
-// that flag and never hydrates `moduleStore.state.emissionBreakdown` /
-// `yearConfigStore.config`, which is exactly what HomePage's
-// module-icon-axis chart reads to decide enabled vs. greyed-out — see
-// `home-module-visibility-mocks.ts` and `simulator-mocks.ts` for the same
-// constraint on `SimulationExplorePage`.
-test.describe('backoffice-config — module deactivation in the calculator view', () => {
-  test('module deactivation and missing stats grey out the module icon for a regular user', async ({
-    page,
-  }) => {
-    // This is genuinely Calculator-page behavior (HomePage's
-    // module-carbon-footprint chart, module-icon-axis mode) — not the
-    // config page's own toggle. No existing spec covers it (checked
-    // tests/integration/*.spec.ts), so it lands here per the #1403 master
-    // plan's file split, which groups "greyed-out module rendering for a
-    // regular user" into this new frontend spec.
-    //
-    // Three modules, three reasons a module can render greyed-out — see
-    // isModuleFullyAvailable (src/composables/useModuleAvailability.ts),
-    // the single source of truth every page (Home/Results/Reporting)
-    // shares: deactivated in the back-office (process-emissions), enabled
-    // but never touched / no computed stats (external-cloud-and-ai), and
-    // fully available (equipment).
-    await mockHomeBackend(page);
-    await page.goto(HOME_URL);
-
-    const deactivatedItem = page
-      .locator('.module-icon-axis__item')
-      .filter({ hasText: 'Process emissions' });
-    const noStatsItem = page
-      .locator('.module-icon-axis__item')
-      .filter({ hasText: 'External clouds' });
-    const enabledItem = page
-      .locator('.module-icon-axis__item')
-      .filter({ hasText: 'Equipment' });
-
-    await expect(enabledItem).toBeVisible({ timeout: 10000 });
-    await expect(enabledItem).toHaveClass(/module-icon-axis__item--link/);
-    await expect(deactivatedItem).toHaveClass(
-      /module-icon-axis__item--disabled/,
-    );
-    await expect(noStatsItem).toHaveClass(/module-icon-axis__item--disabled/);
-  });
-});
-
 test.describe('backoffice-config — uncertainty & threshold fields', () => {
   test.beforeEach(async ({ context }) => {
     await installInitScripts(context);

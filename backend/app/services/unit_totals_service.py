@@ -153,11 +153,12 @@ class UnitTotalsService:
         emissions: dict[str, float] = {}
         fte: dict[str, float] = {}
         for module_type_id, module_status, stats in rows:
-            if module_status != ModuleStatus.VALIDATED or not isinstance(stats, dict):
+            if module_status != ModuleStatus.VALIDATED:
                 continue
-            emissions[str(module_type_id)] = stats.get("total", 0.0) or 0.0
-            if stats.get("total_fte"):
-                fte[str(module_type_id)] = stats["total_fte"]
+            module_stats = stats if isinstance(stats, dict) else {}
+            emissions[str(module_type_id)] = module_stats.get("total", 0.0) or 0.0
+            if module_stats.get("total_fte"):
+                fte[str(module_type_id)] = module_stats["total_fte"]
         return emissions, fte
 
     async def get_results_summary(self, carbon_report_id: int) -> dict:

@@ -12,7 +12,7 @@ const {
   currentYear,
   loading,
   totalTonnesCo2eq,
-  filteredBreakdown,
+  breakdown,
   exploreModules,
   submoduleRows,
   headcountMembers,
@@ -52,7 +52,10 @@ onMounted(async () => {
       </div>
 
       <section>
-        <ModuleCarbonFootprintChart :breakdown-data="filteredBreakdown" />
+        <ModuleCarbonFootprintChart
+          :breakdown-data="breakdown"
+          :enforce-module-activation="false"
+        />
       </section>
     </ReportPage>
 

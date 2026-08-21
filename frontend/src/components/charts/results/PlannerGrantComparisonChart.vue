@@ -61,9 +61,11 @@ import { useI18n } from 'vue-i18n';
 import {
   CHART_CATEGORY_COLOR_SCALES,
   RESULTS_CATEGORY_LABEL_KEYS,
+  RESULTS_SUBCATEGORY_LABEL_KEYS,
 } from 'src/constant/charts';
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
 import { downloadEchartAsPng } from 'src/utils/chartDownload';
+import { downloadCsv, escapeCsvValue } from 'src/utils/csvDownload';
 import { withYearRange } from 'src/utils/plannerYearRange';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
 
@@ -162,43 +164,9 @@ function segmentValue(row: CategoryRow | undefined, segment: string): number {
 
 const SHADE_ORDER = ['darker', 'dark', 'default', 'light', 'lighter'] as const;
 
-// Segment key → i18n key, mirroring the subcategory names of
-// ModuleCarbonFootprintChart so the two Results tooltips read alike.
-const SEGMENT_LABEL_KEYS: Record<string, string> = {
-  co2: 'process-emissions.category.co2',
-  ch4: 'process-emissions.category.ch4',
-  n2o: 'process-emissions.category.n2o',
-  refrigerants: 'process-emissions.category.refrigerants',
-  combustion: 'charts-energy-combustion-subcategory',
-  heating_thermal: 'charts-heating-thermal-subcategory',
-  heating_electric: 'charts-heating-elec-subcategory',
-  cooling: 'charts-cooling-subcategory',
-  ventilation: 'charts-ventilation-subcategory',
-  lighting: 'charts-lighting-subcategory',
-  scientific: 'charts-scientific-subcategory',
-  it: 'charts-equipment-it',
-  other: 'charts-other-equipment-subcategory',
-  scientific_equipment: 'charts-scientific-subcategory',
-  it_equipment: 'charts-equipment-it',
-  consumable_accessories: 'charts-consumables-subcategory',
-  biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
-  services: 'charts-services-subcategory',
-  vehicles: 'charts-vehicles-subcategory',
-  other_purchases: 'charts-other-purchases-subcategory',
-  centralized: 'charts-purchases-centralized-subcategory',
-  goods_and_services: 'charts-global-budget-subcategory',
-  clouds: 'charts-clouds-subcategory',
-  ai: 'charts-ai-subcategory',
-  plane: 'charts-plane-subcategory',
-  train: 'charts-train-subcategory',
-  facilities: 'charts-research-facilities-subcategory',
-  it_facilities: 'charts-research-it-facilities-subcategory',
-  animal: 'charts-research-animal-subcategory',
-};
-
 // Same fallback convention as the main chart: an unmapped key shows raw.
 function segmentLabel(segment: string): string {
-  const key = SEGMENT_LABEL_KEYS[segment];
+  const key = RESULTS_SUBCATEGORY_LABEL_KEYS[segment];
   return key ? t(key) : segment;
 }
 
@@ -357,10 +325,7 @@ const downloadPNG = () =>
 
 /** One CSV per view — a grant-proposal file and an effective file. */
 const downloadCSV = () => {
-  const escape = (v: unknown) => {
-    const s = String(v ?? '');
-    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const escape = escapeCsvValue;
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const files: { name: string; view: 'grant' | 'years' }[] = [
     { name: `grant-proposal-${stamp}.csv`, view: 'grant' },
@@ -375,11 +340,7 @@ const downloadCSV = () => {
       [t('csv_header_category'), t('csv_header_co2')].map(escape).join(','),
       ...labels.map((label, idx) => [label, totals[idx]].map(escape).join(',')),
     ].join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = file.name;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    downloadCsv(csv, file.name);
   }
 };
 </script>
