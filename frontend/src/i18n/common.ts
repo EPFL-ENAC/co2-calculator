@@ -467,6 +467,10 @@ export default {
     en: 'Required',
     fr: 'Obligatoire',
   },
+  date_format_placeholder: {
+    en: 'YYYY/MM/DD',
+    fr: 'AAAA/MM/JJ',
+  },
   validation_invalid_date_format: {
     en: 'Invalid date format, expected YYYY/MM/DD',
     fr: 'Format de date invalide, attendu AAAA/MM/JJ',

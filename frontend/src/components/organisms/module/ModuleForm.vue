@@ -71,7 +71,7 @@
                   :key="`date-${inp.id}-${dateInputKey}`"
                   :model-value="String(form[inp.id] || '')"
                   bordered
-                  mask="####/##/##"
+                  :mask="DATE_INPUT_MASK"
                   :rules="getDateRules(inp.required)"
                   :label="
                     $t(`${inp.labelKey || inp.label}`, {
@@ -337,6 +337,11 @@ import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
 import { resolveFactorYear } from 'src/utils/factor-year';
+import {
+  DATE_INPUT_MASK,
+  isValidCalendarDate,
+  matchesDateInputFormat,
+} from 'src/utils/date';
 import { createFieldInteractionTracker } from 'src/utils/fieldInteraction';
 import { isTravelLocationResolved } from 'src/utils/directionLocationValidation';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
@@ -625,24 +630,12 @@ function getFilteredOptions(
   return opts;
 }
 
-function isValidCalendarDate(val: string): boolean {
-  const parts = val.split(/[/.]/).map(Number);
-  if (parts.length !== 3) return false;
-  const [year, month, day] = parts;
-  const date = new Date(year, month - 1, day);
-  return (
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day
-  );
-}
-
 const dateInputKey = ref(0);
 
 function getDateRules(required?: boolean) {
   const dateFormatRule = (val: string) => {
     if (!val || val === '') return required ? $t('validation_required') : true;
-    if (!/^\d{4}([/.])\d{2}\1\d{2}$/.test(val))
+    if (!matchesDateInputFormat(val))
       return $t('validation_invalid_date_format');
     if (!isValidCalendarDate(val)) return $t('validation_invalid_date');
     return true;
@@ -971,7 +964,7 @@ function validateField(i: ModuleField) {
     }
     if (v && v !== '') {
       const dateStr = String(v);
-      if (!/^\d{4}([/.])\d{2}\1\d{2}$/.test(dateStr)) {
+      if (!matchesDateInputFormat(dateStr)) {
         errors[i.id] = $t('validation_invalid_date_format');
         return false;
       }

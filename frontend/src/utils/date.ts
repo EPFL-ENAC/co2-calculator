@@ -68,3 +68,23 @@ export function parseUtcDate(dateString: string): Date {
 
   return new Date(dateString);
 }
+
+export const DATE_INPUT_MASK = '####/##/##';
+
+const DATE_INPUT_PATTERN = /^\d{4}([/.-])\d{2}\1\d{2}$/;
+
+export function matchesDateInputFormat(val: string): boolean {
+  return DATE_INPUT_PATTERN.test(val);
+}
+
+export function isValidCalendarDate(val: string): boolean {
+  const parts = val.split(/[/.-]/).map(Number);
+  if (parts.length !== 3) return false;
+  const [year, month, day] = parts;
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
