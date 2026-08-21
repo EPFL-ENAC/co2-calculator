@@ -10,7 +10,7 @@ export default {
     fr: 'Données et facteurs communs | Données et facteurs communs',
   },
   [`${MODULES.Equipment}-description`]: {
-    en: 'Review and complete your unit's equipment power consumption.,
+    en: `Review and complete your unit's equipment power consumption.`,
     fr: 'Vérifiez et complétez les données de consommation électrique des équipements de votre unité.',
   },
 
