@@ -145,26 +145,53 @@ code disproves. Put this first."):
     was sending 6 emails/day).
   - Prod overlay untouched (scoped to dev/stage per instruction); prod's
     dashboard JSON doesn't even have the DB Pool Usage panel at all.
+  - **PR [openshift-app-config#8](https://github.com/EPFL-ENAC/openshift-app-config/pull/8) — merged.**
+- [x] Verified `http_target` live (dev + stage, `count by (http_target,
+      http_route, http_method) (http_server_duration_milliseconds_count{...})`):
+      it's populated, and it's already normalized by an existing
+      collector-side transform that collapses `/{api_version}/{router_prefix}`
+      down to a literal `/api` (e.g. `/v1/sync/dispatch` → `/api/dispatch`,
+      `/v1/year-configuration/{year}` → `/api/{year}`). `http_route` never
+      appears. Consequence: matching has to be on the path *tail*, not the
+      full route — real collision risk for the job/upload/pipeline vs
+      normal-API split (e.g. `GET /v1/units` and `POST /v1/sync/units` both
+      lose their router prefix and could collide if not also matched on
+      `http_method`). The stream exclusion below is safe regardless, since
+      only the two stream endpoints end in `/stream` anywhere in the
+      codebase.
+- [x] `LatencyP50High`/`P95High`/`P99High` (dev+stage) now exclude
+      `http_target!~".*/stream$"` — a pipeline that correctly takes 3+
+      minutes can no longer trip the alert. **PR
+      [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9) — open.**
 
 ## Steps
 
 - [x] Confirm in the ops repo which metric/labels the current p99 alert
-      queries — **`http_target` (raw request path) is confirmed at the SDK
-      level** (see Contradictions above); whether the collector's `filter`
-      processor forwards it to Prometheus is the one remaining unknown.
-- [ ] Run the P0-3 check once cluster access exists:
-      `count by (http_target, http_route, http_method) (http_server_duration_milliseconds_count{namespace="svc1751d-co2-calculator-dev"})`.
-      If `http_target` is present and populated, write the alert split on it.
+      queries — **confirmed live**: `http_target` is populated on
+      `http_server_duration_milliseconds`, pre-normalized by an existing
+      collector transform (see Done section above).
+- [x] Exclude `/sync/jobs/{job_id}/stream` and `/sync/pipelines/{pipeline_id}/stream`
+      from the latency alerts (path-suffix match on `http_target`) — done,
+      PR [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9).
 - [ ] Pull 2-4 weeks of historical p99 for `/files` and `/sync/*` (excluding
       `/stream` routes) from existing dashboards to set a realistic
       threshold for the jobs/upload/pipeline group (don't guess a number
       the team will immediately silence).
 - [ ] In the ops repo, split the single alert rule into two: normal-API
       (keep existing threshold) and jobs/upload/pipeline (new looser
-      threshold + longer eval window), both excluding `*/stream` paths on
-      `http_target`.
-- [ ] Exclude `/sync/jobs/{job_id}/stream` and `/sync/pipelines/{pipeline_id}/stream`
-      from both latency alert groups (path-negative match on `http_target`).
+      threshold + longer eval window). Match by `http_target` *tail*
+      pattern, not full route (the `/api` collapse strips the router
+      prefix) — draft tail list: `dispatch`, `units` (data_sync's, not
+      the plain `units` list which collapses to an empty tail), `jobs.*`,
+      `workers`, `active-pipelines.*`, `recalculation-status`,
+      `pipelines.*`, `health/stale-stats`, `admin/recompute-stats`,
+      `temp-upload`, and `POST` on tail `{year}/upload`; also decide
+      whether `POST /year-configuration/{year}` (tail `{year}`, needs an
+      `http_method="POST"` guard to avoid catching the GET/PATCH on the
+      same tail) belongs in the slow group. Verify the tail list against
+      real traffic before shipping — a wrong regex here silently mis-groups
+      requests, the same failure mode this plan already flagged for the
+      old `http_target` no-op.
 - [x] Configure a GlitchTip alert rule on the frontend project — done
       outside this repo.
 - [ ] Document the two alert groups and thresholds in a short ops note, so
