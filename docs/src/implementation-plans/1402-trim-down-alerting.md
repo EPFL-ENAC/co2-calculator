@@ -94,15 +94,18 @@ code disproves. Put this first."):
   env vars and by real SQLAlchemy/psycopg spans in the v3 traces below). The
   local dev `.venv` just doesn't have the bootstrap-installed instrumentors,
   which is why the original problem statement got this wrong.
-- **T2's index hypothesis is refuted.** `backend/app/models/factor.py:98-103`
+- **T2's index hypothesis is refuted, and now settled.** `backend/app/models/factor.py:98-103`
   already has `Index("ix_factors_data_entry_type_year", "data_entry_type_id",
-  "year")`. The 1338 ms `factors` query for `purchase/other_purchases` is not
-  a missing-index problem. Remaining unknown: row count for that
-  `(data_entry_type_id, year)` pair vs the fast one — one `SELECT count(*)`,
-  not a design decision. `values`/`classification` are both consumed by
-  `ModuleHandlerService.get_taxonomy` (`backend/app/services/module_handler_service.py:76-124`),
-  so narrowing the column list isn't free — whatever fixes this is either
-  row-count-driven or a real caching decision, not a quick patch.
+  "year")`. Row counts (2026-08-21): `building`=846, `other_purchases`=20,915
+  — ~25×, tracking the observed ~19× query-time / ~13× serialisation-time
+  ratios. Confirmed genuine large-result-set cost, not an indexing gap.
+  `values`/`classification` are both consumed by `ModuleHandlerService.get_taxonomy`
+  (`backend/app/services/module_handler_service.py:76-124`), so narrowing the
+  column list isn't free — the fix is caching with a real invalidation story
+  (factors change on ingestion, not per request). Out of #1402's scope and a
+  real architecture decision — filed as
+  [co2-calculator#2258](https://github.com/EPFL-ENAC/co2-calculator/issues/2258)
+  rather than improvised here.
 - **P0-3/P0-4 is answered from source, not blocked on cluster access.**
   `opentelemetry-instrumentation-asgi`'s `TraceMiddleware.__call__` records
   the old-semconv duration histogram (`name=MetricInstruments.HTTP_SERVER_DURATION`,
@@ -188,7 +191,9 @@ code disproves. Put this first."):
 - [x] Pulled real numbers instead of guessing:
   - `factors` row counts: `building`=846, `other_purchases`=20,915 — the
     1338 ms query is a genuine large-result-set problem, not a missing
-    index (T2, no code changed here — tracked separately).
+    index — filed as
+    [co2-calculator#2258](https://github.com/EPFL-ENAC/co2-calculator/issues/2258)
+    (T2, out of #1402's scope, no code changed here).
   - `route_class="upload"` over 4 weeks of stage: p50 421 ms / p95 1807 ms /
     p99 4038 ms — clean, well-resolved.
   - `route_class="job"` over 4 weeks of stage: p50 60.8 ms, but **p95 and
