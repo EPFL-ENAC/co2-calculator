@@ -161,6 +161,7 @@
               :years-breakdown="breakdown"
               :grant-year-range="grantYearRange"
               :effective-year-range="effectiveYearRange"
+              :active-categories-only="true"
             />
             <ModuleCarbonFootprintChart
               v-else-if="plan.is_grant_proposal"
@@ -172,6 +173,7 @@
               "
               :bordered="false"
               :enforce-module-activation="false"
+              :active-categories-only="true"
             />
             <ModuleCarbonFootprintChart
               v-else
@@ -179,6 +181,7 @@
               :title="$t('planner_results_chart_title', { name: plan.name })"
               :bordered="false"
               :enforce-module-activation="false"
+              :active-categories-only="true"
             />
 
             <q-separator />

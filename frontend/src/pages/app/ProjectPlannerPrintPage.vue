@@ -181,6 +181,7 @@ onMounted(async () => {
               :years-breakdown="planBreakdown"
               :grant-year-range="grantYearRange"
               :effective-year-range="effectiveYearRange"
+              :active-categories-only="true"
             />
           </q-card>
           <ModuleCarbonFootprintChart
@@ -192,6 +193,7 @@ onMounted(async () => {
             :view-additional-data="true"
             :print-mode="true"
             :enforce-module-activation="false"
+            :active-categories-only="true"
           />
           <ModuleCarbonFootprintChart
             v-else
@@ -200,6 +202,7 @@ onMounted(async () => {
             :view-additional-data="true"
             :print-mode="true"
             :enforce-module-activation="false"
+            :active-categories-only="true"
           />
         </section>
 
