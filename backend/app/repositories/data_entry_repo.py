@@ -1136,10 +1136,13 @@ class DataEntryRepository:
             statement = statement.where(*handler_default)
         filter_map = dict(getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP)
         if is_plane_entry and OriginLocation is not None:
-            # Plane entries store only IATA codes; the displayed from/to are
-            # the joined airport names, so search must match those too.
-            filter_map["origin_name"] = OriginLocation.name
-            filter_map["destination_name"] = DestLocation.name
+            for prefix, loc in (
+                ("origin", OriginLocation),
+                ("destination", DestLocation),
+            ):
+                filter_map[f"{prefix}_name"] = loc.name
+                filter_map[f"{prefix}_municipality"] = loc.municipality
+                filter_map[f"{prefix}_keywords"] = loc.keywords
         statement, filter_pattern = self._apply_name_filter(
             statement, filter, filter_map
         )

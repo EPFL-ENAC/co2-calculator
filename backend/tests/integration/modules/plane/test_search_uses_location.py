@@ -19,12 +19,20 @@ from app.repositories.data_entry_repo import DataEntryRepository
 
 
 def _plane_location(
-    name: str, iata: str, latitude: float, longitude: float, country_code: str
+    name: str,
+    iata: str,
+    latitude: float,
+    longitude: float,
+    country_code: str,
+    municipality: str | None = None,
+    keywords: str | None = None,
 ) -> Location:
     return Location(
         transport_mode=TransportModeEnum.plane,
         name=name,
         iata_code=iata,
+        municipality=municipality,
+        keywords=keywords,
         latitude=latitude,
         longitude=longitude,
         country_code=country_code,
@@ -65,9 +73,21 @@ async def test_plane_search_matches_airport_names_and_iata(db_session: AsyncSess
     await db_session.flush()
 
     db_session.add(
-        _plane_location("Paris Charles de Gaulle", "CDG", 49.0097, 2.5479, "FR")
+        _plane_location(
+            "Charles de Gaulle International Airport",
+            "CDG",
+            49.0097,
+            2.5479,
+            "FR",
+            municipality="Paris (Roissy-en-France, Val-d'Oise)",
+            keywords="PAR, Aéroport Roissy-Charles de Gaulle, Roissy Airport",
+        )
     )
-    db_session.add(_plane_location("Zurich Airport", "ZRH", 47.4647, 8.5492, "CH"))
+    db_session.add(
+        _plane_location(
+            "Zürich Airport", "ZRH", 47.4647, 8.5492, "CH", municipality="Zurich"
+        )
+    )
     db_session.add(_plane_location("Geneva Airport", "GVA", 46.2381, 6.1089, "CH"))
     db_session.add(_plane_entry(module.id, "CDG", "ZRH"))
     db_session.add(_plane_entry(module.id, "GVA", "ZRH"))
@@ -84,14 +104,23 @@ async def test_plane_search_matches_airport_names_and_iata(db_session: AsyncSess
             filter=term,
         )
 
-    # Origin airport name — only the CDG entry matches, and the pagination
-    # count must agree with the page (guards the count-query JOINs).
+    # Origin municipality (the airport name itself has no "Paris"); the
+    # pagination count must agree with the page (guards the count-query JOINs).
     result = await search("Paris")
     assert result.count == 1, f"expected 1 item for 'Paris', got {result.count}"
     assert result.items[0].origin_iata == "CDG"  # type: ignore[attr-defined]
     assert result.summary.total_items == 1
 
-    # Destination airport name — both entries fly to Zurich.
+    # Origin keywords.
+    result = await search("Roissy")
+    assert result.count == 1, f"expected 1 item for 'Roissy', got {result.count}"
+    assert result.items[0].origin_iata == "CDG"  # type: ignore[attr-defined]
+
+    # Origin airport name.
+    result = await search("Gaulle")
+    assert result.count == 1, f"expected 1 item for 'Gaulle', got {result.count}"
+
+    # Destination municipality — both entries fly to Zurich.
     result = await search("Zurich")
     assert result.count == 2, f"expected 2 items for 'Zurich', got {result.count}"
     assert result.summary.total_items == 2
