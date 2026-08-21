@@ -222,9 +222,13 @@ code disproves. Put this first."):
       set a threshold from it — done, see Done section above.
 - [x] Add the `route_class="upload"`/`"job"` latency alert — done
       (`UploadLatencySLOBreach`, `JobLatencySLOBreach`), see Done section.
+- [x] Split the Grafana "Latency percentile" panel by `route_class` (§4.9.1)
+      — done, same PR #9: `sum by (le, route_class)`, `unit: ms` (was unset),
+      a real 1000ms threshold line (was a leftover unrendered default),
+      exemplars on (were off). Dashboard version bumped for both overlays.
 - [ ] Add the `route_class="probe"` panel (§4.9.6) and a
       `pipeline_duration_seconds`-based alert for the pipeline itself
-      (§4.7.7's `PipelineSlow`) — not started.
+      (§4.7.7's `PipelineSlow`) — not started; needs a new backend metric.
 - [ ] Re-verify the tail-based classification (`dispatch`, `units`,
       `jobs.*`, `workers`, `active-pipelines.*`, `recalculation-status`,
       `pipelines.*`, `health/stale-stats`, `admin/recompute-stats`,
