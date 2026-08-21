@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.factor_taxonomy_cache import taxonomy_cache
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
@@ -15,6 +16,13 @@ from app.repositories.factor_repo import FactorRepository
 def repo():
     session = MagicMock()
     return FactorRepository(session)
+
+
+@pytest.fixture(autouse=True)
+def _clear_taxonomy_cache():
+    taxonomy_cache.clear()
+    yield
+    taxonomy_cache.clear()
 
 
 @pytest.mark.asyncio
@@ -374,3 +382,111 @@ async def test_list_by_emission_types_empty_input_queries_nothing(db_session):
     await db_session.flush()
 
     assert await repo.list_by_emission_types([], year=2025) == []
+
+
+# ======================================================================
+# #2258 — every factor write invalidates the taxonomy cache
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_create_invalidates_taxonomy_cache(repo):
+    taxonomy_cache.set(("stale-key",), "stale-tree")
+    repo.session.add = MagicMock()
+    repo.session.flush = AsyncMock()
+    repo.session.refresh = AsyncMock()
+
+    await repo.create(
+        Factor(
+            emission_type_id=EmissionType.food,
+            data_entry_type_id=DataEntryTypeEnum.member,
+            classification={},
+            values={},
+        )
+    )
+
+    assert taxonomy_cache.get(("stale-key",)) is None
+
+
+@pytest.mark.asyncio
+async def test_update_invalidates_taxonomy_cache(repo):
+    taxonomy_cache.set(("stale-key",), "stale-tree")
+    factor = SimpleNamespace(id=1, name="old")
+    result_mock = MagicMock()
+    result_mock.one_or_none.return_value = factor
+    repo.session.exec = AsyncMock(return_value=result_mock)
+    repo.session.flush = AsyncMock()
+    repo.session.refresh = AsyncMock()
+
+    await repo.update(1, {"name": "new"})
+
+    assert taxonomy_cache.get(("stale-key",)) is None
+
+
+@pytest.mark.asyncio
+async def test_update_not_found_leaves_cache_untouched(repo):
+    """No row was actually changed, so nothing needs invalidating."""
+    taxonomy_cache.set(("fresh-key",), "fresh-tree")
+    result_mock = MagicMock()
+    result_mock.one_or_none.return_value = None
+    repo.session.exec = AsyncMock(return_value=result_mock)
+
+    await repo.update(999, {"name": "new"})
+
+    assert taxonomy_cache.get(("fresh-key",)) == "fresh-tree"
+
+
+@pytest.mark.asyncio
+async def test_delete_invalidates_taxonomy_cache(repo):
+    taxonomy_cache.set(("stale-key",), "stale-tree")
+    factor = SimpleNamespace(id=1)
+    result_mock = MagicMock()
+    result_mock.one_or_none.return_value = factor
+    repo.session.exec = AsyncMock(return_value=result_mock)
+    repo.session.delete = AsyncMock()
+    repo.session.flush = AsyncMock()
+
+    await repo.delete(1)
+
+    assert taxonomy_cache.get(("stale-key",)) is None
+
+
+@pytest.mark.asyncio
+async def test_bulk_delete_invalidates_taxonomy_cache(repo):
+    taxonomy_cache.set(("stale-key",), "stale-tree")
+    result_mock = MagicMock()
+    result_mock.all.return_value = [SimpleNamespace(id=1)]
+    repo.session.exec = AsyncMock(return_value=result_mock)
+    repo.session.delete = AsyncMock()
+    repo.session.flush = AsyncMock()
+
+    await repo.bulk_delete([1])
+
+    assert taxonomy_cache.get(("stale-key",)) is None
+
+
+@pytest.mark.asyncio
+async def test_delete_stale_for_year_invalidates_taxonomy_cache(db_session):
+    """Exercises the real ingestion sweep path (#2258): a factor CSV upload
+    that supersedes rows for a (det, year) must not leave the previous
+    upload's cached taxonomy tree being served afterwards.
+    """
+    repo = FactorRepository(db_session)
+    taxonomy_cache.set(("stale-key",), "stale-tree")
+    db_session.add(
+        Factor(
+            emission_type_id=EmissionType.food.value,
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            classification={},
+            values={},
+            year=2025,
+            last_seen_job_id=1,
+        )
+    )
+    await db_session.flush()
+
+    await repo.delete_stale_for_year(
+        2025, det_ids=[DataEntryTypeEnum.member.value], threshold_job_id=2
+    )
+
+    assert taxonomy_cache.get(("stale-key",)) is None
