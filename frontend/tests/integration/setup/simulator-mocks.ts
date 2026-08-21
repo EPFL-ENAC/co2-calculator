@@ -827,6 +827,49 @@ export async function mockExplorerBackend(
     ]);
   });
 
+  // Print/explore page's fetchAllData batches taxonomy fetches as one
+  // .../data-entries call per module instead of one per submodule
+  // (#2049 T6) — returns a map keyed by entry, not one TaxonomyNode.
+  // Registered after the catch-all above so LIFO picks this more
+  // specific route first for that path.
+  await page.route('**/api/v1/taxonomies/module/*/data-entries*', (route) => {
+    const entries = new URL(route.request().url()).searchParams.getAll(
+      'entries',
+    );
+    const body = Object.fromEntries(
+      entries.map((entry) => [entry, { name: entry, label: '', children: [] }]),
+    );
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+
+  // All other module preview_limit=0 calls (non-headcount modules).
+  // Identity-addressed by the explore report id (99).
+  await page.route(
+    /.*\/api\/v1\/carbon-reports\/99\/modules\/[^/?]+\?.*preview_limit/,
+    (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildModuleTotalsResponse('unknown', {})),
+      });
+    },
+  );
+
+  // Report stats for the simulator report (id=99) — stateful. Backs
+  // moduleStore.getEmissionBreakdown(), which fetches raw buckets and
+  // adapts them client-side via toEmissionBreakdown().
+  await page.route(/.*\/api\/v1\/modules-stats\/99\/report-stats/, (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(buildReportStats(memberPosted ? 5 : 0)),
+    });
+  });
+
   let nextJobId = 1;
   await context.route('**/api/v1/sync/dispatch', (route) => {
     const body = parseJsonBody(route.request()) as {
