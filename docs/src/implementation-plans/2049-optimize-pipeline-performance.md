@@ -36,15 +36,20 @@ alerting.
   `max_connections`. **Touches pipeline/DB-connection internals — needs a
   written plan reviewed by both maintainers before implementation**, per
   the repo guardrails. Data needed: `SHOW max_connections` + current
-  connection count on the DBaaS, which needs direct DB access.
-- **T5** — `event_loop_lag_seconds` probe + probe latency visibility.
-  Additive, no design decision, safe to implement directly.
+  connection count on the DBaaS, which needs direct DB access. A
+  ready-for-review proposal is written up below.
+- [x] **T5** — `event_loop_lag_seconds` probe. Done:
+  [co2-calculator#2263](https://github.com/EPFL-ENAC/co2-calculator/pull/2263).
 - **T6** — batch/bound the frontend's 31-request page-load fan-out.
   Frontend track, do after T1/T2 land (may shrink the problem for free).
-- **T7** — stream hardening (keepalive comments, `Last-Event-ID`, a
-  path-scoped `/v1/sync` Route with its own HAProxy timeout). **The Route
-  change is an infra/routing change to production traffic paths — needs a
-  written plan reviewed by both maintainers.**
+- [x] **T7 — keepalive + response headers.** Done:
+  [co2-calculator#2262](https://github.com/EPFL-ENAC/co2-calculator/pull/2262)
+  (`job_stream_by_id` now has the heartbeat `pipeline_stream_by_id` already
+  did; both SSE endpoints set `Cache-Control: no-cache` and
+  `X-Accel-Buffering: no`). **T7's path-scoped `/v1/sync` Route with its
+  own HAProxy timeout is NOT done** — an infra/routing change to
+  production traffic paths, needs a written plan reviewed by both
+  maintainers. A ready-for-review proposal is written up below.
 - **T8** — drop the duplicate psycopg OTel instrumentor, suppress
   per-chunk ASGI spans. Sequence _after_ T1 is verified (the `connect`
   span is what proves the pooling fix).
@@ -55,9 +60,13 @@ alerting.
   and per-job `started_at`/`finished_at` from the DB — direct DB access
   required. **Investigation of pipeline execution itself — treat any
   resulting code change as pipeline internals, same review gate as T1.**
-- The `route_class="probe"` Grafana panel and a `pipeline_duration_seconds`
-  business metric (§4.9.6/§4.7.7 below) — needs the new backend metric
-  from T5 first, then wiring, not itself gated the same way as T1/T7/T11.
+- [x] The `route_class="probe"` Grafana panel — done:
+  [openshift-app-config#12](https://github.com/EPFL-ENAC/openshift-app-config/pull/12).
+  No new metric needed, `route_class` already exists.
+  **A `pipeline_duration_seconds` business metric is NOT done** — it
+  needs hooking into `runner.py`/`_chain.py`/`_pipeline_reconciler.py`,
+  which are recalculation internals, same review gate as T1/T7/T11 even
+  though the metric itself would be purely additive.
 
 ## Ready-for-review proposals (T1, T7)
 
