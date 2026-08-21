@@ -1747,31 +1747,22 @@
         }
       }
     },
-    "/v1/modules/{unit_id}/{year}/{module_id}": {
+    "/v1/carbon-reports/{carbon_report_id}/modules/{module_id}": {
       "get": {
         "tags": [
           "modules"
         ],
         "summary": "Get Module",
-        "description": "Get module data with equipment and emissions.\n\nReturns equipment items grouped by submodule with pre-calculated\nemissions from the database. Preview mode returns limited items\nper submodule.\n\nArgs:\n    module_id: Module identifier\n    unit_id: Unit ID to filter equipment\n    year: Year for the data\n    preview_limit: Max items per submodule (default 20, max 100)\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    ModuleResponse with submodules, items, and calculated totals",
-        "operationId": "get_module_v1_modules__unit_id___year___module_id__get",
+        "description": "Get module data with equipment and emissions.\n\nReturns equipment items grouped by submodule with pre-calculated\nemissions from the database. Preview mode returns limited items\nper submodule.\n\nArgs:\n    carbon_report_id: The addressed carbon report (pins unit and year)\n    module_id: Module identifier\n    preview_limit: Max items per submodule (default 20, max 100)\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    ModuleResponse with submodules, items, and calculated totals",
+        "operationId": "get_module_v1_carbon_reports__carbon_report_id__modules__module_id__get",
         "parameters": [
           {
-            "name": "unit_id",
+            "name": "carbon_report_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
+              "title": "Carbon Report Id"
             }
           },
           {
@@ -1798,16 +1789,16 @@
             "description": "Items per submodule"
           },
           {
-            "name": "carbon_project_type",
+            "name": "exclude_snapshots",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "maximum": 2,
-              "minimum": 0,
-              "default": 0,
-              "title": "Carbon Project Type"
-            }
+              "type": "boolean",
+              "description": "Hide reference-year snapshot rows from item lists and counts; stats and totals keep them (#1981 grant global mode)",
+              "default": false,
+              "title": "Exclude Snapshots"
+            },
+            "description": "Hide reference-year snapshot rows from item lists and counts; stats and totals keep them (#1981 grant global mode)"
           },
           {
             "name": "auth_token",
@@ -1843,31 +1834,22 @@
         }
       }
     },
-    "/v1/modules/{unit_id}/{year}/{module_id}/stats-by-class": {
+    "/v1/carbon-reports/{carbon_report_id}/modules/{module_id}/stats-by-class": {
       "get": {
         "tags": [
           "modules"
         ],
         "summary": "Get Stats By Class",
         "description": "Get travel emissions aggregated by travel category and cabin_class.\n\nReturns treemap-format data for charts.",
-        "operationId": "get_stats_by_class_v1_modules__unit_id___year___module_id__stats_by_class_get",
+        "operationId": "get_stats_by_class_v1_carbon_reports__carbon_report_id__modules__module_id__stats_by_class_get",
         "parameters": [
           {
-            "name": "unit_id",
+            "name": "carbon_report_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
+              "title": "Carbon Report Id"
             }
           },
           {
@@ -1877,18 +1859,6 @@
             "schema": {
               "type": "string",
               "title": "Module Id"
-            }
-          },
-          {
-            "name": "carbon_project_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2,
-              "minimum": 0,
-              "default": 0,
-              "title": "Carbon Project Type"
             }
           },
           {
@@ -1909,7 +1879,7 @@
                 "schema": {
                   "type": "array",
                   "items": {},
-                  "title": "Response Get Stats By Class V1 Modules  Unit Id   Year   Module Id  Stats By Class Get"
+                  "title": "Response Get Stats By Class V1 Carbon Reports  Carbon Report Id  Modules  Module Id  Stats By Class Get"
                 }
               }
             }
@@ -1927,31 +1897,22 @@
         }
       }
     },
-    "/v1/modules/{unit_id}/{year}/{module_id}/top-class-breakdown": {
+    "/v1/carbon-reports/{carbon_report_id}/modules/{module_id}/top-class-breakdown": {
       "get": {
         "tags": [
           "modules"
         ],
         "summary": "Get Top Class Breakdown",
-        "description": "Get emissions aggregated by subcategory with top 3 items per subcategory.\n\nReturns a list per subcategory, each containing the top 3 items (by\nemission) and a \"rest\" bucket. Works for any module configured in\n``_MODULE_TOP_CLASS_GROUP_FIELD``.\n\n``combine_unit_ids`` re-ranks the classes over the union of those units'\nentries plus ``unit_id``'s, for the Results page's combined-units view.",
-        "operationId": "get_top_class_breakdown_v1_modules__unit_id___year___module_id__top_class_breakdown_get",
+        "description": "Get emissions aggregated by subcategory with top 3 items per subcategory.\n\nReturns a list per subcategory, each containing the top 3 items (by\nemission) and a \"rest\" bucket. Works for any module configured in\n``_MODULE_TOP_CLASS_GROUP_FIELD``.\n\n``combine_unit_ids`` re-ranks the classes over the union of those units'\nentries plus the addressed report's, for the Results page's\ncombined-units view (Calculator only \u2014 other units resolve by the\nnatural key (unit, report year)).",
+        "operationId": "get_top_class_breakdown_v1_carbon_reports__carbon_report_id__modules__module_id__top_class_breakdown_get",
         "parameters": [
           {
-            "name": "unit_id",
+            "name": "carbon_report_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
+              "title": "Carbon Report Id"
             }
           },
           {
@@ -1961,18 +1922,6 @@
             "schema": {
               "type": "string",
               "title": "Module Id"
-            }
-          },
-          {
-            "name": "carbon_project_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2,
-              "minimum": 0,
-              "default": 0,
-              "title": "Carbon Project Type"
             }
           },
           {
@@ -2005,7 +1954,7 @@
                 "schema": {
                   "type": "array",
                   "items": {},
-                  "title": "Response Get Top Class Breakdown V1 Modules  Unit Id   Year   Module Id  Top Class Breakdown Get"
+                  "title": "Response Get Top Class Breakdown V1 Carbon Reports  Carbon Report Id  Modules  Module Id  Top Class Breakdown Get"
                 }
               }
             }
@@ -2023,43 +1972,22 @@
         }
       }
     },
-    "/v1/modules/{unit_id}/{year}/headcount/members": {
+    "/v1/carbon-reports/{carbon_report_id}/modules/headcount/members": {
       "get": {
         "tags": [
           "modules"
         ],
         "summary": "List Headcount Members",
-        "description": "List headcount members with an institutional ID for traveler dropdowns.\n\nArgs:\n    unit_id: Unit ID.\n    year: Report year.\n    db: Database session.\n    current_user: Authenticated user.\n\nReturns:\n    Members ordered by name, each with ``institutional_id`` and ``name``.\n    Users with headcount access for this unit receive the full list;\n    users with only professional_travel access receive only their own record.",
-        "operationId": "list_headcount_members_v1_modules__unit_id___year__headcount_members_get",
+        "description": "List headcount members with an institutional ID for traveler dropdowns.\n\nArgs:\n    carbon_report_id: The addressed carbon report (pins unit and year).\n    db: Database session.\n    current_user: Authenticated user.\n\nReturns:\n    Members ordered by name, each with ``institutional_id`` and ``name``.\n    Users with headcount access for this unit receive the full list;\n    users with only professional_travel access receive only their own record.",
+        "operationId": "list_headcount_members_v1_carbon_reports__carbon_report_id__modules_headcount_members_get",
         "parameters": [
           {
-            "name": "unit_id",
+            "name": "carbon_report_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
-            }
-          },
-          {
-            "name": "carbon_project_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2,
-              "minimum": 0,
-              "default": 0,
-              "title": "Carbon Project Type"
+              "title": "Carbon Report Id"
             }
           },
           {
@@ -2082,7 +2010,7 @@
                   "items": {
                     "$ref": "#/components/schemas/HeadcountMemberDropdownItem"
                   },
-                  "title": "Response List Headcount Members V1 Modules  Unit Id   Year  Headcount Members Get"
+                  "title": "Response List Headcount Members V1 Carbon Reports  Carbon Report Id  Modules Headcount Members Get"
                 }
               }
             }
@@ -2100,43 +2028,22 @@
         }
       }
     },
-    "/v1/modules/{unit_id}/{year}/professional-travel/trips-map": {
+    "/v1/carbon-reports/{carbon_report_id}/modules/professional-travel/trips-map": {
       "get": {
         "tags": [
           "modules"
         ],
         "summary": "Get Professional Travel Trips Map",
         "description": "Return plane + train trip legs with geographic coordinates.\n\nPowers the three Professional Travel maps (overall + per-mode). The\nfrontend aggregates per map; the backend ships raw legs (one per\n``DataEntry``). Legs missing origin/destination coords are dropped and\ncounted in ``dropped_count``.\n\nScope follows the same rules as ``get_submodule``: principals/superadmin\nsee the unit's full data; standard users see only their own legs (via\n``_get_professional_travel_institutional_id_filter``).",
-        "operationId": "get_professional_travel_trips_map_v1_modules__unit_id___year__professional_travel_trips_map_get",
+        "operationId": "get_professional_travel_trips_map_v1_carbon_reports__carbon_report_id__modules_professional_travel_trips_map_get",
         "parameters": [
           {
-            "name": "unit_id",
+            "name": "carbon_report_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
-            }
-          },
-          {
-            "name": "carbon_project_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2,
-              "minimum": 0,
-              "default": 0,
-              "title": "Carbon Project Type"
+              "title": "Carbon Report Id"
             }
           },
           {
@@ -2173,31 +2080,22 @@
         }
       }
     },
-    "/v1/modules/{unit_id}/{year}/{module_id}/{submodule_id}": {
+    "/v1/carbon-reports/{carbon_report_id}/modules/{module_id}/{submodule_id}": {
       "get": {
         "tags": [
           "modules"
         ],
         "summary": "Get Submodule",
-        "description": "Get paginated data for a single submodule.\n\nArgs:\n    module_id: Module identifier\n    unit_id: Unit ID to filter equipment\n    year: Year for the data\n    submodule_id: Submodule ID (e.g., 'sub_scientific')\n    page: Page number (1-indexed)\n    limit: Items per page (max 100)\n    sort_by: Field name to sort by (e.g., 'id', 'name', 'kg_co2eq', 'annual_kwh')\n    sort_order: Sort order ('asc' or 'desc'), defaults to 'asc'\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    SubmoduleResponse with paginated items and summary",
-        "operationId": "get_submodule_v1_modules__unit_id___year___module_id___submodule_id__get",
+        "description": "Get paginated data for a single submodule.\n\nArgs:\n    carbon_report_id: The addressed carbon report (pins unit and year)\n    module_id: Module identifier\n    submodule_id: Submodule ID (e.g., 'sub_scientific')\n    page: Page number (1-indexed)\n    limit: Items per page (max 100)\n    sort_by: Field name to sort by (e.g., 'id', 'name', 'kg_co2eq', 'annual_kwh')\n    sort_order: Sort order ('asc' or 'desc'), defaults to 'asc'\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    SubmoduleResponse with paginated items and summary",
+        "operationId": "get_submodule_v1_carbon_reports__carbon_report_id__modules__module_id___submodule_id__get",
         "parameters": [
           {
-            "name": "unit_id",
+            "name": "carbon_report_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
+              "title": "Carbon Report Id"
             }
           },
           {
@@ -2287,16 +2185,16 @@
             "description": "Filter string to search in name or display_name"
           },
           {
-            "name": "carbon_project_type",
+            "name": "exclude_snapshots",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "maximum": 2,
-              "minimum": 0,
-              "default": 0,
-              "title": "Carbon Project Type"
-            }
+              "type": "boolean",
+              "description": "Hide reference-year snapshot rows; grant equipment global mode lists only manually added entries (#1981)",
+              "default": false,
+              "title": "Exclude Snapshots"
+            },
+            "description": "Hide reference-year snapshot rows; grant equipment global mode lists only manually added entries (#1981)"
           },
           {
             "name": "auth_token",
@@ -2336,25 +2234,16 @@
           "modules"
         ],
         "summary": "Create",
-        "description": "Create new equipment item.\n\nArgs:\n    unit_id: Unit ID for the equipment\n    year: Year (informational)\n    module_id: Module identifier\n    submodule_id: Submodule identifier\n    item_data: Equipment creation data\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n     with created equipment",
-        "operationId": "create_v1_modules__unit_id___year___module_id___submodule_id__post",
+        "description": "Create new equipment item.\n\nArgs:\n    carbon_report_id: The addressed carbon report (pins unit and year)\n    module_id: Module identifier\n    submodule_id: Submodule identifier\n    item_data: Equipment creation data\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n     with created equipment",
+        "operationId": "create_v1_carbon_reports__carbon_report_id__modules__module_id___submodule_id__post",
         "parameters": [
           {
-            "name": "unit_id",
+            "name": "carbon_report_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
+              "title": "Carbon Report Id"
             }
           },
           {
@@ -2373,18 +2262,6 @@
             "schema": {
               "type": "string",
               "title": "Submodule Id"
-            }
-          },
-          {
-            "name": "carbon_project_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2,
-              "minimum": 0,
-              "default": 0,
-              "title": "Carbon Project Type"
             }
           },
           {
@@ -2433,31 +2310,22 @@
         }
       }
     },
-    "/v1/modules/{unit_id}/{year}/{module_id}/{submodule_id}/check-unique": {
+    "/v1/carbon-reports/{carbon_report_id}/modules/{module_id}/{submodule_id}/check-unique": {
       "get": {
         "tags": [
           "modules"
         ],
         "summary": "Check Unique",
-        "description": "Check whether a data field value is unique within a submodule.\n\nIntended to be called from the form before submitting a PATCH (or POST)\nso the UI can surface a duplicate error before the round-trip.\n\nArgs:\n    unit_id: Unit ID.\n    year: Report year.\n    module_id: Module identifier.\n    submodule_id: Submodule identifier.\n    field: JSON key inside ``data`` to check (e.g. ``user_institutional_id``).\n    value: The value that must be unique.\n    exclude_id: ID of the entry being edited \u2014 excluded from the duplicate scan.\n\nReturns:\n    ``{\"unique\": true}`` when the value is available,\n    ``{\"unique\": false}`` when a conflict exists.",
-        "operationId": "check_unique_v1_modules__unit_id___year___module_id___submodule_id__check_unique_get",
+        "description": "Check whether a data field value is unique within a submodule.\n\nIntended to be called from the form before submitting a PATCH (or POST)\nso the UI can surface a duplicate error before the round-trip.\n\nArgs:\n    carbon_report_id: The addressed carbon report (pins unit and year).\n    module_id: Module identifier.\n    submodule_id: Submodule identifier.\n    field: JSON key inside ``data`` to check (e.g. ``user_institutional_id``).\n    value: The value that must be unique.\n    exclude_id: ID of the entry being edited \u2014 excluded from the duplicate scan.\n\nReturns:\n    ``{\"unique\": true}`` when the value is available,\n    ``{\"unique\": false}`` when a conflict exists.",
+        "operationId": "check_unique_v1_carbon_reports__carbon_report_id__modules__module_id___submodule_id__check_unique_get",
         "parameters": [
           {
-            "name": "unit_id",
+            "name": "carbon_report_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
+              "title": "Carbon Report Id"
             }
           },
           {
@@ -2519,18 +2387,6 @@
             "description": "Entry ID to exclude (for PATCH pre-validation)"
           },
           {
-            "name": "carbon_project_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2,
-              "minimum": 0,
-              "default": 0,
-              "title": "Carbon Project Type"
-            }
-          },
-          {
             "name": "auth_token",
             "in": "cookie",
             "required": false,
@@ -2548,7 +2404,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": true,
-                  "title": "Response Check Unique V1 Modules  Unit Id   Year   Module Id   Submodule Id  Check Unique Get"
+                  "title": "Response Check Unique V1 Carbon Reports  Carbon Report Id  Modules  Module Id   Submodule Id  Check Unique Get"
                 }
               }
             }
@@ -2566,30 +2422,21 @@
         }
       }
     },
-    "/v1/modules/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}": {
+    "/v1/carbon-reports/{carbon_report_id}/modules/{module_id}/{submodule_id}/{item_id}": {
       "get": {
         "tags": [
           "modules"
         ],
         "summary": "Get",
-        "operationId": "get_v1_modules__unit_id___year___module_id___submodule_id___item_id__get",
+        "operationId": "get_v1_carbon_reports__carbon_report_id__modules__module_id___submodule_id___item_id__get",
         "parameters": [
           {
-            "name": "unit_id",
+            "name": "carbon_report_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
+              "title": "Carbon Report Id"
             }
           },
           {
@@ -2643,7 +2490,7 @@
                       "$ref": "#/components/schemas/DataEntryResponse"
                     }
                   ],
-                  "title": "Response Get V1 Modules  Unit Id   Year   Module Id   Submodule Id   Item Id  Get"
+                  "title": "Response Get V1 Carbon Reports  Carbon Report Id  Modules  Module Id   Submodule Id   Item Id  Get"
                 }
               }
             }
@@ -2665,24 +2512,15 @@
           "modules"
         ],
         "summary": "Update",
-        "operationId": "update_v1_modules__unit_id___year___module_id___submodule_id___item_id__patch",
+        "operationId": "update_v1_carbon_reports__carbon_report_id__modules__module_id___submodule_id___item_id__patch",
         "parameters": [
           {
-            "name": "unit_id",
+            "name": "carbon_report_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
+              "title": "Carbon Report Id"
             }
           },
           {
@@ -2710,18 +2548,6 @@
             "schema": {
               "type": "integer",
               "title": "Item Id"
-            }
-          },
-          {
-            "name": "carbon_project_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2,
-              "minimum": 0,
-              "default": 0,
-              "title": "Carbon Project Type"
             }
           },
           {
@@ -2760,7 +2586,7 @@
                       "$ref": "#/components/schemas/DataEntryResponse"
                     }
                   ],
-                  "title": "Response Update V1 Modules  Unit Id   Year   Module Id   Submodule Id   Item Id  Patch"
+                  "title": "Response Update V1 Carbon Reports  Carbon Report Id  Modules  Module Id   Submodule Id   Item Id  Patch"
                 }
               }
             }
@@ -2782,24 +2608,15 @@
           "modules"
         ],
         "summary": "Delete",
-        "operationId": "delete_v1_modules__unit_id___year___module_id___submodule_id___item_id__delete",
+        "operationId": "delete_v1_carbon_reports__carbon_report_id__modules__module_id___submodule_id___item_id__delete",
         "parameters": [
           {
-            "name": "unit_id",
+            "name": "carbon_report_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
+              "title": "Carbon Report Id"
             }
           },
           {
@@ -2827,18 +2644,6 @@
             "schema": {
               "type": "integer",
               "title": "Item Id"
-            }
-          },
-          {
-            "name": "carbon_project_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2,
-              "minimum": 0,
-              "default": 0,
-              "title": "Carbon Project Type"
             }
           },
           {
@@ -3035,22 +2840,25 @@
         }
       }
     },
-    "/v1/modules-stats/unit/{unit_id}/multi-year-report-stats": {
+    "/v1/modules-stats/merged/multi-year-report-stats": {
       "get": {
         "tags": [
           "modules-stats"
         ],
-        "summary": "Get Multi Year Breakdown",
-        "description": "Return per-year emission breakdown (by module and by scope) for a unit.\n\nFeeds the \"Compare Years\" pop-up: one entry per year with stat-bucket\ntotals (``modules``) and scope totals (``scopes``) in tonnes CO2eq, read\nstraight off each report's persisted stats.\n\nReturns:\n    {\"years\": [{\"year\": 2023, \"total_tonnes_co2eq\": 61.7,\n                \"modules\": {...}, \"scopes\": {...}}, ...]}",
-        "operationId": "get_multi_year_breakdown_v1_modules_stats_unit__unit_id__multi_year_report_stats_get",
+        "summary": "Get Merged Multi Year Breakdown",
+        "description": "Return per-year emission breakdown summed over the requested units.\n\nFeeds the \"Compare Years\" pop-up: one entry per year with stat-bucket\ntotals (``modules``) and scope totals (``scopes``) in tonnes CO2eq, read\nstraight off each report's persisted stats. Units with no reports simply\ncontribute nothing; no report at all yields ``{\"years\": []}``.\n\nReturns:\n    {\"years\": [{\"year\": 2023, \"total_tonnes_co2eq\": 61.7,\n                \"modules\": {...}, \"scopes\": {...}}, ...]}",
+        "operationId": "get_merged_multi_year_breakdown_v1_modules_stats_merged_multi_year_report_stats_get",
         "parameters": [
           {
-            "name": "unit_id",
-            "in": "path",
-            "required": true,
+            "name": "unit_ids",
+            "in": "query",
+            "required": false,
             "schema": {
-              "type": "integer",
-              "title": "Unit Id"
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "title": "Unit Ids"
             }
           },
           {
@@ -3071,7 +2879,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": true,
-                  "title": "Response Get Multi Year Breakdown V1 Modules Stats Unit  Unit Id  Multi Year Report Stats Get"
+                  "title": "Response Get Merged Multi Year Breakdown V1 Modules Stats Merged Multi Year Report Stats Get"
                 }
               }
             }
@@ -3533,6 +3341,62 @@
         }
       }
     },
+    "/v1/exchange-rates/{year}": {
+      "get": {
+        "tags": [
+          "exchange-rates"
+        ],
+        "summary": "Get Exchange Rates To Eur",
+        "description": "Yearly average ECB rates as EUR per unit of each supported currency.\n\nSync handler on purpose: the ECB fetch behind the service's cache is\nblocking, so FastAPI must run it in the threadpool.",
+        "operationId": "get_exchange_rates_to_eur_v1_exchange_rates__year__get",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "number"
+                  },
+                  "title": "Response Get Exchange Rates To Eur V1 Exchange Rates  Year  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/factors/{data_entry_type}/class-subclass-map": {
       "get": {
         "tags": [
@@ -3583,6 +3447,71 @@
                     }
                   },
                   "title": "Response Get Class Subclass Map V1 Factors  Data Entry Type  Class Subclass Map Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/factors/{data_entry_type}/list": {
+      "get": {
+        "tags": [
+          "factors"
+        ],
+        "summary": "List Factors",
+        "description": "List every factor of a type for a year, classification + values merged.\n\nBacks the Project Grant research-facilities grid, which offers the\nreference year's whole platform list for selection (#1980).",
+        "operationId": "list_factors_v1_factors__data_entry_type__list_get",
+        "parameters": [
+          {
+            "name": "data_entry_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/DataEntryTypeEnum"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Factors V1 Factors  Data Entry Type  List Get"
                 }
               }
             }
@@ -3872,6 +3801,87 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaxonomyNode"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/taxonomies/module/{module}/data-entries": {
+      "get": {
+        "tags": [
+          "taxonomies"
+        ],
+        "summary": "Get Taxonomies For Module Data Entries",
+        "description": "Batch-fetch taxonomies for several data entry types of one module.\n\nCollapses a report page's ~11 sequential /module/{module}/{data_entry}\nround trips into one call per module (#2049 T6). Each entry still\nresolves through get_taxonomy_for_data_entry_type, so it hits/populates\nthe same (data_entry_type, year) cache a single-entry call would.",
+        "operationId": "get_taxonomies_for_module_data_entries_v1_taxonomies_module__module__data_entries_get",
+        "parameters": [
+          {
+            "name": "module",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Module"
+            }
+          },
+          {
+            "name": "entries",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Data entry type names to fetch taxonomy for",
+              "title": "Entries"
+            },
+            "description": "Data entry type names to fetch taxonomy for"
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Year for which to retrieve the taxonomy",
+              "title": "Year"
+            },
+            "description": "Year for which to retrieve the taxonomy"
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/TaxonomyNode"
+                  },
+                  "title": "Response Get Taxonomies For Module Data Entries V1 Taxonomies Module  Module  Data Entries Get"
                 }
               }
             }
@@ -4196,7 +4206,7 @@
           "carbon-reports"
         ],
         "summary": "Create Simulator Explore Carbon Report",
-        "description": "Create a new Simulator Explore carbon report seeded from the Calculator report.\n\nThe explore report is seeded from the unit's Calculator report.",
+        "description": "Create a new, empty Simulator Explore carbon report.\n\nThe report is created with its modules and no entries \u2014 Simulator Explore is\nnever seeded from the Calculator. Only the Simulator Plan prefills, and only\nfrom the reference year its user picks.",
         "operationId": "create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___post",
         "parameters": [
           {
@@ -4413,6 +4423,855 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CarbonReportModuleRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/carbon-reports/{carbon_report_id}/modules/{module_type_id}/active": {
+      "patch": {
+        "tags": [
+          "carbon-reports"
+        ],
+        "summary": "Update Carbon Report Module Active",
+        "description": "Toggle a module's Active flag (Simulator Plan checkbox).\n\nInactive modules are excluded from the report's sums, stats and\ncompletion progress; the report stats are recomputed immediately.",
+        "operationId": "update_carbon_report_module_active_v1_carbon_reports__carbon_report_id__modules__module_type_id__active_patch",
+        "parameters": [
+          {
+            "name": "carbon_report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Carbon Report Id"
+            }
+          },
+          {
+            "name": "module_type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Module Type Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CarbonReportModuleActiveUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarbonReportModuleRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/carbon-reports/{carbon_report_id}/budget": {
+      "patch": {
+        "tags": [
+          "carbon-reports"
+        ],
+        "summary": "Update Carbon Report Budget",
+        "description": "Set a Project Grant report's total budget (#1978).",
+        "operationId": "update_carbon_report_budget_v1_carbon_reports__carbon_report_id__budget_patch",
+        "parameters": [
+          {
+            "name": "carbon_report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Carbon Report Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CarbonReportBudgetUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarbonReportRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/carbon-reports/{carbon_report_id}/modules/{module_type_id}/reference-percentage": {
+      "patch": {
+        "tags": [
+          "carbon-reports"
+        ],
+        "summary": "Update Carbon Report Module Reference Percentage",
+        "description": "Apply one reference percentage to every snapshot entry of a module.\n\nBacks the grant equipment \"global percentage\" mode (#1981): the\ncalculator's prefilled lines are kept and one percentage prices them\nall. Only Project Grant reports carry this mode.",
+        "operationId": "update_carbon_report_module_reference_percentage_v1_carbon_reports__carbon_report_id__modules__module_type_id__reference_percentage_patch",
+        "parameters": [
+          {
+            "name": "carbon_report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Carbon Report Id"
+            }
+          },
+          {
+            "name": "module_type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Module Type Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CarbonReportReferencePercentageUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Carbon Report Module Reference Percentage V1 Carbon Reports  Carbon Report Id  Modules  Module Type Id  Reference Percentage Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/carbon-reports/{carbon_report_id}/modules/{module_type_id}/budget": {
+      "patch": {
+        "tags": [
+          "carbon-reports"
+        ],
+        "summary": "Update Carbon Report Submodule Budget",
+        "description": "Set a grant submodule's share of the budget (#1978).\n\nThe frontend checks the submodule budgets against the grant's total and\nsurfaces the non-distributed or over-distributed remainder.",
+        "operationId": "update_carbon_report_submodule_budget_v1_carbon_reports__carbon_report_id__modules__module_type_id__budget_patch",
+        "parameters": [
+          {
+            "name": "carbon_report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Carbon Report Id"
+            }
+          },
+          {
+            "name": "module_type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Module Type Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CarbonReportSubmoduleBudgetUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarbonReportModuleRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/project-plans/unit/{unit_id}/": {
+      "get": {
+        "tags": [
+          "project-plans"
+        ],
+        "summary": "List Simulator Plans",
+        "description": "List the unit's simulator plans visible to the caller, newest first.\n\nUnshared plans of other unit members are omitted.",
+        "operationId": "list_simulator_plans_v1_project_plans_unit__unit_id___get",
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SimulatorPlanRead"
+                  },
+                  "title": "Response List Simulator Plans V1 Project Plans Unit  Unit Id   Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "project-plans"
+        ],
+        "summary": "Create Simulator Plan",
+        "description": "Create a simulator plan; without a name, the next default is assigned.",
+        "operationId": "create_simulator_plan_v1_project_plans_unit__unit_id___post",
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SimulatorPlanCreate"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Plan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulatorPlanRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/project-plans/{plan_id}": {
+      "get": {
+        "tags": [
+          "project-plans"
+        ],
+        "summary": "Get Simulator Plan",
+        "description": "Get a simulator plan by ID.",
+        "operationId": "get_simulator_plan_v1_project_plans__plan_id__get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulatorPlanRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "project-plans"
+        ],
+        "summary": "Update Simulator Plan",
+        "description": "Update a simulator plan (name, year range, lab visibility).\n\nSetting/changing the year range syncs the plan's per-year reports:\nmissing years are created with their modules, out-of-range years are\ndeleted together with their entries.",
+        "operationId": "update_simulator_plan_v1_project_plans__plan_id__patch",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulatorPlanUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulatorPlanRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "project-plans"
+        ],
+        "summary": "Delete Simulator Plan",
+        "description": "Delete a simulator plan (and any carbon reports attached to it).",
+        "operationId": "delete_simulator_plan_v1_project_plans__plan_id__delete",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/project-plans/{plan_id}/prefill/{job_id}": {
+      "get": {
+        "tags": [
+          "project-plans"
+        ],
+        "summary": "Get Simulator Plan Prefill Status",
+        "description": "Poll a deferred prefill job (plan #2050 Track F4).\n\nGated by the plan's own access check rather than the admin data-sync\npermissions, since the caller here is the plan's editor waiting on\ntheir own PATCH.",
+        "operationId": "get_simulator_plan_prefill_status_v1_project_plans__plan_id__prefill__job_id__get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulatorPlanPrefillStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/project-plans/{plan_id}/years": {
+      "get": {
+        "tags": [
+          "project-plans"
+        ],
+        "summary": "List Simulator Plan Years",
+        "description": "List the plan's per-year reports (with modules and stats), by year.",
+        "operationId": "list_simulator_plan_years_v1_project_plans__plan_id__years_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SimulatorPlanYearRead"
+                  },
+                  "title": "Response List Simulator Plan Years V1 Project Plans  Plan Id  Years Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/project-plans/{plan_id}/aggregate-stats": {
+      "get": {
+        "tags": [
+          "project-plans"
+        ],
+        "summary": "Get Simulator Plan Aggregate Stats",
+        "description": "Aggregate the plan's report stats into the results payload.\n\n``years`` sums the per-year reports (same shape as\n``/modules-stats/{carbon_report_id}/report-stats``, so the planner\nresults chart derives from it through the same frontend adapter);\n``grant`` carries the Project Grant report's own stats, or null \u2014\nthe two are charted side by side, never summed together (#1977).\nPer-report stats already exclude modules whose Active checkbox is off.",
+        "operationId": "get_simulator_plan_aggregate_stats_v1_project_plans__plan_id__aggregate_stats_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Simulator Plan Aggregate Stats V1 Project Plans  Plan Id  Aggregate Stats Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/project-plans/{plan_id}/years/{year}": {
+      "patch": {
+        "tags": [
+          "project-plans"
+        ],
+        "summary": "Set Simulator Plan Reference Year",
+        "description": "Set the reference (baseline) year of one plan-year report.\n\nAll factors and prefill data of the simulation year are sourced from\nthe reference year; existing entries get their emissions recomputed.",
+        "operationId": "set_simulator_plan_reference_year_v1_project_plans__plan_id__years__year__patch",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulatorPlanReferenceYearUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulatorPlanYearRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/project-plans/{plan_id}/duplicate": {
+      "post": {
+        "tags": [
+          "project-plans"
+        ],
+        "summary": "Duplicate Simulator Plan",
+        "description": "Duplicate a simulator plan under the next free `<name>-N` name.",
+        "operationId": "duplicate_simulator_plan_v1_project_plans__plan_id__duplicate_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulatorPlanRead"
                 }
               }
             }
@@ -4949,7 +5808,7 @@
           "data-sync"
         ],
         "summary": "Sync Module Factors",
-        "description": "Sync (recompute) factors for a specific module and data-entry type.\n\n\n``year`` is **mandatory** for this endpoint \u2014 factor updates are always\nyear-scoped.\n\nExample request body for computed factor update:\n{\n    \"ingestion_method\": 3,\n    \"target_type\": 1,\n    \"year\": 2025\n}",
+        "description": "Sync (recompute) factors for a specific module and data-entry type.\n\n``year`` is **mandatory** for this endpoint \u2014 factor updates are always\nyear-scoped.\n\nExample request body for computed factor update:\n{\n    \"ingestion_method\": 3,\n    \"target_type\": 1,\n    \"year\": 2025\n}",
         "operationId": "sync_module_factors_v1_sync_factors__module_type_id___data_entry_type_id__post",
         "parameters": [
           {
@@ -6005,7 +6864,7 @@
           "data-sync"
         ],
         "summary": "Recover Job",
-        "description": "Recover a job stuck in RUNNING after a pod crash.\n\nResets the job to NOT_STARTED and clears the lock. Only allowed\nwhen ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` (default 30 min).",
+        "description": "Recover a job stuck in RUNNING after a pod crash.\n\nResets the job to NOT_STARTED and clears the lock. Only allowed\nwhen ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` \u2014\nthe same window the auto-recovery sweep and the console's stale\nbadge use, so the button only appears when this call will succeed.",
         "operationId": "recover_job_v1_sync_jobs__job_id__recover_post",
         "parameters": [
           {
@@ -7325,7 +8184,7 @@
           "year-configuration"
         ],
         "summary": "Update Year Configuration",
-        "description": "Partially update year configuration.\n\nOnly accessible to super administrators (CO2_SUPERADMIN).\nValidates:\n- reduction_percentage must be between 0 and 1\n- target_year must be > year\n\nCreates audit entry in audit_documents.\n\nArgs:\n    year: Configuration year.\n    payload: Update payload.\n    db: Database session.\n    current_user: Current authenticated user.\n\nReturns:\n    Updated year configuration.",
+        "description": "Partially update year configuration.\n\nOnly accessible to super administrators (CO2_SUPERADMIN).\nValidates:\n- reduction_percentage must be between 0 and 1\n- target_year must be > year\n- reference_year must be between MIN_REDUCTION_YEAR and MAX_REDUCTION_YEAR\n\nCreates audit entry in audit_documents.\n\nArgs:\n    year: Configuration year.\n    payload: Update payload.\n    db: Database session.\n    current_user: Current authenticated user.\n\nReturns:\n    Updated year configuration.",
         "operationId": "update_year_configuration_v1_year_configuration__year__patch",
         "parameters": [
           {
@@ -7601,7 +8460,7 @@
     "/healthz": {
       "get": {
         "summary": "Healthz",
-        "description": "Lightweight liveness check endpoint.\n\nReturns 200 OK if the process is alive.\nNo external calls, no database access, no logging on success.\nUsed by Kubernetes livenessProbe.",
+        "description": "Lightweight liveness check endpoint.\n\nAlways 200 \u2014 liveness answers \"is the process alive\", not \"is a\ndependency up\" (#2049). The database field is informational only,\nread from the background DB health poller's cache: zero I/O on this\npath either way. Used by Kubernetes livenessProbe.",
         "operationId": "healthz_healthz_get",
         "responses": {
           "200": {
@@ -7618,8 +8477,25 @@
     "/ready": {
       "get": {
         "summary": "Ready",
-        "description": "Readiness check endpoint.\n\nPerforms database connectivity check and external provider health check.\nReturns 200 if ready, 503 if not ready.\nLogs only on failure to reduce log noise.\nUsed by Kubernetes readinessProbe.",
+        "description": "Readiness check endpoint.\n\n#2049: reads the background DB health poller's cached verdict \u2014 zero\nI/O of its own, so a saturated pool can no longer make this endpoint\nitself hang (#2050 A1 bounded that per-request check; this removes\nit). 503 when the DB is down, unchecked, or the poller has gone\nstale; 200 otherwise. A merely *slow* DB still passes \u2014 DB latency is\nshared state, so gating readiness on it would take every pod unready\nat once, turning \"slow\" into the very outage this endpoint exists to\nprevent. Used by Kubernetes readinessProbe.\n\nExternal provider health (Accred) lives in /health/deps (#2050 A1):\nit must never gate readiness \u2014 a blip there is EPFL's incident, not\nours.",
         "operationId": "ready_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/deps": {
+      "get": {
+        "summary": "Health Deps",
+        "description": "Operator-facing external-dependency health (Accred).\n\nNot a Kubernetes probe target \u2014 Accred availability must never gate\npod readiness (#2050 A1); a blip there is EPFL's incident, not ours.\nThis reports the same signal for humans/monitoring instead, via a\nreal status code (503 on failure) so alerting can key off it directly\ninstead of parsing the body \u2014 safe here specifically because nothing\nroutes this endpoint's status into a probe or the Service.",
+        "operationId": "health_deps_health_deps_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8147,6 +9023,38 @@
         ],
         "title": "BuildingRoomResponse"
       },
+      "CarbonReportBudgetUpdate": {
+        "properties": {
+          "budget": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget"
+          },
+          "budget_currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 8,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Currency"
+          }
+        },
+        "type": "object",
+        "title": "CarbonReportBudgetUpdate",
+        "description": "Schema for setting a Project Grant report's total budget (#1978).\n\n``budget_currency`` is a lowercase code from the purchase module's\ncurrency set; like purchase entries it is not validated server-side."
+      },
       "CarbonReportCreate": {
         "properties": {
           "year": {
@@ -8178,6 +9086,33 @@
               }
             ],
             "title": "Carbon Project Id"
+          },
+          "is_grant": {
+            "type": "boolean",
+            "title": "Is Grant",
+            "default": false
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget"
+          },
+          "budget_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Currency"
           }
         },
         "type": "object",
@@ -8187,6 +9122,20 @@
         ],
         "title": "CarbonReportCreate",
         "description": "Schema for creating a carbon report."
+      },
+      "CarbonReportModuleActiveUpdate": {
+        "properties": {
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_active"
+        ],
+        "title": "CarbonReportModuleActiveUpdate",
+        "description": "Schema for toggling a module's Active flag (Simulator Plan)."
       },
       "CarbonReportModuleRead": {
         "properties": {
@@ -8205,6 +9154,25 @@
           "status": {
             "type": "integer",
             "title": "Status"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          },
+          "budgets": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budgets"
           },
           "stats": {
             "anyOf": [
@@ -8278,6 +9246,33 @@
             ],
             "title": "Carbon Project Id"
           },
+          "is_grant": {
+            "type": "boolean",
+            "title": "Is Grant",
+            "default": false
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget"
+          },
+          "budget_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Currency"
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -8330,6 +9325,50 @@
         ],
         "title": "CarbonReportRead",
         "description": "Schema for reading a carbon report."
+      },
+      "CarbonReportReferencePercentageUpdate": {
+        "properties": {
+          "percentage": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Percentage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "percentage"
+        ],
+        "title": "CarbonReportReferencePercentageUpdate",
+        "description": "Schema for the grant equipment global percentage (#1981)."
+      },
+      "CarbonReportSubmoduleBudgetUpdate": {
+        "properties": {
+          "submodule": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Submodule"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget"
+          }
+        },
+        "type": "object",
+        "required": [
+          "submodule"
+        ],
+        "title": "CarbonReportSubmoduleBudgetUpdate",
+        "description": "Schema for setting a grant submodule's share of the budget (#1978).\n\nA null ``budget`` clears the submodule's entry."
       },
       "ConnectorConnectionCreate": {
         "properties": {
@@ -8587,6 +9626,23 @@
         ],
         "title": "ConnectorType"
       },
+      "DataEntryPolicies": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/RowPolicy"
+          },
+          "imported": {
+            "$ref": "#/components/schemas/RowPolicy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "imported"
+        ],
+        "title": "DataEntryPolicies",
+        "description": "#951: both provenance branches for one submodule."
+      },
       "DataEntryResponse": {
         "properties": {
           "data_entry_type_id": {
@@ -8619,6 +9675,17 @@
           "id": {
             "type": "integer",
             "title": "Id"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
           }
         },
         "type": "object",
@@ -8665,7 +9732,10 @@
           66,
           67,
           70,
-          71
+          71,
+          80,
+          81,
+          82
         ],
         "title": "DataEntryTypeEnum"
       },
@@ -9151,6 +10221,17 @@
             "type": "integer",
             "title": "Id"
           },
+          "source": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
           "note": {
             "anyOf": [
               {
@@ -9161,6 +10242,28 @@
               }
             ],
             "title": "Note"
+          },
+          "reference_kg_co2eq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Kg Co2Eq"
+          },
+          "percentage_of_reference_year": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentage Of Reference Year"
           },
           "name": {
             "type": "string",
@@ -9523,6 +10626,12 @@
           "totals": {
             "$ref": "#/components/schemas/ModuleTotals",
             "description": "Module totals"
+          },
+          "incomplete_new_equipment_count": {
+            "type": "integer",
+            "title": "Incomplete New Equipment Count",
+            "description": "Equipment new vs the previous year that is still missing usage data (#259). Non-zero only for the Equipment module; blocks validation until zero.",
+            "default": 0
           }
         },
         "type": "object",
@@ -10419,6 +11528,36 @@
         "title": "RecomputeStatsResponse",
         "description": "Result of the admin bulk stats-recompute trigger."
       },
+      "RowPolicy": {
+        "properties": {
+          "create": {
+            "type": "boolean",
+            "title": "Create",
+            "description": "Whether this branch may add new rows"
+          },
+          "delete": {
+            "type": "boolean",
+            "title": "Delete",
+            "description": "Whether a row on this branch may be deleted"
+          },
+          "editable_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Editable Fields",
+            "description": "Field names updatable on a row of this branch"
+          }
+        },
+        "type": "object",
+        "required": [
+          "create",
+          "delete",
+          "editable_fields"
+        ],
+        "title": "RowPolicy",
+        "description": "#951: edit rights for one data-entry provenance branch."
+      },
       "SessionRead": {
         "properties": {
           "user": {
@@ -10452,6 +11591,400 @@
         ],
         "title": "SessionRead",
         "description": "Bootstrap payload for ``GET /v1/session``.\n\nBundles everything the frontend needs at app-init in a single call: the\ncurrent user (unchanged ``UserRead`` shape), the units the user can access,\nand the globally-configured years for the workspace year selector. This\ncollapses what used to be three separate calls (``/session`` + ``/users/units``\n+ ``/year-configuration/``) into one.\n\n``min_configurable_year`` is also echoed on the single-year\n``YearConfigurationResponse``, but that one only exists once a row has\nbeen created for the requested year. Bundling it here too gives the\nfrontend a source that doesn't depend on any particular year existing \u2014\ne.g. the backoffice year selector can seed its lower bound even when the\ncurrent real-world year has no ``YearConfiguration`` row yet."
+      },
+      "SimulatorPlanCreate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "title": "SimulatorPlanCreate",
+        "description": "Schema for creating a simulator plan.\n\n``name`` is optional: when omitted, the service assigns the next\navailable default name (new-project, new-project-2, ...)."
+      },
+      "SimulatorPlanPrefillStatus": {
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "title": "Job Id"
+          },
+          "finished": {
+            "type": "boolean",
+            "title": "Finished"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "status_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "finished"
+        ],
+        "title": "SimulatorPlanPrefillStatus",
+        "description": "Progress of a deferred plan prefill (plan #2050 Track F4)."
+      },
+      "SimulatorPlanRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "unit_id": {
+            "type": "integer",
+            "title": "Unit Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "start_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Year"
+          },
+          "end_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Year"
+          },
+          "is_viewable_by_unit_members": {
+            "type": "boolean",
+            "title": "Is Viewable By Unit Members",
+            "default": false
+          },
+          "is_grant_proposal": {
+            "type": "boolean",
+            "title": "Is Grant Proposal",
+            "default": false
+          },
+          "default_factor_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Factor Year"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "creator_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Creator Name"
+          },
+          "total_tonnes_co2eq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Tonnes Co2Eq"
+          },
+          "can_manage": {
+            "type": "boolean",
+            "title": "Can Manage",
+            "default": false
+          },
+          "prefill_job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prefill Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "unit_id",
+          "name"
+        ],
+        "title": "SimulatorPlanRead",
+        "description": "Schema for reading a simulator plan."
+      },
+      "SimulatorPlanReferenceYearUpdate": {
+        "properties": {
+          "reference_year": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9999.0,
+                "minimum": 1000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Year"
+          },
+          "is_grant": {
+            "type": "boolean",
+            "title": "Is Grant",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "SimulatorPlanReferenceYearUpdate",
+        "description": "Schema for setting the baseline year of one plan-year report.\n\n``None`` removes the reference year: the prefilled modules are emptied\n(same wipe as a change) and the year becomes manual-input.\n\n``is_grant`` disambiguates the Project Grant report from the year report\nsharing its year (the grant report is anchored to the plan's start year)."
+      },
+      "SimulatorPlanUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "start_year": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9999.0,
+                "minimum": 1000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Year"
+          },
+          "end_year": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9999.0,
+                "minimum": 1000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Year"
+          },
+          "is_viewable_by_unit_members": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Viewable By Unit Members"
+          },
+          "is_grant_proposal": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Grant Proposal"
+          },
+          "with_year_sections": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "With Year Sections"
+          },
+          "default_reference_year": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9999.0,
+                "minimum": 1000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Reference Year"
+          }
+        },
+        "type": "object",
+        "title": "SimulatorPlanUpdate",
+        "description": "Schema for updating a simulator plan (PATCH semantics: absent = keep).\n\nSetting/changing the year range syncs the plan's per-year reports:\nmissing years are created, out-of-range years are deleted with their\nentries (destructive by design).\n\n``with_year_sections`` is not persisted: whether a plan has per-year\nsections is derived from its non-grant reports. Omitted, the sync keeps\nthe plan's current shape; ``False`` deletes the per-year reports (the\nplan must then be a grant proposal); ``True`` (re)creates them."
+      },
+      "SimulatorPlanYearRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "year": {
+            "type": "integer",
+            "title": "Year"
+          },
+          "reference_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Year"
+          },
+          "is_grant": {
+            "type": "boolean",
+            "title": "Is Grant",
+            "default": false
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget"
+          },
+          "budget_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Currency"
+          },
+          "stats": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stats"
+          },
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/CarbonReportModuleRead"
+            },
+            "type": "array",
+            "title": "Modules",
+            "default": []
+          },
+          "prefill_job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prefill Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "year"
+        ],
+        "title": "SimulatorPlanYearRead",
+        "description": "One plan-year report with its modules, for the planner page."
       },
       "StaleStatsEntry": {
         "properties": {
@@ -10535,6 +12068,17 @@
             "title": "Has More",
             "description": "Whether more items are available",
             "default": false
+          },
+          "data_entry_policies": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataEntryPolicies"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Edit rights per row provenance (user/imported)"
           }
         },
         "type": "object",
@@ -11689,6 +13233,14 @@
             },
             "type": "array",
             "title": "Module States"
+          },
+          "project_plans": {
+            "items": {
+              "$ref": "#/components/schemas/SimulatorPlanRead"
+            },
+            "type": "array",
+            "title": "Project Plans",
+            "default": []
           }
         },
         "type": "object",
@@ -11819,6 +13371,18 @@
             "type": "integer",
             "title": "Min Configurable Year",
             "description": "Earliest year backoffice can create a configuration for."
+          },
+          "min_reduction_year": {
+            "type": "integer",
+            "title": "Min Reduction Year",
+            "description": "Earliest year a reduction objective may use as reference.",
+            "default": 1990
+          },
+          "max_reduction_year": {
+            "type": "integer",
+            "title": "Max Reduction Year",
+            "description": "Latest year a reduction objective may use as reference.",
+            "default": 2050
           }
         },
         "type": "object",
@@ -11916,10 +13480,5 @@
         "description": "Pagination metadata."
       }
     }
-  },
-  "servers": [
-    {
-      "url": "/api"
-    }
-  ]
+  }
 }

@@ -105,6 +105,7 @@ export function useSimulationExplorePrintData() {
           );
           continue;
         }
+        const taxonomyEntries: string[] = [];
         for (const sub of m.submodules) {
           tasks.push(
             fetchAllSubmoduleRows(m.type, sub.id, carbonReportId).then(
@@ -114,10 +115,18 @@ export function useSimulationExplorePrintData() {
             ),
           );
           if (sub.moduleFields.some((f) => f.optionsId === 'kind')) {
-            tasks.push(
-              moduleStore.getSubmoduleTaxonomy(m.type, sub.id, String(year)),
-            );
+            taxonomyEntries.push(sub.id);
           }
+        }
+        // One batched call per module instead of one per submodule (#2049 T6).
+        if (taxonomyEntries.length > 0) {
+          tasks.push(
+            moduleStore.getSubmoduleTaxonomiesBatch(
+              m.type,
+              taxonomyEntries,
+              String(year),
+            ),
+          );
         }
       }
 

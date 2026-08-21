@@ -97,22 +97,18 @@ async def get_taxonomy_for_module(
     return await get_taxonomy_for_module_type(module_type, year, db, current_user)
 
 
-@router.get(
-    "/module/{module}/{data_entry}",
-    response_model=TaxonomyNode,
-    response_model_exclude_none=True,
-)
-async def get_taxonomy_for_module_data_entry(
+async def _resolve_module_data_entry_taxonomy(
     module: str,
     data_entry: str,
-    year: int = Query(
-        default_factory=lambda: datetime.now().year,
-        description="Year for which to retrieve the taxonomy",
-    ),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    year: int,
+    db: AsyncSession,
+    current_user: User,
 ) -> TaxonomyNode:
-    """Get taxonomy for a given module and data entry type."""
+    """Resolve one data entry's taxonomy, validating it belongs to module.
+
+    Shared by the single-entry and batch routes so both stay one source
+    of truth for the module/data-entry validation.
+    """
     data_entry_name = data_entry.replace("-", "_")
     data_entry_type = (
         DataEntryTypeEnum[data_entry_name]
@@ -131,4 +127,60 @@ async def get_taxonomy_for_module_data_entry(
         )
     return await get_taxonomy_for_data_entry_type(
         data_entry_type, year, db, current_user
+    )
+
+
+@router.get(
+    # Must stay registered before "/module/{module}/{data_entry}" below --
+    # Starlette matches routes in registration order and that route's
+    # {data_entry} path param would otherwise swallow this literal path too.
+    "/module/{module}/data-entries",
+    response_model=dict[str, TaxonomyNode],
+    response_model_exclude_none=True,
+)
+async def get_taxonomies_for_module_data_entries(
+    module: str,
+    entries: list[str] = Query(
+        ..., description="Data entry type names to fetch taxonomy for"
+    ),
+    year: int = Query(
+        default_factory=lambda: datetime.now().year,
+        description="Year for which to retrieve the taxonomy",
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, TaxonomyNode]:
+    """Batch-fetch taxonomies for several data entry types of one module.
+
+    Collapses a report page's ~11 sequential /module/{module}/{data_entry}
+    round trips into one call per module (#2049 T6). Each entry still
+    resolves through get_taxonomy_for_data_entry_type, so it hits/populates
+    the same (data_entry_type, year) cache a single-entry call would.
+    """
+    return {
+        entry: await _resolve_module_data_entry_taxonomy(
+            module, entry, year, db, current_user
+        )
+        for entry in entries
+    }
+
+
+@router.get(
+    "/module/{module}/{data_entry}",
+    response_model=TaxonomyNode,
+    response_model_exclude_none=True,
+)
+async def get_taxonomy_for_module_data_entry(
+    module: str,
+    data_entry: str,
+    year: int = Query(
+        default_factory=lambda: datetime.now().year,
+        description="Year for which to retrieve the taxonomy",
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TaxonomyNode:
+    """Get taxonomy for a given module and data entry type."""
+    return await _resolve_module_data_entry_taxonomy(
+        module, data_entry, year, db, current_user
     )

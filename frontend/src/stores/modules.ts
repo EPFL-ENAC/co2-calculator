@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref } from 'vue';
 import { MODULES, Module } from 'src/constant/modules';
 import { api } from 'src/api/http';
+import { getModuleDataEntriesTaxonomies } from 'src/api/taxonomies';
 import {
   MODULE_STATES,
   ModuleState,
@@ -709,6 +710,44 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  /**
+   * Batch variant of getSubmoduleTaxonomy: one round trip for every
+   * submodule of a module instead of one call each (#2049 T6). Populates
+   * the same state.taxonomySubmodule keys, so existing readers (ModuleTable,
+   * ModuleForm, ...) don't need to know which path filled them in.
+   */
+  async function getSubmoduleTaxonomiesBatch(
+    moduleType: Module,
+    submoduleTypes: string[],
+    year: string,
+  ) {
+    if (submoduleTypes.length === 0) return;
+    state.loading = true;
+    state.error = null;
+    for (const submoduleType of submoduleTypes) {
+      state.taxonomySubmodule[submoduleType] = null;
+    }
+    try {
+      const taxonomies = await getModuleDataEntriesTaxonomies(
+        moduleType,
+        submoduleTypes,
+        year,
+      );
+      for (const submoduleType of submoduleTypes) {
+        state.taxonomySubmodule[submoduleType] = markRaw(
+          taxonomies[submoduleType],
+        );
+      }
+    } catch (err: unknown) {
+      state.error = err instanceof Error ? err.message : 'Unknown error';
+      for (const submoduleType of submoduleTypes) {
+        state.taxonomySubmodule[submoduleType] = null;
+      }
+    } finally {
+      state.loading = false;
+    }
+  }
+
   interface Option {
     label: string;
     value: string;
@@ -1316,6 +1355,7 @@ export const useModuleStore = defineStore('modules', () => {
     getSubmoduleData,
     refreshLoadedSubmodules,
     getSubmoduleTaxonomy,
+    getSubmoduleTaxonomiesBatch,
     postItem,
     patchItem,
     deleteItem,
