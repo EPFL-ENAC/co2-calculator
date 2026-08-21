@@ -43,11 +43,22 @@ built tree is a safe cache candidate.
 - `FactorRepository`'s every write method (`create`, `bulk_create`,
   `upsert_factors`, `update`, `delete`, `bulk_delete`,
   `delete_stale_for_year`) calls `taxonomy_cache.clear()`. This is the
-  single choke point every factor writer routes through — CSV ingestion,
-  `factor_update_provider`'s recompute pass, seeds, and any future admin
-  CRUD — so a full-cache clear (rather than fine-grained per-key removal)
-  can't miss a writer that bypasses invalidation. Over-eviction is free;
-  a missed eviction is the failure this repo can't afford.
+  choke point production factor writers route through — CSV ingestion
+  (`base_factor_csv_provider.py`, via `_upsert_batch`/`_delete_stale_factors`)
+  and `factor_update_provider`'s recompute pass both call the repo, so
+  both get exact same-process invalidation. A full-cache clear (rather
+  than fine-grained per-key removal) can't miss a writer that goes
+  through the repo at all. Over-eviction is free; a missed eviction on
+  a covered path is the failure this repo can't afford.
+  **Known bypass:** the dev/local seed scripts
+  (`app/seed/random_generator/seed_factors.py`,
+  `seed_emission_factors.py`) construct `Factor` rows and call
+  `session.add_all(...)` directly, skipping `FactorRepository` entirely
+  — grepped, confirmed. These don't get explicit invalidation and rely
+  solely on the TTL, same as the cross-process case below. This is
+  acceptable in practice: seeding runs as a one-off CLI/`make
+  seed-*` invocation against a dev/local database, not as a live
+  ingestion path against a warm production cache.
 - `Cache-Control: private, max-age=60` on all four `/v1/taxonomies/*`
   routes, mirroring the server TTL, so the browser stops re-issuing the
   ~11 parallel identical calls one page load already fires.
