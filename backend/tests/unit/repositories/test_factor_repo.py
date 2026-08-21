@@ -9,6 +9,7 @@ from app.core.factor_taxonomy_cache import taxonomy_cache
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
+from app.repositories import factor_repo as factor_repo_mod
 from app.repositories.factor_repo import FactorRepository
 
 
@@ -23,6 +24,19 @@ def _clear_taxonomy_cache():
     taxonomy_cache.clear()
     yield
     taxonomy_cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_op_broadcast(monkeypatch):
+    """The cross-pod broadcast (#2258 follow-up) has its own dedicated
+    tests in test_taxonomy_cache_broadcast.py — a no-op here keeps every
+    write-method test above focused on local cache invalidation without
+    each one having to stub a ``pods`` table query on its mock session.
+    """
+    monkeypatch.setattr(
+        "app.repositories.factor_repo.broadcast_taxonomy_cache_clear",
+        AsyncMock(),
+    )
 
 
 @pytest.mark.asyncio
@@ -406,6 +420,31 @@ async def test_create_invalidates_taxonomy_cache(repo):
     )
 
     assert taxonomy_cache.get(("stale-key",)) is None
+
+
+@pytest.mark.asyncio
+async def test_create_broadcasts_cache_clear_to_other_pods(repo):
+    """Pins the wiring (#2258 follow-up): a write must call the cross-pod
+    broadcast, not just the local ``clear()`` — a refactor that drops
+    this call would otherwise leave every other test above green while
+    silently regressing cross-pod staleness back to ~120s.
+    """
+    repo.session.add = MagicMock()
+    repo.session.flush = AsyncMock()
+    repo.session.refresh = AsyncMock()
+
+    await repo.create(
+        Factor(
+            emission_type_id=EmissionType.food,
+            data_entry_type_id=DataEntryTypeEnum.member,
+            classification={},
+            values={},
+        )
+    )
+
+    factor_repo_mod.broadcast_taxonomy_cache_clear.assert_awaited_once_with(
+        repo.session
+    )
 
 
 @pytest.mark.asyncio

@@ -46,6 +46,10 @@ class Pod(SQLModel, table=True):
     # scenario that surfaced this requirement.
     git_sha: str | None = Field(default=None, max_length=64)
     app_version: str | None = Field(default=None, max_length=64)
+    # Routable pod IP (Kubernetes Downward API ``status.podIP``). ``None``
+    # outside Kubernetes (local dev) — a pod with no IP is simply never a
+    # broadcast target for cross-pod cache invalidation (#2258 follow-up).
+    pod_ip: str | None = Field(default=None, max_length=64)
     # When this pod first registered.  Differs from
     # ``last_heartbeat_at`` so the UI can show "pod uptime" alongside
     # "heartbeat age".  ``timezone=True`` so asyncpg / psycopg

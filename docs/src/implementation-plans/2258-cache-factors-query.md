@@ -3,7 +3,7 @@ status: delivered
 issue: 2258
 last_updated: 2026-08-21
 title: "Cache the factors query behind taxonomy lookups"
-summary: "Process-local TTL cache for ModuleHandlerService.get_taxonomy, keyed on (data_entry_type, year), invalidated on every FactorRepository write and backstopped by a 60s TTL for the cross-process case ingestion runs in a separate worker deployment."
+summary: "Process-local TTL cache for ModuleHandlerService.get_taxonomy, keyed on (data_entry_type, year), invalidated on every FactorRepository write and backstopped by a 60s TTL for the cross-process case ingestion runs in a separate worker deployment. Follow-up: active cross-pod invalidation broadcast on top of the TTL, dropping worst-case staleness from ~120s to the time one broadcast round-trip takes."
 ---
 
 # Cache the factors query behind taxonomy lookups
@@ -154,3 +154,54 @@ reasoning from the code:
   separate, smaller win noted in the issue.
 - `EXPLAIN (ANALYZE, BUFFERS)` confirmation of scan type — not needed to
   decide the fix per the issue's own investigation.
+
+## Follow-up: active cross-pod invalidation
+
+Branch `perf/2258-cross-pod-cache-invalidation`, stacked on top of the
+PR above. Answers the "open question" above by closing most of the
+~120s worst case actively, keeping the TTL as the fallback for whatever
+the broadcast doesn't reach — belt-and-suspenders, not a replacement.
+
+**Pod discovery.** The `pods` heartbeat table (`app/models/pod.py`,
+`app/tasks/_pod_heartbeat.py`) already tracks every live pod by `POD_ID`
+but not its routable IP. Added:
+
+- `POD_IP` (Kubernetes Downward API `status.podIP`) to the Helm chart's
+  shared `co2-calculator.backendSecretEnv` block, alongside the existing
+  `POD_NAME`/`POD_NAMESPACE` — given to both the API and worker
+  Deployments.
+- `pods.pod_ip` column (migration `a62060da49c0`), refreshed on every
+  heartbeat tick (unlike `started_at`) since a Deployment pod's IP
+  changes across restarts even when `POD_ID` happens to repeat.
+
+**Broadcast.** `app/core/taxonomy_cache_broadcast.py` — after a
+`FactorRepository` write clears its own process' cache
+(`_invalidate_taxonomy_cache`), it queries the `pods` table for every
+OTHER pod heartbeating within the live window `GET /v1/sync/workers`
+already uses, and POSTs to each one's internal cache-clear endpoint
+concurrently (`asyncio.gather(..., return_exceptions=True)`, 200ms
+per-call timeout). Best-effort throughout: any pod failure is logged
+and swallowed, never raised, and never fails the write.
+
+**Internal endpoint.** `app/api/internal.py`, mounted directly on
+`app` (not under `settings.API_VERSION`, never referenced by
+`helm/templates/routes.yaml`) — the same root-level trust boundary
+`/healthz`/`/ready` already rely on. That boundary alone isn't airtight
+for a state-mutating endpoint: an OpenShift `Route` `path` match is a
+_prefix_ match, so `/api/internal/...` would still reach it. The
+endpoint therefore additionally gates on the caller's source IP being a
+currently-live pod from the `pods` table — no new auth machinery, just
+the registry this feature already needs.
+
+**New staleness bound:** however long a broadcast takes to reach every
+live pod — typically low hundreds of ms, bounded by the 200ms per-call
+timeout — with the 60s TTL (+ `Cache-Control`) as the fallback for
+whatever a broadcast misses (a pod mid-restart, a network blip). Down
+from the ~120s worst case above.
+
+**Tests:** `test_taxonomy_cache_broadcast.py` (fans out to every other
+live pod, skips self/stale/no-IP pods, one pod's failure doesn't stop
+the others or raise), `test_internal_cache_endpoint.py` (clears the
+local cache for a live-pod caller, 403s otherwise), plus a wiring
+assertion in `test_factor_repo.py` that a write actually calls the
+broadcast.
