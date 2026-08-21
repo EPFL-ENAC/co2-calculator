@@ -46,7 +46,7 @@ alerting.
   change is an infra/routing change to production traffic paths — needs a
   written plan reviewed by both maintainers.**
 - **T8** — drop the duplicate psycopg OTel instrumentor, suppress
-  per-chunk ASGI spans. Sequence *after* T1 is verified (the `connect`
+  per-chunk ASGI spans. Sequence _after_ T1 is verified (the `connect`
   span is what proves the pooling fix).
 - **T8b** — triage every route over 200ms, after T1+T2 land (the shared
   ~21–101ms floor may make several of these non-issues on their own).
@@ -58,6 +58,100 @@ alerting.
 - The `route_class="probe"` Grafana panel and a `pipeline_duration_seconds`
   business metric (§4.9.6/§4.7.7 below) — needs the new backend metric
   from T5 first, then wiring, not itself gated the same way as T1/T7/T11.
+
+## Ready-for-review proposals (T1, T7)
+
+Not implemented — these touch pipeline/DB-connection internals and a
+production routing change, which the guardrails gate on a written plan
+reviewed by both maintainers. Written up here so that review can be a
+quick decision rather than starting from a blank page. **T11 has no
+proposal below** — it needs `pipelines.job_count` and per-job
+`started_at`/`finished_at` from the DB, which needs direct DB access no
+one drafting this had.
+
+### T1 — `pool_pre_ping`: keep or drop
+
+Current state (`backend/app/db.py`, `backend/app/core/config.py`):
+`pool_pre_ping=True` unconditionally on the async engine; `DB_POOL_SIZE`
+default 10, `DB_MAX_OVERFLOW` default 10 in code (overridden to 15/5 in
+the dev/stage ops-repo overlays, per `#1723`'s sizing comment — each
+running job holds 1-2 connections for its whole runtime, sized alongside
+`MAX_CONCURRENT_JOBS`).
+
+Measured cost (#1402's trace investigation): pre-ping is a real network
+round trip on every pool checkout — 103 pre-pings costing 220.7ms across
+one 201.6s stream (80% of all `connect` time), and it goes from 4.6ms
+idle to 28.7ms during a 31-request burst (identical trivial statement,
+so that's pure DB/network round-trip time under load, not app-side
+queueing).
+
+**Option A — keep it (recommended default if no stronger signal turns
+up).** It's what makes a stale-connection error impossible after a DBaaS
+failover or idle-timeout disconnect, and the measured cost (sub-millisecond
+idle, tens of ms under burst) is cheap relative to the actual query costs
+already identified (the 1338ms `factors` query dwarfs it). Removing it
+trades a small, well-understood cost for a new failure mode that has to
+be handled somewhere else.
+
+**Option B — drop it, rely on `pool_recycle` + retry-on-disconnect.**
+Faster on every checkout, but requires: (1) setting `pool_recycle` below
+whatever the DBaaS actually times out idle connections at — **unknown,
+needs `SHOW max_connections` and the DBaaS idle-timeout policy from
+someone with DB access**, this is not safe to guess; (2) a genuine
+retry-on-disconnect path somewhere in the stream/job polling and
+recalculation code, since a stale connection would otherwise surface as
+a hard failure mid-poll or mid-job instead of the pool silently handling
+it. That's real code, not a config flag.
+
+**Recommendation:** keep `pool_pre_ping=True` (Option A) unless the DBaaS
+data (once someone can pull it) shows the idle-disconnect window is long
+enough that `pool_recycle` alone would be safe and the retry path is judged
+worth building. Re-visit if `db_pool_connections{state="checked_out"}`
+(the Grafana panel, already fixed for stage in #1402's PR #8) ever shows
+pool exhaustion during a real page-load burst — that would be the signal
+that checkout cost, not query cost, is the bottleneck, and only then does
+shaving pre-ping's ms-level cost start to matter.
+
+### T7 — stream hardening
+
+Three independent changes, `backend/app/api/v1/data_sync.py`'s two SSE
+handlers (`job_stream_by_id`, `pipeline_stream_by_id`, both currently
+`StreamingResponse(event_generator(), media_type="text/event-stream")`
+with no other headers):
+
+1. **Keepalive.** The trace showed 16-second gaps with zero bytes sent
+   between polls with no state change. Add an SSE comment line
+   (`: keepalive\n\n`) on ticks that produce no real event, on a shorter
+   cadence than any known intermediary idle-timeout (e.g. every 15s,
+   well under HAProxy's day-1 default and any reverse-proxy default
+   idle timeout). Small, additive, no behavior change to real events.
+2. **Response headers.** Add `Cache-Control: no-cache` and
+   `X-Accel-Buffering: no` to both `StreamingResponse` calls — the second
+   one specifically prevents a reverse proxy from buffering the whole
+   stream before forwarding it, which would defeat the point of SSE.
+   Additive, no risk.
+3. **A path-scoped OpenShift Route for `/v1/sync` with its own HAProxy
+   timeout** (proposed annotation, ops repo `openshift-app-config`, not
+   this repo):
+   ```yaml
+   metadata:
+     annotations:
+       haproxy.router.openshift.io/timeout: 600s
+   spec:
+     path: /v1/sync
+   ```
+   This is the one genuinely infra/routing change here — it changes how
+   production traffic is routed, not just this repo's code, and also
+   splits the HAProxy metrics by route (fixes the `HaproxyRouteHighLatency`
+   alert's own defect for free, since `/v1/sync` traffic would no longer
+   share an average with normal CRUD). **This is the piece that needs
+   sign-off before anyone applies it** — items 1-2 above are safe to ship
+   independently of this one.
+
+`Last-Event-ID` support (resuming a dropped stream instead of restarting
+from scratch) is bigger than the above three and not drafted here — it
+needs a decision on what "resume" means for a poll-based (not
+event-sourced) stream implementation first.
 
 ---
 
@@ -86,17 +180,18 @@ role: >
   repository access; the analyst did not.
 
 repo: EPFL-ENAC/co2-calculator
-issue: "#1402 [PERF]: TRIM DOWN ALERTING"   # PR #1740 open
+issue: "#1402 [PERF]: TRIM DOWN ALERTING" # PR #1740 open
 stack:
-  backend:  FastAPI + SQLAlchemy + psycopg v3 + PostgreSQL (managed DBaaS)
+  backend: FastAPI + SQLAlchemy + psycopg v3 + PostgreSQL (managed DBaaS)
   frontend: Vue.js SPA
-  infra:    OpenShift, HAProxy router, Prometheus + Alertmanager + Grafana + Tempo
+  infra: OpenShift, HAProxy router, Prometheus + Alertmanager + Grafana + Tempo
   telemetry: opentelemetry auto-instrumentation 0.65b0, SDK 1.44.0
 environments:
-  stage: {ns: svc1751t-co2-calculator-stage, host: co2-calculator-stage.epfl.ch}
-  dev:   {ns: svc1751d-co2-calculator-dev}   # all PrometheusRules hardcode this one
-  db:    co2-test.postgresql.dbaas.intranet.epfl.ch:5432 (db "app", user "app")
-  s3:    s3.epfl.ch
+  stage:
+    { ns: svc1751t-co2-calculator-stage, host: co2-calculator-stage.epfl.ch }
+  dev: { ns: svc1751d-co2-calculator-dev } # all PrometheusRules hardcode this one
+  db: co2-test.postgresql.dbaas.intranet.epfl.ch:5432 (db "app", user "app")
+  s3: s3.epfl.ch
 
 operating_rules:
   - REPORT BEFORE FIXING. Deliver findings with file:line first. Do not open a PR in the
@@ -110,7 +205,7 @@ operating_rules:
   - Quote real code. Do not paraphrase what a function "probably" does.
   - Do not refactor opportunistically. Scope is the ranked_tasks list.
 
-focus_areas:                       # all three need work, for three DIFFERENT reasons
+focus_areas: # all three need work, for three DIFFERENT reasons
   taxonomies_and_crud:
     share_of_request_time: 0.011
     verdict: "GENUINELY SLOW — fix the code"
@@ -123,15 +218,16 @@ focus_areas:                       # all three need work, for three DIFFERENT re
     job_1_measurement: "get stream duration out of the API latency histogram (this is #1402)"
     job_2_real_defects:
       - "36.1 s job streams and 201.6 s pipeline streams vs a 30 s HAProxy default -> some are
-         probably being cut today and nobody has looked"
+        probably being cut today and nobody has looked"
       - "16-second stretches with zero bytes sent -> no keepalive comment"
       - "no lifetime cap, no Last-Event-ID (a dropped stream restarts from scratch)"
       - "why does a pipeline take 201.6 s? are jobs sequential? (T11)"
     failure_mode_to_avoid: >
       Shipping job 1, watching the alert emails stop, and closing #1402. The emails stopping is
       the MEASUREMENT working. Job 2 is still open at that point.
-    do_not_change: "2.015 s poll interval, per-poll pool checkout, disconnect detection,
-                    event de-duplication (61 sends / 103 polls) — all correct"
+    do_not_change:
+      "2.015 s poll interval, per-poll pool checkout, disconnect detection,
+      event de-duplication (61 sends / 103 polls) — all correct"
   uploads:
     share_of_request_time: 0.011
     verdict: "NOT a latency problem — a CORRECTNESS and SAFETY one"
@@ -143,7 +239,7 @@ focus_areas:                       # all three need work, for three DIFFERENT re
       Also: the object is written TWICE (4 S3 round trips where 1 would do), 805 spans per
       request, and no http.request_content_length anywhere.
 
-confirmed_observations:            # measured; treat as ground truth
+confirmed_observations: # measured; treat as ground truth
   connection_pool:
     evidence: "5/5 OTLP traces + Grafana dashboard uid ndr79mm panel id 7"
     severity: medium
@@ -157,9 +253,10 @@ confirmed_observations:            # measured; treat as ground truth
     pre_ping_cost:
       pipeline_stream_201s: "103 pre-pings, 220.7 ms total, 80% of all connect time"
       idle_ms: 4.62
-      under_burst_ms: 28.70    # identical trivial statement => pure round-trip probe
-      inference: "6x RTT increase to Postgres under the 31-request burst => pressure is on the
-                  DB/network, NOT on the Python event loop"
+      under_burst_ms: 28.70 # identical trivial statement => pure round-trip probe
+      inference:
+        "6x RTT increase to Postgres under the 31-request burst => pressure is on the
+        DB/network, NOT on the Python event loop"
     open_question: >
       pool_size=15 (+ SQLAlchemy default max_overflow=10 = 25 usable) versus a ~31-request
       page-load fan-out where each request holds a connection for a 1338 ms query. Likely
@@ -209,10 +306,11 @@ confirmed_observations:            # measured; treat as ground truth
       Two OTel DB instrumentors are active at once. SQLAlchemy emits `connect` and
       `SELECT app`; psycopg emits `SELECT` and `;`. Every query is therefore counted twice
       and every connection twice.
-    redundant_span_share: {pipeline_stream: 0.39, job_stream: 0.37, taxonomies: 0.33}
-    sqlalchemy_minus_psycopg_ms:   # the delta is real ORM row materialisation, not overhead
+    redundant_span_share:
+      { pipeline_stream: 0.39, job_stream: 0.37, taxonomies: 0.33 }
+    sqlalchemy_minus_psycopg_ms: # the delta is real ORM row materialisation, not overhead
       auth_select_users: [0.3, 0.2]
-      select_factors:    [11.9, 62.8]
+      select_factors: [11.9, 62.8]
     recommendation: >
       Drop the PSYCOPG instrumentor, KEEP SQLAlchemy. Reason: `connect` is a SQLAlchemy span
       and it is the evidence that verifies the T1 pooling fix — dropping SQLAlchemy would
@@ -234,7 +332,7 @@ confirmed_observations:            # measured; treat as ground truth
       PodHighCPU divides by container_spec_cpu_quota (microseconds per CFS period, ~100000)
       instead of quota/period (cores). Ratio ~1e-5, threshold 0.9. Has never fired.
 
-retracted_claims:                  # v2 said these; real traces disproved them. Do NOT revive.
+retracted_claims: # v2 said these; real traces disproved them. Do NOT revive.
   - claim: "pipelines/{id}/stream keeps polling after its job finishes (zombie connection)"
     why_wrong: >
       The pairing compared jobs/{id}/stream (watches ONE job) against pipelines/{id}/stream
@@ -259,24 +357,31 @@ ranked_tasks:
     grep_hints:
       - "pool_size|max_overflow|pool_timeout|pool_recycle|pool_pre_ping|DB_POOL_SIZE"
       - "create_engine|create_async_engine"
-      - "db_pool_connections"        # the metric already exists; find where it is emitted
+      - "db_pool_connections" # the metric already exists; find where it is emitted
     questions:
       - "Actual values of pool_size / max_overflow / pool_timeout / pool_recycle / pool_pre_ping?"
       - "Is DB_POOL_SIZE=15 per pod? With N replicas the ceiling is N*(15+overflow) against
-         the DBaaS max_connections. What IS max_connections?"
+        the DBaaS max_connections. What IS max_connections?"
       - "Is pool_pre_ping needed? It costs one round trip per checkout (220 ms across one
-         201 s stream). Removing it requires pool_recycle below the DBaaS idle timeout plus
-         retry-on-disconnect. Decide deliberately; do not remove it just because it is visible."
+        201 s stream). Removing it requires pool_recycle below the DBaaS idle timeout plus
+        retry-on-disconnect. Decide deliberately; do not remove it just because it is visible."
       - "Do stream handlers check out per poll (trace says yes, ~2 s apart, short) or hold one
-         for the stream's life? Per poll is CORRECT — keep it."
+        for the stream's life? Per poll is CORRECT — keep it."
     do_not: >
       Do not raise pool_size as a first move. Fix T2 so queries finish in tens of ms and the
       burst stops needing 31 simultaneous connections. Pool sizing is a symptom knob.
     acceptance: "pool params documented in the issue; checked_out no longer pins to size during a page load"
   - id: T2
     priority: P0
-    title: Make SELECT factors fast (or cached)   # <-- START HERE
-    grep_hints: ["factors", "data_entry_type_id", "taxonom", "emission_taxonomy", "EmissionType"]
+    title: Make SELECT factors fast (or cached) # <-- START HERE
+    grep_hints:
+      [
+        "factors",
+        "data_entry_type_id",
+        "taxonom",
+        "emission_taxonomy",
+        "EmissionType",
+      ]
     steps:
       - Run EXPLAIN (ANALYZE, BUFFERS) for both data_entry_type_id values, year=2025.
       - Check for a composite index on factors (data_entry_type_id, year).
@@ -288,7 +393,11 @@ ranked_tasks:
   - id: T3
     priority: P0
     title: Get stream duration out of the API latency histogram
-    files: ["specific-namespace-alerts PrometheusRule", "OTel Collector / Prometheus scrape config"]
+    files:
+      [
+        "specific-namespace-alerts PrometheusRule",
+        "OTel Collector / Prometheus scrape config",
+      ]
     detail: >
       This is the literal ask in #1402. A pipeline that CORRECTLY takes 201 s currently trips
       LatencyP50High, P95High and P99High. See sections 4.3, 4.4, 4.7 of this document for the
@@ -313,7 +422,8 @@ ranked_tasks:
   - id: T6
     priority: P1
     title: Batch or bound the 31-request page-load fan-out
-    grep_hints: ["Promise.all", "taxonomies", "onMounted", "useQuery", "modules/"]
+    grep_hints:
+      ["Promise.all", "taxonomies", "onMounted", "useQuery", "modules/"]
     note: "Do T1 and T2 first — they may make this unnecessary. Do not start with client-side rate limits."
   - id: T7
     priority: P1
@@ -322,11 +432,11 @@ ranked_tasks:
       - "keepalive comment every ~15 s (trace shows 16 s gaps with zero bytes sent)"
       - "Cache-Control: no-cache; X-Accel-Buffering: no; Last-Event-ID support"
       - "path-scoped OpenShift Route for /v1/sync with haproxy timeout 600s (default is 30 s;
-         jobs/stream reaches 36.1 s, pipelines 201.6 s). Also splits HAProxy metrics."
+        jobs/stream reaches 36.1 s, pipelines 201.6 s). Also splits HAProxy metrics."
   - id: T8
     priority: P1
     title: Remove the duplicate DB instrumentation and the per-chunk ASGI spans
-    depends_on: T1        # keep `connect` spans until pooling is verified
+    depends_on: T1 # keep `connect` spans until pooling is verified
     grep_hints:
       - "SQLAlchemyInstrumentor|PsycopgInstrumentor|Psycopg2Instrumentor"
       - "FastAPIInstrumentor|instrument_app"
@@ -365,21 +475,22 @@ ranked_tasks:
       - "GET /v1/backoffice/units is suspiciously flat at ~390 ms across 3 samples -> fixed-cost full-table read? cacheable?"
       - "POST /v1/sync/dispatch at p50 261 ms only enqueues -- why is it not near-trivial?"
       - "GET /v1/factors/{t}/class-subclass-map hits the same `factors` table as T2 -- same index question?"
-    routes_over_bar:   # [n, p50_ms, mean_ms, max_ms]
-      "GET /v1/taxonomies/module/{module}/{data_entry}":        [16, 948, 893, 2064]
-      "GET /v1/auth/callback":                                  [ 4, 867, 832,  880]
-      "POST /v1/files/temp-upload":                             [22, 408, 636, 3036]
-      "POST /v1/carbon-reports/{id}/modules/{m}/{sub}":         [ 4, 396, 407,  481]
-      "GET /v1/backoffice/units":                               [ 3, 394, 390,  395]
-      "GET /v1/carbon-reports/{id}/modules/{m}/{sub}":          [29, 249, 379, 1004]
-      "GET /v1/carbon-reports/simulator/explore/...":           [ 3, 262, 368,  703]
-      "POST /v1/sync/dispatch":                                 [23, 261, 301,  814]
-      "GET /v1/modules-stats/{id}/report-stats":                [ 1, 298, 298,  298]
-      "GET /v1/factors/{t}/class-subclass-map":                 [11, 254, 263,  396]
-      "GET /v1/carbon-reports/{id}/modules/{m}":                [13, 199, 255,  517]
-      "GET /v1/carbon-reports/{id}/modules/headcount/members":  [ 3, 156, 224,  415]
-      "GET /v1/modules-stats/{id}/validated-totals":            [ 1, 219, 219,  219]
-      "GET /v1/carbon-reports/unit/{uid}/year/{year}/":         [ 1, 217, 217,  217]
+    routes_over_bar: # [n, p50_ms, mean_ms, max_ms]
+      "GET /v1/taxonomies/module/{module}/{data_entry}": [16, 948, 893, 2064]
+      "GET /v1/auth/callback": [4, 867, 832, 880]
+      "POST /v1/files/temp-upload": [22, 408, 636, 3036]
+      "POST /v1/carbon-reports/{id}/modules/{m}/{sub}": [4, 396, 407, 481]
+      "GET /v1/backoffice/units": [3, 394, 390, 395]
+      "GET /v1/carbon-reports/{id}/modules/{m}/{sub}": [29, 249, 379, 1004]
+      "GET /v1/carbon-reports/simulator/explore/...": [3, 262, 368, 703]
+      "POST /v1/sync/dispatch": [23, 261, 301, 814]
+      "GET /v1/modules-stats/{id}/report-stats": [1, 298, 298, 298]
+      "GET /v1/factors/{t}/class-subclass-map": [11, 254, 263, 396]
+      "GET /v1/carbon-reports/{id}/modules/{m}": [13, 199, 255, 517]
+      "GET /v1/carbon-reports/{id}/modules/headcount/members":
+        [3, 156, 224, 415]
+      "GET /v1/modules-stats/{id}/validated-totals": [1, 219, 219, 219]
+      "GET /v1/carbon-reports/unit/{uid}/year/{year}/": [1, 217, 217, 217]
     acceptance: "every route_class=api route under 200 ms p50, or an explicit accepted-cost note in the issue"
 
   - id: T8c
@@ -387,20 +498,30 @@ ranked_tasks:
     title: Grafana dashboard "Specific graphs" (uid ndr79mm)
     fixes:
       - "panel id 3 'Latency percentile': no route filter -> split by route_class; set unit: ms;
-         TURN ON EXEMPLARS (target A has exemplar:false) so a p99 spike is one click to the trace;
-         delete or fix the leftover green:0/red:80 thresholds"
+        TURN ON EXEMPLARS (target A has exemplar:false) so a p99 spike is one click to the trace;
+        delete or fix the leftover green:0/red:80 thresholds"
       - "panel id 2 'Backend HTTP Error Rate': splits nothing — 4..|5.. lumped. Split; unit: percentunit"
       - "panel id 1 'HaproxyRouteHighLatency': avg includes 201 s streams; exclude the /v1/sync route"
       - "panel id 7 'DB Pool Usage': KEEP, it is the best panel here. Add state=overflow and a
-         pool wait-time histogram"
+        pool wait-time histogram"
       - "$pod variable: label_values({namespace=...}, k8s_pod_name) has NO metric name -> matches
-         every series in the namespace. Scope it to http_server_duration_milliseconds_count"
+        every series in the namespace. Scope it to http_server_duration_milliseconds_count"
       - "namespace hardcoded in all 5 panels -> add a $namespace variable"
-    add_panels: [per_route_p50_mean_table, http_server_active_requests, probe_latency,
-                 event_loop_lag, db_round_trip, sse_connections_active,
-                 pipeline_duration_by_kind, upload_throughput, slo_burn]
-    also: "deploy annotations; row grouping; version the dashboard JSON in GitOps (it is at version 11,
-           suggesting UI editing)"
+    add_panels:
+      [
+        per_route_p50_mean_table,
+        http_server_active_requests,
+        probe_latency,
+        event_loop_lag,
+        db_round_trip,
+        sse_connections_active,
+        pipeline_duration_by_kind,
+        upload_throughput,
+        slo_burn,
+      ]
+    also:
+      "deploy annotations; row grouping; version the dashboard JSON in GitOps (it is at version 11,
+      suggesting UI editing)"
 
   - id: T9
     priority: P1
@@ -409,7 +530,14 @@ ranked_tasks:
   - id: T10
     priority: P2
     title: Upload path audit
-    grep_hints: ["temp-upload", "UploadFile", "boto3|aioboto3|aiobotocore", "put_object|head_object", "run_in_threadpool"]
+    grep_hints:
+      [
+        "temp-upload",
+        "UploadFile",
+        "boto3|aioboto3|aiobotocore",
+        "put_object|head_object",
+        "run_in_threadpool",
+      ]
     questions:
       - "S3 client sync or async? Handler `async def` or plain `def`?"
       - "Why two PutObject and two HeadObject per upload?"
@@ -431,16 +559,16 @@ output_contract:
   format: markdown
   sections:
     - "Findings: one block per task id, each with file:line, the relevant code quoted, and a
-       CONFIRMED / REFUTED / INCONCLUSIVE verdict against this document's hypothesis."
+      CONFIRMED / REFUTED / INCONCLUSIVE verdict against this document's hypothesis."
     - "Contradictions: anything here that the code disproves. Put this first if non-empty."
     - "Proposed changes: diff-level description, smallest first, with risk notes."
     - "Still unknown: what you could not determine and what would settle it."
 ```
 
-
 > **v3 — rebuilt after the four requested traces arrived. Two findings from v2 are retracted.**
+>
 > 1. The long streams are **not zombies**. The 201.6 s pipeline stream emitted events to the end and
->    closed cleanly; v2's pairing compared a *single-job* stream against a *whole-pipeline* stream.
+>    closed cleanly; v2's pairing compared a _single-job_ stream against a _whole-pipeline_ stream.
 >    The pipeline really did take 201.6 s. See [§1.8](#18-what-the-four-traces-settled--including-two-corrections).
 > 2. The slow `taxonomies` call is **not queueing on the event loop**. 1338 ms of it is inside
 >    Postgres, which no amount of event-loop contention can cause.
@@ -450,9 +578,9 @@ output_contract:
 > request opens its own too. That single defect explains the burst behaviour, the 5× slowdown of
 > identical queries under load, and a large share of the tail.
 >
-> **v3.1 — a third retraction, from the Grafana dashboard.** There *is* connection pooling
+> **v3.1 — a third retraction, from the Grafana dashboard.** There _is_ connection pooling
 > (`DB_POOL_SIZE=15`, and `db_pool_connections` is already exported). The `connect` span is a pool
-> *checkout*, and the `;` span nested inside it is `pool_pre_ping` doing a network round trip.
+> _checkout_, and the `;` span nested inside it is `pool_pre_ping` doing a network round trip.
 > True checkout cost is **0.4–1.3 ms**. What survives is better: that pre-ping is an accidental
 > pure network probe, and it goes **4.6 ms idle → 28.7 ms during the burst** — the cleanest evidence
 > that burst pressure lands on Postgres, not on the Python event loop. And **pool_size 15 against a
@@ -465,17 +593,17 @@ output_contract:
 
 ## 0. Executive summary
 
-| # | Problem | Evidence | Workstream |
-|---|---|---|---|
-| **A** | Pool exists and works (checkout 0.4–1.3 ms). But **`pool_pre_ping` costs a round trip per checkout** — 220 ms across one stream — and **size 15 vs a 31-request fan-out** may be exhausting it | **Confirmed**, 5/5 traces + dashboard | [§3.2](#32-p0--the-pool-exists-pool_pre_ping-costs-a-round-trip-per-checkout) |
-| **B** | `SELECT factors … WHERE data_entry_type_id AND year` takes **1338 ms**, and serialising it burns **684 ms of CPU** | **Confirmed**, trace | [§3.4](#34-p0--the-factors-query-and-its-serialisation) |
-| **C** | Streams poll every **2.015 s**, each poll opening a fresh connection | **Confirmed**, trace | [§3.3](#33-p1--the-2-second-poll-loop) |
-| **D** | Pipelines legitimately run up to **201 s**, and that trips HTTP latency alerts | **Confirmed** | [§4](#4-workstream-b--alerting--observability) |
-| **E** | Upload path: 4 S3 round-trips, 805 spans, auth-after-body | Structure confirmed; blast radius unmeasured | [§5](#5-workstream-c--upload--storage) |
+| #     | Problem                                                                                                                                                                                        | Evidence                                     | Workstream                                                                    |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------- |
+| **A** | Pool exists and works (checkout 0.4–1.3 ms). But **`pool_pre_ping` costs a round trip per checkout** — 220 ms across one stream — and **size 15 vs a 31-request fan-out** may be exhausting it | **Confirmed**, 5/5 traces + dashboard        | [§3.2](#32-p0--the-pool-exists-pool_pre_ping-costs-a-round-trip-per-checkout) |
+| **B** | `SELECT factors … WHERE data_entry_type_id AND year` takes **1338 ms**, and serialising it burns **684 ms of CPU**                                                                             | **Confirmed**, trace                         | [§3.4](#34-p0--the-factors-query-and-its-serialisation)                       |
+| **C** | Streams poll every **2.015 s**, each poll opening a fresh connection                                                                                                                           | **Confirmed**, trace                         | [§3.3](#33-p1--the-2-second-poll-loop)                                        |
+| **D** | Pipelines legitimately run up to **201 s**, and that trips HTTP latency alerts                                                                                                                 | **Confirmed**                                | [§4](#4-workstream-b--alerting--observability)                                |
+| **E** | Upload path: 4 S3 round-trips, 805 spans, auth-after-body                                                                                                                                      | Structure confirmed; blast radius unmeasured | [§5](#5-workstream-c--upload--storage)                                        |
 
 **The headline for #1402:** a pipeline that correctly takes 3.4 minutes must not be able to trip an
 HTTP latency alert. Streams are **95.0 % of all request-time** while being 24 % of the traces, and
-they are session duration, not latency. Getting them out of the histogram is now the *primary* fix,
+they are session duration, not latency. Getting them out of the histogram is now the _primary_ fix,
 not a parallel nicety — because there is no longer a stream bug hiding behind the alert noise.
 
 **The headline for engineering:** the `SELECT factors` query takes **1338 ms** and its serialisation
@@ -483,18 +611,17 @@ burns **684 ms of CPU**, and the page fires it ~11× in parallel against a pool 
 Meanwhile the pre-ping round trip — identical work every time — goes from 4.6 ms idle to 28.7 ms
 during that burst, which says the pressure is on Postgres, not on the event loop.
 
-
 ## 0.4 The three areas, and what each actually needs
 
 The document is organised by defect, which makes it easy to lose the product view. Restated by
 area — because all three do need work, but for **three different reasons**, and only one of them is
 "make it faster".
 
-| | share of request-time | verdict | what it needs |
-|---|--:|---|---|
-| **Taxonomies** (and the wider CRUD API) | 1.1 % | **Genuinely slow. Fix the code.** | A 1338 ms query and 684 ms of CPU serialisation, fired ~11× per page load. Index / narrow / cache / batch. |
-| **Streams** | **95.0 %** | **Not slow — mis-measured, and operationally fragile.** | Get them out of the latency histogram *and* fix the timeout, keepalive and lifetime gaps. Two separate jobs; do not do only the first. |
-| **Uploads** | 1.1 % | **Not a latency problem. A correctness and safety one.** | Duplicate S3 writes, auth after the body is accepted, no size limit, 805 spans. Small blast radius, real defects. |
+|                                         | share of request-time | verdict                                                  | what it needs                                                                                                                          |
+| --------------------------------------- | --------------------: | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Taxonomies** (and the wider CRUD API) |                 1.1 % | **Genuinely slow. Fix the code.**                        | A 1338 ms query and 684 ms of CPU serialisation, fired ~11× per page load. Index / narrow / cache / batch.                             |
+| **Streams**                             |            **95.0 %** | **Not slow — mis-measured, and operationally fragile.**  | Get them out of the latency histogram _and_ fix the timeout, keepalive and lifetime gaps. Two separate jobs; do not do only the first. |
+| **Uploads**                             |                 1.1 % | **Not a latency problem. A correctness and safety one.** | Duplicate S3 writes, auth after the body is accepted, no size limit, 805 spans. Small blast radius, real defects.                      |
 
 ### Taxonomies — the real performance bug
 
@@ -527,7 +654,7 @@ does not make the streams good. Still outstanding:
   [§3.5](#35-p1--why-does-a-pipeline-take-2016-seconds)) — are jobs running sequentially?
 
 ⚠️ **The failure mode to avoid:** shipping the alerting fix, watching the emails stop, and closing
-#1402. The emails stopping is the *measurement* working. Job 2 is still open at that point.
+#1402. The emails stopping is the _measurement_ working. Job 2 is still open at that point.
 
 What is genuinely fine and should not be "fixed": the 2.015 s poll, the per-poll pool checkout,
 disconnect detection, and event de-duplication (61 sends for 103 polls). All correct.
@@ -549,7 +676,7 @@ But the trace shows four things worth a ticket regardless of latency:
 - **No `http.request_content_length`** anywhere, so slow client vs large file stays undecidable.
 
 → **P1-7** (spans, content-length) and **P2-1** ([§3.7](#37-p1--upload-path-structure)). Low
-priority by *time saved*, not by importance — the auth-ordering item is arguably a security ticket
+priority by _time saved_, not by importance — the auth-ordering item is arguably a security ticket
 that happens to have been found by a performance investigation.
 
 ---
@@ -561,48 +688,48 @@ four exports, ten minutes, and it unlocks the rest.**
 
 ### P0 — this week
 
-| # | Task | Why it is first | Owner | Effort | § |
-|---|---|---|---|---|---|
-| ~~P0-1~~ | ~~Export 4 traces~~ | **Done.** Results in [§1.8](#18-what-the-four-traces-settled--including-two-corrections) — and they retracted two v2 findings. | — | — | — |
-| **P0-1** | `EXPLAIN (ANALYZE, BUFFERS)` the `factors` query; add the composite index if missing; cache the response | 1338 ms in Postgres + 684 ms of CPU serialising, ~11× per page load, against a pool of 15. Now the clear top item. | backend | S | [§3.4](#34-p0--the-factors-query-and-its-serialisation) |
-| **P0-1b** | **Open the existing "DB Pool Usage" panel during a report-page load.** Is `checked_out` pinned to `size` (15)? | Answers pool exhaustion in one screenshot, with a panel you already have. Do it before touching any config. | anyone | 5 min | [§3.2](#32-p0--the-pool-exists-pool_pre_ping-costs-a-round-trip-per-checkout) |
-| **P0-2** | Decide deliberately on `pool_pre_ping`; record `pool_size`/`max_overflow`/`pool_timeout`/`pool_recycle` and the DBaaS `max_connections` | Pre-ping is 220 ms across one stream and 80 % of all `connect` time — but removing it has a real correctness cost. Decide, don't drift. | backend | S | [§3.2](#32-p0--the-pool-exists-pool_pre_ping-costs-a-round-trip-per-checkout) |
-| **P0-3** | Run the `http_target` no-op check; paste result into #1402 | One query. Decides whether months of "we filtered uploads and it didn't help" measured anything. | obs | 5 min | [§4.1](#41-first--is-the-current-exclusion-a-no-op) |
-| **P0-4** | Get stream duration out of the API latency histogram | A correct 201-second pipeline currently fires P50, P95 and P99. This is the literal ask in #1402. | obs | M | [§4.4](#44-stop-measuring-streams-as-latency) |
-| **P0-5** | Add `event_loop_lag_seconds` probe | 684 ms of CPU-bound serialisation *does* block the loop. Now worth measuring for real. | backend | S | [§3.1](#31-p0--measure-the-two-things-we-have-never-measured) |
-| **P0-6** | Determine whether probes are instrumented; get probe latency into metrics | No `/healthz` trace exists in any export. We have never measured the thing everyone is worried about. | backend + infra | S | [§3.1](#31-p0--measure-the-two-things-we-have-never-measured) |
-| **P0-7** | Fix `PodHighCPU` (**it can never fire** — wrong unit), drop `HighErrorRate` 0.5 → 0.02 on `5..` only, uncomment `Watchdog`, add `absent()` deadman | Three silent gaps. Nothing currently detects the backend going quiet. Ten lines of YAML. | obs | S | [§4.7](#47-the-current-prometheusrules--why-they-fire-and-what-to-change) |
+| #         | Task                                                                                                                                               | Why it is first                                                                                                                         | Owner           | Effort | §                                                                             |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------ | ----------------------------------------------------------------------------- |
+| ~~P0-1~~  | ~~Export 4 traces~~                                                                                                                                | **Done.** Results in [§1.8](#18-what-the-four-traces-settled--including-two-corrections) — and they retracted two v2 findings.          | —               | —      | —                                                                             |
+| **P0-1**  | `EXPLAIN (ANALYZE, BUFFERS)` the `factors` query; add the composite index if missing; cache the response                                           | 1338 ms in Postgres + 684 ms of CPU serialising, ~11× per page load, against a pool of 15. Now the clear top item.                      | backend         | S      | [§3.4](#34-p0--the-factors-query-and-its-serialisation)                       |
+| **P0-1b** | **Open the existing "DB Pool Usage" panel during a report-page load.** Is `checked_out` pinned to `size` (15)?                                     | Answers pool exhaustion in one screenshot, with a panel you already have. Do it before touching any config.                             | anyone          | 5 min  | [§3.2](#32-p0--the-pool-exists-pool_pre_ping-costs-a-round-trip-per-checkout) |
+| **P0-2**  | Decide deliberately on `pool_pre_ping`; record `pool_size`/`max_overflow`/`pool_timeout`/`pool_recycle` and the DBaaS `max_connections`            | Pre-ping is 220 ms across one stream and 80 % of all `connect` time — but removing it has a real correctness cost. Decide, don't drift. | backend         | S      | [§3.2](#32-p0--the-pool-exists-pool_pre_ping-costs-a-round-trip-per-checkout) |
+| **P0-3**  | Run the `http_target` no-op check; paste result into #1402                                                                                         | One query. Decides whether months of "we filtered uploads and it didn't help" measured anything.                                        | obs             | 5 min  | [§4.1](#41-first--is-the-current-exclusion-a-no-op)                           |
+| **P0-4**  | Get stream duration out of the API latency histogram                                                                                               | A correct 201-second pipeline currently fires P50, P95 and P99. This is the literal ask in #1402.                                       | obs             | M      | [§4.4](#44-stop-measuring-streams-as-latency)                                 |
+| **P0-5**  | Add `event_loop_lag_seconds` probe                                                                                                                 | 684 ms of CPU-bound serialisation _does_ block the loop. Now worth measuring for real.                                                  | backend         | S      | [§3.1](#31-p0--measure-the-two-things-we-have-never-measured)                 |
+| **P0-6**  | Determine whether probes are instrumented; get probe latency into metrics                                                                          | No `/healthz` trace exists in any export. We have never measured the thing everyone is worried about.                                   | backend + infra | S      | [§3.1](#31-p0--measure-the-two-things-we-have-never-measured)                 |
+| **P0-7**  | Fix `PodHighCPU` (**it can never fire** — wrong unit), drop `HighErrorRate` 0.5 → 0.02 on `5..` only, uncomment `Watchdog`, add `absent()` deadman | Three silent gaps. Nothing currently detects the backend going quiet. Ten lines of YAML.                                                | obs             | S      | [§4.7](#47-the-current-prometheusrules--why-they-fire-and-what-to-change)     |
 
 ### P1 — next
 
-| # | Task | Why | Owner | Effort | § |
-|---|---|---|---|---|---|
-| **P1-1** | Derive `route_class` in the collector | Prerequisite for every alert below. Config-only, no redeploy. | obs | M | [§4.3](#43-add-a-route_class-label--in-the-collector-not-the-app) |
-| **P1-2** | Move stream duration out of the API histogram; add TTFB + termination-reason metrics | 95 % of request-time is in the wrong metric. | obs | M | [§4.4](#44-stop-measuring-streams-as-latency) |
-| **P1-3** | Add `pipeline_duration_seconds` by kind, on a business dashboard | A 201 s pipeline is a product fact. Track it where it belongs, not in an HTTP alert. | obs + backend | S | [§4.4](#44-stop-measuring-streams-as-latency) |
-| **P1-3b** | Investigate **why a pipeline takes 201 s** | Now a legitimate open question rather than a stream bug. Needs `job_count` and per-job timings. | backend | M | [§3.5](#35-p1--why-does-a-pipeline-take-2016-seconds) |
-| **P1-4** | Switch the alert from p99 to proportion-of-fast-requests, `for: 10m` | p99 over `[5m]` on dev is arithmetically meaningless with a 201 s tail. | obs | S | [§4.2](#42-p99-over-5m-on-dev-is-not-a-usable-statistic) |
-| **P1-5** | Keepalive comment, `Last-Event-ID`, path-scoped Route timeout for `/v1/sync` | `jobs/stream` maxes at 36.1 s against a 30 s HAProxy default; pipelines reach 201 s. Also splits HAProxy metrics, fixing §4.7.2 for free. | backend + infra | M | [§3.3](#33-p1--the-2-second-poll-loop) |
-| **P1-6** | Enable `uvloop`; confirm replica count (traces show **≥3 pods**, so this is not single-process) | More workers will not help if the bottleneck is Postgres connections — do P0-1 first or it makes things worse. | infra | S | [§3.9](#310-p2--process-topology) |
-| **P1-7** | Suppress per-chunk ASGI spans; add `http.request_content_length` | 805 spans per upload. And without payload size, slow client vs large file stays undecidable. | backend | S | [§3.6](#36-p1--805-spans-per-upload) |
-| **P1-6b** | **Triage every route with p50 or mean > 200 ms** — 14 of 22 qualify. Re-measure *after* P0-1/P0-2 first; several will fall under the bar on their own | Every request pays a ~21–101 ms floor (new connection + uncached per-request user lookup) before any route work. Fix the floor once instead of 14 routes. | backend | M | [§3.5b](#35b-p1--every-route-over-200-ms-the-shared-floor-first-then-the-outliers) |
-| **P1-7b** | **Drop the psycopg instrumentor, keep SQLAlchemy** | Two DB instrumentors are active: every query emits two spans, every connect two more. **33–39 % of every DB trace is redundant.** Possibly a one-line env var. ⚠️ **After P0-1 is verified** — `connect` is a SQLAlchemy span and it is what proves the pooling fix. | backend | S | [§3.8](#38-p1--the-double-instrumentation-tax-and-the-syncasync-question) |
-| **P1-8** | Replace `LatencyP50/P95/P99High` with `ApiLatencySLOBreach` + `ProbeLatencyDegraded`; exclude the stream Route from `HaproxyRouteHighLatency` | **This is the literal ask in #1402.** Half of all import-workflow requests are streams, so the median request *is* a stream — p50>1s fires by construction. | obs | M | [§4.7.7](#477-the-replacement-latency-rules) |
-| **P1-8b** | **Grafana dashboard**: split "Latency percentile" by `route_class`, set `unit: ms`, **turn on exemplars**, split 4xx/5xx, fix the `$pod` variable, add `$namespace` | Exemplars alone turn "p99 spiked" into one click to the trace. The dashboard currently mixes 201 s pipelines with 120 ms CRUD, same as the alerts. | obs | M | [§4.9](#49-the-grafana-dashboard-specific-graphs-uid-ndr79mm) |
-| **P1-8c** | Add the missing panels: per-route p50/mean table, requests-in-flight, probe latency, event-loop lag, DB round-trip, active streams, pipeline duration, SLO burn | Requests-in-flight alone would have shown the 31-request fan-out immediately. | obs | M | [§4.9.6](#496-add-the-panels-that-were-missing) |
-| **P1-9** | Alertmanager: severity routing, inhibit rules, `repeatInterval` 4h → 24h for warnings, deadman receiver | `severity` is set on every rule and used by nothing; a stuck warning sends 6 emails/day. | obs | S | [§4.8](#48-alertmanager-routing) |
-| **P1-10** | De-hardcode `namespace="…-dev"` (7 occurrences) into an overlay variable | Stage and prod are currently uncovered or maintained as copies. | obs | S | [§4.7.6](#476-smaller-items) |
+| #         | Task                                                                                                                                                                | Why                                                                                                                                                                                                                                                                  | Owner           | Effort | §                                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------ | ---------------------------------------------------------------------------------- |
+| **P1-1**  | Derive `route_class` in the collector                                                                                                                               | Prerequisite for every alert below. Config-only, no redeploy.                                                                                                                                                                                                        | obs             | M      | [§4.3](#43-add-a-route_class-label--in-the-collector-not-the-app)                  |
+| **P1-2**  | Move stream duration out of the API histogram; add TTFB + termination-reason metrics                                                                                | 95 % of request-time is in the wrong metric.                                                                                                                                                                                                                         | obs             | M      | [§4.4](#44-stop-measuring-streams-as-latency)                                      |
+| **P1-3**  | Add `pipeline_duration_seconds` by kind, on a business dashboard                                                                                                    | A 201 s pipeline is a product fact. Track it where it belongs, not in an HTTP alert.                                                                                                                                                                                 | obs + backend   | S      | [§4.4](#44-stop-measuring-streams-as-latency)                                      |
+| **P1-3b** | Investigate **why a pipeline takes 201 s**                                                                                                                          | Now a legitimate open question rather than a stream bug. Needs `job_count` and per-job timings.                                                                                                                                                                      | backend         | M      | [§3.5](#35-p1--why-does-a-pipeline-take-2016-seconds)                              |
+| **P1-4**  | Switch the alert from p99 to proportion-of-fast-requests, `for: 10m`                                                                                                | p99 over `[5m]` on dev is arithmetically meaningless with a 201 s tail.                                                                                                                                                                                              | obs             | S      | [§4.2](#42-p99-over-5m-on-dev-is-not-a-usable-statistic)                           |
+| **P1-5**  | Keepalive comment, `Last-Event-ID`, path-scoped Route timeout for `/v1/sync`                                                                                        | `jobs/stream` maxes at 36.1 s against a 30 s HAProxy default; pipelines reach 201 s. Also splits HAProxy metrics, fixing §4.7.2 for free.                                                                                                                            | backend + infra | M      | [§3.3](#33-p1--the-2-second-poll-loop)                                             |
+| **P1-6**  | Enable `uvloop`; confirm replica count (traces show **≥3 pods**, so this is not single-process)                                                                     | More workers will not help if the bottleneck is Postgres connections — do P0-1 first or it makes things worse.                                                                                                                                                       | infra           | S      | [§3.9](#310-p2--process-topology)                                                  |
+| **P1-7**  | Suppress per-chunk ASGI spans; add `http.request_content_length`                                                                                                    | 805 spans per upload. And without payload size, slow client vs large file stays undecidable.                                                                                                                                                                         | backend         | S      | [§3.6](#36-p1--805-spans-per-upload)                                               |
+| **P1-6b** | **Triage every route with p50 or mean > 200 ms** — 14 of 22 qualify. Re-measure _after_ P0-1/P0-2 first; several will fall under the bar on their own               | Every request pays a ~21–101 ms floor (new connection + uncached per-request user lookup) before any route work. Fix the floor once instead of 14 routes.                                                                                                            | backend         | M      | [§3.5b](#35b-p1--every-route-over-200-ms-the-shared-floor-first-then-the-outliers) |
+| **P1-7b** | **Drop the psycopg instrumentor, keep SQLAlchemy**                                                                                                                  | Two DB instrumentors are active: every query emits two spans, every connect two more. **33–39 % of every DB trace is redundant.** Possibly a one-line env var. ⚠️ **After P0-1 is verified** — `connect` is a SQLAlchemy span and it is what proves the pooling fix. | backend         | S      | [§3.8](#38-p1--the-double-instrumentation-tax-and-the-syncasync-question)          |
+| **P1-8**  | Replace `LatencyP50/P95/P99High` with `ApiLatencySLOBreach` + `ProbeLatencyDegraded`; exclude the stream Route from `HaproxyRouteHighLatency`                       | **This is the literal ask in #1402.** Half of all import-workflow requests are streams, so the median request _is_ a stream — p50>1s fires by construction.                                                                                                          | obs             | M      | [§4.7.7](#477-the-replacement-latency-rules)                                       |
+| **P1-8b** | **Grafana dashboard**: split "Latency percentile" by `route_class`, set `unit: ms`, **turn on exemplars**, split 4xx/5xx, fix the `$pod` variable, add `$namespace` | Exemplars alone turn "p99 spiked" into one click to the trace. The dashboard currently mixes 201 s pipelines with 120 ms CRUD, same as the alerts.                                                                                                                   | obs             | M      | [§4.9](#49-the-grafana-dashboard-specific-graphs-uid-ndr79mm)                      |
+| **P1-8c** | Add the missing panels: per-route p50/mean table, requests-in-flight, probe latency, event-loop lag, DB round-trip, active streams, pipeline duration, SLO burn     | Requests-in-flight alone would have shown the 31-request fan-out immediately.                                                                                                                                                                                        | obs             | M      | [§4.9.6](#496-add-the-panels-that-were-missing)                                    |
+| **P1-9**  | Alertmanager: severity routing, inhibit rules, `repeatInterval` 4h → 24h for warnings, deadman receiver                                                             | `severity` is set on every rule and used by nothing; a stuck warning sends 6 emails/day.                                                                                                                                                                             | obs             | S      | [§4.8](#48-alertmanager-routing)                                                   |
+| **P1-10** | De-hardcode `namespace="…-dev"` (7 occurrences) into an overlay variable                                                                                            | Stage and prod are currently uncovered or maintained as copies.                                                                                                                                                                                                      | obs             | S      | [§4.7.6](#476-smaller-items)                                                       |
 
 ### P2 — after the above lands
 
-| # | Task | Why | Owner | Effort | § |
-|---|---|---|---|---|---|
-| **P2-1** | Upload path audit: S3 client sync/async, double `PutObject`, auth-after-body, size limit | Real findings, but 1.1 % of request-time. | backend | M | [§3.6](#37-p1--upload-path-structure) |
-| **P2-2** | Confirm whether psycopg v3 is used **sync or async** | A sync driver makes every 1338 ms `factors` query a full event-loop stall. | backend | S | [§3.8](#38-p1--the-double-instrumentation-tax-and-the-syncasync-question) |
-| **P2-3** | `auth/callback` at 712–880 ms — synchronous Keycloak call? | Sub-second, but on every login. | backend | S | [§3.8](#39-p2--get-v1authcallback-at-712880-ms) |
-| **P2-4** | Storage: `aioboto3` → staging + job → presigned direct-to-S3 | Do not start before P0-3 and P0-4 report. | backend | S→L | [§5](#5-workstream-c--upload--storage) |
-| **P2-5** | Separate Deployment for stream endpoints | Isolates 95 % of request-time from the main API with no code change. | infra | M | [§8](#8-other-pistes) |
-| **P2-6** | k6/Locust scenario: 31-request burst + N streams + 1 upload | Without it, none of this is regression-testable. | backend | M | [§8](#8-other-pistes) |
+| #        | Task                                                                                     | Why                                                                        | Owner   | Effort | §                                                                         |
+| -------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------- | ------ | ------------------------------------------------------------------------- |
+| **P2-1** | Upload path audit: S3 client sync/async, double `PutObject`, auth-after-body, size limit | Real findings, but 1.1 % of request-time.                                  | backend | M      | [§3.6](#37-p1--upload-path-structure)                                     |
+| **P2-2** | Confirm whether psycopg v3 is used **sync or async**                                     | A sync driver makes every 1338 ms `factors` query a full event-loop stall. | backend | S      | [§3.8](#38-p1--the-double-instrumentation-tax-and-the-syncasync-question) |
+| **P2-3** | `auth/callback` at 712–880 ms — synchronous Keycloak call?                               | Sub-second, but on every login.                                            | backend | S      | [§3.8](#39-p2--get-v1authcallback-at-712880-ms)                           |
+| **P2-4** | Storage: `aioboto3` → staging + job → presigned direct-to-S3                             | Do not start before P0-3 and P0-4 report.                                  | backend | S→L    | [§5](#5-workstream-c--upload--storage)                                    |
+| **P2-5** | Separate Deployment for stream endpoints                                                 | Isolates 95 % of request-time from the main API with no code change.       | infra   | M      | [§8](#8-other-pistes)                                                     |
+| **P2-6** | k6/Locust scenario: 31-request burst + N streams + 1 upload                              | Without it, none of this is regression-testable.                           | backend | M      | [§8](#8-other-pistes)                                                     |
 
 **Not yet scheduled:** a 15-minute Tempo export from **prod** during real concurrency. Everything in
 §1.5–§1.6 was measured at an average of 0.5 concurrent streams on stage.
@@ -619,32 +746,32 @@ not of volume.
 
 ### 1.1 Every distinct route
 
-| Route | n | min | **p50** | mean | p95 | **max** | Σ time |
-|---|--:|--:|--:|--:|--:|--:|--:|
-| `GET /v1/sync/pipelines/{pid}/stream` | 23 | 4.07 s | **8.16 s** | 38.97 s | 189.8 s | **201.6 s** | **896 s** |
-| `GET /v1/sync/jobs/{jid}/stream` | 25 | 4.06 s | **6.19 s** | 11.55 s | 32.3 s | **36.1 s** | **289 s** |
-| `GET /v1/taxonomies/module/{module}/{data_entry}` | 16 | 134 ms | **948 ms** | 893 ms | 2064 ms | 2064 ms | 14.3 s |
-| `POST /v1/files/temp-upload` | 22 | 301 ms | 408 ms | 636 ms | 1142 ms | 3036 ms | 14.0 s |
-| `GET /v1/carbon-reports/{id}/modules/{m}/{sub}` | 29 | 119 ms | 249 ms | 379 ms | 936 ms | 1004 ms | 11.0 s |
-| `POST /v1/sync/dispatch` | 23 | 198 ms | 261 ms | 301 ms | 557 ms | 814 ms | 6.9 s |
-| `GET /v1/auth/callback` | 4 | 712 ms | 867 ms | 832 ms | 880 ms | 880 ms | 3.3 s |
-| `GET /v1/carbon-reports/{id}/modules/{m}` | 13 | 110 ms | 199 ms | 255 ms | 517 ms | 517 ms | 3.3 s |
-| `GET /v1/factors/{t}/class-subclass-map` | 11 | 132 ms | 254 ms | 263 ms | 396 ms | 396 ms | 2.9 s |
-| `POST /v1/carbon-reports/{id}/modules/{m}/{sub}` | 4 | 354 ms | 396 ms | 407 ms | 481 ms | 481 ms | 1.6 s |
-| `GET /v1/backoffice/units` | 3 | 380 ms | 394 ms | 390 ms | — | 395 ms | 1.2 s |
-| `GET /v1/carbon-reports/simulator/explore/...` | 3 | 139 ms | 262 ms | 368 ms | — | 703 ms | 1.1 s |
-| `GET /v1/sync/active-pipelines` | 6 | 130 ms | 154 ms | 155 ms | 193 ms | 193 ms | 0.9 s |
-| `GET /v1/year-configuration/{year}` | 5 | 122 ms | 155 ms | 181 ms | 252 ms | 252 ms | 0.9 s |
-| `GET /v1/carbon-reports/{id}/modules/headcount/members` | 3 | 102 ms | 156 ms | 224 ms | — | 415 ms | 0.7 s |
-| `GET /v1/modules-stats/{id}/report-stats` | 1 | — | 298 ms | — | — | 298 ms | 0.3 s |
-| `PATCH /v1/year-configuration/{year}` | 2 | 102 ms | 127 ms | 127 ms | — | 152 ms | 0.3 s |
-| `GET /v1/modules-stats/{id}/validated-totals` | 1 | — | 219 ms | — | — | 219 ms | 0.2 s |
-| `GET /v1/carbon-reports/unit/{uid}/year/{year}/` | 1 | — | 217 ms | — | — | 217 ms | 0.2 s |
-| `GET /v1/factors/{t}/list` | 1 | — | 164 ms | — | — | 164 ms | 0.2 s |
-| `GET /v1/sync/pipelines` | 1 | — | 156 ms | — | — | 156 ms | 0.2 s |
-| `GET /v1/auth/login` | 1 | — | 153 ms | — | — | 153 ms | 0.2 s |
-| `PATCH /v1/project-plans/{plan_id}` | 1 | — | 149 ms | — | — | 149 ms | 0.1 s |
-| `GET /v1/connectors` | 1 | — | 122 ms | — | — | 122 ms | 0.1 s |
+| Route                                                   |   n |    min |    **p50** |    mean |     p95 |     **max** |    Σ time |
+| ------------------------------------------------------- | --: | -----: | ---------: | ------: | ------: | ----------: | --------: |
+| `GET /v1/sync/pipelines/{pid}/stream`                   |  23 | 4.07 s | **8.16 s** | 38.97 s | 189.8 s | **201.6 s** | **896 s** |
+| `GET /v1/sync/jobs/{jid}/stream`                        |  25 | 4.06 s | **6.19 s** | 11.55 s |  32.3 s |  **36.1 s** | **289 s** |
+| `GET /v1/taxonomies/module/{module}/{data_entry}`       |  16 | 134 ms | **948 ms** |  893 ms | 2064 ms |     2064 ms |    14.3 s |
+| `POST /v1/files/temp-upload`                            |  22 | 301 ms |     408 ms |  636 ms | 1142 ms |     3036 ms |    14.0 s |
+| `GET /v1/carbon-reports/{id}/modules/{m}/{sub}`         |  29 | 119 ms |     249 ms |  379 ms |  936 ms |     1004 ms |    11.0 s |
+| `POST /v1/sync/dispatch`                                |  23 | 198 ms |     261 ms |  301 ms |  557 ms |      814 ms |     6.9 s |
+| `GET /v1/auth/callback`                                 |   4 | 712 ms |     867 ms |  832 ms |  880 ms |      880 ms |     3.3 s |
+| `GET /v1/carbon-reports/{id}/modules/{m}`               |  13 | 110 ms |     199 ms |  255 ms |  517 ms |      517 ms |     3.3 s |
+| `GET /v1/factors/{t}/class-subclass-map`                |  11 | 132 ms |     254 ms |  263 ms |  396 ms |      396 ms |     2.9 s |
+| `POST /v1/carbon-reports/{id}/modules/{m}/{sub}`        |   4 | 354 ms |     396 ms |  407 ms |  481 ms |      481 ms |     1.6 s |
+| `GET /v1/backoffice/units`                              |   3 | 380 ms |     394 ms |  390 ms |       — |      395 ms |     1.2 s |
+| `GET /v1/carbon-reports/simulator/explore/...`          |   3 | 139 ms |     262 ms |  368 ms |       — |      703 ms |     1.1 s |
+| `GET /v1/sync/active-pipelines`                         |   6 | 130 ms |     154 ms |  155 ms |  193 ms |      193 ms |     0.9 s |
+| `GET /v1/year-configuration/{year}`                     |   5 | 122 ms |     155 ms |  181 ms |  252 ms |      252 ms |     0.9 s |
+| `GET /v1/carbon-reports/{id}/modules/headcount/members` |   3 | 102 ms |     156 ms |  224 ms |       — |      415 ms |     0.7 s |
+| `GET /v1/modules-stats/{id}/report-stats`               |   1 |      — |     298 ms |       — |       — |      298 ms |     0.3 s |
+| `PATCH /v1/year-configuration/{year}`                   |   2 | 102 ms |     127 ms |  127 ms |       — |      152 ms |     0.3 s |
+| `GET /v1/modules-stats/{id}/validated-totals`           |   1 |      — |     219 ms |       — |       — |      219 ms |     0.2 s |
+| `GET /v1/carbon-reports/unit/{uid}/year/{year}/`        |   1 |      — |     217 ms |       — |       — |      217 ms |     0.2 s |
+| `GET /v1/factors/{t}/list`                              |   1 |      — |     164 ms |       — |       — |      164 ms |     0.2 s |
+| `GET /v1/sync/pipelines`                                |   1 |      — |     156 ms |       — |       — |      156 ms |     0.2 s |
+| `GET /v1/auth/login`                                    |   1 |      — |     153 ms |       — |       — |      153 ms |     0.2 s |
+| `PATCH /v1/project-plans/{plan_id}`                     |   1 |      — |     149 ms |       — |       — |      149 ms |     0.1 s |
+| `GET /v1/connectors`                                    |   1 |      — |     122 ms |       — |       — |      122 ms |     0.1 s |
 
 **Total request-time: 1249 s.** `pipelines/stream` = **71.8 %**, `jobs/stream` = **23.1 %**.
 Everything else combined = **5.1 %**.
@@ -665,8 +792,8 @@ GET  …/pipelines/{id}/stream (23)   watch the pipeline p50  8.16 s   max 201.6
 Taking each stream duration modulo 2000 ms:
 
 | duration mod 2 s | 0–100 ms | 100–200 | 200–300 | >1000 |
-|---|--:|--:|--:|--:|
-| count | 32 | 8 | 4 | 4 |
+| ---------------- | -------: | ------: | ------: | ----: |
+| count            |       32 |       8 |       4 |     4 |
 
 **44 of 48 stream durations land within 300 ms of an exact multiple of 2 seconds.** Durations are
 4.06, 6.07, 8.09, 12.10, 14.24, 16.14, 22.16, 28.26, 30.05, 32.26, 36.08 s — a quantised ladder.
@@ -681,22 +808,22 @@ tell one browser that nothing changed.
 
 Pairing each `pipelines/stream` with the `jobs/stream` that started within 500 ms of it:
 
-| pairs | pipeline ÷ job | reading |
-|---|---|---|
-| 15 of 22 | **1.00** | both end together — correct |
-| 7 of 22 | **1.98 – 12.48** | job finished, pipeline stream kept polling |
+| pairs    | pipeline ÷ job   | reading                                    |
+| -------- | ---------------- | ------------------------------------------ |
+| 15 of 22 | **1.00**         | both end together — correct                |
+| 7 of 22  | **1.98 – 12.48** | job finished, pipeline stream kept polling |
 
 The seven divergent pairs:
 
-| job stream ends | pipeline stream ends | wasted |
-|--:|--:|--:|
-| 16.16 s | **201.62 s** | **185 s** |
-| 36.08 s | **189.83 s** | **154 s** |
-| 16.14 s | **156.11 s** | **140 s** |
-| 30.05 s | **115.32 s** | **85 s** |
-| 22.16 s | 47.17 s | 25 s |
-| 6.07 s | 28.26 s | 22 s |
-| 6.13 s | 12.13 s | 6 s |
+| job stream ends | pipeline stream ends |    wasted |
+| --------------: | -------------------: | --------: |
+|         16.16 s |         **201.62 s** | **185 s** |
+|         36.08 s |         **189.83 s** | **154 s** |
+|         16.14 s |         **156.11 s** | **140 s** |
+|         30.05 s |         **115.32 s** |  **85 s** |
+|         22.16 s |              47.17 s |      25 s |
+|          6.07 s |              28.26 s |      22 s |
+|          6.13 s |              12.13 s |       6 s |
 
 **All four traces above 100 s are zombies.** The p99 of your entire API is not a slow pipeline —
 it is a connection that forgot to hang up, polling the database every 2 seconds for three minutes
@@ -708,24 +835,24 @@ This kills the v1 interpretation ("201 s stream = 201 s pipeline, possibly corre
 
 Latency of non-stream requests against total requests in flight at their start:
 
-| in flight | n | p50 | mean | max |
-|--:|--:|--:|--:|--:|
-| 1 | 60 | 312 ms | 403 ms | 3036 ms |
-| 2–5 | 47 | ~200 ms | ~300 ms | 1402 ms |
-| 6–9 | 20 | ~220 ms | ~290 ms | 865 ms |
-| 10 | 5 | 254 ms | 502 ms | 1390 ms |
-| 11 | 4 | 492 ms | 616 ms | 1254 ms |
-| **12+** | **16** | **851 ms** | **916 ms** | **2064 ms** |
+| in flight |      n |        p50 |       mean |         max |
+| --------: | -----: | ---------: | ---------: | ----------: |
+|         1 |     60 |     312 ms |     403 ms |     3036 ms |
+|       2–5 |     47 |    ~200 ms |    ~300 ms |     1402 ms |
+|       6–9 |     20 |    ~220 ms |    ~290 ms |      865 ms |
+|        10 |      5 |     254 ms |     502 ms |     1390 ms |
+|        11 |      4 |     492 ms |     616 ms |     1254 ms |
+|   **12+** | **16** | **851 ms** | **916 ms** | **2064 ms** |
 
 Five bursts of ≥5 requests within one second appear in the window; the largest fires **31 requests
 in 1.5 seconds** (11 of them `taxonomies`, 18 of them `modules/{m}/{sub}`).
 
 The clean natural experiment — same endpoint, inside vs outside that burst:
 
-| `GET /v1/taxonomies/module/{module}/{data_entry}` | n | p50 | max |
-|---|--:|--:|--:|
-| inside the 31-request burst | 11 | **1254 ms** | 2064 ms |
-| outside it | 5 | **237 ms** | 962 ms |
+| `GET /v1/taxonomies/module/{module}/{data_entry}` |   n |         p50 |     max |
+| ------------------------------------------------- | --: | ----------: | ------: |
+| inside the 31-request burst                       |  11 | **1254 ms** | 2064 ms |
+| outside it                                        |   5 |  **237 ms** |  962 ms |
 
 **5.3× slower, same endpoint, same code path.** The endpoint is not slow; it is queued behind
 30 siblings on one event loop. Its headline "948 ms median" in §1.1 is an artefact of the burst.
@@ -733,14 +860,14 @@ The clean natural experiment — same endpoint, inside vs outside that burst:
 All seven `taxonomies` calls over 1 s occurred at **zero** concurrent streams and **zero**
 concurrent uploads. This is self-inflicted, and it is the thing actually moving your p99.
 
-### 1.6 What the data does *not* show — read this before acting
+### 1.6 What the data does _not_ show — read this before acting
 
 The DevOps hypothesis was: an upload blocks the event loop, so everything including health checks
 goes slow. **This sample does not support that, and the honest position is "not proven here":**
 
 - **Zero** non-stream, non-upload requests overlapped an upload at all (22 uploads, all short and
   clustered while the browser was otherwise idle). The comparison could not be made.
-- Latency against concurrent *streams* shows no trend (p50 is 256 ms at 0 streams, 178 ms at 1,
+- Latency against concurrent _streams_ shows no trend (p50 is 256 ms at 0 streams, 178 ms at 1,
   252 ms at 2 — noise).
 - Peak concurrency was 6 streams; average **0.5**. This is a quiet stage environment.
 - No `/healthz` or `/readyz` traces are in the export at all — probes are either excluded from
@@ -754,12 +881,12 @@ be the basis for a sprint of work, and `aioboto3` should not be the first commit
 The one full OTLP trace — and note it is the **upload from the same workflow instance as the
 201.6 s zombie**, fired 3.4 s earlier. 816 spans, 3.037 s, HTTP 200.
 
-| Phase | Window | Duration | Share |
-|---|---|---|---|
-| Body ingestion (805 × `http receive`) | t+0.001 → t+2.330 | 2.330 s | 77 % |
-| Auth DB (`connect` + `SELECT users …`) | t+2.343 → t+2.351 | 8 ms | 0.3 % |
-| S3 (4 round-trips) | t+2.556 → t+3.032 | 476 ms | 16 % |
-| Untraced | scattered | ~220 ms | 7 % |
+| Phase                                  | Window            | Duration | Share |
+| -------------------------------------- | ----------------- | -------- | ----- |
+| Body ingestion (805 × `http receive`)  | t+0.001 → t+2.330 | 2.330 s  | 77 %  |
+| Auth DB (`connect` + `SELECT users …`) | t+2.343 → t+2.351 | 8 ms     | 0.3 % |
+| S3 (4 round-trips)                     | t+2.556 → t+3.032 | 476 ms   | 16 %  |
+| Untraced                               | scattered         | ~220 ms  | 7 %   |
 
 - **805 `http receive` spans** — one per body chunk. Inside `await receive()`: 1548 ms; in gaps: 781 ms.
   Per chunk p50 0.236 ms / p90 6.08 / p99 12.67 / max 29.1. One unexplained **335 ms gap at t+1.424**.
@@ -768,7 +895,7 @@ The one full OTLP trace — and note it is the **upload from the same workflow i
 - DB: four spans for one query (`connect`, `;`, `SELECT app`, `SELECT`) — looks like double
   instrumentation. Pyformat placeholders. Runs **after** the whole body is read.
 
-⚠️ At 3.037 s this is the **slowest of 22 uploads**; p50 is 408 ms. Generalise the *structure*,
+⚠️ At 3.037 s this is the **slowest of 22 uploads**; p50 is 408 ms. Generalise the _structure_,
 never the duration.
 
 ### 1.8 What the four traces settled — including two corrections
@@ -802,13 +929,13 @@ able to trip an HTTP latency alert.
 
 #### ❌ Correction 2 — the taxonomies slowness is not queueing either
 
-| phase | fast (`buildings/building`) | slow (`purchase/other_purchases`) | ratio |
-|---|--:|--:|--:|
-| `connect` | 5.9 ms | 29.1 ms | 4.9× |
-| `SELECT users` (auth) | 15.2 ms | 71.7 ms | 4.7× |
-| **`SELECT factors`** | **69.7 ms** | **1338.4 ms** | **19.2×** |
-| tail (Python, post-query) | 51.4 ms | 683.6 ms | 13.3× |
-| **total** | **134.5 ms** | **2064.0 ms** | 15.3× |
+| phase                     | fast (`buildings/building`) | slow (`purchase/other_purchases`) |     ratio |
+| ------------------------- | --------------------------: | --------------------------------: | --------: |
+| `connect`                 |                      5.9 ms |                           29.1 ms |      4.9× |
+| `SELECT users` (auth)     |                     15.2 ms |                           71.7 ms |      4.7× |
+| **`SELECT factors`**      |                 **69.7 ms** |                     **1338.4 ms** | **19.2×** |
+| tail (Python, post-query) |                     51.4 ms |                          683.6 ms |     13.3× |
+| **total**                 |                **134.5 ms** |                     **2064.0 ms** |     15.3× |
 
 Both traces have the **identical four-span structure — there is no N+1.**
 
@@ -820,7 +947,7 @@ What the numbers do say is more interesting, because it is two effects at once:
 
 - **A uniform ~5× slowdown on work that is identical in both traces** — `connect` and the auth
   `SELECT users` do the same thing regardless of which taxonomy is requested. Five times slower
-  means the *database* was under load, not the app.
+  means the _database_ was under load, not the app.
 - **A further 19× on the `factors` query** and 13× on serialisation, which scale with result size —
   `purchase/other_purchases` returns far more rows than `buildings/building`.
 
@@ -829,13 +956,13 @@ What the numbers do say is more interesting, because it is two effects at once:
 **There is no database connection pooling.** A `connect` span appears inside every single request,
 in all five traces now examined. In the streams it is one connection **per poll**:
 
-| trace | duration | polls | **`connect` spans** | queries |
-|---|--:|--:|--:|--:|
-| `cd7e8875…` pipeline stream | 201.6 s | 103 | **103** | 204 |
-| `d3b58370…` job stream | 16.2 s | 11 | **11** | 21 |
-| `c68e5936…` taxonomies | 2.06 s | — | 1 | 2 |
-| `cba57ecd…` taxonomies | 0.13 s | — | 1 | 2 |
-| `a7cfb477…` upload | 3.04 s | — | 1 | 1 |
+| trace                       | duration | polls | **`connect` spans** | queries |
+| --------------------------- | -------: | ----: | ------------------: | ------: |
+| `cd7e8875…` pipeline stream |  201.6 s |   103 |             **103** |     204 |
+| `d3b58370…` job stream      |   16.2 s |    11 |              **11** |      21 |
+| `c68e5936…` taxonomies      |   2.06 s |     — |                   1 |       2 |
+| `cba57ecd…` taxonomies      |   0.13 s |     — |                   1 |       2 |
+| `a7cfb477…` upload          |   3.04 s |     — |                   1 |       1 |
 
 **One HTTP request opened 103 PostgreSQL connections.** Each poll: `connect` → `;` → two `SELECT`s
 → presumably close. Across the 48 streams in the 200-trace sample that is on the order of a
@@ -858,7 +985,7 @@ trace above. The head-of-line blocking is in Postgres, not in Python.
 - **Duplicate instrumentation confirmed**: every query produces both a `SELECT` span
   (`opentelemetry.instrumentation.psycopg`) and a `SELECT app` span (SQLAlchemy). The driver is
   **psycopg v3**, so §3.7's sync-vs-async question is still open, but the double-counting is settled.
-- **683 ms of CPU-bound Python** serialising the slow taxonomy response. *That* does block the
+- **683 ms of CPU-bound Python** serialising the slow taxonomy response. _That_ does block the
   event loop — the blocking is real, it just comes from taxonomy serialisation rather than uploads.
 
 ---
@@ -878,7 +1005,7 @@ histogram_quantile(0.99, sum by (le) (
 
 Three independent reasons it does not do what it looks like. Check in order.
 
-**1 — the matcher is probably a no-op.** `http.target` is attached to *spans* (it is in the OTLP
+**1 — the matcher is probably a no-op.** `http.target` is attached to _spans_ (it is in the OTLP
 trace) but the OTel ASGI **duration metric** attribute set is deliberately narrower. In PromQL an
 absent label is the empty string, and `"" !~ "^.*upload.*$"` is **true**, so every series is kept.
 Verify with §4.1 before believing any conclusion drawn from this query.
@@ -887,7 +1014,7 @@ Verify with §4.1 before believing any conclusion drawn from this query.
 Excluding `.*upload.*` removes almost nothing from the tail.
 
 **3 — even a correct filter leaves the real cause.** For normal endpoints the p99 is driven by the
-frontend's own 31-request burst (§1.5), which is *inside* whatever set you keep. You cannot filter
+frontend's own 31-request burst (§1.5), which is _inside_ whatever set you keep. You cannot filter
 away requests queued behind each other.
 
 ---
@@ -935,11 +1062,11 @@ still alive.
 
 Subtracting the child gives the true checkout cost:
 
-| trace | `connect` | of which `;` (pre-ping) | **true checkout** |
-|---|--:|--:|--:|
-| taxonomies 134 ms | 5.94 ms | 4.62 ms (78 %) | **1.32 ms** |
-| taxonomies 2064 ms | 29.14 ms | 28.70 ms (99 %) | **0.44 ms** |
-| pipeline stream (p50 of 103) | 2.20 ms | 1.67 ms (80 %) | **0.51 ms** |
+| trace                        | `connect` | of which `;` (pre-ping) | **true checkout** |
+| ---------------------------- | --------: | ----------------------: | ----------------: |
+| taxonomies 134 ms            |   5.94 ms |          4.62 ms (78 %) |       **1.32 ms** |
+| taxonomies 2064 ms           |  29.14 ms |         28.70 ms (99 %) |       **0.44 ms** |
+| pipeline stream (p50 of 103) |   2.20 ms |          1.67 ms (80 %) |       **0.51 ms** |
 
 **0.4–1.3 ms is a pool checkout.** A real handshake to a remote DBaaS — TCP, TLS, auth — would be
 tens of milliseconds. The pool is working. v3 read `connect` as "new connection" and was wrong.
@@ -960,9 +1087,9 @@ every trace.
 **2. The pre-ping is an accidental network probe — use it.** It is a fixed, trivial statement, so
 its duration measures nothing but round-trip time to Postgres:
 
-| | idle | during the 31-request burst |
-|---|--:|--:|
-| `;` pre-ping | 4.62 ms | **28.70 ms** |
+|              |    idle | during the 31-request burst |
+| ------------ | ------: | --------------------------: |
+| `;` pre-ping | 4.62 ms |                **28.70 ms** |
 
 **A 6× increase in raw round-trip time to the database.** Identical work, no payload, no ORM. This
 is the cleanest evidence in the whole investigation that the burst pressure lands on **Postgres or
@@ -1077,11 +1204,11 @@ they share a floor.
 
 Every request in every trace pays, before any route-specific work happens:
 
-| | fast trace | slow trace |
-|---|--:|--:|
-| `connect` (a **new** PG connection, §3.2) | 5.9 ms | 29.1 ms |
-| `SELECT users … WHERE institutional_id AND provider` (auth) | 15.2 ms | 71.7 ms |
-| **floor** | **~21 ms** | **~101 ms** |
+|                                                             | fast trace |  slow trace |
+| ----------------------------------------------------------- | ---------: | ----------: |
+| `connect` (a **new** PG connection, §3.2)                   |     5.9 ms |     29.1 ms |
+| `SELECT users … WHERE institutional_id AND provider` (auth) |    15.2 ms |     71.7 ms |
+| **floor**                                                   | **~21 ms** | **~101 ms** |
 
 So a chunk of every number in the table below is P0-1 and an uncached per-request user lookup.
 **Re-measure after P0-1 before triaging any individual route** — several will drop under the bar on
@@ -1100,22 +1227,22 @@ Two questions that fall out of this and are worth their own answers:
 Bar: **p50 > 200 ms or mean > 200 ms**, streams excluded (they are session duration, §4.4).
 "Weak" means too few samples to act on — confirm before investing.
 
-| Route | n | p50 | mean | max | Note |
-|---|--:|--:|--:|--:|---|
-| `GET /v1/taxonomies/module/{module}/{data_entry}` | 16 | **948** | 893 | 2064 | **§3.4** — root cause known: `factors` query + serialisation |
-| `GET /v1/auth/callback` | 4 | **867** | 832 | 880 | **§3.9** — synchronous Keycloak token exchange? On every login |
-| `POST /v1/files/temp-upload` | 22 | 408 | 636 | 3036 | **§3.7** — body transfer + 4 S3 round-trips |
-| `POST /v1/carbon-reports/{id}/modules/{m}/{sub}` | 4 | 396 | 407 | 481 | weak. A write path — check for per-row commits |
-| `GET /v1/backoffice/units` | 3 | 394 | 390 | 395 | weak. Suspiciously flat — probably a fixed-cost full-table read; cacheable |
-| `GET /v1/carbon-reports/{id}/modules/{m}/{sub}` | 29 | 249 | 379 | 1004 | **Best sample in the set.** mean ≫ p50 ⇒ a slow tail worth a trace |
-| `GET /v1/carbon-reports/simulator/explore/...` | 3 | 262 | 368 | 703 | weak |
-| `POST /v1/sync/dispatch` | 23 | 261 | 301 | 814 | Good sample. Should be near-trivial — it only enqueues |
-| `GET /v1/modules-stats/{id}/report-stats` | 1 | 298 | — | 298 | weak |
-| `GET /v1/factors/{t}/class-subclass-map` | 11 | 254 | 263 | 396 | Same `factors` table as §3.4 — likely the same index question |
-| `GET /v1/carbon-reports/{id}/modules/{m}` | 13 | 199 | 255 | 517 | Just over on mean |
-| `GET /v1/carbon-reports/{id}/modules/headcount/members` | 3 | 156 | 224 | 415 | weak |
-| `GET /v1/modules-stats/{id}/validated-totals` | 1 | 219 | — | 219 | weak |
-| `GET /v1/carbon-reports/unit/{uid}/year/{year}/` | 1 | 217 | — | 217 | weak |
+| Route                                                   |   n |     p50 | mean |  max | Note                                                                       |
+| ------------------------------------------------------- | --: | ------: | ---: | ---: | -------------------------------------------------------------------------- |
+| `GET /v1/taxonomies/module/{module}/{data_entry}`       |  16 | **948** |  893 | 2064 | **§3.4** — root cause known: `factors` query + serialisation               |
+| `GET /v1/auth/callback`                                 |   4 | **867** |  832 |  880 | **§3.9** — synchronous Keycloak token exchange? On every login             |
+| `POST /v1/files/temp-upload`                            |  22 |     408 |  636 | 3036 | **§3.7** — body transfer + 4 S3 round-trips                                |
+| `POST /v1/carbon-reports/{id}/modules/{m}/{sub}`        |   4 |     396 |  407 |  481 | weak. A write path — check for per-row commits                             |
+| `GET /v1/backoffice/units`                              |   3 |     394 |  390 |  395 | weak. Suspiciously flat — probably a fixed-cost full-table read; cacheable |
+| `GET /v1/carbon-reports/{id}/modules/{m}/{sub}`         |  29 |     249 |  379 | 1004 | **Best sample in the set.** mean ≫ p50 ⇒ a slow tail worth a trace         |
+| `GET /v1/carbon-reports/simulator/explore/...`          |   3 |     262 |  368 |  703 | weak                                                                       |
+| `POST /v1/sync/dispatch`                                |  23 |     261 |  301 |  814 | Good sample. Should be near-trivial — it only enqueues                     |
+| `GET /v1/modules-stats/{id}/report-stats`               |   1 |     298 |    — |  298 | weak                                                                       |
+| `GET /v1/factors/{t}/class-subclass-map`                |  11 |     254 |  263 |  396 | Same `factors` table as §3.4 — likely the same index question              |
+| `GET /v1/carbon-reports/{id}/modules/{m}`               |  13 |     199 |  255 |  517 | Just over on mean                                                          |
+| `GET /v1/carbon-reports/{id}/modules/headcount/members` |   3 |     156 |  224 |  415 | weak                                                                       |
+| `GET /v1/modules-stats/{id}/validated-totals`           |   1 |     219 |    — |  219 | weak                                                                       |
+| `GET /v1/carbon-reports/unit/{uid}/year/{year}/`        |   1 |     217 |    — |  217 | weak                                                                       |
 
 Under the bar and fine for now: `year-configuration` (155), `factors/{t}/list` (164),
 `sync/pipelines` (156), `sync/active-pipelines` (154), `auth/login` (153),
@@ -1126,8 +1253,8 @@ Under the bar and fine for now: `year-configuration` (155), `factors/{t}/list` (
 1. **P0-1 and P0-2 first.** Then re-export and regenerate this table. Do not triage stale numbers.
 2. **Prefer `mean − p50` as the triage signal**, not p50 alone. Where mean ≫ p50 there is a slow
    tail hiding in an otherwise healthy route — `modules/{m}/{sub}` (249 → 379) and
-   `temp-upload` (408 → 636) are the two clear cases. A route where mean ≈ p50 is *uniformly*
-   slow, which usually means one fixable query; a route where mean ≫ p50 is *sometimes* slow,
+   `temp-upload` (408 → 636) are the two clear cases. A route where mean ≈ p50 is _uniformly_
+   slow, which usually means one fixable query; a route where mean ≫ p50 is _sometimes_ slow,
    which usually means contention, a cold cache, or a size-dependent path.
 3. **Drop anything with n < 10** until a bigger sample confirms it.
 4. Then pull one trace per surviving route and look for the §3.4 pattern: how much is Postgres,
@@ -1157,7 +1284,7 @@ Confirm and report with file:line:
   `HeadObject` calls verification after a `PutObject` that already returned 200 + ETag?
 - **Auth after body.** `SELECT users …` fires at t+2.343, after 2.3 s of body was accepted. An
   unauthenticated caller can make the server ingest an arbitrary payload before being rejected.
-  Is there *any* size limit, in the app or on the Route?
+  Is there _any_ size limit, in the app or on the Route?
 - **The 335 ms gap at t+1.424.** `SpooledTemporaryFile` rollover (Starlette buffers to `max_size`,
   default 1 MB, then flushes — check the version, older ones write synchronously)? GC pause? Another
   request? Check what `/tmp` is backed by in the Deployment. Also: does the handler do
@@ -1170,32 +1297,32 @@ Confirm and report with file:line:
 
 Every query produces **two** spans, and every connection produces two more:
 
-| span name | emitted by | carries |
-|---|---|---|
-| `connect` | **SQLAlchemy** | the pooling signal — this is the span that proves §3.2 |
-| `SELECT app` | **SQLAlchemy** | `db.operation`, wraps ORM row materialisation |
-| `SELECT` | **psycopg** | raw driver time only |
-| `;` | **psycopg** | connection-setup statement; 4.6 ms fast, **28.7 ms** under load |
+| span name    | emitted by     | carries                                                         |
+| ------------ | -------------- | --------------------------------------------------------------- |
+| `connect`    | **SQLAlchemy** | the pooling signal — this is the span that proves §3.2          |
+| `SELECT app` | **SQLAlchemy** | `db.operation`, wraps ORM row materialisation                   |
+| `SELECT`     | **psycopg**    | raw driver time only                                            |
+| `;`          | **psycopg**    | connection-setup statement; 4.6 ms fast, **28.7 ms** under load |
 
 The SQLAlchemy span is a strict superset of the psycopg one, and the difference is real ORM work:
 
-| query | SQLAlchemy | psycopg | ORM materialisation |
-|---|--:|--:|--:|
-| `SELECT users` (auth, fast trace) | 15.2 ms | 14.9 ms | 0.3 ms |
-| `SELECT users` (auth, slow trace) | 71.7 ms | 71.5 ms | 0.2 ms |
-| `SELECT factors` (fast) | 69.7 ms | 57.8 ms | **11.9 ms** |
-| `SELECT factors` (slow) | 1338.4 ms | 1275.7 ms | **62.8 ms** |
+| query                             | SQLAlchemy |   psycopg | ORM materialisation |
+| --------------------------------- | ---------: | --------: | ------------------: |
+| `SELECT users` (auth, fast trace) |    15.2 ms |   14.9 ms |              0.3 ms |
+| `SELECT users` (auth, slow trace) |    71.7 ms |   71.5 ms |              0.2 ms |
+| `SELECT factors` (fast)           |    69.7 ms |   57.8 ms |         **11.9 ms** |
+| `SELECT factors` (slow)           |  1338.4 ms | 1275.7 ms |         **62.8 ms** |
 
 #### What it costs
 
 Redundant spans as a share of each trace:
 
-| trace | spans | duplicate `SELECT` | `;` | **redundant** |
-|---|--:|--:|--:|--:|
-| pipeline stream 201.6 s | 779 | 204 | 103 | **307 (39 %)** |
-| job stream 16.2 s | 86 | 21 | 11 | **32 (37 %)** |
-| taxonomies (either) | 9 | 2 | 1 | **3 (33 %)** |
-| upload 3.037 s | 816 | 1 | 1 | 2 (+805 per-chunk ASGI spans → 99 %, see §3.6) |
+| trace                   | spans | duplicate `SELECT` | `;` |                                  **redundant** |
+| ----------------------- | ----: | -----------------: | --: | ---------------------------------------------: |
+| pipeline stream 201.6 s |   779 |                204 | 103 |                                 **307 (39 %)** |
+| job stream 16.2 s       |    86 |                 21 |  11 |                                  **32 (37 %)** |
+| taxonomies (either)     |     9 |                  2 |   1 |                                   **3 (33 %)** |
+| upload 3.037 s          |   816 |                  1 |   1 | 2 (+805 per-chunk ASGI spans → 99 %, see §3.6) |
 
 **Roughly a third to 40 % of every DB-touching trace is redundant** — paid on the event loop at
 span-creation time, again at export, and again in Tempo storage. On the upload path the ASGI
@@ -1275,7 +1402,7 @@ didn't help" measured anything at all.
 
 - A few hundred requests per window ⇒ p99 is literally the slowest one or two requests. It will
   flap forever whatever you fix.
-- `histogram_quantile` interpolates *inside* the matched bucket. Your tail reaches **201 s**;
+- `histogram_quantile` interpolates _inside_ the matched bucket. Your tail reaches **201 s**;
   unless a finite `le` exceeds that, the number is arithmetically meaningless at the top end.
 - `k8s_pod_name=~"$pod"` breaks across rollouts.
 
@@ -1300,13 +1427,13 @@ Negative regex on a free-form path is fragile. The ASGI instrumentation gives no
 attributes, so derive it downstream: a `transform` processor in the OTel Collector, or
 `metric_relabel_configs` in the Prometheus scrape config. Config-only, no backend redeploy.
 
-| `http_route` matches | `route_class` | Judged by |
-|---|---|---|
-| `/healthz`, `/readyz`, `/metrics` | `probe` | **canary for blocking** |
-| `.*/stream$` | `stream` | session duration, TTFB |
-| `.*upload.*`, `/v1/files/.*` | `upload` | throughput (MB/s) |
-| `/v1/sync/(dispatch\|pipelines)$` | `job` | job runtime |
-| everything else | `api` | **actual latency — the only SLO** |
+| `http_route` matches              | `route_class` | Judged by                         |
+| --------------------------------- | ------------- | --------------------------------- |
+| `/healthz`, `/readyz`, `/metrics` | `probe`       | **canary for blocking**           |
+| `.*/stream$`                      | `stream`      | session duration, TTFB            |
+| `.*upload.*`, `/v1/files/.*`      | `upload`      | throughput (MB/s)                 |
+| `/v1/sync/(dispatch\|pipelines)$` | `job`         | job runtime                       |
+| everything else                   | `api`         | **actual latency — the only SLO** |
 
 Alert on `route_class="api"` only. Give `probe` **its own panel**: probe latency during a burst is
 the single most valuable chart to come out of this work.
@@ -1363,20 +1490,20 @@ GET  …/pipelines/{id}/stream    6–202 s
 ```
 
 **Half the requests generated by an import are streams** — 48 stream vs 45 normal across the
-sample. So during an import session the *median request is a stream*. `LatencyP50High > 1000ms`
+sample. So during an import session the _median request is a stream_. `LatencyP50High > 1000ms`
 is not detecting a problem; it is detecting that someone is using the product.
 
 Replaying the sample in 5-minute windows exactly as the alerts compute it:
 
-| window | n | p50 | p95 | p99 | fires |
-|--:|--:|--:|--:|--:|---|
-| 0–5 min | 75 | **1142 ms** | **36.1 s** | **201.6 s** | **P50 + P95 + P99** |
-| 5–10 | 10 | 490 ms | 115.3 s | 115.3 s | P95 + P99 |
-| 10–15 | 6 | **4066 ms** | 12.1 s | 12.1 s | **P50 + P95 + P99** |
-| 20–25 | 9 | 298 ms | 869 ms | 869 ms | — |
-| 25–30 | 11 | 156 ms | 394 ms | 394 ms | — |
-| 30–35 | 15 | 283 ms | 431 ms | 431 ms | — |
-| 35–40 | 73 | 261 ms | 12.1 s | 47.2 s | P95 + P99 |
+|  window |   n |         p50 |        p95 |         p99 | fires               |
+| ------: | --: | ----------: | ---------: | ----------: | ------------------- |
+| 0–5 min |  75 | **1142 ms** | **36.1 s** | **201.6 s** | **P50 + P95 + P99** |
+|    5–10 |  10 |      490 ms |    115.3 s |     115.3 s | P95 + P99           |
+|   10–15 |   6 | **4066 ms** |     12.1 s |      12.1 s | **P50 + P95 + P99** |
+|   20–25 |   9 |      298 ms |     869 ms |      869 ms | —                   |
+|   25–30 |  11 |      156 ms |     394 ms |      394 ms | —                   |
+|   30–35 |  15 |      283 ms |     431 ms |      431 ms | —                   |
+|   35–40 |  73 |      261 ms |     12.1 s |      47.2 s | P95 + P99           |
 
 Three alerts, one email group, `repeatInterval: 4h`, `sendResolved: true`. That is #1402.
 
@@ -1447,12 +1574,12 @@ indistinguishable from health.** Add both:
   annotations:
     summary: "No request metrics from backend — app or OTel exporter down"
 
-- alert: Watchdog          # uncomment the existing one
+- alert: Watchdog # uncomment the existing one
   expr: vector(1)
   labels: { severity: none }
 ```
 
-Route `Watchdog` to a dead-man's-switch (healthchecks.io, Cronitor) that alerts when it *stops*
+Route `Watchdog` to a dead-man's-switch (healthchecks.io, Cronitor) that alerts when it _stops_
 arriving. Without it, a broken Alertmanager is silent.
 
 ### 4.7.6 Smaller items
@@ -1488,7 +1615,7 @@ can route it differently:
     summary: "More than 2% of API requests slower than 1s"
     description: "Streams, uploads and jobs are excluded. Value: {{ .Value }}"
 
-- alert: ProbeLatencyDegraded          # the head-of-line-blocking canary (§4.3)
+- alert: ProbeLatencyDegraded # the head-of-line-blocking canary (§4.3)
   expr: |
     histogram_quantile(0.95, sum by (le) (
       rate(http_server_duration_milliseconds_bucket{namespace="…", route_class="probe"}[5m])))
@@ -1498,14 +1625,14 @@ can route it differently:
   annotations:
     summary: "Health probes are slow — event loop likely blocked"
 
-- alert: EventLoopBlocked              # requires §3.1a
+- alert: EventLoopBlocked # requires §3.1a
   expr: |
     histogram_quantile(0.99, sum by (le) (
       rate(event_loop_lag_seconds_bucket{namespace="…"}[5m]))) > 0.5
   for: 5m
   labels: { severity: warning }
 
-- alert: DbConnectionChurn             # requires §4.5 — the regression test for §3.2
+- alert: DbConnectionChurn # requires §4.5 — the regression test for §3.2
   expr: |
     rate(db_connections_created_total{namespace="…"}[5m])
       / rate(http_server_duration_milliseconds_count{namespace="…"}[5m]) > 0.5
@@ -1514,7 +1641,7 @@ can route it differently:
   annotations:
     summary: "More than one new DB connection per two requests — pooling regressed"
 
-- alert: PipelineSlow                  # requires §4.4 — the number that used to fire LatencyP99High
+- alert: PipelineSlow # requires §4.4 — the number that used to fire LatencyP99High
   expr: |
     histogram_quantile(0.95, sum by (le, kind) (
       rate(pipeline_duration_seconds_bucket{namespace="…"}[30m]))) > 300
@@ -1523,7 +1650,7 @@ can route it differently:
   annotations:
     summary: "Pipeline p95 above 5 minutes ({{ $labels.kind }})"
 
-- alert: SSEProxyTimeouts              # requires §4.4 — tests §3.3
+- alert: SSEProxyTimeouts # requires §4.4 — tests §3.3
   expr: rate(sse_stream_terminations_total{reason="proxy_timeout"}[15m]) > 0
   for: 15m
   labels: { severity: warning }
@@ -1557,7 +1684,7 @@ spec:
     groupBy: ["alertname", "namespace"]
     groupWait: 30s
     groupInterval: 5m
-    repeatInterval: 24h          # was 4h
+    repeatInterval: 24h # was 4h
     receiver: email-warning
     routes:
       - matchers:
@@ -1600,7 +1727,7 @@ spec:
         - to: "co2-calculator-sysadmins@groupes.epfl.ch"
           from: "noreply+co2-calculator-dev@epfl.ch"
           smarthost: "mail.epfl.ch:25"
-          sendResolved: false      # resolutions on warnings are noise
+          sendResolved: false # resolutions on warnings are noise
     - name: deadmanssnitch
       webhookConfigs:
         - url: "<healthchecks.io or Cronitor ping URL>"
@@ -1615,7 +1742,6 @@ alert before trusting it.
 Two things to consider beyond email, given the volume this repo generates: a Mattermost/Slack
 webhook for `warning` (with email reserved for `critical`), and `mute_time_intervals` for known
 maintenance windows.
-
 
 ## 4.9 The Grafana dashboard ("Specific graphs", uid `ndr79mm`)
 
@@ -1634,6 +1760,7 @@ histogram_quantile(0.95, sum by (le, route_class) (
 ```
 
 Also on this panel:
+
 - **Set `unit: ms`.** `fieldConfig.defaults` has no unit, so the axis currently shows bare numbers.
 - The `thresholds` steps (`green: 0`, `red: 80`) are leftover defaults — 80 of what? — and
   `thresholdsStyle: off` means they render nothing. Either set a real threshold at your SLO
@@ -1659,7 +1786,7 @@ The best panel on the dashboard, and it settled a question this document got wro
 
 - Add `state="overflow"` — checkouts beyond `pool_size` are the early warning before exhaustion.
 - Add a `db_pool_wait_seconds` histogram if SQLAlchemy exposes it (`PoolEvents` can feed one).
-  `checked_out == size` tells you the pool is full; wait time tells you whether anyone *suffered*.
+  `checked_out == size` tells you the pool is full; wait time tells you whether anyone _suffered_.
 - The description hardcodes `DB_POOL_SIZE=15` in prose. The `size` series already plots it — trust
   the series, since the prose will drift.
 - **Look at this panel during a report-page load.** §3.2 predicts `checked_out` pinning to `size`.
@@ -1686,17 +1813,17 @@ rules.
 
 Ordered by how much time each would have saved during this investigation.
 
-| Panel | Query sketch | Answers |
-|---|---|---|
+| Panel                          | Query sketch                                                                                                                                        | Answers                                                                                       |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | **Per-route p50 / mean table** | `histogram_quantile(0.5, sum by (le, http_route) (rate(…bucket{route_class="api"}[5m])))` next to `rate(…sum)/rate(…count)`, table viz, sorted desc | §3.5b as a live view instead of a one-off export. **mean − p50 is the triage signal** (§3.5b) |
-| **Requests in flight** | `http_server_active_requests` | Would have shown the 31-request fan-out (§1.5) instantly |
-| **Probe latency, alone** | filtered to `route_class="probe"` | The head-of-line-blocking canary. Currently unmeasurable — no `/healthz` trace exists (§3.1) |
-| **Event loop lag** | `histogram_quantile(0.99, …event_loop_lag_seconds_bucket…)` | The only clean test of the blocking hypothesis (§3.1) |
-| **DB round-trip** | duration of the `;` pre-ping, as a metric | A pure network/DB-health probe: 4.6 ms idle → 28.7 ms under load (§3.2) |
-| **Active SSE streams** | `sse_connections_active` | Capacity signal; also explains latency-panel shape |
-| **Pipeline duration by kind** | `histogram_quantile(0.95, …pipeline_duration_seconds_bucket…)` | Where the 201 s belongs — a product metric, not an HTTP one (§4.4) |
-| **Upload throughput** | `rate(upload_bytes) / rate(upload_duration_seconds)` | A 3 s upload is fine; a 3 s upload of 200 kB is not |
-| **SLO burn** | `1 - (…le="1000", route_class="api" / …count)` | The number the alert fires on (§4.2) — always chart what you alert on |
+| **Requests in flight**         | `http_server_active_requests`                                                                                                                       | Would have shown the 31-request fan-out (§1.5) instantly                                      |
+| **Probe latency, alone**       | filtered to `route_class="probe"`                                                                                                                   | The head-of-line-blocking canary. Currently unmeasurable — no `/healthz` trace exists (§3.1)  |
+| **Event loop lag**             | `histogram_quantile(0.99, …event_loop_lag_seconds_bucket…)`                                                                                         | The only clean test of the blocking hypothesis (§3.1)                                         |
+| **DB round-trip**              | duration of the `;` pre-ping, as a metric                                                                                                           | A pure network/DB-health probe: 4.6 ms idle → 28.7 ms under load (§3.2)                       |
+| **Active SSE streams**         | `sse_connections_active`                                                                                                                            | Capacity signal; also explains latency-panel shape                                            |
+| **Pipeline duration by kind**  | `histogram_quantile(0.95, …pipeline_duration_seconds_bucket…)`                                                                                      | Where the 201 s belongs — a product metric, not an HTTP one (§4.4)                            |
+| **Upload throughput**          | `rate(upload_bytes) / rate(upload_duration_seconds)`                                                                                                | A 3 s upload is fine; a 3 s upload of 200 kB is not                                           |
+| **SLO burn**                   | `1 - (…le="1000", route_class="api" / …count)`                                                                                                      | The number the alert fires on (§4.2) — always chart what you alert on                         |
 
 ### 4.9.7 Dashboard hygiene
 
@@ -1726,17 +1853,17 @@ request?** Ideally none. The user needs to know the bytes are durably accepted �
 canonical location, the checksum, or the derived artefacts.
 
 And you already have a job system: `dispatch` returns in 261 ms and pipelines run asynchronously.
-Option 3 is mostly *reusing existing machinery*.
+Option 3 is mostly _reusing existing machinery_.
 
 ### 5.2 Options
 
-| Option | Request latency | Blocking risk | Scaling | Effort |
-|---|---|---|---|---|
-| **0. Status quo** (sync boto3 in-request) | body + 476 ms | med | poor | — |
-| **1. Async S3** (`aioboto3` / threadpool) | body + ~476 ms | **none** | good | **S** |
-| **2. Local PVC** | body + disk write | low | ⚠️ see below | M |
-| **3. Local staging + background job** | body only | low | good | M |
-| **4. Presigned direct-to-S3** | **~0** | **none** | excellent | M–L |
+| Option                                    | Request latency   | Blocking risk | Scaling      | Effort |
+| ----------------------------------------- | ----------------- | ------------- | ------------ | ------ |
+| **0. Status quo** (sync boto3 in-request) | body + 476 ms     | med           | poor         | —      |
+| **1. Async S3** (`aioboto3` / threadpool) | body + ~476 ms    | **none**      | good         | **S**  |
+| **2. Local PVC**                          | body + disk write | low           | ⚠️ see below | M      |
+| **3. Local staging + background job**     | body only         | low           | good         | M      |
+| **4. Presigned direct-to-S3**             | **~0**            | **none**      | excellent    | M–L    |
 
 ### 5.3 On the PVC idea specifically
 
@@ -1748,7 +1875,7 @@ Option 3 is mostly *reusing existing machinery*.
 - You inherit quota, backup and orphan cleanup that S3 lifecycle rules give you free.
 - It couples the app to node-local state, complicating rollouts and node drains.
 
-**Verdict:** a fine *staging* area (option 3), a poor *destination*.
+**Verdict:** a fine _staging_ area (option 3), a poor _destination_.
 
 ### 5.4 Sequencing
 
@@ -1769,7 +1896,7 @@ Open questions before designing 3 or 4:
 - Max accepted size; realistic production size.
 - Does anything depend on the file being present **synchronously** after the upload response? If
   the frontend immediately calls `dispatch` with the file ID, a 202 changes that contract.
-- Is `temp-upload` genuinely temporary — is there a promotion step, and is *that* the second
+- Is `temp-upload` genuinely temporary — is there a promotion step, and is _that_ the second
   `PutObject`?
 
 ---
@@ -1780,13 +1907,13 @@ All four requested traces arrived and are analysed in
 [§1.8](#18-what-the-four-traces-settled--including-two-corrections). They retracted two v2 findings
 and confirmed a worse one. Remaining gaps, in order of value:
 
-| Priority | What | Question it answers |
-|---|---|---|
-| **1** | `EXPLAIN (ANALYZE, BUFFERS)` on the `factors` query, both `data_entry_type_id` values | Missing index, or genuinely huge result set? Decides whether §3.4 is a one-line fix or a redesign. |
-| **2** | A **prod** Tempo export, 15 min, during real concurrency | Everything measured so far is stage at an average of 0.5 concurrent streams. |
-| **3** | A trace of `GET /v1/auth/callback` (~880 ms) | Synchronous Keycloak call inside the request? |
-| **4** | Any `/healthz` trace, if one exists | Are probes instrumented at all? (§3.1) |
-| **5** | A second upload trace nearer the 408 ms median | The one we have is the slowest of 22; its structure generalises, its duration does not. |
+| Priority | What                                                                                  | Question it answers                                                                                |
+| -------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| **1**    | `EXPLAIN (ANALYZE, BUFFERS)` on the `factors` query, both `data_entry_type_id` values | Missing index, or genuinely huge result set? Decides whether §3.4 is a one-line fix or a redesign. |
+| **2**    | A **prod** Tempo export, 15 min, during real concurrency                              | Everything measured so far is stage at an average of 0.5 concurrent streams.                       |
+| **3**    | A trace of `GET /v1/auth/callback` (~880 ms)                                          | Synchronous Keycloak call inside the request?                                                      |
+| **4**    | Any `/healthz` trace, if one exists                                                   | Are probes instrumented at all? (§3.1)                                                             |
+| **5**    | A second upload trace nearer the 408 ms median                                        | The one we have is the slowest of 22; its structure generalises, its duration does not.            |
 
 Not a trace, but higher value than most of the above: `SHOW max_connections` and the current
 connection count on `co2-test.postgresql.dbaas.intranet.epfl.ch`, plus whether a pgbouncer sits in
@@ -1823,7 +1950,7 @@ no shared blockers.
 - [ ] **Zero `connect` spans inside request spans** — verified on a fresh trace of a stream and of
       an ordinary GET
 - [ ] `SELECT factors` under 100 ms for every `data_entry_type_id`, or served from cache
-- [ ] A page-load burst no longer amplifies the latency of *identical* queries (the 5× in §1.8)
+- [ ] A page-load burst no longer amplifies the latency of _identical_ queries (the 5× in §1.8)
 - [ ] `route_class` deployed on dev; dashboard split; `probe` panel exists
 - [ ] `LatencyP50/P95/P99High` deleted; `ApiLatencySLOBreach` running in parallel for a week first
 - [ ] `PodHighCPU` unit bug fixed; `Watchdog` + `absent()` deadman live and verified by a test alert
@@ -1844,7 +1971,7 @@ no shared blockers.
 **Frontend / protocol** — resumable/chunked uploads (tus, or S3 multipart from the browser);
 upload progress from the browser's own `XMLHttpRequest.upload` events rather than a server
 round-trip; and seriously: **does this need SSE at all?** `GET /v1/sync/jobs/{id}` returning
-`{status, progress}` polled every 2 s is *what the server is already doing internally* (§1.3) —
+`{status, progress}` polled every 2 s is _what the server is already doing internally_ (§1.3) —
 but with no long-lived connections, no proxy timeouts, no zombie risk, and no percentile pollution.
 You would be moving the existing poll loop from the server to the client, where it is safe.
 
@@ -1886,7 +2013,7 @@ upload". Without it none of this is regression-testable and it comes back in six
 - The upload-blocks-everything hypothesis is **untested, not disproven** (§1.6). No normal request
   in this sample overlapped an upload.
 - §1.5's inside-vs-burst `taxonomies` comparison is **confounded**: the two traces differ in both
-  concurrency *and* payload (`buildings/building` vs `purchase/other_purchases`). The correlation
+  concurrency _and_ payload (`buildings/building` vs `purchase/other_purchases`). The correlation
   with burst size is real, but the mechanism turned out to be Postgres load and query cost, not
   event-loop queueing (§1.8). Treat the §1.5 table as a symptom map, not a causal claim.
 - The 12-in-flight latency bucket (§1.5) is 16 samples largely from one burst, so it is confounded
@@ -1907,54 +2034,92 @@ sample:
   window_seconds: 2369
   total_request_seconds: 1249
   note: "export capped at 200 rows -> counts are shape, not rates"
-  concurrency: {peak_streams: 6, avg_streams: 0.5}
-  pods_seen: [5dbf497445-wt6pt, 77c54889d5-h5dwh, 77c54889d5-9sl6k]   # >=3 pods, 2 ReplicaSets
+  concurrency: { peak_streams: 6, avg_streams: 0.5 }
+  pods_seen: [5dbf497445-wt6pt, 77c54889d5-h5dwh, 77c54889d5-9sl6k] # >=3 pods, 2 ReplicaSets
 
-routes:            # name: [n, min_ms, p50_ms, mean_ms, p95_ms, max_ms, total_s]
-  "GET /v1/sync/pipelines/{pid}/stream":            [23, 4072, 8164, 38971, 189830, 201623, 896.3]
-  "GET /v1/sync/jobs/{jid}/stream":                 [25, 4060, 6190, 11552,  32260,  36079, 288.8]
-  "GET /v1/taxonomies/module/{module}/{data_entry}": [16,  134,  948,   893,   2064,   2064,  14.3]
-  "POST /v1/files/temp-upload":                     [22,  301,  408,   636,   1142,   3036,  14.0]
-  "GET /v1/carbon-reports/{id}/modules/{m}/{sub}":  [29,  119,  249,   379,    936,   1004,  11.0]
-  "POST /v1/sync/dispatch":                         [23,  198,  261,   301,    557,    814,   6.9]
-  "GET /v1/auth/callback":                          [ 4,  712,  867,   832,    880,    880,   3.3]
-  "GET /v1/carbon-reports/{id}/modules/{m}":        [13,  110,  199,   255,    517,    517,   3.3]
-  "GET /v1/factors/{t}/class-subclass-map":         [11,  132,  254,   263,    396,    396,   2.9]
-  "POST /v1/carbon-reports/{id}/modules/{m}/{sub}": [ 4,  354,  396,   407,    481,    481,   1.6]
-  "GET /v1/backoffice/units":                       [ 3,  380,  394,   390,   null,    395,   1.2]
-  "GET /v1/carbon-reports/simulator/explore/...":   [ 3,  139,  262,   368,   null,    703,   1.1]
-  "GET /v1/sync/active-pipelines":                  [ 6,  130,  154,   155,    193,    193,   0.9]
-  "GET /v1/year-configuration/{year}":              [ 5,  122,  155,   181,    252,    252,   0.9]
-  "GET /v1/carbon-reports/{id}/modules/headcount/members": [3, 102, 156, 224, null, 415, 0.7]
-  "GET /v1/modules-stats/{id}/report-stats":        [ 1, null,  298,  null,   null,    298,   0.3]
-  "PATCH /v1/year-configuration/{year}":            [ 2,  102,  127,   127,   null,    152,   0.3]
-  "GET /v1/modules-stats/{id}/validated-totals":    [ 1, null,  219,  null,   null,    219,   0.2]
-  "GET /v1/carbon-reports/unit/{uid}/year/{year}/": [ 1, null,  217,  null,   null,    217,   0.2]
-  "GET /v1/factors/{t}/list":                       [ 1, null,  164,  null,   null,    164,   0.2]
-  "GET /v1/sync/pipelines":                         [ 1, null,  156,  null,   null,    156,   0.2]
-  "GET /v1/auth/login":                             [ 1, null,  153,  null,   null,    153,   0.2]
-  "PATCH /v1/project-plans/{plan_id}":              [ 1, null,  149,  null,   null,    149,   0.1]
-  "GET /v1/connectors":                             [ 1, null,  122,  null,   null,    122,   0.1]
+routes: # name: [n, min_ms, p50_ms, mean_ms, p95_ms, max_ms, total_s]
+  "GET /v1/sync/pipelines/{pid}/stream":
+    [23, 4072, 8164, 38971, 189830, 201623, 896.3]
+  "GET /v1/sync/jobs/{jid}/stream": [25, 4060, 6190, 11552, 32260, 36079, 288.8]
+  "GET /v1/taxonomies/module/{module}/{data_entry}":
+    [16, 134, 948, 893, 2064, 2064, 14.3]
+  "POST /v1/files/temp-upload": [22, 301, 408, 636, 1142, 3036, 14.0]
+  "GET /v1/carbon-reports/{id}/modules/{m}/{sub}":
+    [29, 119, 249, 379, 936, 1004, 11.0]
+  "POST /v1/sync/dispatch": [23, 198, 261, 301, 557, 814, 6.9]
+  "GET /v1/auth/callback": [4, 712, 867, 832, 880, 880, 3.3]
+  "GET /v1/carbon-reports/{id}/modules/{m}": [13, 110, 199, 255, 517, 517, 3.3]
+  "GET /v1/factors/{t}/class-subclass-map": [11, 132, 254, 263, 396, 396, 2.9]
+  "POST /v1/carbon-reports/{id}/modules/{m}/{sub}":
+    [4, 354, 396, 407, 481, 481, 1.6]
+  "GET /v1/backoffice/units": [3, 380, 394, 390, null, 395, 1.2]
+  "GET /v1/carbon-reports/simulator/explore/...":
+    [3, 139, 262, 368, null, 703, 1.1]
+  "GET /v1/sync/active-pipelines": [6, 130, 154, 155, 193, 193, 0.9]
+  "GET /v1/year-configuration/{year}": [5, 122, 155, 181, 252, 252, 0.9]
+  "GET /v1/carbon-reports/{id}/modules/headcount/members":
+    [3, 102, 156, 224, null, 415, 0.7]
+  "GET /v1/modules-stats/{id}/report-stats":
+    [1, null, 298, null, null, 298, 0.3]
+  "PATCH /v1/year-configuration/{year}": [2, 102, 127, 127, null, 152, 0.3]
+  "GET /v1/modules-stats/{id}/validated-totals":
+    [1, null, 219, null, null, 219, 0.2]
+  "GET /v1/carbon-reports/unit/{uid}/year/{year}/":
+    [1, null, 217, null, null, 217, 0.2]
+  "GET /v1/factors/{t}/list": [1, null, 164, null, null, 164, 0.2]
+  "GET /v1/sync/pipelines": [1, null, 156, null, null, 156, 0.2]
+  "GET /v1/auth/login": [1, null, 153, null, null, 153, 0.2]
+  "PATCH /v1/project-plans/{plan_id}": [1, null, 149, null, null, 149, 0.1]
+  "GET /v1/connectors": [1, null, 122, null, null, 122, 0.1]
 
-time_share: {pipelines_stream: 0.718, jobs_stream: 0.231, everything_else: 0.051}
+time_share:
+  { pipelines_stream: 0.718, jobs_stream: 0.231, everything_else: 0.051 }
 
-workflow_per_file:      # counts line up ~1:1 => this is one journey repeated ~22x
+workflow_per_file: # counts line up ~1:1 => this is one journey repeated ~22x
   steps:
-    - {route: "POST /v1/files/temp-upload",    n: 22, p50_ms: 408}
-    - {route: "POST /v1/sync/dispatch",        n: 23, p50_ms: 261}   # correctly async
-    - {route: "GET .../jobs/{id}/stream",      n: 25, p50_ms: 6190}
-    - {route: "GET .../pipelines/{id}/stream", n: 23, p50_ms: 8164}
+    - { route: "POST /v1/files/temp-upload", n: 22, p50_ms: 408 }
+    - { route: "POST /v1/sync/dispatch", n: 23, p50_ms: 261 } # correctly async
+    - { route: "GET .../jobs/{id}/stream", n: 25, p50_ms: 6190 }
+    - { route: "GET .../pipelines/{id}/stream", n: 23, p50_ms: 8164 }
   stream_share_of_workflow_requests: 0.52
   consequence: "during an import the MEDIAN request is a stream => LatencyP50High > 1000ms fires by construction"
 
-alert_replay:      # sample replayed in 5-min windows exactly as the current rules compute
-  - {t: "0-5min",   n: 75, p50: 1142, p95: 36079, p99: 201623, fires: [P50, P95, P99]}
-  - {t: "5-10min",  n: 10, p50:  490, p95: 115318, p99: 115318, fires: [P95, P99]}
-  - {t: "10-15min", n:  6, p50: 4066, p95: 12130, p99: 12130,  fires: [P50, P95, P99]}
-  - {t: "20-25min", n:  9, p50:  298, p95:   869, p99:   869,  fires: []}
-  - {t: "25-30min", n: 11, p50:  156, p95:   394, p99:   394,  fires: []}
-  - {t: "30-35min", n: 15, p50:  283, p95:   431, p99:   431,  fires: []}
-  - {t: "35-40min", n: 73, p50:  261, p95: 12103, p99: 47174,  fires: [P95, P99]}
+alert_replay: # sample replayed in 5-min windows exactly as the current rules compute
+  - {
+      t: "0-5min",
+      n: 75,
+      p50: 1142,
+      p95: 36079,
+      p99: 201623,
+      fires: [P50, P95, P99],
+    }
+  - {
+      t: "5-10min",
+      n: 10,
+      p50: 490,
+      p95: 115318,
+      p99: 115318,
+      fires: [P95, P99],
+    }
+  - {
+      t: "10-15min",
+      n: 6,
+      p50: 4066,
+      p95: 12130,
+      p99: 12130,
+      fires: [P50, P95, P99],
+    }
+  - { t: "20-25min", n: 9, p50: 298, p95: 869, p99: 869, fires: [] }
+  - { t: "25-30min", n: 11, p50: 156, p95: 394, p99: 394, fires: [] }
+  - { t: "30-35min", n: 15, p50: 283, p95: 431, p99: 431, fires: [] }
+  - {
+      t: "35-40min",
+      n: 73,
+      p50: 261,
+      p95: 12103,
+      p99: 47174,
+      fires: [P95, P99],
+    }
 
 otlp_traces:
   cd7e88752c962450113f71394426b9ac:
@@ -1962,67 +2127,111 @@ otlp_traces:
     target: /v1/sync/pipelines/8aff966d-b4eb-4d64-ae56-68e16e0d8154/stream
     duration_s: 201.623
     status: 200
-    spans: {total: 779, connect: 103, semicolon: 103, select: 204, http_receive: 103, http_send: 61}
-    poll_interval_s: {p50: 2.015, min: 0.006, max: 2.059}
-    db_time_ms: {connect_total: 276, query_total: 570, query_p50: 2.5, query_max: 8.4}
-    queries_per_poll: ["SELECT data_ingestion_jobs.* ...", "SELECT pipelines.* WHERE pipelines.id = %(id_1)s::UUID"]
-    events_emitted: 61     # continuous to t+201.62, then clean close -> NOT a zombie
-    silent_gaps_s: [16.1, 16.2]   # t+68.5->84.6, t+157.2->173.4  => needs keepalive
+    spans:
+      {
+        total: 779,
+        connect: 103,
+        semicolon: 103,
+        select: 204,
+        http_receive: 103,
+        http_send: 61,
+      }
+    poll_interval_s: { p50: 2.015, min: 0.006, max: 2.059 }
+    db_time_ms:
+      { connect_total: 276, query_total: 570, query_p50: 2.5, query_max: 8.4 }
+    queries_per_poll:
+      [
+        "SELECT data_ingestion_jobs.* ...",
+        "SELECT pipelines.* WHERE pipelines.id = %(id_1)s::UUID",
+      ]
+    events_emitted: 61 # continuous to t+201.62, then clean close -> NOT a zombie
+    silent_gaps_s: [16.1, 16.2] # t+68.5->84.6, t+157.2->173.4  => needs keepalive
   d3b583702425af41b4b9b1139e90824:
     route: "GET /v1/sync/jobs/{job_id}/stream"
     target: /v1/sync/jobs/75/stream
     duration_s: 16.161
-    spans: {total: 86, connect: 11, select: 21, http_receive: 11, http_send: 10}
+    spans:
+      { total: 86, connect: 11, select: 21, http_receive: 11, http_send: 10 }
     note: "watches ONE job; not comparable in scope to the pipeline stream above"
   c68e5936220188dafe2f2b757cd825b3:
     route: "GET /v1/taxonomies/module/{module}/{data_entry}"
     url: "?module=purchase&data_entry=other_purchases&year=2025"
     duration_ms: 2064.0
     pod: 77c54889d5-9sl6k
-    phases_ms: {connect: 29.1, auth_select_users: 71.7, select_factors: 1338.4, tail_python: 683.6}
+    phases_ms:
+      {
+        connect: 29.1,
+        auth_select_users: 71.7,
+        select_factors: 1338.4,
+        tail_python: 683.6,
+      }
   cba57ecdd81eea9bed9c786fbd768de4:
     route: "GET /v1/taxonomies/module/{module}/{data_entry}"
     url: "?module=buildings&data_entry=building&year=2025"
     duration_ms: 134.5
     pod: 77c54889d5-h5dwh
-    phases_ms: {connect: 5.9, auth_select_users: 15.2, select_factors: 69.7, tail_python: 51.4}
+    phases_ms:
+      {
+        connect: 5.9,
+        auth_select_users: 15.2,
+        select_factors: 69.7,
+        tail_python: 51.4,
+      }
     note: "identical 4-span structure to the slow one => no N+1"
   a7cfb4771770744d748a82a12561b51f:
     route: "POST /v1/files/temp-upload"
     duration_s: 3.037
     status: 200
     caveat: "slowest of 22 uploads; p50 is 408 ms. Structure generalises, duration does not."
-    spans: {total: 816, http_receive: 805, s3: 4, db: 4}
-    phases: {body_ingest_s: 2.330, auth_db_ms: 8, s3_ms: 476, untraced_ms: 220}
-    receive_chunk_ms: {p50: 0.236, p90: 6.08, p95: 8.39, p99: 12.67, max: 29.1}
-    s3_calls: [{op: PutObject, ms: 286.4}, {op: HeadObject, ms: 18.4},
-               {op: PutObject, ms: 68.9},  {op: HeadObject, ms: 9.6}]
-    anomalies: ["object written twice", "auth runs after full body read at t+2.343",
-                "unexplained 335 ms gap at t+1.424 with zero spans",
-                "no http.request_content_length anywhere"]
+    spans: { total: 816, http_receive: 805, s3: 4, db: 4 }
+    phases:
+      { body_ingest_s: 2.330, auth_db_ms: 8, s3_ms: 476, untraced_ms: 220 }
+    receive_chunk_ms:
+      { p50: 0.236, p90: 6.08, p95: 8.39, p99: 12.67, max: 29.1 }
+    s3_calls:
+      [
+        { op: PutObject, ms: 286.4 },
+        { op: HeadObject, ms: 18.4 },
+        { op: PutObject, ms: 68.9 },
+        { op: HeadObject, ms: 9.6 },
+      ]
+    anomalies:
+      [
+        "object written twice",
+        "auth runs after full body read at t+2.343",
+        "unexplained 335 ms gap at t+1.424 with zero spans",
+        "no http.request_content_length anywhere",
+      ]
 
 instrumentation:
-  active_db_instrumentors: [sqlalchemy, psycopg]     # both -> everything double-counted
+  active_db_instrumentors: [sqlalchemy, psycopg] # both -> everything double-counted
   span_ownership:
-    sqlalchemy: [connect, "SELECT app"]              # `connect` proves the T1 pooling defect
-    psycopg:    ["SELECT", ";"]
-  redundant_span_counts:     # trace: [total, dup_selects, semicolons, redundant, pct]
+    sqlalchemy: [connect, "SELECT app"] # `connect` proves the T1 pooling defect
+    psycopg: ["SELECT", ";"]
+  redundant_span_counts: # trace: [total, dup_selects, semicolons, redundant, pct]
     pipeline_stream_201s: [779, 204, 103, 307, 0.39]
-    job_stream_16s:       [ 86,  21,  11,  32, 0.37]
-    taxonomies_2064ms:    [  9,   2,   1,   3, 0.33]
-    taxonomies_134ms:     [  9,   2,   1,   3, 0.33]
-    upload_3037ms:        [816,   1,   1, 809, 0.99]   # dominated by 805 per-chunk ASGI spans
-  semicolon_span_ms: {fast_trace: 4.6, slow_trace: 28.7}
+    job_stream_16s: [86, 21, 11, 32, 0.37]
+    taxonomies_2064ms: [9, 2, 1, 3, 0.33]
+    taxonomies_134ms: [9, 2, 1, 3, 0.33]
+    upload_3037ms: [816, 1, 1, 809, 0.99] # dominated by 805 per-chunk ASGI spans
+  semicolon_span_ms: { fast_trace: 4.6, slow_trace: 28.7 }
   recommendation: "drop psycopg instrumentor, keep sqlalchemy; sequence AFTER T1 verification"
 
 alerting_current:
   prometheus_rules: [standard-namespace-alerts, specific-namespace-alerts]
-  latency_alerts: {P50: ">1000ms/5m", P95: ">5000ms/5m", P99: ">10000ms/5m"}
-  latency_alerts_route_filter: none      # <- the core defect
-  haproxy_alert: "avg response latency by route > 1000ms/5m"   # includes 201 s responses
-  error_alert_threshold: 0.5             # vs 0.05 on the HAProxy sibling; lumps 4xx with 5xx
-  broken: [PodHighCPU]                   # unit bug, can never fire
+  latency_alerts: { P50: ">1000ms/5m", P95: ">5000ms/5m", P99: ">10000ms/5m" }
+  latency_alerts_route_filter: none # <- the core defect
+  haproxy_alert: "avg response latency by route > 1000ms/5m" # includes 201 s responses
+  error_alert_threshold: 0.5 # vs 0.05 on the HAProxy sibling; lumps 4xx with 5xx
+  broken: [PodHighCPU] # unit bug, can never fire
   missing: [Watchdog, "absent() deadman"]
-  alertmanager: {groupBy: [alertname], repeatInterval: 4h, sendResolved: true,
-                 receivers: 1, severity_routing: none, inhibit_rules: none}
+  alertmanager:
+    {
+      groupBy: [alertname],
+      repeatInterval: 4h,
+      sendResolved: true,
+      receivers: 1,
+      severity_routing: none,
+      inhibit_rules: none,
+    }
 ```
