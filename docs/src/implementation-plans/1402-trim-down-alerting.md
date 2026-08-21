@@ -174,6 +174,33 @@ code disproves. Put this first."):
       `year-configuration/{year}` tail to avoid catching GET/PATCH on the
       same tail. Verify against real traffic once a pipeline runs in stage.
       **PR [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9) — open.**
+- [x] Fixed a real classification bug in the above, found by querying the
+      live label breakdown: `/healthz` and `/dispatch` were both landing in
+      `route_class="api"` instead of `probe`/`job`. Root cause:
+      `backend/app/main.py:324` sets `root_path=settings.API_DOCS_PREFIX`
+      (`"/api"`, never overridden per-env), which the ASGI instrumentation
+      prepends to *every* target — confirmed via `/healthz` itself, which
+      bypasses the Route/HAProxy entirely (kubelet hits the pod directly)
+      and still showed up as `/api/healthz`, proving the prefix is app-side.
+      The `probe`/`job` patterns were anchored assuming no prefix; `stream`/
+      `upload` worked by accident (unanchored `.*` absorbed it). Fixed both
+      anchored patterns to include `/api`. Same PR #9.
+- [x] Pulled real numbers instead of guessing:
+  - `factors` row counts: `building`=846, `other_purchases`=20,915 — the
+    1338 ms query is a genuine large-result-set problem, not a missing
+    index (T2, no code changed here — tracked separately).
+  - `route_class="upload"` over 4 weeks of stage: p50 421 ms / p95 1807 ms /
+    p99 4038 ms — clean, well-resolved.
+  - `route_class="job"` over 4 weeks of stage: p50 60.8 ms, but **p95 and
+    p99 both saturated at 10000 ms** — the histogram's highest finite
+    bucket. Live instance of §4.2's exact warning: the true tail is
+    unresolvable past that boundary, so a raw quantile alert there is
+    meaningless.
+- [x] Added `UploadLatencySLOBreach` (>2% of uploads over 5s) and
+      `JobLatencySLOBreach` (>5% of job-class requests over the 10s bucket,
+      since that's the last one this histogram can resolve) — proportion-
+      of-slow-requests per §4.2, not a raw quantile, with a traffic floor
+      on both. Same PR #9.
 
 ## Steps
 
@@ -186,20 +213,21 @@ code disproves. Put this first."):
       (and uploads and jobs) from the normal-API latency alerts via
       `route_class="api"` — done, PR
       [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9).
-- [ ] Pull 2-4 weeks of historical p99 for `route_class="upload"` and
-      `route_class="job"` from existing dashboards to set a realistic
-      threshold for that group (don't guess a number the team will
-      immediately silence).
-- [ ] Add the `route_class="upload"`/`"job"` latency alert (looser threshold
-      + longer eval window, §4.7.7's `PipelineSlow`/similar) and the
-      `route_class="probe"` panel (§4.9.6) — `route_class` now exists,
-      building the alerts/panels on top of it is what's left. Re-verify the
-      tail-based classification (`dispatch`, `units`, `jobs.*`, `workers`,
-      `active-pipelines.*`, `recalculation-status`, `pipelines.*`,
-      `health/stale-stats`, `admin/recompute-stats`, `temp-upload`) against
-      real traffic once a pipeline runs in stage — a wrong regex here
-      silently mis-classifies requests, the same failure mode this plan
-      already flagged for the old `http_target` no-op.
+- [x] Pull 2-4 weeks of historical p99 for `route_class="upload"`/`"job"` and
+      set a threshold from it — done, see Done section above.
+- [x] Add the `route_class="upload"`/`"job"` latency alert — done
+      (`UploadLatencySLOBreach`, `JobLatencySLOBreach`), see Done section.
+- [ ] Add the `route_class="probe"` panel (§4.9.6) and a
+      `pipeline_duration_seconds`-based alert for the pipeline itself
+      (§4.7.7's `PipelineSlow`) — not started.
+- [ ] Re-verify the tail-based classification (`dispatch`, `units`,
+      `jobs.*`, `workers`, `active-pipelines.*`, `recalculation-status`,
+      `pipelines.*`, `health/stale-stats`, `admin/recompute-stats`,
+      `temp-upload`) against real traffic once a pipeline actually runs in
+      stage — a wrong regex here silently mis-classifies requests, the same
+      failure mode this plan already flagged for the old `http_target`
+      no-op. (The `/healthz`/`dispatch` bug above was exactly this failure
+      mode, caught once, worth checking again with real import traffic.)
 - [x] Configure a GlitchTip alert rule on the frontend project — done
       outside this repo.
 - [ ] Document the two alert groups and thresholds in a short ops note, so
