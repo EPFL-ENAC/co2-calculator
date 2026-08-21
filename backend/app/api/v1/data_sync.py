@@ -1299,6 +1299,13 @@ async def job_stream_by_id(
         last_status = None
         last_message = None
         polls_after_completion = 0
+        # #2049 T7: the trace investigation found 16s gaps with zero bytes
+        # sent between polls with no state change -- long enough for a
+        # proxy idle-timeout to cut the connection silently. Mirrors
+        # pipeline_stream_by_id's existing "event: ping" heartbeat, which
+        # this endpoint never had.
+        seconds_since_heartbeat = 0
+        heartbeat_interval_seconds = 15
 
         while True:
             if await request.is_disconnected():
@@ -1332,6 +1339,8 @@ async def job_stream_by_id(
                 yield f"data: {json.dumps(current_status)}\n\n"
                 last_status = current_status
                 last_message = job.status_message
+                # A real event counts as keep-alive too — don't double-emit.
+                seconds_since_heartbeat = 0
 
             # If job is finished...
             if job.state == IngestionState.FINISHED:
@@ -1343,8 +1352,20 @@ async def job_stream_by_id(
                     break
 
             await asyncio.sleep(2)
+            seconds_since_heartbeat += 2
+            if seconds_since_heartbeat >= heartbeat_interval_seconds:
+                yield "event: ping\ndata: {}\n\n"
+                seconds_since_heartbeat = 0
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        # #2049 T7: no-cache so an intermediary never serves a stale poll
+        # from cache; X-Accel-Buffering:no so a buffering reverse proxy
+        # doesn't hold the whole stream before forwarding it, which would
+        # defeat SSE's point entirely.
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/active-pipelines", response_model=dict[int, str])
@@ -1851,7 +1872,12 @@ async def pipeline_stream_by_id(
                 yield "event: ping\ndata: {}\n\n"
                 seconds_since_heartbeat = 0
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        # #2049 T7: see job_stream_by_id's identical headers for why.
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post(
