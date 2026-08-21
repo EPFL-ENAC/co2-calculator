@@ -110,16 +110,16 @@ export default {
     fr: 'Voyages professionnels ',
   },
   [`${MODULES.ProfessionalTravel}-description`]: {
-    en: "Review and complete your professional travel.",
+    en: 'Review and complete your professional travel.',
     fr: 'Vérifiez et complétez vos données de voyages professionnels.',
   },
   [`${MODULES.ProfessionalTravel}-title-subtext`]: {
-    en: "This module helps you estimate and visualize the carbon footprint of your train and flight travel. Flights booked through the EPFL travel agency are automatically imported. Their carbon footprint is calculated based on factors such as distance, travel class, flight altitude, occupancy rate, and airline.
+    en: `This module helps you estimate and visualize the carbon footprint of your train and flight travel. Flights booked through the EPFL travel agency are automatically imported. Their carbon footprint is calculated based on factors such as distance, travel class, flight altitude, occupancy rate, and airline.
 
-For train travel and any flights booked outside the agency, please enter your origin and destination cities. The carbon footprint will be calculated based on travel distance and transport mode.",
-    fr: "Ce module vous aide à estimer et à visualiser l'empreinte carbone de vos voyages en train et en avion. Les données de vos vols réservés via l’Agence de voyages EPFL sont transmises automatiquement. L’empreinte carbone associée est calculée en tenant compte de plusieurs facteurs (distance, classe, altitude de vol, taux d'occupation, compagnie aérienne, etc.). 
+For train travel and any flights booked outside the agency, please enter your origin and destination cities. The carbon footprint will be calculated based on travel distance and transport mode.`,
+    fr: `Ce module vous aide à estimer et à visualiser l'empreinte carbone de vos voyages en train et en avion. Les données de vos vols réservés via l’Agence de voyages EPFL sont transmises automatiquement. L’empreinte carbone associée est calculée en tenant compte de plusieurs facteurs (distance, classe, altitude de vol, taux d'occupation, compagnie aérienne, etc.). 
 
-Pour vos trajets en train ainsi que pour tout voyage en avion effectué hors agence, veuillez saisir les villes de départ et d’arrivée. L'empreinte carbone correspondante sera calculée selon la distance et le mode de transport concerné.",
+Pour vos trajets en train ainsi que pour tout voyage en avion effectué hors agence, veuillez saisir les villes de départ et d’arrivée. L'empreinte carbone correspondante sera calculée selon la distance et le mode de transport concerné.`,
   },
   [`${MODULES.ProfessionalTravel}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/professional-travel/',
