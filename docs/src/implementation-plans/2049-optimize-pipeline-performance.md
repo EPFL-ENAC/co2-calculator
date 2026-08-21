@@ -242,7 +242,7 @@ _Inherent vs incidental._ This is the distinction the task turns on:
   **reader/writer** lock; the code implements a full mutex. Nothing found
   in code requires reader-vs-reader exclusion.
   Proposal (not implemented, needs review): shared lock on the recalc
-  side, exclusive on the factor side → **[#2280](https://github.com/EPFL-ENAC/co2-calculator/issues/2280)**.
+  side, exclusive on the factor side → **[#2276](https://github.com/EPFL-ENAC/co2-calculator/issues/2276)**.
 - **Second-order, also incidental:** the advisory lock is taken *inside*
   the semaphore, so a job **blocked on the lock still burns a
   `MAX_CONCURRENT_JOBS` permit and both its pool connections** for the
@@ -460,7 +460,7 @@ the new metric is unconfirmed (likely
 overflow)`; dev runs 3 backend + 1 worker.
 - Is 201 s an acceptable pipeline runtime for the product? If yes, say so
   and set the SLO. If no, it's a separate ticket with its own traces —
-  see [#2280](https://github.com/EPFL-ENAC/co2-calculator/issues/2280),
+  see [#2276](https://github.com/EPFL-ENAC/co2-calculator/issues/2276),
   which proposes the one structural change A3 identified.
 - The per-job timing query in A3, for pipeline
   `8aff966d-b4eb-4d64-ae56-68e16e0d8154`. Settles whether the recalc
@@ -556,7 +556,7 @@ by the 805 per-chunk ASGI spans).
   traces. Adds corrections 8–9, replaces A3 with the execution model and
   the one query that settles it, and **withdraws C3's proposed
   path-scoped Route** in favour of mirroring one annotation to stage/prod.
-  Files [#2280](https://github.com/EPFL-ENAC/co2-calculator/issues/2280)
+  Files [#2276](https://github.com/EPFL-ENAC/co2-calculator/issues/2276)
   for the one structural finding.
 
 Pattern worth noticing: **every round of this document has been corrected
