@@ -176,6 +176,25 @@ export async function mockSimulatorBackend(page: Page): Promise<{
     });
   });
 
+  // Print/explore page's fetchAllData batches taxonomy fetches as one
+  // .../data-entries call per module instead of one per submodule
+  // (#2049 T6) — returns a map keyed by entry, not one TaxonomyNode.
+  // Registered after the catch-all above so LIFO picks this more
+  // specific route first for that path.
+  await page.route('**/api/v1/taxonomies/module/*/data-entries*', (route) => {
+    const entries = new URL(route.request().url()).searchParams.getAll(
+      'entries',
+    );
+    const body = Object.fromEntries(
+      entries.map((entry) => [entry, { name: entry, label: '', children: [] }]),
+    );
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+
   // All other module preview_limit=0 calls (non-headcount modules).
   // Identity-addressed by the explore report id (99).
   await page.route(
