@@ -196,7 +196,7 @@ ContextVar and `drain_pending_dispatches` fires them all through
 **But they do not run concurrently.** Three gates, in order of how much
 they bind:
 
-1. **The `(module, year)` advisory lock — this is the dominant one.**
+1. **The `(module, year)` advisory lock — the dominant one _when N > 1_.**
    Every `emission_recalc` handler opens with
    `pg_advisory_xact_lock(1237, module_type_id * 100000 + year)`
    (`backend/app/tasks/_locks.py:38-78`, taken at
@@ -269,12 +269,25 @@ WHERE pipeline_id = '8aff966d-b4eb-4d64-ae56-68e16e0d8154'
 ORDER BY started_at;
 ```
 
-Read it as: **disjoint, back-to-back intervals across the recalc siblings
-confirms gate 1** (and `sum(dur) ≈ 201.6 s` confirms serialisation is the
-whole story). **Overlapping intervals refute it**, and the time is then
-per-entry compute inside one slice — go to gate 3 and the
-`Recalc profile …` log line (`emission_recalculation.py:263`), which
-already prints ms/entry split validate/prepare/remainder.
+Read it as, **in this order**:
+
+- **Only ONE `emission_recalc` row?** Then gate 1 never engaged — an
+  uncontended lock costs nothing — and the whole 201.6 s is a single
+  slice's per-entry compute. Go to gate 3. **Check this branch first:
+  it is not an edge case.** `_chain_emission_recalc_for_data_ingest`
+  produces exactly one target whenever the parent has a
+  `data_entry_type_id` (any single-det CSV or API ingest), which is a
+  common shape. Nothing in the traces says which shape
+  `8aff966d-b4eb-4d64-ae56-68e16e0d8154` was — that is why the original
+  A3 asked for `pipelines.job_count`, and the question still stands.
+- **N > 1, intervals disjoint and back-to-back?** Confirms gate 1 — and
+  `sum(dur) ≈ 201.6 s` confirms serialisation is the whole story.
+- **N > 1, intervals overlapping?** Refutes gate 1; the time is per-entry
+  compute inside one slice. Go to gate 3.
+
+Gate 3's instrument already exists: the `Recalc profile …` log line
+(`emission_recalculation.py:263`) prints ms/entry split
+validate/prepare/remainder for every slice.
 
 ⚠️ Until that query runs, gate 1 is a **ranked hypothesis from code
 reading, not a measurement** — the mechanism and the shared lock key are
@@ -378,15 +391,19 @@ _Is anything being cut?_ **No evidence that it is, and one solid
 counter-example.** `timeout server` is an **inactivity** timeout, not a
 duration cap (correction 8a), and the 201.6 s trace was recorded on
 **stage — the environment with no override** — completing with 200
-(correction 8b). Both streams write every ~2 s, and `#2262`'s keepalive
-bounds the silent gaps; the worst measured was 16.2 s, comfortably under
-30 s.
+(correction 8b). Both streams write on a ~2.015 s poll and the worst
+silent gap ever measured was 16.2 s — comfortably under 30 s on the poll
+cadence alone. `#2262`'s keepalive tightens that further; the conclusion
+does not depend on it having shipped.
 
 _So what's left is config drift, and the fix is one line, not a Route._
 Add the same `annotations` block dev has to the stage and prod overlays.
 Cheap, consistent, and it is genuine defence-in-depth for a **non**-streaming
 request that could go quiet for >30 s (a slow upload or a blocking POST) —
 not for the streams that motivated the item.
+⚠️ **Not done here.** That edit lives in `openshift-app-config`, a
+different repo; this investigation was read-only on it. Someone with
+write access has to make it.
 
 _Verdict on the path-scoped Route: withdrawn._ Three reasons.
 
