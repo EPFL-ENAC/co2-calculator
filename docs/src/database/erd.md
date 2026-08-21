@@ -39,7 +39,6 @@ erDiagram
     INTEGER created_by FK
     INTEGER end_year "indexed"
     INTEGER id PK
-    BOOLEAN is_grant_proposal
     BOOLEAN is_viewable_by_unit_members
     VARCHAR name "indexed"
     INTEGER start_year "indexed"

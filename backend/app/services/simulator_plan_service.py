@@ -91,6 +91,8 @@ def _to_read(
     creator_name: str | None,
     total_tonnes_co2eq: float | None = None,
     default_factor_year: int | None = None,
+    *,
+    is_grant_proposal: bool = False,
 ) -> SimulatorPlanRead:
     if project.id is None:
         raise ValueError("project must be persisted before use")
@@ -101,7 +103,7 @@ def _to_read(
         start_year=project.start_year,
         end_year=project.end_year,
         is_viewable_by_unit_members=project.is_viewable_by_unit_members,
-        is_grant_proposal=project.is_grant_proposal,
+        is_grant_proposal=is_grant_proposal,
         created_by=project.created_by,
         created_at=project.created_at,
         creator_name=creator_name,
@@ -126,7 +128,7 @@ class SimulatorPlanService:
         """List all plans for a unit, newest first, each with its total."""
         rows = await self.repo.list_plans_by_unit(unit_id)
         totals = await self._totals_by_plan(
-            [project.id for project, _ in rows if project.id is not None]
+            [project.id for project, _, _ in rows if project.id is not None]
         )
         default_factor_year = await self.repo.get_latest_calculator_year(unit_id)
         return [
@@ -135,8 +137,9 @@ class SimulatorPlanService:
                 creator_name,
                 totals.get(project.id or -1),
                 default_factor_year,
+                is_grant_proposal=is_grant_proposal,
             )
-            for project, creator_name in rows
+            for project, creator_name, is_grant_proposal in rows
         ]
 
     async def _totals_by_plan(self, plan_ids: list[int]) -> dict[int, float]:
@@ -160,13 +163,14 @@ class SimulatorPlanService:
         row = await self.repo.get_plan_with_creator(plan_id)
         if row is None:
             return None
-        project, creator_name = row
+        project, creator_name, is_grant_proposal = row
         return _to_read(
             project,
             creator_name,
             default_factor_year=await self.repo.get_latest_calculator_year(
                 project.unit_id
             ),
+            is_grant_proposal=is_grant_proposal,
         )
 
     async def create_plan(
@@ -221,8 +225,6 @@ class SimulatorPlanService:
             project.name = update.name
         if update.is_viewable_by_unit_members is not None:
             project.is_viewable_by_unit_members = update.is_viewable_by_unit_members
-        if update.is_grant_proposal is not None:
-            project.is_grant_proposal = update.is_grant_proposal
         if update.start_year is not None:
             project.start_year = update.start_year
         if update.end_year is not None:
@@ -238,6 +240,7 @@ class SimulatorPlanService:
             project,
             default_reference_year=update.default_reference_year,
             with_year_sections=update.with_year_sections,
+            is_grant_proposal=update.is_grant_proposal,
         )
         return await self._read_with_creator(project), needs_prefill
 
@@ -247,6 +250,7 @@ class SimulatorPlanService:
         default_reference_year: int | None = None,
         *,
         with_year_sections: bool | None = None,
+        is_grant_proposal: bool | None = None,
     ) -> list[int]:
         """Make the plan's reports match ``start_year..end_year``, one per year.
 
@@ -261,8 +265,11 @@ class SimulatorPlanService:
 
         ``with_year_sections`` opts the plan out of (or back into) per-year
         reports; ``None`` keeps the plan's current shape, derived from its
-        existing non-grant reports (a plan with no reports yet gets them).
-        A plan must keep either its year sections or its grant proposal.
+        existing non-grant reports (a plan with no reports yet, or no year
+        range yet, has them pending). ``is_grant_proposal`` likewise adds or
+        removes the grant report; ``None`` keeps it as is. A plan must keep
+        either its year sections or its grant proposal, whether or not its
+        year range is set.
 
         A plan that ends up with per-year sections is also forced back to
         private (``is_viewable_by_unit_members = False``): those sections
@@ -278,14 +285,20 @@ class SimulatorPlanService:
             raise ValueError("project must be persisted before use")
         reports = await self.repo.list_reports_for_project(project.id)
         grant_report = next((r for r in reports if r.is_grant), None)
-        if project.start_year is None or project.end_year is None:
-            await self._sync_grant_report(project, grant_report)
-            return []
+        want_grant = is_grant_proposal
+        if want_grant is None:
+            want_grant = grant_report is not None
+        range_set = project.start_year is not None and project.end_year is not None
         want_years = with_year_sections
         if want_years is None:
-            want_years = not reports or any(not r.is_grant for r in reports)
-        if not want_years and not project.is_grant_proposal:
+            want_years = (
+                not range_set or not reports or any(not r.is_grant for r in reports)
+            )
+        if not want_years and not want_grant:
             raise ValueError("A plan needs year-by-year sections or a grant proposal")
+        if project.start_year is None or project.end_year is None:
+            await self._sync_grant_report(project, grant_report, want_grant)
+            return []
         target_years = (
             set(range(project.start_year, project.end_year + 1))
             if want_years
@@ -315,13 +328,16 @@ class SimulatorPlanService:
             project.is_viewable_by_unit_members = False
             self.session.add(project)
             await self.session.flush()
-        await self._sync_grant_report(project, grant_report)
+        await self._sync_grant_report(project, grant_report, want_grant)
         return needs_prefill
 
     async def _sync_grant_report(
-        self, project: CarbonProject, grant_report: CarbonReport | None
+        self,
+        project: CarbonProject,
+        grant_report: CarbonReport | None,
+        want_grant: bool,
     ) -> None:
-        """Make the plan's Project Grant report match ``is_grant_proposal``.
+        """Create, move or delete the plan's Project Grant report.
 
         Unchecking the checkbox deletes the grant report together with its
         entries (destructive by design, like shrinking the year range). The
@@ -330,7 +346,7 @@ class SimulatorPlanService:
         keeping its data — grant entries resolve their factors from the
         reference year, not the report year.
         """
-        if not project.is_grant_proposal:
+        if not want_grant:
             if grant_report is not None and grant_report.id is not None:
                 await self.report_service.delete(grant_report.id)
             return
@@ -988,7 +1004,6 @@ class SimulatorPlanService:
             end_year=source.end_year,
             name=new_name,
             is_viewable_by_unit_members=source.is_viewable_by_unit_members,
-            is_grant_proposal=source.is_grant_proposal,
             created_by=user.id,
             created_at=datetime.now(UTC),
         )
@@ -996,10 +1011,12 @@ class SimulatorPlanService:
         # The copy has no reports yet, so its shape (with or without per-year
         # sections) cannot be derived from itself — carry the source's over.
         source_reports = await self.repo.list_reports_for_project(plan_id)
+        has_grant = any(r.is_grant for r in source_reports)
         await self._sync_year_reports(
             copy,
             with_year_sections=not source_reports
             or any(not r.is_grant for r in source_reports),
+            is_grant_proposal=has_grant,
         )
         return _to_read(
             copy,
@@ -1007,6 +1024,7 @@ class SimulatorPlanService:
             default_factor_year=await self.repo.get_latest_calculator_year(
                 copy.unit_id
             ),
+            is_grant_proposal=has_grant,
         )
 
     async def delete_plan(self, plan_id: int) -> bool:
@@ -1032,9 +1050,12 @@ class SimulatorPlanService:
         row = await self.repo.get_plan_with_creator(project.id or -1)
         if row is None:
             return _to_read(project, None, default_factor_year=default_factor_year)
-        refreshed, creator_name = row
+        refreshed, creator_name, is_grant_proposal = row
         return _to_read(
-            refreshed, creator_name, default_factor_year=default_factor_year
+            refreshed,
+            creator_name,
+            default_factor_year=default_factor_year,
+            is_grant_proposal=is_grant_proposal,
         )
 
     @staticmethod

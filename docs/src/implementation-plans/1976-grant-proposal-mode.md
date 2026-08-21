@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 1976
-last_updated: 2026-08-05
+last_updated: 2026-08-21
 title: "Simulator Plan — Grant proposal mode (first increment)"
 summary: "Plans gain a persisted Grant proposal checkbox and, when checked, a Project Grant section (a dedicated grant carbon report) rendered before the year sections. Grant tables carry a kgCO₂eq-over-project-years column (#1979), the section carries a total grant budget with currency plus per-submodule budgets and a distribution check (#1978), Research Facilities render a platform-selection grid (#1980), Equipment gets a per-line vs global-percentage planning toggle (#1981), and results show a grant vs year-by-year comparison chart plus a grant page in the PDF (#1977)."
 ---
@@ -18,10 +18,15 @@ Grant section renders **before** (not instead of) the year sections.
 
 ### Data model
 
-- `carbon_projects.is_grant_proposal` (bool, default false): the plan-level
-  checkbox state.
+- A plan is a grant proposal iff it owns an `is_grant` report. The API still
+  exposes `is_grant_proposal` (read and PATCH), but it is derived from that
+  report (`EXISTS` in `CarbonProjectRepository._plan_with_creator_stmt`),
+  not stored: the former `carbon_projects.is_grant_proposal` column was a
+  cache that nothing kept in sync with the report and was dropped
+  (migration `277bf6757926`, 2026-08-21).
 - `carbon_reports.is_grant` (bool, default false): marks the plan's single
-  Project Grant report. It is anchored to the plan's **start year** (grant
+  Project Grant report, enforced by the partial unique index
+  `uq_carbon_reports_project_grant` on `(carbon_project_id) WHERE is_grant`. It is anchored to the plan's **start year** (grant
   entries resolve factors from the reference year, not the report year, so
   the anchor is only an ordering/identity anchor).
 - `uq_carbon_reports_project_year` widened to
@@ -30,10 +35,12 @@ Grant section renders **before** (not instead of) the year sections.
 
 ### Backend behavior
 
-- `SimulatorPlanService._sync_year_reports` also syncs the grant report:
-  created when `is_grant_proposal` and the year range are set, its year
+- `SimulatorPlanService._sync_year_reports` also syncs the grant report
+  from the PATCH's `is_grant_proposal` (`None` keeps the current state):
+  created as soon as the checkbox is set (year range or not), its year
   follows `start_year` (keeping its entries), and it is **deleted with its
-  entries** when the checkbox is unchecked (destructive by design, like
+  entries** when the checkbox is unchecked. The "year sections or grant"
+  invariant is checked on every sync, including before a year range is set (destructive by design, like
   shrinking the year range).
 - `PATCH /project-plans/{id}/years/{year}` takes `is_grant` in the body to
   disambiguate the grant report from the start-year report.
