@@ -1,3 +1,142 @@
+# [1.4.0](https://github.com/EPFL-ENAC/co2-calculator/compare/b6e783d...039c73f) (2026-08-21)
+
+## Key Changes
+
+No `v1.3.1`/`v1.3.2` git tags exist — those pre-releases went to `stage`
+only, and tagging is deliberately skipped there because it would trigger a
+prod deploy. This entry covers everything merged to `dev` since the 1.3.2
+version bump (`b6e783d`, 2026-08-14), i.e. what stage hasn't seen yet.
+
+**Emission types now fail hard instead of silently degrading (#2091)**
+
+Every module used to invent its own answer when a factor CSV named a value
+the taxonomy didn't recognize: some raised, some returned nothing, and some
+walked up to a parent node — which double-counts, since a parent already
+sums its children, and the total still renders as if nothing were wrong.
+An audit of all 15 shipped factor CSVs found 21 rows already silently
+mis-bucketed this way, including 5 AI providers (ChatGPT, Claude, Gemini,
+Copilot ×2) all lumped into "Other" instead of their own category, and two
+Headcount waste sub-types. Every resolver now raises on an unmapped value
+and names it, uploads abort instead of partially committing, and SF6/NF3
+get their own leaves instead of hiding in "refrigerants" (#2206, #2207,
+#2213). A companion audit (#1489, tracked as #2204) hardened validation
+across research-facility DTOs, whitespace-only required fields, and factor
+ingestion, which was persisting hand-built dicts instead of the values it
+had just validated (#2231).
+
+**Backend compute performance (#2050)**
+
+A multi-week effort cut the interactive write path from 50 SQL statements
+to 12 on a single headcount create (#2191), the submodule GET from 648ms to
+~80ms by scoping an emissions aggregation that was scanning the whole table
+on every call (#2195), the equipment page from 1711ms to ~5ms by storing
+`is_new` at ingest instead of deriving it per read (#2199), and a
+reference-year PATCH from 960ms to 271ms (#2152, #2153). A process-pool
+proposal was rejected with real numbers instead of adopted on instinct, and
+three genuine sync-in-async blocking calls were fixed along the way
+(#2182). One optimization in this track briefly broke login for every
+returning user, then a same-day hotfix for that briefly broke the login
+button entirely (wrong Quasar prop name) — both fixed within hours
+(#2200, #2203).
+
+**Planner: multi-currency purchases, grant-mode fixes**
+
+The Planner's Purchases section now accepts input in any supported
+currency, converted to EUR server-side via ECB rates (#1918). Grant
+proposals default their reference year automatically (#2177), the
+Equipment global-percentage toggle in grant mode is repaired (default back
+to 100%, manual rows now actually deleted on a mode switch) (#2202), and a
+permission gap that hid modules from standard users in effective
+(non-grant) plan years is closed (#2224).
+
+**Other notable fixes**
+
+CSV exports now carry a UTF-8 BOM so accented characters render correctly
+in Excel (#2111); CSV ingestion auto-detects comma vs. semicolon delimiters
+for Excel-locale exports (#2137); a misspelled reference-data CSV column
+used to silently resolve to `None` instead of failing the upload (#2216);
+unresolved train/plane stations now hard-fail instead of persisting a
+zero-emission row (#2228); the process-emissions `quantity` field is
+renamed to `quantity_kg` end-to-end, with a data migration, because the
+shipped data template had already moved to that name (#2168); and the 15
+Alembic migrations were consolidated into one (#2229, one-time DB reset
+agreed with the team — the "DB persists across deploys" rule is unchanged
+going forward).
+
+See the full PR-by-PR list below.
+
+### Features
+
+* **planner:** multi-currency purchases input, converted to EUR via ECB rates ([#2186](https://github.com/EPFL-ENAC/co2-calculator/pull/2186)), closes [#1918](https://github.com/EPFL-ENAC/co2-calculator/issues/1918)
+* **planner:** default a grant proposal's reference year automatically ([#2177](https://github.com/EPFL-ENAC/co2-calculator/pull/2177)), closes [#2095](https://github.com/EPFL-ENAC/co2-calculator/issues/2095)
+* **planner:** fixed year range now 2016–2050 instead of a rolling window ([#2142](https://github.com/EPFL-ENAC/co2-calculator/pull/2142)), closes [#2038](https://github.com/EPFL-ENAC/co2-calculator/issues/2038)
+* **planner:** year sections collapsed by default ([#2144](https://github.com/EPFL-ENAC/co2-calculator/pull/2144)), closes [#2113](https://github.com/EPFL-ENAC/co2-calculator/issues/2113)
+* **planner:** validate reduction-objective goal years against sensible bounds, backend and UI ([#2148](https://github.com/EPFL-ENAC/co2-calculator/pull/2148)), closes [#1667](https://github.com/EPFL-ENAC/co2-calculator/issues/1667)
+* **planner:** reference-year travel entries copy into a plan as plain editable rows instead of reference-linked ones ([#2116](https://github.com/EPFL-ENAC/co2-calculator/pull/2116)), closes [#2018](https://github.com/EPFL-ENAC/co2-calculator/issues/2018)
+* **planner:** tooltip on the Grant proposal checkbox ([#2109](https://github.com/EPFL-ENAC/co2-calculator/pull/2109))
+* **explorer:** render research facilities in the Simulation Explorer ([#2158](https://github.com/EPFL-ENAC/co2-calculator/pull/2158)), closes [#2004](https://github.com/EPFL-ENAC/co2-calculator/issues/2004)
+* **results:** hide categories whose module/submodule is deactivated instead of just greying them out ([#2164](https://github.com/EPFL-ENAC/co2-calculator/pull/2164))
+* **equipment:** carry prior-year usage forward across a new year's CSV import; missing usage shows a suggested default instead of blocking ([#2110](https://github.com/EPFL-ENAC/co2-calculator/pull/2110)), closes [#259](https://github.com/EPFL-ENAC/co2-calculator/issues/259)
+* **defaults:** Planner Equipment ID defaults to "Unknown", Explorer's AI FTE count defaults to 0 instead of inheriting Calculator headcount ([#2222](https://github.com/EPFL-ENAC/co2-calculator/pull/2222)), closes [#2061](https://github.com/EPFL-ENAC/co2-calculator/issues/2061)
+* **ingestion:** auto-detect comma vs. semicolon CSV delimiter for Excel-locale exports ([#2137](https://github.com/EPFL-ENAC/co2-calculator/pull/2137)), closes [#2024](https://github.com/EPFL-ENAC/co2-calculator/issues/2024)
+* **factors:** IT research facility IDs configurable via environment variable ([#2225](https://github.com/EPFL-ENAC/co2-calculator/pull/2225)), closes [#2043](https://github.com/EPFL-ENAC/co2-calculator/issues/2043)
+* **process-emissions:** refrigerant subcategories and matching chart colors ([#2213](https://github.com/EPFL-ENAC/co2-calculator/pull/2213)), closes [#2197](https://github.com/EPFL-ENAC/co2-calculator/issues/2197)
+* **connectors:** support a per-caption aggregation function in Tableau providers, needed for research-facilities queries ([#2169](https://github.com/EPFL-ENAC/co2-calculator/pull/2169)), closes [#924](https://github.com/EPFL-ENAC/co2-calculator/issues/924)
+* **dev:** tmux-dev script for backend/frontend/claude/shell sessions per worktree ([#2188](https://github.com/EPFL-ENAC/co2-calculator/pull/2188))
+
+### Bug Fixes
+
+* **emissions:** resolve every emission type against a declared leaf or fail hard; no more silent walk-up-to-parent double counting or "provider_others" catch-all ([#2206](https://github.com/EPFL-ENAC/co2-calculator/pull/2206), [#2207](https://github.com/EPFL-ENAC/co2-calculator/pull/2207)), closes [#2091](https://github.com/EPFL-ENAC/co2-calculator/issues/2091)
+* **1489:** validation hardening — research-facility DTO validators, whitespace-only required fields, factor ingestion persists validated/coerced values ([#2231](https://github.com/EPFL-ENAC/co2-calculator/pull/2231))
+* **research-facilities:** correctly split IT vs. non-IT facilities in the breakdown chart ([#2175](https://github.com/EPFL-ENAC/co2-calculator/pull/2175)), closes [#1632](https://github.com/EPFL-ENAC/co2-calculator/issues/1632)
+* **research-facilities:** closed-unit factor resolves to 0 instead of 500ing the create endpoint ([#2218](https://github.com/EPFL-ENAC/co2-calculator/pull/2218)), closes [#2183](https://github.com/EPFL-ENAC/co2-calculator/issues/2183)
+* **reference-data:** fail the CSV upload on an unrecognized column instead of silently resolving it to `None` ([#2216](https://github.com/EPFL-ENAC/co2-calculator/pull/2216)), closes [#1545](https://github.com/EPFL-ENAC/co2-calculator/issues/1545)
+* **travel:** unresolved train/plane stations hard-fail instead of persisting a zero-emission row, via CSV, API and a blocked form submit ([#2228](https://github.com/EPFL-ENAC/co2-calculator/pull/2228)), closes [#1186](https://github.com/EPFL-ENAC/co2-calculator/issues/1186)
+* **travel:** allow a missing SCIPER on the travel feed and log missing-value stats ([#2117](https://github.com/EPFL-ENAC/co2-calculator/pull/2117))
+* **process-emissions:** rename `quantity` to `quantity_kg` end-to-end (backend, CSV, frontend) with a data migration, matching the shipped data template ([#2168](https://github.com/EPFL-ENAC/co2-calculator/pull/2168)), closes [#2025](https://github.com/EPFL-ENAC/co2-calculator/issues/2025)
+* **equipment:** collapse internal whitespace when matching a CSV category to a factor, fixing two categories that always failed to match ([#2192](https://github.com/EPFL-ENAC/co2-calculator/pull/2192)), closes [#2174](https://github.com/EPFL-ENAC/co2-calculator/issues/2174)
+* **equipment:** widen response power fields to float, fixing a 500 on fractional factor values ([#2171](https://github.com/EPFL-ENAC/co2-calculator/pull/2171)), closes [#2170](https://github.com/EPFL-ENAC/co2-calculator/issues/2170)
+* **equipment:** repair grant-mode global-percentage toggle — default back to 100%, show reference-year vs. planned totals, actually delete manual rows on a mode switch ([#2202](https://github.com/EPFL-ENAC/co2-calculator/pull/2202)), closes [#1981](https://github.com/EPFL-ENAC/co2-calculator/issues/1981)
+* **ingestion:** derive embodied-energy companion entries on bulk-CSV building ingestion, matching manual entry ([#2121](https://github.com/EPFL-ENAC/co2-calculator/pull/2121)), closes [#878](https://github.com/EPFL-ENAC/co2-calculator/issues/878)
+* **purchase:** lock manual centralized-purchase input to kg; unit and coefficient are no longer hand-editable ([#2189](https://github.com/EPFL-ENAC/co2-calculator/pull/2189)), closes [#1935](https://github.com/EPFL-ENAC/co2-calculator/issues/1935)
+* **exports:** add a UTF-8 BOM to all CSV exports and templates so accented characters render correctly in Excel ([#2111](https://github.com/EPFL-ENAC/co2-calculator/pull/2111)), closes [#2069](https://github.com/EPFL-ENAC/co2-calculator/issues/2069)
+* **results:** include validated modules with empty stats in totals instead of showing them as unvalidated ([#2190](https://github.com/EPFL-ENAC/co2-calculator/pull/2190)), closes [#2096](https://github.com/EPFL-ENAC/co2-calculator/issues/2096)
+* **permissions:** treat Explore and Plan reports as unit-level consistently, closing a gap where standard users were missing modules in effective (non-grant) plan years ([#2224](https://github.com/EPFL-ENAC/co2-calculator/pull/2224)), closes [#2120](https://github.com/EPFL-ENAC/co2-calculator/issues/2120)
+* **planner:** stop the "% of reference year" slider 403ing on prefilled rows ([#2181](https://github.com/EPFL-ENAC/co2-calculator/pull/2181)), closes [#2176](https://github.com/EPFL-ENAC/co2-calculator/issues/2176)
+* **planner:** restrict reference-year baseline copy to users with real access to the unit ([#2180](https://github.com/EPFL-ENAC/co2-calculator/pull/2180)), closes [#2120](https://github.com/EPFL-ENAC/co2-calculator/issues/2120)
+* **charts:** give the two charts relying on `min-height` a definite height, fixing a blank render after a vue-echarts point bump ([#2205](https://github.com/EPFL-ENAC/co2-calculator/pull/2205)), closes [#2027](https://github.com/EPFL-ENAC/co2-calculator/issues/2027)
+* **charts:** fix segment sorting in the emission breakdown chart ([#2227](https://github.com/EPFL-ENAC/co2-calculator/pull/2227)), closes [#2043](https://github.com/EPFL-ENAC/co2-calculator/issues/2043)
+* **module-form:** stop the Enter key leaving a false "Required" error after a successful submit ([#2172](https://github.com/EPFL-ENAC/co2-calculator/pull/2172)), closes [#2072](https://github.com/EPFL-ENAC/co2-calculator/issues/2072)
+* **frontend:** clear inline field errors before validation and save, instead of showing a stale error ([#2140](https://github.com/EPFL-ENAC/co2-calculator/pull/2140)), closes [#2105](https://github.com/EPFL-ENAC/co2-calculator/issues/2105)
+* **frontend:** replace the infinite-scroll select with a plain filtered list ([#2150](https://github.com/EPFL-ENAC/co2-calculator/pull/2150)), closes [#2006](https://github.com/EPFL-ENAC/co2-calculator/issues/2006)
+* **backoffice:** rename "Uncertainty" to "Confidence" in data-management labels ([#2141](https://github.com/EPFL-ENAC/co2-calculator/pull/2141)), closes [#2112](https://github.com/EPFL-ENAC/co2-calculator/issues/2112)
+* **headcount:** make `user_institutional_id` mandatory again on create ([#2151](https://github.com/EPFL-ENAC/co2-calculator/pull/2151)), closes [#2138](https://github.com/EPFL-ENAC/co2-calculator/issues/2138)
+* **auth:** stop login 500ing for every returning user, an audit-log optimization reused an entity id assumption that doesn't hold for auth ([#2200](https://github.com/EPFL-ENAC/co2-calculator/pull/2200)), closes [#2050](https://github.com/EPFL-ENAC/co2-calculator/issues/2050)
+* **auth:** restore working login after a same-day hotfix left the login button not submitting (wrong Quasar prop name) ([#2203](https://github.com/EPFL-ENAC/co2-calculator/pull/2203))
+* **helm:** remove backend env vars from the worker pod to avoid duplicate/stale values ([#2185](https://github.com/EPFL-ENAC/co2-calculator/pull/2185))
+
+### Performance
+
+* **write-path:** cut a headcount-member create from 50 SQL statements to 12; six silent fallbacks now raise instead of publishing a plausible-but-wrong total ([#2191](https://github.com/EPFL-ENAC/co2-calculator/pull/2191)), part of [#2050](https://github.com/EPFL-ENAC/co2-calculator/issues/2050)
+* **write-path:** put the report-stats rollup back inside the write transaction after deferring it silently dropped it on every API pod ([#2198](https://github.com/EPFL-ENAC/co2-calculator/pull/2198)), part of [#2050](https://github.com/EPFL-ENAC/co2-calculator/issues/2050)
+* **submodule:** scope the emissions aggregation to the module instead of scanning the whole table — 648ms to ~80ms ([#2195](https://github.com/EPFL-ENAC/co2-calculator/pull/2195)), part of [#2050](https://github.com/EPFL-ENAC/co2-calculator/issues/2050)
+* **equipment:** store `is_new` at ingest instead of deriving it per read — 1711ms to ~5ms ([#2199](https://github.com/EPFL-ENAC/co2-calculator/pull/2199)), and reuse the same stored flag for the incomplete-new count ([#2201](https://github.com/EPFL-ENAC/co2-calculator/pull/2201)), part of [#2050](https://github.com/EPFL-ENAC/co2-calculator/issues/2050)
+* **simulator-plan:** cut a reference-year PATCH round trip from 960ms to 271ms ([#2152](https://github.com/EPFL-ENAC/co2-calculator/pull/2152)), and fix a buildings N+1, batch plan-year compute, and defer prefill to a background job ([#2153](https://github.com/EPFL-ENAC/co2-calculator/pull/2153)), part of [#2050](https://github.com/EPFL-ENAC/co2-calculator/issues/2050)
+* **planner:** reduce an over-intensive headcount rollup ([#2179](https://github.com/EPFL-ENAC/co2-calculator/pull/2179)), part of [#2050](https://github.com/EPFL-ENAC/co2-calculator/issues/2050)
+* **observability:** reject a process-pool proposal with real numbers; fix three sync-in-async blocking calls (Loki logging, audit→Elasticsearch sync, connector-credential encryption); add DB connection-pool monitoring ([#2182](https://github.com/EPFL-ENAC/co2-calculator/pull/2182)), part of [#2050](https://github.com/EPFL-ENAC/co2-calculator/issues/2050)
+* **audit:** replace an advisory-lock scheme with a savepoint-plus-retry, fixing intermittent 500s in Simulator/Explorer under concurrent writes ([#2139](https://github.com/EPFL-ENAC/co2-calculator/pull/2139)), closes [#1958](https://github.com/EPFL-ENAC/co2-calculator/issues/1958)
+
+### Chores
+
+* **backend:** consolidate 15 Alembic migrations into one, one-time DB reset agreed with the team ([#2229](https://github.com/EPFL-ENAC/co2-calculator/pull/2229)), closes [#2211](https://github.com/EPFL-ENAC/co2-calculator/issues/2211)
+* **backend:** rename `SECRET_KEY` to `JWT_HMAC_KEY`, split out a separate `SESSION_HMAC_KEY` so rotating one signing domain doesn't invalidate the other; drop dead OPA config ([#2167](https://github.com/EPFL-ENAC/co2-calculator/pull/2167)), closes [#1704](https://github.com/EPFL-ENAC/co2-calculator/issues/1704)
+* **repo:** ignore `.env` at any depth as a backstop against `git add .` ([#2187](https://github.com/EPFL-ENAC/co2-calculator/pull/2187))
+* **i18n:** rewrite grant-mode module tooltips to drop stale "use the slider" copy ([#2136](https://github.com/EPFL-ENAC/co2-calculator/pull/2136))
+* **tests:** repair nine integration tests that had drifted from shipped code ([#2157](https://github.com/EPFL-ENAC/co2-calculator/pull/2157))
+* **tests:** seed a mirroring `building_rooms` row in the submodule sort/search matrix ([#2193](https://github.com/EPFL-ENAC/co2-calculator/pull/2193)), part of [#878](https://github.com/EPFL-ENAC/co2-calculator/issues/878)
+* **scripts:** one perf-test CSV generator per data-entry type, sized at real per-unit-year ceilings ([#2215](https://github.com/EPFL-ENAC/co2-calculator/pull/2215)), part of [#2161](https://github.com/EPFL-ENAC/co2-calculator/issues/2161)
+* **deps-dev:** bump ruff from 0.16.2 to 0.16.3 in /backend ([#2134](https://github.com/EPFL-ENAC/co2-calculator/pull/2134))
+
 # [1.3.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.0.7...v1.3.0) (2026-08-10)
 
 ## Key Changes
