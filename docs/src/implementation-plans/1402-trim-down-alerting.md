@@ -148,50 +148,58 @@ code disproves. Put this first."):
   - **PR [openshift-app-config#8](https://github.com/EPFL-ENAC/openshift-app-config/pull/8) — merged.**
 - [x] Verified `http_target` live (dev + stage, `count by (http_target,
       http_route, http_method) (http_server_duration_milliseconds_count{...})`):
-      it's populated, and it's already normalized by an existing
-      collector-side transform that collapses `/{api_version}/{router_prefix}`
-      down to a literal `/api` (e.g. `/v1/sync/dispatch` → `/api/dispatch`,
-      `/v1/year-configuration/{year}` → `/api/{year}`). `http_route` never
-      appears. Consequence: matching has to be on the path *tail*, not the
-      full route — real collision risk for the job/upload/pipeline vs
-      normal-API split (e.g. `GET /v1/units` and `POST /v1/sync/units` both
-      lose their router prefix and could collide if not also matched on
-      `http_method`). The stream exclusion below is safe regardless, since
-      only the two stream endpoints end in `/stream` anywhere in the
-      codebase.
-- [x] `LatencyP50High`/`P95High`/`P99High` (dev+stage) now exclude
-      `http_target!~".*/stream$"` — a pipeline that correctly takes 3+
-      minutes can no longer trip the alert. **PR
-      [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9) — open.**
+      it's populated and already collapsed to a literal `/api/{tail}` (e.g.
+      `/v1/sync/dispatch` → `/api/dispatch`, `/v1/year-configuration/{year}` →
+      `/api/{year}`). `http_route` never appears. **Retraction (same day):**
+      the first pass here claimed "an existing collector-side transform"
+      does this collapse — checked the actual `otel-helm-chart` template and
+      that's false. The only default processors are `filter` (health-check
+      datapoint dropper keyed on `http.route`, which doesn't exist on this
+      metric — a silent no-op the whole time, same bug class as #1402's
+      original exclusion) and `tail_sampling` (traces only). Where the
+      `/api` collapse actually happens is **still unconfirmed**. Doesn't
+      change the fix below (suffix/tail matching is unaffected by the
+      unknown prefix mechanism), just the explanation.
+- [x] Added a `route_class` label per §4.3 — a `transform` processor in the
+      collector's metrics pipeline sets `route_class` (`probe`/`stream`/
+      `upload`/`job`/`api`) from `http_target`, once, before Prometheus
+      export. Replaces the no-op `filter` processor for metrics;
+      `tail_sampling` (traces) carried forward unchanged.
+      `LatencyP50High`/`P95High`/`P99High` (dev+stage) now filter on
+      `route_class="api"` instead of a per-rule suffix regex — this removes
+      streams *and* uploads *and* jobs from the normal-API latency alert in
+      one place, not three. Known fragility: the job/upload/probe
+      classification still keys off `http_target` tail patterns (no
+      `http_route` to match on), with a `POST`-only guard on the
+      `year-configuration/{year}` tail to avoid catching GET/PATCH on the
+      same tail. Verify against real traffic once a pipeline runs in stage.
+      **PR [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9) — open.**
 
 ## Steps
 
 - [x] Confirm in the ops repo which metric/labels the current p99 alert
       queries — **confirmed live**: `http_target` is populated on
-      `http_server_duration_milliseconds`, pre-normalized by an existing
-      collector transform (see Done section above).
+      `http_server_duration_milliseconds`; `http_route` is not.
+- [x] Add `route_class` in the collector (§4.3), not per-alert regex — done,
+      see Done section above.
 - [x] Exclude `/sync/jobs/{job_id}/stream` and `/sync/pipelines/{pipeline_id}/stream`
-      from the latency alerts (path-suffix match on `http_target`) — done,
-      PR [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9).
-- [ ] Pull 2-4 weeks of historical p99 for `/files` and `/sync/*` (excluding
-      `/stream` routes) from existing dashboards to set a realistic
-      threshold for the jobs/upload/pipeline group (don't guess a number
-      the team will immediately silence).
-- [ ] In the ops repo, split the single alert rule into two: normal-API
-      (keep existing threshold) and jobs/upload/pipeline (new looser
-      threshold + longer eval window). Match by `http_target` *tail*
-      pattern, not full route (the `/api` collapse strips the router
-      prefix) — draft tail list: `dispatch`, `units` (data_sync's, not
-      the plain `units` list which collapses to an empty tail), `jobs.*`,
-      `workers`, `active-pipelines.*`, `recalculation-status`,
-      `pipelines.*`, `health/stale-stats`, `admin/recompute-stats`,
-      `temp-upload`, and `POST` on tail `{year}/upload`; also decide
-      whether `POST /year-configuration/{year}` (tail `{year}`, needs an
-      `http_method="POST"` guard to avoid catching the GET/PATCH on the
-      same tail) belongs in the slow group. Verify the tail list against
-      real traffic before shipping — a wrong regex here silently mis-groups
-      requests, the same failure mode this plan already flagged for the
-      old `http_target` no-op.
+      (and uploads and jobs) from the normal-API latency alerts via
+      `route_class="api"` — done, PR
+      [openshift-app-config#9](https://github.com/EPFL-ENAC/openshift-app-config/pull/9).
+- [ ] Pull 2-4 weeks of historical p99 for `route_class="upload"` and
+      `route_class="job"` from existing dashboards to set a realistic
+      threshold for that group (don't guess a number the team will
+      immediately silence).
+- [ ] Add the `route_class="upload"`/`"job"` latency alert (looser threshold
+      + longer eval window, §4.7.7's `PipelineSlow`/similar) and the
+      `route_class="probe"` panel (§4.9.6) — `route_class` now exists,
+      building the alerts/panels on top of it is what's left. Re-verify the
+      tail-based classification (`dispatch`, `units`, `jobs.*`, `workers`,
+      `active-pipelines.*`, `recalculation-status`, `pipelines.*`,
+      `health/stale-stats`, `admin/recompute-stats`, `temp-upload`) against
+      real traffic once a pipeline runs in stage — a wrong regex here
+      silently mis-classifies requests, the same failure mode this plan
+      already flagged for the old `http_target` no-op.
 - [x] Configure a GlitchTip alert rule on the frontend project — done
       outside this repo.
 - [ ] Document the two alert groups and thresholds in a short ops note, so
