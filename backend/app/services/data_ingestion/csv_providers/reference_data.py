@@ -540,6 +540,10 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
 
 
 def _to_float(value: Any) -> float | None:
+    """Absent/blank/'-' cells are legal Nones; an unparseable present value is
+    an error (#1489, audit F-2) — silently NULLing it is the same failure mode
+    as #1545's typo'd column, just one level down.
+    """
     if value is None:
         return None
     normalized = str(value).strip()
@@ -548,4 +552,4 @@ def _to_float(value: Any) -> float | None:
     try:
         return float(normalized)
     except ValueError:
-        return None
+        raise ValueError(f"Invalid numeric value {value!r} in reference CSV") from None

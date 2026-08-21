@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import field_validator, model_validator
+from pydantic import ValidationInfo, field_validator, model_validator
 
 from app.schemas.data_entry import (
     DataEntryCreate,
@@ -48,6 +48,13 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
     currency: str | None = None
     note: str | None = None
 
+    @field_validator("service_type", "provider", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     @model_validator(mode="before")
     @classmethod
     def ensure_default_currency(cls, data: Any) -> Any:
@@ -86,6 +93,14 @@ class ExternalAIHandlerCreate(DataEntryCreate):
     requests_per_user_per_day: str
     fte_count: float
     note: str | None = None
+
+    @field_validator("provider", "usage_type", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     #  __kg_co2eq_override__ for kg_co2eq
 
     @field_validator("requests_per_user_per_day", mode="after")
@@ -114,6 +129,13 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
     currency: str | None = None
     note: str | None = None
 
+    @field_validator("service_type", "provider", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
+
     @field_validator("spent_amount", mode="after")
     @classmethod
     def validate_spent_amount(cls, v: float | None) -> float | None:
@@ -141,6 +163,13 @@ class ExternalAIHandlerUpdate(DataEntryUpdate):
     requests_per_user_per_day: str | None = None
     fte_count: float | None = None
     note: str | None = None
+
+    @field_validator("provider", "usage_type", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v
 
     @field_validator("requests_per_user_per_day", mode="after")
     @classmethod

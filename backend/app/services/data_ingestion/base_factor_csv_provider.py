@@ -397,7 +397,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             }
 
             try:
-                handler.validate_create(validation_payload)
+                validated = handler.validate_create(validation_payload)
             except ValidationError as validation_error:
                 error_msg = _format_pydantic_validation_error(validation_error)
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
@@ -406,6 +406,18 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg
+
+            # Persist the DTO-coerced value for every CSV-present value field
+            # (#1489, audit F-3): ``_convert_value`` keeps the raw string when
+            # ``float()`` fails, and untyped fields skip coercion entirely, so
+            # without this the validated DTO was discarded and the unvalidated
+            # dict is what reached ``Factor.values``. ``classification`` stays
+            # hand-built on purpose — the Plan 310B identity index keys on
+            # ``classification::text``, so its representation must not change.
+            validated_fields = getattr(type(validated), "model_fields", {})
+            for field_name in values:
+                if field_name in validated_fields:
+                    values[field_name] = getattr(validated, field_name)
 
             # ``year`` is stored on the dedicated ``Factor.year`` column;
             # do NOT also inject it into ``classification``.  The Plan 310B

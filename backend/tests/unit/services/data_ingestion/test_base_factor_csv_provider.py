@@ -688,3 +688,71 @@ async def test_process_row_malformed_value_still_skips(monkeypatch):
     assert factor is None
     assert "Validation error" in error_msg
     assert stats["rows_skipped"] == 1
+
+
+@pytest.mark.asyncio
+async def test_process_row_persists_dto_coerced_values(monkeypatch):
+    """#1489 (audit F-3): what reaches Factor.values is the DTO-validated
+    value, not _convert_value's lenient parse. An int-typed field arriving as
+    "2" must persist as int 2, not float 2.0 — before the fix the validated
+    DTO was discarded and the hand-built dict was persisted verbatim.
+    """
+
+    class _CoercingPayload(BaseModel):
+        kind: str
+        hours: int
+
+    handler_mock = MagicMock()
+    handler_mock.category_field = "data_entry_type"
+    handler_mock.classification_fields = ["kind"]
+    handler_mock.value_fields = ["hours"]
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "year": 2024, "handlers": [handler_mock]},
+        data_session=MagicMock(),
+    )
+    stats = _build_stats()
+
+    handler = MagicMock()
+    handler.classification_fields = ["kind"]
+    handler.value_fields = ["hours"]
+    handler.validate_create.side_effect = lambda payload: (
+        _CoercingPayload.model_validate(
+            {k: v for k, v in payload.items() if k in ("kind", "hours")}
+        )
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+    factor_service = MagicMock()
+    factor_service.prepare_create = AsyncMock(return_value=SimpleNamespace(id=1))
+
+    setup_result = {
+        "handlers": [handler_mock],
+        "expected_columns": {"data_entry_type", "kind", "hours"},
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x", "hours": "2"},
+        row_idx=3,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        factor_service=factor_service,
+    )
+
+    assert error_msg is None
+    persisted = factor_service.prepare_create.await_args.kwargs["values"]
+    assert persisted["hours"] == 2
+    assert isinstance(persisted["hours"], int)
+    # classification stays the hand-built dict (310B identity contract)
+    assert factor_service.prepare_create.await_args.kwargs["classification"] == {
+        "kind": "x"
+    }

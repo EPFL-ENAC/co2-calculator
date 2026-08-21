@@ -137,6 +137,8 @@ const additionalPurchaseFields: ModuleField[] = [
     id: 'coef_to_kg',
     labelKey: `${MODULES.Purchase}.inputs.coef_to_kg`,
     type: 'number',
+    required: true,
+    min: 0,
     default: 1,
     hideIn: { form: true },
     sortable: true,

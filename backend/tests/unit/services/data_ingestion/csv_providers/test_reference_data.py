@@ -12,6 +12,7 @@ from app.services.data_ingestion.csv_providers.reference_data import (
     BUILDING_ROOMS_REQUIRED_COLUMNS,
     LOCATIONS_REQUIRED_COLUMNS,
     ReferenceDataCSVProvider,
+    _to_float,
 )
 from app.services.data_ingestion.provider_factory import ProviderFactory
 
@@ -203,3 +204,20 @@ def test_reference_ingest_handler_is_registered():
     bootstrap_handlers()
     handler = get_handler("reference_ingest")
     assert callable(handler)
+
+
+def test_to_float_blank_and_dash_are_none() -> None:
+    assert _to_float(None) is None
+    assert _to_float("") is None
+    assert _to_float("  ") is None
+    assert _to_float("-") is None
+    assert _to_float("18.5") == 18.5
+
+
+def test_to_float_rejects_unparseable_present_value() -> None:
+    """#1489 (audit F-2): a present-but-unparseable numeric (wrong decimal
+    separator, stray text) must fail the upload, not silently become NULL —
+    the same failure mode as #1545's typo'd column, one level down.
+    """
+    with pytest.raises(ValueError, match="Invalid numeric value"):
+        _to_float("12,5")
