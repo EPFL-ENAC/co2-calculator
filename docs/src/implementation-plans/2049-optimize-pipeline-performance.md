@@ -3,7 +3,7 @@ status: in-progress
 issue: 2049
 last_updated: 2026-08-22
 title: "Optimize Pipeline/Report Performance — what remains after the v3 investigation"
-summary: "Rewritten 2026-08-22. The v3 trace investigation (200 Tempo traces + 5 OTLP traces) is finished and its alerting half shipped as #1402. This plan carries what's left: the connection-pool decision, the shared per-request floor, the OTel double-instrumentation tax, the remaining request fan-out, and the 201s pipeline. Seven claims from v3 are corrected here — read those first."
+summary: "Rewritten 2026-08-22. The v3 trace investigation (200 Tempo traces + 5 OTLP traces) is finished and its alerting half shipped as #1402. This plan carries what's left: the connection-pool decision, the shared per-request floor, the OTel double-instrumentation tax, the remaining request fan-out, and the 201s pipeline. Nine claims are corrected here — read those first; corrections 8-9 retire C3's premise and its proposed mechanism."
 ---
 
 # Optimize Pipeline/Report Performance — what remains
@@ -101,6 +101,33 @@ Per v3's own output contract ("Contradictions: put this first").
    Silently invisible to any target-keyed dashboard or alert, which is worse
    than a collision.
 
+8. **NEW — C3's premise ("streams are probably being cut today") is
+   WRONG, twice over.** Established by reading the ops repo and the
+   chart, 2026-08-22.
+   **(a) It is an inactivity timeout, not a total-duration cap.**
+   `haproxy.router.openshift.io/timeout` sets HAProxy's `timeout server`,
+   which HAProxy defines as "the maximum inactivity time on the server
+   side". Every byte written resets it. Our SSE streams emit on a ~2.015 s
+   poll and, since `#2262`, a keepalive bounds the silent gaps — the
+   worst measured gap was 16.2 s. A 30 s **inactivity** timeout is
+   unreachable for a stream that never goes 30 s without a write, at any
+   total duration.
+   **(b) The measurement itself is the counter-example.** The 201.6 s
+   pipeline stream was recorded on **stage**, which has **no** timeout
+   override (see the table in C3), and it ran to completion and closed
+   with 200. If a 30 s cap applied, that trace could not exist.
+   The **real** finding underneath C3 is different and smaller:
+   **stage and prod lack the annotation dev has** — config drift, not a
+   live incident. See C3 for the per-environment table.
+
+9. **NEW — the pipeline task modules are in `app/tasks/`, not
+   `app/workflows/`.** `runner.py`, `_chain.py`, `_pipeline_reconciler.py`,
+   `_locks.py` and the `*_tasks.py` handlers all live in
+   `backend/app/tasks/`. `backend/app/workflows/` holds only the three
+   compute workflows (`emission_recalculation.py`,
+   `carbon_report_module.py`, `embodied_energy.py`). C4 named the wrong
+   directory; corrected there.
+
 ## Delivered
 
 | Task      | What shipped                                                                                                                                                        | Where                                 |
@@ -144,12 +171,115 @@ A1 shows checkout contention is the actual bottleneck.
 Bonus: the pre-ping is a fixed trivial statement, so its duration is a free
 pure-RTT probe to Postgres. Worth charting.
 
-**A3 — Why does a pipeline take 201.6 s?** (T11) Needs `pipelines.job_count`
-and per-job `started_at`/`finished_at` for
-`8aff966d-b4eb-4d64-ae56-68e16e0d8154`. The stream reported it faithfully
-and closed cleanly — this is a pipeline-execution question, not a stream
-bug. Are jobs sequential? Investigation only; any resulting change is
-recalculation internals and needs its own reviewed plan.
+**A3 — Why does a pipeline take 201.6 s?** (T11) The stream reported it
+faithfully and closed cleanly — this is a pipeline-execution question,
+not a stream bug. **Code investigation done 2026-08-22** (below); the
+confirming measurement is still the one thing a human has to pull.
+
+_Execution model, established from code._ A pipeline is a DAG of
+`data_ingestion_jobs` rows sharing a `pipeline_id`, three phases deep:
+
+```
+root ingest (csv_ingest | api_ingest | factor_ingest)
+   └─ N × emission_recalc          one child per det of the SAME module
+        └─ 1 × aggregation         chained by the LAST recalc sibling only
+```
+
+Fan-out width N is `len(MODULE_TYPE_TO_DATA_ENTRY_TYPES[module])`
+(`backend/app/models/module_type.py:71`) — **10 for `purchase`**, 3 for
+headcount/equipment/buildings, 2 for travel, 1 for process_emissions.
+Dispatch itself is concurrent: `chain_job` queues children in a
+ContextVar and `drain_pending_dispatches` fires them all through
+`fire_and_forget` after the parent commits
+(`backend/app/tasks/_chain.py:93-108`).
+
+**But they do not run concurrently.** Three gates, in order of how much
+they bind:
+
+1. **The `(module, year)` advisory lock — this is the dominant one.**
+   Every `emission_recalc` handler opens with
+   `pg_advisory_xact_lock(1237, module_type_id * 100000 + year)`
+   (`backend/app/tasks/_locks.py:38-78`, taken at
+   `emission_recalculation_tasks.py:330`). It is **exclusive**, and it is
+   held until `data_session` commits — which the runner does only *after*
+   the handler returns, so it spans the whole job. The key does **not**
+   include `data_entry_type_id`, and the fan-out is one child per det of
+   **one** module — so **all N siblings of a pipeline hash to the same
+   key and execute strictly one at a time**, serialised by Postgres.
+   A `purchase` upload is 10 recalcs in a queue of one.
+2. **`MAX_CONCURRENT_JOBS = 4`** (`config.py:471`), a per-pod
+   `asyncio.Semaphore` acquired in `run_job` *before* the claim
+   (`runner.py:131`). Caps this pod at 4 jobs at once.
+3. **Per-entry Python.** `recalculate_for_data_entry_type` loops entry by
+   entry doing `model_validate` + `prepare_create`
+   (`backend/app/workflows/emission_recalculation.py:147-241`), yielding
+   on wall time only. Same event loop, so co-resident jobs interleave but
+   do not parallelise.
+
+Then the **aggregation** takes a *second*, coarser lock:
+`pg_advisory_xact_lock(1236, year)` (`aggregation_tasks.py:131-135`) —
+per-**year**, so it serialises aggregations across *every module and
+every pipeline* of that year.
+
+_Inherent vs incidental._ This is the distinction the task turns on:
+
+- **Inherent — do not touch.** The parent-commit-before-children gate
+  (#1236; firing children early caused FK violations on
+  `data_entry_emissions_data_entry_id_fkey`). The trailing-aggregation
+  phase gate (`_is_last_recalc_sibling`,
+  `emission_recalculation_tasks.py:108`) — earlier aggregations would see
+  partial `data_entry_emissions`. **`factor_ingest` (writer) excluding
+  `emission_recalc` (reader)** — that is exactly what `_locks.py`'s
+  docstring says it is for, and it is real.
+- **Incidental — `emission_recalc` excluding `emission_recalc`.** Gate 1
+  is an *exclusive* lock, but siblings only **read** `factors`; they write
+  `data_entry_emissions` for **disjoint** entry sets (different
+  `data_entry_type_id`), and module-stats writing was moved out of this
+  workflow into the aggregation handler
+  (`emission_recalculation.py:276-283`), so there is no shared write
+  target left between them. The docstring's own justification —
+  "`factor_ingest` writes, `emission_recalc` reads" — describes a
+  **reader/writer** lock; the code implements a full mutex. Nothing found
+  in code requires reader-vs-reader exclusion.
+  Proposal (not implemented, needs review): shared lock on the recalc
+  side, exclusive on the factor side → **[#2280](https://github.com/EPFL-ENAC/co2-calculator/issues/2280)**.
+- **Second-order, also incidental:** the advisory lock is taken *inside*
+  the semaphore, so a job **blocked on the lock still burns a
+  `MAX_CONCURRENT_JOBS` permit and both its pool connections** for the
+  whole wait. Four queued purchase siblings can occupy every permit on a
+  pod and head-of-line-block unrelated pipelines. Recorded in the same
+  issue.
+
+_Not the bottleneck (ruled out in code, so nobody re-checks it)._ The
+connection pool: `DB_POOL_SIZE=10 + DB_MAX_OVERFLOW=10 = 20` per pod
+(`config.py:76-95`, wired in `db.py`), against `4 jobs × 2 sessions = 8`
+reserved for background work. Gate 2 binds before the pool does, so pool
+exhaustion — the original #1723 symptom — cannot be what a 201 s pipeline
+is waiting on. ⚠️ This is about the **job** path only; A1 is still open
+for the **HTTP** path, which shares the same 20.
+
+_The measurement that settles it._ `started_at`/`finished_at` are real
+columns, stamped by `claim_job` and `finish_job`. One query:
+
+```sql
+SELECT id, job_type, module_type_id, data_entry_type_id,
+       started_at, finished_at, finished_at - started_at AS dur
+FROM data_ingestion_jobs
+WHERE pipeline_id = '8aff966d-b4eb-4d64-ae56-68e16e0d8154'
+ORDER BY started_at;
+```
+
+Read it as: **disjoint, back-to-back intervals across the recalc siblings
+confirms gate 1** (and `sum(dur) ≈ 201.6 s` confirms serialisation is the
+whole story). **Overlapping intervals refute it**, and the time is then
+per-entry compute inside one slice — go to gate 3 and the
+`Recalc profile …` log line (`emission_recalculation.py:263`), which
+already prints ms/entry split validate/prepare/remainder.
+
+⚠️ Until that query runs, gate 1 is a **ranked hypothesis from code
+reading, not a measurement** — the mechanism and the shared lock key are
+facts, the claim that they account for the bulk of 201.6 s is not.
+This document has been wrong four times by reasoning past that line.
 
 ### B. Ready now
 
@@ -220,18 +350,81 @@ Two things to get right:
 - Also revert `OTEL_TRACES_SAMPLER: "always_on"` on dev/stage, added for
   the same investigation. It is ~2/3 of the measured OTel throughput tax.
 
-**C3 — Path-scoped `/v1/sync` Route with `haproxy.router.openshift.io/timeout: 600s`.**
-`jobs/stream` reaches 36.1 s and pipelines 201.6 s against an OpenShift
-HAProxy default of 30 s — some streams are probably being cut today and
-nobody has looked. Changes production traffic routing. Bonus: it splits the
-HAProxy metrics by route, which makes `HaproxyRouteHighLatency` meaningful
-for free (its `avg` currently includes 201 s responses).
+**C3 — ~~Path-scoped `/v1/sync` Route~~ → mirror dev's timeout annotation
+to stage and prod.** **Rewritten 2026-08-22 — the original premise was
+wrong (correction 8); the proposed mechanism is withdrawn.**
+
+_What each environment actually has_ (read from
+`openshift-app-config`, the git source ArgoCD syncs; each overlay carries
+a full `valuesInline`, there is no shared default):
+
+| Env       | backend Route timeout | Source                                    |
+| --------- | --------------------- | ----------------------------------------- |
+| **dev**   | **`10m`**             | `overlays/dev/kustomization.yaml:46`      |
+| **stage** | **absent**            | `overlays/stage/kustomization.yaml:42-44` |
+| **prod**  | **absent**            | `overlays/prod/kustomization.yaml:42-44`  |
+
+The chart sets no default either — `routes.{frontend,backend,docs}.annotations`
+are all `{}` in `helm/values.yaml:348-372`, and the only `haproxy.*` string
+in the chart is `rewrite-target`. A repo-wide grep for
+`haproxy.router.openshift.io/timeout` across the ops repo returns exactly
+one line: dev. It was added by a single commit
+(`chore(co2-calculator-dev): add route timeout`) and never mirrored.
+stage and prod fall through to the cluster router default
+(`ROUTER_DEFAULT_SERVER_TIMEOUT`, 30 s unless the cluster overrides it —
+reading the live `IngressController` would confirm the number).
+
+_Is anything being cut?_ **No evidence that it is, and one solid
+counter-example.** `timeout server` is an **inactivity** timeout, not a
+duration cap (correction 8a), and the 201.6 s trace was recorded on
+**stage — the environment with no override** — completing with 200
+(correction 8b). Both streams write every ~2 s, and `#2262`'s keepalive
+bounds the silent gaps; the worst measured was 16.2 s, comfortably under
+30 s.
+
+_So what's left is config drift, and the fix is one line, not a Route._
+Add the same `annotations` block dev has to the stage and prod overlays.
+Cheap, consistent, and it is genuine defence-in-depth for a **non**-streaming
+request that could go quiet for >30 s (a slow upload or a blocking POST) —
+not for the streams that motivated the item.
+
+_Verdict on the path-scoped Route: withdrawn._ Three reasons.
+
+1. **The surviving rationale doesn't need it.** A path-scoped Route earns
+   its keep when a path needs a *different timeout value*. With `10m`
+   applied route-wide, `/v1/sync` needs nothing the rest of `/api` doesn't.
+2. **It's the wrong instrument for the metrics bonus.** Splitting
+   `HaproxyRouteHighLatency`'s `avg` is an **alerting** problem, and the
+   OTel-side equivalent is already solved and merged — `route_class` puts
+   streams in their own bucket (ops #9–#11). Restructuring **production
+   traffic routing** to fix a dashboard inverts the risk/benefit, and
+   "ship small / defer, don't improvise" points the other way. Rescope or
+   retire the HAProxy-side alert instead.
+3. **Concrete footgun.** All three Routes are *already* path-scoped
+   (`/api`, `/docs`, `/`; `helm/templates/routes.yaml:24,55,83`), and the
+   backend Route carries `haproxy.router.openshift.io/rewrite-target: /`,
+   injected by the template unless overridden (`routes.yaml:11-17`). A
+   fourth Route at `/api/v1/sync` inheriting that default would rewrite
+   `/api/v1/sync/...` → `/...`, dropping `/v1/sync` and breaking every
+   stream it was added to protect.
+
+⚠️ Caveat on prod: overlays are exact (git), but the deployed chart is an
+OCI artifact — dev `1.0.1351-dev`, stage `1.0.1347-rc`, prod **`1.0.1046`**.
+`routes.yaml` has been untouched since 2026-04-01, so prod's build almost
+certainly matches, but that was not verified against the artifact.
 
 **C4 — `pipeline_duration_seconds` by kind.** A 201 s pipeline is a product
 fact and belongs on a business dashboard with its own threshold, not in an
 HTTP latency histogram. Purely additive as a metric — but emitting it means
-hooking pipeline completion in `runner.py` / `_chain.py` /
-`_pipeline_reconciler.py`, which is recalculation internals. Same gate.
+hooking pipeline completion in `backend/app/tasks/runner.py` / `_chain.py` /
+`_pipeline_reconciler.py` (correction 9 — `app/tasks/`, not
+`app/workflows/`), which is recalculation internals. Same gate.
+Cheapest hook point: `recompute_pipeline_status` is already called on
+every job terminal (`runner.py`, post-`finish_job`) and already owns the
+last-child oracle, so the completion edge is detected there today — the
+metric needs a counter at that edge, not new traversal logic. Label by
+`pipelines.kind`, and add `job_count` so a 10-child `purchase` pipeline is
+distinguishable from a 1-child `process_emissions` one (see A3).
 
 ### D. After A and B land
 
@@ -266,7 +459,16 @@ the new metric is unconfirmed (likely
   front of it. With N replicas the real ceiling is `N × (pool_size +
 overflow)`; dev runs 3 backend + 1 worker.
 - Is 201 s an acceptable pipeline runtime for the product? If yes, say so
-  and set the SLO. If no, it's a separate ticket with its own traces.
+  and set the SLO. If no, it's a separate ticket with its own traces —
+  see [#2280](https://github.com/EPFL-ENAC/co2-calculator/issues/2280),
+  which proposes the one structural change A3 identified.
+- The per-job timing query in A3, for pipeline
+  `8aff966d-b4eb-4d64-ae56-68e16e0d8154`. Settles whether the recalc
+  siblings serialise. **This is now the blocking unknown for A3.**
+- What is `ROUTER_DEFAULT_SERVER_TIMEOUT` on the cluster's
+  `IngressController`? Only affects how much headroom stage/prod have
+  today; C3's conclusion holds either way, since `timeout server` is an
+  inactivity timeout.
 - A prod Tempo export during real concurrency. Everything measured so far
   is stage at an **average of 0.5 concurrent streams** — a quiet
   environment.
@@ -350,10 +552,18 @@ by the 805 per-chunk ASGI spans).
 - **This rewrite** (2026-08-22) — after ~15 PRs. Corrects seven more v3
   claims (above), splits the alerting half out to #1402, and reduces the
   document to what is actually still open.
+- **A3/C3 investigation** (2026-08-22) — code + ops-config reading, no new
+  traces. Adds corrections 8–9, replaces A3 with the execution model and
+  the one query that settles it, and **withdraws C3's proposed
+  path-scoped Route** in favour of mirroring one annotation to stage/prod.
+  Files [#2280](https://github.com/EPFL-ENAC/co2-calculator/issues/2280)
+  for the one structural finding.
 
 Pattern worth noticing: **every round of this document has been corrected
 by the next one, and every correction came from measurement, not
-argument.** Four confident, wrong conclusions so far — zombie streams,
-event-loop queueing, no pooling, and "the matcher is a no-op". Treat
-anything here not backed by a cited measurement as a hypothesis, and say so
-loudly when the evidence disagrees.
+argument.** Five confident, wrong conclusions so far — zombie streams,
+event-loop queueing, no pooling, "the matcher is a no-op", and "streams
+are probably being cut at 30 s". Treat anything here not backed by a cited
+measurement as a hypothesis, and say so loudly when the evidence disagrees.
+Note that #5 was refuted by a config file and a timeout definition — the
+cheapest check in the list, and the one nobody ran for three revisions.
