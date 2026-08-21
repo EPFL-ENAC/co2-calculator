@@ -36,8 +36,9 @@ But this is all inside `enacit4r-files@1.0.0`
 `github.com/EPFL-ENAC/enacit4r-files`), not code this repo owns. Per the
 guardrails ("defer, don't improvise: new dependencies... wait for the
 lead"), this is investigated-and-left-alone, not forked or patched here.
-Filed conceptually as a note for whoever maintains that package; not
-re-pinned or vendored in this PR.
+Not filed as an issue against `enacit4r-files` — noted here for whoever
+next touches that package's upload path; not re-pinned or vendored in
+this PR.
 
 **3. The handler fully buffers each file in memory, no CPU-heavy step
 before it's needed.** `S3FilesStore.write_file()` does
@@ -114,7 +115,8 @@ the exact status code for this case.
   ordering bug, and it has **no size limit at all** (no
   `file_checker.check_size` equivalent), which is arguably worse than what
   #2261 reported. Left alone here to keep this PR scoped to the reported
-  route; filed as a named follow-up rather than silently left unfixed.
+  route; filed as [#2267](https://github.com/EPFL-ENAC/co2-calculator/issues/2267)
+  rather than silently left unfixed.
 - **A pre-parse Content-Length-based size rejection was considered and
   dropped.** `FILES_MAX_SIZE_MB` is a _per-file_ cap; raw `Content-Length`
   is the whole multipart body (all files + multipart overhead), so a
