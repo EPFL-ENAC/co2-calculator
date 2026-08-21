@@ -14,6 +14,10 @@ from app.modules_planner.purchase.data_entries import (
     PlannerPurchaseResponse,
     PlannerPurchaseUpdate,
 )
+from app.modules_planner.purchase.emissions import (
+    planner_purchase_ef_key,
+    planner_purchase_quantity_key,
+)
 from app.schemas.data_entry import BaseModuleHandler
 
 
@@ -23,6 +27,8 @@ class _PlannerPurchaseBase(BaseModuleHandler):
     Emissions are ``amount_eur × ef_kg_co2eq_per_eur`` from factors keyed
     on the planner kind itself — averages of the Calculator's purchase
     factors, derived when those are uploaded (see ``derived_factors``).
+    Centralized purchases are the exception: the Calculator prices them per
+    kg of product, so the planner row is ``quantity_kg × ef_kg_co2eq_per_kg``.
     Entries without a matching factor carry no kg_co2eq.
     """
 
@@ -74,8 +80,8 @@ class _PlannerPurchaseBase(BaseModuleHandler):
                     kind=kind,
                     subkind=None,
                 ),
-                formula_key="ef_kg_co2eq_per_eur",
-                quantity_key="amount_eur",
+                formula_key=planner_purchase_ef_key(kind),
+                quantity_key=planner_purchase_quantity_key(kind),
             )
         ]
 
@@ -96,6 +102,7 @@ class PlannerPurchaseModuleHandler(_PlannerPurchaseBase):
         "id": DataEntry.id,
         "purchase_category": DataEntry.data["purchase_category"].as_string(),
         "amount_eur": DataEntry.data["amount_eur"].as_float(),
+        "quantity_kg": DataEntry.data["quantity_kg"].as_float(),
     }
 
 

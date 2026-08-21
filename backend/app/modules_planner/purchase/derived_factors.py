@@ -8,7 +8,10 @@ whichever category happens to carry the most codes.
 
 Both sides are per EUR: the planner factors always are, and a Calculator
 purchase factor whose ``currency`` classification is set to anything else is
-skipped from the averages rather than converted.
+skipped from the averages rather than converted. Centralized purchases are
+the one per-kg category: their planner factor is the mean of the Calculator's
+per-product ``ef_kg_co2eq_per_kg`` values, and they stay out of the global
+budget's per-EUR mean.
 
 Derivation runs as part of a purchase factor upload, for the year that upload
 covers — planner reports resolve every factor from their reference year, so a
@@ -26,27 +29,33 @@ from app.models.factor import Factor
 from app.modules.emissions import EmissionType
 from app.modules_planner.purchase.emissions import (
     PLANNER_PURCHASE_EMISSIONS,
-    PLANNER_PURCHASE_UNPRICED_CATEGORIES,
+    PLANNER_PURCHASE_KG_CATEGORIES,
+    planner_purchase_ef_key,
 )
 from app.repositories.factor_repo import FactorRepository
 
 logger = get_logger(__name__)
 
 # The planner's category slugs are the Calculator's purchase entry types by
-# the same name — derived, so the two cannot drift. Categories the Calculator
-# does not price per EUR are left out: their factors carry no
-# ``ef_kg_co2eq_per_currency`` to average.
+# the same name — derived, so the two cannot drift.
 SOURCE_TYPE_BY_CATEGORY: dict[str, DataEntryTypeEnum] = {
-    category: DataEntryTypeEnum[category]
-    for category in PLANNER_PURCHASE_EMISSIONS
-    if category not in PLANNER_PURCHASE_UNPRICED_CATEGORIES
+    category: DataEntryTypeEnum[category] for category in PLANNER_PURCHASE_EMISSIONS
 }
 PURCHASE_SOURCE_TYPES: frozenset[DataEntryTypeEnum] = frozenset(
     SOURCE_TYPE_BY_CATEGORY.values()
 )
 
 SOURCE_EF_KEY = "ef_kg_co2eq_per_currency"
+SOURCE_EF_KEY_PER_KG = "ef_kg_co2eq_per_kg"
 PLANNER_EF_KEY = "ef_kg_co2eq_per_eur"
+
+
+def source_ef_key(category: str) -> str:
+    return (
+        SOURCE_EF_KEY_PER_KG
+        if category in PLANNER_PURCHASE_KG_CATEGORIES
+        else SOURCE_EF_KEY
+    )
 
 
 def category_means(
@@ -64,9 +73,19 @@ def category_means(
     }
 
 
+def eur_means(means: Mapping[str, float]) -> dict[str, float]:
+    """The per-EUR categories: the only ones a EUR budget can average over."""
+    return {
+        category: mean
+        for category, mean in means.items()
+        if category not in PLANNER_PURCHASE_KG_CATEGORIES
+    }
+
+
 def global_mean(means: Mapping[str, float]) -> float:
     """The global budget weights every category equally, not every code."""
-    return sum(means.values()) / len(means)
+    priced = eur_means(means)
+    return sum(priced.values()) / len(priced)
 
 
 def build_factors(means: Mapping[str, float], year: int) -> list[Factor]:
@@ -76,20 +95,21 @@ def build_factors(means: Mapping[str, float], year: int) -> list[Factor]:
             emission_type_id=PLANNER_PURCHASE_EMISSIONS[category].value,
             data_entry_type_id=DataEntryTypeEnum.planner_purchase.value,
             classification={"purchase_category": category},
-            values={PLANNER_EF_KEY: round(mean, 6)},
+            values={planner_purchase_ef_key(category): round(mean, 6)},
             year=year,
         )
         for category, mean in means.items()
     ]
-    factors.append(
-        Factor(
-            emission_type_id=EmissionType.purchases__goods_and_services.value,
-            data_entry_type_id=DataEntryTypeEnum.planner_purchase_budget.value,
-            classification={},
-            values={PLANNER_EF_KEY: round(global_mean(means), 6)},
-            year=year,
+    if eur_means(means):
+        factors.append(
+            Factor(
+                emission_type_id=EmissionType.purchases__goods_and_services.value,
+                data_entry_type_id=DataEntryTypeEnum.planner_purchase_budget.value,
+                classification={},
+                values={PLANNER_EF_KEY: round(global_mean(means), 6)},
+                year=year,
+            )
         )
-    )
     return factors
 
 
@@ -106,20 +126,26 @@ async def _collect_source_efs(
     )
     efs: dict[str, list[float]] = {category: [] for category in SOURCE_TYPE_BY_CATEGORY}
     for factor in (await session.exec(stmt)).all():
+        category = category_by_type[factor.data_entry_type_id]
+        ef_key = source_ef_key(category)
         currency = (factor.classification or {}).get("currency")
-        if currency and str(currency).strip().lower() != "eur":
+        if (
+            ef_key == SOURCE_EF_KEY
+            and currency
+            and str(currency).strip().lower() != "eur"
+        ):
             logger.warning(
                 f"Factor {factor.id} is denominated in {currency}, not EUR — "
                 "skipping it in the planner purchase factor averages"
             )
             continue
-        ef = factor.values.get(SOURCE_EF_KEY)
+        ef = factor.values.get(ef_key)
         if ef is None:
             raise ValueError(
-                f"Factor {factor.id} carries no {SOURCE_EF_KEY} — cannot average it "
+                f"Factor {factor.id} carries no {ef_key} — cannot average it "
                 "into a planner purchase factor"
             )
-        efs[category_by_type[factor.data_entry_type_id]].append(float(ef))
+        efs[category].append(float(ef))
     return efs
 
 

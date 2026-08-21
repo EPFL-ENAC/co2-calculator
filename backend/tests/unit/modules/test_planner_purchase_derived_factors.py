@@ -25,7 +25,7 @@ def test_a_category_without_source_factors_is_left_unpriced():
 
 def test_every_planner_category_maps_to_a_calculator_type():
     assert SOURCE_TYPE_BY_CATEGORY["it_equipment"] is DataEntryTypeEnum.it_equipment
-    assert len(SOURCE_TYPE_BY_CATEGORY) == 7
+    assert len(SOURCE_TYPE_BY_CATEGORY) == 8
 
 
 def test_global_budget_weights_categories_not_codes():

@@ -18,12 +18,22 @@ PLANNER_PURCHASE_EMISSIONS: dict[str, EmissionType] = {
     "purchases_centralized": EmissionType.purchases__centralized,
 }
 
-# Additional (centralized) purchases are priced per kg of product in the
-# Calculator, not per EUR, so no average EF can be derived for them and an
-# amount entered against the category stays unpriced.
-PLANNER_PURCHASE_UNPRICED_CATEGORIES: frozenset[str] = frozenset(
-    {"purchases_centralized"}
-)
+# Centralized purchases are priced per kg of product in the Calculator, not
+# per EUR, so the planner row for them takes a quantity in kg rather than an
+# amount.
+PLANNER_PURCHASE_KG_CATEGORIES: frozenset[str] = frozenset({"purchases_centralized"})
+
+
+def planner_purchase_quantity_key(category: str | None) -> str:
+    return "quantity_kg" if category in PLANNER_PURCHASE_KG_CATEGORIES else "amount_eur"
+
+
+def planner_purchase_ef_key(category: str | None) -> str:
+    return (
+        "ef_kg_co2eq_per_kg"
+        if category in PLANNER_PURCHASE_KG_CATEGORIES
+        else "ef_kg_co2eq_per_eur"
+    )
 
 
 def resolve_planner_purchase(data: dict) -> list[EmissionType] | None:
