@@ -14,12 +14,12 @@ export default {
     fr: 'Emissions de procédés',
   },
   [`${MODULES.ProcessEmissions}-description`]: {
-    en: 'Enter your unit's process and fugitive emissions.',
+    en: `Enter your unit's process and fugitive emissions.`,
     fr: 'Saisissez les émissions de procédé et fugitives dans votre unité.',
   },
   [`${MODULES.ProcessEmissions}-title-subtext`]: {
     en: 'This module helps you estimate greenhouse gas emissions from experimental procedures and equipment leaks, such as CO₂ used in lab protocols, SF₆ leaks during etching, fluorinated gas leaks from refrigeration systems, or fluorinated ether evaporation during sample handling.',
-    fr: 'Ce module vous aide à estimer les émissions de gaz à effet de serre liées à vos procédures expérimentales et aux fuites d’équipements, par exemple : l'utilisation de CO₂ dans les protocoles de laboratoire, les fuites de SF₆ lors de la gravure, les fuites de gaz fluorés des systèmes de réfrigération, ou l’évaporation d’éthers fluorés pendant la manipulation des échantillons. ',
+    fr: `Ce module vous aide à estimer les émissions de gaz à effet de serre liées à vos procédures expérimentales et aux fuites d’équipements, par exemple : l'utilisation de CO₂ dans les protocoles de laboratoire, les fuites de SF₆ lors de la gravure, les fuites de gaz fluorés des systèmes de réfrigération, ou l’évaporation d’éthers fluorés pendant la manipulation des échantillons. `,
   },
   [`${MODULES.ProcessEmissions}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/processes/',
