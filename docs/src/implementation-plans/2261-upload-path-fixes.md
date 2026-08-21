@@ -104,19 +104,43 @@ provided") from the existing empty-files check. Same outward effect
 (rejected, 4xx) with a more specific message; no known caller depends on
 the exact status code for this case.
 
-### Left alone
+### The sibling route, fixed here too
 
-- **A sibling route has the identical hole and is not fixed here.**
-  `POST /v1/year-configuration/{year}/upload`
-  (`backend/app/api/v1/year_configuration.py:941`) takes
-  `file: UploadFile = File(...)` and `category: FileCategory = Form(...)`
-  with `Depends(get_current_user)` resolved after them — the same
-  `body_field`-forces-`request.form()`-before-`solve_dependencies()`
-  ordering bug, and it has **no size limit at all** (no
-  `file_checker.check_size` equivalent), which is arguably worse than what
-  #2261 reported. Left alone here to keep this PR scoped to the reported
-  route; filed as [#2267](https://github.com/EPFL-ENAC/co2-calculator/issues/2267)
-  rather than silently left unfixed.
+`POST /v1/year-configuration/{year}/upload`
+(`backend/app/api/v1/year_configuration.py`) had the identical hole:
+`file: UploadFile = File(...)` and `category: FileCategory = Form(...)` with
+`Depends(get_current_user)` resolved after them — the same
+`body_field`-forces-`request.form()`-before-`solve_dependencies()` ordering
+bug — and it had **no size limit at all**, which is worse than what #2261
+originally reported.
+
+This was first scoped out and filed as
+[#2267](https://github.com/EPFL-ENAC/co2-calculator/issues/2267). That was
+the wrong call: shipping the fix for one route while knowingly leaving an
+identical, less-protected hole open in the same release is exactly the
+"patch the path the ticket names, leave the siblings broken" failure the
+guardrails warn about. Both routes are fixed in this PR; #2267 closes with
+it.
+
+Same shape as `files.py`, deliberately — the route takes the raw `Request`,
+runs `is_permitted` first, and only then parses the body:
+
+- `_read_reduction_objective_upload` does the `request.form()` parse inside
+  the async context manager, narrows `file` against Starlette's
+  `UploadFile`, validates `category` against `get_args(FileCategory)` (a
+  `Literal`, so hand-parsing loses FastAPI's own validation of it), applies
+  `file_checker.check_size`, and returns the already-read `bytes` so the
+  rest of the handler is unaffected by the form context closing.
+- `openapi_extra` restores the multipart schema FastAPI no longer generates,
+  keeping the OpenAPI contract and the generated frontend client stable. The
+  hand-written schema reproduces FastAPI's own component name, verified
+  against the live `app.openapi()` output.
+
+**The size cap is a behaviour change, not just a hardening.** Uploads to
+this route larger than `FILES_MAX_SIZE_MB` now get a 400 where they
+previously succeeded. That cap already governs every other upload path, so
+this route was the outlier.
+
 - **A pre-parse Content-Length-based size rejection was considered and
   dropped.** `FILES_MAX_SIZE_MB` is a _per-file_ cap; raw `Content-Length`
   is the whole multipart body (all files + multipart overhead), so a

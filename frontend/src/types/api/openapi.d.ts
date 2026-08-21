@@ -2577,20 +2577,6 @@ export interface components {
         };
         /** BaseModel */
         BaseModel: Record<string, never>;
-        /** Body_upload_reduction_objective_file_v1_year_configuration__year__upload_post */
-        Body_upload_reduction_objective_file_v1_year_configuration__year__upload_post: {
-            /**
-             * File
-             * @description File to upload
-             */
-            file: string;
-            /**
-             * Category
-             * @description File category
-             * @enum {string}
-             */
-            category: "footprint" | "population" | "scenarios";
-        };
         /** BuildingRoomBuildingResponse */
         BuildingRoomBuildingResponse: {
             /** Building Location */
@@ -7650,7 +7636,20 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_upload_reduction_objective_file_v1_year_configuration__year__upload_post"];
+                "multipart/form-data": {
+                    /**
+                     * File
+                     * Format: binary
+                     * @description File to upload
+                     */
+                    file: string;
+                    /**
+                     * Category
+                     * @description File category
+                     * @enum {string}
+                     */
+                    category: "footprint" | "population" | "scenarios";
+                };
             };
         };
         responses: {
