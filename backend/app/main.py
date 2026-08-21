@@ -187,6 +187,17 @@ async def lifespan(app: FastAPI):
         )
         app.state.db_health_task = asyncio.create_task(db_health_check_loop())
 
+    # Start the event-loop lag probe (#2049 T5) — the only traffic-
+    # independent measurement of whether the loop is blocked.
+    if settings.RUN_EVENT_LOOP_LAG_PROBE:
+        from app.tasks._event_loop_lag import event_loop_lag_probe_loop
+
+        logger.info(
+            "Starting event-loop lag probe (every %ss)",
+            settings.EVENT_LOOP_LAG_PROBE_INTERVAL_SECONDS,
+        )
+        app.state.event_loop_lag_task = asyncio.create_task(event_loop_lag_probe_loop())
+
     yield
 
     # Cancel background tasks on shutdown
@@ -222,6 +233,14 @@ async def lifespan(app: FastAPI):
             await db_health_task
         except asyncio.CancelledError:
             logger.info("DB health poller cancelled successfully")
+    event_loop_lag_task = getattr(app.state, "event_loop_lag_task", None)
+    if event_loop_lag_task:
+        logger.info("Cancelling event-loop lag probe")
+        event_loop_lag_task.cancel()
+        try:
+            await event_loop_lag_task
+        except asyncio.CancelledError:
+            logger.info("Event-loop lag probe cancelled successfully")
 
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 
