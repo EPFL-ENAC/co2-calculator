@@ -54,7 +54,7 @@ alerting.
       could still reach 16s, see [below](#t7-followup-heartbeat-gap-bound-last-event-id-and-not-found-consistency)),
       `Last-Event-ID` investigated and deliberately not built, not-found
       consistency between the two SSE siblings investigated and left as-is.
-      Done: co2-calculator#TODO_PR.
+      Done: [co2-calculator#2274](https://github.com/EPFL-ENAC/co2-calculator/pull/2274).
 - **T8** — drop the duplicate psycopg OTel instrumentor, suppress
   per-chunk ASGI spans. Sequence _after_ T1 is verified (the `connect`
   span is what proves the pooling fix).
