@@ -78,7 +78,14 @@ backend:
     # dashboard/alert built on it breaks. Migrating the ops-repo
     # route_class transform/alerts to the new metric is a follow-up, not
     # done by this flag alone.
-    OTEL_SEMCONV_STABILITY_OPT_IN: "http/dup"
+    #
+    # Deliberately NOT defaulted here: "http/dup" makes every pod emit a
+    # second HTTP histogram permanently, and a chart default reaches prod
+    # too. Nothing consumes http.route yet, and the new metric's rendered
+    # Prometheus name is still unconfirmed. Enable it per-environment
+    # (dev first, to confirm that name) and only promote once the ops-repo
+    # transform actually reads it.
+    #   OTEL_SEMCONV_STABILITY_OPT_IN: "http/dup"
 
   secrets:
     # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
