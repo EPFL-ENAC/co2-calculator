@@ -9,16 +9,20 @@ export default {
     fr: 'Infrastructures de recherche EPFL',
   },
   [`${MODULES.ResearchFacilities}-description`]: {
-    en: "Review the use of your unit's research facilities at EPFL.",
-    fr: "Examinez l'utilisation des infrastructures de recherche EPFL de votre unité.",
+    en: "Review your unit's EPFL research facility usage.",
+    fr: "Vérifiez les données d'utilisation des infrastructures de recherche EPFL de votre unité.",
   },
   [`${MODULES.ResearchFacilities}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/services/',
     fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/services/',
   },
   [`${MODULES.ResearchFacilities}-title-subtext`]: {
-    en: 'EPFL provides many research facilities such as cleanrooms, high‑performance computing centers, IT infrastructures and services as well as animal facilities, to name just a few. In total, there are more than 40 research facilities and several research centers that are used by the EPFL community, (as well as by other academic institutions, start-ups, companies, and industries). This sharing of resources is an excellent way to reduce carbon footprint.',
-    fr: "L'EPFL mutualise de nombreux services internes tels que des salles blanches, des centres de calculs de hautes performances, des services informatiques ou des animaleries, pour n'en nommer que quelques-uns. Au total, il y a plus de 40 plateformes et centres de recherches qui sont utilisés par la communauté EPFL (mais également d'autres institutions académiques ainsi que des start-ups, entreprises et industries). Cette mutualisation des ressources est un excellent moyen de réduire l'empreinte carbone.",
+    en: 'This module helps you estimate the carbon footprint from your unit's use of EPFL internal research facilities.
+The carbon footprint allocated to units for each research facility is calculated based on its process emissions, energy combustion, building usage, equipment, and purchases. Depending on the facility, this allocation is based either on funding ratio (billed costs), usage time ratio, or on the number of housing.
+Note that if these activities were conducted using your unit’s own standalone resources, their carbon footprint would be significantly higher. Shared use of research facilities helps reduce this overall impact.',
+    fr: "Ce module vous aide à estimer l'empreinte carbone liée à l'utilisation des infrastructures de recherche internes EPFL par votre unité.
+L'empreinte carbone de chaque infrastructure de recherche attribuée aux unités est calculée sur la base de ses émissions de procédés, de sa combustion d'énergie, de ses bâtiments, de ses équipements et de ses achats. Selon l'infrastructure, cette répartition s'effectue soit sur la base du ratio de financement (facturation), soit du ratio du temps d'utilisation ou le nombre d'hébergement.
+Notez que si ces activités étaient menées avec des moyens propres à l'unité, leur empreinte carbone serait nettement plus élevée. L'utilisation mutualisée d'infrastructures de recherche permet de réduire cet impact global.",
   },
   [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities}-table-title`]:
     {
