@@ -309,6 +309,41 @@ class CarbonReportService:
         carbon_reports = await self.repo.list_by_unit(unit_id)
         return [CarbonReportRead.model_validate(cr) for cr in carbon_reports]
 
+    async def compare_years(self, unit_ids: list[int]) -> list[dict]:
+        """Per-year emission totals summed over several units, for Compare Years.
+
+        Only buckets whose module is validated in at least one of the year's
+        reports count, so a year's total matches the validated-only Results
+        headline; an in-progress module is absent rather than zero. Scopes are
+        summed from the same filtered buckets.
+
+        Returns:
+            ``[{"year": 2023, "modules": {bucket_key: tonnes},
+            "scopes": {"1": t, "2": t, "3": t}, "total_tonnes_co2eq": t}, ...]``
+            oldest year first; no report at all yields ``[]``.
+        """
+        validated = await self.repo.list_validated_buckets_by_year(unit_ids)
+        years: dict[int, dict] = {}
+        for year, key, scope, total_kg in await self.repo.sum_stat_buckets_by_year(
+            unit_ids
+        ):
+            entry = years.setdefault(
+                year,
+                {
+                    "year": year,
+                    "modules": {},
+                    "scopes": {"1": 0.0, "2": 0.0, "3": 0.0},
+                    "total_tonnes_co2eq": 0.0,
+                },
+            )
+            if key not in validated.get(year, set()) or total_kg <= 0:
+                continue
+            tonnes = total_kg / 1000.0
+            entry["modules"][key] = tonnes
+            entry["scopes"][str(scope)] = entry["scopes"].get(str(scope), 0.0) + tonnes
+            entry["total_tonnes_co2eq"] += tonnes
+        return list(years.values())
+
     async def get_by_unit_and_year(
         self, unit_id: int, year: int
     ) -> CarbonReportRead | None:
