@@ -66,6 +66,19 @@ backend:
     # string) in an environment-specific override if SQL-level traces are
     # needed for active debugging — the cost is worth it there, not always-on.
     OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "sqlalchemy,psycopg"
+    # co2-calculator#2260: FastAPI puts each endpoint's *un-prefixed* leaf
+    # route into scope["route"], so opentelemetry-instrumentation-asgi's
+    # http.target (root_path + route.path_format) loses every
+    # include_router(prefix=...) ancestor and can collide across routers
+    # (confirmed: GET/PATCH/POST .../year-configuration/{year} all collapse
+    # to "/api/{year}"). "http/dup" dual-writes a second metric,
+    # http.server.request.duration (seconds), that carries the correct,
+    # fully-qualified http.route -- without touching the existing
+    # http.server.duration (ms) metric or its http.target attribute, so no
+    # dashboard/alert built on it breaks. Migrating the ops-repo
+    # route_class transform/alerts to the new metric is a follow-up, not
+    # done by this flag alone.
+    OTEL_SEMCONV_STABILITY_OPT_IN: "http/dup"
 
   secrets:
     # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
