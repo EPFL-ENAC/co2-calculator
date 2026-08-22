@@ -13,7 +13,8 @@ none should be until this plan is signed off by both maintainers: the
 object being cached carries the user's roles, which is squarely the
 guardrails' "permission scoping" category.
 
-Parked from [#2049](2049-optimize-pipeline-performance.md) item **C1**.
+Parked from
+[#2049](https://github.com/EPFL-ENAC/co2-calculator/issues/2049) item **C1**.
 The full finding, measurements and asks are in
 [issue #2278](https://github.com/EPFL-ENAC/co2-calculator/issues/2278).
 
@@ -138,8 +139,11 @@ is what the current lookup exists to prevent.
 **2. TTL only — no eviction hooks, no cross-pod broadcast.** With
 `replicaCount` 2–3, evicting at write sites 1–3 clears one pod's entry
 while the others keep theirs until expiry anyway. Hooks would buy a 1-in-N
-improvement inside a window that is already only 30 s. The TTL does
-essentially all the work; let it, and don't write the hooks. Sites 4–8 are
+improvement inside a window that is already only 30 s. Note also where the
+win actually comes from: the 31-request burst round-robins across the
+pods, so a TTL alone already collapses it to one lookup per pod — 2–3
+queries instead of 31. Hooks are unnecessary, not merely marginal. The TTL
+does essentially all the work; let it, and don't write them. Sites 4–8 are
 bulk or operator commands measured in minutes.
 
 **3. Cache an immutable snapshot, not the ORM row.** `User` is
@@ -166,7 +170,8 @@ leaks across tests in a shared-process suite.
 
 ## Why not reuse #2273's cross-pod broadcast
 
-[#2258](2258-cache-factors-query.md) / #2273 built a `pods` heartbeat-table
+[#2258](https://github.com/EPFL-ENAC/co2-calculator/issues/2258) / #2273
+built a `pods` heartbeat-table
 registry extended with `pod_ip` from the Downward API, a bare-mounted
 `POST /internal/cache/taxonomy/clear` gated on the caller's TCP source IP
 matching a live `pods` row, and a best-effort `asyncio.gather` + `httpx`
