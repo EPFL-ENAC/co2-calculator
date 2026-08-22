@@ -12,7 +12,7 @@ instead of silently dropping it.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from fastapi.testclient import TestClient
 
 from app.api.deps import get_current_user, get_db
@@ -41,6 +41,7 @@ async def test_batch_endpoint_matches_n_single_entry_calls():
         ),
     ):
         batched = await taxonomies_mod.get_taxonomies_for_module_data_entries(
+            response=Response(),
             module="equipment",
             entries=["scientific", "it"],
             year=2025,
@@ -49,6 +50,7 @@ async def test_batch_endpoint_matches_n_single_entry_calls():
         )
 
         single_scientific = await taxonomies_mod.get_taxonomy_for_module_data_entry(
+            response=Response(),
             module="equipment",
             data_entry="scientific",
             year=2025,
@@ -56,6 +58,7 @@ async def test_batch_endpoint_matches_n_single_entry_calls():
             current_user=fake_user,
         )
         single_it = await taxonomies_mod.get_taxonomy_for_module_data_entry(
+            response=Response(),
             module="equipment",
             data_entry="it",
             year=2025,
@@ -85,6 +88,7 @@ async def test_batch_endpoint_unknown_entry_raises_404_not_skipped():
     ):
         with pytest.raises(HTTPException) as exc:
             await taxonomies_mod.get_taxonomies_for_module_data_entries(
+                response=Response(),
                 module="equipment",
                 entries=["scientific", "not-a-real-entry"],
                 year=2025,
@@ -111,6 +115,7 @@ async def test_batch_endpoint_entry_from_other_module_raises_400():
     ):
         with pytest.raises(HTTPException) as exc:
             await taxonomies_mod.get_taxonomies_for_module_data_entries(
+                response=Response(),
                 module="equipment",
                 entries=["scientific", "building"],  # building belongs to buildings
                 year=2025,
@@ -152,3 +157,37 @@ def test_batch_route_wins_over_single_entry_catch_all():
     # the batch route matched instead.
     assert response.status_code == 200
     assert set(response.json().keys()) == {"scientific", "it"}
+
+
+@pytest.mark.asyncio
+async def test_batch_endpoint_still_sets_the_cache_header():
+    """The batch route must carry the same ``Cache-Control`` as the
+    single-entry one.
+
+    #2258 (server cache + browser caching) and #2049 T6 (batching) landed
+    together and meet exactly here: batching introduced a shared resolver,
+    and it would have been easy to thread the response through the
+    single-entry route only. Then the endpoint the frontend actually calls
+    would silently lose its cache header while every other test still
+    passed.
+    """
+    with patch.object(
+        taxonomies_mod.ModuleHandlerService,
+        "get_taxonomy",
+        new=AsyncMock(
+            side_effect=lambda handler, data_entry_type, year: _fake_taxonomy(
+                data_entry_type
+            )
+        ),
+    ):
+        response = Response()
+        await taxonomies_mod.get_taxonomies_for_module_data_entries(
+            response=response,
+            module="equipment",
+            entries=["scientific", "it"],
+            year=2025,
+            db=object(),
+            current_user=object(),
+        )
+
+    assert response.headers["Cache-Control"] == taxonomies_mod._CACHE_CONTROL

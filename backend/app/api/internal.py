@@ -29,7 +29,11 @@ from app.core.factor_taxonomy_cache import taxonomy_cache
 from app.models.pod import Pod
 from app.utils.datetime_utc import as_utc
 
-router = APIRouter(prefix="/internal", tags=["internal"])
+# include_in_schema=False: pod-to-pod only, never called by a browser. Keeping
+# it out of the public schema stops it appearing in /api/docs and in the
+# generated frontend client, where it would be noise at best and a hint at a
+# cache-clearing endpoint at worst.
+router = APIRouter(prefix="/internal", tags=["internal"], include_in_schema=False)
 
 
 async def _caller_is_live_pod(db: AsyncSession, host: str | None) -> bool:
