@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2261
-last_updated: 2026-08-21
+summary: Close auth-after-body-ingestion (a DoS surface) on both upload routes — POST /v1/files/temp-upload and POST /v1/year-configuration/{year}/upload — with an AuthFirstRoute custom APIRoute that authenticates and bounds Content-Length before FastAPI reads the body, letting the endpoints keep ordinary File/Form signatures. Adds the per-file size cap the year-configuration route never had. The double PutObject/HeadObject write lives in the vendored enacit4r-files package and is filed upstream, not patched here.
 summary: Fix auth-after-body-ingestion on POST /v1/files/temp-upload (a DoS surface) by parsing the multipart body only after the permission check; add a request-content-length span attribute. The double PutObject/HeadObject write is investigated and left alone — it lives in the vendored enacit4r-files package, not this repo.
 ---
 
@@ -64,45 +64,56 @@ ran too late to stop the buffering it was meant to bound.
 
 ## Fix
 
-`backend/app/api/v1/files.py`, `upload_temp_files`:
+The workaround lives in **one** place: `AuthFirstRoute`
+(`backend/app/api/auth_first_route.py`), a custom `APIRoute`. A route's
+handler runs _before_ FastAPI parses the body, so the two checks that don't
+need the body happen there, and every endpoint keeps ordinary
+`File(...)`/`Form(...)` signatures with an automatically generated OpenAPI
+schema.
 
-- Takes the raw `Request` instead of `files: list[UploadFile] = File(...)`,
-  and drops the `dependencies=[Depends(file_checker.check_size)]` decorator
-  entry (its own `files` parameter also counts as a body field for FastAPI's
-  dependant tree, so it had to go too). With no body-typed parameter left
-  anywhere in the dependant tree, FastAPI's `body_field` for this route is
-  `None`, so `request.form()` is never called automatically — auth runs
-  first, unconditionally.
-- The permission check (`can_upload`) now runs first; only after it passes
-  does the handler call `async with request.form() as form:` and read
-  `files`. An unauthenticated or unauthorized caller is rejected before a
-  single body byte is read off the wire.
-- `_require_upload_files()` narrows `form.getlist("files")`
-  (`list[str | UploadFile]`) to real uploads, raising 422 on a plain string
-  sent under the same field name — manual parsing skips FastAPI's automatic
-  validation, so this has to be explicit. (Narrows against
-  `starlette.datastructures.UploadFile`, since `request.form()` returns the
-  Starlette base class, not `fastapi.UploadFile`, which is a subclass.)
-- `file_checker.check_size(files)` is now called explicitly, right after
-  parsing, so the size limit still applies for authenticated callers.
-- `openapi_extra={"requestBody": TEMP_UPLOAD_REQUEST_BODY}` reproduces the
-  multipart schema FastAPI used to generate automatically (verified against
-  a schema dump: identical shape, just inlined instead of via a named
-  `components.schemas` ref) — `frontend/src/types/api/openapi.d.ts` and
-  `frontend/scripts/openapi.snapshot.json` were hand-updated to match (the
-  `Body_upload_temp_files_...` component is gone; the request body type is
-  now inline — no consumer referenced that component name).
-- `_record_request_content_length()` sets `http.request_content_length` on
-  the current span from the `Content-Length` header, best-effort (a
-  missing/malformed header just means the attribute is absent, never a
-  failed upload).
+An earlier version of this PR did it per-route instead — raw `Request`,
+manual `request.form()`, re-narrowing the parts FastAPI would have
+validated, and a hand-written `openapi_extra` to replace the schema FastAPI
+no longer generated, plus hand-patched `openapi.snapshot.json` and
+`openapi.d.ts`. It worked, but it was ~120 lines of machinery per route to
+work around one framework behaviour, and every future upload endpoint would
+have had to repeat it. Replaced. `files.py` and `year_configuration.py` are
+now identical to their pre-fix versions apart from the router line and one
+size check, and **the generated frontend client needs no patching at all**.
 
-**Contract change:** a request with no `files` part previously got
-FastAPI's automatic `422` (required body field missing). It now reaches the
-handler with an empty list and gets `400` ("At least one file must be
-provided") from the existing empty-files check. Same outward effect
-(rejected, 4xx) with a more specific message; no known caller depends on
-the exact status code for this case.
+`AuthFirstRoute` does two things:
+
+- **`_reject_unauthenticated`** — requires a correctly-signed, unexpired JWT
+  cookie. Deliberately _not_ a second implementation of authentication: it
+  proves only that the caller holds a valid token, so there is no copy of
+  the auth rules to drift. The endpoint's own `Depends(get_current_user)`
+  still enforces the access-token contract and loads the user, and its
+  permission check still decides what that user may do.
+- **`_reject_oversized`** — refuses a body whose declared `Content-Length`
+  exceeds a ceiling, on the header alone, before a byte is read. This is a
+  _coarse pre-filter_, not the enforcement point: `FILES_MAX_SIZE_MB` is a
+  **per-file** cap while `Content-Length` covers the whole multipart body,
+  so a legitimate multi-file upload can exceed the per-file cap in total.
+  The exact per-file `check_size` still runs after parsing. Neither check
+  alone is both safe and correct. Best-effort by nature — a missing or
+  malformed header (or a chunked upload, which has none) means the check
+  doesn't apply, never a failed upload. It also sets
+  `http.request_content_length` on the span, so slow-client and large-file
+  can be told apart in traces.
+
+Applied **router-wide** to `files.py` and `year_configuration.py`, after
+verifying that all four routes on the first and all six on the second
+already require `get_current_user` — the class makes the auth cookie
+mandatory for every route it covers, so that check is a precondition, not a
+formality.
+
+**Trade-off, stated plainly.** Authentication now gates body ingestion;
+authorization still gates the operation. An authenticated caller who lacks
+permission has their body read before the 403, where the earlier per-route
+version rejected them first. That is the standard boundary, the caller is
+identified and auditable, and the transfer is bounded by the Content-Length
+ceiling — whereas _unauthenticated_ callers, the actual reported DoS
+surface, now send zero bytes.
 
 ### The sibling route, fixed here too
 
@@ -122,55 +133,76 @@ identical, less-protected hole open in the same release is exactly the
 guardrails warn about. Both routes are fixed in this PR; #2267 closes with
 it.
 
-Same shape as `files.py`, deliberately — the route takes the raw `Request`,
-runs `is_permitted` first, and only then parses the body:
+Because the fix is a route class, this route needed **no restructuring at
+all** — it keeps its `File(...)`/`Form(...)` signature, and `FileCategory`
+stays validated by FastAPI rather than hand-parsed against `get_args(...)`.
+The whole change is the router line plus one added line, the exact per-file
+cap this route never had:
 
-- `_read_reduction_objective_upload` does the `request.form()` parse inside
-  the async context manager, narrows `file` against Starlette's
-  `UploadFile`, validates `category` against `get_args(FileCategory)` (a
-  `Literal`, so hand-parsing loses FastAPI's own validation of it), applies
-  `file_checker.check_size`, and returns the already-read `bytes` so the
-  rest of the handler is unaffected by the form context closing.
-- `openapi_extra` restores the multipart schema FastAPI no longer generates,
-  keeping the OpenAPI contract and the generated frontend client stable. The
-  hand-written schema reproduces FastAPI's own component name, verified
-  against the live `app.openapi()` output.
+```python
+await file_checker.check_size([file])
+```
 
 **The size cap is a behaviour change, not just a hardening.** Uploads to
 this route larger than `FILES_MAX_SIZE_MB` now get a 400 where they
 previously succeeded. That cap already governs every other upload path, so
 this route was the outlier.
 
-- **A pre-parse Content-Length-based size rejection was considered and
-  dropped.** `FILES_MAX_SIZE_MB` is a _per-file_ cap; raw `Content-Length`
-  is the whole multipart body (all files + multipart overhead), so a
-  legitimate multi-file upload under the per-file cap could trip a
-  total-body check. The auth fix already means unauthenticated callers send
-  zero bytes; `file_checker.check_size` still bounds authenticated abuse
-  per file. Not worth the false-positive risk for a marginal gain.
-- **The double PutObject/HeadObject** — investigated in depth (see above),
-  confirmed to live in `enacit4r-files`, not forked or patched here.
-- **Per-chunk `http receive` span suppression (805 spans/request)** — out of
-  scope per the issue, sequenced after pooling work in
-  `docs/src/implementation-plans/2049-optimize-pipeline-performance.md` (T8).
+### Left alone, and one thing reversed
+
+- **The pre-parse Content-Length rejection was first dropped, then built.**
+  The original objection stands on its own terms — `FILES_MAX_SIZE_MB` is a
+  per-file cap and `Content-Length` is the whole multipart body, so a
+  legitimate multi-file upload under the per-file cap would trip a naive
+  total-body check. The mistake was concluding "therefore no early check".
+  A _generous_ ceiling (`MAX_UPLOAD_FILES × FILES_MAX_SIZE_MB`) has no
+  false-positive risk and still refuses an absurd body on the header alone;
+  the precise per-file check runs afterwards as before. Coarse guard early,
+  exact guard late.
+- **The double PutObject/HeadObject** — investigated in depth (above),
+  confirmed to live in `enacit4r-files`, not forked or patched here. Filed
+  upstream as
+  [enacit4r-files#25](https://github.com/EPFL-ENAC/enacit4r-files/issues/25),
+  alongside
+  [#24](https://github.com/EPFL-ENAC/enacit4r-files/issues/24) for the
+  swallowed exceptions that made #2220 hard to diagnose.
+- **Per-chunk `http receive` span suppression (805 spans/request)** — still
+  out of scope _here_, but no longer sequenced behind the pooling work. It
+  has no dependency on it, and 805 spans created and exported on the event
+  loop sit directly on the upload hot path. Tracked in
+  `2049-optimize-pipeline-performance.md`.
 
 ## Tests
 
-`backend/tests/unit/v1/test_temp_upload_auth_ordering.py`:
+`backend/tests/unit/v1/test_temp_upload_auth_ordering.py` and
+`test_year_configuration_upload_auth_ordering.py` (10 tests, both routes).
 
-- `test_unauthenticated_upload_never_reads_body` — drives the ASGI app
-  directly with a `receive` callable that counts invocations; asserts a 401
-  with **zero** calls to `receive()`, proving the body is never pulled off
-  the wire for an unauthenticated request.
-- `test_temp_upload_route_has_no_body_field` — structural canary: asserts
-  the route's `body_field is None`; fails immediately if someone
-  reintroduces a `File(...)`/`Form(...)` param or dependency.
-- `test_oversized_file_is_rejected_after_auth` — an authenticated caller
-  still gets a 400 when `file_checker.check_size` rejects an oversized file,
-  proving the manual call didn't silently drop the check.
-- `test_upload_rejects_non_file_form_value_for_files_field` — a plain
-  string under the `files` field gets 422, not a 500 on `.filename`.
+The authenticated tests mint a **real signed token** rather than relying on
+`app.dependency_overrides`: a route class sits outside dependency
+injection, so overriding `get_current_user` does not satisfy the gate and
+such a test would prove nothing about it.
 
-`make ci` (ruff + ty backend, eslint/stylelint + vue-tsc frontend) is green.
-Existing `test_files_security.py`, `test_csv_upload_e2e.py`, and
-`test_unit_gating_e2e.py` all still pass unchanged.
+- `test_unauthenticated_upload_never_reads_body` (both routes) — drives the
+  ASGI app directly with a `receive` callable that counts invocations, and
+  asserts a 401 with **zero** calls. `receive` is the only way the server
+  can pull the payload off the wire, so this is the load-bearing assertion
+  of the whole PR. It is unchanged from the first implementation and passes
+  against the route-class one, which is what verified that a route handler
+  really does run before body parsing.
+- `test_oversized_content_length_rejected_before_body_is_read` — a valid
+  token and an oversized declared length: 413 with **zero** `receive`
+  calls.
+- `test_upload_routes_use_auth_first_route` /
+  `test_reduction_objective_upload_uses_auth_first_route` — structural
+  canaries. Dropping `route_class` silently restores the original bug while
+  every happy-path test keeps passing, so the wiring itself is asserted.
+- `test_openapi_documents_the_multipart_body` — pins that the schema is
+  still generated and the frontend client generator still sees both parts.
+- `test_oversized_file_is_rejected_after_auth` (both routes) — the exact
+  per-file cap still applies after parsing.
+- `test_upload_rejects_non_file_form_value_for_files_field`,
+  `test_upload_rejects_unknown_category` — FastAPI's own validation, which
+  keeping the `File(...)`/`Form(...)` signatures gives back for free.
+
+ruff, ty and vue-tsc are green. No frontend files change, so the generated
+client and its snapshot are untouched.
