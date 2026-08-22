@@ -4853,28 +4853,14 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "files": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "binary"
-                    },
-                    "title": "Files"
-                  }
-                },
-                "required": [
-                  "files"
-                ],
-                "title": "Body_upload_temp_files_v1_files_temp_upload_post"
+                "$ref": "#/components/schemas/Body_upload_temp_files_v1_files_temp_upload_post"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -7424,37 +7410,14 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "title": "File",
-                    "description": "File to upload"
-                  },
-                  "category": {
-                    "type": "string",
-                    "enum": [
-                      "footprint",
-                      "population",
-                      "scenarios"
-                    ],
-                    "title": "Category",
-                    "description": "File category"
-                  }
-                },
-                "required": [
-                  "file",
-                  "category"
-                ],
-                "title": "Body_upload_reduction_objective_file_v1_year_configuration__year__upload_post"
+                "$ref": "#/components/schemas/Body_upload_reduction_objective_file_v1_year_configuration__year__upload_post"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -8075,6 +8038,49 @@
         "properties": {},
         "type": "object",
         "title": "BaseModel"
+      },
+      "Body_upload_reduction_objective_file_v1_year_configuration__year__upload_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "File to upload"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "footprint",
+              "population",
+              "scenarios"
+            ],
+            "title": "Category",
+            "description": "File category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "category"
+        ],
+        "title": "Body_upload_reduction_objective_file_v1_year_configuration__year__upload_post"
+      },
+      "Body_upload_temp_files_v1_files_temp_upload_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "Body_upload_temp_files_v1_files_temp_upload_post"
       },
       "BuildingRoomBuildingResponse": {
         "properties": {

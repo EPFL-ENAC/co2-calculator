@@ -5,22 +5,23 @@ import hashlib
 import io
 import os
 from datetime import datetime
-from typing import Any, cast, get_args
+from typing import Any
 from uuid import uuid4
 
 from enacit4r_files.utils.files import FileChecker
 from fastapi import (
     APIRouter,
     Depends,
+    File,
+    Form,
     HTTPException,
-    Request,
     UploadFile,
     status,
 )
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from starlette.datastructures import UploadFile as StarletteUploadFile
 
+from app.api.auth_first_route import AuthFirstRoute
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -67,75 +68,12 @@ from app.tasks._background import fire_and_forget
 from app.tasks.runner import run_job
 
 logger = get_logger(__name__)
-router = APIRouter()
+# All six routes here already require get_current_user, and the reduction-
+# objective upload declares a File(...) body — so the whole router
+# authenticates before the body is read (#2261). See AuthFirstRoute.
+router = APIRouter(route_class=AuthFirstRoute)
 settings = get_settings()
 file_checker = FileChecker(settings.FILES_MAX_SIZE_MB * 1024 * 1024)
-
-# upload_reduction_objective_file parses the body manually so auth runs before
-# any bytes are read (see its docstring); FastAPI therefore generates no
-# requestBody for it, so the multipart schema is reproduced here by hand to
-# keep the OpenAPI contract and the generated frontend client from regressing.
-REDUCTION_OBJECTIVE_UPLOAD_REQUEST_BODY = {
-    "content": {
-        "multipart/form-data": {
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "file": {
-                        "type": "string",
-                        "format": "binary",
-                        "title": "File",
-                        "description": "File to upload",
-                    },
-                    "category": {
-                        "type": "string",
-                        "enum": list(get_args(FileCategory)),
-                        "title": "Category",
-                        "description": "File category",
-                    },
-                },
-                "required": ["file", "category"],
-                "title": (
-                    "Body_upload_reduction_objective_file"
-                    "_v1_year_configuration__year__upload_post"
-                ),
-            }
-        }
-    },
-    "required": True,
-}
-
-
-async def _read_reduction_objective_upload(
-    request: Request,
-) -> tuple[UploadFile, FileCategory, bytes]:
-    """Parse and size-check the multipart body, after the caller is authorised.
-
-    Kept separate from the route so the body is consumed inside the
-    ``request.form()`` context while the rest of the handler works from the
-    already-read ``bytes`` -- the form context closes (and discards) the
-    spooled upload on exit.
-
-    Raises:
-        HTTPException: 422 when 'file' isn't a file upload or 'category' isn't
-            a known category.
-    """
-    async with request.form() as form:
-        raw_file = form.get("file")
-        if not isinstance(raw_file, StarletteUploadFile):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="'file' must be a file upload",
-            )
-        raw_category = form.get("category")
-        if raw_category not in get_args(FileCategory):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"'category' must be one of {list(get_args(FileCategory))}",
-            )
-        upload = cast(UploadFile, raw_file)
-        await file_checker.check_size([upload])
-        return upload, cast(FileCategory, raw_category), await upload.read()
 
 
 def _build_job_lookup(
@@ -1003,11 +941,11 @@ async def update_year_configuration(
     "/{year}/upload",
     response_model=FileUploadResponse,
     status_code=status.HTTP_200_OK,
-    openapi_extra={"requestBody": REDUCTION_OBJECTIVE_UPLOAD_REQUEST_BODY},
 )
 async def upload_reduction_objective_file(
     year: int,
-    request: Request,
+    file: UploadFile = File(..., description="File to upload"),
+    category: FileCategory = Form(..., description="File category"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1019,17 +957,10 @@ async def upload_reduction_objective_file(
     - population: population_projections
     - scenarios: unit_scenarios
 
-    Takes the raw ``Request`` instead of typed File/Form params and parses the
-    multipart body only after the permission check below. The moment a route
-    declares a File/Form param, FastAPI/Starlette read the *entire* body before
-    resolving any dependency (``fastapi/routing.py``: ``body = await
-    request.form()`` runs ahead of ``solve_dependencies()``), which let an
-    unauthenticated caller push an arbitrary payload through before being
-    rejected -- and this route had no size cap at all (#2261).
-
     Args:
         year: Configuration year.
-        request: Raw request; the multipart body is parsed after authorisation.
+        file: Uploaded file.
+        category: File category.
         db: Database session.
         current_user: Current authenticated user.
 
@@ -1042,7 +973,10 @@ async def upload_reduction_objective_file(
             detail="Only super administrators can upload files",
         )
 
-    file, category, content = await _read_reduction_objective_upload(request)
+    # This route had no size limit at all, unlike every other upload path
+    # (#2261). AuthFirstRoute already bounded the whole request body from the
+    # Content-Length header; this is the exact per-file check.
+    await file_checker.check_size([file])
 
     # Validate file extension
     allowed_extensions = {".csv", ".xlsx", ".xls", ".pdf"}
@@ -1052,6 +986,9 @@ async def upload_reduction_objective_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File type not allowed. Allowed: {allowed_extensions}",
         )
+
+    # Read file content
+    content = await file.read()
 
     # For CSV uploads: validate rows before persisting anything
     parsed_rows: list[dict] | None = None

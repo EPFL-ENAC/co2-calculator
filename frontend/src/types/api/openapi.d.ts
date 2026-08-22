@@ -2577,6 +2577,25 @@ export interface components {
         };
         /** BaseModel */
         BaseModel: Record<string, never>;
+        /** Body_upload_reduction_objective_file_v1_year_configuration__year__upload_post */
+        Body_upload_reduction_objective_file_v1_year_configuration__year__upload_post: {
+            /**
+             * File
+             * @description File to upload
+             */
+            file: string;
+            /**
+             * Category
+             * @description File category
+             * @enum {string}
+             */
+            category: "footprint" | "population" | "scenarios";
+        };
+        /** Body_upload_temp_files_v1_files_temp_upload_post */
+        Body_upload_temp_files_v1_files_temp_upload_post: {
+            /** Files */
+            files: string[];
+        };
         /** BuildingRoomBuildingResponse */
         BuildingRoomBuildingResponse: {
             /** Building Location */
@@ -6425,10 +6444,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": {
-                    /** Files */
-                    files: string[];
-                };
+                "multipart/form-data": components["schemas"]["Body_upload_temp_files_v1_files_temp_upload_post"];
             };
         };
         responses: {
@@ -7636,20 +7652,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": {
-                    /**
-                     * File
-                     * Format: binary
-                     * @description File to upload
-                     */
-                    file: string;
-                    /**
-                     * Category
-                     * @description File category
-                     * @enum {string}
-                     */
-                    category: "footprint" | "population" | "scenarios";
-                };
+                "multipart/form-data": components["schemas"]["Body_upload_reduction_objective_file_v1_year_configuration__year__upload_post"];
             };
         };
         responses: {
