@@ -192,17 +192,11 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
       </div>
       <div class="row items-center q-col-gutter-md">
         <q-checkbox
-          :model-value="
-            submodule.forceInputsDeactivated ||
-            isSubmoduleInputsDeactivated(submodule)
-          "
+          :model-value="isSubmoduleInputsDeactivated(submodule)"
           color="accent"
-          :disable="!!submodule.forceInputsDeactivated"
           :label="$t('data_management_submodule_inputs_deactivation_label')"
           @update:model-value="
-            (val: boolean) =>
-              !submodule.forceInputsDeactivated &&
-              updateSubmoduleInputsDeactivated(submodule, val)
+            (val: boolean) => updateSubmoduleInputsDeactivated(submodule, val)
           "
         />
         <q-checkbox

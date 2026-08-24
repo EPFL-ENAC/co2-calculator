@@ -2,6 +2,7 @@ import { api } from 'src/api/http';
 
 import type { AllSubmoduleTypes } from 'src/constant/modules';
 import { enumSubmodule } from 'src/constant/modules';
+import type { FactorRow } from 'src/utils/factorOptions';
 
 export async function getSubclassMap(
   submodule: keyof typeof enumSubmodule,
@@ -13,6 +14,22 @@ export async function getSubclassMap(
     )
     .json<Record<string, string[]>>();
   return res ?? {};
+}
+
+/**
+ * The year's whole factor catalog for a submodule. Backs selects whose stored
+ * value is an opaque classification code needing a human label (#2007).
+ */
+export async function listFactors(
+  submodule: keyof typeof enumSubmodule,
+  year: number | string,
+): Promise<FactorRow[]> {
+  const res = await api
+    .get(
+      `factors/${encodeURIComponent(enumSubmodule[submodule])}/list?year=${encodeURIComponent(String(year))}`,
+    )
+    .json<FactorRow[]>();
+  return res ?? [];
 }
 
 export type ValueFactorResponse = Record<string, number | string | null> | null;

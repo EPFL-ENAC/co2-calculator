@@ -3,9 +3,11 @@ import { reactive } from 'vue';
 import {
   getSubclassMap,
   getFactorValues,
+  listFactors,
   type ValueFactorResponse,
 } from 'src/api/factors';
 import { type AllSubmoduleTypes, enumSubmodule } from 'src/constant/modules';
+import { toClassOptions, type FactorRow } from 'src/utils/factorOptions';
 
 type Option = { label: string; value: string };
 
@@ -18,6 +20,12 @@ export const useFactorsStore = defineStore('factors', () => {
     Record<string, Record<string, Option[]>>
   >({});
   const subclassMapFetchedAt = reactive<Record<string, number>>({});
+
+  // Same key and TTL for the factor catalog. Plain objects, not `reactive`:
+  // unlike the subclass map (which ModuleTable renders from) nothing watches
+  // this — it is only ever read inside the fetch below.
+  const factorListByKey: Record<string, FactorRow[]> = {};
+  const factorListFetchedAt: Record<string, number> = {};
 
   function cacheKey(
     submodule: keyof typeof enumSubmodule,
@@ -51,13 +59,52 @@ export const useFactorsStore = defineStore('factors', () => {
     return optionMap;
   }
 
+  /**
+   * Class options for a `kind` select. By default the class value is also its
+   * label (equipment classes are already readable). ``labels`` switches the
+   * source to the factor catalog, for classifications stored as opaque codes
+   * that need a separate name field to display (#2007).
+   */
   async function fetchClassOptions(
     submodule: AllSubmoduleTypes,
     year: number | string,
+    labels?: { valueField: string; labelField: string },
   ): Promise<Option[]> {
+    if (labels) return fetchLabelledClassOptions(submodule, year, labels);
     const optionMap = await ensureSubclassOptionMap(submodule, year);
     const classes = Object.keys(optionMap);
     return classes.map((c) => ({ label: c, value: c }));
+  }
+
+  async function ensureFactorList(
+    submodule: keyof typeof enumSubmodule,
+    year: number | string,
+  ): Promise<FactorRow[]> {
+    const now = Date.now();
+    const key = cacheKey(submodule, year);
+    const existing = factorListByKey[key];
+    const last = factorListFetchedAt[key];
+
+    if (existing && last && now - last < ONE_MINUTE_MS) {
+      return existing;
+    }
+
+    const rows = await listFactors(submodule, year);
+    factorListByKey[key] = rows;
+    factorListFetchedAt[key] = now;
+
+    return rows;
+  }
+
+  async function fetchLabelledClassOptions(
+    submodule: AllSubmoduleTypes,
+    year: number | string,
+    { valueField, labelField }: { valueField: string; labelField: string },
+  ): Promise<Option[]> {
+    // Cache the rows, not the options: the catalog is field-agnostic, so a
+    // second select over the same submodule reuses the one fetch.
+    const rows = await ensureFactorList(submodule, year);
+    return toClassOptions(rows, valueField, labelField);
   }
 
   async function fetchSubclassOptions(

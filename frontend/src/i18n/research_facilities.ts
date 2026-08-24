@@ -75,4 +75,19 @@ Notez que si ces activités étaient menées avec des moyens propres à l'unité
     en: 'The methodology used to calculate the carbon footprint of research facilities is documented in the Documentation pages',
     fr: "La méthodologie utilisée pour calculer de l'empreinte carbone des infrastructures de recherche est documentée dans les pages Documentation",
   },
+  // #2007 — manual entry, off by default; a backoffice toggle turns it on.
+  [`${MODULES.ResearchFacilities}-${SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities}-form-title`]:
+    {
+      en: 'Add a research facility',
+      fr: 'Ajoutez une infrastructure de recherche',
+    },
+  [`${MODULES.ResearchFacilities}-${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}-form-title`]:
+    {
+      en: 'Add an animal facility',
+      fr: 'Ajoutez une animalerie',
+    },
+  [`${MODULES.ResearchFacilities}.add_button`]: {
+    en: 'Add',
+    fr: 'Ajouter',
+  },
 } as const;

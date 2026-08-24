@@ -7,7 +7,25 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.user import UserProvider
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
+
+_CURRENT_USER = SimpleNamespace(
+    id=5, institutional_id="352707", provider=UserProvider.TEST
+)
+
+
+def _stub_inputs_deactivated_lookup(session: MagicMock) -> None:
+    """#2007 guard: resolve the report, then look up its year config.
+
+    No ``year_configuration`` row → not deactivated, the schema default.
+    """
+    session.get = AsyncMock(
+        return_value=SimpleNamespace(year=2026, carbon_project_id=None)
+    )
+    no_year_config = MagicMock()
+    no_year_config.first = MagicMock(return_value=None)
+    session.exec = AsyncMock(return_value=no_year_config)
 
 
 @pytest.mark.asyncio
@@ -24,6 +42,7 @@ async def test_update_partial_patch_retains_persisted_classification():
     session.flush = AsyncMock()
     session.commit = AsyncMock()
     session.rollback = AsyncMock()
+    _stub_inputs_deactivated_lookup(session)
     workflow = CarbonReportModuleWorkflow(session)
 
     existing_data = {
@@ -71,11 +90,13 @@ async def test_update_partial_patch_retains_persisted_classification():
         ),
     ):
         await workflow.update(
-            carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=4
+            ),
             data_entry_type_id=DataEntryTypeEnum.other.value,
             item_id=1,
             item_data=item_data,
-            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
         )
@@ -99,6 +120,7 @@ async def test_update_blank_purchase_institutional_code_rejected():
     session.flush = AsyncMock()
     session.commit = AsyncMock()
     session.rollback = AsyncMock()
+    _stub_inputs_deactivated_lookup(session)
     workflow = CarbonReportModuleWorkflow(session)
 
     existing_data = {
@@ -137,11 +159,13 @@ async def test_update_blank_purchase_institutional_code_rejected():
     ):
         with pytest.raises(HTTPException) as exc_info:
             await workflow.update(
-                carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+                carbon_report_module=SimpleNamespace(
+                    id=18036, carbon_report_id=99, module_type_id=4
+                ),
                 data_entry_type_id=DataEntryTypeEnum.it_equipment.value,
                 item_id=1,
                 item_data=item_data,
-                current_user=SimpleNamespace(id=5, institutional_id="352707"),
+                current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
             )
@@ -161,6 +185,7 @@ async def test_update_value_error_from_emission_service_returns_422():
     session.flush = AsyncMock()
     session.commit = AsyncMock()
     session.rollback = AsyncMock()
+    _stub_inputs_deactivated_lookup(session)
     workflow = CarbonReportModuleWorkflow(session)
 
     # Same existing_data/item_data/module type as
@@ -205,11 +230,13 @@ async def test_update_value_error_from_emission_service_returns_422():
     ):
         with pytest.raises(HTTPException) as exc_info:
             await workflow.update(
-                carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+                carbon_report_module=SimpleNamespace(
+                    id=18036, carbon_report_id=99, module_type_id=4
+                ),
                 data_entry_type_id=DataEntryTypeEnum.other.value,
                 item_id=1,
                 item_data=item_data,
-                current_user=SimpleNamespace(id=5, institutional_id="352707"),
+                current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
             )

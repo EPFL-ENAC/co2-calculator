@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 951
-last_updated: 2026-08-13
+last_updated: 2026-08-24
 title: "Edit rights per permissions on each dataset — hardcoded provenance-keyed data-entry permissions"
 summary: "Enforce, per module/submodule, which fields of BackOffice-imported rows vs user-added rows may be edited and whether a row is deletable — keyed on DataEntry.source provenance, matrix hardcoded in code (no DB table, no backoffice UI), enforced in the module mutation workflow and surfaced to the frontend via a per-submodule policy object."
 ---
@@ -562,7 +562,16 @@ backend now allows, per module):
   locked, not in the #951 matrix).
 - Research Facilities (both submodules): `researchfacility_name`, `use`,
   `use_unit` (common only) (`researchfacility_type` stays locked, animal-
-  specific, not named in the matrix).
+  specific, not named in the matrix). **Superseded 2026-08-24 by #2007:**
+  `use_unit` is no longer inline-editable. The research-facilities formula
+  returns `None` unless the entry's unit string-equals the factor's, and
+  #2050 J1 made that raise — so editing the unit inline could only ever turn a
+  working row into a 422. The backend grant is unchanged (static config is a
+  layout concern AND-ed with policy, same as Buildings' `Unit`); the field is
+  now mirrored read-only from the selected factor in the manual-entry form.
+  This is a deliberate divergence from the #951 issue table's "Unit
+  modifiable" for this module — see
+  [2007-research-facilities-user-input.md](2007-research-facilities-user-input.md).
 - Purchase (main, non-centralized kinds): `name`, `supplier`.
 - Professional Travel: `departure_date` only (see below — origin/
   destination deferred).

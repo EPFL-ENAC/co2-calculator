@@ -53,6 +53,12 @@ export interface ConditionalOptions {
 export type ConditionalOptionsConfig =
   ConditionalOptions | ConditionalOptions[];
 
+export interface ConditionalBounds {
+  /** Field whose value selects the bounds (e.g. the mirrored `use_unit`). */
+  fieldId: string;
+  byValue: Record<string, { max?: number; integer?: boolean }>;
+}
+
 export interface ModuleField {
   id: string;
   label?: string;
@@ -73,6 +79,10 @@ export interface ModuleField {
   explorerDefault?: number;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
+  // Factor field to label a `kind` select with, when the stored value is an
+  // opaque code (research facility ids). Options then come from the factor
+  // catalog instead of the class/subclass map, which carries values only.
+  optionsLabelField?: string;
   optionOrder?: string[]; // Explicit ordering of options by value
   optionLabelKey?: string; // i18n key template; use {value} as placeholder, e.g. 'process-emissions.category.{value}', where {value} matches the normalized option value used by the translation keys
   appendFromFieldId?: string;
@@ -104,6 +114,10 @@ export interface ModuleField {
   conditionalVisibility?: ConditionalVisibility;
   // Dynamic ratio based on another field's value
   conditionalRatio?: ConditionalRatio;
+  // Numeric bounds selected by another field's value — for a quantity whose
+  // meaning changes with its unit (#2007). Mirrors the backend's own table;
+  // a value absent from `byValue` keeps the field's static min/max.
+  conditionalBounds?: ConditionalBounds;
   // Conditional options filtering based on another field's value
   // Can be a single condition or array of conditions (first match wins)
   conditionalOptions?: ConditionalOptionsConfig;

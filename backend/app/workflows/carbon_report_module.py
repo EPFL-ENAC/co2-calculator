@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.data_entry_permissions import (
+    ALWAYS_WRITABLE_FIELDS,
     can_delete,
     is_policy_exempt,
     provenance_of,
@@ -28,6 +29,7 @@ from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.exchange_rates_service import ExchangeRatesService
 from app.services.module_handler_service import ModuleHandlerService
+from app.services.year_config_service import is_submodule_inputs_deactivated
 from app.utils.factor_year import resolve_factor_year
 
 logger = get_logger(__name__)
@@ -38,6 +40,43 @@ class CarbonReportModuleWorkflow:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def _reject_when_inputs_deactivated(
+        self,
+        carbon_report_module: CarbonReportModuleRead,
+        data_entry_type: DataEntryTypeEnum,
+        current_user: UserRead,
+    ) -> None:
+        """#2007: make the backoffice "deactivate inputs" switch fail closed.
+
+        It only ever hid the form, so any API client could still write to a
+        submodule the backoffice had switched off. Plan and grant reports are
+        exempt: their rows are the user's own scenario, not calculator data
+        entry, and the switch is a calculator-side control.
+        """
+        if is_policy_exempt(data_entry_type):
+            return
+        report = await self.session.get(
+            CarbonReport, carbon_report_module.carbon_report_id
+        )
+        if report is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="CARBON_REPORT_NOT_FOUND",
+            )
+        if report.carbon_project_id is not None:
+            return
+        if await is_submodule_inputs_deactivated(
+            self.session,
+            report.year,
+            current_user.provider,
+            ModuleTypeEnum(carbon_report_module.module_type_id),
+            data_entry_type,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "INPUTS_DEACTIVATED"},
+            )
 
     async def _check_planner_purchase_exclusivity(
         self,
@@ -159,6 +198,11 @@ class CarbonReportModuleWorkflow:
         background_tasks: BackgroundTasks,
         scope: WriteScope | None = None,
     ) -> DataEntryResponse:
+        await self._reject_when_inputs_deactivated(
+            carbon_report_module,
+            DataEntryTypeEnum(data_entry_type_id),
+            current_user,
+        )
         try:
             create_payload = {
                 **item_data,
@@ -316,6 +360,14 @@ class CarbonReportModuleWorkflow:
         request_context: dict,
         background_tasks: BackgroundTasks,
     ) -> DataEntryResponse:
+        # A note is writable on any row in any state (#951), including rows the
+        # backoffice has closed to data entry — annotation is not data entry.
+        if not set(item_data) <= ALWAYS_WRITABLE_FIELDS:
+            await self._reject_when_inputs_deactivated(
+                carbon_report_module,
+                DataEntryTypeEnum(data_entry_type_id),
+                current_user,
+            )
         try:
             existing_entry = await DataEntryService(self.session).get(id=item_id)
             existing_data = existing_entry.data if existing_entry else {}
@@ -501,6 +553,9 @@ class CarbonReportModuleWorkflow:
                 status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
             ) from e
         data_entry_type = DataEntryTypeEnum(entry.data_entry_type_id)
+        await self._reject_when_inputs_deactivated(
+            carbon_report_module, data_entry_type, current_user
+        )
         if not is_policy_exempt(data_entry_type) and not can_delete(
             provenance_of(entry.source)
         ):

@@ -9,6 +9,10 @@ export default {
     en: 'Must be at most {max}',
     fr: 'Doit être au plus {max}',
   },
+  validation_must_be_whole_number: {
+    en: 'Must be a whole number',
+    fr: 'Doit être un nombre entier',
+  },
   logo_alt: {
     en: 'Logo EPFL',
     fr: 'Logo EPFL',
