@@ -84,8 +84,8 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
     async def transform_data(
         self, raw_data: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        transformed: list[dict[str, Any]] = []
         year = str(self.config["year"])
+        monthly_rows: list[dict[str, Any]] = []
         for record in raw_data:
             if record.get(self.CAPTION_CLIENT_TYPE) != self.INTERNAL_CLIENT_TYPE:
                 self.drop_reasons["client_type"] += 1
@@ -114,7 +114,7 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
             if use < 0:
                 self.drop_reasons["amount_positive"] += 1
                 continue
-            transformed.append(
+            monthly_rows.append(
                 {
                     "unit_institutional_id": self._strip_unit_prefix(
                         record.get(self.CAPTION_UNIT)
@@ -126,11 +126,30 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
                     "note": None,
                 }
             )
+
+        # date_iso is a string-typed calculated field: VDS rejects a YEAR/
+        # TRUNC_YEAR function on it ("wrong type"), and rejects filtering on
+        # it unless it's also an output field ("field not defined"). So VDS
+        # returns SUM(amount) grouped at date_iso's native (month) grain —
+        # collapse those monthly rows into one annual total per facility
+        # here instead.
+        yearly_totals: dict[tuple[str, str | None], dict[str, Any]] = {}
+        for row in monthly_rows:
+            key = (row["researchfacility_id"], row["unit_institutional_id"])
+            existing = yearly_totals.get(key)
+            if existing is None:
+                yearly_totals[key] = dict(row)
+            else:
+                existing["use"] += row["use"]
+        transformed = list(yearly_totals.values())
+
         logger.info(
-            "Research facilities transform kept %s of %s rows%s",
-            len(transformed),
+            "Research facilities transform kept %s of %s rows%s "
+            "(aggregated into %s yearly totals)",
+            len(monthly_rows),
             len(raw_data),
             f" — dropped: {self._describe_drops()}" if self.drop_reasons else "",
+            len(transformed),
         )
         return transformed
 
