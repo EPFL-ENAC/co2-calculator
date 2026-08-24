@@ -1,6 +1,6 @@
 """Carbon project repository for simulator plan database operations."""
 
-from sqlmodel import col, func, select
+from sqlmodel import col, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -18,16 +18,28 @@ class CarbonProjectRepository:
         self.session = session
 
     def _plan_with_creator_stmt(self):
-        """Base SELECT of plan projects joined with the creator display name."""
+        """Base SELECT of plan projects with the creator name and grant flag.
+
+        A plan is a grant proposal iff it owns an ``is_grant`` report; the
+        flag is derived here rather than stored on the project.
+        """
+        has_grant = (
+            exists()
+            .where(
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+                col(CarbonReport.is_grant).is_(True),
+            )
+            .label("is_grant_proposal")
+        )
         return (
-            select(CarbonProject, col(User.display_name))
+            select(CarbonProject, col(User.display_name), has_grant)
             .outerjoin(User, col(CarbonProject.created_by) == col(User.id))
             .where(CarbonProject.carbon_report_type == CarbonReportType.SIMULATOR_PLAN)
         )
 
     async def list_plans_by_unit(
         self, unit_id: int
-    ) -> list[tuple[CarbonProject, str | None]]:
+    ) -> list[tuple[CarbonProject, str | None, bool]]:
         """List plan projects for a unit with creator names, newest first.
 
         Ordered by id (creation order); created_at is nullable so ordering
@@ -39,7 +51,10 @@ class CarbonProjectRepository:
             .order_by(col(CarbonProject.id).desc())
         )
         result = await self.session.execute(statement)
-        return [(project, display_name) for project, display_name in result.all()]
+        return [
+            (project, display_name, bool(is_grant_proposal))
+            for project, display_name, is_grant_proposal in result.all()
+        ]
 
     async def get_plan(self, plan_id: int) -> CarbonProject | None:
         """Get a plan project by ID (non-plan projects are not returned)."""
@@ -52,15 +67,15 @@ class CarbonProjectRepository:
 
     async def get_plan_with_creator(
         self, plan_id: int
-    ) -> tuple[CarbonProject, str | None] | None:
-        """Get a plan project by ID, with the creator name."""
+    ) -> tuple[CarbonProject, str | None, bool] | None:
+        """Get a plan project by ID, with the creator name and grant flag."""
         statement = self._plan_with_creator_stmt().where(CarbonProject.id == plan_id)
         result = await self.session.execute(statement)
         row = result.first()
         if row is None:
             return None
-        project, display_name = row
-        return project, display_name
+        project, display_name, is_grant_proposal = row
+        return project, display_name, bool(is_grant_proposal)
 
     async def list_plan_names(self, unit_id: int) -> set[str]:
         """Return the names of all plan projects for a unit."""

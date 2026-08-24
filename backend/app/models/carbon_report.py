@@ -1,6 +1,6 @@
 from enum import Enum
 
-from sqlalchemy import Index, UniqueConstraint
+from sqlalchemy import Index, UniqueConstraint, text
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.core.constants import ModuleStatus
@@ -126,6 +126,13 @@ class CarbonReport(CarbonReportBase, table=True):
             "year",
             "is_grant",
             name="uq_carbon_reports_project_year",
+        ),
+        Index(
+            "uq_carbon_reports_project_grant",
+            "carbon_project_id",
+            unique=True,
+            postgresql_where=text("is_grant"),
+            sqlite_where=text("is_grant"),
         ),
     )
     id: int | None = Field(default=None, primary_key=True)
