@@ -289,7 +289,7 @@ async function generateSections() {
   if (start !== null && end !== null) {
     payload.start_year = start;
     payload.end_year = end;
-    payload.default_reference_year = Number(route.params.year);
+    payload.default_reference_year = Number(route.params.year) - 1;
   }
 
   generatingSections.value = true;
@@ -310,7 +310,6 @@ async function generateSections() {
 }
 
 async function defaultGrantReferenceYear() {
-  if (props.plan.default_factor_year === null) return;
   const grantYear = plansStore.planYears.find(
     (y) => y.is_grant && y.reference_year === null,
   );
@@ -319,7 +318,7 @@ async function defaultGrantReferenceYear() {
     await plansStore.setReferenceYear(
       props.plan.id,
       grantYear.year,
-      props.plan.default_factor_year - 1,
+      Number(route.params.year) - 1,
       true,
     );
   } catch {
