@@ -22,6 +22,8 @@ def _settings(**overrides) -> SimpleNamespace:
         "CREDENTIALS_ENCRYPTION_KEY": "key",
         "CREDENTIALS_ENCRYPTION_SALT": "salt",
         "CONNECTOR_ALLOWED_HOST_SUFFIXES": "epfl.ch",
+        "FILES_ENCRYPTION_KEY": "files-key",
+        "FILES_ENCRYPTION_SALT": "files-salt",
     }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -33,6 +35,8 @@ def test_local_environment_skips_check_even_if_all_empty():
         CREDENTIALS_ENCRYPTION_KEY="",
         CREDENTIALS_ENCRYPTION_SALT="",
         CONNECTOR_ALLOWED_HOST_SUFFIXES="",
+        FILES_ENCRYPTION_KEY="",
+        FILES_ENCRYPTION_SALT="",
     )
     assert_security_settings(settings)  # must not raise
 
@@ -45,6 +49,8 @@ def test_local_environment_skips_check_even_if_all_empty():
         "CREDENTIALS_ENCRYPTION_KEY",
         "CREDENTIALS_ENCRYPTION_SALT",
         "CONNECTOR_ALLOWED_HOST_SUFFIXES",
+        "FILES_ENCRYPTION_KEY",
+        "FILES_ENCRYPTION_SALT",
     ],
 )
 def test_non_local_raises_when_a_required_setting_is_empty(missing_field):
