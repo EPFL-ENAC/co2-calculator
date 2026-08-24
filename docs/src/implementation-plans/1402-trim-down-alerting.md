@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 1402
-last_updated: 2026-08-22
+last_updated: 2026-08-24
 title: "Split Grafana p99 Latency Alerting by Endpoint Class; Add GlitchTip Alerting"
 summary: "Separate p99 latency alert thresholds for upload/job/pipeline endpoints from normal API calls, exclude SSE streams from duration-based alerting, and add error-rate alerting on GlitchTip."
 ---
@@ -177,7 +177,7 @@ code disproves. Put this first."):
     dashboard JSON doesn't even have the DB Pool Usage panel at all.
   - **PR [openshift-app-config#8](https://github.com/EPFL-ENAC/openshift-app-config/pull/8) — merged.**
 - [x] Verified `http_target` live (dev + stage, `count by (http_target,
-    http_route, http_method) (http_server_duration_milliseconds_count{...})`):
+  http_route, http_method) (http_server_duration_milliseconds_count{...})`):
       it's populated and already collapsed to a literal `/api/{tail}` (e.g.
       `/v1/sync/dispatch` → `/api/dispatch`, `/v1/year-configuration/{year}` →
       `/api/{year}`). `http_route` never appears. **Retraction (same day):**
@@ -331,13 +331,64 @@ declaring victory.
       import.)
 - [x] Configure a GlitchTip alert rule on the frontend project — done
       outside this repo.
-- [ ] Document the two alert groups and thresholds in a short ops note, so
-      the split isn't tribal knowledge living only in the ops repo.
+- [x] Document the two alert groups and thresholds in a short ops note, so
+      the split isn't tribal knowledge living only in the ops repo. Done:
+      [infra/03-observability-slo.md](../infra/03-observability-slo.md).
 - [ ] Verify: trigger a CSV upload and a normal read endpoint in
       stage/prod-like env, confirm only the jobs/upload/pipeline group's
       threshold applies to the upload and the normal-API group stays tight
       for the read call; confirm the SSE stream endpoints never fire either
       alert regardless of connection duration.
+
+## 2026-08-24 update
+
+- [x] **Prod parity.** Prod never got the `route_class` transform (2049
+      already noted it as "live in dev+stage" only) — its collector metrics
+      pipeline was still on the chart-default `filter` (the same no-op class
+      of bug this plan found once already: it matches `http.route`, which
+      doesn't exist on this metric). Shipped: the `transform` processor,
+      the same route_class-split dashboard panels, `route_class="api"`
+      scoping on `LatencyP50/95/99High` (which also fixes a separate bug —
+      `sum by (le, k8s_pod_name)` computed a per-pod quantile, firing on any
+      single replica), and `BackendMetricsAbsent`. Thresholds left
+      untouched: scoping to `api` only removes slower traffic from the
+      distribution, so the same threshold is strictly less likely to fire —
+      a scope fix, not a sensitivity change.
+- [ ] **Not shipped to prod, needs a decision:** `HighErrorRate` is still
+      4xx+5xx at a 50% threshold there (pre-#1402). Tightening it to match
+      dev/stage (5xx-only, 2%) is a real sensitivity increase on prod
+      paging, not a scope fix.
+- [ ] **Not shipped to prod, blocked on data:** `UploadLatencySLOBreach` /
+      `JobLatencySLOBreach`. The transform just started running in prod —
+      no `route_class="upload"`/`"job"` history exists yet to set a
+      threshold from. Same rule this plan already applied once for stage
+      (§ "Pulled real numbers instead of guessing"): pull 2-4 weeks of real
+      prod data before setting a number, don't copy stage's.
+- [x] **Dev-only visibility gotcha, not a pipeline bug.** The dev
+      `route_class` panel appeared blank for `stream`/`job`/`upload` over a
+      12h window despite the data existing — confirmed via
+      `histogram_quantile` returning `NaN` per class (zero counter increase
+      in that specific trailing `[5m]`, not a broken transform). Two
+      independent causes stacked: (1) idle 5-minute rate windows are normal
+      for dev's low, manual-testing-driven traffic on non-probe classes;
+      (2) a `timeseries` panel doesn't render an isolated non-null point
+      surrounded by `NaN` unless `showPoints` is `always`. Fixed on the dev
+      and stage panel only: `showPoints: "always"`, rate window `[5m]` →
+      `[30m]`.
+- [ ] **Open question, not yet confirmed:** the `tail_sampling` `drop-health`
+      policy (dev/stage) matches literal `/health`/`/healthz`/`/ready` on
+      `http.target` — no `/api` prefix. This plan already proved that prefix
+      is present on every request's `http.target` for the _metrics_ side,
+      but explicitly left `tail_sampling` "carried forward unchanged" and
+      never checked it for traces. Surfaced when a 250ms probe-latency spike
+      (visible on the `route_class="probe"` panel) had no matching trace in
+      Tempo. Whichever way the prefix bug cuts, an unconditional
+      string-match allow/deny list can only ever be "always drop" or
+      "always keep everything" — it can't keep the anomalous probe trace
+      while dropping the routine ones, which is the one case worth having
+      the trace for. Recommend replacing it with a latency-conditioned
+      composite policy. Not yet implemented — pending confirmation this is
+      wanted, since it changes trace volume/cost in prod too.
 
 ## Related
 
