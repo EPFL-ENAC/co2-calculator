@@ -10,10 +10,10 @@ as any change to an encryption path.
 
 ## TL;DR
 
-| Contractual requirement                             | Status                                                                                                              |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Specify and implement encryption for data transfer  | ⚠️ Implemented at every external hop; **not enforced** on the DB connection, and intra-cluster traffic is plaintext |
-| Document and implement measures protecting the keys | ✅ Keys live in ENAC-IT's Infisical vault, injected at runtime, never in the repo — but no rotation runbook exists  |
+| Contractual requirement                             | Status                                                                                                                                                 |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Specify and implement encryption for data transfer  | ⚠️ Active on every external hop, TLS 1.3 throughout; **not pinned** on the DB connection, and intra-cluster traffic is segmented rather than encrypted |
+| Document and implement measures protecting the keys | ✅ Keys live in ENAC-IT's Infisical vault, injected at runtime, never in the repo — but no rotation runbook exists                                     |
 
 Read the [Known gaps](#known-gaps) section before quoting either row.
 
@@ -61,20 +61,33 @@ already done.
 
 ## Data in transfer
 
-| Hop                           | Protection                                | Configured in                                           | Enforced |
-| ----------------------------- | ----------------------------------------- | ------------------------------------------------------- | -------- |
-| Browser → ingress             | TLS, cert-manager + Let's Encrypt         | [Infra overview](../infra/01-overview.md#tlsssl)        | Yes      |
-| App → object storage (S3)     | HTTPS                                     | `S3_ENDPOINT_PROTOCOL`, defaults to `https`             | Yes      |
-| App → PostgreSQL              | libpq TLS, `sslmode` defaults to `prefer` | `DB_URL` query string                                   | **No**   |
-| App → external APIs (Tableau) | HTTPS, certificate verification on        | `TABLEAU_VERIFY_SSL`, `CONNECTOR_ALLOWED_HOST_SUFFIXES` | Yes      |
-| Pod → pod inside the cluster  | None — segmented, not encrypted           | `helm/templates/network-policies.yaml`                  | n/a      |
+| Hop                           | Protection                         | Configured in                                           | Enforced   |
+| ----------------------------- | ---------------------------------- | ------------------------------------------------------- | ---------- |
+| Browser → ingress             | TLS, cert-manager + Let's Encrypt  | [Infra overview](../infra/01-overview.md#tlsssl)        | Yes        |
+| App → object storage (S3)     | HTTPS                              | `S3_ENDPOINT_PROTOCOL`, defaults to `https`             | Yes        |
+| App → PostgreSQL              | TLS 1.3, `TLS_AES_256_GCM_SHA384`  | `DB_URL` query string                                   | Not pinned |
+| App → external APIs (Tableau) | HTTPS, certificate verification on | `TABLEAU_VERIFY_SSL`, `CONNECTOR_ALLOWED_HOST_SUFFIXES` | Yes        |
+| Pod → pod inside the cluster  | None — segmented, not encrypted    | `helm/templates/network-policies.yaml`                  | n/a        |
 
-> **⚠️ `sslmode=prefer` is a silent fallback.** libpq tries TLS, then
-> connects in plaintext without error if the server declines. Set
-> `?sslmode=require` on `DB_URL` — or `verify-full` with an
-> `sslrootcert` once EPFL DBaaS publishes a CA, since `require`
-> encrypts but does not authenticate the server. `sslmode=enable` is not
-> a valid libpq value and fails at connect time.
+Every database this service connects to negotiates TLS 1.3 with
+`TLS_AES_256_GCM_SHA384` today. Verified on 2026-08-24 against each
+environment:
+
+```sql
+select ssl, version, cipher from pg_stat_ssl where pid = pg_backend_pid();
+--  ssl | version |         cipher
+--  t   | TLSv1.3 | TLS_AES_256_GCM_SHA384
+```
+
+> **⚠️ Negotiated is not enforced.** `DB_URL` carries no `sslmode`, so
+> libpq applies its default of `prefer`: it asks for TLS and accepts a
+> plaintext connection without error if the server ever stops offering
+> it. Pin it with `?sslmode=require` — the servers already support it,
+> so this cannot break a connection. `sslmode=enable` is not a valid
+> libpq value and fails at connect time.
+
+`require` encrypts but does not authenticate the server. Move to
+`verify-full` with an `sslrootcert` once EPFL DBaaS publishes a CA.
 
 The runtime driver is psycopg 3 (`app/db.py` rewrites the URL to
 `postgresql+psycopg`), so libpq rules apply and `sslmode` passes
@@ -194,13 +207,14 @@ Stated openly, per the no-silent-fallbacks invariant in
 
 | Gap                                                          | Impact                                                     |
 | ------------------------------------------------------------ | ---------------------------------------------------------- |
-| `DB_URL` carries no `sslmode`; libpq defaults to `prefer`    | DB traffic may silently run in plaintext                   |
+| `DB_URL` carries no `sslmode`; libpq defaults to `prefer`    | TLS is live today, but nothing stops a silent downgrade    |
 | No re-encryption runbook for `FILES_ENCRYPTION_KEY` rotation | The key cannot be rotated without losing stored files      |
 | Server-side bucket encryption never requested by our client  | At-rest defence relies on our Fernet layer alone           |
 | Intra-cluster pod-to-pod traffic is unencrypted              | Trust boundary is the namespace, enforced by NetworkPolicy |
 
 ## Next
 
-Set `?sslmode=require` on the deployed `DB_URL` secrets, then close the
-first row of that table. Everything else needs an issue before it needs
-a fix.
+Add `?sslmode=require` to the `DB_URL` secret in each environment —
+verified safe, since every server already negotiates TLS 1.3 — then
+close the first row of that table. Everything else needs an issue before
+it needs a fix.

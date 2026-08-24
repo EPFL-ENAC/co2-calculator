@@ -114,10 +114,12 @@ in isolated worker containers. CSV only.
 
 **Status**: ⚠️ **PARTIAL** (P0)
 
-Encryption is implemented on every external hop and keys are
-held in ENAC-IT's Infisical vault. Two gaps remain: the
-database connection does not enforce `sslmode`, and
-intra-cluster traffic is unencrypted.
+Encryption is active on every external hop — TLS 1.3
+throughout, verified against each database — and keys are held
+in ENAC-IT's Infisical vault. Two gaps remain: the database
+connection negotiates TLS without pinning it via `sslmode`, and
+intra-cluster traffic is segmented by NetworkPolicy rather than
+encrypted.
 
 **Reference**: [Encryption and Key Management](encryption.md)
 
