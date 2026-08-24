@@ -36,8 +36,9 @@ group by email roughly 30 seconds after firing, and detection runs
 
 The service stores personal data — headcount entries ingested from
 Tableau hold a member name, institutional identifier and FTE. If an
-incident exposes them, notify the **EPFL Data Protection Officer within
-72 hours** of becoming aware, in addition to the timeframes above.
+incident exposes them, notify the **EPFL Data Protection Officer
+(<dpo@epfl.ch>) within 72 hours** of becoming aware, in addition to the
+timeframes above.
 
 > **⚠️ Do not state that this service processes no personal data.** It
 > does. Any questionnaire answer claiming otherwise is wrong and
