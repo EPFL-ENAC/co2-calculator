@@ -6,7 +6,26 @@ import {
 import { formatTonnesCO2 } from 'src/utils/number';
 import type { Module, ResearchFacilitiesSubType } from 'src/constant/modules';
 
+// #2007: manual entry picks a platform from the year's factor catalog — the id
+// is the factor's classification key, the name is only its label. Free-typing
+// either would resolve no factor, so the select carries the id and mirrors the
+// name back into the payload.
+const facilityIdField: ModuleField = {
+  id: 'researchfacility_id',
+  labelKey: `${MODULES.ResearchFacilities}.inputs.name`,
+  type: 'select',
+  optionsId: 'kind',
+  optionsLabelField: 'researchfacility_name',
+  inputTypeName: 'QSelect',
+  required: true,
+  align: 'left',
+  hideIn: { table: true },
+  icon: 'o_biotech',
+  columnSize: 'lg',
+};
+
 const researchFacilitiesFields: ModuleField[] = [
+  { ...facilityIdField, ratio: '1/3' },
   {
     id: 'researchfacility_name',
     labelKey: `${MODULES.ResearchFacilities}.inputs.name`,
@@ -26,9 +45,19 @@ const researchFacilitiesFields: ModuleField[] = [
     type: 'number',
     required: true,
     min: 0,
+    // #2007 — mirrors backend USE_BOUNDS: `use` means a share, machine time,
+    // spend or housings depending on the platform's unit.
+    conditionalBounds: {
+      fieldId: 'use_unit',
+      byValue: {
+        '%': { max: 100 },
+        hours: { max: 8760 },
+        housings: { integer: true },
+      },
+    },
     editableInline: true,
-    ratio: '1/4',
-    hideIn: { form: true },
+    ratio: '1/3',
+    hideIn: { form: false },
     sortable: true,
     tooltip:
       'module-research-facilities-submodule-research-facilities-table-use',
@@ -38,9 +67,12 @@ const researchFacilitiesFields: ModuleField[] = [
     labelKey: `${MODULES.ResearchFacilities}.inputs.use_unit`,
     type: 'text',
     required: true,
-    editableInline: true,
-    ratio: '1/4',
-    hideIn: { form: true },
+    // Mirrored from the selected factor: the emission formula only resolves
+    // when the entry's unit string-equals the factor's, so it is never typed.
+    readOnly: true,
+    editableInline: false,
+    ratio: '1/3',
+    hideIn: { form: false },
     sortable: true,
     tooltip:
       'module-research-facilities-submodule-research-facilities-table-use_unit',
@@ -58,6 +90,7 @@ const researchFacilitiesFields: ModuleField[] = [
 ];
 
 const animalFields: ModuleField[] = [
+  { ...facilityIdField, ratio: '1/4' },
   {
     id: 'researchfacility_name',
     labelKey: `${MODULES.ResearchFacilities}.inputs.name`,
@@ -74,13 +107,17 @@ const animalFields: ModuleField[] = [
   {
     id: 'researchfacility_type',
     labelKey: `${MODULES.ResearchFacilities}.inputs.type`,
-    type: 'text',
+    type: 'select',
+    optionsId: 'subkind',
+    inputTypeName: 'QSelect',
     optionLabelKey: `${MODULES.ResearchFacilities}.type.{value}`,
+    required: true,
     editableInline: false,
     // #951: not named in the matrix (Research facilities/Use/Unit only) —
-    // stays locked even on a user's own row.
-    ratio: '1/5',
-    hideIn: { form: true },
+    // stays locked even on a user's own row. Create scope is wider than the
+    // update whitelist: the animal create DTO requires it (#2007).
+    ratio: '1/4',
+    hideIn: { form: false },
     sortable: true,
     tooltip:
       'module-research-facilities-submodule-animal_facilities-table-researchfacility_type',
@@ -91,11 +128,31 @@ const animalFields: ModuleField[] = [
     type: 'number',
     required: true,
     min: 0,
+    // #2007 — mirrors backend USE_BOUNDS: `use` means a share, machine time,
+    // spend or housings depending on the platform's unit.
+    conditionalBounds: {
+      fieldId: 'use_unit',
+      byValue: {
+        '%': { max: 100 },
+        hours: { max: 8760 },
+        housings: { integer: true },
+      },
+    },
     editableInline: true,
-    ratio: '1/5',
-    hideIn: { form: true },
+    ratio: '1/4',
+    hideIn: { form: false },
     sortable: true,
     tooltip: 'module-research-facilities-submodule-animal_facilities-table-use',
+  },
+  {
+    id: 'use_unit',
+    labelKey: `${MODULES.ResearchFacilities}.inputs.use_unit`,
+    type: 'text',
+    required: true,
+    // Same factor-mirroring rule as the common submodule; no table column.
+    readOnly: true,
+    ratio: '1/4',
+    hideIn: { table: true },
   },
   {
     id: 'kg_co2eq',
@@ -126,16 +183,18 @@ export const researchFacilities: ModuleConfig = {
       type: SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities as ResearchFacilitiesSubType,
       tableNameKey: `${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities}-table-title`,
       moduleFields: researchFacilitiesFields,
-      hasTableAction: false,
+      hasTableAction: true,
       hasTableNote: true,
+      addButtonLabelKey: `${MODULES.ResearchFacilities}.add_button`,
     },
     {
       id: SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities,
       type: SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities as ResearchFacilitiesSubType,
       tableNameKey: `${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}-table-title`,
       moduleFields: animalFields,
-      hasTableAction: false,
+      hasTableAction: true,
       hasTableNote: true,
+      addButtonLabelKey: `${MODULES.ResearchFacilities}.add_button`,
     },
   ],
 };

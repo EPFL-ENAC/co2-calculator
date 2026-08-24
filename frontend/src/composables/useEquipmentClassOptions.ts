@@ -9,6 +9,10 @@ interface FieldConfig {
   // identifiers of the fields in the entity record (real value we want to use)
   classFieldId?: string;
   subClassFieldId?: string;
+  // Factor field to label the class select with, when the class value itself is
+  // an opaque code (research facility ids). Options then come from the factor
+  // catalog rather than the class/subclass map (#2007).
+  classLabelField?: string;
   // identifiers of the power fields in the entity record
   // (where to write the fetched power values)
   classOptionId?: string;
@@ -82,7 +86,13 @@ export function useEquipmentClassOptions<
     if (!sub || yearValue == null) return;
     loadingClasses.value = true;
     try {
-      const rawClasses = await store.fetchClassOptions(sub, yearValue);
+      const rawClasses = await store.fetchClassOptions(
+        sub,
+        yearValue,
+        config.classLabelField
+          ? { valueField: classFieldId, labelField: config.classLabelField }
+          : undefined,
+      );
       dynamicOptions[classOptionId] = rawClasses.map((o) => ({
         label: te(o.label) ? t(o.label) : o.label,
         value: o.value,

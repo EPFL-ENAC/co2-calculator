@@ -20,7 +20,6 @@ export type SubmoduleConfig = {
   mandatoryData?: boolean;
   mandatoryReference?: boolean;
   noThreshold?: true;
-  forceInputsDeactivated?: true;
 };
 
 export const MODULE_SUBMODULES: Partial<
@@ -194,14 +193,12 @@ export const MODULE_SUBMODULES: Partial<
       moduleTypeId: 6,
       dataEntryTypeId: 70,
       hasApi: true,
-      forceInputsDeactivated: true,
     },
     {
       key: 'animal_facilities',
       labelKey: 'data_management_submodule_animal_facilities',
       moduleTypeId: 6,
       dataEntryTypeId: 71,
-      forceInputsDeactivated: true,
     },
   ],
   [MODULES.ExternalCloudAndAI]: [

@@ -5,6 +5,7 @@ same unit. The uniqueness check on manual (API) create must key on
 ``(user_institutional_id, sius_code)``, not ``user_institutional_id`` alone.
 """
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -45,6 +46,14 @@ def _make_workflow_deps():
     session.refresh = AsyncMock()
     session.commit = AsyncMock()
     session.rollback = AsyncMock()
+    # #2007: the inputs-deactivated guard resolves the report, then its year
+    # config. No year_configuration row → not deactivated, the schema default.
+    session.get = AsyncMock(
+        return_value=SimpleNamespace(year=2026, carbon_project_id=None)
+    )
+    no_year_config = MagicMock()
+    no_year_config.first = MagicMock(return_value=None)
+    session.exec = AsyncMock(return_value=no_year_config)
 
     data_entry_service = MagicMock()
     data_entry_service.create = AsyncMock(
@@ -92,7 +101,9 @@ async def test_create_second_role_for_existing_member_is_accepted():
         ),
     ):
         response = await workflow.create(
-            carbon_report_module=MagicMock(id=42, module_type_id=1),
+            carbon_report_module=MagicMock(
+                id=42, carbon_report_id=99, module_type_id=1
+            ),
             data_entry_type_id=DataEntryTypeEnum.member.value,
             item_data=_member_item_data("54"),
             current_user=_CURRENT_USER,
@@ -145,7 +156,9 @@ async def test_create_duplicate_role_for_existing_member_is_rejected():
     ):
         with pytest.raises(HTTPException) as exc_info:
             await workflow.create(
-                carbon_report_module=MagicMock(id=42, module_type_id=1),
+                carbon_report_module=MagicMock(
+                    id=42, carbon_report_id=99, module_type_id=1
+                ),
                 data_entry_type_id=DataEntryTypeEnum.member.value,
                 item_data=_member_item_data("53"),
                 current_user=_CURRENT_USER,
@@ -186,7 +199,9 @@ async def test_create_stamps_source_manual_and_created_by_id():
         ),
     ):
         await workflow.create(
-            carbon_report_module=MagicMock(id=42, module_type_id=1),
+            carbon_report_module=MagicMock(
+                id=42, carbon_report_id=99, module_type_id=1
+            ),
             data_entry_type_id=DataEntryTypeEnum.member.value,
             item_data=_member_item_data("54"),
             current_user=_CURRENT_USER,
@@ -234,7 +249,9 @@ async def test_create_value_error_from_emission_service_returns_422():
     ):
         with pytest.raises(HTTPException) as exc_info:
             await workflow.create(
-                carbon_report_module=MagicMock(id=42, module_type_id=6),
+                carbon_report_module=MagicMock(
+                    id=42, carbon_report_id=99, module_type_id=6
+                ),
                 data_entry_type_id=DataEntryTypeEnum.member.value,
                 item_data=_member_item_data("54"),
                 current_user=_CURRENT_USER,
@@ -290,7 +307,9 @@ async def test_create_train_without_natural_key_is_rejected():
     ):
         with pytest.raises(HTTPException) as exc_info:
             await workflow.create(
-                carbon_report_module=MagicMock(id=42, module_type_id=1),
+                carbon_report_module=MagicMock(
+                    id=42, carbon_report_id=99, module_type_id=1
+                ),
                 data_entry_type_id=DataEntryTypeEnum.train.value,
                 item_data=_train_item_data(origin_natural_key=None),
                 current_user=_CURRENT_USER,
@@ -333,7 +352,9 @@ async def test_create_train_with_natural_key_omitted_is_rejected():
     ):
         with pytest.raises(HTTPException) as exc_info:
             await workflow.create(
-                carbon_report_module=MagicMock(id=42, module_type_id=1),
+                carbon_report_module=MagicMock(
+                    id=42, carbon_report_id=99, module_type_id=1
+                ),
                 data_entry_type_id=DataEntryTypeEnum.train.value,
                 item_data=item_data,
                 current_user=_CURRENT_USER,
@@ -376,7 +397,9 @@ async def test_create_train_with_natural_key_succeeds():
         ),
     ):
         response = await workflow.create(
-            carbon_report_module=MagicMock(id=42, module_type_id=1),
+            carbon_report_module=MagicMock(
+                id=42, carbon_report_id=99, module_type_id=1
+            ),
             data_entry_type_id=DataEntryTypeEnum.train.value,
             item_data=_train_item_data(),
             current_user=_CURRENT_USER,

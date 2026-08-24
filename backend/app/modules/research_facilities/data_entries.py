@@ -1,12 +1,58 @@
 """Research Facilities data-entry schemas (common + animal)."""
 
-from pydantic import ValidationInfo, field_validator
+from dataclasses import dataclass
+
+from pydantic import ValidationInfo, field_validator, model_validator
 
 from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+
+HOURS_PER_YEAR = 8760
+
+
+@dataclass(frozen=True)
+class UseBounds:
+    """Upper bound and granularity of `use` for one `use_unit`."""
+
+    maximum: float | None = None
+    integer_only: bool = False
+
+
+# #2007 — `use` measures a different quantity per platform and the factor's
+# `use_unit` names which: a share of the platform (%), machine time (hours),
+# spend (CHF), or animal housings. The factor carries no min/max, so the
+# bounds are hardcoded here and mirrored in the frontend module config. A unit
+# absent from this table is simply unbounded above — another institution may
+# use one this deployment has never seen.
+USE_BOUNDS: dict[str, UseBounds] = {
+    "%": UseBounds(maximum=100),
+    "hours": UseBounds(maximum=HOURS_PER_YEAR),
+    "CHF": UseBounds(),
+    "housings": UseBounds(integer_only=True),
+}
+
+
+def validate_use_within_unit_bounds(use: float | None, use_unit: str | None) -> None:
+    """Reject a `use` its unit makes impossible — 150%, half an animal housing.
+
+    Raises rather than clamping: a wrong total that looks complete is worse
+    than a blocked save, and `use` divides straight into the platform's
+    footprint.
+    """
+    if use is None or use_unit is None:
+        return
+    bounds = USE_BOUNDS.get(use_unit)
+    if bounds is None:
+        return
+    if bounds.maximum is not None and use > bounds.maximum:
+        raise ValueError(
+            f"use must be at most {bounds.maximum:g} when the unit is '{use_unit}'"
+        )
+    if bounds.integer_only and use != int(use):
+        raise ValueError(f"use must be a whole number when the unit is '{use_unit}'")
 
 
 class ResearchFacilitiesCommonHandlerResponse(DataEntryResponseGen):
@@ -67,6 +113,11 @@ class ResearchFacilitiesCommonHandlerCreate(DataEntryCreate):
             raise ValueError(f"{info.field_name} cannot be empty")
         return v
 
+    @model_validator(mode="after")
+    def _use_within_unit_bounds(self) -> ResearchFacilitiesCommonHandlerCreate:
+        validate_use_within_unit_bounds(self.use, self.use_unit)
+        return self
+
 
 class ResearchFacilitiesCommonHandlerUpdate(DataEntryUpdate):
     researchfacility_id: str | None = None
@@ -101,6 +152,11 @@ class ResearchFacilitiesCommonHandlerUpdate(DataEntryUpdate):
         if v is not None and not v.strip():
             raise ValueError(f"{info.field_name} cannot be empty")
         return v
+
+    @model_validator(mode="after")
+    def _use_within_unit_bounds(self) -> ResearchFacilitiesCommonHandlerUpdate:
+        validate_use_within_unit_bounds(self.use, self.use_unit)
+        return self
 
 
 class ResearchFacilitiesAnimalHandlerResponse(DataEntryResponseGen):
@@ -152,6 +208,11 @@ class ResearchFacilitiesAnimalHandlerCreate(DataEntryCreate):
             raise ValueError(f"{info.field_name} cannot be empty")
         return v
 
+    @model_validator(mode="after")
+    def _use_within_unit_bounds(self) -> ResearchFacilitiesAnimalHandlerCreate:
+        validate_use_within_unit_bounds(self.use, self.use_unit)
+        return self
+
 
 class ResearchFacilitiesAnimalHandlerUpdate(DataEntryUpdate):
     researchfacility_id: str | None = None
@@ -184,3 +245,8 @@ class ResearchFacilitiesAnimalHandlerUpdate(DataEntryUpdate):
         if v is not None and not v.strip():
             raise ValueError(f"{info.field_name} cannot be empty")
         return v
+
+    @model_validator(mode="after")
+    def _use_within_unit_bounds(self) -> ResearchFacilitiesAnimalHandlerUpdate:
+        validate_use_within_unit_bounds(self.use, self.use_unit)
+        return self
