@@ -35,7 +35,12 @@ group by email roughly 30 seconds after firing, and detection runs
 ## Personal data
 
 The service stores personal data — headcount entries ingested from
-Tableau hold a member name, institutional identifier and FTE. If an
+Tableau hold a member name, institutional identifier and FTE. It stores
+no **sensitive** personal data in the sense of the Swiss FADP: no
+health, biometric, genetic, religious, political or proceedings data.
+That distinction limits the obligations that follow, and it is the
+first thing an auditor will ask, so state it rather than leaving it
+implied. If an
 incident exposes them, notify the **EPFL Data Protection Officer
 (<dpo@epfl.ch>) within 72 hours** of becoming aware, in addition to the
 timeframes above.
