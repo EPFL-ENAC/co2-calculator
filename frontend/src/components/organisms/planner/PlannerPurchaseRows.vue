@@ -105,8 +105,14 @@
             dense
             hide-bottom-space
             min="0"
-            :suffix="currencyLabel(currency)"
-            :aria-label="$t('planner_purchase_amount_label')"
+            :suffix="row.unit === 'kg' ? 'kg' : currencyLabel(currency)"
+            :aria-label="
+              $t(
+                row.unit === 'kg'
+                  ? 'planner_purchase_quantity_label'
+                  : 'planner_purchase_amount_label',
+              )
+            "
             :disable="disable || switching || savingKey === row.key"
             :loading="savingKey === row.key"
             :error="row.error !== null"
@@ -179,7 +185,12 @@ const CATEGORIES = [
   'purchases_centralized',
 ] as const;
 
+// Centralized purchases are priced per kg of product, not per EUR, so that
+// row takes a quantity in kg (mirrors PLANNER_PURCHASE_KG_CATEGORIES).
+const KG_CATEGORIES: ReadonlySet<string> = new Set(['purchases_centralized']);
+
 type Mode = 'global' | 'per_category';
+type RowUnit = 'eur' | 'kg';
 
 const SUBMODULE: Record<Mode, string> = {
   global: 'planner_purchase_budget',
@@ -201,6 +212,7 @@ interface PurchaseRow {
   labelKey: string;
   /** The category slug sent on create; null for the global budget. */
   category: string | null;
+  unit: RowUnit;
   amount: number | null;
   /** Last persisted amount — `blur` after `Enter` must not save twice. */
   saved: number | null;
@@ -213,6 +225,7 @@ interface SubmoduleItem {
   id: number;
   purchase_category?: string;
   amount_eur?: number | null;
+  quantity_kg?: number | null;
   kg_co2eq?: number | null;
 }
 
@@ -264,6 +277,7 @@ function emptyRow(key: string): PurchaseRow {
         ? 'planner_purchase_global_budget_label'
         : `planner_purchase_category.${key}`,
     category: key === 'global' ? null : key,
+    unit: KG_CATEGORIES.has(key) ? 'kg' : 'eur',
     amount: null,
     saved: null,
     entryId: null,
@@ -313,7 +327,10 @@ function toDisplay(amountEur: number | null | undefined): number | null {
 }
 
 function fillRow(row: PurchaseRow, item: SubmoduleItem | undefined) {
-  row.amount = toDisplay(item?.amount_eur);
+  row.amount =
+    row.unit === 'kg'
+      ? (item?.quantity_kg ?? null)
+      : toDisplay(item?.amount_eur);
   row.saved = row.amount;
   row.entryId = item?.id ?? null;
   // A saved amount always reads a figure: a category the reference year has no
@@ -409,10 +426,9 @@ async function persist(row: PurchaseRow) {
           json: row.category
             ? {
                 purchase_category: row.category,
-                amount_eur: amount,
-                currency: currency.value,
+                ...quantityPayload(row, amount),
               }
-            : { amount_eur: amount, currency: currency.value },
+            : quantityPayload(row, amount),
           skipErrorCodes: [422],
         })
         .json<{ id: number }>();
@@ -420,7 +436,7 @@ async function persist(row: PurchaseRow) {
     } else {
       await api
         .patch(`${pathFor(mode.value)}/${row.entryId}`, {
-          json: { amount_eur: amount, currency: currency.value },
+          json: quantityPayload(row, amount),
           skipErrorCodes: [422],
         })
         .json();
@@ -438,6 +454,12 @@ async function persist(row: PurchaseRow) {
   } finally {
     savingKey.value = null;
   }
+}
+
+function quantityPayload(row: PurchaseRow, amount: number) {
+  return row.unit === 'kg'
+    ? { quantity_kg: amount }
+    : { amount_eur: amount, currency: currency.value };
 }
 
 function filledRows(target: Mode): PurchaseRow[] {

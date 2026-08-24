@@ -463,6 +463,10 @@ export default {
     en: 'Amount',
     fr: 'Montant',
   },
+  planner_purchase_quantity_label: {
+    en: 'Quantity (kg)',
+    fr: 'Quantité (kg)',
+  },
   planner_currency_rates_unavailable: {
     en: 'Exchange rates are not available for this year, amounts stay in EUR.',
     fr: 'Les taux de change ne sont pas disponibles pour cette année, les montants restent en EUR.',

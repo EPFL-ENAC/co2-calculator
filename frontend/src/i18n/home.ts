@@ -5,7 +5,7 @@ export default {
   },
   home_intro_1_part_1: {
     en: 'The CO₂ Calculator allows to assess the carbon footprint of a unit, in accordance with the Greenhouse Gas Protocol (',
-    fr: "Le Calculateur CO₂ permet d'évaluer l'empreinte carbone d’une unité, en conformité avec le Protocole des gaz à effet de serre (",
+    fr: "Le Calculateur CO₂ permet d'estimer l'empreinte carbone d’une unité, en conformité avec le Protocole des gaz à effet de serre (",
   },
   home_intro_1_link_text: {
     en: 'GHG Protocol',
@@ -128,6 +128,18 @@ export default {
     en: 'About',
     fr: 'À propos',
   },
+  co2_calculator_about_paragraph_1: {
+    en: 'Click “Start” to complete the modules and get a comprehensive estimation of your unit’s carbon footprint. You can then review your results and export your report.',
+    fr: "Cliquez sur « Démarrer » pour remplir les modules et obtenir une estimation complète de l'empreinte carbone de votre unité. Vous pourrez ensuite consulter vos résultats et exporter vos données.",
+  },
+  co2_calculator_about_paragraph_2: {
+    en: 'Most of the data is loaded automatically, but some can be entered manually or imported via a CSV file. Use the left-hand menu to navigate between modules, edit them, or validate your data.',
+    fr: 'La majorité des données sont intégrées automatiquement, mais certaines peuvent être saisies manuellement ou importées via un fichier CSV. Le menu de gauche vous permet de naviguer entre les modules pour les modifier ou les valider.',
+  },
+  co2_calculator_about_paragraph_3: {
+    en: 'You can enable “Colorblind” mode in the top right corner to adjust the display.',
+    fr: "Le mode « Daltonien » est accessible en haut à droite pour adapter l'affichage.",
+  },
   co2_calculator_chart_title: {
     en: 'My unit CO₂ Assessment {year}',
     fr: 'Bilan CO₂ de mon unité {year}',
@@ -137,12 +149,12 @@ export default {
     fr: 'Continuer',
   },
   co2_calculator_empty_title: {
-    en: "Ready to map your unit's footprint",
-    fr: "Prêt·e à cartographier l'empreinte de votre unité",
+    en: 'Ready to assess your unit’s carbon footprint?',
+    fr: "Prêt·e à estimer l'empreinte carbone de votre unité ?",
   },
   co2_calculator_empty_subtitle: {
-    en: 'Begin your {year} assessment and watch your emissions take shape, category by category.',
-    fr: 'Commencez votre bilan {year} et regardez vos émissions prendre forme, catégorie par catégorie.',
+    en: 'Complete your {year} assessment and view your total and module-by-module carbon footprint.',
+    fr: 'Complétez votre bilan {year} et consultez votre empreinte carbone globale et par module.',
   },
   co2_calculator_empty_btn: {
     en: 'Start',
@@ -163,20 +175,20 @@ export default {
     fr: 'Vous êtes utilisateur·rice standard',
   },
   co2_calculator_access_standard_body: {
-    en: "You can see only a subset of modules to protect confidential data. To unlock the full assessment, request principal access from your unit's principal user.",
-    fr: "Vous ne voyez qu'une partie des modules afin de protéger les données confidentielles. Pour débloquer le bilan complet, demandez un accès principal à l'utilisateur·rice principal·e de votre unité.",
+    en: 'You can view and edit your own data in the External cloud & AI and Professional travel modules. In accordance with EPFL’s data protection rules, all other modules and data can only be viewed and updated by your unit’s Principal user. Need full access? Please contact your unit head to request principal access.',
+    fr: "Vous pouvez consulter et ajouter vos propres données dans les modules Clouds externes & IA et Voyages professionnels. Conformément aux règles de protection des données d’EPFL, tous les autres modules et données ne peuvent être consultés et mis à jour que par l'utilisateur·trice principal·e de votre unité. Besoin d'un accès complet ? Veuillez contacter la personne responsable de votre unité pour demander un accès principal.",
   },
   co2_calculator_access_principal_title: {
     en: "You're a principal user",
     fr: 'Vous êtes utilisateur·rice principal·e',
   },
   co2_calculator_access_principal_body: {
-    en: 'You can see all active modules. If relevant, the Head of Unit can delegate this role to team members in {provider}. Some data is confidential  please handle it with care.',
-    fr: "Vous voyez tous les modules actifs. Le cas échéant, le·la responsable d'unité peut déléguer ce rôle à des membres de l'équipe dans {provider}. Certaines données sont confidentielles manipulez-les avec soin.",
+    en: 'You have access to all active modules. Certain data contains personal and research-related information: please handle it securely and responsibly. If relevant, the head of unit can delegate this role to  memebers of their unit via {provider}.',
+    fr: "Vous avez accès à l'ensemble des modules. Certaines données incluent des informations personnelles et liées aux activités de recherche : merci de les traiter de manière sécurisée et responsable. Si besoin, la personne responsable d'unité peut déléguer ce droit via {provider}.",
   },
   co2_calculator_access_cta_standard: {
-    en: 'Email the principal user',
-    fr: "Écrire à l'utilisateur·rice principal·e",
+    en: 'Email the unit head',
+    fr: 'Écrire à la personne responsable',
   },
   co2_calculator_access_cta_principal: {
     en: 'Manage access in {provider}',
@@ -213,8 +225,8 @@ export default {
     fr: 'Planificateur de projet CO₂',
   },
   co2_project_planner_description: {
-    en: 'The CO₂ Project Planner, which is accessible after completing the CO₂ calculator, allows you to simulate various projects—whether past, current, or future—and estimate their carbon footprint based on the results from the previous year.',
-    fr: 'Le Planificateur de projet CO₂, accessible après avoir complété le calculateur CO₂, permet de simuler différents projets et d’en estimer l’empreinte carbone, qu’ils soient passés, en cours ou futurs, en s’appuyant sur les résultats obtenus l’année précédente.',
+    en: 'The CO₂ Project Planner, which is accessible after completing the CO₂ calculator, enables you to estimate the carbon footprint of various projects – whether for funding applications or for past, current or future projects – based on the results from the previous year.',
+    fr: `Le Planificateur de projet CO₂, accessible après avoir complété le calculateur CO₂, permet d'estimer l'empreinte carbone de  différents projets, que ce soient pour des demandes de financement ou des projets passés, en cours ou futurs, en s’appuyant sur les résultats obtenus l’année précédente.`,
   },
   co2_project_planner_btn: {
     en: 'Start a project',
@@ -225,8 +237,8 @@ export default {
     fr: 'Explorateur CO₂',
   },
   co2_explorer_description: {
-    en: "Choose your path either to explore and quickly assess the carbon impact of individual items or actions or to plan and forecast emissions for your next project using your unit's previous year's carbon report.",
-    fr: "Choisissez votre approche : explorer et évaluer rapidement l'impact carbone d'éléments ou d'actions, ou planifier et prévoir les émissions de votre prochain projet à partir du rapport carbone de l'année précédente de votre unité.",
+    en: 'The CO₂ Explorer enables you to estimate the carbon footprint of specific items or actions. It makes it easier to assess different scenarios and allows you to download the results as a PDF report.',
+    fr: "L’Explorateur CO₂ permet d’estimer l'empreinte carbone d’éléments ou d’actions spécifiques. Il facilite l’évaluation de différents scénarios et offre la possibilité de télécharger les résultats dans un rapport PDF.",
   },
   co2_explorer_btn: {
     en: 'Start an exploration',

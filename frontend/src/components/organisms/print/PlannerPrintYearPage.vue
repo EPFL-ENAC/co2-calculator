@@ -85,6 +85,7 @@ const inactiveModules = computed(() =>
         :view-additional-data="true"
         :print-mode="true"
         :enforce-module-activation="false"
+        :active-categories-only="true"
       />
     </section>
   </ReportPage>

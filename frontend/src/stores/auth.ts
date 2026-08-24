@@ -12,6 +12,7 @@ import { computed } from 'vue';
 import {
   PermissionAction,
   MODULE_STATUS_PERMISSION,
+  canDeletePlan,
   hasPermission,
   hasAnyScopePermission,
   hasBackOfficeAreaPermission,
@@ -228,6 +229,19 @@ export const useAuthStore = defineStore('auth', () => {
     return hasUserPermission(MODULE_STATUS_PERMISSION, PermissionAction.EDIT);
   }
 
+  /**
+   * Whether the current user may delete `plan` — gates the planner table's
+   * delete button. UX only — the backend DELETE stays enforced by `PlanPolicy`.
+   */
+  function hasUserCanDeletePlan(plan: { created_by: number | null }): boolean {
+    return canDeletePlan(
+      user.value?.permissions,
+      workspaceStore.selectedUnit?.institutional_id,
+      user.value?.id,
+      plan.created_by,
+    );
+  }
+
   function canUserAccessModule(module: Module): boolean {
     const path = getModulePermissionPath(module);
     if (!path) return true; // Unprotected module, accessible to all users
@@ -277,6 +291,7 @@ export const useAuthStore = defineStore('auth', () => {
     hasUserPermission,
     hasUserModulePermission,
     hasUserCanValidateModuleStatus,
+    hasUserCanDeletePlan,
     canUserAccessModule,
     hasUserBackOfficeAreaPermission,
     hasUserAnyScopePermission,

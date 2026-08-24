@@ -1,10 +1,19 @@
 ---
-status: proposed
+status: delivered
 issue: 1559
-last_updated: 2026-07-07
+last_updated: 2026-08-21
 title: "Idempotent tmp->processing (and processing->processed) file moves on job retry"
 summary: "Skip the move if the destination already exists so a retried ingestion job doesn't fail on a file a prior attempt already consumed."
 ---
+
+**Delivered.** `DataIngestionProvider._move_to_processing` /
+`_move_to_processed` (`backend/app/services/data_ingestion/base_provider.py:64-108`)
+implement the idempotency check exactly as designed below, with regression
+coverage in `backend/tests/unit/services/data_ingestion/test_base_provider.py`.
+Found still-current while investigating
+[#2220](https://github.com/EPFL-ENAC/co2-calculator/issues/2220) — this
+plan's own frontmatter was stale (said "proposed"), which is corrected here
+per the guardrails' "keep plans aligned with shipped code."
 
 # Idempotent tmp->processing (and processing->processed) file moves on job retry
 

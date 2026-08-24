@@ -817,3 +817,40 @@ async def test_duplicate_plan_syncs_year_reports(async_session, user):
     assert years is not None
     assert [y.year for y in years] == [2027, 2028, 2029]
     assert all(len(y.modules) > 0 for y in years)
+
+
+async def test_grant_proposal_is_derived_from_the_grant_report(async_session, user):
+    """The flag reflects the grant report, created even before a year range."""
+    service = SimulatorPlanService(async_session)
+    plan = await service.create_plan(unit_id=1, user=user, name="grant")
+    assert plan.is_grant_proposal is False
+
+    updated = await _update_plan(
+        service, plan.id, SimulatorPlanUpdate(is_grant_proposal=True)
+    )
+    assert updated.is_grant_proposal is True
+    fetched = await service.get_plan(plan.id)
+    assert fetched is not None and fetched.is_grant_proposal is True
+
+    copy = await service.duplicate_plan(plan.id, user)
+    assert copy is not None and copy.is_grant_proposal is True
+
+    updated = await _update_plan(
+        service, plan.id, SimulatorPlanUpdate(is_grant_proposal=False)
+    )
+    assert updated.is_grant_proposal is False
+
+
+async def test_plan_cannot_drop_both_years_and_grant_before_a_range(
+    async_session, user
+):
+    """The 'years or grant' invariant holds even without a year range."""
+    service = SimulatorPlanService(async_session)
+    plan = await service.create_plan(unit_id=1, user=user, name="empty")
+
+    with pytest.raises(ValueError, match="year-by-year sections or a grant"):
+        await _update_plan(
+            service,
+            plan.id,
+            SimulatorPlanUpdate(with_year_sections=False, is_grant_proposal=False),
+        )

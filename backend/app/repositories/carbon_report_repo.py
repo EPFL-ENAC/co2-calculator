@@ -1,7 +1,8 @@
 """Carbon report repository for database operations."""
 
+from sqlalchemy import JSON, String, column, true
 from sqlalchemy.dialects.postgresql import insert
-from sqlmodel import col, select
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import desc
 
@@ -66,6 +67,75 @@ class CarbonReportRepository:
         )
         result = await self.session.execute(statement)
         return list(result.scalars().all())
+
+    def _calculator_reports_of(self, unit_ids: list[int], year: int | None):
+        """Base select of several units' Calculator reports, optionally one year."""
+        statement = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(
+                col(CarbonReport.unit_id).in_(unit_ids),
+                CarbonProject.carbon_report_type == CarbonReportType.CALCULATOR,
+            )
+        )
+        if year is not None:
+            statement = statement.where(CarbonReport.year == year)
+        return statement
+
+    async def list_by_units(
+        self, unit_ids: list[int], year: int | None = None
+    ) -> list[CarbonReport]:
+        """Calculator reports of several units in one query, oldest year first.
+
+        A unit can own more than one Calculator project, so a (unit, year) pair
+        may yield several reports; callers fold them.
+        """
+        statement = self._calculator_reports_of(unit_ids, year).order_by(
+            col(CarbonReport.year), col(CarbonReport.id)
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
+    async def sum_stat_buckets_by_year(
+        self, unit_ids: list[int]
+    ) -> list[tuple[int, str, int, float]]:
+        """Sum persisted ``stats.buckets`` kg per (year, bucket key) across units.
+
+        One grouped query over ``json_each(stats->'buckets')`` instead of a
+        Python fold over every report. Rows are ``(year, key, scope, total_kg)``
+        ordered by year then key.
+        """
+        bucket = func.json_each(col(CarbonReport.stats)["buckets"]).table_valued(
+            column("key", String), column("value", JSON)
+        )
+        scope = func.max(bucket.c.value["scope"].as_integer())
+        total_kg = func.sum(bucket.c.value["total_kg"].as_float())
+        statement = (
+            self._calculator_reports_of(unit_ids, None)
+            .with_only_columns(col(CarbonReport.year), bucket.c.key, scope, total_kg)
+            .join(bucket, true())
+            .where(bucket.c.key.is_not(None))
+            .group_by(col(CarbonReport.year), bucket.c.key)
+            .order_by(col(CarbonReport.year), bucket.c.key)
+        )
+        result = await self.session.execute(statement)
+        return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+
+    async def list_validated_buckets_by_year(
+        self, unit_ids: list[int]
+    ) -> dict[int, set[str]]:
+        """Union of ``stats.validated_buckets`` per year across the units."""
+        statement = self._calculator_reports_of(unit_ids, None).with_only_columns(
+            col(CarbonReport.year), col(CarbonReport.stats)["validated_buckets"]
+        )
+        result = await self.session.execute(statement)
+        validated: dict[int, set[str]] = {}
+        for year, keys in result.all():
+            validated.setdefault(year, set()).update(keys or [])
+        return validated
 
     async def get_by_unit_and_year(
         self, unit_id: int, year: int

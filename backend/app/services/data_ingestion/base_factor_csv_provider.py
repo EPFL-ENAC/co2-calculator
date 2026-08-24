@@ -623,9 +623,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         """
         if result["result"] != IngestionResult.SUCCESS or self.year is None:
             return
-        # What the rows actually carried, not what the module allows: the
-        # centralized-purchases CSV is valid for the same module and prices
-        # none of the categories these averages are taken over.
+        # What the rows actually carried, not what the module allows.
         if self._upserted_det_ids & {det.value for det in PURCHASE_SOURCE_TYPES}:
             await derive_planner_purchase_factors(
                 self.data_session, self.year, self.job_id

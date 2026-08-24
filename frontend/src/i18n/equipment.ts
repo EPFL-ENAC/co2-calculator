@@ -10,8 +10,8 @@ export default {
     fr: 'Données et facteurs communs | Données et facteurs communs',
   },
   [`${MODULES.Equipment}-description`]: {
-    en: 'Estimate the electrical consumption of your equipment',
-    fr: 'Estimez la consommation électrique de vos équipements',
+    en: `Review and complete your unit's equipment power consumption.`,
+    fr: 'Vérifiez et complétez les données de consommation électrique des équipements de votre unité.',
   },
 
   equipment_new_usage_required_banner: {
@@ -25,24 +25,24 @@ export default {
   },
 
   [`${MODULES.Equipment}-title-subtext`]: {
-    en: `This module allows you to estimate the electrical consumption of your scientific, IT, and other equipment. The equipment list comes from the inventory carried out by your unit for the faculty.
+    en: `This module helps you estimate the carbon footprint of your equipment (scientific, IT, etc.) based on power consumption in active and standby modes. Total estimated consumption per equipment is converted into carbon footprint using the official Swiss electricity mix emission factor.
 
-Please fill in the following columns:
+Please complete the following columns:
+- Sub-category: Select the sub-category for equipment where this field is required.
+- Active and standby usage: Enter or update the weekly usage hours for each item of equipment. A conservative estimate (avoiding underestimation) is recommended to save time.
 
-- Subclass: Choose the subclass for equipment where this information is necessary.
+This list is based on an export from your unit’s official inventory. If you notice any discrepancies, please correct them in the dedicated inventory application.
 
-- Active use and standby use: Please enter the number of hours each piece of equipment is used per week. It is recommended to make a conservative estimate (not underestimated) to minimize the time required for this task.
+If the average power (in active or standby mode) of your equipment differs from the default value, please contact co2calculator@epfl.ch.`,
+    fr: `Ce module vous aide à estimer l'empreinte carbone liée à la consommation électrique de vos équipements (scientifiques, IT, etc.) en usage actif et standby. La consommation totale par équipment estimée à partir de vos saisies est convertie en empreinte carbone selon le facteur d'émission officiel du mix électrique suisse.
 
-If your equipement active or standby power is different from the one used by default, please contact the administrator.`,
-    fr: `Ce module permet d'estimer la consommation électrique de vos équipements scientifiques, IT et autres. La liste de équipements vient de l'inventaire effectué par votre unité pour la faculté.
+Veuillez compléter les colonnes suivantes :
+- Sous-classe : choisissez la sous-classe pour les équipements où cette information est demandée.
+- Usage actif et usage standby : veuillez indiquer ou mettre à jour les heures d'utilisation de chaque équipement par semaine. Une estimation conservatrice (sans sous-estimer) est recommandée afin de limiter le temps consacré à cette tâche.
 
-Veuillez remplir les colonnes suivantes:
+La liste s'appuie sur une extraction de l'inventaire officiel contrôlé par votre unité. Si vous constatez des écarts, merci de les corriger dans l'application d'inventaire dédiée.
 
-- Sous-classe: choisissez la sous-classe pour les équipements où cette information est nécessaire.
-
-- Usage actif et usage standby: veuillez mettre à jour les heures d'utilisation de chaque équipement par semaine. Il est recommandé de faire une estimation conservatrice (qui n'est pas sous-estimée) pour limiter le temps dédié à cette tâche.
-
-Si la puissance moyenne active ou standby de votre équipement est différente de celle utilisée par défaut, merci de contacter l'administrateur.`,
+Si la puissance moyenne (en mode actif ou en veille) de votre équipement est différente de la valeur par défaut, merci de contacter à co2calculator@epfl.ch`,
   },
   [`${MODULES.Equipment}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/equipment/',

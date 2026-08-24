@@ -32,15 +32,6 @@ class CarbonProjectBase(SQLModel):
     end_year: int | None = Field(default=None, nullable=True, index=True)
     name: str | None = Field(default=None, nullable=True, index=True)
     is_viewable_by_unit_members: bool = Field(default=False, nullable=False)
-    is_grant_proposal: bool = Field(
-        default=False,
-        nullable=False,
-        sa_column_kwargs={"server_default": "false"},
-        description=(
-            "Simulator Plan only: the plan carries a Project Grant section"
-            " (a dedicated grant carbon report) in addition to its year reports"
-        ),
-    )
     created_by: int | None = Field(
         default=None,
         foreign_key="users.id",

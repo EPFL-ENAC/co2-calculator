@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionState
@@ -756,3 +756,90 @@ async def test_process_row_persists_dto_coerced_values(monkeypatch):
     assert factor_service.prepare_create.await_args.kwargs["classification"] == {
         "kind": "x"
     }
+
+
+@pytest.mark.asyncio
+async def test_process_row_persists_dto_normalized_values(monkeypatch):
+    """Validation and normalization are two different jobs (#1489, F-3).
+
+    A validator can accept a value while also returning a *cleaned* form of
+    it — pydantic's contract is that the validated model, not the input
+    dict, is the canonical data. ``"  CHF "`` raises nothing (it is valid),
+    yet the value to persist is ``"chf"``. Discarding validate_create's
+    return (the pre-#2231 behavior) stored the raw form even though
+    "validation passed" — the exact silent divergence this audit chases.
+    """
+
+    class _NormalizingPayload(BaseModel):
+        kind: str
+        currency: str
+
+        @field_validator("currency", mode="after")
+        @classmethod
+        def _normalize_currency(cls, v: str) -> str:
+            normalized = v.strip().lower()
+            if normalized not in ("chf", "eur", "usd"):
+                raise ValueError("bad currency")
+            return normalized
+
+    handler_mock = MagicMock()
+    handler_mock.category_field = "data_entry_type"
+    handler_mock.classification_fields = ["kind"]
+    handler_mock.value_fields = ["currency"]
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "year": 2024, "handlers": [handler_mock]},
+        data_session=MagicMock(),
+    )
+    stats = _build_stats()
+
+    handler = MagicMock()
+    handler.classification_fields = ["kind"]
+    handler.value_fields = ["currency"]
+    handler.validate_create.side_effect = lambda payload: (
+        _NormalizingPayload.model_validate(
+            {k: v for k, v in payload.items() if k in ("kind", "currency")}
+        )
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+    factor_service = MagicMock()
+    factor_service.prepare_create = AsyncMock(return_value=SimpleNamespace(id=1))
+
+    setup_result = {
+        "handlers": [handler_mock],
+        "expected_columns": {"data_entry_type", "kind", "currency"},
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x", "currency": "  CHF "},
+        row_idx=3,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        factor_service=factor_service,
+    )
+
+    assert error_msg is None  # "  CHF " is VALID — nothing raises
+    persisted = factor_service.prepare_create.await_args.kwargs["values"]
+    assert persisted["currency"] == "chf"  # ...but what persists is canonical
+
+    # An actually-invalid currency still raises — the fix did not weaken
+    # rejection, it only stopped discarding the accepted rows' clean form.
+    _, error = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x", "currency": "doubloons"},
+        row_idx=4,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        factor_service=factor_service,
+    )
+    assert error is not None and "bad currency" in error

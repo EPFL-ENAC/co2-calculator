@@ -234,33 +234,16 @@
                 isGridModule(entry.config.module)
               "
             >
-              <div class="q-pa-md">
-                <div class="text-weight-medium q-mb-sm">
-                  {{ $t('planner_budget_section_title') }}
-                </div>
-                <q-input
-                  v-model.number="gridBudgetInputs[entry.config.module]"
-                  class="grant-budget-input"
-                  type="number"
-                  outlined
-                  dense
-                  hide-bottom-space
-                  min="0"
-                  :suffix="currencyLabel(yearData.budget_currency)"
-                  :label="
-                    $t('planner_submodule_budget_label', {
-                      submodule: $t(entry.config.module),
-                    })
-                  "
-                  :loading="savingGridBudgetModule === entry.config.module"
-                  :disable="entry.module.is_active === false"
-                  @blur="saveGridBudget(entry)"
-                  @keyup.enter="saveGridBudget(entry)"
-                />
-                <div class="text-body2 text-grey-7 q-mt-sm">
-                  {{ $t('planner_submodule_budget_hint') }}
-                </div>
-              </div>
+              <planner-submodule-budget
+                class="q-pa-md"
+                :carbon-report-id="yearData.id"
+                :module-type-id="entry.module.module_type_id"
+                :submodule="entry.config.module"
+                :name="$t(entry.config.module)"
+                :currency="yearData.budget_currency"
+                :saved="entry.module.budgets?.[entry.config.module]"
+                :disable="entry.module.is_active === false"
+              />
               <q-separator />
             </template>
             <!-- Headcount is a fixed SIUS-category grid and Purchases a
@@ -361,31 +344,17 @@
                      per-submodule fields carry it in per-line mode (#1981). -->
                 <template v-if="equipmentMode === 'global'">
                   <q-separator class="planner-equipment-separator q-my-md" />
-                  <div class="text-weight-medium q-mb-sm">
-                    {{ $t('planner_budget_section_title') }}
-                  </div>
-                  <q-input
-                    v-model.number="gridBudgetInputs[entry.config.module]"
-                    class="grant-budget-input"
-                    type="number"
-                    outlined
-                    dense
-                    hide-bottom-space
-                    min="0"
-                    :suffix="currencyLabel(yearData.budget_currency)"
-                    :label="
-                      $t('planner_submodule_budget_label', {
-                        submodule: $t(entry.config.module),
-                      })
-                    "
-                    :loading="savingGridBudgetModule === entry.config.module"
-                    :disable="entry.module?.is_active === false"
-                    @blur="saveGridBudget(entry)"
-                    @keyup.enter="saveGridBudget(entry)"
+                  <planner-submodule-budget
+                    v-if="entry.module"
+                    :carbon-report-id="yearData.id"
+                    :module-type-id="entry.module.module_type_id"
+                    :submodule="entry.config.module"
+                    :name="$t(entry.config.module)"
+                    :currency="yearData.budget_currency"
+                    :saved="entry.module.budgets?.[entry.config.module]"
+                    :disable="entry.module.is_active === false"
+                    @saving="savingEquipmentBudget = $event"
                   />
-                  <div class="text-body2 text-grey-7 q-mt-sm">
-                    {{ $t('planner_submodule_budget_hint') }}
-                  </div>
                   <q-separator class="planner-equipment-separator q-my-md" />
                   <div
                     class="planner-equipment-global-row row items-center no-wrap"
@@ -521,6 +490,7 @@ import { moduleTooltipKey, type TooltipScope } from 'src/utils/tooltipScope';
 import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
 import PlannerPurchaseRows from 'src/components/organisms/planner/PlannerPurchaseRows.vue';
 import PlannerResearchFacilityRows from 'src/components/organisms/planner/PlannerResearchFacilityRows.vue';
+import PlannerSubmoduleBudget from 'src/components/organisms/planner/PlannerSubmoduleBudget.vue';
 import PlannerReferenceYearDialog from 'src/components/organisms/planner/PlannerReferenceYearDialog.vue';
 import { CURRENCY_OPTIONS, currencyLabel } from 'src/constant/currencies';
 import {
@@ -565,6 +535,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   toggleModule: [payload: { key: string; module: Module; open: boolean }];
+  collapseAll: [];
 }>();
 
 const $q = useQuasar();
@@ -585,19 +556,7 @@ const togglingModuleId = ref<number | null>(null);
 const budgetInput = ref<number | null>(props.yearData.budget);
 const budgetCurrencyInput = ref<string | null>(props.yearData.budget_currency);
 const savingBudget = ref(false);
-// Headcount and Purchases are single grids: their one budget field lives on
-// this level, stored under the module name as the submodule key.
-const gridBudgetInputs = ref<Record<string, number | null>>(
-  Object.fromEntries(
-    PLANNER_MODULES.map((config) => {
-      const module = props.yearData.modules.find(
-        (m) => m.module_type_id === getModuleTypeId(config.module),
-      );
-      return [config.module, module?.budgets?.[config.module] ?? null];
-    }),
-  ),
-);
-const savingGridBudgetModule = ref<string | null>(null);
+const savingEquipmentBudget = ref(false);
 
 const distributedBudget = computed(() =>
   props.yearData.modules.reduce(
@@ -616,7 +575,7 @@ const overDistributed = computed(
 const fullyDistributed = computed(
   () =>
     props.yearData.budget !== null &&
-    distributedBudget.value === props.yearData.budget,
+    Math.abs(distributedBudget.value - props.yearData.budget) < 0.005,
 );
 
 const budgetCheckText = computed(() => {
@@ -662,25 +621,6 @@ async function saveBudget() {
   }
 }
 
-async function saveGridBudget(entry: ModuleEntry) {
-  if (!entry.module) return;
-  const submodule = entry.config.module;
-  const value = toBudgetValue(gridBudgetInputs.value[submodule]);
-  if (value === (entry.module.budgets?.[submodule] ?? null)) return;
-  savingGridBudgetModule.value = submodule;
-  try {
-    await plansStore.setSubmoduleBudget(
-      props.yearData.id,
-      entry.module.module_type_id,
-      submodule,
-      value,
-    );
-  } catch {
-    $q.notify({ type: 'negative', message: t('planner_grant_budget_error') });
-  } finally {
-    savingGridBudgetModule.value = null;
-  }
-}
 const hasReferenceYear = computed(() => props.yearData.reference_year !== null);
 
 // Factor year, mirroring the backend chain (`resolve_factor_year`): the
@@ -811,7 +751,7 @@ function equipmentModeControlsDisabled(entry: ModuleEntry): boolean {
   return (
     switchingEquipmentMode.value ||
     applyingGlobalPercentage.value ||
-    savingGridBudgetModule.value === MODULES.Equipment ||
+    savingEquipmentBudget.value ||
     entry.module?.is_active === false
   );
 }
@@ -863,9 +803,6 @@ async function confirmEquipmentSwitch() {
         key,
         null,
       );
-    }
-    if (equipmentMode.value === 'global') {
-      gridBudgetInputs.value[MODULES.Equipment] = null;
     }
     equipmentMode.value = next;
     pendingEquipmentMode.value = null;
@@ -1020,13 +957,7 @@ async function onReferenceYearChange(referenceYear: number | null) {
       props.yearData.is_grant,
     );
     referenceYearDialogOpen.value = false;
-    // The prefilled modules were rebuilt from the new baseline; refresh this
-    // section's open modules so their rows appear without a manual reload.
-    const prefix = `${sectionKey.value}-`;
-    for (const key of props.expandedKeys) {
-      if (!key.startsWith(prefix)) continue;
-      await refreshExpandedModule(key.slice(prefix.length) as Module);
-    }
+    emit('collapseAll');
     if (equipmentMode.value === 'global') {
       globalPercentage.value = 100;
       appliedGlobalPercentage.value = 100;

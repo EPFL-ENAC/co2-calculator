@@ -97,7 +97,6 @@ class SimulatorPlanRead(BaseModel):
     created_at: datetime | None = None
     creator_name: str | None = None
     total_tonnes_co2eq: float | None = None
-    can_manage: bool = False
     #: Set when the PATCH deferred its prefill to a ``simulator_plan_prefill``
     #: job (plan #2050 Track F4). ``None`` means there was nothing to wait
     #: for; otherwise the client polls this job before trusting the year's

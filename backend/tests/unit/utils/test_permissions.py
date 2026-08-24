@@ -47,6 +47,11 @@ class TestCalculateUserPermissions:
         assert "backoffice.data_management" not in result
         assert "modules.headcount" not in result
         assert "modules.equipment" not in result
+        assert result["planner.plans"] == ["view", "edit", "delete"]
+
+    def test_backoffice_metier_grants_no_planner_key(self):
+        result = calculate_user_permissions([_r_backoffice()])
+        assert not any(key.startswith("planner.plans") for key in result)
 
     def test_backoffice_metier_global_scope_grants_nothing(self):
         """CO2_BACKOFFICE_METIER is sub-perimeter-bound: a GlobalScope shape is
@@ -96,6 +101,8 @@ class TestCalculateUserPermissions:
         # ``module.status/<cf>`` affordance gates the sidebar validate button
         # (frontend) — standard (own) users never receive it.
         assert "edit" in result["module.status/10208"]
+        assert result["planner.plans/10208"] == ["view", "edit"]
+        assert result["planner.plans/10208/own"] == ["delete"]
         # Principal is a unit role only — no backoffice.* grants. Backoffice
         # access requires CO2_BACKOFFICE_METIER (or CO2_SUPERADMIN).
         assert not any(key.startswith("backoffice.") for key in result), (
@@ -125,6 +132,7 @@ class TestCalculateUserPermissions:
         # Validating a module's status is a unit-level operation: a standard
         # (own) user must never receive the ``module.status`` affordance.
         assert not any(key.startswith("module.status") for key in result)
+        assert result["planner.plans/10208/own"] == ["view", "edit", "delete"]
 
     def test_user_roles_wrong_scope(self):
         """Test user roles with global scope do not grant permissions."""
@@ -461,17 +469,19 @@ class TestRoleDomainIsolation:
     @pytest.mark.parametrize(
         "role, allowed_prefixes",
         [
-            pytest.param(_r_std(_IID_A), ("modules.",), id="std"),
+            pytest.param(_r_std(_IID_A), ("modules.", "planner.plans"), id="std"),
             pytest.param(
                 _r_principal(_IID_A),
                 # Principal is a unit-area role: modules.* data keys plus the
-                # module.status validate-button affordance (both unit-scoped).
+                # module.status validate-button and planner.plans affordances.
                 # (backoffice.users.edit was removed in #459 Phase 2.)
-                ("modules.", "module.status"),
+                ("modules.", "module.status", "planner.plans"),
                 id="principal",
             ),
             pytest.param(_r_backoffice(), ("backoffice.",), id="backoffice"),
-            pytest.param(_r_superadmin(), ("backoffice.",), id="superadmin"),
+            pytest.param(
+                _r_superadmin(), ("backoffice.", "planner.plans"), id="superadmin"
+            ),
         ],
     )
     def test_role_only_grants_keys_in_its_domain(self, role, allowed_prefixes):
