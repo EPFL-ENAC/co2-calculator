@@ -7,11 +7,11 @@ export default {
     fr: 'Personnel',
   },
   [`${MODULES.Headcount}-description`]: {
-    en: 'Verify team members and Full Time Equivalent (FTE) values for your unit',
+    en: `Review your unit's members and their full-time equivalents (FTEs).`,
     fr: 'Vérifiez les membres de l’unité et leurs équivalents plein-temps (EPT)',
   },
   [`${MODULES.Headcount}-title-subtext`]: {
-    en: `This module automatically displays the names, functions, SCIPERs, and FTE values of your unit’s members as of the reference year. For student contributions, please manually add their total accumulated FTE over the year. The total number of FTEs is used to generate the indicators for the additional categories (Food, Commuting, and Waste), as well as the total carbon footprint per FTE for your unit.`,
+    en: `This module automatically displays the names, functions, SCIPERs, and FTEs of your unit’s members for the reference year. For student contributions, please manually enter their combined FTE for the entire year. The total FTE of the unit is used to generate indicators for additional categories (Food, Commuting, and Waste), as well as your unit’s carbon footprint per FTE.`,
     fr: `Ce module affiche automatiquement les noms, fonctions, SCIPERs et valeurs EPT des membres de votre unité pour l'année de référence. Pour les contributions des étudiant·e·s, veuillez ajouter manuellement leur EPT total sur l'ensemble de l'année. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets), ainsi que l'empreinte carbone totale par EPT pour votre unité.`,
   },
   [`${MODULES.Headcount}-documentation-link`]: {
