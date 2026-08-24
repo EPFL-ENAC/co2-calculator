@@ -1,9 +1,15 @@
-# Default owner for everything, and the maintainer responsible for
-# triaging Dependabot alerts and security-scan findings (ADR-014 §1).
-* @guilbep
+# Review ownership. The team is the owner rather than an individual so a
+# PR is never blocked waiting on its own author (ADR-014 §3).
+# Team members: see https://github.com/orgs/EPFL-ENAC/teams/co2-calculator
+* @EPFL-ENAC/co2-calculator
 
-# Security-relevant surfaces: never merge these without the owner's review.
-/.github/            @guilbep
-/helm/               @guilbep
-/backend/app/core/   @guilbep
-/docs/src/architecture-decision-records/ @guilbep
+# Security-relevant surfaces. Same owners, listed so a reviewer knows
+# which paths carry the security review obligation.
+/.github/                                @EPFL-ENAC/co2-calculator
+/helm/                                   @EPFL-ENAC/co2-calculator
+/backend/app/core/                       @EPFL-ENAC/co2-calculator
+/docs/src/architecture-decision-records/ @EPFL-ENAC/co2-calculator
+
+# Dependabot alerts and security-scan findings are triaged by @guilbep
+# (ADR-014 §1). Ownership above is about review, this line is about
+# who answers when an alert fires.
