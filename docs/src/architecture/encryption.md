@@ -70,11 +70,29 @@ already done.
 | Pod → pod inside the cluster  | None — segmented, not encrypted           | `helm/templates/network-policies.yaml`                  | n/a      |
 
 > **⚠️ `sslmode=prefer` is a silent fallback.** libpq tries TLS, then
-> connects in plaintext without error if the server declines. Set
-> `?sslmode=require` on `DB_URL` — or `verify-full` with an
+> connects in plaintext without error if the server declines.
+> `sslmode=enable` is not a valid libpq value and fails at connect time;
+> the value you want is `require`, or `verify-full` with an
 > `sslrootcert` once EPFL DBaaS publishes a CA, since `require`
-> encrypts but does not authenticate the server. `sslmode=enable` is not
-> a valid libpq value and fails at connect time.
+> encrypts but does not authenticate the server.
+
+**Do not set `sslmode=require` blindly across environments.** Every
+environment deploys an in-cluster PostgreSQL chart _and_ carries a
+`DB_URL` secret, and only that secret's value says which one the app
+talks to. Against EPFL DBaaS, `require` is correct. Against the
+in-cluster chart it fails outright — no `tls:` block is configured, so
+that server does not offer TLS. `DB_URL` feeds the backend, the worker,
+and the migration job, so a wrong value fails the rollout at migration
+time. Check the value per environment, test the connection, then roll
+dev → stage → prod:
+
+```bash
+psql "$DB_URL?sslmode=require" \
+  -c "select ssl, version, cipher from pg_stat_ssl where pid = pg_backend_pid();"
+```
+
+That proves both that the connection survives and that TLS actually
+engaged, rather than merely being permitted.
 
 The runtime driver is psycopg 3 (`app/db.py` rewrites the URL to
 `postgresql+psycopg`), so libpq rules apply and `sslmode` passes
@@ -201,6 +219,8 @@ Stated openly, per the no-silent-fallbacks invariant in
 
 ## Next
 
-Set `?sslmode=require` on the deployed `DB_URL` secrets, then close the
-first row of that table. Everything else needs an issue before it needs
-a fix.
+Check where each environment's `DB_URL` actually points, then set
+`?sslmode=require` on the ones that reach EPFL DBaaS and close the first
+row of that table. An environment on the in-cluster chart is on the
+pod-to-pod hop above, and enabling TLS there is an infrastructure
+decision. Everything else needs an issue before it needs a fix.
