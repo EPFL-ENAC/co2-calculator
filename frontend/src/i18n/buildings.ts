@@ -132,7 +132,7 @@ export default {
     fr: "Émissions de combustion d'énergie | Émissions de combustion d'énergie ",
   },
   [`${MODULES.Buildings}.combustion_table_title`]: {
-    en: 'Energy combustion emissions ({count}) | Energy combustions emissions ({count})',
+    en: 'Energy Combustion Emissions ({count}) | Energy Combustions Emissions ({count})',
     fr: "Émissions de combustion d'énergie ({count}) | Émissions de combustion d'énergie ({count})",
   },
   [`${MODULES.Buildings}.add_combustion_button`]: {

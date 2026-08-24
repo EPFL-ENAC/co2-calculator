@@ -36,12 +36,17 @@ class CarbonProjectBase(SQLModel):
         default=None,
         foreign_key="users.id",
         nullable=True,
-        description="User who created the project (set for Simulator Plan projects)",
+        description=(
+            "User who created the project"
+            " (set for Simulator Plan and Simulator Explore projects)"
+        ),
     )
     created_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
-        description="Creation timestamp (set for Simulator Plan projects)",
+        description=(
+            "Creation timestamp (set for Simulator Plan and Simulator Explore projects)"
+        ),
     )
 
 
@@ -49,18 +54,25 @@ class CarbonProject(CarbonProjectBase, table=True):
     __tablename__ = "carbon_projects"
 
     __table_args__ = (
-        # Two partial unique indexes. ddl_if gates both to Postgres: the
+        # Three partial unique indexes. ddl_if gates them to Postgres: the
         # SQLite unit-test schema is intentionally unconstrained here.
-        # One project per (unit_id, carbon_report_type) for Calculator /
-        # Simulator_Explore; a unit may hold multiple Simulator_Plan
-        # projects instead, unique per (unit_id, name) since the name is a
-        # URL identifier.
+        # One Calculator project per unit; one Simulator_Explore project per
+        # (unit_id, created_by) so each user's Explorer sandbox is private
+        # (#2293); a unit may hold multiple Simulator_Plan projects, unique
+        # per (unit_id, name) since the name is a URL identifier.
         Index(
-            "uq_carbon_projects_unit_type_nonplan",
+            "uq_carbon_projects_unit_type_calculator",
             "unit_id",
             "carbon_report_type",
             unique=True,
-            postgresql_where=text("carbon_report_type != 'Simulator_Plan'"),
+            postgresql_where=text("carbon_report_type = 'Calculator'"),
+        ).ddl_if(dialect="postgresql"),
+        Index(
+            "uq_carbon_projects_unit_explore_creator",
+            "unit_id",
+            "created_by",
+            unique=True,
+            postgresql_where=text("carbon_report_type = 'Simulator_Explore'"),
         ).ddl_if(dialect="postgresql"),
         Index(
             "uq_carbon_projects_unit_plan_name",
