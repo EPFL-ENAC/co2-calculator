@@ -236,6 +236,18 @@ onMounted(() => {
                   </q-btn>
                 </div>
               </template>
+              <template v-else-if="col.name === 'name'">
+                <router-link
+                  :to="{
+                    name: 'project-planner',
+                    params: { ...route.params, planId: props.row.id },
+                  }"
+                  class="text-info text-bold"
+                  style="text-decoration: none"
+                >
+                  {{ col.value }}
+                </router-link>
+              </template>
               <template v-else>{{ col.value }}</template>
             </q-td>
           </q-tr>
