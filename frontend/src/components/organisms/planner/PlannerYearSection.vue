@@ -143,7 +143,6 @@
 
       <planner-reference-year-dialog
         v-if="referenceYearDialogOpen"
-        :key="`ref-year-${yearData.reference_year}`"
         v-model="referenceYearDialogOpen"
         :year="yearData.year"
         :reference-year="yearData.reference_year"
