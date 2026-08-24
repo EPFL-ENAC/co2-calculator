@@ -155,6 +155,12 @@ Sweep verdict: the code implements the documented scheme **except**:
 | N-8 | Building grey energy has a Create DTO (`BuildingEmbodiedEnergyHandlerCreate`) but no `*_data.csv` table in the doc (factors only).                            | doc gap or WIP module  |
 | N-9 | Travel `number_of_trips`: doc mandatory, DTO optional with default 1 (form requires it).                                                                      | trivial                |
 
+The doc's admonition notes and prose were swept separately (all 13 blocks read,
+2026-08-24): the General Notes confirm the `kg_co2eq` out-of-band override and the
+ISO-date rule (both enforced), state an upload-order rule that is deliberately
+unenforced, and produced findings N-10 and N-11 above; the headcount template
+note self-declares a stale table for the D list.
+
 Non-findings the sweep cleared: `kg_co2eq` in every data CSV is honored
 out-of-band by the entry pipeline (deliberately never in `DataEntry.data`);
 `unit_institutional_id` is the routing column, correctly absent from DTOs;
