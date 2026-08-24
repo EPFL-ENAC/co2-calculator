@@ -651,6 +651,17 @@ class Settings(BaseSettings):
         ),
     )
 
+    EXPLORE_TTL_SECONDS: int = Field(
+        default=24 * 60 * 60,
+        ge=1,
+        description=(
+            "Seconds before a Simulator Explore report is considered stale. "
+            "A GET past this age still returns the stale report immediately "
+            "but schedules a background task that deletes it and seeds a "
+            "fresh empty one."
+        ),
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:

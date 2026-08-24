@@ -6,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.policy import (
     require_module_unit_scope,
@@ -27,8 +28,6 @@ from app.schemas.carbon_report import (
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
-
-_EXPLORE_TTL_SECONDS = 24 * 60 * 60  # 24 hours
 
 
 async def _refresh_explore_background(
@@ -111,7 +110,8 @@ async def get_simulator_explore_carbon_report(
 ):
     """Get an existing Simulator Explore carbon report.
 
-    If the report has exceeded its TTL (24 h) a background task is scheduled
+    If the report has exceeded its TTL (EXPLORE_TTL_SECONDS) a background task
+    is scheduled
     to delete the stale report and seed a fresh one — the current (stale)
     report is returned immediately so the user is not blocked.
     """
@@ -133,7 +133,7 @@ async def get_simulator_explore_carbon_report(
 
     now_ts = int(datetime.now(UTC).timestamp())
     age = now_ts - int(result.last_updated or 0)
-    if result.last_updated is None or age > _EXPLORE_TTL_SECONDS:
+    if result.last_updated is None or age > get_settings().EXPLORE_TTL_SECONDS:
         background_tasks.add_task(
             _refresh_explore_background,
             unit_id=unit_id,
