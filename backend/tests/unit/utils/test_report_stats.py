@@ -16,7 +16,7 @@ from app.modules.emissions.registry import (
 from app.modules.emissions.taxonomy import EmissionType
 from app.services.carbon_report_module_service import compute_module_stats
 from app.services.carbon_report_service import _build_report_stats
-from app.utils.report_stats import build_year_comparison, merge_report_stats
+from app.utils.report_stats import merge_report_stats
 
 
 def _buildings_stats() -> dict:
@@ -145,65 +145,6 @@ def test_merge_report_stats_empty_input():
     assert merged["buckets"] == {}
     assert merged["total"] == 0.0
     assert merged["it"]["total_kg"] == 0.0
-
-
-def test_year_comparison_buckets_to_tonnes_by_module_and_scope():
-    entry = build_year_comparison(_build_report_stats(_modules()))
-    # equipment is IN_PROGRESS, so it is absent rather than zero
-    assert entry["modules"] == {
-        "buildings_energy_combustion": 0.150,
-        "buildings_room": 0.030,
-        "commuting": 0.005,
-        "food": 0.020,
-        "embodied_energy": 0.007,
-    }
-    assert entry["scopes"] == {"1": 0.150, "2": 0.030, "3": 0.032}
-    # "waste" has no emissions in the fixture, so it never reaches the payload
-    assert "waste" not in entry["modules"]
-
-
-def test_year_comparison_total_is_validated_only_and_counts_additional():
-    report = _build_report_stats(_modules())
-    entry = build_year_comparison(report)
-    # matches the validated-only Results headline, not the all-module total
-    assert entry["total_tonnes_co2eq"] == report["validated_total"] / 1000.0
-    assert entry["total_tonnes_co2eq"] != report["total"] / 1000.0
-    # additional buckets (commuting/food/embodied_energy) are in the total
-    assert entry["total_tonnes_co2eq"] == sum(entry["modules"].values())
-    assert abs(sum(entry["scopes"].values()) - entry["total_tonnes_co2eq"]) < 1e-12
-
-
-def test_year_comparison_simulator_reports_count_every_module():
-    # simulator reports have no validation step, so equipment counts there
-    report = _build_report_stats(_modules(), is_simulator=True)
-    entry = build_year_comparison(report)
-    assert entry["modules"]["equipment"] == 1.0
-    assert entry["total_tonnes_co2eq"] == report["total"] / 1000.0
-
-
-def test_year_comparison_skips_non_positive_and_unvalidated_buckets():
-    entry = build_year_comparison(
-        {
-            "validated_buckets": ["equipment", "purchases", "food"],
-            "buckets": {
-                "equipment": {"total_kg": 0.0, "scope": 2},
-                "purchases": {"total_kg": -5.0, "scope": 3},
-                "food": {"total_kg": 1000.0, "scope": 3, "additional": True},
-                # positive, but its module is not validated
-                "professional_travel": {"total_kg": 500.0, "scope": 3},
-            },
-        }
-    )
-    assert entry["modules"] == {"food": 1.0}
-    assert entry["scopes"] == {"1": 0.0, "2": 0.0, "3": 1.0}
-    assert entry["total_tonnes_co2eq"] == 1.0
-
-
-def test_year_comparison_empty_stats():
-    entry = build_year_comparison({})
-    assert entry["modules"] == {}
-    assert entry["scopes"] == {"1": 0.0, "2": 0.0, "3": 0.0}
-    assert entry["total_tonnes_co2eq"] == 0.0
 
 
 def _embodied_report(by_building: list[dict], by_category: list[dict]) -> dict:

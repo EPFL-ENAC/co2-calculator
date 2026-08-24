@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 834
-last_updated: 2026-08-04
+last_updated: 2026-08-21
 title: "Compare Years: aggregate across combined units + reword target box"
 summary: "Replace the single-unit multi-year-report-stats endpoint with GET /merged/multi-year-report-stats (unit_ids query, allow-list auth factored out of the year-scoped helper), wire combined units from ResultsPage through CompareYearsDialog, and reword the target-gap KPI to the approved 'Reduction needed to reach {year} target' phrasing with a template-side minus sign."
 ---
@@ -85,3 +85,24 @@ number[])` calls the merged endpoint with repeated `unit_ids` params
 - `frontend/scripts/openapi.snapshot.json` + generated
   `frontend/src/types/api/openapi.d.ts` regenerated; the snapshot was
   stale since #1564, so the diff also catches up on routes shipped since.
+
+## Follow-up (#2043 review): aggregate in SQL
+
+The review of #1975 asked to make the endpoint generic with SQL rather than a
+per-unit query loop folded in Python.
+
+- `CarbonReportRepository.sum_stat_buckets_by_year(unit_ids)` is one grouped
+  query over `json_each(stats->'buckets')` returning
+  `(year, bucket_key, scope, total_kg)`; `list_validated_buckets_by_year`
+  unions `stats.validated_buckets` per year. Both use SQLAlchemy's portable
+  JSON accessors, so the unit tests exercise them on SQLite and the same
+  statement runs on Postgres.
+- `CarbonReportService.compare_years(unit_ids)` applies the validated-only /
+  positive-only filter and the tonnes conversion; the route only authorizes
+  and delegates. `build_year_comparison` and the route-side fold are gone.
+- `list_by_units(unit_ids, year=None)` replaces the per-unit
+  `get_by_unit_and_year` loop in `_authorize_and_resolve_reports`, so the
+  single-year `/merged/*` endpoints resolve their reports in one query too
+  (and no longer break when a unit owns two Calculator projects in a year).
+- Tests moved from `tests/unit/utils/test_report_stats.py` to
+  `tests/unit/services/test_compare_years.py`, against the real query.

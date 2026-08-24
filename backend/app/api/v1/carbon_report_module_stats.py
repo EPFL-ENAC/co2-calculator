@@ -25,6 +25,7 @@ from app.models.user import User
 from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_service import DataEntryService
 from app.services.unit_service import UnitService
 from app.services.unit_totals_service import UnitTotalsService
@@ -33,7 +34,6 @@ from app.utils.report_computations import (
     compute_validated_totals,
 )
 from app.utils.report_stats import (
-    build_year_comparison,
     derive_quantity_sections,
     merge_report_stats,
 )
@@ -196,20 +196,13 @@ async def _authorize_and_resolve_reports(
     unit_ids: list[int],
     year: int,
 ) -> list[CarbonReport]:
-    """Resolve the CALCULATOR report of each requested unit, for one year.
+    """Resolve the CALCULATOR reports of the requested units, for one year.
 
     Units with no report for ``year`` are skipped, so the aggregate simply
     covers the units that do have one.
     """
     authorized_unit_ids = await _authorize_unit_ids(db, current_user, unit_ids)
-
-    report_repo = CarbonReportRepository(db)
-    reports: list[CarbonReport] = []
-    for unit_id in authorized_unit_ids:
-        report = await report_repo.get_by_unit_and_year(unit_id=unit_id, year=year)
-        if report is not None:
-            reports.append(report)
-    return reports
+    return await CarbonReportRepository(db).list_by_units(authorized_unit_ids, year)
 
 
 @router.get("/merged/multi-year-report-stats", response_model=dict)
@@ -221,39 +214,13 @@ async def get_merged_multi_year_breakdown(
     """Return per-year emission breakdown summed over the requested units.
 
     Feeds the "Compare Years" pop-up: one entry per year with stat-bucket
-    totals (``modules``) and scope totals (``scopes``) in tonnes CO2eq, read
-    straight off each report's persisted stats. Units with no reports simply
-    contribute nothing; no report at all yields ``{"years": []}``.
-
-    Returns:
-        {"years": [{"year": 2023, "total_tonnes_co2eq": 61.7,
-                    "modules": {...}, "scopes": {...}}, ...]}
+    totals (``modules``) and scope totals (``scopes``) in tonnes CO2eq,
+    aggregated in SQL from each report's persisted stats. Units with no
+    reports simply contribute nothing; no report at all yields ``{"years": []}``.
     """
     logger.info(f"GET merged multi-year breakdown: unit_ids={sanitize(unit_ids)}")
-
     authorized_unit_ids = await _authorize_unit_ids(db, current_user, unit_ids)
-
-    # A unit can own more than one Calculator project, and uniqueness is on
-    # (carbon_project_id, year) -- not (unit_id, year) -- so a year may map to
-    # several reports, on top of one report per requested unit. Fold them into
-    # one aggregate of the same stats shape.
-    report_repo = CarbonReportRepository(db)
-    stats_by_year: dict[int, list[dict]] = {}
-    for unit_id in authorized_unit_ids:
-        reports = await report_repo.list_by_unit(unit_id)
-        for report in reports:
-            if report.stats:
-                stats_by_year.setdefault(report.year, []).append(report.stats)
-
-    years = []
-    for year in sorted(stats_by_year):
-        stats_list = stats_by_year[year]
-        stats = (
-            stats_list[0] if len(stats_list) == 1 else merge_report_stats(stats_list)
-        )
-        years.append({"year": year, **build_year_comparison(stats)})
-
-    return {"years": years}
+    return {"years": await CarbonReportService(db).compare_years(authorized_unit_ids)}
 
 
 @router.get("/merged/report-stats", response_model=dict)
