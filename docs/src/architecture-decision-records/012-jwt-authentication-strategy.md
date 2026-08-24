@@ -1,7 +1,8 @@
 # ADR-012: Use JWT for Authentication
 
 **Status**: Accepted  
-**Date**: 2024-12-01 \n**Deciders**: Development Team
+**Date**: 2024-12-01<br/>
+**Deciders**: Development Team
 
 ## TL;DR
 

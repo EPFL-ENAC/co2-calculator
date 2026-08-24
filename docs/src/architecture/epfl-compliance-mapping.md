@@ -127,13 +127,15 @@ encrypted.
 
 **Status**: ✅ **COMPLIANT** (P0)
 
-| Type           | Method                      | Retention             | Testing         |
-| -------------- | --------------------------- | --------------------- | --------------- |
-| Database       | PostgreSQL WAL + daily full | 30d daily, 1y monthly | Monthly restore |
-| Object Storage | EPFL-hosted S3              | ⚠️ unverified         | ⚠️ unverified   |
+| Type           | Method                                             | Retention                         | Testing         |
+| -------------- | -------------------------------------------------- | --------------------------------- | --------------- |
+| Database       | PostgreSQL WAL + daily full                        | 30d daily, 1y monthly             | Monthly restore |
+| Object Storage | EPFL-hosted S3, encryption enabled at provisioning | No versioning — deletes are final | Not tested      |
 
-**Recovery**: Point-in-time recovery capability with
-documented procedures in Helm charts.
+**Recovery**: Database restore is requested from EPFL DSI;
+procedures are in the Disaster Recovery Plan in the private ops
+repository. Its restore template still carries `SLA: ?`, `RPO: ?`,
+`RTO: ?` — no recovery timeframe is agreed yet.
 
 ## Logging and Monitoring
 

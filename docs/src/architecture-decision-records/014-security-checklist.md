@@ -1,7 +1,8 @@
 # ADR-014: Security Checklist
 
 **Status**: Accepted  
-**Date**: 2026-02-16 \n**Deciders**: Development Team
+**Date**: 2026-02-16<br/>
+**Deciders**: Development Team
 
 ---
 
@@ -499,7 +500,9 @@ Still open, with the reason:
 - **Incident response timeframes and confidentiality level** — the
   procedure exists but does not state either, both of which the
   requirement asks for by name.
-- **Business continuity plan** — not written.
+- **Recovery timeframes** — the Disaster Recovery Plan's database
+  restore template carries `SLA: ?`, `RPO: ?`, `RTO: ?` verbatim. Ask
+  EPFL DSI for the DBaaS figures.
 
 Every remaining Exploitation Phase box is a recurring process, not a
 one-time task. They are tracked by the cadence table in the

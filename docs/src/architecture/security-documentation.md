@@ -9,18 +9,18 @@ answering a security questionnaire or an audit.
 
 ## The ten required documents
 
-| #   | Required document          | Where it lives                                                                                                                                                             | State       |
-| --- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| 1   | Encryption keys management | [Encryption and Key Management](encryption.md)                                                                                                                             | ✅ Complete |
-| 2   | Operating procedures       | [Release runbook](release-runbook.md), [Infra overview](../infra/01-overview.md)                                                                                           | ✅ Complete |
-| 3   | Change management          | [Guardrails § Workflow](../contributing/guardrails.md), [Release management](release-management.md), [Workflow guide](workflow-guide.md)                                   | ✅ Complete |
-| 4   | Malicious code detection   | [ADR-014 §1, §2, §6](../architecture-decision-records/014-security-checklist.md) — Dependabot, CodeQL, secret scanning, Trivy                                              | ✅ Complete |
-| 5   | Vulnerability monitoring   | [ADR-014 §1, §2](../architecture-decision-records/014-security-checklist.md), [CI/CD workflows](cicd-workflows.md)                                                         | ✅ Complete |
-| 6   | Third-party list           | [Third parties](#third-parties) below; dependency-level detail in the repository's GitHub dependency graph                                                                 | ✅ Complete |
-| 7   | Incident response          | 5-step procedure in the private security repository; [SLO and alerting](../infra/03-observability-slo.md); [worked example](../infra/02-postmortem-oauth-http-redirect.md) | ⚠️ Partial  |
-| 8   | Business continuity plan   | —                                                                                                                                                                          | ❌ Missing  |
-| 9   | Maintenance and restore    | [Release runbook](release-runbook.md), backup section of [Infra overview](../infra/01-overview.md)                                                                         | ✅ Complete |
-| 10  | Compliance procedures      | [EPFL compliance mapping](epfl-compliance-mapping.md), [EPFL constraints](epfl-constraint.md)                                                                              | ✅ Complete |
+| #   | Required document          | Where it lives                                                                                                                                                                                                                                                                                                                                                  | State       |
+| --- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 1   | Encryption keys management | [Encryption and Key Management](encryption.md)                                                                                                                                                                                                                                                                                                                  | ✅ Complete |
+| 2   | Operating procedures       | [Release runbook](release-runbook.md), [Infra overview](../infra/01-overview.md)                                                                                                                                                                                                                                                                                | ✅ Complete |
+| 3   | Change management          | [Guardrails § Workflow](../contributing/guardrails.md), [Release management](release-management.md), [Workflow guide](workflow-guide.md)                                                                                                                                                                                                                        | ✅ Complete |
+| 4   | Malicious code detection   | [ADR-014 §1, §2, §6](../architecture-decision-records/014-security-checklist.md) — Dependabot, CodeQL, secret scanning, Trivy                                                                                                                                                                                                                                   | ✅ Complete |
+| 5   | Vulnerability monitoring   | [ADR-014 §1, §2](../architecture-decision-records/014-security-checklist.md), [CI/CD workflows](cicd-workflows.md)                                                                                                                                                                                                                                              | ✅ Complete |
+| 6   | Third-party list           | [Third parties](#third-parties) below; dependency-level detail in the repository's GitHub dependency graph                                                                                                                                                                                                                                                      | ✅ Complete |
+| 7   | Incident response          | 5-step procedure in the private security repository; responder roster and alert routing in the [Disaster Recovery Plan](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/DRP.md) (private ops repository); [SLO and alerting](../infra/03-observability-slo.md); [worked example](../infra/02-postmortem-oauth-http-redirect.md) | ⚠️ Partial  |
+| 8   | Business continuity plan   | [Disaster Recovery Plan](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/DRP.md) (private ops repository) — recovery team, namespace and bucket re-provisioning, secret recovery, GitOps and ArgoCD restore, database restore, manual build path, monitoring recovery                                                           | ✅ Complete |
+| 9   | Maintenance and restore    | [Release runbook](release-runbook.md), [Disaster Recovery Plan](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/DRP.md) (private ops repository), backup section of [Infra overview](../infra/01-overview.md)                                                                                                                   | ⚠️ Partial  |
+| 10  | Compliance procedures      | [EPFL compliance mapping](epfl-compliance-mapping.md), [EPFL constraints](epfl-constraint.md)                                                                                                                                                                                                                                                                   | ✅ Complete |
 
 ## What is still open
 
@@ -28,7 +28,15 @@ answering a security questionnaire or an audit.
   asks for two things it does not state: **how fast** an incident is
   communicated, and the **confidentiality level** of that
   communication. Both are policy decisions, not engineering ones.
-- **Business continuity (8)** — not written.
+- **Recovery timeframes (9)** — the requirement asks for availability
+  of information "within agreed timeframes", and no timeframe is
+  agreed. The DRP's database-restore ticket template carries `SLA: ?`,
+  `RPO: ?`, `RTO: ?` verbatim. Ask EPFL DSI for the DBaaS figures and
+  write them into the DRP.
+- **Object storage has no version history** — buckets are provisioned
+  with versioning disabled, so a deleted or overwritten object is not
+  recoverable. That is a deliberate trade-off, but it belongs in the
+  BCP rather than in a portal setting nobody reads.
 
 Neither gap is closed by a code change. Track them as issues rather
 than leaving them implied by an unticked box.
