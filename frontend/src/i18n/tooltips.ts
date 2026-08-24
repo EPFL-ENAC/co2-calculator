@@ -682,23 +682,23 @@ export default {
   // Calculator keeps the `module-…` texts further up in this file.
 
   'planner-project-info-section-title': {
-    en: 'Select whether you want to estimate a project carbon footprint in line with a grant application and/or for a past, ongoing, or future project. Estimations for ongoing projects may not be accessible to all members of your unit. If you want to grant access to these project estimates to other members of your unit, please designate them as Primary Users at https://accred.epfl.ch/.',
-    fr: "Sélectionnez si vous voulez estimer l'empreinte d'un projet en lien avec une demande de financement et/ou pour un projet passé, en cours, ou futur. L'estimation des projets en cours ne peut pas être accessible à toutes et tous les membres de votre unité. Si vous voulez donner accès à l'estimation de ces projets à d'autres membres de votre unité, veuillez les accréditer comme Utilisateur Principal dans https://accred.epfl.ch/.",
+    en: 'Select whether you want to estimate a project carbon footprint in line with a grant application and/ or for a past, ongoing, or future project.',
+    fr: "Sélectionnez si vous voulez estimer l'empreinte d'un projet en lien avec une demande de financement et/ou pour un projet passé, en cours, ou futur.",
   },
 
   'planner-grant-proposal-title': {
     en: "This section allows you to gather information related to a research project’s carbon footprint as requested by funding agencies. Please contact co2calculator{'@'}epfl.ch if the agencies ask for information that you cannot find here.",
-    fr: "Cet espace vous permet de collecter les informations liées à l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter co2calculator{'@'}epfl.ch si les agences vous demandent des informations que vous ne retrouvez pas ici.",
+    fr: "Cette section vous permet de collecter les informations liées à l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter co2calculator{'@'}epfl.ch si les agences vous demandent des informations que vous ne retrouvez pas ici.",
   },
 
   'planner-grant-section-title': {
-    en: "This section allows you to gather information related to a research project’s carbon footprint as requested by funding agencies. Please contact co2calculator{'@'}epfl.ch if the agencies ask for information that you cannot find here.",
-    fr: "Cet espace vous permet de collecter les informations liées à l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter co2calculator{'@'}epfl.ch si les agences vous demandent des informations que vous ne retrouvez pas ici.",
+    en: 'Start completing the modules to obtain the carbon footprint estimate for a research project, as required by funding agencies. Please contact co2calculator{‘@’}epfl.ch if the agencies ask you for information that you cannot find here.',
+    fr: "Commencez à remplir les sections afin d'obtenir l'estimation de l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter co2calculator{'@'}epfl.ch si les agences vous demandent des informations que vous ne retrouvez pas ici.",
   },
 
   'planner-grant-module-headcount-title': {
-    en: 'This module automatically displays the main staff categories. Please manually enter the total FTE for a project year. The total number of FTEs is used to generate indicators for additional categories (Scope 3: Food, Commuting, and Waste).\n\nThe methodology used is documented on the Documentation pages.',
-    fr: "Ce module affiche automatiquement les grandes catégories de personnel. Veuillez ajouter manuellement les EPT total pour une année de projet. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Scope 3 : Alimentation, Pendularité et Déchets).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
+    en: 'This module automatically displays the main staff categories. Please verify or manually enter the total FTE for a project year. The total number of FTEs is used to generate indicators for additional categories (Scope 3: Food, Commuting, and Waste).',
+    fr: "Ce module affiche automatiquement les grandes catégories de personnel. Veuillez vérifier ou ajouter manuellement les EPT total pour une année de projet. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Scope 3 : Alimentation, Pendularité et Déchets).",
   },
   'planner-grant-module-headcount-submodule-member': {
     en: 'Please enter project members, including their role and activity percentage in the Full-Time Equivalent (FTE) field.',
@@ -711,8 +711,8 @@ export default {
   },
 
   'planner-grant-module-process-emissions-title': {
-    en: 'This module allows you to estimate the carbon footprint of the greenhouse gases generated during your project-specific laboratory activities (e.g., Scope 1 carbon footprint from certain laboratory activities, SF₆ emissions when SF₆ is used as a refrigerant).\n\nThe methodology used is documented on the Documentation pages.',
-    fr: 'Ce module permet d’estimer l’empreinte carbone des gaz à effet de serre générés lors de vos activités de laboratoire spécifique à votre projet (e.g. émissions de CO₂ Scope 1 dans certaines activités de laboratoire, émissions de SF₆ quand celui-ci est utilisé en tant que fluide frigorigène).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.',
+    en: 'This module helps you estimate greenhouse gas emissions from experimental procedures and equipment leaks as part of your project, such as CO₂ used in lab protocols, SF₆ leaks during etching, fluorinated gas leaks from refrigeration systems, or fluorinated ether evaporation during sample handling (Scope 1).',
+    fr: "Ce module permet d'estimer les émissions de gaz à effet de serre liées à vos procédures expérimentales et aux fuites d’équipements dans le cadre de votre projet, par exemple : l'utilisation de CO₂ dans les protocoles de laboratoire, les fuites de SF₆ lors de la gravure, les fuites de gaz fluorés des systèmes de réfrigération, ou l’évaporation d’éthers fluorés pendant la manipulation des échantillons (Scope 1).",
   },
   'planner-grant-module-process-emissions-submodule-process_emissions': {
     en: 'Please note that the budget associated with your unit’s process emissions is, in most cases, zero. Indeed, these emissions are either included in your purchases, in which case the corresponding budget should be allocated to the purchases category, or funded by central services, in which case they do not fall within your unit scope.',
@@ -720,51 +720,51 @@ export default {
   },
 
   'planner-grant-module-buildings-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with buildings (emissions from energy combustion and indoor sources) (Scope 1 and 2) specific to your project.\n\nThe methodology used is documented in the Documentation section.',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée aux Bâtiments (émissions de combustion d'énergie et locaux) (Scope 1 et 2) spécifique à votre projet.\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
+    en: 'This module allows you to estimate the carbon footprint associated with buildings if your unit uses a decentralized energy source (emissions from energy combustion) (Scope 1), as well as those associated with the rooms (Scope 2: heating, cooling, ventilation, and lighting) specific to your project.',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée aux Bâtiments dans le cas où votre unité utilise une source d'énergie non-centralisée (émissions de combustion d'énergie) (Scope 1) ainsi que celles liées aux locaux (Scope 2: chauffage, climatisation, ventilation et éclairage) spécifique à votre projet.",
   },
   'planner-grant-module-buildings-submodule-building': {
-    en: 'Indicate the use of rooms specific to your project in order to estimate their impact (Scope 1).',
-    fr: "Indiquez  l'utilisation des locaux spécifique à votre projet  afin d'estimer leur impact (Scope 1).",
+    en: 'Please specify the use of each room in the table to estimate its carbon footprint as part of your project (Scope 2). You can enter the percentage of the reference year or manually add a room.',
+    fr: "Veuillez indiquer l'utilisation des locaux dans le tableau afin d'estimer leur empreinte carbone dans le cadre de votre projet (Scope 2). Vous pouvez indiquer le % de l'année de référence ou ajouter manuellement un local. ",
   },
   'planner-grant-module-buildings-submodule-energy_combustion': {
-    en: 'Enter the emissions related to energy combustion specific to your project in order to estimate their impact (Scope 1).',
-    fr: "Saisissez les émissions liées à la combustion d'énergie spécifique à votre projet  afin d'estimer leur impact (Scope 1). ",
+    en: 'Please select from the list the combustion source(s) (fossil or non-fossil) specific to your project in order to estimate their carbon footprint (Scope 1).',
+    fr: "Veuillez sélectionner dans la liste la ou les sources de combustion (fossiles ou non fossiles) spécifique à votre projet afin d'estimer leur empreinte carbone (Scope 1).",
   },
 
   'planner-grant-module-equipment-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with the electricity consumption of equipment (scientific equipment, IT equipment, other equipment) specific to your project (Scope 2).You can specify an overall percentage, which is applied to the total result calculated by the calculator based on the Equipment module and on the selected reference year. For example, if your unit uses 50% of the equipment for one of its funded projects, please enter 50% as the overall percentage.\n\nThe methodology used is documented in the Documentation pages.',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée à la consommation électrique des équipements (Équipements scientifiques, Équipements IT, Autres équipements) spécifique à votre projet (Scope 2).Vous pouvez indiquer un pourcentage global, qui est appliqué sur le resultat du module Equipements dans le calculateur selon l'annee de référence choisie. Par exemple, si votre unite consomme 50% des equipements pour un de vos projets de financement, veuillez indiquer 50% dans le pourcentage global.\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
+    en: 'This module allows you to estimate the carbon footprint associated with the electricity consumption of equipment (scientific equipment, IT equipment, other equipment) specific to your project (Scope 2).',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée à la consommation électrique des équipements (Équipements scientifiques, Équipements IT, Autres équipements) spécifique à votre projet (Scope 2).",
   },
   'planner-grant-module-equipment-submodule-scientific': {
-    en: ' Indicate the scientific equipment used in order to estimate its impact within your project (Scope 2).',
-    fr: "Indiquez les équipements scientifiques utilisés afin d'estimer leur impact dans le cadre de votre projet (Scope 2). ",
+    en: 'Indicate the scientific equipment used to estimate its carbon footprint specific to your project (Scope 2). You can specify the percentage of the reference year or manually add an equipment.',
+    fr: "Indiquez les équipements scientifiques utilisés afin d'estimer leur empreinte carbone spécifique à votre projet (Scope 2). Vous pouvez indiquer le % de l'année de référence ou ajouter manuellement un équipement.",
   },
   'planner-grant-module-equipment-submodule-it': {
-    en: 'Indicate the IT equipment used in order to estimate its impact within your project (Scope 2).',
-    fr: "Indiquez les équipements informatiques utilisés afin d'estimer leur impact dans le cadre de votre projet (Scope 2). ",
+    en: 'Indicate the IT equipment used to estimate its carbon footprint specific to your project (Scope 2). You can specify the percentage of the reference year or manually add an equipment.',
+    fr: "Indiquez les équipements informatiques utilisés afin d'estimer leur empreinte carbone spécifique à votre projet (Scope 2). Vous pouvez indiquer le % de l'année de référence ou ajouter manuellement un équipement. ",
   },
   'planner-grant-module-equipment-submodule-other': {
-    en: 'Indicate the other types of equipment used in order to estimate their impact within your project (Scope 2).',
-    fr: "Indiquez les autres types d' équipements  utilisés afin d'estimer leur impact dans le cadre de votre projet (Scope 2). ",
+    en: 'Indicate other types of equipment used to estimate their carbon footprint specific to your project (Scope 2). You can specify the percentage of the reference year or manually add a piece of equipment.',
+    fr: "Indiquez les autres types d' équipements utilisés afin d'estimer leur empreinte carbone spécifique à votre projet (Scope 2). Vous pouvez indiquer le % de l'année de référence ou ajouter manuellement un équipement. ",
   },
 
   'planner-grant-module-external-cloud-and-ai-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with external cloud services and external AIs specific to your project (Scope 3).\n\nThe methodology used is documented in the Documentation pages.',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée aux services de clouds externes et d'IAs externes spécifique à votre projet (Scope 3).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
+    en: 'This module allows you to estimate the carbon footprint associated with external cloud services and external AIs specific to your project (Scope 3).',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée aux services de clouds externes et d'IAs externes spécifique à votre projet (Scope 3).",
   },
   'planner-grant-module-external-cloud-and-ai-submodule-external_clouds': {
-    en: 'Indicate the use of external cloud services in order to estimate their impact within your project (Scope 3).',
-    fr: "Indiquez l'utilisation des services de clouds externes  afin d'estimer leur impact dans le cadre de votre projet (Scope 3). ",
+    en: 'Indicate the use of external cloud services in order to estimate their impact within your project (Scope 3). You can specify the percentage of the reference year or manually add an external cloud service.',
+    fr: "Indiquez l'utilisation des services de clouds externes  afin d'estimer leur impact dans le cadre de votre projet (Scope 3). Vous pouvez indiquer le % de l'année de référence ou ajouter manuellement le service de cloud externes.",
   },
   'planner-grant-module-external-cloud-and-ai-submodule-external_ai': {
-    en: 'Indicate the use of external AI services in order to estimate their impact within your project (Scope 3).',
-    fr: " Indiquez l'utilisation des services d'IAs  externes  afin d'estimer leur impact dans le cadre de votre projet (Scope 3). ",
+    en: 'Indicate the use of external AI services in order to estimate their impact within your project (Scope 3). You can specify the percentage of the reference year or manually enter the IA used.',
+    fr: " Indiquez l'utilisation des services d'IAs  externes  afin d'estimer leur impact dans le cadre de votre projet (Scope 3). Vous pouvez indiquer le % de l'année de référence ou ajouter manuellement l'IA utilisé. ",
   },
 
   'planner-grant-module-professional-travel-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with professional travel by plane and/or train specific to your project (Scope 3).\n\nThe methodology used is documented in the Documentation pages.',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée aux voyages professionnels effectués en avion et/ou en train spécifique à votre projet (Scope 3).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
+    en: 'This module allows you to estimate the carbon footprint associated with professional travel by plane and/or train specific to your project (Scope 3).',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée aux voyages professionnels effectués en avion et/ou en train spécifique à votre projet (Scope 3).",
   },
   'planner-grant-module-professional-travel-submodule-plane': {
     en: 'Add the flights planned within the scope of your project to estimate their associated impact for the reference year (Scope 3).',
@@ -776,8 +776,8 @@ export default {
   },
 
   'planner-grant-module-purchase-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with project-specific purchases (Scope 3). To do so, please indicate the budget allocated to the relevant purchasing categories (Scientific Equipment, IT Equipment, Consumables and Accessories, Biological, Chemical and Gas Products, Services, Vehicles, and Other Purchases).\n\nThe methodology used is documented in the Documentation pages.',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée aux achats spécifiques à votre projet (Scope 3). Pour cela, veuillez indiquer le budget correspondant aux catégories d'achats (Équipements scientifiques, Équipements informatiques, Consommables et accessoires, Produits biologiques, chimiques et gazeux, Services, Véhicules, Autres achats).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
+    en: 'This module allows you to estimate the carbon footprint associated with project-specific purchases (Scope 3). To do so, please indicate the budget allocated to the relevant purchasing categories (Scientific Equipment, IT Equipment, Consumables and Accessories, Biological, Chemical and Gas Products, Services, Vehicles, and Other Purchases).',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée aux achats spécifiques à votre projet (Scope 3). Pour cela, veuillez indiquer le budget correspondant aux catégories d'achats (Équipements scientifiques, Équipements informatiques, Consommables et accessoires, Produits biologiques, chimiques et gazeux, Services, Véhicules, Autres achats).",
   },
   'planner-grant-module-purchase-submodule-scientific_equipment': {
     en: '',
@@ -802,8 +802,8 @@ export default {
   },
 
   'planner-grant-module-research-facilities-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with the use of EPFL research infrastructures specific to your project (Scope 3). To do so, add the relevant research infrastructures and animal facilities, indicating the corresponding budget for each.\n\nThe methodology used is documented in the Documentation pages.',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée à l'utilisation des infrastructures de recherche EPFL spécifiques à votre projet (Scope 3). Pour cela, ajoutez les infrastructures de recherche et animaleries en indiquant le budget correspondant.\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
+    en: 'This module allows you to estimate the carbon footprint associated with the use of EPFL research infrastructures specific to your project (Scope 3). To do so, add the relevant research infrastructures and animal facilities, indicating the corresponding budget for each.',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée à l'utilisation des infrastructures de recherche EPFL spécifiques à votre projet (Scope 3). Pour cela, ajoutez les infrastructures de recherche et animaleries en indiquant le budget correspondant.",
   },
   'planner-grant-module-research-facilities-submodule-research-facilities': {
     en: '',
