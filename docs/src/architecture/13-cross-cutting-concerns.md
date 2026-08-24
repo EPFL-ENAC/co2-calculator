@@ -13,10 +13,14 @@ Data is classified into four protection levels:
 
 ### Transport and Data-at-Rest Encryption
 
-- TLS 1.3 for all network communications
-- AES-256 encryption for data at rest
-- Regular certificate rotation
-- Key management through Azure Key Vault
+- TLS on every external hop; intra-cluster traffic is unencrypted
+- Fernet (AES-128-CBC + HMAC-SHA256) for uploaded files and stored
+  connector secrets; database at-rest encryption is the provider's
+- Certificates rotated automatically by cert-manager
+- Keys held in ENAC-IT's Infisical vault, injected at runtime
+
+See [Encryption and Key Management](encryption.md) for the full picture,
+the key inventory, and the known gaps.
 
 ### Authentication Enforcement Points
 

@@ -19,7 +19,7 @@
 
 #### Development Phase
 
-- [ ] Add or update `.github/dependabot.yml` with appropriate ecosystems and update schedule (e.g., `weekly`).
+- [x] Add or update `.github/dependabot.yml` with appropriate ecosystems and update schedule (e.g., `weekly`).
 - [x] Configure Dependabot settings in repository.
 - [ ] Assign a maintainer to be responsible for managing dependabot alerts and PRs.
 
@@ -82,8 +82,8 @@
 
 - [x] Add a `codeql-analysis.yml` workflow under `.github/workflows`.
 - [x] Configure security scanning tools and integration.
-- [ ] Set up scheduled periodic scans.
-- [ ] Ensure secret scanning is enabled in the repository's Security tab.
+- [x] Set up scheduled periodic scans.
+- [x] Ensure secret scanning is enabled in the repository's Security tab.
 
 #### Exploitation Phase
 
@@ -135,7 +135,7 @@
 #### Development Phase
 
 - [ ] Enable branch protection in repo settings:
-  - [ ] Require pull request reviews
+  - [x] Require pull request reviews
   - [ ] Require passing status checks before merge
 - [ ] Add security guidance to the pull request template.
 - [ ] Define code review guidelines with security focus.
@@ -192,7 +192,7 @@
   - [ ] Missing or invalid authentication tokens
   - [ ] Incorrect role/claim combinations
   - [ ] Unauthorized access attempts
-- [ ] Document authentication assumptions and architecture.
+- [x] Document authentication assumptions and architecture.
 
 #### Exploitation Phase
 
@@ -299,9 +299,9 @@ Reduce the risk of vulnerabilities and misconfigurations in container images dep
 
 #### Development Phase
 
-- [ ] Review and document the base images used for backend and frontend containers.
-- [ ] Enforce non-root execution in Dockerfiles (e.g. avoid `USER root`).
-- [ ] Integrate automated container image vulnerability scanning in CI (e.g. Trivy or equivalent).
+- [x] Review and document the base images used for backend and frontend containers.
+- [x] Enforce non-root execution in Dockerfiles (e.g. avoid `USER root`).
+- [x] Integrate automated container image vulnerability scanning in CI (e.g. Trivy or equivalent).
 - [ ] Configure CI to fail builds when critical container vulnerabilities are detected.
 - [ ] Test containers under OpenShift Security Context Constraints.
 
@@ -363,6 +363,7 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 
 1. **Encryption Keys Management**
    - Technical and organizational measures to guarantee availability, confidentiality, and integrity of encryption keys used in the codebase (if applicable)
+   - Delivered: [Encryption and Key Management](../architecture/encryption.md) — also answers the transfer-encryption requirement and records the known gaps
 
 2. **Operating Procedures**
    - Document security procedures, keep them updated, and make them available to team members
@@ -401,6 +402,7 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 
 - [x] Create documentation structure and templates.
 - [x] Document current authentication/authorization architecture.
+- [x] Document encryption in transfer and encryption key management.
 - [ ] Create incident response procedure document.
 - [ ] Document change management process.
 - [ ] Create security requirements compliance checklist.
@@ -460,7 +462,33 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 
 ---
 
-## 8. Links
+## 8. Verification log
+
+Checked against the repository and GitHub settings on **2026-08-24**.
+
+| Item                                   | Evidence                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------- |
+| Dependabot configured                  | `.github/dependabot.yml`; Dependabot security updates enabled on the repo        |
+| Scheduled scans                        | `security.yml` (weekly, Mondays); `image-vulnerability-scan.yml` (Sundays)       |
+| Secret scanning                        | Enabled, with push protection                                                    |
+| PR reviews required                    | Rulesets `dev` and `release-line`, 1 approval + Copilot review, deletion blocked |
+| Non-root containers                    | `backend/Dockerfile` runs `USER appuser`; frontend uses `nginx-unprivileged`     |
+| Container scanning                     | Trivy in `image-vulnerability-scan.yml`                                          |
+| Auth architecture documented           | [Auth Flow](../architecture/04-auth-flow.md)                                     |
+| Encryption + key management documented | [Encryption and Key Management](../architecture/encryption.md)                   |
+
+Still open, with the reason:
+
+- **Required status checks before merge** — no `required_status_checks`
+  rule exists on any ruleset, so a red CI run does not block a merge.
+- **Force-push protection on `main` and `stage`** — the `dev` ruleset
+  carries `non_fast_forward`, the `release-line` ruleset does not.
+- **Security guidance in the PR template** — `PULL_REQUEST_TEMPLATE.md`
+  covers testing only.
+- **Build failure on critical container vulnerabilities** — the Trivy
+  step reports but does not gate.
+
+## 9. Links
 
 - [Security documentation repo](https://github.com/EPFL-ENAC/co2-calculator-security-doc)
 - [Workflow schedule](https://github.com/marketplace/actions/schedule-workflow)

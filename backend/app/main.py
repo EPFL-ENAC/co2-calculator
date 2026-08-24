@@ -39,6 +39,10 @@ def assert_security_settings(settings) -> None:
             "CREDENTIALS_ENCRYPTION_KEY",
             "CREDENTIALS_ENCRYPTION_SALT",
             "CONNECTOR_ALLOWED_HOST_SUFFIXES",
+            # Empty values would leave make_files_store() unencrypted, writing
+            # plaintext uploads to object storage with no error (#454).
+            "FILES_ENCRYPTION_KEY",
+            "FILES_ENCRYPTION_SALT",
         )
         if not getattr(settings, name)
     ]
