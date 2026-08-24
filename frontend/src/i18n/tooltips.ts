@@ -692,7 +692,7 @@ export default {
   },
 
   'planner-grant-section-title': {
-    en: 'Start completing the modules to obtain the carbon footprint estimate for a research project, as required by funding agencies. Please contact co2calculator{‘@’}epfl.ch if the agencies ask you for information that you cannot find here.',
+    en: "Start completing the modules to obtain the carbon footprint estimate for a research project, as required by funding agencies. Please contact co2calculator{'@'}epfl.ch if the agencies ask you for information that you cannot find here.",
     fr: "Commencez à remplir les sections afin d'obtenir l'estimation de l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter co2calculator{'@'}epfl.ch si les agences vous demandent des informations que vous ne retrouvez pas ici.",
   },
 
