@@ -121,11 +121,18 @@ and `FILES_ENCRYPTION_SALT`, then hands it to the `enacit4r-files`
 store, which encrypts each file body with Fernet (AES-128-CBC +
 HMAC-SHA256) before `put_object` and decrypts on read.
 
-Server-side (bucket) encryption is a separate layer and **this codebase
-never requests it** — no `ServerSideEncryption` parameter is sent. Any
-at-rest guarantee below our Fernet layer belongs to the storage
-provider, not to us. See
+Server-side (bucket) encryption is a separate layer. This codebase
+never requests it per object — no `ServerSideEncryption` parameter is
+sent — but the buckets are **provisioned with encryption enabled**
+through the EPFL XaaS portal, recorded in the Disaster Recovery Plan in
+the private ops repository. So uploads are encrypted twice: once by the
+application, once by the storage platform. See
 [ADR-013](../architecture-decision-records/013-object-storage-strategy.md).
+
+Those buckets are provisioned with **versioning disabled**, so a
+deleted or overwritten object cannot be rolled back. That is a
+durability limit, not an encryption one, but it belongs in the same
+conversation with an auditor.
 
 ### Connection secrets
 
@@ -209,7 +216,6 @@ Stated openly, per the no-silent-fallbacks invariant in
 | ------------------------------------------------------------ | ---------------------------------------------------------- |
 | `DB_URL` carries no `sslmode`; libpq defaults to `prefer`    | TLS is live today, but nothing stops a silent downgrade    |
 | No re-encryption runbook for `FILES_ENCRYPTION_KEY` rotation | The key cannot be rotated without losing stored files      |
-| Server-side bucket encryption never requested by our client  | At-rest defence relies on our Fernet layer alone           |
 | Intra-cluster pod-to-pod traffic is unencrypted              | Trust boundary is the namespace, enforced by NetworkPolicy |
 
 ## Next
