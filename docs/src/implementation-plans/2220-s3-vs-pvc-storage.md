@@ -82,9 +82,9 @@ than trusting this doc.
 ### 2. The genuine "Failed to move file" failures were unexplained by design — two layers of swallowing
 
 When a move genuinely fails (destination absent, `move_file()` itself
-returns `False`), the exact question the issue asks — *"why does the
+returns `False`), the exact question the issue asks — _"why does the
 application expose the error as 'Failed to move file' instead of exposing
-the underlying 404?"* — has a precise answer:
+the underlying 404?"_ — has a precise answer:
 
 1. **`S3FilesStore.move_file`** (vendored `enacit4r-files@1.0.0`,
    `s3.py:886-915`) wraps its entire copy+delete operation in
@@ -96,7 +96,7 @@ the underlying 404?"* — has a precise answer:
    `base_provider.py`, pre-fix) then raised a generic
    `Exception(f"Failed to move file from {tmp_path} to {processing_path}")`
    — the only information left by that point is which two paths were
-   involved, nothing about *why*.
+   involved, nothing about _why_.
 
 Neither layer is a data-loss race by itself. The job-claim path
 (`backend/app/repositories/data_ingestion.py:1282-1295`,
@@ -114,7 +114,7 @@ not forked (per AGENTS.md, and per PR #2266's identical finding about the
 double `PutObject`/`HeadObject`). Filed upstream instead:
 [enacit4r-files#24](https://github.com/EPFL-ENAC/enacit4r-files/issues/24).
 **Layer 2 is fixed in this PR** — see [Implemented](#implemented) below.
-The fix diagnoses *why* a move failed (source gone vs. source present) by
+The fix diagnoses _why_ a move failed (source gone vs. source present) by
 asking `file_exists()` again at the failure point; this is the best this
 repo can do without the upstream fix, and it still leaves the true
 storage-level exception undiscoverable until `enacit4r-files` stops
@@ -142,7 +142,7 @@ Read in full (`enacit4r_files/services/local.py`). Findings:
   `os.rename()` first — **atomic on POSIX when source and destination are
   on the same filesystem**, which they are here (`tmp/`, `processing/`,
   `processed/` are all subdirectories under one `base_path`). This is safe
-  *if* the underlying network filesystem honors POSIX rename atomicity
+  _if_ the underlying network filesystem honors POSIX rename atomicity
   (CephFS and NFSv4 do; older NFSv3 implementations have historically had
   caveats — needs confirming against whatever EPFL's cluster actually
   provisions, see below).
@@ -153,7 +153,7 @@ Read in full (`enacit4r_files/services/local.py`). Findings:
   doesn't actually arise here; paths across concurrent jobs never collide.
 - The same blanket-`except`-swallows-the-real-error pattern exists here
   too (`move_file`/`copy_file`/`file_exists`, `local.py:264-269, 300-306,
-  339-345`) — a PVC swap would not by itself fix the "Failed to move file"
+339-345`) — a PVC swap would not by itself fix the "Failed to move file"
   observability gap; it would just change which backend's exception gets
   swallowed. The app-level diagnosis fix in this PR helps identically for
   both backends.
@@ -170,8 +170,8 @@ independent of storage-class availability.**
 runs **3 backend replicas + 1 separate worker pod**
 (`worker.enabled=true`, confirmed live by the trace's own
 `k8s.pod.name: co2-calculator-worker-84769ffb78-hdqhk`, and by the
-overlay's own comment: *"dev runs 3 backend + 1 worker = up to 120
-possible [connections]"*). A `ReadWriteOnce` PVC binds to a single node;
+overlay's own comment: _"dev runs 3 backend + 1 worker = up to 120
+possible [connections]"_). A `ReadWriteOnce` PVC binds to a single node;
 with 4 pods across a Deployment + a separate worker Deployment, OpenShift
 gives no guarantee they land on the same node — an RWO PVC would routinely
 leave the worker (or two of the three backend replicas) unable to see
@@ -259,7 +259,7 @@ assumed.
   `route_class` work in #1402) downgrade or drop span-error status for
   `S3.HeadObject` 404s specifically, since a 404 from an existence check
   is not, on its own, evidence of anything wrong; or (b) alert on the
-  *rate* of "Failed to move file" **application log lines** (a much rarer,
+  _rate_ of "Failed to move file" **application log lines** (a much rarer,
   always-genuine event) instead of on `S3.HeadObject` error-status spans.
   Not implemented here: alerting-rule ownership for this app currently
   sits with the active #1402 effort (`openshift-app-config` PRs #8-#11),
