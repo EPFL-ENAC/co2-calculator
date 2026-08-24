@@ -135,9 +135,9 @@
 
 #### Development Phase
 
-- [ ] Enable branch protection in repo settings:
-  - [x] Require pull request reviews — `dev` and `release-line` rulesets, 1 approval
-  - [ ] Require passing status checks before merge
+- [x] Enable branch protection in repo settings — `dev` and `release-line` rulesets, both active:
+  - [x] Require pull request reviews — `dev` and `release-line` rulesets, 1 approval plus code-owner review
+  - [x] Require passing status checks before merge — `Backend Lint/Type Check`, `Frontent Lint/Type Check`, `Backend Tests`, `Frontend Tests`, `Backend Migration Smoke`
 - [x] Add security guidance to the pull request template. — [`PULL_REQUEST_TEMPLATE.md`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/PULL_REQUEST_TEMPLATE.md)
 - [x] Define code review guidelines with security focus. — [Code standards § Security](../architecture/code-standards.md), [Guardrails](../contributing/guardrails.md)
 
