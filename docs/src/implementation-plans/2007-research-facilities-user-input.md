@@ -124,11 +124,14 @@ to it:
   `csv_deactivated` matters because `hasModuleUpload` (`ModuleTable.vue`)
   shares the `hideIn.form` predicate — un-hiding the form would otherwise also
   expose the CSV toolbar, which RF never had.
-- A data migration stamps both flags on existing `year_configuration` rows,
-  across every provider (the PK is `(year, provider)`). Written row by row in
-  Python rather than with `jsonb_set`: `config` is `json`, not `jsonb`, and
-  `jsonb_set` silently no-ops on a missing parent path while still reporting
-  success.
+- **No data migration.** `generate_default_year_config` only covers years
+  created from now on, so an already-configured year resolves the flags to
+  `false`. Decided 2026-08-24: the backoffice Data Management screen is the
+  designed interface for this setting, and writing admin-owned config from a
+  migration is the wrong tool — EPFL flips the two checkboxes in prod instead.
+  The consequence to plan for: on deploy, Research Facilities shows the
+  manual-input form and the CSV toolbar on every already-configured year until
+  that is done.
 - `forceInputsDeactivated` is gone — from the two RF entries, from the
   `SubmoduleConfig` type, and from `SubmoduleItem.vue`. The checkbox is now a
   real, editable control.
@@ -174,8 +177,7 @@ deleted rather than duplicating the gate into them.
 `i18n/research_facilities.ts`
 
 **Backend** — `services/year_config_service.py`,
-`workflows/carbon_report_module.py`,
-`alembic/versions/2026_08_24_1030-9c41ab7d3e02_research_facilities_inputs_deactivated.py`
+`workflows/carbon_report_module.py`
 
 ## Tests
 
@@ -193,13 +195,10 @@ unit mirror in → the animal type list filters to that facility → create retu
 module-config assertion is not possible in this harness (see below). Needs the
 manual pass in the plan's verification steps.
 
-The migration was exercised against a throwaway Postgres with realistic data
-(three providers, a sparse row missing the RF submodule path): both flags land,
-all 8 modules and `reduction_objectives` survive, other submodules are
-untouched, a second run is a no-op, and downgrade removes only the flags.
-**Note for whoever runs it:** `backend/.env` points `DB_URL` at the shared dev
-database, and pydantic resolves the dotenv over an inline environment variable —
-so `make db-migrate` / `make db-drop` from a checkout target dev, not localhost.
+**Worth knowing for anyone running migrations in this repo:** `backend/.env`
+points `DB_URL` at the shared dev database, and pydantic resolves the dotenv
+over an inline environment variable — so `make db-migrate` / `make db-drop`
+from a checkout target dev, not localhost.
 
 `toClassOptions` was extracted to `utils/factorOptions.ts` because a unit spec
 cannot import a module config: `utils/number.ts` pulls in `boot/i18n`, whose
