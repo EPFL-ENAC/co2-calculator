@@ -114,7 +114,12 @@ async def test_equipment_page_does_not_pay_for_the_prior_year_set(
         carbon_report_id=prior_report.id,
         module_type_id=ModuleTypeEnum.equipment.value,
     )
-    report = await make_carbon_report(psycopg_session, unit_id=unit.id, year=YEAR)
+    report = await make_carbon_report(
+        psycopg_session,
+        unit_id=unit.id,
+        year=YEAR,
+        carbon_project_id=prior_report.carbon_project_id,
+    )
     module = await make_carbon_report_module(
         psycopg_session,
         carbon_report_id=report.id,
