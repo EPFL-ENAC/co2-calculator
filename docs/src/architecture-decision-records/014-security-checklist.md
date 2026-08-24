@@ -20,9 +20,9 @@
 
 #### Development Phase
 
-- [x] Add or update `.github/dependabot.yml` with appropriate ecosystems and update schedule (e.g., `weekly`).
-- [x] Configure Dependabot settings in repository.
-- [x] Assign a maintainer to be responsible for managing dependabot alerts and PRs.
+- [x] Add or update `.github/dependabot.yml` with appropriate ecosystems and update schedule (e.g., `weekly`). — [`.github/dependabot.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/dependabot.yml)
+- [x] Configure Dependabot settings in repository. — repository Security settings — Dependabot alerts and security updates enabled
+- [x] Assign a maintainer to be responsible for managing dependabot alerts and PRs. — [`.github/CODEOWNERS`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/CODEOWNERS)
 
 #### Exploitation Phase
 
@@ -81,10 +81,10 @@
 
 #### Development Phase
 
-- [x] Add a `codeql-analysis.yml` workflow under `.github/workflows`.
-- [x] Configure security scanning tools and integration.
-- [x] Set up scheduled periodic scans.
-- [x] Ensure secret scanning is enabled in the repository's Security tab.
+- [x] Add a `codeql-analysis.yml` workflow under `.github/workflows`. — [`security.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/security.yml)
+- [x] Configure security scanning tools and integration. — [`security.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/security.yml)
+- [x] Set up scheduled periodic scans. — [`security.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/security.yml) weekly, [`image-vulnerability-scan.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/image-vulnerability-scan.yml) weekly
+- [x] Ensure secret scanning is enabled in the repository's Security tab. — repository Security settings — secret scanning and push protection both enabled
 
 #### Exploitation Phase
 
@@ -136,10 +136,10 @@
 #### Development Phase
 
 - [ ] Enable branch protection in repo settings:
-  - [x] Require pull request reviews
+  - [x] Require pull request reviews — `dev` and `release-line` rulesets, 1 approval
   - [ ] Require passing status checks before merge
-- [x] Add security guidance to the pull request template.
-- [x] Define code review guidelines with security focus.
+- [x] Add security guidance to the pull request template. — [`PULL_REQUEST_TEMPLATE.md`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/PULL_REQUEST_TEMPLATE.md)
+- [x] Define code review guidelines with security focus. — [Code standards § Security](../architecture/code-standards.md), [Guardrails](../contributing/guardrails.md)
 
 #### Exploitation Phase
 
@@ -188,12 +188,12 @@
 
 #### Development Phase
 
-- [x] Design and implement centralized authentication logic.
+- [x] Design and implement centralized authentication logic. — [`app/core/security.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/app/core/security.py) — `is_permitted`, `check_permission`, `require_permission`
 - [x] Add tests for:
-  - [x] Missing or invalid authentication tokens
-  - [x] Incorrect role/claim combinations
-  - [x] Unauthorized access attempts
-- [x] Document authentication assumptions and architecture.
+  - [x] Missing or invalid authentication tokens — [`test_auth_security.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/tests/integration/v1/test_auth_security.py) — `test_jwt_alg_none_rejected`, `test_jwt_tampered_signature_rejected`, `test_jwt_expired_rejected`
+  - [x] Incorrect role/claim combinations — [`test_auth_security.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/tests/integration/v1/test_auth_security.py) — `test_jwt_with_swapped_institutional_id_rejected`, `test_me_rejects_unknown_provider_int`
+  - [x] Unauthorized access attempts — [`test_permission_scope_e2e.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/tests/integration/v1/test_permission_scope_e2e.py), [`test_security_gates.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/tests/unit/core/test_security_gates.py) — `test_principal_on_other_unit_denied`, `test_no_roles_denied`, `test_check_permission_raises_403_when_denied`
+- [x] Document authentication assumptions and architecture. — [Auth flow § Trust boundaries](../architecture/04-auth-flow.md)
 
 #### Exploitation Phase
 
@@ -300,10 +300,10 @@ Reduce the risk of vulnerabilities and misconfigurations in container images dep
 
 #### Development Phase
 
-- [x] Review and document the base images used for backend and frontend containers.
-- [x] Enforce non-root execution in Dockerfiles (e.g. avoid `USER root`).
-- [x] Integrate automated container image vulnerability scanning in CI (e.g. Trivy or equivalent).
-- [x] Configure CI to fail builds when critical container vulnerabilities are detected.
+- [x] Review and document the base images used for backend and frontend containers. — [`backend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/Dockerfile), [`frontend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/Dockerfile)
+- [x] Enforce non-root execution in Dockerfiles (e.g. avoid `USER root`). — [`backend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/Dockerfile) runs `USER appuser`; [`frontend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/Dockerfile) uses `nginx-unprivileged`
+- [x] Integrate automated container image vulnerability scanning in CI (e.g. Trivy or equivalent). — [`deploy.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/deploy.yml), [`image-vulnerability-scan.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/image-vulnerability-scan.yml)
+- [x] Configure CI to fail builds when critical container vulnerabilities are detected. — [`deploy.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/deploy.yml) sets `skip_vulnerability_scan: false` — HIGH/CRITICAL block the push
 - [ ] Test containers under OpenShift Security Context Constraints.
 
 #### Exploitation Phase
@@ -404,14 +404,14 @@ All ten are indexed, with their current state, in
 
 #### Development Phase
 
-- [x] Create documentation structure and templates.
-- [x] Document current authentication/authorization architecture.
-- [x] Document encryption in transfer and encryption key management.
+- [x] Create documentation structure and templates. — [Documentation standards](../architecture/documentation-standards.md)
+- [x] Document current authentication/authorization architecture. — [Auth flow](../architecture/04-auth-flow.md), [ADR-012](012-jwt-authentication-strategy.md)
+- [x] Document encryption in transfer and encryption key management. — [Encryption and Key Management](../architecture/encryption.md)
 - [ ] Create incident response procedure document.
-- [x] Document change management process.
-- [x] Create security requirements compliance checklist.
-- [x] Document all third-party dependencies.
-- [x] Establish documentation ownership and review schedule.
+- [x] Document change management process. — [Guardrails § Workflow](../contributing/guardrails.md), [Release management](../architecture/release-management.md)
+- [x] Create security requirements compliance checklist. — [EPFL compliance mapping](../architecture/epfl-compliance-mapping.md), this ADR
+- [x] Document all third-party dependencies. — [Security documentation index § Third parties](../architecture/security-documentation.md#third-parties)
+- [x] Establish documentation ownership and review schedule. — [Security documentation index § Ownership](../architecture/security-documentation.md#ownership-and-review-cadence)
 
 #### Exploitation Phase
 
@@ -468,45 +468,25 @@ All ten are indexed, with their current state, in
 
 ## 8. Verification log
 
-Checked against the repository and GitHub settings on **2026-08-24**.
+Every ticked box above carries its own evidence inline — a file, a
+workflow, or a named test. A box with no reference next to it has not
+been verified, and should not be ticked.
 
-| Item                                   | Evidence                                                                         |
-| -------------------------------------- | -------------------------------------------------------------------------------- |
-| Dependabot configured                  | `.github/dependabot.yml`; Dependabot security updates enabled on the repo        |
-| Scheduled scans                        | `security.yml` (weekly, Mondays); `image-vulnerability-scan.yml` (Sundays)       |
-| Secret scanning                        | Enabled, with push protection                                                    |
-| PR reviews required                    | Rulesets `dev` and `release-line`, 1 approval + Copilot review, deletion blocked |
-| Non-root containers                    | `backend/Dockerfile` runs `USER appuser`; frontend uses `nginx-unprivileged`     |
-| Container scanning                     | Trivy in `image-vulnerability-scan.yml`                                          |
-| Auth architecture documented           | [Auth Flow](../architecture/04-auth-flow.md)                                     |
-| Encryption + key management documented | [Encryption and Key Management](../architecture/encryption.md)                   |
-
-| Dependabot maintainer assigned | `.github/CODEOWNERS` |
-| Security guidance in the PR template | Security checklist in `.github/PULL_REQUEST_TEMPLATE.md` |
-| Security-focused review guidelines | [Code standards § Security](../architecture/code-standards.md), [Guardrails](../contributing/guardrails.md) |
-| Centralized authentication logic | `app/core/security.py` — `is_permitted`, `check_permission`, `require_permission` |
-| Auth failure-case tests | `test_auth_security.py`, `test_security_gates.py`, `test_permission_scope_e2e.py` — 182 auth/authz tests |
-| Builds fail on critical container CVEs | `deploy.yml` sets `skip_vulnerability_scan: false`; HIGH/CRITICAL block the push |
-| Security documentation set indexed | [Security Documentation Index](../architecture/security-documentation.md) |
+Last full pass: **2026-08-24**.
 
 Still open, with the reason:
 
-- **Required status checks before merge** — no `required_status_checks`
-  rule exists on any ruleset, so a red CI run does not block a merge.
-  The contexts to require are `backend-quality`, `frontent-quality`,
-  `test-backend`, `test-frontend`.
-- **Force-push protection on `main` and `stage`** — the `dev` ruleset
-  carries `non_fast_forward`, the `release-line` ruleset does not.
 - **Incident response timeframes and confidentiality level** — the
-  procedure exists but does not state either, both of which the
-  requirement asks for by name.
-- **Recovery timeframes** — the Disaster Recovery Plan's database
-  restore template carries `SLA: ?`, `RPO: ?`, `RTO: ?` verbatim. Ask
-  EPFL DSI for the DBaaS figures.
+  procedure exists but states neither, and the requirement asks for
+  both by name.
+- **Recovery objectives are best-effort, not agreed** — see
+  [Security documentation index § Recovery objectives](../architecture/security-documentation.md#recovery-objectives).
+  Detection is measured; database restore depends on EPFL DSI, and
+  deleted objects are not recoverable.
 
 Every remaining Exploitation Phase box is a recurring process, not a
 one-time task. They are tracked by the cadence table in the
-[Security Documentation Index](../architecture/security-documentation.md),
+[Security Documentation Index](../architecture/security-documentation.md#ownership-and-review-cadence),
 not by ticking them here.
 
 ## 9. Links

@@ -19,7 +19,7 @@ answering a security questionnaire or an audit.
 | 6   | Third-party list           | [Third parties](#third-parties) below; dependency-level detail in the repository's GitHub dependency graph                                                                                                                                                                                                                                                      | ✅ Complete |
 | 7   | Incident response          | 5-step procedure in the private security repository; responder roster and alert routing in the [Disaster Recovery Plan](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/DRP.md) (private ops repository); [SLO and alerting](../infra/03-observability-slo.md); [worked example](../infra/02-postmortem-oauth-http-redirect.md) | ⚠️ Partial  |
 | 8   | Business continuity plan   | [Disaster Recovery Plan](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/DRP.md) (private ops repository) — recovery team, namespace and bucket re-provisioning, secret recovery, GitOps and ArgoCD restore, database restore, manual build path, monitoring recovery                                                           | ✅ Complete |
-| 9   | Maintenance and restore    | [Release runbook](release-runbook.md), [Disaster Recovery Plan](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/DRP.md) (private ops repository), backup section of [Infra overview](../infra/01-overview.md)                                                                                                                   | ⚠️ Partial  |
+| 9   | Maintenance and restore    | [Release runbook](release-runbook.md), [Disaster Recovery Plan](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/DRP.md) (private ops repository), backup section of [Infra overview](../infra/01-overview.md), [Recovery objectives](#recovery-objectives)                                                                      | ✅ Complete |
 | 10  | Compliance procedures      | [EPFL compliance mapping](epfl-compliance-mapping.md), [EPFL constraints](epfl-constraint.md)                                                                                                                                                                                                                                                                   | ✅ Complete |
 
 ## What is still open
@@ -28,18 +28,39 @@ answering a security questionnaire or an audit.
   asks for two things it does not state: **how fast** an incident is
   communicated, and the **confidentiality level** of that
   communication. Both are policy decisions, not engineering ones.
-- **Recovery timeframes (9)** — the requirement asks for availability
-  of information "within agreed timeframes", and no timeframe is
-  agreed. The DRP's database-restore ticket template carries `SLA: ?`,
-  `RPO: ?`, `RTO: ?` verbatim. Ask EPFL DSI for the DBaaS figures and
-  write them into the DRP.
-- **Object storage has no version history** — buckets are provisioned
-  with versioning disabled, so a deleted or overwritten object is not
-  recoverable. That is a deliberate trade-off, but it belongs in the
-  BCP rather than in a portal setting nobody reads.
+- **Recovery timeframes (9)** — best effort, documented under
+  [Recovery objectives](#recovery-objectives). Detection is measured
+  and fast; database restore depends on EPFL DSI, who have not
+  published a DBaaS RPO or RTO, and deleted objects are not
+  recoverable at all. Both are decisions to take, not code to write.
 
 Neither gap is closed by a code change. Track them as issues rather
 than leaving them implied by an unticked box.
+
+## Recovery objectives
+
+**Best effort. No contractual SLA, RPO or RTO is agreed** — stating
+that plainly is more useful than leaving question marks in the DRP.
+What _is_ measured:
+
+| Stage                | Actual capability                                                                                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Detection            | 1–10 minutes. `PodOOMKilled` fires at 1 min; `PodNotReady`, `PVCAlmostFull` and `ImagePullBackOff` at 5 min; `BackendMetricsAbsent`, the total-outage detector, at 10 min |
+| Application symptoms | 5 minutes — latency P50/P95/P99 and error-rate alerts; upload and job SLO breaches at 15 min                                                                              |
+| Notification         | ~30 s after an alert fires, by email to the sysadmin group; re-sent every 4 h until resolved, and again on recovery                                                       |
+| External check       | Icinga probes HTTPS, certificate validity and the database from outside the cluster                                                                                       |
+| Restore, application | Minutes — ArgoCD auto-sync and self-heal reconcile a bad deploy; revert the GitOps commit and it rolls back                                                               |
+| Restore, database    | **Not under our control** — requested from EPFL DSI by ticket; DSI has not published DBaaS RPO or RTO                                                                     |
+| Restore, files       | **Not possible** — buckets have versioning disabled, so a deleted or overwritten object is gone                                                                           |
+
+Detection and application recovery are ours and are fast. Data recovery
+depends on EPFL DSI for the database, and does not exist for object
+storage. Those two are the honest answer to "availability within agreed
+timeframes", and closing them means a conversation with DSI and a
+decision on bucket versioning — not a code change.
+
+Alert rules and routing live in the private ops repository under
+`overlays/<env>/monitoring/`.
 
 ## Third parties
 
