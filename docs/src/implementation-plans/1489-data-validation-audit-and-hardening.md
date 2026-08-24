@@ -128,6 +128,41 @@ regression test on the #1545 fixture), and the #2091 / #2050 / #1186 series remo
 several of the silent-degradation paths F-11 pointed at. F-2 (residual), F-3 (mostly),
 F-4, F-5, F-6, F-7 were re-verified **still open** at `39a5dcdb`.
 
+### Full-spec systematic sweep (2026-08-24)
+
+After #2231/#2291 shipped, the whole spec was swept mechanically once (throwaway
+scripts, per the decision to keep the backend as SSOT with no permanent doc
+parser): all 45 tables of `data-description.md` parsed into structured rules
+(~280 fields), all 13 entry Create DTOs probed against every parsed constraint
+(~150 accept/reject probes off valid base payloads), all 14 FactorCreate DTOs
+and all 8 frontend module configs diffed against the same spec. The doc repo
+itself moved (Aug 17–19): travel `user_institutional_id` is now documented
+optional (closes most of D-7) and process emissions `quantity` was renamed
+`quantity_kg` — but **D-1 is still stale** (the doc still lists the
+`"1-5 times per day"` labels the backend rejects).
+
+Sweep verdict: the code implements the documented scheme **except**:
+
+| #   | Finding                                                                                                                                                       | Class                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| N-1 | `purchase_institutional_code` (required string) accepts whitespace-only — the F-10 sweep in #2231 missed this one field.                                      | code-gap (small fix)   |
+| N-2 | "numbers only" is never enforced: headcount and train `user_institutional_id` accept `"abc"`.                                                                 | decision (code or doc) |
+| N-3 | Equipment form requires `sub_class` and both usage-hour fields; the DTO has all three optional (CSV may omit them).                                           | FE-stricter — confirm  |
+| N-4 | Process-emissions `subcategory`: doc says required for Refrigerants only, DTO never requires it, form always requires it. Three-way disagreement (= D-5).     | decision               |
+| N-5 | Headcount member `fte`: backend caps at 1, form has `min: 0` but no `max` — a 1.5 in the form 422s only after submit. Entangled with D-4 (students uncapped). | FE gap after D-4 call  |
+| N-6 | `purchases_common_factors.csv`: doc + the committed CSV carry `purchase_institutional_description`; the DTO has `translation_key` instead — verify mapping.   | to-verify              |
+| N-7 | Train DTO accepts undocumented `origin_natural_key` / `destination_natural_key`.                                                                              | doc addition (D list)  |
+| N-8 | Building grey energy has a Create DTO (`BuildingEmbodiedEnergyHandlerCreate`) but no `*_data.csv` table in the doc (factors only).                            | doc gap or WIP module  |
+| N-9 | Travel `number_of_trips`: doc mandatory, DTO optional with default 1 (form requires it).                                                                      | trivial                |
+
+Non-findings the sweep cleared: `kg_co2eq` in every data CSV is honored
+out-of-band by the entry pipeline (deliberately never in `DataEntry.data`);
+`unit_institutional_id` is the routing column, correctly absent from DTOs;
+factor `*_category` columns are routing columns consumed outside the DTOs with
+code comments saying so; all other factor tables match their FactorCreate DTOs
+field-for-field. Confirmed still open: D-1, D-5, D-6, F-5 (every DTO still
+accepts an unknown key — S3/S5), and the F-9/F-13 product questions.
+
 ## A. Path-level behavior matrix
 
 The headline result: most holes are **per-path mechanics**, shared by every module
