@@ -108,8 +108,8 @@ const allOptions = computed(() => [
   { label: t('planner_reference_year_dialog_none_option'), value: NONE },
 ]);
 
-// Seeded once per mount: the parent keys the dialog on the current reference
-// year, so a re-open starts from what is set rather than the last pick.
+// Seeded once per mount: the parent v-ifs the dialog, so each open is a fresh
+// instance starting from what is set rather than the last pick.
 const selected = ref<number>(props.referenceYear ?? NONE);
 
 // Any change (set, switch or removal) deletes the prefilled modules' data,
