@@ -37,6 +37,7 @@ def _provider(year: int) -> ResearchFacilitiesApiProvider:
         data_session=MagicMock(),
     )
     provider._update_job = AsyncMock()
+    provider._delete_existing_api_entries = AsyncMock(return_value=0)
     return provider
 
 
@@ -144,22 +145,38 @@ async def test_in_scope_rows_are_kept_and_negated():
 
 
 @pytest.mark.asyncio
-async def test_ingest_short_circuits_before_touching_existing_entries():
-    """An empty fetch is not evidence that an earlier sync's rows are stale."""
+async def test_an_in_scope_empty_sync_still_clears_the_previous_bulk():
+    """A sync is a replace: a year the datasource no longer carries must not
+    keep showing rows an earlier sync loaded.
+    """
     provider = _provider(2026)
     provider.fetch_data = AsyncMock(return_value=[_row()])
     provider._report_progress = AsyncMock()
-    provider._delete_existing_api_entries = AsyncMock()
+    provider._delete_existing_api_entries = AsyncMock(return_value=37)
     provider._load_data = AsyncMock()
-    provider._resolve_carbon_report_modules = AsyncMock(
-        side_effect=AssertionError("must not resolve modules for an empty transform")
-    )
 
     outcome = await provider.ingest({})
 
     assert outcome["result"] is IngestionResult.WARNING
-    provider._delete_existing_api_entries.assert_not_called()
+    provider._delete_existing_api_entries.assert_awaited_once()
     provider._load_data.assert_not_called()
+    assert outcome["deleted"] == 37
+    # Say so: "nothing to import" alone would read as "the year is untouched".
+    assert "removed 37 row(s) imported by a previous sync" in outcome["status_message"]
+
+
+@pytest.mark.asyncio
+async def test_an_erroring_sync_deletes_nothing():
+    """A fetch we do not trust is no reason to drop data."""
+    provider = _provider(2025)
+    provider.fetch_data = AsyncMock(return_value=[_row(**{USE_KEY: 5.0})])
+    provider._report_progress = AsyncMock()
+    provider._delete_existing_api_entries = AsyncMock(return_value=0)
+
+    with pytest.raises(ValueError, match="positive"):
+        await provider.ingest({})
+
+    provider._delete_existing_api_entries.assert_not_called()
 
 
 @pytest.mark.asyncio

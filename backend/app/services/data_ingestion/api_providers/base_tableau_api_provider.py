@@ -138,8 +138,10 @@ class BaseTableauApiProvider(DataIngestionProvider):
         while a year is still being published — from a genuine mismatch, which
         keeps raising. Both name each filter and its tally (#2007).
 
-        Previously imported entries are left untouched: an empty fetch is not
-        evidence that rows loaded by an earlier sync should be deleted.
+        The routine case still clears the previous bulk, because a sync is a
+        replace: a year the datasource no longer carries must not keep showing
+        rows an earlier sync loaded. The error case deletes nothing — a fetch
+        we do not trust is no reason to drop data.
         """
         detail = self._describe_drops()
         expected = bool(self.drop_reasons) and set(self.drop_reasons).issubset(
@@ -156,9 +158,15 @@ class BaseTableauApiProvider(DataIngestionProvider):
                 f"owns the {self.INGEST_NOUN} datasource."
             )
 
+        deleted = await self._delete_existing_api_entries()
+        removal = (
+            f"; removed {deleted} row(s) imported by a previous sync"
+            if deleted
+            else "; there was nothing previously imported to remove"
+        )
         message = (
             f"Nothing to import: none of the {fetched} {self.INGEST_NOUN} row(s) "
-            f"fetched are in scope — {detail}"
+            f"fetched are in scope — {detail}{removal}"
         )
         stats = self._init_stats()
         stats["rows_skipped"] = fetched
@@ -170,6 +178,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
             extra_metadata={
                 "stats": stats,
                 "drop_reasons": dict(self.drop_reasons),
+                "deleted": deleted,
             },
         )
         return {
@@ -177,6 +186,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
             "result": IngestionResult.WARNING,
             "status_message": message,
             "inserted": 0,
+            "deleted": deleted,
             "skipped": fetched,
             "stats": stats,
         }

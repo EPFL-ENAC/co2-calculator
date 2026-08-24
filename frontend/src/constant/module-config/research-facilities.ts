@@ -51,7 +51,10 @@ const researchFacilitiesFields: ModuleField[] = [
       fieldId: 'use_unit',
       byValue: {
         '%': { max: 100 },
-        hours: { max: 8760 },
+        // 168 h/week x 52 weeks — the backend derives this from
+        // HOURS_PER_WEEK x WEEKS_PER_YEAR, the same pair the equipment module
+        // computes with. Not the calendar's 8760.
+        hours: { max: 8736 },
         housings: { integer: true },
       },
     },
@@ -134,7 +137,10 @@ const animalFields: ModuleField[] = [
       fieldId: 'use_unit',
       byValue: {
         '%': { max: 100 },
-        hours: { max: 8760 },
+        // 168 h/week x 52 weeks — the backend derives this from
+        // HOURS_PER_WEEK x WEEKS_PER_YEAR, the same pair the equipment module
+        // computes with. Not the calendar's 8760.
+        hours: { max: 8736 },
         housings: { integer: true },
       },
     },

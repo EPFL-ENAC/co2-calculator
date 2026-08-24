@@ -9,11 +9,13 @@ and a half times the whole platform's emissions.
 import pytest
 from pydantic import ValidationError
 
+from app.core.config import get_settings
 from app.modules.research_facilities.data_entries import (
     ResearchFacilitiesAnimalHandlerCreate,
     ResearchFacilitiesAnimalHandlerUpdate,
     ResearchFacilitiesCommonHandlerCreate,
     ResearchFacilitiesCommonHandlerUpdate,
+    use_bounds,
 )
 
 _COMMON_BASE = {"data_entry_type_id": 70, "carbon_report_module_id": 1}
@@ -52,13 +54,26 @@ def test_percent_above_hundred_rejected(use):
         ResearchFacilitiesCommonHandlerCreate(**_common(use, "%"))
 
 
-@pytest.mark.parametrize("use,ok", [(8760, True), (8760.5, False), (20000, False)])
-def test_hours_capped_at_a_year(use, ok):
-    if ok:
-        ResearchFacilitiesCommonHandlerCreate(**_common(use, "hours"))
-        return
-    with pytest.raises(ValidationError, match="at most 8760"):
-        ResearchFacilitiesCommonHandlerCreate(**_common(use, "hours"))
+def test_hours_within_a_year_accepted():
+    ResearchFacilitiesCommonHandlerCreate(**_common(1200, "hours"))
+
+
+def test_hours_beyond_a_year_rejected():
+    with pytest.raises(ValidationError, match="at most"):
+        ResearchFacilitiesCommonHandlerCreate(**_common(20_000, "hours"))
+
+
+def test_hours_ceiling_tracks_the_equipment_settings():
+    """One hours-in-a-year for the whole app: a deployment overriding either
+    knob must move this bound with it, not leave a stale 8760 behind.
+    """
+    settings = get_settings()
+    ceiling = settings.HOURS_PER_WEEK * settings.WEEKS_PER_YEAR
+    assert use_bounds()["hours"].maximum == ceiling
+
+    ResearchFacilitiesCommonHandlerCreate(**_common(ceiling, "hours"))
+    with pytest.raises(ValidationError, match="at most"):
+        ResearchFacilitiesCommonHandlerCreate(**_common(ceiling + 1, "hours"))
 
 
 def test_chf_has_no_upper_bound():

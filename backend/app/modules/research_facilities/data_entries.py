@@ -1,16 +1,16 @@
 """Research Facilities data-entry schemas (common + animal)."""
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 from pydantic import ValidationInfo, field_validator, model_validator
 
+from app.core.config import get_settings
 from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponseGen,
     DataEntryUpdate,
 )
-
-HOURS_PER_YEAR = 8760
 
 
 @dataclass(frozen=True)
@@ -27,12 +27,20 @@ class UseBounds:
 # bounds are hardcoded here and mirrored in the frontend module config. A unit
 # absent from this table is simply unbounded above — another institution may
 # use one this deployment has never seen.
-USE_BOUNDS: dict[str, UseBounds] = {
-    "%": UseBounds(maximum=100),
-    "hours": UseBounds(maximum=HOURS_PER_YEAR),
-    "CHF": UseBounds(),
-    "housings": UseBounds(integer_only=True),
-}
+@lru_cache(maxsize=1)
+def use_bounds() -> dict[str, UseBounds]:
+    """Built once, lazily: the hours ceiling comes from settings, and reading
+    config at import time would pin it before the environment is loaded.
+    """
+    settings = get_settings()
+    return {
+        "%": UseBounds(maximum=100),
+        # The same hours-in-a-year the equipment module computes with, so a
+        # future deployment overriding either knob moves both together.
+        "hours": UseBounds(maximum=settings.HOURS_PER_WEEK * settings.WEEKS_PER_YEAR),
+        "CHF": UseBounds(),
+        "housings": UseBounds(integer_only=True),
+    }
 
 
 def validate_use_within_unit_bounds(use: float | None, use_unit: str | None) -> None:
@@ -44,7 +52,7 @@ def validate_use_within_unit_bounds(use: float | None, use_unit: str | None) -> 
     """
     if use is None or use_unit is None:
         return
-    bounds = USE_BOUNDS.get(use_unit)
+    bounds = use_bounds().get(use_unit)
     if bounds is None:
         return
     if bounds.maximum is not None and use > bounds.maximum:

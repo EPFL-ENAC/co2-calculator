@@ -86,7 +86,15 @@ accepted cost of hardcoding over deriving the cap from the factor's
 
 `conditionalBounds` mirrors the existing `conditionalVisibility` /
 `conditionalRatio` / `conditionalOptions` family on `ModuleField` rather than
-introducing a new shape.
+introducing a new shape. The hours ceiling is `HOURS_PER_WEEK × WEEKS_PER_YEAR`
+from settings — the same pair the equipment module computes with — so a
+deployment overriding either knob moves both together. That is 8736, not the
+calendar's 8760; the frontend mirror carries the same number and says why.
+
+The facility select renders through `VirtualSelectField` (as Purchase already
+did) rather than a plain `QSelect`: ~90 platforms today with no reason to stay
+that small, and the generic branch offers neither type-ahead nor a loading
+state (`:loading="false"` is hardcoded there).
 
 `class-subclass-map` is **not** replaced — it still backs the animal type
 subkind select. It cannot back the facility select: it returns
@@ -235,8 +243,11 @@ convention would empty the ingest just as completely, and that is a fault.
 Routine reasons cannot launder an anomaly into a warning — the check is that
 every drop reason is expected, not merely the dominant one.
 
-Previously imported entries are left untouched on the warning path: an empty
-fetch is not evidence that an earlier sync's rows are stale.
+The warning path still clears the previous bulk, so a sync stays a replace: a
+year the datasource no longer carries must not keep showing rows an earlier
+sync loaded, and the message says how many were removed rather than leaving
+"nothing to import" to be read as "the year is untouched". The error path
+deletes nothing — a fetch we do not trust is no reason to drop data.
 
 Tests: `backend/tests/unit/services/data_ingestion/test_research_facilities_drop_reasons.py`
 (7 cases, including the reported 2026 incident and the sign-flip that must stay

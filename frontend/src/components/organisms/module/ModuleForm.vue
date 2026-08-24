@@ -166,10 +166,15 @@
                   @update:model-value="(val) => (form[inp.id] = val)"
                 />
               </template>
+              <!-- Long option lists: purchases run to thousands of UNSPSC
+                   codes, research facilities to ~90 platforms and growing.
+                   Both need type-ahead and a loading state; a plain QSelect
+                   offers neither. -->
               <VirtualSelectField
                 v-else-if="
                   (inp.optionsId === 'kind' || inp.optionsId === 'subkind') &&
-                  moduleType === MODULES.Purchase
+                  (moduleType === MODULES.Purchase ||
+                    moduleType === MODULES.ResearchFacilities)
                 "
                 :model-value="form[inp.id]"
                 :options="getFilteredOptions(inp)"
