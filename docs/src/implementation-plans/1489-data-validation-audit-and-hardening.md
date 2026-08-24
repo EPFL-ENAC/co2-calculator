@@ -16,6 +16,87 @@ summary:
 
 # Data-validation audit (#1489)
 
+## Résumé en français — guide de lecture
+
+> Cette section explique le document en langage simple. Le détail technique
+> (les tableaux A–E plus bas) est la **preuve** ; tout se comprend avec ce
+> résumé et le tableau des suites (section E).
+
+### Le problème de départ
+
+Le [site de doc](https://epfl-enac.github.io/co2-calculator-back-office-doc/data-description)
+décrit les règles de chaque donnée (champ obligatoire, valeur ≥ 0, nom exact
+des colonnes CSV…). Personne n'avait jamais vérifié si le code les applique
+vraiment. Le bug #1545 a montré que non : une colonne mal orthographiée
+(`room_surface_square_meters`, un « s » de trop) a **effacé silencieusement la
+surface de toutes les salles** pendant que le job affichait SUCCÈS — et ensuite
+plus rien ne se calculait, sans message d'erreur.
+
+### L'idée clé : 4 chemins, pas 200 champs
+
+Les données entrent dans l'appli par **quatre chemins**, chacun avec son propre
+code de vérification :
+
+- **P1** — CSV back-office (données de référence + facteurs d'émission)
+- **P2** — CSV d'entrées (upload en masse par les utilisateurs)
+- **P3** — les formulaires web (le quotidien)
+- **P4** — CSV d'objectifs de réduction
+
+Presque tous les trous sont des trous **de chemin** : un chemin qui ignore les
+colonnes inconnues touche _tous_ les modules qui y passent. P4 était le seul
+chemin bien fait (chaque ligne validée, toutes les erreurs remontées, rien
+d'enregistré si une ligne est mauvaise) — les corrections copient ce modèle,
+elles n'inventent rien.
+
+### Ce que l'audit a trouvé (les 4 exemples qui résument tout)
+
+1. **La typo qui efface une table** (#1545) : colonne inconnue → simple
+   warning dans un log que personne ne lit → `NULL` silencieux → la table est
+   remplacée entière → SUCCÈS affiché. _(Corrigé par #2216.)_
+2. **« On valide… puis on jette »** : l'upload de facteurs validait chaque
+   ligne puis **ignorait le résultat** et enregistrait les valeurs brutes — un
+   nombre arrivé en texte restait du texte en base. _(Corrigé par #2231.)_
+3. **Les formulaires acceptent n'importe quel champ** : les 15 schémas de
+   création testés acceptent et stockent `typo_field_xyz: 42`. Pire : une clé
+   nommée `data` contourne toute la validation. _(Encore ouvert — S5.)_
+4. **Le silence au calcul** : une entrée qui ne trouve pas son facteur ne
+   produisait **rien** au lieu d'une erreur — c'est ce qui transforme toutes
+   les données pourries silencieuses en « mes résultats ont disparu ».
+   _(En cours de correction via #2091 / #2050 / #1186.)_
+
+Et **7 cas où c'est la doc qui est fausse**, pas le code (section D, pour
+@martina-gallato) — ex. la doc dit `"1-5 times per day"` mais le backend
+stocke `1_5` et rejette le libellé : un CSV écrit en suivant la doc échoue.
+
+### Ce qui est déjà corrigé
+
+- **#2216** (par @guilbep) : colonne inconnue dans un CSV de référence =
+  erreur dure, avant tout effacement. → F-1 ✅
+- **#2231** (mergée, **v1.4.0**), 4 commits :
+  1. les installations animales rejettent enfin `use = -5` et les ids vides ;
+  2. `"   "` (que des espaces) est refusé dans tout champ obligatoire, sur
+     tous les modules ;
+  3. l'upload de facteurs enregistre les **valeurs validées** (la
+     classification reste construite à la main — l'index d'identité 310B en
+     dépend), et `"12,5"` fait échouer l'upload au lieu de devenir NULL ;
+  4. les formulaires connaissent les mêmes règles que le backend
+     (required/min/max manquants) et « que des espaces » = vide côté client.
+
+### Ce qu'il reste à faire
+
+| Quoi                         | En une phrase                                                                                                                                                               | Bloqué par                           |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| **Merger cette PR**          | Ce document est le plan de référence de #1489.                                                                                                                              | review @guilbep                      |
+| **S3**                       | Les CSV d'entrées (P2) ignorent encore silencieusement les colonnes inconnues — l'interrupteur `strict_column_validation` existe dans le code mais n'est activé nulle part. | feu vert @guilbep (change un défaut) |
+| **S5**                       | Fermer les deux trous des formulaires (champs inventés stockés, contournement par la clé `data`), en promouvant d'abord `percentage_of_reference_year` en vrai champ.       | signature @guilbep (permissions)     |
+| **S7**                       | Test de contrat : le backend exporte ses règles en JSON, le frontend se teste contre — la parité ne peut plus dériver.                                                      | simple accord                        |
+| **S8**                       | Tests Playwright contre un vrai backend (= la case 2 de #1489).                                                                                                             | parké — infra CI                     |
+| **3 questions produit**      | `min: 0.001` côté FE là où le backend accepte 0 ; forcer les entiers côté FE ; F-13 : l'Explorer pré-remplit `fte_count = 0` que les deux côtés rejettent.                  | réponse produit                      |
+| **Section D → data manager** | Transmettre les 7 corrections de doc à @martina-gallato.                                                                                                                    | un commentaire sur #1489             |
+| **#1545**                    | Couvert par #2216 + #2231 ; à fermer si Martina valide.                                                                                                                     | @martina-gallato                     |
+
+---
+
 **Reference spec:** the
 [data-description pages](https://epfl-enac.github.io/co2-calculator-back-office-doc/data-description)
 of the back-office doc. Per #1489 (superseding ADR-020/#1434), the **backend is the
