@@ -250,8 +250,9 @@ export async function mockResearchFacilitiesBackend(
     ),
   );
 
-  await page.route(/.*\/api\/v1\/carbon-reports\/unit\/10\/year\/2024\/?$/, (route) =>
-    route.fulfill(json({ id: CARBON_REPORT_ID })),
+  await page.route(
+    /.*\/api\/v1\/carbon-reports\/unit\/10\/year\/2024\/?$/,
+    (route) => route.fulfill(json({ id: CARBON_REPORT_ID })),
   );
 
   await page.route(
@@ -295,17 +296,22 @@ export async function mockResearchFacilitiesBackend(
       ),
   );
 
-  await page.route(/.*\/api\/v1\/taxonomies\/module\/research-facilities\/(\S+?)(\?.*)?$/, (route) => {
-    if (taxonomyUnavailable) return route.fulfill({ status: 404, body: '' });
-    const det = route.request().url().includes('animal_facilities')
-      ? ANIMAL_DET
-      : COMMON_DET;
-    return route.fulfill(json(taxonomyFor(det)));
-  });
+  await page.route(
+    /.*\/api\/v1\/taxonomies\/module\/research-facilities\/(\S+?)(\?.*)?$/,
+    (route) => {
+      if (taxonomyUnavailable) return route.fulfill({ status: 404, body: '' });
+      const det = route.request().url().includes('animal_facilities')
+        ? ANIMAL_DET
+        : COMMON_DET;
+      return route.fulfill(json(taxonomyFor(det)));
+    },
+  );
 
   // The facility catalog: the select's option source (#2007).
   await page.route(/.*\/api\/v1\/factors\/(70|71)\/list(\?.*)?$/, (route) => {
-    const det = route.request().url().includes('/71/') ? ANIMAL_DET : COMMON_DET;
+    const det = route.request().url().includes('/71/')
+      ? ANIMAL_DET
+      : COMMON_DET;
     return route.fulfill(
       json(det === ANIMAL_DET ? ANIMAL_FACTORS : COMMON_FACTORS),
     );
@@ -322,7 +328,11 @@ export async function mockResearchFacilitiesBackend(
         return route.fulfill(json({ '1321': ['fish', 'rodent'] }));
       }
       return route.fulfill(
-        json(Object.fromEntries(COMMON_FACTORS.map((f) => [f.researchfacility_id, []]))),
+        json(
+          Object.fromEntries(
+            COMMON_FACTORS.map((f) => [f.researchfacility_id, []]),
+          ),
+        ),
       );
     },
   );

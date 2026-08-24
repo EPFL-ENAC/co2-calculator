@@ -204,8 +204,15 @@ test.describe('#2007 research facilities manual input', () => {
     const section = page
       .locator('.q-expansion-item')
       .filter({ hasText: ANIMAL_TABLE });
-    await section.locator('.q-field').filter({ hasText: 'Type' }).first().click();
-    await page.locator('.q-menu .q-item').filter({ hasText: 'Rodents' }).click();
+    await section
+      .locator('.q-field')
+      .filter({ hasText: 'Type' })
+      .first()
+      .click();
+    await page
+      .locator('.q-menu .q-item')
+      .filter({ hasText: 'Rodents' })
+      .click();
     await section
       .locator('.q-field')
       .filter({ hasText: 'Number of housing' })
@@ -227,9 +234,7 @@ test.describe('#2007 research facilities manual input', () => {
     const section = page
       .locator('.q-expansion-item')
       .filter({ hasText: COMMON_TABLE });
-    await expect(
-      section.locator('.inputs-deactivated-notice'),
-    ).toBeVisible();
+    await expect(section.locator('.inputs-deactivated-notice')).toBeVisible();
     await expect(
       section.getByRole('button', { name: 'Add', exact: true }),
     ).toHaveCount(0);

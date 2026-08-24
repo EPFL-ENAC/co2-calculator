@@ -58,6 +58,29 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
         CaptionSpec(CAPTION_CLIENT_TYPE),
     ]
 
+    # Routine exclusions: external billing is never ours, and a year the
+    # datasource has not published yet is a "come back later", not a fault.
+    # Everything else means the rows do not look the way we expect (#2007).
+    EXPECTED_EMPTY_DROP_REASONS = frozenset({"client_type", "year"})
+
+    DROP_REASON_MESSAGES = {
+        "client_type": (
+            "{count} row(s) are not internal billing "
+            f"({CAPTION_CLIENT_TYPE} is not {INTERNAL_CLIENT_TYPE})"
+        ),
+        "year": "{count} row(s) are dated a different year than {year}",
+        "blank_id": f"{{count}} row(s) have no {CAPTION_ID}",
+        "blank_name": f"{{count}} row(s) have no {CAPTION_NAME}",
+        "no_amount": f"{{count}} row(s) have no {FUNCTION_USE}({CAPTION_USE})",
+        "amount_not_numeric": (
+            f"{{count}} row(s) have a non-numeric {FUNCTION_USE}({CAPTION_USE})"
+        ),
+        "amount_positive": (
+            f"{{count}} row(s) have a positive {FUNCTION_USE}({CAPTION_USE}) "
+            "— internal billing is recorded negative"
+        ),
+    }
+
     async def transform_data(
         self, raw_data: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
@@ -65,24 +88,31 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
         year = str(self.config["year"])
         for record in raw_data:
             if record.get(self.CAPTION_CLIENT_TYPE) != self.INTERNAL_CLIENT_TYPE:
+                self.drop_reasons["client_type"] += 1
                 continue
             date_iso = str(record.get(self.CAPTION_DATE) or "")
             if date_iso[:4] != year:
+                self.drop_reasons["year"] += 1
                 continue
             facility_id = record.get(self.CAPTION_ID)
             if not facility_id or str(facility_id).strip() == "":
+                self.drop_reasons["blank_id"] += 1
                 continue
             facility_name = record.get(self.CAPTION_NAME)
             if not facility_name or str(facility_name).strip() == "":
+                self.drop_reasons["blank_name"] += 1
                 continue
             raw_use = record.get(f"{self.FUNCTION_USE}({self.CAPTION_USE})")
             if raw_use is None:
+                self.drop_reasons["no_amount"] += 1
                 continue
             try:
                 use = -float(raw_use)
             except ValueError, TypeError:
+                self.drop_reasons["amount_not_numeric"] += 1
                 continue
             if use < 0:
+                self.drop_reasons["amount_positive"] += 1
                 continue
             transformed.append(
                 {
@@ -97,9 +127,10 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
                 }
             )
         logger.info(
-            "Research facilities transform kept %s of %s rows",
+            "Research facilities transform kept %s of %s rows%s",
             len(transformed),
             len(raw_data),
+            f" — dropped: {self._describe_drops()}" if self.drop_reasons else "",
         )
         return transformed
 

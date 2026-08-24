@@ -206,6 +206,43 @@ cannot import a module config: `utils/number.ts` pulls in `boot/i18n`, whose
 `import.meta.glob` has no Node equivalent in this harness. The store-free-leaf
 shape mirrors `utils/dataEntryPolicy.ts`.
 
+## Folded in: naming the filter that emptied an ingest
+
+Surfaced while testing this branch. A 2026 research-facilities API sync failed
+with _"No research facilities rows passed validation — all rows were filtered
+out during transform"_, which reads like a validation bug. It was not: the
+datasource returned 9484 rows, **all dated 2025**. The message could not
+distinguish "this year is not published yet" from "the datasource changed
+shape", and telling them apart took a one-off probe against Tableau.
+
+`transform_data` had six independent `continue` filters and logged only the
+total kept. Now each filter tallies its own reason and the outcome names them:
+
+```
+Nothing to import: none of the 9484 research facilities row(s) fetched are in
+scope — 8916 row(s) are dated a different year than 2026; 568 row(s) are not
+internal billing (client_type is not INTERNE)
+```
+
+The mechanism lives on `BaseTableauApiProvider` (`DROP_REASON_MESSAGES`,
+`EXPECTED_EMPTY_DROP_REASONS`, `drop_reasons`), so the headcount and
+professional-travel providers can adopt it without new plumbing; until they
+declare reasons they behave exactly as before.
+
+**WARNING vs ERROR.** An empty transform explained _entirely_ by routine
+exclusions — external billing, a year not yet published — finishes as
+`IngestionResult.WARNING`. Anything else still raises: a flipped sign
+convention would empty the ingest just as completely, and that is a fault.
+Routine reasons cannot launder an anomaly into a warning — the check is that
+every drop reason is expected, not merely the dominant one.
+
+Previously imported entries are left untouched on the warning path: an empty
+fetch is not evidence that an earlier sync's rows are stale.
+
+Tests: `backend/tests/unit/services/data_ingestion/test_research_facilities_drop_reasons.py`
+(7 cases, including the reported 2026 incident and the sign-flip that must stay
+an error).
+
 ## Known gaps
 
 - **No uniqueness constraint** on RF entries — the same facility can be added

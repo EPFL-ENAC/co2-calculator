@@ -13,6 +13,7 @@ request timeout, min API version) stay in settings.
 
 import asyncio
 import uuid
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from typing import Any, NamedTuple, NoReturn, TypedDict
@@ -104,6 +105,81 @@ class BaseTableauApiProvider(DataIngestionProvider):
     # both feed logs and job metadata.
     INGEST_NOUN: str = "data"
     MISSING_UNIT_REASON: str = "Missing unit (Centre financier)"
+
+    # Per-filter tallies from ``transform_data``, keyed by a provider-defined
+    # reason. Without them an ingest that filters everything out can only say
+    # "all rows were filtered out during transform" — true, unactionable, and
+    # indistinguishable from a broken datasource. Finding out which filter and
+    # why took a one-off probe against Tableau (#2007). Never put row contents
+    # in these messages: they feed logs and job metadata.
+    DROP_REASON_MESSAGES: dict[str, str] = {}
+    # Filters whose exclusions are routine rather than anomalous. An empty
+    # transform explained entirely by these finishes as a WARNING — the
+    # datasource simply holds nothing for this request, e.g. a year it has
+    # not published yet — where anything else stays an ERROR.
+    EXPECTED_EMPTY_DROP_REASONS: frozenset[str] = frozenset()
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.drop_reasons: Counter[str] = Counter()
+
+    def _describe_drops(self) -> str:
+        """One clause per filter that discarded rows, most-discarded first."""
+        context = {"year": self.config.get("year")}
+        return "; ".join(
+            self.DROP_REASON_MESSAGES.get(key, key).format(count=count, **context)
+            for key, count in self.drop_reasons.most_common()
+        )
+
+    async def _finalize_empty_transform(self, fetched: int) -> dict[str, Any]:
+        """Every fetched row was filtered out by ``transform_data``.
+
+        Separates "the datasource holds nothing for this request" — routine
+        while a year is still being published — from a genuine mismatch, which
+        keeps raising. Both name each filter and its tally (#2007).
+
+        Previously imported entries are left untouched: an empty fetch is not
+        evidence that rows loaded by an earlier sync should be deleted.
+        """
+        detail = self._describe_drops()
+        expected = bool(self.drop_reasons) and set(self.drop_reasons).issubset(
+            self.EXPECTED_EMPTY_DROP_REASONS
+        )
+        if not expected:
+            message = (
+                f"No {self.INGEST_NOUN} rows passed validation — all {fetched} "
+                "fetched row(s) were filtered out during transform"
+            )
+            message += f": {detail}." if detail else "."
+            raise ValueError(
+                f"{message} If data is expected, contact the Tableau team that "
+                f"owns the {self.INGEST_NOUN} datasource."
+            )
+
+        message = (
+            f"Nothing to import: none of the {fetched} {self.INGEST_NOUN} row(s) "
+            f"fetched are in scope — {detail}"
+        )
+        stats = self._init_stats()
+        stats["rows_skipped"] = fetched
+        logger.info(message)
+        await self._update_job(
+            status_message=message,
+            state=IngestionState.FINISHED,
+            result=IngestionResult.WARNING,
+            extra_metadata={
+                "stats": stats,
+                "drop_reasons": dict(self.drop_reasons),
+            },
+        )
+        return {
+            "state": IngestionState.FINISHED,
+            "result": IngestionResult.WARNING,
+            "status_message": message,
+            "inserted": 0,
+            "skipped": fetched,
+            "stats": stats,
+        }
 
     @staticmethod
     def _strip_unit_prefix(unit_id: str | None) -> str | None:
@@ -690,6 +766,8 @@ class BaseTableauApiProvider(DataIngestionProvider):
             raw_data = await self.fetch_data(filters or {})
             await self._report_progress(f"Fetched {len(raw_data)} records")
             transformed_data = await self.transform_data(raw_data)
+            if raw_data and not transformed_data:
+                return await self._finalize_empty_transform(len(raw_data))
             await self._report_progress("Resolving carbon report modules...")
             unit_to_module_map = await self._resolve_modules_or_fail(transformed_data)
             stats = self._init_stats()
