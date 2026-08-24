@@ -201,9 +201,8 @@
               :max="col.max"
               :step="col.step"
               :rules="getColumnRules(col)"
-              :placeholder="
-                isRequiredEmptyUsageCell(slotProps.row, col) ? '—' : undefined
-              "
+              :mask="col.type === 'date' ? DATE_INPUT_MASK : undefined"
+              :placeholder="getColumnPlaceholder(slotProps.row, col)"
               :class="[
                 'inline-input',
                 {
@@ -490,6 +489,11 @@ import type {
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
+import {
+  DATE_INPUT_MASK,
+  isValidCalendarDate,
+  matchesDateInputFormat,
+} from 'src/utils/date';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import EquipmentPowerFeedbackDialog from 'src/components/molecules/EquipmentPowerFeedbackDialog.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
@@ -976,7 +980,16 @@ function getColumnInputmode(col: TableViewColumn): string | undefined {
 }
 
 function getColumnTitle(col: TableViewColumn): string | undefined {
-  return col.hint ? $t(col.hint) : undefined;
+  if (col.hint) return $t(col.hint);
+  return col.type === 'date' ? $t('date_format_placeholder') : undefined;
+}
+
+function getColumnPlaceholder(
+  row: ModuleRow,
+  col: TableViewColumn,
+): string | undefined {
+  if (col.type === 'date') return $t('date_format_placeholder');
+  return isRequiredEmptyUsageCell(row, col) ? '—' : undefined;
 }
 
 function getColumnRules(col: TableViewColumn) {
@@ -1645,6 +1658,19 @@ async function commitInline(
         return null;
       }
       return n;
+    }
+    if (col.type === 'date') {
+      const s = typeof rawVal === 'string' ? rawVal.trim() : '';
+      if (s === '') return rawVal;
+      if (!matchesDateInputFormat(s)) {
+        setError(row, col, $t('validation_invalid_date_format'));
+        return null;
+      }
+      if (!isValidCalendarDate(s)) {
+        setError(row, col, $t('validation_invalid_date'));
+        return null;
+      }
+      return s;
     }
     return rawVal;
   })();
