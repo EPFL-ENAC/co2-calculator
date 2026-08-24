@@ -91,6 +91,7 @@ const props = defineProps<{
   grantYearRange?: string;
   /** The filled-years range, shown after the Effective label. */
   effectiveYearRange?: string;
+  activeCategoriesOnly?: boolean;
 }>();
 
 use([
@@ -124,11 +125,17 @@ const ADDITIONAL_CATEGORY_KEYS = [
   'embodied_energy',
 ] as const;
 
-const categoryKeys = computed<string[]>(() =>
-  showAdditional.value
+const categoryKeys = computed<string[]>(() => {
+  const keys: string[] = showAdditional.value
     ? [...MAIN_CATEGORY_KEYS, ...ADDITIONAL_CATEGORY_KEYS]
-    : [...MAIN_CATEGORY_KEYS],
-);
+    : [...MAIN_CATEGORY_KEYS];
+  if (!props.activeCategoriesOnly) return keys;
+  const active = new Set([
+    ...(props.grantBreakdown?.validated_categories ?? []),
+    ...(props.yearsBreakdown?.validated_categories ?? []),
+  ]);
+  return keys.filter((key) => active.has(key));
+});
 
 function rowOf(
   breakdown: EmissionBreakdownResponse | null,

@@ -109,6 +109,10 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  activeCategoriesOnly: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits<{ (e: 'compareYears'): void }>();
@@ -727,6 +731,19 @@ const datasetSource = computed(() => {
       );
       return isCategoryModuleActive(rawKey);
     });
+  }
+
+  if (props.activeCategoriesOnly) {
+    allData = allData.filter((item) =>
+      isCategoryValidated(
+        String(
+          item.category_key ??
+            labelToKey.value[String(item.category ?? '')] ??
+            item.category ??
+            '',
+        ),
+      ),
+    );
   }
 
   // Partition into additional and main categories
