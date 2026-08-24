@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@eslint/js": "=10.0.1",
-    "@intlify/unplugin-vue-i18n": "=11.2.4",
+    "@intlify/unplugin-vue-i18n": "=11.2.5",
     "@playwright/experimental-ct-vue": "=1.62.1",
     "@playwright/test": "=1.62.1",
     "@quasar/app-vite": "^2.6.2",
@@ -48,7 +48,7 @@
     "eslint": "=10.8.1",
     "eslint-config-prettier": "=10.1.8",
     "eslint-plugin-vue": "=10.10.0",
-    "globals": "=17.9.0",
+    "globals": "=17.11.0",
     "openapi-typescript": "=7.13.0",
     "prettier": "=3.9.6",
     "sass": "=1.101.3",
@@ -59,7 +59,7 @@
     "typescript": "=5.9.3",
     "typescript-eslint": "^8.67.0",
     "vue-eslint-parser": "=10.4.1",
-    "vue-tsc": "=3.3.9"
+    "vue-tsc": "=3.3.10"
   },
   "overrides": {
     "vue-i18n": "$vue-i18n",
