@@ -143,23 +143,19 @@ optional (closes most of D-7) and process emissions `quantity` was renamed
 
 Sweep verdict: the code implements the documented scheme **except**:
 
-| #   | Finding                                                                                                                                                       | Class                  |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| N-1 | `purchase_institutional_code` (required string) accepts whitespace-only — the F-10 sweep in #2231 missed this one field.                                      | code-gap (small fix)   |
-| N-2 | "numbers only" is never enforced: headcount and train `user_institutional_id` accept `"abc"`.                                                                 | decision (code or doc) |
-| N-3 | Equipment form requires `sub_class` and both usage-hour fields; the DTO has all three optional (CSV may omit them).                                           | FE-stricter — confirm  |
-| N-4 | Process-emissions `subcategory`: doc says required for Refrigerants only, DTO never requires it, form always requires it. Three-way disagreement (= D-5).     | decision               |
-| N-5 | Headcount member `fte`: backend caps at 1, form has `min: 0` but no `max` — a 1.5 in the form 422s only after submit. Entangled with D-4 (students uncapped). | FE gap after D-4 call  |
-| N-6 | `purchases_common_factors.csv`: doc + the committed CSV carry `purchase_institutional_description`; the DTO has `translation_key` instead — verify mapping.   | to-verify              |
-| N-7 | Train DTO accepts undocumented `origin_natural_key` / `destination_natural_key`.                                                                              | doc addition (D list)  |
-| N-8 | Building grey energy has a Create DTO (`BuildingEmbodiedEnergyHandlerCreate`) but no `*_data.csv` table in the doc (factors only).                            | doc gap or WIP module  |
-| N-9 | Travel `number_of_trips`: doc mandatory, DTO optional with default 1 (form requires it).                                                                      | trivial                |
-
-The doc's admonition notes and prose were swept separately (all 13 blocks read,
-2026-08-24): the General Notes confirm the `kg_co2eq` out-of-band override and the
-ISO-date rule (both enforced), state an upload-order rule that is deliberately
-unenforced, and produced findings N-10 and N-11 above; the headcount template
-note self-declares a stale table for the D list.
+| #    | Finding                                                                                                                                                                                                                         | Class                  |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| N-1  | `purchase_institutional_code` (required string) accepts whitespace-only — the F-10 sweep in #2231 missed this one field.                                                                                                        | code-gap (small fix)   |
+| N-2  | "numbers only" is never enforced: headcount and train `user_institutional_id` accept `"abc"`.                                                                                                                                   | decision (code or doc) |
+| N-3  | Equipment form requires `sub_class` and both usage-hour fields; the DTO has all three optional (CSV may omit them).                                                                                                             | FE-stricter — confirm  |
+| N-4  | Process-emissions `subcategory`: doc says required for Refrigerants only, DTO never requires it, form always requires it. Three-way disagreement (= D-5).                                                                       | decision               |
+| N-5  | Headcount member `fte`: backend caps at 1, form has `min: 0` but no `max` — a 1.5 in the form 422s only after submit. Entangled with D-4 (students uncapped).                                                                   | FE gap after D-4 call  |
+| N-6  | `purchases_common_factors.csv`: doc + the committed CSV carry `purchase_institutional_description`; the DTO has `translation_key` instead — verify mapping.                                                                     | to-verify              |
+| N-7  | Train DTO accepts undocumented `origin_natural_key` / `destination_natural_key`.                                                                                                                                                | doc addition (D list)  |
+| N-8  | Building grey energy has a Create DTO (`BuildingEmbodiedEnergyHandlerCreate`) but no `*_data.csv` table in the doc (factors only).                                                                                              | doc gap or WIP module  |
+| N-9  | Travel `number_of_trips`: doc mandatory, DTO optional with default 1 (form requires it).                                                                                                                                        | trivial                |
+| N-10 | Doc note (L47): headcount `fte` "can be completed directly in the table if not provided in the file" — but the DTO requires it non-null, so an fte-less CSV row is rejected, never landing in the table to complete.            | decision (code or doc) |
+| N-11 | Doc note (L28): "rows that don't meet mandatory requirements will be ignored during upload" — no longer true: reference/factor CSVs fail hard since #2216/#2231, and entry rows are skipped with a reported error, not ignored. | doc-stale              |
 
 The doc's admonition notes and prose were swept separately (all 13 blocks read,
 2026-08-24): the General Notes confirm the `kg_co2eq` out-of-band override and the
