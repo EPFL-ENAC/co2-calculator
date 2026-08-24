@@ -161,6 +161,12 @@ ISO-date rule (both enforced), state an upload-order rule that is deliberately
 unenforced, and produced findings N-10 and N-11 above; the headcount template
 note self-declares a stale table for the D list.
 
+The doc's admonition notes and prose were swept separately (all 13 blocks read,
+2026-08-24): the General Notes confirm the `kg_co2eq` out-of-band override and the
+ISO-date rule (both enforced), state an upload-order rule that is deliberately
+unenforced, and produced findings N-10 and N-11 above; the headcount template
+note self-declares a stale table for the D list.
+
 Non-findings the sweep cleared: `kg_co2eq` in every data CSV is honored
 out-of-band by the entry pipeline (deliberately never in `DataEntry.data`);
 `unit_institutional_id` is the routing column, correctly absent from DTOs;
