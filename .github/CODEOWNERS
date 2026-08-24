@@ -1,0 +1,9 @@
+# Default owner for everything, and the maintainer responsible for
+# triaging Dependabot alerts and security-scan findings (ADR-014 §1).
+* @guilbep
+
+# Security-relevant surfaces: never merge these without the owner's review.
+/.github/            @guilbep
+/helm/               @guilbep
+/backend/app/core/   @guilbep
+/docs/src/architecture-decision-records/ @guilbep

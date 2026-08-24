@@ -21,7 +21,7 @@
 
 - [x] Add or update `.github/dependabot.yml` with appropriate ecosystems and update schedule (e.g., `weekly`).
 - [x] Configure Dependabot settings in repository.
-- [ ] Assign a maintainer to be responsible for managing dependabot alerts and PRs.
+- [x] Assign a maintainer to be responsible for managing dependabot alerts and PRs.
 
 #### Exploitation Phase
 
@@ -137,8 +137,8 @@
 - [ ] Enable branch protection in repo settings:
   - [x] Require pull request reviews
   - [ ] Require passing status checks before merge
-- [ ] Add security guidance to the pull request template.
-- [ ] Define code review guidelines with security focus.
+- [x] Add security guidance to the pull request template.
+- [x] Define code review guidelines with security focus.
 
 #### Exploitation Phase
 
@@ -187,11 +187,11 @@
 
 #### Development Phase
 
-- [ ] Design and implement centralized authentication logic.
-- [ ] Add tests for:
-  - [ ] Missing or invalid authentication tokens
-  - [ ] Incorrect role/claim combinations
-  - [ ] Unauthorized access attempts
+- [x] Design and implement centralized authentication logic.
+- [x] Add tests for:
+  - [x] Missing or invalid authentication tokens
+  - [x] Incorrect role/claim combinations
+  - [x] Unauthorized access attempts
 - [x] Document authentication assumptions and architecture.
 
 #### Exploitation Phase
@@ -302,7 +302,7 @@ Reduce the risk of vulnerabilities and misconfigurations in container images dep
 - [x] Review and document the base images used for backend and frontend containers.
 - [x] Enforce non-root execution in Dockerfiles (e.g. avoid `USER root`).
 - [x] Integrate automated container image vulnerability scanning in CI (e.g. Trivy or equivalent).
-- [ ] Configure CI to fail builds when critical container vulnerabilities are detected.
+- [x] Configure CI to fail builds when critical container vulnerabilities are detected.
 - [ ] Test containers under OpenShift Security Context Constraints.
 
 #### Exploitation Phase
@@ -361,6 +361,9 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 
 ### Required Documentation
 
+All ten are indexed, with their current state, in
+[Security Documentation Index](../architecture/security-documentation.md).
+
 1. **Encryption Keys Management**
    - Technical and organizational measures to guarantee availability, confidentiality, and integrity of encryption keys used in the codebase (if applicable)
    - Delivered: [Encryption and Key Management](../architecture/encryption.md) — also answers the transfer-encryption requirement and records the known gaps
@@ -404,10 +407,10 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 - [x] Document current authentication/authorization architecture.
 - [x] Document encryption in transfer and encryption key management.
 - [ ] Create incident response procedure document.
-- [ ] Document change management process.
-- [ ] Create security requirements compliance checklist.
-- [ ] Document all third-party dependencies.
-- [ ] Establish documentation ownership and review schedule.
+- [x] Document change management process.
+- [x] Create security requirements compliance checklist.
+- [x] Document all third-party dependencies.
+- [x] Establish documentation ownership and review schedule.
 
 #### Exploitation Phase
 
@@ -477,16 +480,31 @@ Checked against the repository and GitHub settings on **2026-08-24**.
 | Auth architecture documented           | [Auth Flow](../architecture/04-auth-flow.md)                                     |
 | Encryption + key management documented | [Encryption and Key Management](../architecture/encryption.md)                   |
 
+| Dependabot maintainer assigned | `.github/CODEOWNERS` |
+| Security guidance in the PR template | Security checklist in `.github/PULL_REQUEST_TEMPLATE.md` |
+| Security-focused review guidelines | [Code standards § Security](../architecture/code-standards.md), [Guardrails](../contributing/guardrails.md) |
+| Centralized authentication logic | `app/core/security.py` — `is_permitted`, `check_permission`, `require_permission` |
+| Auth failure-case tests | `test_auth_security.py`, `test_security_gates.py`, `test_permission_scope_e2e.py` — 182 auth/authz tests |
+| Builds fail on critical container CVEs | `deploy.yml` sets `skip_vulnerability_scan: false`; HIGH/CRITICAL block the push |
+| Security documentation set indexed | [Security Documentation Index](../architecture/security-documentation.md) |
+
 Still open, with the reason:
 
 - **Required status checks before merge** — no `required_status_checks`
   rule exists on any ruleset, so a red CI run does not block a merge.
+  The contexts to require are `backend-quality`, `frontent-quality`,
+  `test-backend`, `test-frontend`.
 - **Force-push protection on `main` and `stage`** — the `dev` ruleset
   carries `non_fast_forward`, the `release-line` ruleset does not.
-- **Security guidance in the PR template** — `PULL_REQUEST_TEMPLATE.md`
-  covers testing only.
-- **Build failure on critical container vulnerabilities** — the Trivy
-  step reports but does not gate.
+- **Incident response timeframes and confidentiality level** — the
+  procedure exists but does not state either, both of which the
+  requirement asks for by name.
+- **Business continuity plan** — not written.
+
+Every remaining Exploitation Phase box is a recurring process, not a
+one-time task. They are tracked by the cadence table in the
+[Security Documentation Index](../architecture/security-documentation.md),
+not by ticking them here.
 
 ## 9. Links
 
