@@ -32,7 +32,7 @@ _EXPLORE_TTL_SECONDS = 24 * 60 * 60  # 24 hours
 
 
 async def _refresh_explore_background(
-    unit_id: int, old_report_id: int, reference_year: int
+    unit_id: int, old_report_id: int, reference_year: int, created_by: int
 ) -> None:
     """Delete a stale Simulator Explore report and create a fresh one.
 
@@ -43,7 +43,9 @@ async def _refresh_explore_background(
     async with SessionLocal() as db:
         service = CarbonReportService(db)
         await service.delete(old_report_id)
-        await service.create_explore(unit_id=unit_id, reference_year=reference_year)
+        await service.create_explore(
+            unit_id=unit_id, reference_year=reference_year, created_by=created_by
+        )
         await db.commit()
 
 
@@ -115,8 +117,15 @@ async def get_simulator_explore_carbon_report(
     """
     unit = await db.get(Unit, unit_id)
     require_unit_access(current_user, unit)
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID missing",
+        )
     service = CarbonReportService(db)
-    result = await service.get_explore(unit_id=unit_id, reference_year=reference_year)
+    result = await service.get_explore(
+        unit_id=unit_id, reference_year=reference_year, created_by=current_user.id
+    )
     if result is None:
         raise HTTPException(
             status_code=404, detail="Simulator Explore report not found"
@@ -130,6 +139,7 @@ async def get_simulator_explore_carbon_report(
             unit_id=unit_id,
             old_report_id=result.id,
             reference_year=reference_year,
+            created_by=current_user.id,
         )
 
     return result
@@ -154,10 +164,16 @@ async def create_simulator_explore_carbon_report(
     """
     unit = await db.get(Unit, unit_id)
     require_unit_access(current_user, unit)
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID missing",
+        )
     service = CarbonReportService(db)
     result = await service.create_explore(
         unit_id=unit_id,
         reference_year=reference_year,
+        created_by=current_user.id,
     )
     await db.commit()
     return result

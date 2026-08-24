@@ -4,7 +4,6 @@ from sqlalchemy import JSON, String, column, true
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel.sql.expression import desc
 
 from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
@@ -161,11 +160,15 @@ class CarbonReportRepository:
         *,
         unit_id: int,
         reference_year: int,
+        created_by: int,
     ) -> CarbonReport | None:
-        """Get the latest Simulator Explore report for a unit + reference year.
+        """Get the Simulator Explore report for a unit + reference year.
 
-        In the new schema, Explore reports store the reference year in the ``year``
-        field (year is always non-null).
+        Explore sandboxes are private per user (#2293): only the report whose
+        project was created by ``created_by`` is returned. Explore reports
+        store the reference year in the ``year`` field (year is always
+        non-null), and ``uq_carbon_reports_project_year`` guarantees at most
+        one report per project + year.
         """
         statement = (
             select(CarbonReport)
@@ -177,9 +180,8 @@ class CarbonReportRepository:
                 CarbonReport.unit_id == unit_id,
                 CarbonReport.year == reference_year,
                 CarbonProject.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE,
+                CarbonProject.created_by == created_by,
             )
-            .order_by(desc(col(CarbonReport.last_updated)))
-            .limit(1)
         )
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()

@@ -379,13 +379,14 @@ async def test_get_simulator_explore_expired_schedules_background_refresh():
 
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
+    user = _user()
     try:
         with (
             patch.object(module, "require_unit_access"),
             patch.object(module, "require_module_unit_scope"),
         ):
             result = await module.get_simulator_explore_carbon_report(
-                1, 2024, background_tasks, db, _user()
+                1, 2024, background_tasks, db, user
             )
         assert result == report  # stale report returned immediately
         background_tasks.add_task.assert_called_once_with(
@@ -393,6 +394,7 @@ async def test_get_simulator_explore_expired_schedules_background_refresh():
             unit_id=1,
             old_report_id=99,
             reference_year=2024,
+            created_by=user.id,
         )
     finally:
         module.CarbonReportService = original
