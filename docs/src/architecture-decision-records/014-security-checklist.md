@@ -407,7 +407,7 @@ All ten are indexed, with their current state, in
 - [x] Create documentation structure and templates. — [Documentation standards](../architecture/documentation-standards.md)
 - [x] Document current authentication/authorization architecture. — [Auth flow](../architecture/04-auth-flow.md), [ADR-012](012-jwt-authentication-strategy.md)
 - [x] Document encryption in transfer and encryption key management. — [Encryption and Key Management](../architecture/encryption.md)
-- [ ] Create incident response procedure document.
+- [x] Create incident response procedure document. — [Incident Response](../architecture/incident-response.md)
 - [x] Document change management process. — [Guardrails § Workflow](../contributing/guardrails.md), [Release management](../architecture/release-management.md)
 - [x] Create security requirements compliance checklist. — [EPFL compliance mapping](../architecture/epfl-compliance-mapping.md), this ADR
 - [x] Document all third-party dependencies. — [Security documentation index § Third parties](../architecture/security-documentation.md#third-parties)
@@ -476,13 +476,20 @@ Last full pass: **2026-08-24**.
 
 Still open, with the reason:
 
-- **Incident response timeframes and confidentiality level** — the
-  procedure exists but states neither, and the requirement asks for
-  both by name.
 - **Recovery objectives are best-effort, not agreed** — see
   [Security documentation index § Recovery objectives](../architecture/security-documentation.md#recovery-objectives).
   Detection is measured; database restore depends on EPFL DSI, and
   deleted objects are not recoverable.
+
+### Accepted risks
+
+- **`dev` ruleset bypass (accepted 2026-08-24, revisit at delivery).**
+  Two repository roles bypass the `dev` ruleset unconditionally, so
+  required status checks and review do not gate those users on `dev`.
+  Accepted deliberately for the current fast-delivery phase; `stage`
+  and `main` are not affected. Revisit when the project is delivered.
+  The fix is to switch those bypass actors from `always` to
+  `pull_request` mode.
 
 Every remaining Exploitation Phase box is a recurring process, not a
 one-time task. They are tracked by the cadence table in the

@@ -16,6 +16,7 @@ nav:
   - 13-cross-cutting-concerns.md
   - encryption.md
   - security-documentation.md
+  - incident-response.md
   - ecodesign.md
   - 14-architectural-decisions.md
   - 15-appendices.md
