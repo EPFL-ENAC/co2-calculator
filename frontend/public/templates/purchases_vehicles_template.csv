@@ -1,2 +1,15 @@
 ﻿name,supplier,quantity,total_spent_amount,currency,purchase_institutional_code,purchase_institutional_description,purchase_additional_code,note
-Winbag Support de montage (135 kg),,2,30.80,CHF,25150000,,AD02,
+#Instructions:
+#1) Enter a descriptive name for the vehicle (e.g., 'Electric Vehicle - Tesla Model 3', 'Minibus - Iveco Daily').
+#2) Optionally enter the supplier name.
+#3) Optionally enter the quantity purchased.
+#4) Enter the total amount spent on this purchase.
+#5) Specify the currency (CHF, EUR, USD, etc.). If not specified, CHF is used by default.
+#6) Enter the institutional purchase code (e.g., UNSPSC code) that identifies the product category.
+#7) Optionally add the institutional description of the purchase.
+#8) Optionally add the NACRES code in the additional code column for more detailed categorization.
+#9) For detailed guidance, consult the documentation section: Modules specification - Purchases
+#Important: every line starting with # is an instruction. The importer ignores them, so you can leave them in the file.
+Electric Vehicle - Tesla Model 3,Tesla,1,55000,chf,35100100,Motor vehicles,,
+Hybrid Vehicle - Toyota Prius,Toyota,2,45000,chf,35100100,Motor vehicles,,
+Minibus - Iveco,Iveco Dealer,1,65000,chf,35100200,Commercial vehicles,,

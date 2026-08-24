@@ -1,2 +1,9 @@
 ﻿name,unit,annual_consumption,coef_to_kg,note
-Liquid Nitrogen,kg,0,0.8,
+#Instructions:
+#1) Select or enter the name of the centralized purchase item (e.g., 'Liquid Nitrogen').
+#2) Specify the unit of measurement (e.g., liter, kg, etc).
+#3) Enter the total annual consumption in the specified unit.
+#4) Enter the conversion coefficient to convert to kg. For example, if the unit is liters and density is 0.8 kg/L, enter 0.8. If the unit is already kg, enter 1.
+#5) For detailed guidance, consult the documentation section: Modules specification - Purchases
+#Important: every line starting with # is an instruction. The importer ignores them, so you can leave them in the file.
+Liquid Nitrogen,liter,1500,0.8,

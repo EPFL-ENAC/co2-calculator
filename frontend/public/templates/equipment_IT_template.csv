@@ -1,26 +1,32 @@
-﻿equipment_class,sub_class,equipment_id,name,active_usage_hours_per_week,standby_usage_hours_per_week,note,kg_co2eq
-Servers,,"","","","","",""
-Desktop,,"","","","","",""
-Laptop,,"","","","","",""
-Monitors,,"","","","","",""
-Printers,,"","","","","",""
-Scanners,,"","","","","",""
-Telecom,,"","","","","",""
-Beamer,,"","","","","",""
-Cameras,,"","","","","",""
-HF Microphones,,"","","","","",""
-Videoconferencing,,"","","","","",""
-Hoods,,"","","","","",""
-Kitchen freezer,,"","","","","",""
-Other electrotechnical equip.,,"","","","","",""
-Other IT / telecom  equipment,,"","","","","",""
-Photo camera,,"","","","","",""
-Screens,,"","","","","",""
-Other audiovisual equipment,,"","","","","",""
-Special furniture,,"","","","","",""
-CPG fixed equipment,,"","","","","",""
-Vehicles,,"","","","","",""
-Tablet,,"","","","","",""
-Software,,"","","","","",""
-Network,,"","","","","",""
-Components,,"","","","","",""
+﻿equipment_id,name,equipment_class,sub_class,active_usage_hours_per_week,standby_usage_hours_per_week,note,kg_co2eq
+#Instructions:
+#1) For each piece of equipment, provide a unique identifier (e.g., inventory number).
+#2) Enter the equipment name (e.g., 'MacBook Pro', 'Dell Monitor').
+#3) Select the appropriate equipment class from the list below (e.g., Laptop, Desktop, Monitor, etc.).
+#4) Enter the sub-class if applicable (optional).
+#5) Specify active usage hours per week (hours when the equipment is actively in use, 0-168).
+#6) Specify standby usage hours per week (hours when on standby, 0-168). Note: active + standby must inferior or equal to 168.
+#7) If you know the CO2 equivalent, enter it in kg_co2eq. Otherwise, leave empty for automatic calculation.
+#8) For detailed guidance, consult the documentation section: Modules specification - Equipment
+#Important: every line starting with # is an instruction. The importer ignores them, so you can leave them in the file.
+A000000,,Servers,,42,126,,
+A000001,,Desktop,,42,126,,
+A000002,,Laptop,,42,126,,
+A000003,,Monitors,,42,126,,
+A000004,,Printers,,42,126,,
+A000005,,Scanners,,42,126,,
+A000006,,Software,,42,126,,
+A000007,,Network,,42,126,,
+A000008,,Components,,42,126,,
+A000009,,Telecom,,42,126,,
+A000010,,Other IT / telecom equipment,,42,126,,
+A000011,,Photo camera,,42,126,,
+A000012,,Beamer,,42,126,,
+A000013,,Cameras,,42,126,,
+A000014,,HF Microphones,,42,126,,
+A000015,,Screens,,42,126,,
+A000016,,Overhead projectors,,42,126,,
+A000017,,Videoconferencing,,42,126,,
+A000018,,Audio,,42,126,,
+A000019,,Video,,42,126,,
+A000020,,Other audiovisual equipment,,42,126,,

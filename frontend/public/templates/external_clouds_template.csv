@@ -1,13 +1,14 @@
 ﻿service_type,provider,spent_amount,currency,note
+#Instructions:
+#1) Specify the type of cloud service: either 'storage' or 'compute'.
+#2) Select the cloud provider from the list below.
+#3) Enter the total amount spent on the service.
+#4) Specify the currency (chf, eur, usd). If not specified, eur is used by default.
+#5) For detailed guidance, consult: Modules specification - External clouds & AI
+#Important: every line starting with # is an instruction. The importer ignores them, so you can leave them in the file.
 storage,AWS,6192,eur,
 storage,GCP,15432,eur,
-storage,Azure,,eur,
-storage,OVH,,eur,
-storage,Huawei,,eur,
-storage,Other,,eur,
-compute,AWS,,eur,
-compute,GCP,,eur,
-compute,Azure,,eur,
-compute,OVH,,eur,
-compute,Huawei,,eur,
-compute,Other,,eur,
+storage,Azure,8500,eur,
+compute,OVH,12000,eur,
+compute,Huawei,5600,eur,
+compute,Other,1000,eur,

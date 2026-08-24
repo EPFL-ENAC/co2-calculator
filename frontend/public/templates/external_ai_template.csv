@@ -1,20 +1,15 @@
 ﻿provider,usage_type,requests_per_user_per_day,fte_count,note
-Gemini (Google),text,1_5,0.8,
-Mistral AI,text,5_20,3,
-Claude (Anthropic),text,20_100,5,
-ChatGPT (OpenAI),text,gt_100,0.8,
-Copilot (Microsoft),text,,,
-Other,text,,,
-Gemini (Google),image,,,
-Mistral AI,image,,,
-Claude (Anthropic),image,,,
-ChatGPT (OpenAI),image,,,
-Copilot (Microsoft),image,,,
-Other,image,,,
-Gemini (Google),code,,,
-Mistral AI,code,,,
-Claude (Anthropic),code,,,
-ChatGPT (OpenAI),code,,,
-Copilot (Microsoft),code,,,
-Copilot (GitHub),code,,,
-Other,code,,,
+#Instructions:
+#1) Select the AI provider from the list below.
+#2) Specify the type of usage (e.g., 'text', 'image', 'video').
+#3) Estimate the frequency of requests per user per day using one of these categories:
+"1-5 times per day (1_5), 5-20 times per day (5_20), 20-100 times per day (20_100),>100 times per day (gt_100)",,,,
+#4) Enter the number of FTE (full-time equivalent) users using this AI service.
+#5) For detailed guidance, consult the documentation section: Modules specification - External clouds & AI
+#Important: every line starting with # is an instruction. The importer ignores them, so you can leave them in the file.
+Gemini (Google),text,1_5,2.5,
+Mistral AI,text,5_20,1,
+Claude (Anthropic),text,20_100,3,
+ChatGPT (OpenAI),image,gt_100,0.5,
+Copilot (Microsoft),image,5_20,1,
+Other,video,20_100,1,

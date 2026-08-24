@@ -1,3 +1,11 @@
 ﻿origin_name,origin_country_code,destination_name,destination_country_code,user_institutional_id,departure_date,number_of_trips,cabin_class,note
-The station name must be entered in the station�s local language,,,,,,,,
-Lausanne ,CH,Renens VD,CH,234567,2025-12-03,1,first,
+#Instructions:
+#1) For each trip, enter the origin and destination train station names in their local language.
+#2) Specify the country codes (ISO 3166-1 alpha-2 format, e.g. CH, FR, DE) for both origin and destination.
+#3) Enter the user's institutional ID (SCIPER) if known. This field is optional for external travelers.
+#4) Enter the departure date in ISO format (YYYY-MM-DD). If unknown, leave blank.
+#5) Specify the number of trips taken on this route.
+#6) Specify the cabin class: either first or second class.
+#7) For detailed guidance, consult the documentation under: Modules specification - Professional travel
+#Important: every line starting with # is an instruction. The importer ignores them, so you can leave them in the file.
+Lausanne,CH,Genève,CH,234567,2025-12-03,1,second,

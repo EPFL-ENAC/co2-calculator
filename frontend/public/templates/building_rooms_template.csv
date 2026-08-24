@@ -1,7 +1,14 @@
 ﻿building_location,building_name,room_name,room_type,note
+Instructons: ,,,,
+#1) Optionally enter the location of the campus (ECUBLENS, NEUCHATEL, SION, ETC)
+#2) Enter the code for the building (AAB, AI, BS, SV, etc.)
+#3) Enter the room name as it appears in EPFL map.
+#4) Enter the type - choose from the 6 types in the list below.
+#5) For detailed guidance and location reference, consult the documentation section: Modules specification - Buildings
+#Important: every line starting with # is an instruction. The importer ignores them, so you can leave them in the file.
+ECUBLENS,AI,AI 9 127,archives,
+ECUBLENS,BC,BC 1 25,libraries,
+ECUBLENS,BCH,BCH 2 201,auditoriums,
 ECUBLENS,AAB,AAB 0 01,office,
 ECUBLENS,AAB,AAB 0 32,miscellaneous,
-ECUBLENS,AI,AI 9126,laboratories,
-ECUBLENS,AI,AI 9127,archives,
-ECUBLENS,BC,BC 125,libraries,
-ECUBLENS,BCH,BCH 2201,auditoriums,
+ECUBLENS,AI,AI 9 126,laboratories,
