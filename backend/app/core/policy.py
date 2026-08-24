@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.core.plan_policy import PlanPolicy
 from app.core.role_priority import pick_role_for_institutional_id
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReportType
@@ -559,31 +560,6 @@ def has_global_or_principal_access_for_unit(
     )
 
 
-def plan_is_visible_to(current_user: User, project: Any) -> bool:
-    """Whether a Simulator Plan project is visible to the user.
-
-    Visible to: global-scope roles, the creator, and unit members when the
-    plan is shared (``is_viewable_by_unit_members``). Unit membership itself
-    is enforced separately via :func:`require_unit_access`.
-    """
-    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
-        return True
-    if project.created_by == current_user.id:
-        return True
-    return bool(project.is_viewable_by_unit_members)
-
-
-def plan_can_manage(current_user: User, project: Any) -> bool:
-    """Whether the user may delete a Simulator Plan project.
-
-    Creators and global-scope roles only. Accepts either the ORM row or the
-    ``SimulatorPlanRead`` DTO — both expose ``created_by``.
-    """
-    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
-        return True
-    return project.created_by == current_user.id
-
-
 async def require_plan_scope_for_report(
     db: AsyncSession, current_user: User, report: Any, action: str
 ) -> CarbonProject | None:
@@ -605,36 +581,9 @@ async def require_plan_scope_for_report(
         project is not None
         and project.carbon_report_type == CarbonReportType.SIMULATOR_PLAN
     ):
-        require_plan_access(current_user, project, action)
+        policy = await PlanPolicy.for_unit(db, current_user, report.unit_id)
+        policy.require(project, action)
     return project
-
-
-def require_plan_access(current_user: User, project: Any, action: str) -> None:
-    """Enforce Simulator Plan scoping on top of unit access.
-
-    Shared plans are fully editable by unit members: ``view`` and ``edit``
-    both follow :func:`plan_is_visible_to`. ``manage`` (deletion) requires
-    the creator or a global-scope role. Unshared plans 404 for other unit
-    members so their existence is not leaked.
-
-    Args:
-        current_user: The authenticated user.
-        project: The plan's CarbonProject row.
-        action: ``"view"``, ``"edit"`` or ``"manage"``.
-    """
-    if not plan_is_visible_to(current_user, project):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Plan not found",
-        )
-    if action in ("view", "edit"):
-        return
-    if plan_can_manage(current_user, project):
-        return
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Only the plan's creator can delete it.",
-    )
 
 
 def require_module_unit_scope(

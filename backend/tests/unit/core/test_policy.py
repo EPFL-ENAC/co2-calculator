@@ -5,17 +5,44 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
+from app.core.plan_policy import PlanPolicy
 from app.core.policy import (
     _get_module_permission_path,
     check_module_permission,
     check_module_permission_for_report,
     is_module_permitted,
-    plan_is_visible_to,
     query_policy,
-    require_plan_access,
     require_plan_scope_for_report,
 )
-from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReportType
+from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope, User
+
+
+def _plan_user(user_id: int, role: RoleName | None, iid: str = "0184") -> User:
+    user = User(id=user_id, institutional_id=str(user_id), email=f"{user_id}@x")
+    if role is None:
+        user.roles = []
+    elif role == RoleName.CO2_SUPERADMIN:
+        user.roles = [Role(role=role, on=GlobalScope())]
+    elif role == RoleName.CO2_USER_PRINCIPAL:
+        user.roles = [Role(role=role, on=UnitScope(institutional_id=iid))]
+    else:
+        user.roles = [Role(role=role, on=OwnScope(institutional_id=iid))]
+    return user
+
+
+def _plan_unit(iid: str = "0184"):
+    unit = MagicMock()
+    unit.institutional_id = iid
+    return unit
+
+
+def _plan(created_by: int, *, shared: bool = False):
+    plan = MagicMock()
+    plan.created_by = created_by
+    plan.is_viewable_by_unit_members = shared
+    return plan
 
 
 class TestGetModulePermissionPath:
@@ -547,59 +574,73 @@ class TestQueryPolicyLegacy:
         assert result["filters"] == {}
 
 
-class TestRequirePlanAccess:
+class TestPlanPolicy:
     """Simulator Plan scoping: shared plans are editable by unit members,
-    deletion stays creator-only.
+    deletion stays creator-only; breadth comes from ``planner.plans``.
     """
 
     @staticmethod
-    def _user(user_id: int, *, is_global: bool = False):
-        user = MagicMock()
-        user.id = user_id
-        role = MagicMock()
-        role.on = GlobalScope() if is_global else MagicMock()
-        user.roles = [role] if is_global else []
-        return user
+    def _policy(user_id: int, role: RoleName | None, unit=None) -> PlanPolicy:
+        return PlanPolicy.from_unit(
+            _plan_user(user_id, role), unit if unit is not None else _plan_unit()
+        )
 
-    @staticmethod
-    def _plan(created_by: int, *, shared: bool = False):
-        plan = MagicMock()
-        plan.created_by = created_by
-        plan.is_viewable_by_unit_members = shared
-        return plan
-
-    def test_creator_can_view_and_edit(self):
-        user = self._user(1)
-        plan = self._plan(created_by=1)
-        require_plan_access(user, plan, "view")
-        require_plan_access(user, plan, "edit")
+    def test_creator_can_view_edit_and_delete(self):
+        policy = self._policy(1, RoleName.CO2_USER_STD)
+        plan = _plan(created_by=1)
+        policy.require(plan, "view")
+        policy.require(plan, "edit")
+        policy.require(plan, "delete")
+        assert policy.can_delete(plan)
 
     def test_unshared_plan_is_invisible_to_other_members(self):
-        user = self._user(2)
-        plan = self._plan(created_by=1, shared=False)
+        policy = self._policy(2, RoleName.CO2_USER_PRINCIPAL)
         with pytest.raises(HTTPException) as exc:
-            require_plan_access(user, plan, "view")
+            policy.require(_plan(created_by=1), "view")
         assert exc.value.status_code == 404
 
-    def test_shared_plan_is_editable_but_not_deletable_by_other_members(self):
-        user = self._user(2)
-        plan = self._plan(created_by=1, shared=True)
-        require_plan_access(user, plan, "view")
-        require_plan_access(user, plan, "edit")
+    @pytest.mark.parametrize(
+        "role", [RoleName.CO2_USER_STD, RoleName.CO2_USER_PRINCIPAL]
+    )
+    def test_shared_plan_is_editable_but_not_deletable_by_other_members(self, role):
+        policy = self._policy(2, role)
+        plan = _plan(created_by=1, shared=True)
+        policy.require(plan, "view")
+        policy.require(plan, "edit")
+        assert not policy.can_delete(plan)
         with pytest.raises(HTTPException) as exc:
-            require_plan_access(user, plan, "manage")
+            policy.require(plan, "delete")
         assert exc.value.status_code == 403
 
     def test_global_scope_bypasses_plan_scoping(self):
-        user = self._user(99, is_global=True)
-        plan = self._plan(created_by=1, shared=False)
-        require_plan_access(user, plan, "view")
-        require_plan_access(user, plan, "edit")
+        policy = self._policy(99, RoleName.CO2_SUPERADMIN)
+        plan = _plan(created_by=1)
+        policy.require(plan, "view")
+        policy.require(plan, "delete")
 
-    def test_plan_is_visible_to_matches_view_rule(self):
-        assert plan_is_visible_to(self._user(1), self._plan(created_by=1))
-        assert not plan_is_visible_to(self._user(2), self._plan(created_by=1))
-        assert plan_is_visible_to(self._user(2), self._plan(created_by=1, shared=True))
+    def test_member_of_another_unit_is_denied(self):
+        with pytest.raises(HTTPException) as exc:
+            self._policy(1, RoleName.CO2_USER_STD, unit=_plan_unit("9999"))
+        assert exc.value.status_code == 403
+
+    def test_no_roles_is_denied(self):
+        with pytest.raises(HTTPException) as exc:
+            self._policy(1, None)
+        assert exc.value.status_code == 403
+
+    def test_missing_unit_is_404(self):
+        with pytest.raises(HTTPException) as exc:
+            PlanPolicy.from_unit(_plan_user(1, RoleName.CO2_USER_STD), None)
+        assert exc.value.status_code == 404
+
+    def test_visible_filters_by_view_rule(self):
+        policy = self._policy(2, RoleName.CO2_USER_STD)
+        own, shared, private = (
+            _plan(created_by=2),
+            _plan(created_by=1, shared=True),
+            _plan(created_by=1),
+        )
+        assert policy.visible([own, shared, private]) == [own, shared]
 
 
 class TestRequirePlanScopeForReport:
@@ -609,7 +650,17 @@ class TestRequirePlanScopeForReport:
     def _report(project_id):
         report = MagicMock()
         report.carbon_project_id = project_id
+        report.unit_id = 1
         return report
+
+    @staticmethod
+    def _db(project):
+        async def _get(model, key):
+            return project if model is CarbonProject else _plan_unit()
+
+        db = MagicMock()
+        db.get = AsyncMock(side_effect=_get)
+        return db
 
     @pytest.mark.asyncio
     async def test_noop_when_report_has_no_project(self):
@@ -620,36 +671,28 @@ class TestRequirePlanScopeForReport:
 
     @pytest.mark.asyncio
     async def test_noop_for_calculator_report(self):
-        from app.models.carbon_report import CarbonReportType
-
         project = MagicMock()
         project.carbon_report_type = CarbonReportType.CALCULATOR
-        db = MagicMock()
-        db.get = AsyncMock(return_value=project)
         # Would raise if plan scoping ran; a Calculator report must pass through.
-        await require_plan_scope_for_report(db, MagicMock(), self._report(5), "edit")
+        await require_plan_scope_for_report(
+            self._db(project), _plan_user(2, None), self._report(5), "edit"
+        )
 
     @pytest.mark.asyncio
     async def test_enforces_plan_access_for_plan_report(self):
-        from fastapi import HTTPException
-
-        from app.models.carbon_report import CarbonReportType
-
         project = MagicMock()
         project.carbon_report_type = CarbonReportType.SIMULATOR_PLAN
         project.created_by = 1
         project.is_viewable_by_unit_members = True
-        db = MagicMock()
-        db.get = AsyncMock(return_value=project)
-        non_creator = MagicMock()
-        non_creator.id = 2
-        non_creator.roles = []
-        await require_plan_scope_for_report(db, non_creator, self._report(5), "edit")
+        non_creator = _plan_user(2, RoleName.CO2_USER_STD)
+        await require_plan_scope_for_report(
+            self._db(project), non_creator, self._report(5), "edit"
+        )
 
         project.is_viewable_by_unit_members = False
         with pytest.raises(HTTPException) as exc:
             await require_plan_scope_for_report(
-                db, non_creator, self._report(5), "edit"
+                self._db(project), non_creator, self._report(5), "edit"
             )
         assert exc.value.status_code == 404
 

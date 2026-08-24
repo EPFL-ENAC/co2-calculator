@@ -48,7 +48,8 @@ from app.api.deps import get_current_user, get_db
 from app.api.v1.carbon_report_module_stats import build_validated_totals
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.core.policy import plan_can_manage, plan_is_visible_to, require_unit_access
+from app.core.plan_policy import PlanPolicy
+from app.core.policy import require_unit_access
 from app.models.carbon_report import CarbonReportModule
 from app.models.unit import Unit
 from app.models.user import User
@@ -166,9 +167,7 @@ async def get_workspace_home(
     ]
 
     plans = await SimulatorPlanService(db).list_plans(unit_id)
-    visible_plans = [p for p in plans if plan_is_visible_to(current_user, p)]
-    for plan in visible_plans:
-        plan.can_manage = plan_can_manage(current_user, plan)
+    visible_plans = PlanPolicy.from_unit(current_user, unit).visible(plans)
 
     return WorkspaceHomeResponse(
         carbon_report_id=report.id,

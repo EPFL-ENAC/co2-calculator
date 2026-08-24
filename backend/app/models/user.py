@@ -250,6 +250,14 @@ def calculate_user_permissions(roles: list[Role]) -> dict:
                     permissions.get(f"module.status{scope_key}"),
                     ["edit"],
                 )
+                permissions[f"planner.plans{scope_key}"] = merge_actions(
+                    permissions.get(f"planner.plans{scope_key}"),
+                    ["view", "edit"],
+                )
+                permissions[f"planner.plans{scope_key}/own"] = merge_actions(
+                    permissions.get(f"planner.plans{scope_key}/own"),
+                    ["delete"],
+                )
 
         elif role_name == RoleName.CO2_USER_STD.value:
             # Standard user is own-scoped: own records only. The "/<unit>/own"
@@ -270,6 +278,10 @@ def calculate_user_permissions(roles: list[Role]) -> dict:
                             "edit",
                         ],
                     )
+                )
+                permissions[f"planner.plans{scope_key}"] = merge_actions(
+                    permissions.get(f"planner.plans{scope_key}"),
+                    ["view", "edit", "delete"],
                 )
 
         # SUPER ADMIN - global access to every backoffice page (#862)
@@ -300,6 +312,9 @@ def calculate_user_permissions(roles: list[Role]) -> dict:
                 )
                 permissions["backoffice.logs"] = merge_actions(
                     permissions.get("backoffice.logs"), ["view"]
+                )
+                permissions["planner.plans"] = merge_actions(
+                    permissions.get("planner.plans"), ["view", "edit", "delete"]
                 )
 
     return permissions
