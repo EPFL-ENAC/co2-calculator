@@ -1,7 +1,7 @@
 ---
 issue: 1489
 status: in-progress
-last_updated: 2026-08-23
+last_updated: 2026-08-24
 title: "Data-validation audit and hardening — backend as single source of truth"
 summary:
   "Slice 1 of #1489: a systematic audit of every documented data rule (back-office
@@ -16,84 +16,85 @@ summary:
 
 # Data-validation audit (#1489)
 
-## Résumé en français — guide de lecture
+## Reading guide — plain-language summary
 
-> Cette section explique le document en langage simple. Le détail technique
-> (les tableaux A–E plus bas) est la **preuve** ; tout se comprend avec ce
-> résumé et le tableau des suites (section E).
+> This section explains the document in plain language. The technical detail
+> (tables A–E below) is the **evidence**; everything can be understood from
+> this summary plus the follow-up table (section E).
 
-### Le problème de départ
+### The starting problem
 
-Le [site de doc](https://epfl-enac.github.io/co2-calculator-back-office-doc/data-description)
-décrit les règles de chaque donnée (champ obligatoire, valeur ≥ 0, nom exact
-des colonnes CSV…). Personne n'avait jamais vérifié si le code les applique
-vraiment. Le bug #1545 a montré que non : une colonne mal orthographiée
-(`room_surface_square_meters`, un « s » de trop) a **effacé silencieusement la
-surface de toutes les salles** pendant que le job affichait SUCCÈS — et ensuite
-plus rien ne se calculait, sans message d'erreur.
+The [doc site](https://epfl-enac.github.io/co2-calculator-back-office-doc/data-description)
+describes the rules for every piece of data (required field, value ≥ 0, exact
+CSV column names…). Nobody had ever checked whether the code actually enforces
+them. Bug #1545 showed it doesn't: one misspelled column
+(`room_surface_square_meters`, one extra "s") **silently wiped the surface of
+every room** while the job reported SUCCESS — and then nothing computed
+anymore, with no error message anywhere.
 
-### L'idée clé : 4 chemins, pas 200 champs
+### The key idea: 4 paths, not 200 fields
 
-Les données entrent dans l'appli par **quatre chemins**, chacun avec son propre
-code de vérification :
+Data enters the app through **four paths**, each with its own validation code:
 
-- **P1** — CSV back-office (données de référence + facteurs d'émission)
-- **P2** — CSV d'entrées (upload en masse par les utilisateurs)
-- **P3** — les formulaires web (le quotidien)
-- **P4** — CSV d'objectifs de réduction
+- **P1** — back-office CSVs (reference data + emission factors)
+- **P2** — entry CSVs (bulk upload by users)
+- **P3** — the web forms (day-to-day use)
+- **P4** — reduction-objective CSVs
 
-Presque tous les trous sont des trous **de chemin** : un chemin qui ignore les
-colonnes inconnues touche _tous_ les modules qui y passent. P4 était le seul
-chemin bien fait (chaque ligne validée, toutes les erreurs remontées, rien
-d'enregistré si une ligne est mauvaise) — les corrections copient ce modèle,
-elles n'inventent rien.
+Almost every hole is a **path** hole: a path that ignores unknown columns
+affects _every_ module that goes through it. P4 was the only well-built path
+(every row validated, all errors reported, nothing persisted if any row is
+bad) — the fixes copy that model, they invent nothing.
 
-### Ce que l'audit a trouvé (les 4 exemples qui résument tout)
+### What the audit found (the 4 examples that summarize everything)
 
-1. **La typo qui efface une table** (#1545) : colonne inconnue → simple
-   warning dans un log que personne ne lit → `NULL` silencieux → la table est
-   remplacée entière → SUCCÈS affiché. _(Corrigé par #2216.)_
-2. **« On valide… puis on jette »** : l'upload de facteurs validait chaque
-   ligne puis **ignorait le résultat** et enregistrait les valeurs brutes — un
-   nombre arrivé en texte restait du texte en base. _(Corrigé par #2231.)_
-3. **Les formulaires acceptent n'importe quel champ** : les 15 schémas de
-   création testés acceptent et stockent `typo_field_xyz: 42`. Pire : une clé
-   nommée `data` contourne toute la validation. _(Encore ouvert — S5.)_
-4. **Le silence au calcul** : une entrée qui ne trouve pas son facteur ne
-   produisait **rien** au lieu d'une erreur — c'est ce qui transforme toutes
-   les données pourries silencieuses en « mes résultats ont disparu ».
-   _(En cours de correction via #2091 / #2050 / #1186.)_
+1. **The typo that wipes a table** (#1545): unknown column → a warning in a
+   log nobody reads → silent `NULL` → the whole table is replaced → SUCCESS
+   reported. _(Fixed by #2216.)_
+2. **"Validate… then throw it away"**: the factor upload validated every row
+   then **discarded the result** and persisted the raw values — a number that
+   arrived as text stayed text in the database. _(Fixed by #2231.)_
+3. **Forms accept any field**: all 15 create schemas probed accept and store
+   `typo_field_xyz: 42`. Worse: a key named `data` bypasses validation
+   entirely. _(Still open — S5.)_
+4. **Silence at compute time**: an entry that can't find its factor produced
+   **nothing** instead of an error — this is what turns all the silent bad
+   data into "my results disappeared". _(Being fixed via #2091 / #2050 /
+   #1186.)_
 
-Et **7 cas où c'est la doc qui est fausse**, pas le code (section D, pour
-@martina-gallato) — ex. la doc dit `"1-5 times per day"` mais le backend
-stocke `1_5` et rejette le libellé : un CSV écrit en suivant la doc échoue.
+Plus **7 cases where the doc is wrong**, not the code (section D, for
+@martina-gallato) — e.g. the doc says `"1-5 times per day"` but the backend
+stores `1_5` and rejects the label: a CSV written by following the doc fails.
 
-### Ce qui est déjà corrigé
+### What is already fixed
 
-- **#2216** (par @guilbep) : colonne inconnue dans un CSV de référence =
-  erreur dure, avant tout effacement. → F-1 ✅
-- **#2231** (mergée, **v1.4.0**), 4 commits :
-  1. les installations animales rejettent enfin `use = -5` et les ids vides ;
-  2. `"   "` (que des espaces) est refusé dans tout champ obligatoire, sur
-     tous les modules ;
-  3. l'upload de facteurs enregistre les **valeurs validées** (la
-     classification reste construite à la main — l'index d'identité 310B en
-     dépend), et `"12,5"` fait échouer l'upload au lieu de devenir NULL ;
-  4. les formulaires connaissent les mêmes règles que le backend
-     (required/min/max manquants) et « que des espaces » = vide côté client.
+- **#2216** (by @guilbep): unknown column in a reference CSV = hard error,
+  before anything is wiped. → F-1 ✅
+- **#2231** (merged, **v1.4.0**), 4 commits:
+  1. animal facilities finally reject `use = -5` and empty ids;
+  2. `"   "` (whitespace-only) is refused in every required string field,
+     across all modules;
+  3. the factor upload persists the **validated values** (classification stays
+     hand-built — the 310B identity index depends on it), and `"12,5"` fails
+     the upload instead of becoming NULL;
+  4. the forms know the same rules as the backend (missing required/min/max)
+     and whitespace-only counts as empty client-side.
+- **#2291** (merged): a regression test pinning that accepted rows persist
+  their DTO-normalized form (`"  CHF "` → `"chf"`) — the executable answer to
+  "why keep the validator's return value".
 
-### Ce qu'il reste à faire
+### What remains to be done
 
-| Quoi                         | En une phrase                                                                                                                                                               | Bloqué par                           |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| **Merger cette PR**          | Ce document est le plan de référence de #1489.                                                                                                                              | review @guilbep                      |
-| **S3**                       | Les CSV d'entrées (P2) ignorent encore silencieusement les colonnes inconnues — l'interrupteur `strict_column_validation` existe dans le code mais n'est activé nulle part. | feu vert @guilbep (change un défaut) |
-| **S5**                       | Fermer les deux trous des formulaires (champs inventés stockés, contournement par la clé `data`), en promouvant d'abord `percentage_of_reference_year` en vrai champ.       | signature @guilbep (permissions)     |
-| **S7**                       | Test de contrat : le backend exporte ses règles en JSON, le frontend se teste contre — la parité ne peut plus dériver.                                                      | simple accord                        |
-| **S8**                       | Tests Playwright contre un vrai backend (= la case 2 de #1489).                                                                                                             | parké — infra CI                     |
-| **3 questions produit**      | `min: 0.001` côté FE là où le backend accepte 0 ; forcer les entiers côté FE ; F-13 : l'Explorer pré-remplit `fte_count = 0` que les deux côtés rejettent.                  | réponse produit                      |
-| **Section D → data manager** | Transmettre les 7 corrections de doc à @martina-gallato.                                                                                                                    | un commentaire sur #1489             |
-| **#1545**                    | Couvert par #2216 + #2231 ; à fermer si Martina valide.                                                                                                                     | @martina-gallato                     |
+| What                         | In one sentence                                                                                                                                   | Blocked on                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| **Merge this PR**            | This document is the reference plan for #1489.                                                                                                    | review @guilbep                       |
+| **S3**                       | Entry CSVs (P2) still silently ignore unknown columns — the `strict_column_validation` switch exists in the code but is enabled nowhere.          | go-ahead @guilbep (changes a default) |
+| **S5**                       | Close the two form holes (invented fields stored, bypass via the `data` key), first promoting `percentage_of_reference_year` to a real field.     | sign-off @guilbep (permissions)       |
+| **S7**                       | Contract test: the backend exports its rules as JSON, the frontend tests itself against them — parity can no longer drift.                        | simple ack                            |
+| **S8**                       | Playwright tests against a real backend (= checkbox 2 of #1489).                                                                                  | parked — CI infra                     |
+| **3 product questions**      | FE `min: 0.001` where the backend accepts 0; enforce integers client-side; F-13: the Explorer pre-fills `fte_count = 0`, which both sides reject. | product answer                        |
+| **Section D → data manager** | Hand the 7 doc corrections to @martina-gallato.                                                                                                   | one comment on #1489                  |
+| **#1545**                    | Covered by #2216 + #2231; to be closed once Martina confirms.                                                                                     | @martina-gallato                      |
 
 ---
 
