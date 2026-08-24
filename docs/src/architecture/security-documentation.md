@@ -43,21 +43,24 @@ than leaving them implied by an unticked box.
 that plainly is more useful than leaving question marks in the DRP.
 What _is_ measured:
 
-| Stage                | Actual capability                                                                                                                                                         |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Detection            | 1–10 minutes. `PodOOMKilled` fires at 1 min; `PodNotReady`, `PVCAlmostFull` and `ImagePullBackOff` at 5 min; `BackendMetricsAbsent`, the total-outage detector, at 10 min |
-| Application symptoms | 5 minutes — latency P50/P95/P99 and error-rate alerts; upload and job SLO breaches at 15 min                                                                              |
-| Notification         | ~30 s after an alert fires, by email to the sysadmin group; re-sent every 4 h until resolved, and again on recovery                                                       |
-| External check       | Icinga probes HTTPS, certificate validity and the database from outside the cluster                                                                                       |
-| Restore, application | Minutes — ArgoCD auto-sync and self-heal reconcile a bad deploy; revert the GitOps commit and it rolls back                                                               |
-| Restore, database    | **Not under our control** — requested from EPFL DSI by ticket; DSI has not published DBaaS RPO or RTO                                                                     |
-| Restore, files       | **Not possible** — buckets have versioning disabled, so a deleted or overwritten object is gone                                                                           |
+| Stage                | Actual capability                                                                                                                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Detection            | 1–10 minutes. `PodOOMKilled` fires at 1 min; `PodNotReady`, `PVCAlmostFull` and `ImagePullBackOff` at 5 min; `BackendMetricsAbsent`, the total-outage detector, at 10 min                        |
+| Application symptoms | 5 minutes — latency P50/P95/P99 and error-rate alerts; upload and job SLO breaches at 15 min                                                                                                     |
+| Notification         | ~30 s after an alert fires, by email to the sysadmin group; re-sent every 4 h until resolved, and again on recovery                                                                              |
+| External check       | Icinga probes HTTPS, certificate validity and the database from outside the cluster                                                                                                              |
+| Restore, application | Minutes — ArgoCD auto-sync and self-heal reconcile a bad deploy; revert the GitOps commit and it rolls back                                                                                      |
+| Restore, database    | **Not under our control** — requested from EPFL DSI by ticket; DSI has not published DBaaS RPO or RTO                                                                                            |
+| Restore, files       | **Not possible, by decision** — buckets have versioning disabled. Object storage stages ingestion files; the durable record is in PostgreSQL, and a lost CSV is re-uploaded rather than restored |
 
-Detection and application recovery are ours and are fast. Data recovery
-depends on EPFL DSI for the database, and does not exist for object
-storage. Those two are the honest answer to "availability within agreed
-timeframes", and closing them means a conversation with DSI and a
-decision on bucket versioning — not a code change.
+Detection and application recovery are ours and are fast. Database
+recovery depends on EPFL DSI, who publish no DBaaS RPO or RTO — that is
+the one remaining unknown, and it is a conversation, not a code change.
+
+Object storage is deliberately not versioned. It holds ingestion files
+in transit (`tmp/`, `processing/`, `processed/`); the emission data they
+produce lives in PostgreSQL and is backed up there. Paying for version
+history on a staging area would protect a copy, not the record.
 
 Alert rules and routing live in the private ops repository under
 `overlays/<env>/monitoring/`.

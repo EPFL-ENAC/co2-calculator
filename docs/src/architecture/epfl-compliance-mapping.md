@@ -127,10 +127,10 @@ encrypted.
 
 **Status**: ✅ **COMPLIANT** (P0)
 
-| Type           | Method                                             | Retention                         | Testing         |
-| -------------- | -------------------------------------------------- | --------------------------------- | --------------- |
-| Database       | PostgreSQL WAL + daily full                        | 30d daily, 1y monthly             | Monthly restore |
-| Object Storage | EPFL-hosted S3, encryption enabled at provisioning | No versioning — deletes are final | Not tested      |
+| Type           | Method                                             | Retention                                | Testing         |
+| -------------- | -------------------------------------------------- | ---------------------------------------- | --------------- |
+| Database       | PostgreSQL WAL + daily full                        | 30d daily, 1y monthly                    | Monthly restore |
+| Object Storage | EPFL-hosted S3, encryption enabled at provisioning | Not versioned by decision — staging only | n/a             |
 
 **Recovery**: Database restore is requested from EPFL DSI;
 procedures are in the Disaster Recovery Plan in the private ops
