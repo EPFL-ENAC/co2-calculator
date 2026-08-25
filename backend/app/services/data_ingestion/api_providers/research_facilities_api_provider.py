@@ -131,8 +131,8 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
         # TRUNC_YEAR function on it ("wrong type"), and rejects filtering on
         # it unless it's also an output field ("field not defined"). So VDS
         # returns SUM(amount) grouped at date_iso's native (month) grain —
-        # collapse those monthly rows into one annual total per facility
-        # here instead.
+        # collapse those monthly rows into one annual total per (facility, unit)
+        # here instead (facility IDs are only unique within a unit).
         yearly_totals: dict[tuple[str, str | None], dict[str, Any]] = {}
         for row in monthly_rows:
             key = (row["researchfacility_id"], row["unit_institutional_id"])
