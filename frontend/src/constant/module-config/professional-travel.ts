@@ -5,6 +5,7 @@ import type { ProfessionalTravelSubType } from 'src/constant/modules';
 
 // "Other traveler" sentinels + resolver live in a standalone light module so
 // they stay unit-testable (issue #1153); re-exported here for convenience.
+import { TRAVELER_OTHER_INTERNAL } from 'src/constant/module-config/traveler-options';
 export {
   TRAVELER_OTHER_INTERNAL,
   TRAVELER_OTHER_EXTERNAL,
@@ -93,6 +94,9 @@ const commonTravelFields: ModuleField[] = [
     sortable: false,
     ratio: '1/1',
     editableInline: false,
+    // Explorer has no headcount roster of its own to pick a traveler from,
+    // so default to the "Other traveler (internal)" sentinel.
+    explorerDefault: TRAVELER_OTHER_INTERNAL,
     hideIn: {
       table: true,
     },
