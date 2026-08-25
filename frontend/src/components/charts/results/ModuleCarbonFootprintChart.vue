@@ -679,6 +679,30 @@ const datasetSource = computed(() => {
     additional: false,
     __hasStats: false,
   }));
+  // Add placeholders for additional categories that are missing from the backend response,
+  // but only if the toggle is on. These categories are always considered "not validated"
+  // (no stats) when missing.
+  if (effectiveToggle.value) {
+    const additionalPresentKeys = new Set(
+      props.breakdownData.additional_breakdown.map((entry) =>
+        String(entry.category_key ?? entry.category ?? ''),
+      ),
+    );
+    const additionalMissingPlaceholders = [
+      ...ADDITIONAL_HEADCOUNT_CATEGORIES,
+      ...ADDITIONAL_BUILDINGS_CATEGORIES,
+    ]
+      .filter((key) => !additionalPresentKeys.has(key))
+      .map((key) => ({
+        category: key,
+        category_key: key,
+        scope: 3 as const,
+        additional: true,
+        __validated: false,
+        __hasStats: false,
+      }));
+    missingPlaceholders.push(...additionalMissingPlaceholders);
+  }
 
   const baseData = collapseByCategory(
     [
