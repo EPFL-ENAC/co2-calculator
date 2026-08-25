@@ -31,4 +31,8 @@ export default {
     fr: "Personnel d'exploitation",
     en: 'Operational staff',
   },
+  '-1': {
+    fr: 'Autre personnel',
+    en: 'Other staff',
+  },
 } as const;

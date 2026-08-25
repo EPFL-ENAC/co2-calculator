@@ -98,6 +98,7 @@ make build         # Build projects
 ### Code Quality
 
 [![Codecov](https://codecov.io/gh/EPFL-ENAC/co2-calculator/branch/main/graph/badge.svg?flag=backend)](https://codecov.io/gh/EPFL-ENAC/co2-calculator)
+[![Claude Code carbon footprint](https://img.shields.io/badge/claude--carbon-19.8%20kg%20CO2e-2f6f4f)](https://github.com/gwittebolle/claude-carbon)
 
 ### Security & Status
 

@@ -154,9 +154,10 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
-import { useRoute } from 'vue-router';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { runtimeConfig } from 'src/config/runtime';
+import { pickDefaultYear } from 'src/router/guards/redirectToDefaultRoute';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 
 import {
   useSimulatorPlansStore,
@@ -169,8 +170,8 @@ const emit = defineEmits<{ updated: [plan: SimulatorPlan] }>();
 
 const { t } = useI18n();
 const $q = useQuasar();
-const route = useRoute();
 const plansStore = useSimulatorPlansStore();
+const yearConfigStore = useYearConfigStore();
 
 const sectionTooltip = computed(() => t('planner-project-info-section-title'));
 const grantProposalTooltip = computed(() => t('planner-grant-proposal-title'));
@@ -184,11 +185,12 @@ const saving = ref(false);
 const generatingSections = ref(false);
 
 // Whether the plan currently has per-year sections is not a plan column; it
-// is derived from its reports (a plan with none yet defaults to having them).
+// is derived from its reports (a plan with none yet starts without them,
+// like the grant checkbox).
 const persistedYearByYear = computed(() =>
   plansStore.planYears.length
     ? plansStore.planYears.some((y) => !y.is_grant)
-    : true,
+    : false,
 );
 // null = untouched, mirror the persisted state (which arrives async).
 const yearByYearInput = ref<boolean | null>(null);
@@ -269,6 +271,14 @@ const sectionTypeSelected = computed(
   () => grantProposalInput.value || yearByYearChecked.value,
 );
 
+// Default reference year is today's year - 1; when that year isn't open
+// in the Calculator, fall back to the latest open year.
+function defaultReferenceYear(): number {
+  const target = new Date().getFullYear() - 1;
+  const open = yearConfigStore.startedYears;
+  return open.has(target) ? target : pickDefaultYear(open);
+}
+
 /**
  * Create/update one CarbonReport per year in the selected range, plus the
  * Project Grant report when the plan is a grant proposal. Made an explicit,
@@ -289,7 +299,7 @@ async function generateSections() {
   if (start !== null && end !== null) {
     payload.start_year = start;
     payload.end_year = end;
-    payload.default_reference_year = Number(route.params.year);
+    payload.default_reference_year = defaultReferenceYear();
   }
 
   generatingSections.value = true;
@@ -310,7 +320,6 @@ async function generateSections() {
 }
 
 async function defaultGrantReferenceYear() {
-  if (props.plan.default_factor_year === null) return;
   const grantYear = plansStore.planYears.find(
     (y) => y.is_grant && y.reference_year === null,
   );
@@ -319,7 +328,7 @@ async function defaultGrantReferenceYear() {
     await plansStore.setReferenceYear(
       props.plan.id,
       grantYear.year,
-      props.plan.default_factor_year - 1,
+      defaultReferenceYear(),
       true,
     );
   } catch {

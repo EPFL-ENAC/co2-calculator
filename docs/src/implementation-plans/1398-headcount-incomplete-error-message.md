@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: delivered
 issue: 1398
 last_updated: 2026-07-07
 title: "Clarify re-upload vs recalculate messaging on partial CSV ingestion"

@@ -71,7 +71,7 @@
                   :key="`date-${inp.id}-${dateInputKey}`"
                   :model-value="String(form[inp.id] || '')"
                   bordered
-                  mask="####/##/##"
+                  :mask="DATE_INPUT_MASK"
                   :rules="getDateRules(inp.required)"
                   :label="
                     $t(`${inp.labelKey || inp.label}`, {
@@ -152,7 +152,7 @@
               </template>
               <template v-else-if="inp.type === 'headcount-member-select'">
                 <HeadcountMemberSelect
-                  :key="headcountMemberCount"
+                  :key="`${headcountMemberCount}-${headcountSelectKey}`"
                   :model-value="form[inp.id] ?? null"
                   :unit-id="props.unitId"
                   :year="props.year"
@@ -166,10 +166,15 @@
                   @update:model-value="(val) => (form[inp.id] = val)"
                 />
               </template>
+              <!-- Long option lists: purchases run to thousands of UNSPSC
+                   codes, research facilities to ~90 platforms and growing.
+                   Both need type-ahead and a loading state; a plain QSelect
+                   offers neither. -->
               <VirtualSelectField
                 v-else-if="
                   (inp.optionsId === 'kind' || inp.optionsId === 'subkind') &&
-                  moduleType === MODULES.Purchase
+                  (moduleType === MODULES.Purchase ||
+                    moduleType === MODULES.ResearchFacilities)
                 "
                 :model-value="form[inp.id]"
                 :options="getFilteredOptions(inp)"
@@ -208,9 +213,9 @@
                 :loading="false"
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
-                :min="inp.min"
-                :max="inp.max"
-                :step="inp.step"
+                :min="getBounds(inp).min"
+                :max="getBounds(inp).max"
+                :step="getBounds(inp).step"
                 :dense="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :outlined="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :readonly="isReadOnly(inp)"
@@ -337,6 +342,11 @@ import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
 import { resolveFactorYear } from 'src/utils/factor-year';
+import {
+  DATE_INPUT_MASK,
+  isValidCalendarDate,
+  matchesDateInputFormat,
+} from 'src/utils/date';
 import { createFieldInteractionTracker } from 'src/utils/fieldInteraction';
 import { isTravelLocationResolved } from 'src/utils/directionLocationValidation';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
@@ -459,6 +469,34 @@ const visibleFieldsWithConditional = computed(() => {
 });
 
 // Generic dynamic ratio handling
+// #2007 — a quantity whose unit decides its bounds (a research facility's
+// `use`: 0-100 as a %, whole numbers as animal housings). Mirrors the backend
+// USE_BOUNDS table; the static min/max stay the default.
+function getBounds(inp: ModuleField): {
+  min?: number;
+  max?: number;
+  step?: number;
+  integer: boolean;
+} {
+  const fallback = {
+    min: inp.min,
+    max: inp.max,
+    step: inp.step,
+    integer: false,
+  };
+  if (!inp.conditionalBounds) return fallback;
+  const selector = form[inp.conditionalBounds.fieldId];
+  if (typeof selector !== 'string') return fallback;
+  const bounds = inp.conditionalBounds.byValue[selector];
+  if (!bounds) return fallback;
+  return {
+    min: inp.min,
+    max: bounds.max ?? inp.max,
+    step: bounds.integer ? 1 : inp.step,
+    integer: bounds.integer === true,
+  };
+}
+
 function getDynamicRatio(inp: ModuleField): string | undefined {
   if (inp.conditionalRatio) {
     const { when, ratio } = inp.conditionalRatio;
@@ -625,24 +663,13 @@ function getFilteredOptions(
   return opts;
 }
 
-function isValidCalendarDate(val: string): boolean {
-  const parts = val.split(/[/.]/).map(Number);
-  if (parts.length !== 3) return false;
-  const [year, month, day] = parts;
-  const date = new Date(year, month - 1, day);
-  return (
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day
-  );
-}
-
 const dateInputKey = ref(0);
+const headcountSelectKey = ref(0);
 
 function getDateRules(required?: boolean) {
   const dateFormatRule = (val: string) => {
     if (!val || val === '') return required ? $t('validation_required') : true;
-    if (!/^\d{4}([/.])\d{2}\1\d{2}$/.test(val))
+    if (!matchesDateInputFormat(val))
       return $t('validation_invalid_date_format');
     if (!isValidCalendarDate(val)) return $t('validation_invalid_date');
     return true;
@@ -670,6 +697,11 @@ const subkindFieldId = computed(() => {
   return subkindField ? subkindField.id : null;
 });
 
+const kindLabelField = computed(() => {
+  const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
+  return kindField?.optionsLabelField ?? null;
+});
+
 // Factor fields populated on class/subclass selection. Each id must match a
 // key in the factor /values response.
 // - factorValueFieldIds: read-only fields always mirrored from the factor.
@@ -688,6 +720,11 @@ if (props.moduleType === MODULES.Equipment) {
   props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion
 ) {
   factorValueFieldIds.push('unit');
+} else if (props.moduleType === MODULES.ResearchFacilities) {
+  // #2007: the name is the factor's own classification label and the unit must
+  // string-equal the factor's or the emission formula raises — both are mirrored
+  // from the picked platform, never typed.
+  factorValueFieldIds.push('researchfacility_name', 'use_unit');
 }
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
@@ -697,6 +734,7 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
     {
       classFieldId: kindFieldId.value ?? undefined,
       subClassFieldId: subkindFieldId.value ?? undefined,
+      classLabelField: kindLabelField.value ?? undefined,
       fetchFactorValuesOnChange: true,
       valueFieldIds: factorValueFieldIds,
       defaultValueFieldIds: factorDefaultFieldIds,
@@ -971,7 +1009,7 @@ function validateField(i: ModuleField) {
     }
     if (v && v !== '') {
       const dateStr = String(v);
-      if (!/^\d{4}([/.])\d{2}\1\d{2}$/.test(dateStr)) {
+      if (!matchesDateInputFormat(dateStr)) {
         errors[i.id] = $t('validation_invalid_date_format');
         return false;
       }
@@ -1090,10 +1128,18 @@ function validateField(i: ModuleField) {
       errors[i.id] = $t('validation_number_format');
     } else {
       const n = Number(s);
-      if (i.min !== undefined && n < i.min)
-        errors[i.id] = $t('validation_must_be_at_least', { min: i.min });
-      else if (i.max !== undefined && n > i.max)
-        errors[i.id] = $t('validation_must_be_at_most', { max: i.max });
+      const bounds = getBounds(i);
+      if (bounds.min !== undefined && n < bounds.min)
+        errors[i.id] = $t('validation_must_be_at_least', { min: bounds.min });
+      else if (bounds.max !== undefined && n > bounds.max)
+        errors[i.id] = $t('validation_must_be_at_most', { max: bounds.max });
+      else if (bounds.integer && !Number.isInteger(n))
+        errors[i.id] = $t('validation_must_be_whole_number');
+      else if (
+        i.maxDecimals !== undefined &&
+        (s.split('.')[1]?.length ?? 0) > i.maxDecimals
+      )
+        errors[i.id] = $t('validation_max_decimals', { max: i.maxDecimals });
     }
   }
   return !errors[i.id];
@@ -1210,6 +1256,7 @@ function reset() {
   });
   fieldInteraction.clear();
   dateInputKey.value++;
+  headcountSelectKey.value++;
 }
 
 function getGridClass(ratio?: string): string {

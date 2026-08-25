@@ -1,9 +1,9 @@
 ---
 status: delivered
 issue: 2220
-last_updated: 2026-08-21
+last_updated: 2026-08-25
 title: "S3 HeadObject 404s: root cause, and the S3-vs-stop-vs-PVC decision"
-summary: "Most of the 32 HeadObject 404s/24h are expected, already-handled existence checks from the #1559 idempotent-move fix, mis-flagged as span errors by OTel's botocore auto-instrumentation — not a data-loss bug. The remaining genuine 'Failed to move file' failures were unexplained because two layers of exception-swallowing (vendored enacit4r-files, then this repo's generic re-raise) discarded the real cause; fixed here. PVC is not adopted: dev already runs 3 backend replicas + 1 worker pod needing ReadWriteMany, and no RWX storage class is evidenced anywhere in the ops repo."
+summary: "Root cause found live on 2026-08-25: the genuine 'Failed to move file' failures happen when a laptop running `make dev` with .env pointed at the shared dev DB polls and claims dev's ingestion jobs, then resolves their uploaded files against its own LocalFilesStore — the file sits untouched in S3 the whole time. Fixed with a fail-closed boot guard (assert_poller_isolation). The recurring HeadObject-404 error spans are expected, already-handled existence checks from the #1559 idempotent-move fix, mis-flagged by OTel's botocore auto-instrumentation — confirmed by correlating a live 'error' trace with its succeeding job. PVC is not adopted: dev already runs 3 backend replicas + 1 worker pod needing ReadWriteMany, and no RWX storage class is evidenced anywhere in the ops repo."
 ---
 
 # S3 HeadObject 404s: root cause, and the S3-vs-stop-vs-PVC decision
@@ -14,11 +14,48 @@ Builds on the upload-path work in
 [#2261](https://github.com/EPFL-ENAC/co2-calculator/pull/2266) and the
 already-shipped idempotent-move fix in
 [#1559](1559-ingestion-idempotent-tmp-to-processing-move.md). Read
-[§5 of #1402's plan](1402-trim-down-alerting.md#5-workstream-c--upload--storage)
-for the earlier, abstract S3/PVC/local-staging comparison — this doc grounds
-that comparison in the actual bug and the actual dev cluster topology.
+[#1402's plan](1402-trim-down-alerting.md) for the surrounding alerting
+work — its earlier, abstract S3/PVC/local-staging comparison has since been
+rewritten out of that document, and this doc grounds the comparison in the
+actual bug and the actual dev cluster topology instead.
 
 ## Root cause
+
+> **2026-08-25 update — the genuine failures are now root-caused, live.**
+> A `Failed to move file … source no longer exists` failure was reproduced
+> in dev (jobs 90 and 92) while the earlier jobs of the same day (3–87)
+> had all succeeded. The discriminator was `data_ingestion_jobs.locked_by`:
+> the succeeding jobs were claimed by `co2-calculator-worker-…` (the dev
+> worker pod); the failing ones by `ENACITM-C018252` — a **laptop** running
+> `make dev` with `backend/.env` pointed at the shared dev database
+> (started 14:23, failures start 14:41). `RUN_BACKGROUND_POLLER` defaults
+> to true, so the laptop's poller claimed dev's freshly-created CSV jobs;
+> with no S3 credentials locally, `make_files_store()` fell through to
+> `LocalFilesStore`, which looked for the uploaded file in `./files_storage`
+> — hence "source no longer exists" seconds after a successful upload,
+> while the object sat untouched in S3's `tmp/`. DB-only jobs
+> (emission_recalc, aggregation) claimed by the laptop _succeeded_, which
+> is why the symptom only ever hit file-backed jobs. The 2026-08-20
+> incident (12 of 14 uploads failing during working hours, "self-healing"
+> outside them) matches this mechanism exactly; its job rows were lost to
+> a DB reseed, so its `locked_by` can no longer be checked directly.
+>
+> Fix shipped in this PR: `assert_poller_isolation` in `app/main.py` — a
+> boot-time lifespan check (per the guardrails' "boot-time config checks
+> live in the FastAPI lifespan") that refuses to start a
+> `LOCAL_ENVIRONMENT=True` instance whose poller would claim jobs from a
+> non-local DB host, with regression tests in
+> `tests/unit/core/test_startup_checks.py`. The pod-heartbeat work (#1080)
+> had already flagged this exact hazard ("a dev branch running locally
+> against the stage DB silently collided with the deployed stage app") but
+> only _surfaced_ it; this closes it.
+>
+> §1 below was also confirmed live the same day: a worker "error" trace
+> (single root `S3.HeadObject` 404 span, `exception.escaped: false`,
+> 14:38:50) correlated with job 75, which **succeeded** — the span is the
+> `_move_to_processing` idempotency pre-check. The sections below predate
+> the reproduction and stand as the (correct but then-incomplete)
+> elimination work.
 
 **Two separate things are being conflated by the issue's framing, and
 they need separate fixes.**
@@ -82,9 +119,9 @@ than trusting this doc.
 ### 2. The genuine "Failed to move file" failures were unexplained by design — two layers of swallowing
 
 When a move genuinely fails (destination absent, `move_file()` itself
-returns `False`), the exact question the issue asks — *"why does the
+returns `False`), the exact question the issue asks — _"why does the
 application expose the error as 'Failed to move file' instead of exposing
-the underlying 404?"* — has a precise answer:
+the underlying 404?"_ — has a precise answer:
 
 1. **`S3FilesStore.move_file`** (vendored `enacit4r-files@1.0.0`,
    `s3.py:886-915`) wraps its entire copy+delete operation in
@@ -96,7 +133,7 @@ the underlying 404?"* — has a precise answer:
    `base_provider.py`, pre-fix) then raised a generic
    `Exception(f"Failed to move file from {tmp_path} to {processing_path}")`
    — the only information left by that point is which two paths were
-   involved, nothing about *why*.
+   involved, nothing about _why_.
 
 Neither layer is a data-loss race by itself. The job-claim path
 (`backend/app/repositories/data_ingestion.py:1282-1295`,
@@ -114,7 +151,7 @@ not forked (per AGENTS.md, and per PR #2266's identical finding about the
 double `PutObject`/`HeadObject`). Filed upstream instead:
 [enacit4r-files#24](https://github.com/EPFL-ENAC/enacit4r-files/issues/24).
 **Layer 2 is fixed in this PR** — see [Implemented](#implemented) below.
-The fix diagnoses *why* a move failed (source gone vs. source present) by
+The fix diagnoses _why_ a move failed (source gone vs. source present) by
 asking `file_exists()` again at the failure point; this is the best this
 repo can do without the upstream fix, and it still leaves the true
 storage-level exception undiscoverable until `enacit4r-files` stops
@@ -142,7 +179,7 @@ Read in full (`enacit4r_files/services/local.py`). Findings:
   `os.rename()` first — **atomic on POSIX when source and destination are
   on the same filesystem**, which they are here (`tmp/`, `processing/`,
   `processed/` are all subdirectories under one `base_path`). This is safe
-  *if* the underlying network filesystem honors POSIX rename atomicity
+  _if_ the underlying network filesystem honors POSIX rename atomicity
   (CephFS and NFSv4 do; older NFSv3 implementations have historically had
   caveats — needs confirming against whatever EPFL's cluster actually
   provisions, see below).
@@ -153,7 +190,7 @@ Read in full (`enacit4r_files/services/local.py`). Findings:
   doesn't actually arise here; paths across concurrent jobs never collide.
 - The same blanket-`except`-swallows-the-real-error pattern exists here
   too (`move_file`/`copy_file`/`file_exists`, `local.py:264-269, 300-306,
-  339-345`) — a PVC swap would not by itself fix the "Failed to move file"
+339-345`) — a PVC swap would not by itself fix the "Failed to move file"
   observability gap; it would just change which backend's exception gets
   swallowed. The app-level diagnosis fix in this PR helps identically for
   both backends.
@@ -170,8 +207,8 @@ independent of storage-class availability.**
 runs **3 backend replicas + 1 separate worker pod**
 (`worker.enabled=true`, confirmed live by the trace's own
 `k8s.pod.name: co2-calculator-worker-84769ffb78-hdqhk`, and by the
-overlay's own comment: *"dev runs 3 backend + 1 worker = up to 120
-possible [connections]"*). A `ReadWriteOnce` PVC binds to a single node;
+overlay's own comment: _"dev runs 3 backend + 1 worker = up to 120
+possible [connections]"_). A `ReadWriteOnce` PVC binds to a single node;
 with 4 pods across a Deployment + a separate worker Deployment, OpenShift
 gives no guarantee they land on the same node — an RWO PVC would routinely
 leave the worker (or two of the three backend replicas) unable to see
@@ -214,7 +251,7 @@ diagnostic value across two exception-swallowing layers. Both are
 addressed without an architecture change:
 
 - (a) is an observability/alerting-configuration problem, not a code bug —
-  see [Left as a written proposal](#left-as-a-written-proposal).
+  see [Left as a written proposal](#left-as-a-written-proposal-not-implemented-here).
 - (b) is fixed at the one layer this repo owns (see below); the deeper fix
   belongs to `enacit4r-files` and is filed upstream.
 
@@ -227,6 +264,11 @@ assumed.
 
 ## Implemented
 
+- **(2026-08-25)** `backend/app/main.py`: `assert_poller_isolation` — the
+  fail-closed boot guard for the actual root cause (local poller claiming
+  shared-DB jobs, see the update at the top), with regression tests in
+  `backend/tests/unit/core/test_startup_checks.py` and a warning note next
+  to `RUN_BACKGROUND_POLLER` in `backend/.env.example`.
 - `backend/app/services/data_ingestion/base_provider.py`:
   `_move_to_processing`/`_move_to_processed` now call a new
   `_diagnose_move_failure()` helper when `move_file()` returns `False`,
@@ -259,7 +301,7 @@ assumed.
   `route_class` work in #1402) downgrade or drop span-error status for
   `S3.HeadObject` 404s specifically, since a 404 from an existence check
   is not, on its own, evidence of anything wrong; or (b) alert on the
-  *rate* of "Failed to move file" **application log lines** (a much rarer,
+  _rate_ of "Failed to move file" **application log lines** (a much rarer,
   always-genuine event) instead of on `S3.HeadObject` error-status spans.
   Not implemented here: alerting-rule ownership for this app currently
   sits with the active #1402 effort (`openshift-app-config` PRs #8-#11),

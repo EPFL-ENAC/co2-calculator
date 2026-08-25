@@ -1,5 +1,6 @@
 ---
-status: draft
+status: delivered
+issue: 1153
 last_updated: 2026-08-14
 title: "Travel traveller resolution: replace string sentinels with -1 / null — PRD"
 summary: "Replace the __other_internal__ / __other_external__ user_institutional_id hack (issue #1153) with a deterministic, backward-compatible representation: '-1' for explicit Internal other, JSON null for explicit External other, any other value is a source SCIPER resolved against Headcount scoped to (carbon_report_module_id, sciper)."

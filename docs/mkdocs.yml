@@ -34,10 +34,13 @@ validation:
     not_found: info
     absolute_links: info
   links:
-    not_found: info
+    # A link to a page that does not exist is always a real dead link.
+    not_found: warn
     absolute_links: info
+    # Archived plans link to source files that are not docs; keep that noise
+    # at info. A broken *anchor*, though, is always a real dead link.
     unrecognized_links: info
-    anchors: info
+    anchors: warn
 markdown_extensions:
   - admonition
   - toc:
@@ -149,6 +152,10 @@ extra:
   version: "1.0.0"
 extra_css:
   - stylesheets/extra.css
+# Rewrites links to repository source files into GitHub blob URLs.
+hooks:
+  - hooks.py
+
 plugins:
   - search
   # - with-pdf:

@@ -14,7 +14,24 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.module_type import ModuleTypeEnum
+from app.models.user import UserProvider
+from app.schemas.data_entry import DataEntryResponse
+from app.schemas.user import UserRead
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
+
+_CURRENT_USER = SimpleNamespace(
+    id=5, institutional_id="352707", provider=UserProvider.TEST
+)
+# The create path revalidates the acting user through UserRead; update and
+# delete only read attributes off it.
+_CURRENT_USER_READ = UserRead(
+    id=5,
+    display_name="Test User",
+    email="test.user@example.org",
+    provider=UserProvider.TEST,
+    institutional_id="352707",
+)
 
 
 def _workflow_deps(existing_data: dict, source: int | None):
@@ -35,9 +52,27 @@ def _workflow_deps(existing_data: dict, source: int | None):
         side_effect=lambda **kwargs: SimpleNamespace(id=kwargs["id"])
     )
     data_entry_service.delete = AsyncMock()
+    data_entry_service.create = AsyncMock(
+        return_value=DataEntryResponse(
+            id=1,
+            data_entry_type_id=DataEntryTypeEnum.research_facilities.value,
+            carbon_report_module_id=18036,
+            data={},
+        )
+    )
+
+    # #2007: the inputs-deactivated guard resolves the report, then its year
+    # config. No year_configuration row → not deactivated, the schema default.
+    session.get = AsyncMock(
+        return_value=SimpleNamespace(year=2026, carbon_project_id=None)
+    )
+    no_year_config = MagicMock()
+    no_year_config.first = MagicMock(return_value=None)
+    session.exec = AsyncMock(return_value=no_year_config)
 
     emission_service = MagicMock()
     emission_service.upsert_by_data_entry = AsyncMock()
+    emission_service.create = AsyncMock()
     module_service = MagicMock()
     module_service.recompute_stats = AsyncMock()
 
@@ -81,11 +116,13 @@ async def test_update_imported_row_locked_field_changed_is_403():
     with p1, p2, p3:
         with pytest.raises(HTTPException) as exc_info:
             await workflow.update(
-                carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+                carbon_report_module=SimpleNamespace(
+                    id=18036, carbon_report_id=99, module_type_id=4
+                ),
                 data_entry_type_id=DataEntryTypeEnum.other.value,
                 item_id=1,
                 item_data={"equipment_class": "Something else"},
-                current_user=SimpleNamespace(id=5, institutional_id="352707"),
+                current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
             )
@@ -106,11 +143,13 @@ async def test_update_imported_row_allowed_field_changed_succeeds():
 
     with p1, p2, p3:
         await workflow.update(
-            carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=4
+            ),
             data_entry_type_id=DataEntryTypeEnum.other.value,
             item_id=1,
             item_data={"sub_class": "Recent (<12yo)"},
-            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
         )
@@ -128,11 +167,13 @@ async def test_update_imported_row_note_always_succeeds():
 
     with p1, p2, p3:
         await workflow.update(
-            carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=4
+            ),
             data_entry_type_id=DataEntryTypeEnum.other.value,
             item_id=1,
             item_data={"note": "power change requested"},
-            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
         )
@@ -154,14 +195,16 @@ async def test_update_imported_row_echoed_unchanged_locked_field_succeeds():
 
     with p1, p2, p3:
         await workflow.update(
-            carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=4
+            ),
             data_entry_type_id=DataEntryTypeEnum.other.value,
             item_id=1,
             item_data={
                 "equipment_class": _EXISTING_EQUIPMENT_DATA["equipment_class"],
                 "sub_class": "Recent (<12yo)",
             },
-            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
         )
@@ -179,11 +222,13 @@ async def test_update_user_row_whitelisted_field_succeeds():
 
     with p1, p2, p3:
         await workflow.update(
-            carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=4
+            ),
             data_entry_type_id=DataEntryTypeEnum.other.value,
             item_id=1,
             item_data={"equipment_class": "Something else"},
-            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
         )
@@ -205,11 +250,13 @@ async def test_update_planner_snapshot_row_percentage_succeeds():
 
     with p1, p2, p3:
         await workflow.update(
-            carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=4
+            ),
             data_entry_type_id=DataEntryTypeEnum.other.value,
             item_id=1,
             item_data={"percentage_of_reference_year": 50},
-            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
         )
@@ -242,11 +289,13 @@ async def test_update_purchase_user_row_institutional_code_succeeds():
 
     with p1, p2, p3:
         await workflow.update(
-            carbon_report_module=SimpleNamespace(id=18036, module_type_id=5),
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=5
+            ),
             data_entry_type_id=DataEntryTypeEnum.services.value,
             item_id=1,
             item_data={"purchase_institutional_code": "51100001"},
-            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
         )
@@ -276,11 +325,13 @@ async def test_update_purchase_kind_change_clears_locked_dependent_field():
 
     with p1, p2, p3:
         await workflow.update(
-            carbon_report_module=SimpleNamespace(id=18036, module_type_id=5),
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=5
+            ),
             data_entry_type_id=DataEntryTypeEnum.services.value,
             item_id=1,
             item_data={"purchase_institutional_code": "51100001"},
-            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
         )
@@ -304,11 +355,13 @@ async def test_update_purchase_user_row_additional_code_is_403():
     with p1, p2, p3:
         with pytest.raises(HTTPException) as exc_info:
             await workflow.update(
-                carbon_report_module=SimpleNamespace(id=18036, module_type_id=5),
+                carbon_report_module=SimpleNamespace(
+                    id=18036, carbon_report_id=99, module_type_id=5
+                ),
                 data_entry_type_id=DataEntryTypeEnum.services.value,
                 item_id=1,
                 item_data={"purchase_additional_code": "NEW-CODE"},
-                current_user=SimpleNamespace(id=5, institutional_id="352707"),
+                current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
             )
@@ -328,9 +381,11 @@ async def test_delete_imported_row_is_403():
     with p1, p2, p3:
         with pytest.raises(HTTPException) as exc_info:
             await workflow.delete(
-                carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+                carbon_report_module=SimpleNamespace(
+                    id=18036, carbon_report_id=99, module_type_id=4
+                ),
                 data_entry_id=1,
-                current_user=SimpleNamespace(id=5, institutional_id="352707"),
+                current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
             )
@@ -357,9 +412,11 @@ async def test_delete_missing_row_is_404_not_500():
     with p1, p2, p3:
         with pytest.raises(HTTPException) as exc_info:
             await workflow.delete(
-                carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+                carbon_report_module=SimpleNamespace(
+                    id=18036, carbon_report_id=99, module_type_id=4
+                ),
                 data_entry_id=1,
-                current_user=SimpleNamespace(id=5, institutional_id="352707"),
+                current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
             )
@@ -378,9 +435,11 @@ async def test_delete_user_row_succeeds():
 
     with p1, p2, p3:
         await workflow.delete(
-            carbon_report_module=SimpleNamespace(id=18036, module_type_id=4),
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=4
+            ),
             data_entry_id=1,
-            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
         )
@@ -412,11 +471,13 @@ async def test_update_member_sciper_on_user_row_succeeds_when_unique():
 
     with p1, p2, p3:
         await workflow.update(
-            carbon_report_module=SimpleNamespace(id=18036, module_type_id=1),
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=1
+            ),
             data_entry_type_id=DataEntryTypeEnum.member.value,
             item_id=1,
             item_data={"user_institutional_id": "654321"},
-            current_user=SimpleNamespace(id=5, institutional_id="352707"),
+            current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
         )
@@ -441,11 +502,13 @@ async def test_update_member_sciper_duplicate_is_rejected():
     with p1, p2, p3:
         with pytest.raises(HTTPException) as exc_info:
             await workflow.update(
-                carbon_report_module=SimpleNamespace(id=18036, module_type_id=1),
+                carbon_report_module=SimpleNamespace(
+                    id=18036, carbon_report_id=99, module_type_id=1
+                ),
                 data_entry_type_id=DataEntryTypeEnum.member.value,
                 item_id=1,
                 item_data={"user_institutional_id": "999999"},
-                current_user=SimpleNamespace(id=5, institutional_id="352707"),
+                current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
             )
@@ -469,11 +532,13 @@ async def test_update_member_sciper_on_imported_row_is_403():
     with p1, p2, p3:
         with pytest.raises(HTTPException) as exc_info:
             await workflow.update(
-                carbon_report_module=SimpleNamespace(id=18036, module_type_id=1),
+                carbon_report_module=SimpleNamespace(
+                    id=18036, carbon_report_id=99, module_type_id=1
+                ),
                 data_entry_type_id=DataEntryTypeEnum.member.value,
                 item_id=1,
                 item_data={"user_institutional_id": "654321"},
-                current_user=SimpleNamespace(id=5, institutional_id="352707"),
+                current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
             )
@@ -481,3 +546,164 @@ async def test_update_member_sciper_on_imported_row_is_403():
     assert exc_info.value.status_code == 403
     assert exc_info.value.detail["code"] == "FIELD_NOT_EDITABLE"
     data_entry_service.update.assert_not_called()
+
+
+# ── #2007: the backoffice "deactivate inputs" switch fails closed ────────────
+# It used to hide the form and nothing more, so a raw API client could still
+# write to a submodule the backoffice had switched off.
+
+
+def _deactivated(session, *, carbon_project_id=None):
+    """Point the workflow at a year config with RF inputs deactivated."""
+    session.get = AsyncMock(
+        return_value=SimpleNamespace(year=2026, carbon_project_id=carbon_project_id)
+    )
+    year_config = SimpleNamespace(
+        config={
+            "modules": {
+                str(ModuleTypeEnum.research_facilities.value): {
+                    "submodules": {
+                        str(DataEntryTypeEnum.research_facilities.value): {
+                            "inputs_deactivated": True
+                        }
+                    }
+                }
+            }
+        }
+    )
+    result = MagicMock()
+    result.first = MagicMock(return_value=year_config)
+    session.exec = AsyncMock(return_value=result)
+
+
+_RF_MODULE = SimpleNamespace(
+    id=18036,
+    carbon_report_id=99,
+    module_type_id=ModuleTypeEnum.research_facilities.value,
+)
+_RF_TYPE = DataEntryTypeEnum.research_facilities.value
+
+
+@pytest.mark.asyncio
+async def test_create_is_403_when_inputs_deactivated():
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        {}, source=DataEntrySourceEnum.USER_MANUAL.value
+    )
+    _deactivated(session)
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        with pytest.raises(HTTPException) as exc_info:
+            await workflow.create(
+                carbon_report_module=_RF_MODULE,
+                data_entry_type_id=_RF_TYPE,
+                item_data={
+                    "researchfacility_id": "1902",
+                    "researchfacility_name": "SCITAS-GE",
+                    "use": 1000,
+                    "use_unit": "CHF",
+                },
+                current_user=_CURRENT_USER_READ,
+                request_context={},
+                background_tasks=MagicMock(),
+            )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail["code"] == "INPUTS_DEACTIVATED"
+    data_entry_service.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_is_403_when_inputs_deactivated():
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        {}, source=DataEntrySourceEnum.USER_MANUAL.value
+    )
+    data_entry_service.get = AsyncMock(
+        return_value=SimpleNamespace(
+            data={},
+            source=DataEntrySourceEnum.USER_MANUAL.value,
+            data_entry_type_id=_RF_TYPE,
+        )
+    )
+    _deactivated(session)
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        with pytest.raises(HTTPException) as exc_info:
+            await workflow.delete(
+                carbon_report_module=_RF_MODULE,
+                data_entry_id=1,
+                current_user=_CURRENT_USER,
+                request_context={},
+                background_tasks=MagicMock(),
+            )
+
+    assert exc_info.value.detail["code"] == "INPUTS_DEACTIVATED"
+    data_entry_service.delete.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_note_still_saves_when_inputs_deactivated():
+    """Annotation is not data entry — a note stays writable on a closed
+    submodule, the same exemption #951 gives it everywhere else.
+    """
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        {"researchfacility_id": "1902", "use": 1000},
+        source=DataEntrySourceEnum.USER_MANUAL.value,
+    )
+    data_entry_service.get = AsyncMock(
+        return_value=SimpleNamespace(
+            data={"researchfacility_id": "1902", "use": 1000},
+            source=DataEntrySourceEnum.USER_MANUAL.value,
+            data_entry_type_id=_RF_TYPE,
+        )
+    )
+    _deactivated(session)
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        await workflow.update(
+            carbon_report_module=_RF_MODULE,
+            data_entry_type_id=_RF_TYPE,
+            item_id=1,
+            item_data={"note": "counted manually"},
+            current_user=_CURRENT_USER,
+            request_context={},
+            background_tasks=MagicMock(),
+        )
+
+    data_entry_service.update.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_on_plan_report_ignores_inputs_deactivated():
+    """A plan/grant report carries the user's own scenario, not calculator
+    data entry — the Project Grant research-facilities grid must keep working
+    while the calculator switch is off.
+    """
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        {}, source=DataEntrySourceEnum.USER_MANUAL.value
+    )
+    _deactivated(session, carbon_project_id=7)
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        await workflow.create(
+            carbon_report_module=_RF_MODULE,
+            data_entry_type_id=_RF_TYPE,
+            item_data={
+                "researchfacility_id": "1902",
+                "researchfacility_name": "SCITAS-GE",
+                "use": 1000,
+                "use_unit": "CHF",
+            },
+            current_user=_CURRENT_USER_READ,
+            request_context={},
+            background_tasks=MagicMock(),
+        )
+
+    data_entry_service.create.assert_awaited_once()

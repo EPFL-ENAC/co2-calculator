@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 1402
 last_updated: 2026-08-24
 title: "Split Grafana p99 Latency Alerting by Endpoint Class; Add GlitchTip Alerting"
@@ -177,7 +177,7 @@ code disproves. Put this first."):
     dashboard JSON doesn't even have the DB Pool Usage panel at all.
   - **PR [openshift-app-config#8](https://github.com/EPFL-ENAC/openshift-app-config/pull/8) — merged.**
 - [x] Verified `http_target` live (dev + stage, `count by (http_target,
-  http_route, http_method) (http_server_duration_milliseconds_count{...})`):
+http_route, http_method) (http_server_duration_milliseconds_count{...})`):
       it's populated and already collapsed to a literal `/api/{tail}` (e.g.
       `/v1/sync/dispatch` → `/api/dispatch`, `/v1/year-configuration/{year}` →
       `/api/{year}`). `http_route` never appears. **Retraction (same day):**
@@ -354,10 +354,23 @@ declaring victory.
       untouched: scoping to `api` only removes slower traffic from the
       distribution, so the same threshold is strictly less likely to fire —
       a scope fix, not a sensitivity change.
-- [ ] **Not shipped to prod, needs a decision:** `HighErrorRate` is still
-      4xx+5xx at a 50% threshold there (pre-#1402). Tightening it to match
-      dev/stage (5xx-only, 2%) is a real sensitivity increase on prod
-      paging, not a scope fix.
+- [x] **`HighErrorRate` retuned from real data, all three environments.**
+      Pulled 4-week 5xx/total on 2026-08-24: dev 0.081%, stage 0.0085%,
+      prod 0.0012% (1 in ~83,600 requests). Prod's old 4xx+5xx@50% was an
+      outage threshold, never revisited — now 5xx-only@1% (~800x headroom
+      over its real baseline); dev/stage keep their existing 5xx-only@2%.
+      All three shared the same per-pod bug as the latency alerts —
+      `sum by (k8s_pod_name)` on both sides of the ratio fired on any
+      single replica breaching — fixed to a global ratio everywhere.
+- [x] **New alert: `ErrorRateSustainedElevated`, all three environments.**
+      `HighErrorRate`'s 5-minute window and traffic floor structurally
+      can't see a persistent low-grade error rate — it never looks
+      anomalous in any single slice. Same 5xx ratio, evaluated over a
+      rolling 6h `increase()` window at 0.3% (~4x dev's own noisiest
+      baseline), `for: 30m`. `severity: info`, not `warning` — the
+      alertmanager config here is a single flat email route with no
+      severity-based sub-routing, so this doesn't page differently, it
+      just doesn't get lost as another `warning`.
 - [ ] **Not shipped to prod, blocked on data:** `UploadLatencySLOBreach` /
       `JobLatencySLOBreach`. The transform just started running in prod —
       no `route_class="upload"`/`"job"` history exists yet to set a

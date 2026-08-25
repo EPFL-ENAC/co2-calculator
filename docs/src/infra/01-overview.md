@@ -547,6 +547,13 @@ spec:
 - **TLS termination**: At ingress controller
 - **Internal communication**: Unencrypted (within cluster network)
 
+Because TLS terminates at the ingress, the app only learns the public
+scheme from `X-Forwarded-Proto`. Two proxy hops each stamp that header,
+and uvicorn drops it when duplicated — which once broke OAuth login on
+`dev`. Read
+[the post-mortem](02-postmortem-oauth-http-redirect.md) before changing
+anything that builds an absolute URL.
+
 ---
 
 ## Additional Resources
@@ -556,6 +563,8 @@ spec:
 - [Deployment Topology](../architecture/11-deployment-topology.md) - Full deployment architecture
 - [Scalability Strategy](../architecture/12-scalability.md) - Scaling patterns
 - [CI/CD Pipeline](../architecture/06-cicd-pipeline.md) - Deployment automation
+- [OAuth http-callback post-mortem](02-postmortem-oauth-http-redirect.md) - Proxy headers and absolute URLs
+- [Observability and SLOs](03-observability-slo.md) - Alerting thresholds and burn rates
 
 ### EPFL Resources
 

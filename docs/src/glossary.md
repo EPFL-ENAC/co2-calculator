@@ -21,7 +21,7 @@ Accred. Scopes what backoffice users may view or edit (issue #459).
 
 **Backoffice** — The administrative surface: user management, factor
 management, audit, ingestion. Permissions live under `backoffice.*`. See
-[`backend/07-DEVELOPER-GUIDE-PERMISSIONS.md`](./backend/07-DEVELOPER-GUIDE-PERMISSIONS.md).
+[`backend/06-PERMISSION-SYSTEM.md`](./backend/06-PERMISSION-SYSTEM.md).
 
 **`claim_job`** — Atomic SQL operation that flips a job from
 `NOT_STARTED` to `RUNNING` and sets `is_current=TRUE` in one transaction.

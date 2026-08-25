@@ -8,6 +8,14 @@ from app.schemas.data_entry import (
 
 SIUS_CODE_VALUES = {"51", "52", "53", "54", "56", "57", "58", "59"}
 
+# #2254: members arriving without a (known) SIUS code are "Other staff".
+OTHER_SIUS_CODE = "-1"
+
+
+def normalize_sius_code(value: object) -> str:
+    code = str(value).strip() if value is not None else ""
+    return code if code in SIUS_CODE_VALUES else OTHER_SIUS_CODE
+
 
 class HeadcountItemResponse(DataEntryResponseGen):
     name: str
@@ -23,7 +31,7 @@ class HeadCountStudentResponse(DataEntryResponseGen):
 
 class HeadCountCreate(DataEntryCreate):
     name: str
-    sius_code: str
+    sius_code: str = OTHER_SIUS_CODE
     # #2138: mandatory again (reverts #951's optional-at-creation call).
     user_institutional_id: str
     fte: float
@@ -60,7 +68,7 @@ class HeadCountCreate(DataEntryCreate):
     @field_validator("sius_code", mode="after")
     @classmethod
     def validate_sius_code(cls, v: str) -> str:
-        if v not in SIUS_CODE_VALUES:
+        if v not in SIUS_CODE_VALUES | {OTHER_SIUS_CODE}:
             allowed_values = ", ".join(sorted(SIUS_CODE_VALUES))
             raise ValueError(f"sius_code must be one of: {allowed_values}")
         return v
@@ -125,7 +133,7 @@ class HeadCountUpdate(DataEntryUpdate):
     def validate_sius_code(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        if v not in SIUS_CODE_VALUES:
+        if v not in SIUS_CODE_VALUES | {OTHER_SIUS_CODE}:
             allowed_values = ", ".join(sorted(SIUS_CODE_VALUES))
             raise ValueError(f"sius_code must be one of: {allowed_values}")
         return v

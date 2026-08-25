@@ -175,7 +175,7 @@ async def test_recompute_report_stats_merges_by_additional_value(async_session):
 async def test_get_explore_returns_none_when_not_found(async_session):
     """get_explore is idempotent: returns None without creating anything."""
     service = CarbonReportService(async_session)
-    result = await service.get_explore(unit_id=1, reference_year=2024)
+    result = await service.get_explore(unit_id=1, reference_year=2024, created_by=10)
     assert result is None
 
 
@@ -183,8 +183,8 @@ async def test_get_explore_returns_none_when_not_found(async_session):
 async def test_get_explore_is_idempotent_on_empty_db(async_session):
     """Calling get_explore twice on an empty DB still returns None both times."""
     service = CarbonReportService(async_session)
-    first = await service.get_explore(unit_id=1, reference_year=2024)
-    second = await service.get_explore(unit_id=1, reference_year=2024)
+    first = await service.get_explore(unit_id=1, reference_year=2024, created_by=10)
+    second = await service.get_explore(unit_id=1, reference_year=2024, created_by=10)
     assert first is None
     assert second is None
 
@@ -193,7 +193,7 @@ async def test_get_explore_is_idempotent_on_empty_db(async_session):
 async def test_create_explore_creates_report_and_modules(async_session):
     """create_explore creates a SIMULATOR_EXPLORE report with all modules."""
     service = CarbonReportService(async_session)
-    result = await service.create_explore(unit_id=1, reference_year=2024)
+    result = await service.create_explore(unit_id=1, reference_year=2024, created_by=10)
 
     assert result.id is not None
     assert result.year == 2024
@@ -209,8 +209,10 @@ async def test_create_explore_creates_report_and_modules(async_session):
 async def test_get_explore_returns_existing_report(async_session):
     """get_explore finds the report created by create_explore."""
     service = CarbonReportService(async_session)
-    created = await service.create_explore(unit_id=1, reference_year=2024)
-    fetched = await service.get_explore(unit_id=1, reference_year=2024)
+    created = await service.create_explore(
+        unit_id=1, reference_year=2024, created_by=10
+    )
+    fetched = await service.get_explore(unit_id=1, reference_year=2024, created_by=10)
 
     assert fetched is not None
     assert fetched.id == created.id
@@ -220,17 +222,39 @@ async def test_get_explore_returns_existing_report(async_session):
 async def test_get_explore_does_not_cross_units(async_session):
     """get_explore for another unit returns None even if that unit has a report."""
     service = CarbonReportService(async_session)
-    await service.create_explore(unit_id=1, reference_year=2024)
-    result = await service.get_explore(unit_id=2, reference_year=2024)
+    await service.create_explore(unit_id=1, reference_year=2024, created_by=10)
+    result = await service.get_explore(unit_id=2, reference_year=2024, created_by=10)
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_explore_does_not_cross_users(async_session):
+    """Explore sandboxes are private per user within the same unit (#2293)."""
+    service = CarbonReportService(async_session)
+    first = await service.create_explore(unit_id=1, reference_year=2024, created_by=10)
+
+    other = await service.get_explore(unit_id=1, reference_year=2024, created_by=11)
+    assert other is None
+
+    second = await service.create_explore(unit_id=1, reference_year=2024, created_by=11)
+    assert second.id != first.id
+
+    fetched_first = await service.get_explore(
+        unit_id=1, reference_year=2024, created_by=10
+    )
+    fetched_second = await service.get_explore(
+        unit_id=1, reference_year=2024, created_by=11
+    )
+    assert fetched_first is not None and fetched_first.id == first.id
+    assert fetched_second is not None and fetched_second.id == second.id
 
 
 @pytest.mark.asyncio
 async def test_get_explore_does_not_cross_years(async_session):
     """get_explore for a different year returns None."""
     service = CarbonReportService(async_session)
-    await service.create_explore(unit_id=1, reference_year=2024)
-    result = await service.get_explore(unit_id=1, reference_year=2023)
+    await service.create_explore(unit_id=1, reference_year=2024, created_by=10)
+    result = await service.get_explore(unit_id=1, reference_year=2023, created_by=10)
     assert result is None
 
 

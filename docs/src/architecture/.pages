@@ -14,6 +14,9 @@ nav:
   - 11-deployment-topology.md
   - 12-scalability.md
   - 13-cross-cutting-concerns.md
+  - encryption.md
+  - security-documentation.md
+  - incident-response.md
   - ecodesign.md
   - 14-architectural-decisions.md
   - 15-appendices.md

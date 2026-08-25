@@ -165,10 +165,11 @@ class CarbonReportService:
 
         Idempotent: never creates or mutates any data.
 
-        Must not be called with SIMULATOR_PLAN: a unit can have many plan
-        projects, so ``scalar_one_or_none`` would raise MultipleResultsFound.
-        Use :class:`app.services.simulator_plan_service.SimulatorPlanService`
-        for plans.
+        Must only be called with CALCULATOR: a unit can have many plan
+        projects and one explore project per user, so ``scalar_one_or_none``
+        would raise MultipleResultsFound. Use
+        :class:`app.services.simulator_plan_service.SimulatorPlanService`
+        for plans and :meth:`_get_explore_project` for explore.
         """
         stmt = select(CarbonProject).where(
             CarbonProject.unit_id == unit_id,
@@ -181,6 +182,31 @@ class CarbonReportService:
     ) -> CarbonProject:
         """Create and flush a new CarbonProject for a unit+type."""
         project = CarbonProject(unit_id=unit_id, carbon_report_type=report_type)
+        self.session.add(project)
+        await self.session.flush()
+        return project
+
+    async def _get_explore_project(
+        self, unit_id: int, created_by: int
+    ) -> CarbonProject | None:
+        """Return the user's Simulator Explore project for a unit, or None."""
+        stmt = select(CarbonProject).where(
+            CarbonProject.unit_id == unit_id,
+            CarbonProject.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE,
+            CarbonProject.created_by == created_by,
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def _create_explore_project(
+        self, unit_id: int, created_by: int
+    ) -> CarbonProject:
+        """Create and flush a per-user Simulator Explore project (#2293)."""
+        project = CarbonProject(
+            unit_id=unit_id,
+            carbon_report_type=CarbonReportType.SIMULATOR_EXPLORE,
+            created_by=created_by,
+            created_at=datetime.now(UTC),
+        )
         self.session.add(project)
         await self.session.flush()
         return project
@@ -225,13 +251,15 @@ class CarbonReportService:
         *,
         unit_id: int,
         reference_year: int,
+        created_by: int,
     ) -> CarbonReportRead | None:
-        """Return the existing Simulator Explore report for a unit/year, or None.
+        """Return the user's Simulator Explore report for a unit/year, or None.
 
+        Explore sandboxes are private per user (#2293).
         Idempotent: never creates or mutates any data.
         """
         existing = await self.repo.get_explore_by_unit_and_reference_year(
-            unit_id=unit_id, reference_year=reference_year
+            unit_id=unit_id, reference_year=reference_year, created_by=created_by
         )
         if existing is None:
             return None
@@ -242,14 +270,15 @@ class CarbonReportService:
         *,
         unit_id: int,
         reference_year: int,
+        created_by: int,
     ) -> CarbonReportRead:
-        """Create a new Simulator Explore report for the given unit and year.
+        """Create a new Simulator Explore report for the given unit, year and user.
 
         The explore report uses ``year = reference_year`` (year is always non-null).
         """
-        project = await self._get_project(
-            unit_id, CarbonReportType.SIMULATOR_EXPLORE
-        ) or await self._create_project(unit_id, CarbonReportType.SIMULATOR_EXPLORE)
+        project = await self._get_explore_project(
+            unit_id, created_by
+        ) or await self._create_explore_project(unit_id, created_by)
         now_ts = int(datetime.now(UTC).timestamp())
         created = await self.repo.create(
             CarbonReportCreate(

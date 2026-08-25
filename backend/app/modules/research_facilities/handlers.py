@@ -32,6 +32,10 @@ class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
 
     kind_field: str = "researchfacility_id"
     subkind_field: str | None = None
+    # The id is an opaque unit code (1902); the name carries the acronym users
+    # know it by (SCITAS-GE). Without this the taxonomy labels every facility
+    # with its id, and the frontend relabels selects from the taxonomy (#2007).
+    kind_label_field: str | None = "researchfacility_name"
     require_subkind_for_factor = False
 
     sort_map = {
@@ -136,6 +140,8 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
 
     kind_field: str = "researchfacility_id"
     subkind_field: str = "researchfacility_type"
+    # See the common handler: label facilities by acronym, not by unit code.
+    kind_label_field: str | None = "researchfacility_name"
     require_subkind_for_factor = False
 
     sort_map = {

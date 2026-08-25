@@ -430,11 +430,16 @@ _MODULE_TOP_CLASS_LABEL_FIELD: dict[ModuleTypeEnum, str] = {
 
 # Per data-entry-type overrides of the group field. Animal facility bars
 # segment by facility type (rodent / fish) rather than by facility name.
+# Centralized purchases carry no institutional code — their factor key is
+# the free-text product name.
 _MODULE_TOP_CLASS_GROUP_FIELD_OVERRIDES: dict[
     ModuleTypeEnum, dict[DataEntryTypeEnum, str]
 ] = {
     ModuleTypeEnum.research_facilities: {
         DataEntryTypeEnum.animal_facilities: "researchfacility_type",
+    },
+    ModuleTypeEnum.purchase: {
+        DataEntryTypeEnum.purchases_centralized: "name",
     },
 }
 

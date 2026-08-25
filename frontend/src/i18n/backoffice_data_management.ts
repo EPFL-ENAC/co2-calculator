@@ -432,6 +432,10 @@ export default {
     en: 'Enable this submodule to make it visible to your institute.',
     fr: 'Activez ce sous-module pour le rendre visible pour votre institut.',
   },
+  data_management_activation_locked_year_open: {
+    en: 'This year is open to users, module and submodule activation can no longer be changed.',
+    fr: "Cette année est ouverte aux utilisateur·rices, l'activation des modules et sous-modules ne peut plus être modifiée.",
+  },
   data_management_submodule_inputs_deactivation_title: {
     en: 'Deactivate input form',
     fr: 'Désactiver le formulaire de saisie',

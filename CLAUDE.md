@@ -1,5 +1,6 @@
 <!-- rtk-instructions v2 -->
 
+@docs/src/contributing/it4r-rules.md
 @docs/src/contributing/guardrails.md
 @AGENTS.md
 

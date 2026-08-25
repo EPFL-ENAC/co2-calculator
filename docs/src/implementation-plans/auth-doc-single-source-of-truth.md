@@ -1,5 +1,6 @@
 ---
 status: delivered
+issue: 1318
 last_updated: 2026-06-29
 title: "Docs: single source of truth for auth flow"
 summary: "Strip duplicated and stale auth narratives from backend and frontend overview docs. The architecture/04-auth-flow.md doc is the canonical source; everything else cross-links."

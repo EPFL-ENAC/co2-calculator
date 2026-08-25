@@ -1910,3 +1910,44 @@ async def test_get_headcount_fte_breakdown_matches_the_three_queries_it_replaces
     # Guard against the equivalence passing vacuously on empty results.
     assert breakdown.total_fte > 0
     assert set(breakdown.member_fte_by_sius_code) == {"51", "62", "unknown"}
+
+
+@pytest.mark.asyncio
+async def test_get_headcount_fte_breakdown_sorts_other_staff_last(
+    db_session: AsyncSession,
+):
+    """#2254: dict order is the chart's bar order — codes ascending, with
+    the "Other staff" sentinel (-1) last, so it cannot land before 51
+    by numeric accident or GROUP BY whim.
+    """
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    seed = [
+        (DataEntryTypeEnum.member, {"sius_code": "-1", "fte": 0.5}),
+        (DataEntryTypeEnum.member, {"sius_code": "59", "fte": 1.0}),
+        (DataEntryTypeEnum.member, {"sius_code": "51", "fte": 2.0}),
+        (DataEntryTypeEnum.member, {"sius_code": "-1", "fte": 0.25}),
+    ]
+    for data_entry_type, data in seed:
+        db_session.add(
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=data_entry_type,
+                status=DataEntryStatusEnum.VALIDATED,
+                data=data,
+            )
+        )
+    await db_session.flush()
+
+    breakdown = await DataEntryRepository(db_session).get_headcount_fte_breakdown(
+        carbon_report_module_id=module.id
+    )
+
+    assert list(breakdown.member_fte_by_sius_code) == ["51", "59", "-1"]
+    assert breakdown.member_fte_by_sius_code["-1"] == pytest.approx(0.75)

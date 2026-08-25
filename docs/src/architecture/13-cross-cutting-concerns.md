@@ -13,10 +13,14 @@ Data is classified into four protection levels:
 
 ### Transport and Data-at-Rest Encryption
 
-- TLS 1.3 for all network communications
-- AES-256 encryption for data at rest
-- Regular certificate rotation
-- Key management through Azure Key Vault
+- TLS on every external hop; intra-cluster traffic is unencrypted
+- Fernet (AES-128-CBC + HMAC-SHA256) for uploaded files and stored
+  connector secrets; database at-rest encryption is the provider's
+- Certificates rotated automatically by cert-manager
+- Keys held in ENAC-IT's Infisical vault, injected at runtime
+
+See [Encryption and Key Management](encryption.md) for the full picture,
+the key inventory, and the known gaps.
 
 ### Authentication Enforcement Points
 
@@ -27,7 +31,7 @@ Authentication is enforced at multiple points:
 - Database access layer
 - Storage access controls
 
-This section provides detailed security information. For implementation details, see [Backend Security](../backend/01-overview.md#security-considerations) and [Frontend Auth](../frontend/01-overview.md#authentication--authorization).
+This section provides detailed security information. For implementation details, see [Backend Security](../backend/01-overview.md#security-features) and [Frontend Auth](../frontend/01-overview.md#authorization).
 
 ## Data Contracts
 
@@ -80,4 +84,4 @@ Tracing is implemented with:
 - Request span propagation
 - Service dependency mapping
 
-For detailed observability information, see [Infrastructure Monitoring](../infra/01-overview.md#monitoring--observability). For client-side error tracking via self-hosted GlitchTip, see [Frontend Error Monitoring](../frontend/error-monitoring.md).
+For detailed observability information, see [Infrastructure Monitoring](../infra/01-overview.md#monitoring-observability). For client-side error tracking via self-hosted GlitchTip, see [Frontend Error Monitoring](../frontend/error-monitoring.md).

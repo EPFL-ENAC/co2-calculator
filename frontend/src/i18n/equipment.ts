@@ -33,7 +33,7 @@ Please complete the following columns:
 
 This list is based on an export from your unit’s official inventory. If you notice any discrepancies, please correct them in the dedicated inventory application.
 
-If the average power (in active or standby mode) of your equipment differs from the default value, please contact co2calculator@epfl.ch.`,
+If the average power (in active or standby mode) of your equipment differs from the default value, please contact co2calculator{'@'}epfl.ch.`,
     fr: `Ce module vous aide à estimer l'empreinte carbone liée à la consommation électrique de vos équipements (scientifiques, IT, etc.) en usage actif et standby. La consommation totale par équipment estimée à partir de vos saisies est convertie en empreinte carbone selon le facteur d'émission officiel du mix électrique suisse.
 
 Veuillez compléter les colonnes suivantes :
@@ -42,7 +42,7 @@ Veuillez compléter les colonnes suivantes :
 
 La liste s'appuie sur une extraction de l'inventaire officiel contrôlé par votre unité. Si vous constatez des écarts, merci de les corriger dans l'application d'inventaire dédiée.
 
-Si la puissance moyenne (en mode actif ou en veille) de votre équipement est différente de la valeur par défaut, merci de contacter à co2calculator@epfl.ch`,
+Si la puissance moyenne (en mode actif ou en veille) de votre équipement est différente de la valeur par défaut, merci de contacter à co2calculator{'@'}epfl.ch`,
   },
   [`${MODULES.Equipment}-documentation-link`]: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/equipment/',

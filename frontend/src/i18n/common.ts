@@ -9,6 +9,14 @@ export default {
     en: 'Must be at most {max}',
     fr: 'Doit être au plus {max}',
   },
+  validation_must_be_whole_number: {
+    en: 'Must be a whole number',
+    fr: 'Doit être un nombre entier',
+  },
+  validation_max_decimals: {
+    en: 'Must have at most {max} decimal place',
+    fr: 'Doit avoir maximum {max} décimale',
+  },
   logo_alt: {
     en: 'Logo EPFL',
     fr: 'Logo EPFL',
@@ -466,6 +474,10 @@ export default {
   validation_required: {
     en: 'Required',
     fr: 'Obligatoire',
+  },
+  date_format_placeholder: {
+    en: 'YYYY/MM/DD',
+    fr: 'AAAA/MM/JJ',
   },
   validation_invalid_date_format: {
     en: 'Invalid date format, expected YYYY/MM/DD',

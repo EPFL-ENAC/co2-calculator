@@ -42,6 +42,10 @@ const memberFields: ModuleField[] = [
     optionLabelsAreKeys: true,
     columnSize: 'sm',
     editableInline: true,
+    // #2254: imported rows may carry the "Other staff" sentinel (-1),
+    // which is display-only — not offered in the dropdown options below.
+    // renderCell falls back to this key template when no option matches.
+    optionLabelKey: '{value}',
 
     options: [
       { value: '51', label: '51' },
@@ -71,6 +75,7 @@ const memberFields: ModuleField[] = [
     min: 0,
     max: 1,
     step: 0.1,
+    maxDecimals: 1,
     sortable: false,
     ratio: '1/4',
     icon: 'o_timer',
@@ -91,6 +96,7 @@ const studentFields: ModuleField[] = [
     required: true,
     min: 0,
     step: 0.1,
+    maxDecimals: 1,
     sortable: true,
     ratio: '12/12',
     icon: iconMap['o_timer'],

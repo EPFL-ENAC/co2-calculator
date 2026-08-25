@@ -24,6 +24,7 @@ from app.modules.emissions.registry import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     ROLLUP_EMISSION_TYPE_IDS,
 )
+from app.modules.headcount.data_entries import OTHER_SIUS_CODE
 from app.modules.professional_travel import MemberEntry
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
@@ -1577,6 +1578,13 @@ class DataEntryRepository:
                 # but has no FTE recorded, which is not the same as zero.
                 label = str(code) if code is not None else "unknown"
                 member_fte_by_sius_code[label] = group_fte
+        # Deterministic bar order for the chart: 51…59, then Other staff.
+        member_fte_by_sius_code = {
+            k: member_fte_by_sius_code[k]
+            for k in sorted(
+                member_fte_by_sius_code, key=lambda k: (k == OTHER_SIUS_CODE, k)
+            )
+        }
         return HeadcountFteBreakdown(
             total_fte=total_fte,
             student_fte=student_fte,
