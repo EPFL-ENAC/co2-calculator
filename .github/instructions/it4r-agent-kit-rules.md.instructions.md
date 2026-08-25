@@ -1,0 +1,1 @@
+../../.claude/it4r-agent-kit/AGENTS.md

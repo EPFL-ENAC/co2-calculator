@@ -39,6 +39,10 @@ about.
    the kit, then only what is specific to this repo. Same path, same section
    headings, so `.github/instructions/co2-calculator-rules.md.instructions.md`
    (a symlink) and the `§ Workflow` deep links from ADR-014 keep resolving.
+   Copilot reads instructions files but not Claude's `@import`, so a second
+   symlink — `it4r-agent-kit-rules.md.instructions.md` → the kit's `AGENTS.md` —
+   gives it the shared rules too. Without it, keeping the first symlink pointing
+   at a file that lost 44 lines would have silently halved what Copilot sees.
 4. **`make install` runs `git submodule update --init`** so a fresh clone can't
    silently end up with an empty rules directory.
 
