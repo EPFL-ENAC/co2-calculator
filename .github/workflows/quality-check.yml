@@ -63,3 +63,36 @@ jobs:
 
       - name: Type Check
         run: make type-check
+
+
+  docs-quality:
+    name: Docs Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./docs
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # mkdocs-git-authors-plugin reads history; a shallow clone breaks it.
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Check Markdown formatting
+        run: make lint
+
+      # --strict turns a broken link, unparseable frontmatter or an unknown
+      # plan status into a failure here, rather than at deploy time on main.
+      - name: Build docs
+        run: uv run mkdocs build --strict --site-dir /tmp/docs-site
