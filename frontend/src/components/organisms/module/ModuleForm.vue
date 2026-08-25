@@ -152,7 +152,7 @@
               </template>
               <template v-else-if="inp.type === 'headcount-member-select'">
                 <HeadcountMemberSelect
-                  :key="headcountMemberCount"
+                  :key="`${headcountMemberCount}-${headcountSelectKey}`"
                   :model-value="form[inp.id] ?? null"
                   :unit-id="props.unitId"
                   :year="props.year"
@@ -664,6 +664,7 @@ function getFilteredOptions(
 }
 
 const dateInputKey = ref(0);
+const headcountSelectKey = ref(0);
 
 function getDateRules(required?: boolean) {
   const dateFormatRule = (val: string) => {
@@ -1255,6 +1256,7 @@ function reset() {
   });
   fieldInteraction.clear();
   dateInputKey.value++;
+  headcountSelectKey.value++;
 }
 
 function getGridClass(ratio?: string): string {
