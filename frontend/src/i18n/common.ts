@@ -13,6 +13,10 @@ export default {
     en: 'Must be a whole number',
     fr: 'Doit être un nombre entier',
   },
+  validation_max_decimals: {
+    en: 'Must have at most {max} decimal place',
+    fr: 'Doit avoir maximum {max} décimale',
+  },
   logo_alt: {
     en: 'Logo EPFL',
     fr: 'Logo EPFL',

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2161
 last_updated: 2026-08-18
 summary: "Turn #2161's real per-data_entry_type ceiling estimates into a

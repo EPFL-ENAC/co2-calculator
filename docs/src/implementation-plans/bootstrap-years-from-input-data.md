@@ -1,5 +1,6 @@
 ---
 status: delivered
+issue: 1879
 last_updated: 2026-07-23
 title: "Bootstrap year configurations from INPUT_DATA"
 summary: "make bootstrap-years replays the whole post-db-drop backoffice click-path — year configuration, unit sync, every factor CSV, the three reference CSVs, and the reduction-objective files + goals — from backend/INPUT_DATA, for 2025 and 2026. No data entries."

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: delivered
 issue: 1591
 last_updated: 2026-07-07
 title: "Surface per-row errors from research-facilities factor recompute"

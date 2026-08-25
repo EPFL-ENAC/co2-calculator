@@ -1,5 +1,6 @@
 ---
 status: delivered
+issue: 1552
 last_updated: 2026-07-06
 title: "API Connect: connectors, connections and per-module datasources"
 summary: "Make the backoffice 'API connect' form functional via a modular connector registry. Store one connection per connector (server/site/username + connected-app credentials entered in the form, secret encrypted at rest), bind a datasource LUID per module, and drive the travel + new headcount providers from one shared base provider."

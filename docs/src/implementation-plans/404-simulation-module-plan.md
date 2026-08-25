@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 404
 last_updated: 2026-07-16
 title: "Simulator Module"

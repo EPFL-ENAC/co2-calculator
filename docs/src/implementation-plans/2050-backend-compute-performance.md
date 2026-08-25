@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2050
 last_updated: 2026-08-19
 title: "Backend compute performance — pod stability, worker split, request-path profiling"

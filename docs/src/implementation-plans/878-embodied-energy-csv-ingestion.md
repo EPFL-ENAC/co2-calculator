@@ -1,5 +1,6 @@
 ---
-status: proposed
+status: in-progress
+issue: 878
 last_updated: 2026-08-17
 title: "Reuse EmbodiedEnergyWorkflow logic for CSV/bulk building ingestion"
 summary: "CSV/bulk building-room ingestion never derives building_embodied_energy rows (#878) — only the single-item CRUD API path does, via EmbodiedEnergyWorkflow.post_create/update/delete. A prior attempt (PR #2121) fixed the symptom but reimplemented the derivation logic inside BaseCSVProvider instead of reusing the workflow. This plan extracts the shared derivation logic (fixing a latent bug where it silently depends on a frontend-only field), keeps #2121's simpler synchronous/full-replace placement, and reuses it from both the CRUD and CSV paths."

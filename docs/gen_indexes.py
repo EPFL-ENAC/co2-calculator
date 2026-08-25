@@ -19,6 +19,7 @@ Frontmatter schema (all optional)::
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -97,6 +98,8 @@ def _issue_cell(issue: Any, repo_url: str) -> str:
     return f"[#{text}]({repo_url}/issues/{match.group(1)})"
 
 
+log = logging.getLogger("mkdocs.plugins.gen_indexes")
+
 STATUS_ORDER = ("delivered", "in-progress", "abandoned", "uncategorized")
 STATUS_LABEL = {
     "delivered": "Delivered",
@@ -143,6 +146,14 @@ def _plans_index() -> None:
         meta, body = _parse_frontmatter(md.read_text(encoding="utf-8"))
         status = str(meta.get("status", "")).strip().lower() or "uncategorized"
         if status not in groups:
+            # A typo'd or invented status would otherwise vanish into
+            # "Uncategorized" unnoticed. --strict turns this into an error.
+            log.warning(
+                "%s: unknown plan status %r — use one of %s",
+                md.name,
+                status,
+                ", ".join(k for k in STATUS_ORDER if k != "uncategorized"),
+            )
             status = "uncategorized"
         groups[status].append(
             {

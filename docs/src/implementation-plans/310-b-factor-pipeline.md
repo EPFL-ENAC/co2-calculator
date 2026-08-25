@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 310-b
 last_updated: 2026-05-06
 title: "310-b — Factor Pipeline + Unit Sync Tracking"

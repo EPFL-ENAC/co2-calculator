@@ -1,3 +1,8 @@
+---
+status: in-progress
+last_updated: 2026-05-20
+---
+
 # Pipeline-debug — living TODO
 
 Integration branch: `fix/pipeline-debug` (all items below land there until

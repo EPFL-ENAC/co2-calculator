@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 862
 last_updated: 2026-06-02
 title: "Update backoffice permissions (page-driven model)"

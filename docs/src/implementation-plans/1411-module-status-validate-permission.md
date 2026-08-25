@@ -1,6 +1,7 @@
 ---
 status: delivered
 issue: 1411
+last_updated: 2026-06-09
 ---
 
 # 1411 — Hide module-status validate button from standard users + consolidate frontend permissions

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: delivered
 issue: 1523
 last_updated: 2026-07-07
 title: "Fix silent recalculate failures and wrong step count in the recalculate progress UI"

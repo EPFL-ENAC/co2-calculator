@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 459
 last_updated: 2026-05-26
 title: "Backoffice ACCRED affiliation scoping"

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 589
 last_updated: 2026-03-31
 title: "PRD 3 — Detailed CSVs (`*_data.csv`)"

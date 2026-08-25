@@ -1,3 +1,9 @@
+---
+status: in-progress
+issue: 462
+last_updated: 2026-05-26
+---
+
 # PDF Export for Backoffice Reporting — Implementation Plan
 
 Issue: #462 — `feat/462-backoffice-reporting-pdf-exports-of-reports`

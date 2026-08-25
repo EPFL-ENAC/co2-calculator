@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: delivered
 issue: 1557
 last_updated: 2026-07-16
 title: "ModuleTable.vue decomposition"

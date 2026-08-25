@@ -1,5 +1,6 @@
 ---
-status: in-progress
+status: delivered
+issue: 1153
 last_updated: 2026-08-14
 title: "Travel traveller resolution: -1 / null sentinels — Implementation Plan"
 summary: "Task-by-task plan replacing __other_internal__/__other_external__ with '-1' and JSON null across the ingestion provider, create/response DTOs, the repo-level resolution comment, an Alembic data migration, and the already-shipped frontend selector/resolver/table/chart consumers."
