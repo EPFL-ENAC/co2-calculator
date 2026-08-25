@@ -185,11 +185,12 @@ const saving = ref(false);
 const generatingSections = ref(false);
 
 // Whether the plan currently has per-year sections is not a plan column; it
-// is derived from its reports (a plan with none yet defaults to having them).
+// is derived from its reports (a plan with none yet starts without them,
+// like the grant checkbox).
 const persistedYearByYear = computed(() =>
   plansStore.planYears.length
     ? plansStore.planYears.some((y) => !y.is_grant)
-    : true,
+    : false,
 );
 // null = untouched, mirror the persisted state (which arrives async).
 const yearByYearInput = ref<boolean | null>(null);
