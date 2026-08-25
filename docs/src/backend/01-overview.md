@@ -1,6 +1,7 @@
 # Backend Overview
 
 This guide covers the FastAPI backend for CO2 emissions tracking.
+Setting up a local database? Start with [Seed Data](11-SEED-DATA.md).
 Use it to set up your local environment, understand the API
 structure, and deploy to production. The backend uses PostgreSQL
 for data persistence, OIDC for authentication, and in-process

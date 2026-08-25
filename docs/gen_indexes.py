@@ -195,6 +195,33 @@ def _plans_index() -> None:
         f.write("\n".join(lines) + "\n")
 
 
+def _check_pages_nav() -> None:
+    """Fail the build on a `.pages` nav entry with no file behind it.
+
+    awesome-pages drops such an entry silently, and the damage is not
+    local: one dangling entry corrupted navigation in unrelated sections
+    (backend, infra and user-docs all lost pages to a single bad line).
+    """
+    for pages_file in sorted(DOCS_SRC.rglob(".pages")):
+        meta, _ = _parse_frontmatter("---\n" + pages_file.read_text(encoding="utf-8") + "\n---\n")
+        nav = meta.get("nav")
+        if not isinstance(nav, list):
+            continue
+        for entry in nav:
+            if not isinstance(entry, str) or entry == "...":
+                continue
+            if entry == GENERATED_INDEX_NAME:
+                continue  # written by mkdocs-gen-files, never on disk
+            if not (pages_file.parent / entry).exists():
+                log.warning(
+                    "%s: nav entry %r has no file behind it — awesome-pages "
+                    "drops it silently and can break other sections too",
+                    pages_file.relative_to(DOCS_SRC),
+                    entry,
+                )
+
+
+_check_pages_nav()
 for _section in ("architecture", "backend", "frontend"):
     _section_index(_section)
 _plans_index()
