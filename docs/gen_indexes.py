@@ -142,7 +142,13 @@ def _plans_index() -> None:
     if not PLANS_DIR.is_dir():
         return
     groups: dict[str, list[dict[str, Any]]] = {key: [] for key in STATUS_ORDER}
-    for md in sorted(PLANS_DIR.glob("*.md")):
+    # Archived plans are abandoned ones moved out of the way. They still
+    # belong in the index: an idea that was tried and rejected is worth
+    # finding before someone proposes it again.
+    plan_files = sorted(PLANS_DIR.glob("*.md")) + sorted(
+        (PLANS_DIR / "archive").glob("*.md")
+    )
+    for md in plan_files:
         meta, body = _parse_frontmatter(md.read_text(encoding="utf-8"))
         status = str(meta.get("status", "")).strip().lower() or "uncategorized"
         if status not in groups:
@@ -161,7 +167,7 @@ def _plans_index() -> None:
                 "issue": meta.get("issue", ""),
                 "last_updated": meta.get("last_updated", ""),
                 "summary": meta.get("summary", ""),
-                "filename": md.name,
+                "filename": md.relative_to(PLANS_DIR).as_posix(),
             }
         )
 
