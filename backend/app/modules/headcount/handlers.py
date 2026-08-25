@@ -11,6 +11,7 @@ from app.modules.headcount.data_entries import (
     HeadCountStudentResponse,
     HeadCountStudentUpdate,
     HeadCountUpdate,
+    normalize_sius_code,
 )
 from app.schemas.data_entry import BaseModuleHandler
 
@@ -72,10 +73,22 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
             }
         )
 
+    # #2254: empty/missing/unknown SIUS codes become "Other staff" (-1).
+    # Persisted ``data`` carries the raw payload, so normalization has to
+    # happen here, before DTO construction.
     def validate_create(self, payload: dict) -> HeadCountCreate:
+        payload = {
+            **payload,
+            "sius_code": normalize_sius_code(payload.get("sius_code")),
+        }
         return self.create_dto.model_validate(payload)
 
     def validate_update(self, payload: dict) -> HeadCountUpdate:
+        if "sius_code" in payload:
+            payload = {
+                **payload,
+                "sius_code": normalize_sius_code(payload["sius_code"]),
+            }
         return self.update_dto.model_validate(payload)
 
 

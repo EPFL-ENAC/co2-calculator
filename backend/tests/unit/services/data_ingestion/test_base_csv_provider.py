@@ -19,6 +19,7 @@ from app.models.data_entry import (
 from app.models.data_ingestion import EntityType, IngestionResult
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
+from app.modules.headcount import HeadcountMemberModuleHandler
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.services.data_ingestion.base_csv_provider import (
     REUPLOAD_HINT,
@@ -143,6 +144,16 @@ def test_get_required_columns_from_handler():
     assert "optional_col" not in result
     assert "data" not in result
     assert "carbon_report_module_id" not in result
+
+
+def test_headcount_sius_code_is_not_a_required_csv_column():
+    """#2254: SIUS is no longer mandatory — a member CSV without the
+    ``sius_code`` column must pass header validation (rows land as
+    "Other staff" via the handler's normalization).
+    """
+    required = _get_required_columns_from_handler(HeadcountMemberModuleHandler())
+    assert "sius_code" not in required
+    assert {"name", "user_institutional_id", "fte"} <= required
 
 
 def test_is_blank_data_row_all_required_empty():
@@ -373,6 +384,30 @@ async def test_csv_batch_rejects_true_duplicate_member_role(db_session: AsyncSes
     rows_data = [
         {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
         {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+    ]
+    provider = _drive_member_csv(db_session, module.id, rows_data)
+
+    result = await provider.process_csv_in_batches()
+
+    assert result["stats"]["row_errors_count"] == 1
+    assert result["stats"]["row_errors"][0]["reason"] == "DUPLICATE_INSTITUTIONAL_ID"
+    assert result["stats"]["rows_processed"] == 1
+
+
+@pytest.mark.asyncio
+async def test_csv_batch_dedupes_other_staff_role(db_session: AsyncSession):
+    """#2254: the "Other staff" sentinel (-1) is a role like any other —
+    two rows for the same person both normalized to -1 collapse to one.
+    """
+    module = CarbonReportModule(
+        carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    rows_data = [
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "-1"},
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "-1"},
     ]
     provider = _drive_member_csv(db_session, module.id, rows_data)
 

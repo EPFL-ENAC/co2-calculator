@@ -42,6 +42,10 @@ const memberFields: ModuleField[] = [
     optionLabelsAreKeys: true,
     columnSize: 'sm',
     editableInline: true,
+    // #2254: imported rows may carry the "Other staff" sentinel (-1),
+    // which is display-only — not offered in the dropdown options below.
+    // renderCell falls back to this key template when no option matches.
+    optionLabelKey: '{value}',
 
     options: [
       { value: '51', label: '51' },
