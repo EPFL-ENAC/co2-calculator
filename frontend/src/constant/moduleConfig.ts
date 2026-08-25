@@ -78,7 +78,7 @@ export interface ModuleField {
   /** Pre-filled only in the Planner (i.e. when the form's report has a `carbonReportId`). */
   plannerDefault?: string;
   /** Pre-filled only in the Explorer — overrides `defaultFrom` there. */
-  explorerDefault?: number;
+  explorerDefault?: string | number | null;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
   // Factor field to label a `kind` select with, when the stored value is an
