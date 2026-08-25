@@ -108,6 +108,8 @@ async function handleAbortPipeline() {
 
 const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
   !isSubmoduleEnabled(sub);
+
+const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
 </script>
 
 <template>
@@ -165,15 +167,21 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
       <div class="text-caption text-secondary q-mb-sm">
         {{ $t('data_management_submodule_activation_description') }}
       </div>
-      <q-toggle
-        :model-value="isSubmoduleEnabled(submodule)"
-        color="accent"
-        keep-color
-        size="md"
-        @update:model-value="
-          (val: boolean) => updateSubmoduleEnabled(submodule, val)
-        "
-      />
+      <div class="inline-block">
+        <q-toggle
+          :model-value="isSubmoduleEnabled(submodule)"
+          color="accent"
+          keep-color
+          size="md"
+          :disable="activationLocked"
+          @update:model-value="
+            (val: boolean) => updateSubmoduleEnabled(submodule, val)
+          "
+        />
+        <q-tooltip v-if="activationLocked">
+          {{ $t('data_management_activation_locked_year_open') }}
+        </q-tooltip>
+      </div>
     </q-card>
     <q-separator class="q-my-xs" />
     <q-card
