@@ -33,6 +33,7 @@ const PURCHASES_PREFIX_MAP: Array<[string, string]> = [
   ['other_purchase', 'other_purchases'],
   ['other', 'other_purchases'],
   ['centralized', 'centralized'],
+  ['purchases_centralized', 'centralized'],
   ['additional', 'centralized'],
   ['scientific_equipment', 'scientific_equipment'],
   ['it_equipment', 'it_equipment'],
