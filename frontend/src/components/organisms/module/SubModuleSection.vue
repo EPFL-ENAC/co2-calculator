@@ -191,7 +191,9 @@ const formDefaults = computed<Record<string, unknown> | undefined>(() => {
     Object.assign(defaults, resolveExplorerFormDefaults(fields));
   } else if (validatedTotals) {
     for (const field of fields) {
-      if (field.defaultFrom === 'total_fte') {
+      // A validated total of 0 means there's nothing to pre-fill — leave
+      // the field empty rather than showing a misleading 0.
+      if (field.defaultFrom === 'total_fte' && validatedTotals.total_fte) {
         defaults[field.id] = Math.round(validatedTotals.total_fte);
       }
     }
