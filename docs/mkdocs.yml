@@ -34,7 +34,8 @@ validation:
     not_found: info
     absolute_links: info
   links:
-    not_found: info
+    # A link to a page that does not exist is always a real dead link.
+    not_found: warn
     absolute_links: info
     # Archived plans link to source files that are not docs; keep that noise
     # at info. A broken *anchor*, though, is always a real dead link.

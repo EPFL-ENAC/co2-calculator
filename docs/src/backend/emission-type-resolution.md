@@ -6,7 +6,8 @@ carries a value the taxonomy has never heard of.
 
 Read this before touching any `app/modules/*/emissions.py`. The taxonomy
 itself is [`app/modules/emissions/taxonomy.py`][taxonomy]; the CSV column
-contracts are in the [Data Management Guide](../user-docs/data-management-guide.md).
+contracts are in the backoffice guide's
+[data description](https://epfl-enac.github.io/co2-calculator-back-office-doc/data-description).
 
 [taxonomy]: https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/app/modules/emissions/taxonomy.py
 
