@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.main import assert_security_settings
+from app.main import assert_poller_isolation, assert_security_settings
 
 
 def _settings(**overrides) -> SimpleNamespace:
@@ -63,3 +63,62 @@ def test_non_local_raises_when_a_required_setting_is_empty(missing_field):
 def test_non_local_passes_when_all_required_settings_set():
     settings = _settings()
     assert_security_settings(settings)  # must not raise
+
+
+# --- assert_poller_isolation (#2220) -------------------------------------
+#
+# Root cause of #2220's "Failed to move file" failures: a laptop running
+# `make dev` with `.env` pointed at the shared dev DB polled and claimed
+# dev's ingestion jobs, then resolved their uploaded files against its own
+# LocalFilesStore. The guard refuses to boot a LOCAL_ENVIRONMENT instance
+# whose poller would claim jobs from a non-local database.
+
+
+def _poller_settings(**overrides) -> SimpleNamespace:
+    defaults = {
+        "LOCAL_ENVIRONMENT": True,
+        "RUN_BACKGROUND_POLLER": True,
+        "DB_URL": "postgresql+asyncpg://app:pw@localhost:5432/app",
+    }
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
+def test_local_poller_against_shared_db_refuses_to_boot():
+    settings = _poller_settings(
+        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app"
+    )
+    with pytest.raises(RuntimeError) as exc:
+        assert_poller_isolation(settings)
+    assert "co2-dev.postgresql.dbaas.intranet.epfl.ch" in str(exc.value)
+    assert "RUN_BACKGROUND_POLLER" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "db_url",
+    [
+        "postgresql+asyncpg://app:pw@localhost:5432/app",
+        "postgresql://app:pw@127.0.0.1:5432/app",
+        "postgresql://app:pw@postgres:5432/app",  # docker-compose service
+        "sqlite+aiosqlite:///./co2_calculator.db",  # no host at all
+    ],
+)
+def test_local_poller_against_local_db_boots(db_url):
+    assert_poller_isolation(_poller_settings(DB_URL=db_url))  # must not raise
+
+
+def test_shared_db_allowed_when_poller_disabled():
+    settings = _poller_settings(
+        RUN_BACKGROUND_POLLER=False,
+        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app",
+    )
+    assert_poller_isolation(settings)  # must not raise
+
+
+def test_deployed_pods_are_exempt():
+    # Pods legitimately poll a remote DB; the guard is local-only.
+    settings = _poller_settings(
+        LOCAL_ENVIRONMENT=False,
+        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app",
+    )
+    assert_poller_isolation(settings)  # must not raise
