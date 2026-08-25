@@ -13,6 +13,7 @@ from app.core.logging import get_logger
 from app.models.connector import ConnectorType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
+from app.modules.headcount.data_entries import normalize_sius_code
 from app.schemas.user import UserRead
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
@@ -93,7 +94,7 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
                     ),
                     "user_institutional_id": str(sciper).strip(),
                     "name": record.get(self.CAPTION_NAME) or "",
-                    "sius_code": str(record.get(self.CAPTION_SIUS) or ""),
+                    "sius_code": normalize_sius_code(record.get(self.CAPTION_SIUS)),
                     "fte": fte,
                     "note": None,
                 }

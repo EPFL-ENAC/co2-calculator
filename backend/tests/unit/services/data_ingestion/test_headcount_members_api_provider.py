@@ -11,6 +11,7 @@ import pytest
 
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
+from app.modules.headcount import OTHER_SIUS_CODE
 from app.services.data_ingestion.api_providers.headcount_members_api_provider import (
     HeadcountMembersApiProvider,
 )
@@ -81,6 +82,16 @@ class TestTransformData:
             [_make_record(**{HeadcountMembersApiProvider.CAPTION_SIUS: 51})]
         )
         assert out[0]["sius_code"] == "51"
+
+    # #2254: members without a (known) SIUS code are kept as "Other staff".
+    @pytest.mark.parametrize("sius", [None, "", "   ", "62", 62])
+    async def test_missing_or_unknown_sius_becomes_other_staff(self, sius):
+        provider = _make_provider()
+        out = await provider.transform_data(
+            [_make_record(**{HeadcountMembersApiProvider.CAPTION_SIUS: sius})]
+        )
+        assert len(out) == 1
+        assert out[0]["sius_code"] == OTHER_SIUS_CODE
 
 
 # ---------------------------------------------------------------------------

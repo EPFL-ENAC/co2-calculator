@@ -30,6 +30,7 @@ from app.models.module_type import (
 )
 from app.models.unit import Unit
 from app.models.user import User
+from app.modules.headcount.data_entries import OTHER_SIUS_CODE
 from app.modules_planner.headcount import PLANNER_STUDENT_CODE
 from app.repositories.carbon_project_repo import CarbonProjectRepository
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -828,7 +829,8 @@ class SimulatorPlanService:
                 code = PLANNER_STUDENT_CODE
             else:
                 continue
-            if not code:
+            # Planner has no "Other staff" category: -1 stays calculator-only.
+            if not code or code == OTHER_SIUS_CODE:
                 continue
             try:
                 fte = float(src.data.get("fte") or 0)

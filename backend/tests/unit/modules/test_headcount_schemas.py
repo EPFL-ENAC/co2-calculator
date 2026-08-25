@@ -4,7 +4,9 @@ One falsifiable case per field-level rule in the ``headcount_data.csv``
 contract (data-description.md → Headcount):
 
     name                  ✅ non-empty string (stripped)
-    sius_code             ✅ within {51,52,53,54,56,57,58,59}
+    sius_code             ✅ within {51,52,53,54,56,57,58,59} or -1 ("Other
+                              staff"); optional as of #2254 — missing/empty/
+                              unknown codes normalize to -1 at the handler
     user_institutional_id ✅ non-empty string, stripped (doc says numbers-only,
                               code allows letters, e.g. "test-412424");
                               mandatory again as of #2138 (reverts #951)
@@ -25,8 +27,10 @@ from pydantic import ValidationError
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.modules.headcount import (
+    OTHER_SIUS_CODE,
     SIUS_CODE_VALUES,
     HeadCountCreate,
+    HeadcountMemberModuleHandler,
     HeadCountStudentCreate,
     HeadCountUpdate,
 )
@@ -81,6 +85,10 @@ def _student(**overrides) -> dict:
         pytest.param(_member(name="  Bob Jones  "), id="name-stripped"),
         # Doc says "numbers only" but the schema deliberately allows letters.
         pytest.param(_member(user_institutional_id="test-412424"), id="uid-letters"),
+        # #2254: SIUS is no longer mandatory — a missing code defaults to
+        # the "Other staff" sentinel.
+        pytest.param(_member(sius_code=_OMIT), id="sius-missing"),
+        pytest.param(_member(sius_code=OTHER_SIUS_CODE), id="sius-other-staff"),
         *[
             pytest.param(_member(sius_code=code), id=f"sius-{code}")
             for code in sorted(SIUS_CODE_VALUES)
@@ -89,7 +97,7 @@ def _student(**overrides) -> dict:
 )
 def test_headcount_member_valid(payload: dict) -> None:
     item = HeadCountCreate.model_validate(payload)
-    assert item.sius_code in SIUS_CODE_VALUES
+    assert item.sius_code in SIUS_CODE_VALUES | {OTHER_SIUS_CODE}
     assert 0 <= item.fte <= 1
 
 
@@ -112,7 +120,6 @@ def test_headcount_member_strips_name_and_uid() -> None:
         pytest.param(_member(name=_OMIT), id="name-missing"),
         pytest.param(_member(name=""), id="name-empty"),
         pytest.param(_member(name="   "), id="name-whitespace"),
-        pytest.param(_member(sius_code=_OMIT), id="sius-missing"),
         pytest.param(_member(sius_code="55"), id="sius-not-in-set"),
         pytest.param(_member(sius_code="60"), id="sius-out-of-range"),
         pytest.param(_member(sius_code="professor"), id="sius-non-numeric"),
@@ -174,6 +181,9 @@ def test_headcount_student_invalid(payload: dict) -> None:
     "payload",
     [
         pytest.param({**_MEMBER_META, "sius_code": "54"}, id="sius-only"),
+        pytest.param(
+            {**_MEMBER_META, "sius_code": OTHER_SIUS_CODE}, id="sius-other-staff"
+        ),
         pytest.param({**_MEMBER_META, "fte": 0.9}, id="fte-only"),
         pytest.param({**_MEMBER_META}, id="nothing-to-update"),
         # #951: SCIPER is updatable on a user-created row (not on an
@@ -200,3 +210,39 @@ def test_headcount_update_valid(payload: dict) -> None:
 def test_headcount_update_invalid(payload: dict) -> None:
     with pytest.raises(ValidationError):
         HeadCountUpdate.model_validate(payload)
+
+
+# ---------------------------------------------------------------------------
+# Handler normalization (#2254) — the CSV/API/form choke point maps empty,
+# missing, and unknown SIUS codes to the "Other staff" sentinel, in the
+# persisted ``data`` payload (not just the DTO field).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("sius_code", "expected"),
+    [
+        pytest.param(_OMIT, OTHER_SIUS_CODE, id="missing"),
+        pytest.param(None, OTHER_SIUS_CODE, id="none"),
+        pytest.param("", OTHER_SIUS_CODE, id="empty"),
+        pytest.param("   ", OTHER_SIUS_CODE, id="whitespace"),
+        pytest.param("62", OTHER_SIUS_CODE, id="unknown-code"),
+        pytest.param("51", "51", id="known-code-preserved"),
+        pytest.param(OTHER_SIUS_CODE, OTHER_SIUS_CODE, id="sentinel-preserved"),
+    ],
+)
+def test_handler_create_normalizes_sius_code(sius_code, expected: str) -> None:
+    handler = HeadcountMemberModuleHandler()
+    validated = handler.validate_create(_member(sius_code=sius_code))
+    assert validated.sius_code == expected
+    assert validated.data["sius_code"] == expected
+
+
+def test_handler_update_normalizes_only_when_present() -> None:
+    handler = HeadcountMemberModuleHandler()
+    validated = handler.validate_update({**_MEMBER_META, "sius_code": "62"})
+    assert validated.sius_code == OTHER_SIUS_CODE
+    assert validated.data["sius_code"] == OTHER_SIUS_CODE
+    untouched = handler.validate_update({**_MEMBER_META, "fte": 0.5})
+    assert untouched.sius_code is None
+    assert "sius_code" not in untouched.data
