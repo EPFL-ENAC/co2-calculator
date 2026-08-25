@@ -622,7 +622,7 @@ export default {
   'results-reduction-process_emissions': { en: '', fr: '' },
   'results-reduction-buildings_energy_combustion': { en: '', fr: '' },
   'results-reduction-buildings_room': { en: '', fr: '' },
-  'results-reduction-equipment': { en: '', fr: '' },
+  'results-reduction-equipment': { en: 'BAU: current practices. Low effort: switching oof unused equipment. Middle of the road: sharing equipment, optimize active/standby schedule. High effort: Widespread sharing, energy intensive equipments use optimized. Ambitious: Sharing and pooling across the institution, energy-intensive devices minimized. ', fr: '' },
   'results-reduction-external_cloud_and_ai': { en: '', fr: '' },
   'results-reduction-professional_travel': { en: '', fr: '' },
   'results-reduction-purchases': { en: '', fr: '' },
