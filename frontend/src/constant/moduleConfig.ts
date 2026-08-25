@@ -71,6 +71,8 @@ export interface ModuleField {
   min?: number;
   max?: number;
   step?: number;
+  // Reject typed values with more than N decimal places (form + inline edit).
+  maxDecimals?: number;
   default?: string | number | boolean;
   defaultFrom?: 'total_fte';
   /** Pre-filled only in the Planner (i.e. when the form's report has a `carbonReportId`). */
