@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: delivered
 issue: 1713
 last_updated: 2026-07-07
 title: "Backend provider configuration naming cleanup"

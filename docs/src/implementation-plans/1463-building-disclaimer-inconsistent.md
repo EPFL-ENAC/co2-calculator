@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: delivered
 issue: 1463
 last_updated: 2026-07-07
 title: "Buildings room-add disclaimer fires inconsistently"

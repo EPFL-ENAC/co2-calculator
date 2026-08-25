@@ -1,3 +1,9 @@
+---
+status: delivered
+issue: 841
+last_updated: 2026-07-14
+---
+
 # Stats buckets: replace emission-breakdown with persisted report stats
 
 **Status:** delivered (2026-07-07)

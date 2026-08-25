@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: delivered
 issue: 310-e
 last_updated: 2026-06-15
 title: "310-e Async-loop hygiene & pipeline worker hardening"

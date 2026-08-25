@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 1976
 last_updated: 2026-08-21
 title: "Simulator Plan — Grant proposal mode (first increment)"

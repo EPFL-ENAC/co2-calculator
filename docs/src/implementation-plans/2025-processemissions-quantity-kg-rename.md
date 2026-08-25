@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2025
 last_updated: 2026-08-18
 title: "Process Emissions: rename quantity -> quantity_kg (doc-driven schema change)"

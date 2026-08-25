@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 504
 last_updated: 2026-03-31
 title: "PRD 2 — Results CSV (`results.csv`)"

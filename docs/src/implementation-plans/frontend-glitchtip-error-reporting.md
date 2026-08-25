@@ -1,5 +1,6 @@
 ---
 status: delivered
+issue: 1569
 last_updated: 2026-06-18
 title: "Frontend error reporting — minimal GlitchTip client (drop @sentry/vue)"
 summary: "Replaces the @sentry/vue SDK with a ~2 KB dependency-free GlitchTip-compatible reporter (src/utils/glitchtip.ts). Captures Vue component, router, global, DOM-event, unhandled-rejection and ky 5xx errors. Fixes the two protocol bugs (missing envelope item header, missing DSN public key) that stopped events ingesting, and documents that the DSN must live in .env.local."

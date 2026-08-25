@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 1557
 last_updated: 2026-07-23
 title: "Simulator Plan — frontend follow-ups"

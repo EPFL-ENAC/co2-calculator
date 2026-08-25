@@ -1,5 +1,6 @@
 ---
 status: delivered
+issue: 310
 last_updated: 2026-05-06
 title: "Plan 310-D Follow-up — Strategy B Rematch + Per-Module ITs"
 summary: "Rematch the FK-link modules (travel, headcount, building embodied energy) plus regression coverage for JSON-link modules including the 1:N building-rooms fan-out."

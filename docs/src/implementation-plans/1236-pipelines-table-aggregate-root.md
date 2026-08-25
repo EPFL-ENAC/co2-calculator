@@ -1,3 +1,9 @@
+---
+status: delivered
+issue: 1236
+last_updated: 2026-05-20
+---
+
 # 1236 — First-class `pipelines` table
 
 Status: design · Issue #1236 · Integrates into `fix/pipeline-debug`
