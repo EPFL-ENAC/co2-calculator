@@ -72,7 +72,9 @@ This is coordinated disclosure, not secrecy — the constraint is
    a fix is verified; lower severities follow the normal release path.
 5. **Notify** EPFL DSI within the timeframe for the severity, and the
    Data Protection Officer within 72 hours if personal data is
-   involved.
+   involved. Open the ticket **directly in the failing service's
+   queue** (`SI_POSTGRESQL`, `SI_KUBERNETES`, `SI_AD`, …) — see the
+   [service map](security-documentation.md#service-map-and-dsi-queues).
 6. **Record.** Log the incident, its resolution and its lessons in a
    private tracking issue, and update whichever documents the incident
    proved wrong.
