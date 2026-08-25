@@ -3160,7 +3160,7 @@ LEFT OUTER JOIN (
 WHERE data_entries.carbon_report_module_id = ...
 ```
 
-This is the same defect [Track H](#track-h--the-825ms-submodule-get-root-caused-the-critical-patch-explained)
+This is the same defect [Track H](#track-h-the-825ms-submodule-get-root-caused-the-critical-patch-explained)
 fixed for headcount by reading its rollup row — still live for every type
 resolving through the generic branch: process emissions, equipment, purchases,
 research facilities, external cloud/AI. And it is the same shape

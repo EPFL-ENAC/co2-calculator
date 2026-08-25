@@ -13,7 +13,7 @@ document did its job: it drove ~15 PRs and its alerting half is live. What
 it is now is mostly **history plus several claims we've since disproved**,
 which makes it actively misleading to work from. The full v3 text is in
 this file's git history if you need to challenge a number; the measurements
-worth keeping are in [Appendix A](#appendix-a--measured-evidence).
+worth keeping are in [Appendix A](#appendix-a-measured-evidence).
 
 ## Scope
 

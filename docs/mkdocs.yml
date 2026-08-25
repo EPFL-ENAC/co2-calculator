@@ -36,8 +36,10 @@ validation:
   links:
     not_found: info
     absolute_links: info
+    # Archived plans link to source files that are not docs; keep that noise
+    # at info. A broken *anchor*, though, is always a real dead link.
     unrecognized_links: info
-    anchors: info
+    anchors: warn
 markdown_extensions:
   - admonition
   - toc:

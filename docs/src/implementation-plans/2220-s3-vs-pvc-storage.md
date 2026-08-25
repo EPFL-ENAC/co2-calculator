@@ -14,9 +14,10 @@ Builds on the upload-path work in
 [#2261](https://github.com/EPFL-ENAC/co2-calculator/pull/2266) and the
 already-shipped idempotent-move fix in
 [#1559](1559-ingestion-idempotent-tmp-to-processing-move.md). Read
-[§5 of #1402's plan](1402-trim-down-alerting.md#5-workstream-c--upload--storage)
-for the earlier, abstract S3/PVC/local-staging comparison — this doc grounds
-that comparison in the actual bug and the actual dev cluster topology.
+[#1402's plan](1402-trim-down-alerting.md) for the surrounding alerting
+work — its earlier, abstract S3/PVC/local-staging comparison has since been
+rewritten out of that document, and this doc grounds the comparison in the
+actual bug and the actual dev cluster topology instead.
 
 ## Root cause
 
@@ -214,7 +215,7 @@ diagnostic value across two exception-swallowing layers. Both are
 addressed without an architecture change:
 
 - (a) is an observability/alerting-configuration problem, not a code bug —
-  see [Left as a written proposal](#left-as-a-written-proposal).
+  see [Left as a written proposal](#left-as-a-written-proposal-not-implemented-here).
 - (b) is fixed at the one layer this repo owns (see below); the deeper fix
   belongs to `enacit4r-files` and is filed upstream.
 
