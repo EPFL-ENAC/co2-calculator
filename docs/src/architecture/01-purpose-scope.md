@@ -2,7 +2,7 @@
 
 > See the [CRD](spec.md) for project scope, roles, and the architectural decisions trail.
 
-This document provides a comprehensive overview of the system architecture for project nº200. It describes the high-level design, component interactions, and key architectural decisions that shape the system.
+This document provides a comprehensive overview of the system architecture for the CO₂ Calculator. It describes the high-level design, component interactions, and key architectural decisions that shape the system.
 
 ## Intended Audience
 

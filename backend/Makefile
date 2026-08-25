@@ -127,7 +127,7 @@ seed-data: ## Seed the database with initial data
 	$(UV) run -m app.seed.seed_generic_factors
 
 .PHONY: seed-data-random
-seed-data-random: ## Seed ~800 random data_entry rows via Faker (issue #222)
+seed-data-random: ## Seed ~800k random data_entry rows via Faker (issue #222)
 	$(UV) run -m app.seed.random_generator.seed_all
 
 .PHONY: seed-units
