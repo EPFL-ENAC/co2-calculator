@@ -1,3 +1,7 @@
+> **The live token reference is
+> [in Storybook](https://co2-calculator-storybook.epfl.ch/?path=/story/documentation-design-tokens--documentation).**
+> It renders the real values. This page explains the architecture behind them.
+
 ## Where styles live (current structure)
 
 > **This section is authoritative.** The tutorial below explains the design-token

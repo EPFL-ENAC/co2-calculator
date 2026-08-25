@@ -50,7 +50,7 @@ SKIP LOCKED` polling. No external broker (Celery / Redis / RabbitMQ).
 
 - Path 1 inline emission compute (deliberate UX choice for the interactive editor).
 - Migration to a third-party job queue. Decision rationale lives in
-  [`310-overview.md`](./310-overview.md#why-not-celery).
+  [ADR-010](../architecture-decision-records/010-background-job-processing.md).
 - Backfill of factor history beyond what `last_seen_job_id` exposes (Plan B).
 
 ## Status
