@@ -30,27 +30,53 @@ detecting, it needs a different signal than request duration (e.g. a stuck
 job, covered by the `job`-class alerts and the pipeline's own health
 metrics), not a latency SLO.
 
+## Probe trace sampling
+
+Metrics (`route_class`) and traces (Tempo, via `enac-it-otel`) are separate
+signals from the same span data, sampled independently. The collector's
+`tail_sampling` `drop-health` policy was meant to cut health-check trace
+noise, matching literal `/health`/`/healthz`/`/ready` on `http.target` -- no
+`/api` prefix. Every request's `http.target` actually carries that prefix
+(same fact 1402 already proved for the metrics side), so the literal match
+never fired: with `invert_match: true`, the policy was a total no-op --
+every trace was already being kept, health and non-health alike, and none
+of the intended noise reduction was happening.
+
+Independent of that bug, a flat allow/deny list could never keep an
+anomalous slow probe's trace while dropping the routine fast ones anyway --
+found while chasing a ~400ms P99 spike on the probe latency panel with no
+matching trace in Tempo. Fixed in **dev only** with a composite policy:
+non-health traffic is always kept (unchanged), health/probe traffic is kept
+only if a span exceeds 200ms, or by a light 5% sample otherwise. Not yet
+promoted to stage/prod -- verify in dev first (a deliberately slow probe
+should produce a trace; routine probes should drop to roughly 5% sampled),
+then promote. Tracked in
+[co2-calculator#2302](https://github.com/EPFL-ENAC/co2-calculator/issues/2302).
+
 ## Per-environment status
 
-| Signal                                                   | Dev                                 | Stage   | Prod                      |
-| -------------------------------------------------------- | ----------------------------------- | ------- | ------------------------- |
-| `route_class` label (collector transform)                | ✅                                  | ✅      | ✅                        |
-| Grafana: Latency percentile, split by `route_class`      | ✅                                  | ✅      | ✅                        |
-| Grafana: probe / DB pool panels                          | ✅                                  | ✅      | ✅                        |
-| `LatencyP50/95/99High` scoped to `route_class="api"`     | ✅                                  | ✅      | ✅                        |
-| `BackendMetricsAbsent` (deadman's switch)                | ✅                                  | ✅      | ✅                        |
-| `HighErrorRate` -- global (not per-pod) 5xx ratio        | ✅ 2%                               | ✅ 2%   | ✅ 1% (retuned from data) |
-| `ErrorRateSustainedElevated` -- 6h window, severity:info | ✅ 0.3%                             | ✅ 0.3% | ✅ 0.3%                   |
-| `UploadLatencySLOBreach` / `JobLatencySLOBreach`         | ✅ (thresholds from 4wk stage data) | ✅      | ⬜ blocked -- see below   |
+| Signal                                                   | Dev                                 | Stage                       | Prod                                                      |
+| -------------------------------------------------------- | ----------------------------------- | --------------------------- | --------------------------------------------------------- |
+| `route_class` label (collector transform)                | ✅                                  | ✅                          | ✅                                                        |
+| Grafana: Latency percentile, split by `route_class`      | ✅                                  | ✅                          | ✅                                                        |
+| Grafana: probe / DB pool panels                          | ✅                                  | ✅                          | ✅                                                        |
+| `LatencyP50/95/99High` scoped to `route_class="api"`     | ✅                                  | ✅                          | ✅                                                        |
+| `BackendMetricsAbsent` (deadman's switch)                | ✅                                  | ✅                          | ✅                                                        |
+| `HighErrorRate` -- global (not per-pod) 5xx ratio        | ✅ 2%                               | ✅ 2%                       | ✅ 1% (retuned from data)                                 |
+| `ErrorRateSustainedElevated` -- 6h window, severity:info | ✅ 0.3%                             | ✅ 0.3%                     | ✅ 0.3%                                                   |
+| `UploadLatencySLOBreach` / `JobLatencySLOBreach`         | ✅ (thresholds from 4wk stage data) | ✅                          | 🟡 interim -- stage-derived thresholds, see below (#2301) |
+| Probe trace sampling -- latency-aware, not blanket drop  | ✅                                  | ⬜ not yet promoted (#2302) | ⬜ not yet promoted (#2302)                               |
 
-Prod's `route_class` transform only just shipped. The SLO-breach alerts need
-real `route_class="upload"`/`"job"` traffic history to set a threshold from
--- the same rule this repo already applied once (1402's own thresholds came
-from 4 weeks of stage data, not a guess). Copying stage's numbers over
-verbatim would silently assume prod's traffic shape matches stage's, which
-we have no evidence for. Once the transform has run in prod for a few weeks,
-pull `route_class="upload"`/`"job"` history and set real thresholds, the
-same way 1402 did for stage.
+Prod's `route_class` transform only shipped recently. `UploadLatencySLOBreach`/
+`JobLatencySLOBreach` are live there now, but running on **stage's**
+4-week-derived thresholds (5s@2%, 10s@5%) as an explicit interim value --
+prod has no traffic history of its own yet to derive a number from, and
+1402's own precedent is "pull real numbers, don't guess." Zero coverage for
+the weeks it takes to accumulate that data seemed worse than a
+clearly-labeled approximation; both alerts say "interim" in their summary
+text. Retune from real prod `route_class="upload"`/`"job"` history once
+available -- tracked in
+[co2-calculator#2301](https://github.com/EPFL-ENAC/co2-calculator/issues/2301).
 
 **`HighErrorRate` was retuned from real data, not carried over.** Pulled
 4-week 5xx/total on 2026-08-24: dev 0.081%, stage 0.0085%, prod 0.0012% (1
