@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 310
 last_updated: 2026-05-07
 title: "310 — Post-merge fix batch (review findings + #1062/#1063/#1064)"

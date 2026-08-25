@@ -1,5 +1,6 @@
 ---
 status: delivered
+issue: 1552
 last_updated: 2026-07-06
 title: "API Connect: connectors and encrypted connections — implementation plan"
 summary: "Tiered TDD plan for a modular connector registry, one encrypted connection per connector (entered in the form), per-module connector_luid datasources, the travel + new headcount providers driven from them, and the shared Tableau logic in one base provider."

@@ -1,5 +1,6 @@
 ---
 status: delivered
+issue: 856
 last_updated: 2026-05-06
 branch: feat/856-simulation-explore-flow
 base_commit: 7e6de8a427a205fab81092485104be7edf6a9a44

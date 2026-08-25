@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2096
 last_updated: 2026-08-19
 summary: Validated modules with no data were dropped from validated_buckets and the results summary, so the Results chart greyed them out with a "Validate X to see results" tooltip; fixed at recompute time, pending the admin stats-recompute backfill for reports persisted before the fix.

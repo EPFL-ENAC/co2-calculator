@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 898
 last_updated: 2026-05-06
 title: "Fix ModuleUnitSpecificCSVProvider KeyError + Add CSV Fixture Tests"

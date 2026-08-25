@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 1402
 last_updated: 2026-08-24
 title: "Split Grafana p99 Latency Alerting by Endpoint Class; Add GlitchTip Alerting"

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 1578
 last_updated: 2026-07-07
 title: "Fix: failed CSV re-upload blanks previous upload summary in backoffice config"

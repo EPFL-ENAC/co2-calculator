@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2072
 last_updated: 2026-08-18
 title: "Fix: Enter-key submit leaves a false 'Required' error on the field that was just filled"

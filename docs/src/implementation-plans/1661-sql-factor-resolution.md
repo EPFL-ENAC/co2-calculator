@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 1661
 last_updated: 2026-07-06
 title: "SQL factor resolution for list sort/filter/pagination"

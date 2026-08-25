@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 1556
 last_updated: 2026-07-16
 title: "Simulator Plan — Backend"

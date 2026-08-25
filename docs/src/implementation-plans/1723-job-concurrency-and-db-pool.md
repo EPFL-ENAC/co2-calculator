@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 1723
 last_updated: 2026-07-07
 title: "Bound background-job concurrency and size the DB pool"

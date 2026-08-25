@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: delivered
 issue: 1204
 last_updated: 2026-07-07
 title: "Restrict backoffice year creation to [2025, current_year]"

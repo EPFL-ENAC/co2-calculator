@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 310-c
 last_updated: 2026-05-06
 title: "310-c — DAG + Handler Registry + Observability"
