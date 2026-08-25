@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.engine import make_url
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.router import api_router
@@ -72,11 +73,41 @@ def assert_accred_settings(settings) -> None:
         raise RuntimeError("Missing required Accred config: " + ", ".join(missing))
 
 
+# DB hosts a local instance may poll without colliding with a deployed
+# fleet: its own machine, or docker-compose's `postgres` service.
+_LOCAL_DB_HOSTS = frozenset({None, "localhost", "127.0.0.1", "::1", "postgres"})
+
+
+def assert_poller_isolation(settings) -> None:
+    """Fail closed at boot when a local instance would claim a shared DB's jobs.
+
+    #2220 root cause: a laptop running ``make dev`` with ``.env`` pointed at
+    the dev database polled and claimed dev's ingestion jobs, then resolved
+    their uploaded files against its own LocalFilesStore — every CSV move
+    failed with "source no longer exists" while the file sat untouched in S3.
+    """
+    if not settings.LOCAL_ENVIRONMENT or not settings.RUN_BACKGROUND_POLLER:
+        return
+    if settings.DB_URL is None:
+        return
+    host = make_url(settings.DB_URL).host
+    if host in _LOCAL_DB_HOSTS:
+        return
+    raise RuntimeError(
+        f"LOCAL_ENVIRONMENT=True with RUN_BACKGROUND_POLLER=True against a "
+        f"non-local database ({host}): this process would claim that "
+        "deployment's jobs and fail their file moves (#2220). Set "
+        "RUN_BACKGROUND_POLLER=False in backend/.env to work against a "
+        "shared DB, or point DB_URL at localhost."
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Run on application startup."""
     assert_security_settings(settings)
     assert_accred_settings(settings)
+    assert_poller_isolation(settings)
 
     logger.info(
         "Starting application",

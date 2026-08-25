@@ -1,9 +1,9 @@
 ---
 status: delivered
 issue: 2220
-last_updated: 2026-08-21
+last_updated: 2026-08-25
 title: "S3 HeadObject 404s: root cause, and the S3-vs-stop-vs-PVC decision"
-summary: "Most of the 32 HeadObject 404s/24h are expected, already-handled existence checks from the #1559 idempotent-move fix, mis-flagged as span errors by OTel's botocore auto-instrumentation — not a data-loss bug. The remaining genuine 'Failed to move file' failures were unexplained because two layers of exception-swallowing (vendored enacit4r-files, then this repo's generic re-raise) discarded the real cause; fixed here. PVC is not adopted: dev already runs 3 backend replicas + 1 worker pod needing ReadWriteMany, and no RWX storage class is evidenced anywhere in the ops repo."
+summary: "Root cause found live on 2026-08-25: the genuine 'Failed to move file' failures happen when a laptop running `make dev` with .env pointed at the shared dev DB polls and claims dev's ingestion jobs, then resolves their uploaded files against its own LocalFilesStore — the file sits untouched in S3 the whole time. Fixed with a fail-closed boot guard (assert_poller_isolation). The recurring HeadObject-404 error spans are expected, already-handled existence checks from the #1559 idempotent-move fix, mis-flagged by OTel's botocore auto-instrumentation — confirmed by correlating a live 'error' trace with its succeeding job. PVC is not adopted: dev already runs 3 backend replicas + 1 worker pod needing ReadWriteMany, and no RWX storage class is evidenced anywhere in the ops repo."
 ---
 
 # S3 HeadObject 404s: root cause, and the S3-vs-stop-vs-PVC decision
@@ -20,6 +20,42 @@ rewritten out of that document, and this doc grounds the comparison in the
 actual bug and the actual dev cluster topology instead.
 
 ## Root cause
+
+> **2026-08-25 update — the genuine failures are now root-caused, live.**
+> A `Failed to move file … source no longer exists` failure was reproduced
+> in dev (jobs 90 and 92) while the earlier jobs of the same day (3–87)
+> had all succeeded. The discriminator was `data_ingestion_jobs.locked_by`:
+> the succeeding jobs were claimed by `co2-calculator-worker-…` (the dev
+> worker pod); the failing ones by `ENACITM-C018252` — a **laptop** running
+> `make dev` with `backend/.env` pointed at the shared dev database
+> (started 14:23, failures start 14:41). `RUN_BACKGROUND_POLLER` defaults
+> to true, so the laptop's poller claimed dev's freshly-created CSV jobs;
+> with no S3 credentials locally, `make_files_store()` fell through to
+> `LocalFilesStore`, which looked for the uploaded file in `./files_storage`
+> — hence "source no longer exists" seconds after a successful upload,
+> while the object sat untouched in S3's `tmp/`. DB-only jobs
+> (emission_recalc, aggregation) claimed by the laptop _succeeded_, which
+> is why the symptom only ever hit file-backed jobs. The 2026-08-20
+> incident (12 of 14 uploads failing during working hours, "self-healing"
+> outside them) matches this mechanism exactly; its job rows were lost to
+> a DB reseed, so its `locked_by` can no longer be checked directly.
+>
+> Fix shipped in this PR: `assert_poller_isolation` in `app/main.py` — a
+> boot-time lifespan check (per the guardrails' "boot-time config checks
+> live in the FastAPI lifespan") that refuses to start a
+> `LOCAL_ENVIRONMENT=True` instance whose poller would claim jobs from a
+> non-local DB host, with regression tests in
+> `tests/unit/core/test_startup_checks.py`. The pod-heartbeat work (#1080)
+> had already flagged this exact hazard ("a dev branch running locally
+> against the stage DB silently collided with the deployed stage app") but
+> only _surfaced_ it; this closes it.
+>
+> §1 below was also confirmed live the same day: a worker "error" trace
+> (single root `S3.HeadObject` 404 span, `exception.escaped: false`,
+> 14:38:50) correlated with job 75, which **succeeded** — the span is the
+> `_move_to_processing` idempotency pre-check. The sections below predate
+> the reproduction and stand as the (correct but then-incomplete)
+> elimination work.
 
 **Two separate things are being conflated by the issue's framing, and
 they need separate fixes.**
@@ -228,6 +264,11 @@ assumed.
 
 ## Implemented
 
+- **(2026-08-25)** `backend/app/main.py`: `assert_poller_isolation` — the
+  fail-closed boot guard for the actual root cause (local poller claiming
+  shared-DB jobs, see the update at the top), with regression tests in
+  `backend/tests/unit/core/test_startup_checks.py` and a warning note next
+  to `RUN_BACKGROUND_POLLER` in `backend/.env.example`.
 - `backend/app/services/data_ingestion/base_provider.py`:
   `_move_to_processing`/`_move_to_processed` now call a new
   `_diagnose_move_failure()` helper when `move_file()` returns `False`,
