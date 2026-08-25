@@ -24,20 +24,24 @@ answering a security questionnaire or an audit.
 
 ## What is still open
 
-- **Recovery timeframes (9)** — best effort, documented under
-  [Recovery objectives](#recovery-objectives). Detection is measured
-  and fast; database restore depends on EPFL DSI, who have not
-  published a DBaaS RPO or RTO, and deleted objects are not
-  recoverable at all. Both are decisions to take, not code to write.
+- **Recovery timeframes (9)** — best effort for what we control,
+  documented under [Recovery objectives](#recovery-objectives).
+  Detection is measured and fast; database RPO/RTO is now covered by
+  EPFL DSI's own SLA (see below), but deleted objects are still not
+  recoverable at all — that is a decision to take, not code to write.
 
-Neither gap is closed by a code change. Track them as issues rather
-than leaving them implied by an unticked box.
+That gap is not closed by a code change. Track it as an issue rather
+than leaving it implied by an unticked box.
 
 ## Recovery objectives
 
-**Best effort. No contractual SLA, RPO or RTO is agreed** — stating
-that plainly is more useful than leaving question marks in the DRP.
-What _is_ measured:
+**Best effort for what we control.** Detection, notification and
+application restore have no contractual SLA — that's ours to own.
+Database recovery follows EPFL DSI's own terms: see the
+[EPFL PostgreSQL SLA](https://go.epfl.ch/SVC1757) for backup
+frequency, RPO, RTO and the point-in-time-recovery window — link it
+rather than copying its figures here, since DSI can revise them
+without this doc knowing. What _is_ measured on our side:
 
 | Stage                | Actual capability                                                                                                                                                                                |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -46,12 +50,13 @@ What _is_ measured:
 | Notification         | ~30 s after an alert fires, by email to the sysadmin group; re-sent every 4 h until resolved, and again on recovery                                                                              |
 | External check       | Icinga probes HTTPS, certificate validity and the database from outside the cluster                                                                                                              |
 | Restore, application | Minutes — ArgoCD auto-sync and self-heal reconcile a bad deploy; revert the GitOps commit and it rolls back                                                                                      |
-| Restore, database    | **Not under our control** — requested from EPFL DSI by ticket; DSI has not published DBaaS RPO or RTO                                                                                            |
+| Restore, database    | Requested from EPFL DSI by ticket. RPO, RTO and the PITR window are set by the [EPFL PostgreSQL SLA](https://go.epfl.ch/SVC1757), not by us                                                      |
 | Restore, files       | **Not possible, by decision** — buckets have versioning disabled. Object storage stages ingestion files; the durable record is in PostgreSQL, and a lost CSV is re-uploaded rather than restored |
 
 Detection and application recovery are ours and are fast. Database
-recovery depends on EPFL DSI, who publish no DBaaS RPO or RTO — that is
-the one remaining unknown, and it is a conversation, not a code change.
+recovery follows the [EPFL PostgreSQL SLA](https://go.epfl.ch/SVC1757)
+— refer to it directly for current figures rather than a value
+duplicated here.
 
 Object storage is deliberately not versioned. It holds ingestion files
 in transit (`tmp/`, `processing/`, `processed/`); the emission data they
