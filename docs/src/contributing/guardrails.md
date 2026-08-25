@@ -1,11 +1,3 @@
----
-status: delivered
-last_updated: 2026-07-16
-summary: Engineering guardrails for maintainers shipping releases without the lead — architecture invariants, style rules, and what not to touch.
-description: Engineering guardrails — architecture invariants, style rules, and workflow for backend and frontend development.
-applyTo: "backend/**, frontend/**"
----
-
 # Engineering Guardrails
 
 Read this before your first PR, and again before every release. It exists so
@@ -14,61 +6,55 @@ architecture and philosophy of this codebase. When this page and your
 instinct disagree, this page wins. When this page and the code disagree, see
 the [source-of-truth hierarchy](../llm-agent-guide.md).
 
+## Two layers
+
+The **shared ENAC IT4R rules** — architecture invariants (backend is the single
+source of truth, `route → service → repo` with the commit in the route, no
+silent fallbacks, the frontend never checks roles, no backward-compatibility
+paths), style rules, the performance philosophy, and the PR workflow — live in
+[`it4r-agent-kit`](https://github.com/EPFL-ENAC/it4r-agent-kit). They apply to
+every IT4R project. **Read them first**: [`it4r-rules.md`](./it4r-rules.md) is
+a vendored copy of that repo's `AGENTS.md`, imported by `CLAUDE.md`.
+
+Never edit `it4r-rules.md` here — change it upstream in the kit, then run
+`make sync-agent-rules`, which re-pulls the file and stamps the commit it came
+from in the header. A rule that would be true for any of our projects belongs
+upstream; if you find yourself editing the vendored copy, you are editing the
+wrong file.
+
+**This page holds only what is specific to co2-calculator.** A rule that would
+be true for any of our projects belongs upstream in the kit, not here.
+
 ## Before you code
 
 1. **Find the plan.** Every subsystem is documented by its implementation
    plans: grep [`implementation-plans/`](../implementation-plans/) for the
    issue number or module name and read what shipped. This is the single
    highest-leverage habit in this repo.
-2. **No plan for your issue? Write one first.** Every issue ends with a
-   delivered plan file in `implementation-plans/` — even small fixes get a
-   short one, backfilled at worst. If your PR diverges from its plan, update
-   the plan in the same PR. Plan files are named
+2. **No plan for your issue? Write one first.** Plan files are named
    `<issue-id>-<kebab-slug>.md` with `status`/`issue`/`last_updated`/`summary`
-   frontmatter (see the [LLM agent guide](../llm-agent-guide.md)); abandoned
-   plans move to `implementation-plans/archive/`. Their location is settled
-   (#860) — do not propose moving plans out of `docs/src/`. Bot-review
-   feedback and code-review notes live in `docs/code-review/`, not with the
-   plans.
+   frontmatter; abandoned plans move to `implementation-plans/archive/`. Their
+   location is settled (#860) — do not propose moving plans out of
+   `docs/src/`. Bot-review feedback and code-review notes live in
+   `docs/code-review/`, not with the plans.
 3. **Mirror, don't invent.** New modules copy the travel-like dynamic-form
-   shape; new endpoints copy a neighboring router. A new pattern needs a
-   written reason (ADR) the existing one can't give. Do not introduce new
+   shape; new endpoints copy a neighboring router. Do not introduce new
    patterns while the lead is away.
 
-## Architecture invariants
+## co2-specific invariants
 
-These are not preferences; they are load-bearing.
-
-- **Backend is the single source of truth.** Every formula, aggregation, and
-  transform lives server-side. The frontend renders backend output — never
-  reimplement a computation client-side. Two implementations of a carbon
-  formula will drift, and a drifted published number is the worst failure
-  this project can have. Keep factor resolution centralized, and don't store
-  derived values in entries when they resolve from factors/lookups.
-- **Respect the layering — no SQL in routes.** The call chain is
-  `route → service → repo`, or `route → workflow → service → repo` for
-  multi-step operations. Repos own the SQL, services own the logic, routes
-  own the transaction: **the commit happens in the route**, never in a
-  service or repo. This hierarchy is non-negotiable.
-- **No silent fallbacks.** No "misc" buckets, no swallowed exceptions, no
-  defaulted-away missing data. A wrong total that _looks_ complete is worse
-  than a visible error. Fail hard: `raise`, don't `logger.error` and carry
-  on — a log line nobody reads is a silent fallback.
-- **Frontend never checks roles.** UI gates on dedicated permission keys
-  (e.g. `module.btn.validated/{cf}`); the backend decides what a role means.
-  Authorization fails closed. Boot-time config checks live in the FastAPI
-  lifespan, not in `Settings` validators.
-- **The DB persists across deploys.** Data migrations ship in the same PR as
-  the code change. Never hand-author Alembic migrations — use
-  `make db-revision`, then prune false-positive `drop_index` calls. Keep
-  manual edits to the generated migration to a strict minimum — anything
-  expressible in model code belongs in model code.
-- **The pipeline stays idempotent.** Ingestion and recompute must be safely
-  re-runnable. Before changing anything under `backend/app/workflows/` or
-  recalculation, read the 310-series plans and the stuck-job fix plans
-  (1215, 1219, 1559, 1723).
-- **No backward-compatibility paths.** When the new way ships, delete the
-  old way in the same PR. No dual-path bloat.
+- **Keep factor resolution centralized**, and don't store derived values in
+  entries when they resolve from factors/lookups. (The general rule this
+  refines: the backend is the single source of truth.)
+- **The pipeline stays idempotent.** Before changing anything under
+  `backend/app/workflows/` or recalculation, read the 310-series plans and the
+  stuck-job fix plans (1215, 1219, 1559, 1723).
+- **Migrations are generated, never hand-authored** — use `make db-revision`,
+  then prune false-positive `drop_index` calls.
+- **Permission keys look like `module.btn.validated/{cf}`.** The UI gates on
+  those; the backend decides what a role means.
+- **Boot-time config checks live in the FastAPI lifespan**, not in `Settings`
+  validators.
 
 ## Performance budget
 
@@ -79,41 +65,14 @@ These are not preferences; they are load-bearing.
 - Minimize XHR calls per page — extend an existing endpoint or batch before
   adding a new call.
 
-## Frontend rules
+## Frontend specifics
 
-- Follow the existing CSS architecture — extend what's in
-  `frontend/src/css/`, never add a parallel styling approach.
-- Icons are SVG. Do not add icon fonts.
+- Extend the CSS architecture in `frontend/src/css/` — never add a parallel
+  styling approach.
 - All HTTP goes through the centralized ky client
-  (`frontend/src/api/http.ts`), via a module file in `frontend/src/api/` —
-  never `fetch`, axios, or raw ky from a component.
-- Layout lives in `pages/`, logic lives in `components/` built for reuse.
-  Don't wire a route straight to a one-off component — the page composes,
-  the components carry the logic.
-- Minimize layers: no new wrappers, stores, or indirection a page can do
-  without. Shared state that must exist goes in Pinia, strongly typed.
-- Form, table, and chart values stay consistent — same backend source,
-  stable keys and deterministic ordering. Creating or editing an entry
-  updates visible charts without leaving the page.
-- No hardcoded user-facing strings — every label goes through i18n.
-- Visual components show explicit loading/empty/error states — never a
-  silent blank.
-
-## Style rules
-
-- Python: functions ≤40 lines, ≤2 nesting levels, single responsibility.
-  Imports at top of file, never inline. No `assert` for runtime narrowing —
-  use `if x is None: raise ValueError(...)`.
-- SQLModel: wrap column refs in `col()`; import `func`/`case`/`or_`/`asc`
-  from `sqlmodel` when re-exported there, not from `sqlalchemy`.
-- No type suppressions — no `# type: ignore`, no `@ts-expect-error` /
-  `@ts-ignore`. Fix the types instead. In the rare case one is truly
-  unavoidable, it carries the specific error code (`[arg-type]`) and a
-  one-line reason.
-- TypeScript: `catch (e: unknown)`, narrow with `instanceof Error`. Vue
-  components hard-capped at 500 lines — extract composables at 400.
-- No defensive programming: no guards for states the types make impossible.
-- Comments explain intent (why), not implementation (what); 1–2 lines.
+  (`frontend/src/api/http.ts`), via a module file in `frontend/src/api/`.
+- i18n lives in `frontend/src/i18n/` — always update **both** `en-US` and
+  `fr-CH` locale files together.
 
 ## Workflow
 
@@ -126,9 +85,8 @@ These are not preferences; they are load-bearing.
   run `make type-check` or the commit hook will block.
 - Backend dependencies change via `uv add` / `uv remove`, never by
   hand-editing `pyproject.toml`.
-- **Every bug fix ships with a regression test** that fails without the fix,
-  and every change ships with a test on the side it touches. Backend tests
-  run via `uv run pytest`. Frontend tests are Playwright: component tests in
+- **Every bug fix ships with a regression test.** Backend tests run via
+  `uv run pytest`. Frontend tests are Playwright: component tests in
   `frontend/tests/unit` (`npm run test-ct`), integration tests in
   `frontend/tests/integration` (`npm run test:e2e`).
 
