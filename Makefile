@@ -65,8 +65,6 @@ help: ## Show available targets
 
 .PHONY: install
 install: ## Install all dependencies and set up git hooks
-	@echo "Fetching vendored agent rules (.claude/it4r-agent-kit)..."
-	git submodule update --init
 	@echo "Installing root npm dependencies (lefthook + prettier)..."
 	@command -v node >/dev/null 2>&1 || { echo "❌ node not found. Run: nvm install"; exit 1; }
 	@echo "Node: $$(node --version), npm: $$(npm --version)"
@@ -237,3 +235,13 @@ build-docs: ## Build documentation site
 serve-docs: ## Serve documentation with live reload
 	@echo "Starting documentation server..."
 	if [ -d "docs" ]; then cd docs && $(MAKE) serve-docs; fi
+
+.PHONY: sync-agent-rules
+sync-agent-rules: ## Re-vendor the shared ENAC IT4R rules from it4r-agent-kit
+	@sha=$$(gh api repos/EPFL-ENAC/it4r-agent-kit/commits/main --jq .sha); \
+	{ echo "<!-- Vendored from https://github.com/EPFL-ENAC/it4r-agent-kit @ $${sha:0:7}"; \
+	  echo "     Do not edit here — edit AGENTS.md upstream, then run \`make sync-agent-rules\`. -->"; \
+	  echo; \
+	  curl -fsSL https://raw.githubusercontent.com/EPFL-ENAC/it4r-agent-kit/main/AGENTS.md; \
+	} > docs/src/contributing/it4r-rules.md
+	@git diff --stat -- docs/src/contributing/it4r-rules.md

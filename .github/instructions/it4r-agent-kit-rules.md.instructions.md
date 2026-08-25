@@ -1,1 +1,1 @@
-../../.claude/it4r-agent-kit/AGENTS.md
+../../docs/src/contributing/it4r-rules.md

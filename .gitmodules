@@ -1,3 +1,0 @@
-[submodule ".claude/it4r-agent-kit"]
-	path = .claude/it4r-agent-kit
-	url = https://github.com/EPFL-ENAC/it4r-agent-kit.git

@@ -13,12 +13,14 @@ source of truth, `route → service → repo` with the commit in the route, no
 silent fallbacks, the frontend never checks roles, no backward-compatibility
 paths), style rules, the performance philosophy, and the PR workflow — live in
 [`it4r-agent-kit`](https://github.com/EPFL-ENAC/it4r-agent-kit). They apply to
-every IT4R project. **Read them first**: they are vendored here as a submodule
-at `.claude/it4r-agent-kit/AGENTS.md` and imported by `CLAUDE.md`.
+every IT4R project. **Read them first**: [`it4r-rules.md`](./it4r-rules.md) is
+a vendored copy of that repo's `AGENTS.md`, imported by `CLAUDE.md`.
 
-If that directory is empty, run `git submodule update --init` (`make install`
-does it) — an empty submodule means you and your agent are working without half
-the rules.
+Never edit `it4r-rules.md` here — change it upstream in the kit, then run
+`make sync-agent-rules`, which re-pulls the file and stamps the commit it came
+from in the header. A rule that would be true for any of our projects belongs
+upstream; if you find yourself editing the vendored copy, you are editing the
+wrong file.
 
 **This page holds only what is specific to co2-calculator.** A rule that would
 be true for any of our projects belongs upstream in the kit, not here.

@@ -31,10 +31,11 @@ about.
    this repo's `llm-agent-guide.md` and the "before you code" section) and
    `review-copilot-comments` (moved from `.claude/skills/`). It is both a
    Claude Code plugin marketplace and a submodule-able skill.
-2. **Vendored here** as a submodule at `.claude/it4r-agent-kit`, imported by
-   `CLAUDE.md` ahead of `guardrails.md`. The rules stay always-on, exactly as
-   before — no per-developer install step, and the pinned commit makes the
-   ruleset reproducible.
+2. **Vendored here** as a plain file, `docs/src/contributing/it4r-rules.md`,
+   imported by `CLAUDE.md` ahead of `guardrails.md`. The rules stay always-on,
+   exactly as before — no per-developer install step. `make sync-agent-rules`
+   re-pulls it and stamps the upstream commit in the header, so staleness is
+   visible in the diff.
 3. **`guardrails.md` shrank to 103 lines**: a "Two layers" header pointing at
    the kit, then only what is specific to this repo. Same path, same section
    headings, so `.github/instructions/co2-calculator-rules.md.instructions.md`
@@ -43,18 +44,22 @@ about.
    symlink — `it4r-agent-kit-rules.md.instructions.md` → the kit's `AGENTS.md` —
    gives it the shared rules too. Without it, keeping the first symlink pointing
    at a file that lost 44 lines would have silently halved what Copilot sees.
-4. **`make install` runs `git submodule update --init`** so a fresh clone can't
-   silently end up with an empty rules directory.
+4. **Dropped the duplicate `review-copilot-comments` skill** — it now lives in
+   the kit, and the task skills are delivered by the plugin. Added a provenance
+   header to `.claude/skills/owasp-security/SKILL.md`.
 
 ## Decisions
 
-- **Submodule, not plugin-only.** The plugin is per-developer opt-in; a
-  contributor who skipped it would have silently lost every architecture
-  invariant. Committing the submodule keeps the rules in the repo where a
-  missing checkout is visible (empty directory, `make install` fixes it).
-- **Vendored at `.claude/it4r-agent-kit`, not `.claude/skills/…`.** Under
-  `skills/` it would register as a second copy of the `it4r-conventions` skill
-  for anyone who also installed the plugin. Here it is purely an import target.
+- **Vendored file, not plugin-only, and not a submodule.** The plugin is
+  per-developer opt-in; a contributor who skipped it would have silently lost
+  every architecture invariant, so the rules have to be committed here. A
+  submodule would have done that too, but the maintainers don't want submodules
+  in this repo — a vendored file gives the same properties (in-repo, always-on,
+  readable by Copilot, no install step) with `git diff` as the drift signal.
+- **Rules are vendored; skills are not.** Rules must apply whether or not you
+  opted in, so they live in the repo. The task skills (`plan-conventions`,
+  `review-copilot-comments`) are invoked deliberately, so the plugin is the
+  right delivery and a second in-repo copy is just drift.
 - **The kit is public.** Every line of it already lived in this public repo, so
   publishing leaked nothing, and a public repo cannot carry a private submodule.
 - **`owasp-security` stayed put.** It is a vendored copy of
@@ -63,6 +68,10 @@ about.
 
 ## Follow-ups
 
-- Delete `.claude/skills/review-copilot-comments/` here once the team is on the
-  kit plugin, so there is one copy of that skill too.
-- Add a provenance header to `.claude/skills/owasp-security/SKILL.md`.
+- `review-copilot-comments` is now plugin-only in this repo. Anyone who wants it
+  runs `claude plugin marketplace add EPFL-ENAC/it4r-agent-kit` then
+  `claude plugin install it4r-agent-kit`; the `/review-copilot-comments` steps in
+  the 310-series plans assume it is installed.
+- `owasp-security` has diverged from upstream in both directions (see the
+  provenance header). Reconciling it is a merge, not a pull — worth doing, not
+  done here.
