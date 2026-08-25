@@ -19,7 +19,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy documentation source
 COPY src/ ./src/
-COPY mkdocs.yml gen_indexes.py ./
+# Every top-level .py, not a hand-listed set: gen_indexes.py and hooks.py
+# are both build-time code, and the next one added must not silently
+# break this image the way hooks.py did.
+COPY mkdocs.yml *.py ./
 
 # Initialize git repo for mkdocs-git-authors-plugin (required even if not using real git history)
 RUN git init . && git config user.email "build@localhost" && git config user.name "Build" && git add . && git commit -m "Build commit"
