@@ -575,6 +575,17 @@ function getNumericRules(col: TableViewColumn) {
     });
   }
 
+  if (col.maxDecimals !== undefined) {
+    rules.push((val: string | number | null) => {
+      if (val === '' || val === null || val === undefined) return true;
+      const s = typeof val === 'string' ? val.trim() : String(val);
+      return (
+        (s.split('.')[1]?.length ?? 0) <= col.maxDecimals! ||
+        $t('validation_max_decimals', { max: col.maxDecimals })
+      );
+    });
+  }
+
   return rules;
 }
 
@@ -1092,6 +1103,7 @@ type TableViewColumn = {
   min?: number;
   max?: number;
   step?: number;
+  maxDecimals?: number;
   inputComponent: typeof QInput | typeof QSelect;
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
@@ -1148,6 +1160,7 @@ const qCols = computed<TableViewColumn[]>(() => {
             min: f.min,
             max: f.max,
             step: f.step,
+            maxDecimals: f.maxDecimals,
             align,
             inputComponent,
             editableInline,
@@ -1183,6 +1196,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           min: f.min,
           max: f.max,
           step: f.step,
+          maxDecimals: f.maxDecimals,
           align,
           inputComponent,
           editableInline,
@@ -1602,6 +1616,7 @@ async function commitInline(
     type?: string;
     min?: number;
     max?: number;
+    maxDecimals?: number;
   },
 ) {
   if (!col.editableInline) return;
@@ -1655,6 +1670,17 @@ async function commitInline(
       }
       if (col.max !== undefined && n > col.max) {
         setError(row, col, $t('validation_must_be_at_most', { max: col.max }));
+        return null;
+      }
+      if (
+        col.maxDecimals !== undefined &&
+        (s.split('.')[1]?.length ?? 0) > col.maxDecimals
+      ) {
+        setError(
+          row,
+          col,
+          $t('validation_max_decimals', { max: col.maxDecimals }),
+        );
         return null;
       }
       return n;

@@ -1134,6 +1134,11 @@ function validateField(i: ModuleField) {
         errors[i.id] = $t('validation_must_be_at_most', { max: bounds.max });
       else if (bounds.integer && !Number.isInteger(n))
         errors[i.id] = $t('validation_must_be_whole_number');
+      else if (
+        i.maxDecimals !== undefined &&
+        (s.split('.')[1]?.length ?? 0) > i.maxDecimals
+      )
+        errors[i.id] = $t('validation_max_decimals', { max: i.maxDecimals });
     }
   }
   return !errors[i.id];
