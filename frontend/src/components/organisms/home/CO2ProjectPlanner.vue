@@ -28,6 +28,9 @@ const creating = ref(false);
 const confirmDelete = ref(false);
 const planToDelete = ref<SimulatorPlan | null>(null);
 
+const ROWS_PER_PAGE = 10;
+const pagination = ref({ rowsPerPage: ROWS_PER_PAGE });
+
 function formatPlanDate(dateString: string | null): string {
   if (!dateString) return '';
   return parseUtcDate(dateString).toLocaleDateString(locale.value);
@@ -151,6 +154,7 @@ onMounted(() => {
       </p>
 
       <q-table
+        v-model:pagination="pagination"
         flat
         dense
         class="co2-table"
@@ -158,8 +162,8 @@ onMounted(() => {
         :rows="plansStore.plans"
         :loading="plansStore.loading"
         row-key="id"
-        hide-pagination
-        :rows-per-page-options="[0]"
+        :hide-pagination="plansStore.plans.length <= ROWS_PER_PAGE"
+        :rows-per-page-options="[10, 25, 50]"
         :no-data-label="$t('common_no_items')"
         :rows-per-page-label="$t('rows_per_page')"
       >
