@@ -65,6 +65,8 @@ help: ## Show available targets
 
 .PHONY: install
 install: ## Install all dependencies and set up git hooks
+	@echo "Fetching vendored agent rules (.claude/it4r-agent-kit)..."
+	git submodule update --init
 	@echo "Installing root npm dependencies (lefthook + prettier)..."
 	@command -v node >/dev/null 2>&1 || { echo "❌ node not found. Run: nvm install"; exit 1; }
 	@echo "Node: $$(node --version), npm: $$(npm --version)"
