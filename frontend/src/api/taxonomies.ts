@@ -1,5 +1,5 @@
-import { api } from 'src/api/http';
-import type { TaxonomyNode } from 'src/constant/modules';
+import { api } from '@/api/http';
+import type { TaxonomyNode } from '@/constant/modules';
 
 /**
  * Batch-fetch taxonomies for several data entry types of one module.

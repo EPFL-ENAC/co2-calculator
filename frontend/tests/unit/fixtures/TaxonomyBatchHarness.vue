@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
-import { useModuleStore } from 'src/stores/modules';
-import type { Module } from 'src/constant/modules';
+import { useModuleStore } from '@/stores/modules';
+import type { Module } from '@/constant/modules';
 
 const props = defineProps<{
   moduleType: Module;

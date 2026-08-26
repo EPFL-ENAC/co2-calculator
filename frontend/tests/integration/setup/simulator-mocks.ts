@@ -867,17 +867,6 @@ export async function mockExplorerBackend(
     },
   );
 
-  // Report stats for the simulator report (id=99) — stateful. Backs
-  // moduleStore.getEmissionBreakdown(), which fetches raw buckets and
-  // adapts them client-side via toEmissionBreakdown().
-  await page.route(/.*\/api\/v1\/modules-stats\/99\/report-stats/, (route) => {
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(buildReportStats(memberPosted ? 5 : 0)),
-    });
-  });
-
   let nextJobId = 1;
   await context.route('**/api/v1/sync/dispatch', (route) => {
     const body = parseJsonBody(route.request()) as {
