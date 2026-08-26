@@ -461,7 +461,6 @@ export const RESULTS_SUBCATEGORY_LABEL_KEYS: Record<string, string> = {
   provider_openai: 'charts-ai-provider-openai-subcategory',
   provider_anthropic: 'charts-ai-provider-anthropic-subcategory',
   provider_mistral_ai: 'charts-ai-provider-mistral-ai-subcategory',
-  provider_cohere: 'charts-ai-provider-cohere-subcategory',
   provider_github: 'charts-ai-provider-github-subcategory',
   provider_microsoft: 'charts-ai-provider-microsoft-subcategory',
   provider_others: 'charts-ai-provider-others-subcategory',

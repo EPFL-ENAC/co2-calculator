@@ -132,7 +132,6 @@ export const EMISSION_TYPE_NAMES: Record<number, string> = {
   110202: 'external__ai__provider_mistral_ai',
   110203: 'external__ai__provider_anthropic',
   110204: 'external__ai__provider_openai',
-  110205: 'external__ai__provider_cohere',
   110206: 'external__ai__provider_others',
   110207: 'external__ai__provider_github',
   110208: 'external__ai__provider_microsoft',
