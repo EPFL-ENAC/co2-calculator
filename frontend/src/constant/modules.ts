@@ -299,5 +299,12 @@ export interface TaxonomyNode {
   name: string;
   label: string;
   translation_key?: string;
+  /**
+   * Display metadata whitelisted by the node's backend handler
+   * (`taxonomy_meta_fields`, #2391) — e.g. `use_unit` for a research
+   * facility. Absent for handlers declaring none; never an emission
+   * coefficient.
+   */
+  meta?: Record<string, string | number | null>;
   children?: TaxonomyNode[];
 }

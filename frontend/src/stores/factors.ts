@@ -1,163 +1,143 @@
 import { defineStore } from 'pinia';
-import { reactive } from 'vue';
-import {
-  getSubclassMap,
-  getFactorValues,
-  listFactors,
-  type ValueFactorResponse,
-} from '@/api/factors';
-import { type AllSubmoduleTypes, enumSubmodule } from '@/constant/modules';
-import { toClassOptions, type FactorRow } from '@/utils/factorOptions';
+import { computed, markRaw, reactive } from 'vue';
+import { getFactorValues, type ValueFactorResponse } from '@/api/factors';
+import { getDataEntryTaxonomy } from '@/api/taxonomies';
+import type { AllSubmoduleTypes, TaxonomyNode } from '@/constant/modules';
 
 type Option = { label: string; value: string };
+
+function byLabel(a: Option, b: Option): number {
+  return a.label.localeCompare(b.label);
+}
+
+/** Distinct child options of a kind node, in the order the selects render. */
+function subclassOptionsOf(kind: TaxonomyNode): Option[] {
+  const byName = new Map<string, Option>();
+  for (const child of kind.children ?? []) {
+    if (!byName.has(child.name))
+      byName.set(child.name, { label: child.name, value: child.name });
+  }
+  return [...byName.values()].sort(byLabel);
+}
 
 export const useFactorsStore = defineStore('factors', () => {
   const ONE_MINUTE_MS = 60_000;
 
   // Cached per (submodule, year) — factors are year-scoped, so the same
-  // submodule yields different class/subclass maps across years.
-  const subclassOptionMapByKey = reactive<
-    Record<string, Record<string, Option[]>>
-  >({});
-  const subclassMapFetchedAt = reactive<Record<string, number>>({});
-
-  // Same key and TTL for the factor catalog. Plain objects, not `reactive`:
-  // unlike the subclass map (which ModuleTable renders from) nothing watches
-  // this — it is only ever read inside the fetch below.
-  const factorListByKey: Record<string, FactorRow[]> = {};
-  const factorListFetchedAt: Record<string, number> = {};
+  // submodule yields a different tree across years. The module is fixed by
+  // the submodule, so it never varies independently of this key.
+  // `markRaw`: the tree is read-only and can hold ~10k nodes (purchase);
+  // deep-proxying it would cost more than every read it serves.
+  const taxonomyByKey = reactive<Record<string, TaxonomyNode>>({});
+  const taxonomyFetchedAt: Record<string, number> = {};
 
   // In-flight lookups for the same key share one request: several forms for
   // the same submodule mounting at once would otherwise each fire the same
   // GET before the first write lands (#2360). Rejections are never stored —
   // a failed lookup retries on the next call.
-  const subclassMapInFlight = new Map<
-    string,
-    Promise<Record<string, Option[]>>
-  >();
-  const factorListInFlight = new Map<string, Promise<FactorRow[]>>();
+  const taxonomyInFlight = new Map<string, Promise<TaxonomyNode>>();
+
+  /**
+   * kind -> subkind options, keyed like `taxonomyByKey`. ModuleTable reads it
+   * directly to decide whether a row's subcategory is required, so it stays a
+   * reactive projection of the cached trees rather than a second cache.
+   */
+  const subclassOptionMapByKey = computed(() => {
+    const maps: Record<string, Record<string, Option[]>> = {};
+    for (const [key, node] of Object.entries(taxonomyByKey)) {
+      const map: Record<string, Option[]> = {};
+      for (const kind of node.children ?? []) {
+        map[kind.name] = subclassOptionsOf(kind);
+      }
+      maps[key] = map;
+    }
+    return maps;
+  });
 
   function cacheKey(
-    submodule: keyof typeof enumSubmodule,
+    submodule: AllSubmoduleTypes,
     year: number | string,
   ): string {
     return `${submodule}:${year}`;
   }
 
-  async function ensureSubclassOptionMap(
-    submodule: keyof typeof enumSubmodule,
+  async function ensureTaxonomy(
+    module: string,
+    submodule: AllSubmoduleTypes,
     year: number | string,
-  ): Promise<Record<string, Option[]>> {
+  ): Promise<TaxonomyNode> {
     const now = Date.now();
     const key = cacheKey(submodule, year);
-    const existing = subclassOptionMapByKey[key];
-    const last = subclassMapFetchedAt[key];
+    const existing = taxonomyByKey[key];
+    const last = taxonomyFetchedAt[key];
 
     if (existing && last && now - last < ONE_MINUTE_MS) {
       return existing;
     }
 
-    const inFlight = subclassMapInFlight.get(key);
+    const inFlight = taxonomyInFlight.get(key);
     if (inFlight) return inFlight;
 
     const request = (async () => {
-      const rawMap = await getSubclassMap(submodule, year);
-      const optionMap: Record<string, Option[]> = {};
-      Object.entries(rawMap).forEach(([cls, list]) => {
-        optionMap[cls] = (list ?? []).map((s) => ({ label: s, value: s }));
-      });
-
-      subclassOptionMapByKey[key] = optionMap;
-      subclassMapFetchedAt[key] = now;
-
-      return optionMap;
+      const node = markRaw(await getDataEntryTaxonomy(module, submodule, year));
+      taxonomyByKey[key] = node;
+      taxonomyFetchedAt[key] = now;
+      return node;
     })();
-    subclassMapInFlight.set(key, request);
+    taxonomyInFlight.set(key, request);
     try {
       return await request;
     } finally {
-      subclassMapInFlight.delete(key);
+      taxonomyInFlight.delete(key);
     }
   }
 
   /**
-   * Class options for a `kind` select. By default the class value is also its
-   * label (equipment classes are already readable). ``labels`` switches the
-   * source to the factor catalog, for classifications stored as opaque codes
-   * that need a separate name field to display (#2007).
+   * Options for a `kind` select. By default the class value is also its label
+   * (equipment classes are already readable, and the i18n fallback in
+   * `useEquipmentClassOptions` keys off the raw value). `labelled` switches to
+   * the node's server-side label, for classifications stored as opaque codes
+   * — a research facility id reads as its acronym (#2007).
    */
   async function fetchClassOptions(
+    module: string,
     submodule: AllSubmoduleTypes,
     year: number | string,
-    labels?: { valueField: string; labelField: string },
+    labelled = false,
   ): Promise<Option[]> {
-    if (labels) return fetchLabelledClassOptions(submodule, year, labels);
-    const optionMap = await ensureSubclassOptionMap(submodule, year);
-    const classes = Object.keys(optionMap);
-    return classes.map((c) => ({ label: c, value: c }));
-  }
-
-  async function ensureFactorList(
-    submodule: keyof typeof enumSubmodule,
-    year: number | string,
-  ): Promise<FactorRow[]> {
-    const now = Date.now();
-    const key = cacheKey(submodule, year);
-    const existing = factorListByKey[key];
-    const last = factorListFetchedAt[key];
-
-    if (existing && last && now - last < ONE_MINUTE_MS) {
-      return existing;
-    }
-
-    const inFlight = factorListInFlight.get(key);
-    if (inFlight) return inFlight;
-
-    const request = (async () => {
-      const rows = await listFactors(submodule, year);
-      factorListByKey[key] = rows;
-      factorListFetchedAt[key] = now;
-
-      return rows;
-    })();
-    factorListInFlight.set(key, request);
-    try {
-      return await request;
-    } finally {
-      factorListInFlight.delete(key);
-    }
-  }
-
-  /**
-   * Raw factor catalog for callers that build their own rows from it (e.g.
-   * planner lookups), routed through the same TTL cache + in-flight dedup as
-   * every other factor read (#2391) — no direct `api.get` for lookup data.
-   */
-  async function fetchFactorList(
-    submodule: AllSubmoduleTypes,
-    year: number | string,
-  ): Promise<FactorRow[]> {
-    return ensureFactorList(submodule, year);
-  }
-
-  async function fetchLabelledClassOptions(
-    submodule: AllSubmoduleTypes,
-    year: number | string,
-    { valueField, labelField }: { valueField: string; labelField: string },
-  ): Promise<Option[]> {
-    // Cache the rows, not the options: the catalog is field-agnostic, so a
-    // second select over the same submodule reuses the one fetch.
-    const rows = await ensureFactorList(submodule, year);
-    return toClassOptions(rows, valueField, labelField);
+    const node = await ensureTaxonomy(module, submodule, year);
+    return (node.children ?? [])
+      .map((kind) => ({
+        label: labelled ? kind.label : kind.name,
+        value: kind.name,
+      }))
+      .sort(byLabel);
   }
 
   async function fetchSubclassOptions(
+    module: string,
     submodule: AllSubmoduleTypes,
     equipmentClass: string,
     year: number | string,
   ): Promise<Option[]> {
-    const optionMap = await ensureSubclassOptionMap(submodule, year);
-    return optionMap[equipmentClass] ?? [];
+    const node = await ensureTaxonomy(module, submodule, year);
+    const kind = node.children?.find((c) => c.name === equipmentClass);
+    return kind ? subclassOptionsOf(kind) : [];
+  }
+
+  /**
+   * The submodule's kind nodes, for callers that build their own rows out of
+   * a node's label/meta/children rather than plain options (the planner
+   * research-facility grid). Same TTL cache and in-flight dedup as every
+   * other lookup — no component calls `api.get` for lookup data (#2391).
+   */
+  async function fetchClassNodes(
+    module: string,
+    submodule: AllSubmoduleTypes,
+    year: number | string,
+  ): Promise<TaxonomyNode[]> {
+    const node = await ensureTaxonomy(module, submodule, year);
+    return node.children ?? [];
   }
 
   async function fetchPowerFactor(
@@ -171,9 +151,8 @@ export const useFactorsStore = defineStore('factors', () => {
 
   return {
     subclassOptionMapByKey,
-    subclassMapFetchedAt,
     fetchClassOptions,
-    fetchFactorList,
+    fetchClassNodes,
     fetchSubclassOptions,
     fetchPowerFactor,
   };

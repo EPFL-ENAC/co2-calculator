@@ -173,6 +173,76 @@ def test_batch_route_response_has_no_coefficients_or_classification():
         assert forbidden not in body
 
 
+def _batch_body(module: str, entry: str, factors: list[Factor]) -> dict:
+    """Drive the real router + service stack for one module's entry."""
+    app.dependency_overrides[get_db] = lambda: MagicMock()
+    app.dependency_overrides[get_current_user] = lambda: MagicMock()
+    taxonomy_cache.clear()
+    try:
+        with patch.object(
+            FactorService,
+            "list_by_data_entry_type",
+            new=AsyncMock(return_value=factors),
+        ):
+            with TestClient(app) as client:
+                response = client.get(
+                    f"/api/v1/taxonomies/module/{module}/data-entries",
+                    params={"entries": [entry], "year": 2025},
+                )
+    finally:
+        app.dependency_overrides.clear()
+        taxonomy_cache.clear()
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_batch_route_carries_declared_display_meta():
+    """#2391 decision 1: the lookup endpoint has to carry what a form needs to
+    render an option — here the per-facility metric unit the planner grid
+    shows as its input suffix.
+    """
+    body = _batch_body(
+        "research-facilities",
+        "research_facilities",
+        [
+            Factor(
+                emission_type_id=1,
+                classification={
+                    "researchfacility_id": "1902",
+                    "researchfacility_name": "SCITAS-GE",
+                },
+                values={"use_unit": "CHF", "total_use": 2195625.795},
+            )
+        ],
+    )
+
+    (facility,) = body["research_facilities"]["children"]
+    assert facility["name"] == "1902"
+    assert facility["label"] == "SCITAS-GE"
+    assert facility["meta"] == {"use_unit": "CHF"}
+
+
+def test_batch_route_omits_meta_for_a_module_that_declares_none():
+    """`response_model_exclude_none` must keep unaffected payloads the size
+    they are today — no empty `meta` object per node.
+    """
+    body = _batch_body(
+        "equipment",
+        "scientific",
+        [
+            Factor(
+                emission_type_id=1,
+                classification={"equipment_class": "Centrifuge", "sub_class": "Ultra"},
+                values={"active_power_w": 150},
+            )
+        ],
+    )
+
+    (kind,) = body["scientific"]["children"]
+    assert "meta" not in kind
+    assert all("meta" not in child for child in kind["children"])
+
+
 def test_batch_route_wins_over_single_entry_catch_all():
     """Starlette matches routes in registration order: '/data-entries' must
     resolve to the batch handler, not be swallowed as a {data_entry} value

@@ -498,53 +498,6 @@ class FactorRepository:
         result = await self.session.exec(stmt)
         return list(result.all())
 
-    async def get_class_subclass_map(
-        self,
-        data_entry_type: DataEntryTypeEnum,
-        kind_field: str,
-        subkind_field: str,
-        year: int,
-    ) -> dict[str, list[str]]:
-        """Return a mapping of equipment_class -> list of subclasses.
-
-        Args:
-            data_entry_type: The data entry type to filter on
-            kind_field: Classification key for the primary class
-            subkind_field: Classification key for the subclass
-            year: Year filter — factors are year-scoped, so options must be too
-        """
-        stmt = select(
-            Factor.classification[kind_field].as_string(),
-            Factor.classification[subkind_field].as_string(),
-        ).where(
-            col(Factor.data_entry_type_id) == data_entry_type.value,
-            col(Factor.year) == year,
-        )
-
-        result = await self.session.exec(stmt)
-        factors = result.all()
-
-        mapping: dict[str, list[str]] = {}
-
-        for factor in factors:
-            equipment_class = factor[0]
-            sub_class = factor[1]
-
-            if not equipment_class:
-                continue
-
-            if equipment_class not in mapping:
-                mapping[equipment_class] = []
-
-            if sub_class and sub_class not in mapping[equipment_class]:
-                mapping[equipment_class].append(sub_class)
-
-        # Sort subclasses
-        for key in mapping:
-            mapping[key].sort()
-
-        return dict(sorted(mapping.items()))
-
     async def get_by_classification(
         self,
         data_entry_type: DataEntryTypeEnum,

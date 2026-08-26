@@ -143,6 +143,7 @@ class ModuleHandler(Protocol[T]):
     subkind_field: str | None = None
     kind_label_field: str | None = None
     subkind_label_field: str | None = None
+    taxonomy_meta_fields: tuple[str, ...] = ()
 
     def to_response(
         self,
@@ -243,6 +244,11 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     kind_label_field: str | None = None
     # Display label override for subkind_field shown in the UI/response.
     subkind_label_field: str | None = None
+    # Factor fields (classification or values) copied onto each taxonomy node's
+    # ``meta`` so a form can render the option — e.g. the per-facility metric
+    # unit the planner shows as an input suffix (#2391). Display metadata only:
+    # emission coefficients never travel on this payload (#2396).
+    taxonomy_meta_fields: tuple[str, ...] = ()
     # When True, factor lookup requires both kind and subkind to match.
     # Set to False for modules where subkind is optional (e.g. equipment).
     require_subkind_for_factor: bool = True

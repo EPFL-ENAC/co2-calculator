@@ -84,6 +84,7 @@ const subkindFieldId = computed(() => {
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
   useEquipmentClassOptions(
     props.row,
+    toRef(props, 'moduleType'),
     toRef(props, 'submoduleType'),
     {
       classFieldId: kindFieldId.value,

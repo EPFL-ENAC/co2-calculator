@@ -162,28 +162,6 @@ async def test_list_by_data_entry_type(repo):
 
 
 @pytest.mark.asyncio
-async def test_get_class_subclass_map(repo):
-    factors = [
-        ("ClassA", "SubA1"),
-        ("ClassA", "SubA2"),
-        ("ClassB", "SubB1"),
-        ("ClassA", "SubA1"),  # Duplicate
-    ]
-    result_mock = MagicMock()
-    result_mock.all.return_value = factors
-    repo.session.exec = AsyncMock(return_value=result_mock)
-
-    result = await repo.get_class_subclass_map(
-        DataEntryTypeEnum.scientific,
-        kind_field="kind",
-        subkind_field="subkind",
-        year=2025,
-    )
-
-    assert result == {"ClassA": ["SubA1", "SubA2"], "ClassB": ["SubB1"]}
-
-
-@pytest.mark.asyncio
 async def test_get_by_classification_with_subkind(repo):
     factor = SimpleNamespace(id=1)
     result_mock = MagicMock()
