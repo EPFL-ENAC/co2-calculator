@@ -3,7 +3,7 @@ status: in-progress
 issue: 2049
 last_updated: 2026-08-26
 title: "Optimize Pipeline/Report Performance — what remains after the v3 investigation"
-summary: "Rewritten 2026-08-22. The v3 trace investigation (200 Tempo traces + 5 OTLP traces) is finished and its alerting half shipped as #1402. This plan carries what's left: the connection-pool decision, the shared per-request floor, the OTel double-instrumentation tax, the remaining request fan-out, and the 201s pipeline. Nine claims are corrected here — read those first; corrections 8-9 retire C3's premise and its proposed mechanism."
+summary: "Updated 2026-08-26. The v3 trace investigation is finished and its alerting half shipped as #1402. The caching, batching, upload-auth and http.route work has since merged (#2280, #2266, #2265), and #2220 is closed. What is left: confirm the win with one measurement, the OTel instrumentation tax, the remaining ops/alerting items, and three gated changes. Ten claims are corrected here - read those first; two of them retire proposals this plan itself made."
 ---
 
 # Optimize Pipeline/Report Performance — what remains
@@ -14,6 +14,26 @@ it is now is mostly **history plus several claims we've since disproved**,
 which makes it actively misleading to work from. The full v3 text is in
 this file's git history if you need to challenge a number; the measurements
 worth keeping are in [Appendix A](#appendix-a-measured-evidence).
+
+## Status — 2026-08-26
+
+**Shipped since the 2026-08-22 rewrite:** `#2280` (taxonomy cache +
+cross-pod invalidation + batching), `#2266` (upload auth-before-body),
+`#2265` (`http.route` dual-write), ops `#13` and `#15`, plus the `#2360`
+series removing duplicate and eager frontend fetches. `#2220` is **closed**
+— root-caused to a laptop claiming the shared dev DB's jobs, not S3.
+
+**The next step is a measurement, not a merge.** Two independent workstreams
+have now cut the report page's request count (`#2280` batching, `#2360`
+de-duplication), and nobody has re-counted. Reload the report page, read the
+XHR count and wall time, and compare against the 31-request / 2064 ms
+baseline in [Appendix A](#appendix-a-measured-evidence). **That number
+decides whether most of what follows is still worth doing** — in
+particular it may retire A1, C1 and C2 outright, since the per-request
+floor only mattered when it was paid ~31 times.
+
+**Dropped:** B2 (batching `modules/{m}/{sub}`) — see its entry for why, and
+for the trap to re-read if it is ever revived.
 
 ## Scope
 
@@ -130,16 +150,19 @@ Per v3's own output contract ("Contradictions: put this first").
 
 ## Delivered
 
-| Task      | What shipped                                                                                                                                                        | Where                                 |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| T2        | `factors` root-caused: 846 vs **20,915** rows → result-set size, not a missing index. Cache + cross-pod invalidation                                                | `#2264` (draft), `#2273`              |
-| T3/T4     | `route_class` in the collector; streams/uploads/jobs out of the normal-API latency alert                                                                            | ops `#9`–`#11` **merged**             |
-| T5        | `event_loop_lag_seconds` probe                                                                                                                                      | `#2263`                               |
-| T6 (half) | Taxonomy fan-out batched, 16 → 5 calls per page load                                                                                                                | `#2275`                               |
-| T7 (part) | SSE keepalive + `Cache-Control`/`X-Accel-Buffering`; heartbeat gap off-by-one (`>=15` unreachable on a 2 s poll → fired at 16 s, the exact gap it existed to close) | `#2262`, `#2274`                      |
-| T9        | Alert rules: 5xx-only error rate + traffic floor, `absent()` deadman, `PodHighCPU` disabled with reasoning, `repeatInterval` 24h                                    | ops `#8` **merged**                   |
-| T10       | Auth-before-body (DoS surface closed), size limit enforced, `http.request_content_length`                                                                           | `#2266`                               |
-| —         | S3 404s root-caused; storage decision documented (keep S3)                                                                                                          | `#2272`, upstream `enacit4r-files#24` |
+| Task      | What shipped                                                                                                                                                        | Where                              |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| T2        | `factors` root-caused: 846 vs **20,915** rows → result-set size, not a missing index. Cache + cross-pod invalidation                                                | `#2280` **merged**                 |
+| T3/T4     | `route_class` in the collector; streams/uploads/jobs out of the normal-API latency alert                                                                            | ops `#9`–`#11` **merged**          |
+| T5        | `event_loop_lag_seconds` probe                                                                                                                                      | `#2263` **open**                   |
+| T6 (half) | Taxonomy fan-out batched, 16 → 5 calls per page load                                                                                                                | `#2280` **merged**                 |
+| T7 (part) | SSE keepalive + `Cache-Control`/`X-Accel-Buffering`; heartbeat gap off-by-one (`>=15` unreachable on a 2 s poll → fired at 16 s, the exact gap it existed to close) | `#2274` **merged**                 |
+| T9        | Alert rules: 5xx-only error rate + traffic floor, `absent()` deadman, `PodHighCPU` disabled with reasoning, `repeatInterval` 24h                                    | ops `#8` **merged**                |
+| T10       | Auth-before-body (DoS surface closed), size limit enforced, `http.request_content_length`                                                                           | `#2266` **merged**                 |
+| —         | S3 404s **fully root-caused and closed**: a laptop running `make dev` against the shared dev DB was claiming jobs and resolving files locally. Boot guard shipped   | `#2349` **merged**, `#2220` closed |
+| —         | `http.route` dual-write, so observability can stop tail-matching `http.target`                                                                                      | `#2265` **merged**                 |
+| —         | Handled S3 pre-check 404s no longer flagged as ERROR spans                                                                                                          | ops `#16`                          |
+| —         | Duplicate/eager frontend fetches removed (explore page, factors, carbon-report)                                                                                     | `#2360` series **merged**          |
 
 Deliberately **not** built, with reasoning recorded: `Last-Event-ID` (both
 streams re-derive full state on every poll, so the failure mode it prevents
@@ -338,6 +361,18 @@ Note also that #2360's fix took a different route for the explore page —
 _deferring_ fetches until expansion rather than batching them — so the
 request-count argument for B2 is weaker than when it was written.
 
+**B6 — Suppress per-chunk ASGI spans** (was D2, promoted 2026-08-26).
+805 spans for one upload, one per body chunk, **created and exported on the
+event loop**. It was filed under "after A and B land", but that bucket's
+rationale is "re-measure once the shared latency floor is fixed", which
+applies to D1's triage table and not to this — it has no dependency on A or
+B. It is also the prime suspect for the event-loop blocking `#2263` exists
+to measure, so the two belong together: land the probe, then this, and the
+lag number says whether it mattered.
+Check whether the pinned `0.65b0` supports
+`exclude_receive_span`/`exclude_send_span`; if not, a `SpanProcessor`
+dropping `* http receive` / `* http send`. _Not started — plan first._
+
 **B3 — Dashboard remainder** (§4.9): split 4xx/5xx, scope the `$pod`
 variable to a metric name, add `$namespace`. _Not started._
 
@@ -485,22 +520,16 @@ Triage signal is `mean − p50`, not p50: mean ≫ p50 means a slow tail
 (contention, cold cache, size-dependent); mean ≈ p50 means uniformly slow,
 usually one fixable query. Drop anything with n < 10.
 
-**D2 — Suppress per-chunk ASGI spans.** 805 spans for one upload, one per
-body chunk, created and exported on the event loop. Check whether the
-pinned `0.65b0` supports `exclude_receive_span`/`exclude_send_span`; if
-not, a `SpanProcessor` dropping `* http receive` / `* http send`.
-
 **D3 — Migrate observability off `http.target`.** `#2265` enables
 `OTEL_SEMCONV_STABILITY_OPT_IN=http/dup`, which dual-writes a second metric
 carrying a correct, collision-free `http.route`. Once that's confirmed
 flowing, the ops-repo `route_class` transform and every alert built on
 tail-matching can move onto it and stop being fragile.
-⚠️ Two open items on that PR before it merges: it currently sets the flag
-as a **chart-wide default**, so dev/stage/prod all start double-emitting
-HTTP metrics permanently — worth scoping to dev first, given C2 exists to
-_reduce_ exactly this kind of volume. And the Prometheus-rendered name of
-the new metric is unconfirmed (likely
-`http_server_request_duration_seconds`, but exporter-config-dependent).
+Both of that PR's open items are now closed: the flag is **not** a
+chart-wide default (it would have reached prod — see ops `#13`, dev-backend
+only), and confirming the Prometheus-rendered metric name is the whole
+reason it was landed on dev first. **That confirmation is the next step**,
+and it is what unblocks the migration.
 
 ## Open questions
 
