@@ -99,7 +99,10 @@ jobs:
 
       - name: Regenerate frontend constants from backend enums
         working-directory: ./backend
+        # Importing the app constructs Settings; CI has no backend/.env, so
+        # seed it from the example the way the Makefile's test targets do.
         run: |
+          cp .env.example .env
           make gen-emission-taxonomy
           make gen-module-constants
 
