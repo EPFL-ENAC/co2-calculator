@@ -485,7 +485,9 @@ async def test_run_job_handler_runs_inside_job_span():
     """
     job = _make_job()
     job.locked_by = runner_mod.POD_ID
+    job.pipeline_id = "pipe-1"
     repo = _make_repo_returning(job)
+    repo.recompute_pipeline_status = AsyncMock(return_value=None)
 
     exporter = InMemorySpanExporter()
     provider = TracerProvider()
@@ -516,6 +518,7 @@ async def test_run_job_handler_runs_inside_job_span():
     attributes = dict(span.attributes or {})
     assert attributes["job.id"] == 1
     assert attributes["job.type"] == "test_job"
+    assert attributes["pipeline.id"] == "pipe-1"
     # The handler ran inside THIS span, not merely some span.
     assert span.get_span_context().span_id == seen["span_id"]
 

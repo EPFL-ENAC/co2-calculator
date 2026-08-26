@@ -53,7 +53,7 @@ plumbing.
    orphan-aggregation backfill.
 
 Pre-claim SQL (the initial `get_job_by_id` + `claim_job`) stays outside
-the span by design: the span represents a *claimed* execution, and a
+the span by design: the span represents a _claimed_ execution, and a
 no-op `run_job` probe (already claimed / finished) should not mint a
 trace.
 
