@@ -15,6 +15,12 @@ from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
 from sqlalchemy.exc import PendingRollbackError
 
 from app.models.data_ingestion import (
@@ -458,6 +464,63 @@ async def test_run_job_handler_poisons_job_session_still_marks_error():
     _, kwargs = repo.finish_job.call_args
     assert kwargs["result"] == IngestionResult.ERROR
     assert "uq_emission_recalc_active" in kwargs["status_message"]
+
+
+# ---------------------------------------------------------------------------
+# run_job — job execution span (#2371)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_job_handler_runs_inside_job_span():
+    """#2371 — the runner opens one OTel span per job execution so SQL
+    spans emitted during the job nest under it instead of exporting as
+    parentless root traces.
+
+    A local SDK ``TracerProvider`` with an in-memory exporter is patched
+    onto ``runner_mod.tracer`` (the global provider stays untouched).
+    The stub handler captures the current span mid-run; it must be the
+    recording ``job <type>`` span carrying the job attributes, and the
+    span must be ended (exported exactly once) after ``run_job`` returns.
+    """
+    job = _make_job()
+    job.locked_by = runner_mod.POD_ID
+    job.pipeline_id = "pipe-1"
+    repo = _make_repo_returning(job)
+    repo.recompute_pipeline_status = AsyncMock(return_value=None)
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+
+    seen: dict = {}
+
+    @register("test_job")
+    async def _handler(j, js, ds) -> dict:
+        current = trace.get_current_span()
+        seen["recording"] = current.is_recording()
+        seen["span_id"] = current.get_span_context().span_id
+        return {}
+
+    with (
+        _patch_session_local(),
+        _patch_heartbeat(),
+        patch.object(runner_mod, "DataIngestionRepository", return_value=repo),
+        patch.object(runner_mod, "tracer", provider.get_tracer("test-2371")),
+    ):
+        await runner_mod.run_job(1)
+
+    assert seen["recording"] is True
+    finished = exporter.get_finished_spans()
+    assert len(finished) == 1
+    span = finished[0]
+    assert span.name == "job test_job"
+    attributes = dict(span.attributes or {})
+    assert attributes["job.id"] == 1
+    assert attributes["job.type"] == "test_job"
+    assert attributes["pipeline.id"] == "pipe-1"
+    # The handler ran inside THIS span, not merely some span.
+    assert span.get_span_context().span_id == seen["span_id"]
 
 
 # chain_job tests live in ``test_chain.py``.
