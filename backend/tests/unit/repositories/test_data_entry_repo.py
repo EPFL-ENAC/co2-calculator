@@ -1380,6 +1380,86 @@ async def test_get_submodule_data_year_none_yields_no_factor(
 
 
 @pytest.mark.asyncio
+async def test_get_submodule_data_factor_year_diverges_from_entry_year(
+    db_session: AsyncSession,
+):
+    """Simulator Plan reports have their own (future) ``DataEntry.year`` but
+    source factors from a reference year (``resolve_factor_year``). Comparing
+    ``Factor.year`` against the entry's own year would never match, so the
+    caller-resolved ``factor_year`` must drive the join instead — reproduces
+    a real report where kg_co2eq was computed correctly (via the reference
+    year) but active_power_w/standby_power_w displayed as null.
+    """
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session, year=2027)
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 42.0, "standby_power_w": 3.0},
+        year=2025,
+    )
+
+    stale = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+    assert stale.items[0].active_power_w is None, (
+        "without factor_year, the 2027 entry must not match the 2025 factor"
+    )
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+        factor_year=2025,
+    )
+    item = response.items[0]
+    assert item.active_power_w == 42.0
+    assert item.standby_power_w == 3.0
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_power_fields_fall_back_to_entry_data(
+    db_session: AsyncSession,
+):
+    """When the factor join finds nothing, active_power_w/standby_power_w
+    must fall back to the entry's own stored values, exactly like usage
+    hours already do — not go null and discard perfectly good data.
+    """
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(
+        db_session,
+        year=None,  # forces the factor join to miss, per the test above
+        extra_data={"active_power_w": 180.0, "standby_power_w": 30.0},
+    )
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 42.0, "standby_power_w": 3.0},
+    )
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    item = response.items[0]
+    assert item.active_power_w == 180.0
+    assert item.standby_power_w == 30.0
+
+
+@pytest.mark.asyncio
 async def test_get_submodule_data_subkind_preference_ordering(
     db_session: AsyncSession,
 ):

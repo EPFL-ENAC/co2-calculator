@@ -593,7 +593,9 @@ class DataEntryRepository:
             statement = statement.where(or_(*conditions))
         return statement, filter_pattern
 
-    def _resolved_factor_id(self, handler: Any, data_entry_type_id: int) -> Any:
+    def _resolved_factor_id(
+        self, handler: Any, data_entry_type_id: int, factor_year: int | None
+    ) -> Any:
         """SQL twin of ``FactorResolver`` for list queries.
 
         Correlated scalar subquery returning, per entry row, the id of the
@@ -609,13 +611,22 @@ class DataEntryRepository:
         kind-anchored — a code match under a *different* kind is not
         considered — and ambiguity resolves to the lowest id instead of
         raising; compute/update paths keep the loud semantics.
+
+        ``factor_year`` is the caller's ``resolve_factor_year`` result — the
+        year whose factors actually apply to this report. It must be used
+        instead of the entry's own denormalized ``DataEntry.year``: Simulator
+        Plan reports have a (future) year of their own but source factors
+        from their reference year, so comparing against ``DataEntry.year``
+        directly would never match and silently null every factor-backed
+        display column (#2050-style divergence, but undocumented until now).
         """
         f = aliased(Factor)
         kind_field: str = handler.kind_field
         entry_kind = DataEntry.data[kind_field].as_string()
+        year_expr = factor_year if factor_year is not None else col(DataEntry.year)
         conditions = [
             col(f.data_entry_type_id) == data_entry_type_id,
-            col(f.year) == col(DataEntry.year),
+            col(f.year) == year_expr,
             f.classification[kind_field].as_string() == entry_kind,
         ]
         ordering: list[Any] = []
@@ -812,6 +823,7 @@ class DataEntryRepository:
         filter: str | None = None,
         institutional_id_filter: str | None = None,
         exclude_planner_snapshots: bool = False,
+        factor_year: int | None = None,
     ) -> SubmoduleResponse:
         is_travel_entry = data_entry_type_id in (
             DataEntryTypeEnum.plane.value,
@@ -855,7 +867,9 @@ class DataEntryRepository:
             and not is_headcount_entry
             and handler.kind_field is not None
         ):
-            resolved_factor_id = self._resolved_factor_id(handler, data_entry_type_id)
+            resolved_factor_id = self._resolved_factor_id(
+                handler, data_entry_type_id, factor_year
+            )
 
         # The entries this page can possibly show. Both aggregation subqueries
         # below restrict to it: a GROUP BY over the whole data_entry_emissions
