@@ -128,6 +128,18 @@ export const useFactorsStore = defineStore('factors', () => {
     }
   }
 
+  /**
+   * Raw factor catalog for callers that build their own rows from it (e.g.
+   * planner lookups), routed through the same TTL cache + in-flight dedup as
+   * every other factor read (#2391) — no direct `api.get` for lookup data.
+   */
+  async function fetchFactorList(
+    submodule: AllSubmoduleTypes,
+    year: number | string,
+  ): Promise<FactorRow[]> {
+    return ensureFactorList(submodule, year);
+  }
+
   async function fetchLabelledClassOptions(
     submodule: AllSubmoduleTypes,
     year: number | string,
@@ -161,6 +173,7 @@ export const useFactorsStore = defineStore('factors', () => {
     subclassOptionMapByKey,
     subclassMapFetchedAt,
     fetchClassOptions,
+    fetchFactorList,
     fetchSubclassOptions,
     fetchPowerFactor,
   };

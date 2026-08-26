@@ -20,6 +20,9 @@ const EXPLORE_LOOKUP_URL =
 // `plane` -> enumSubmodule.plane = 20
 const SUBCLASS_MAP_URL = '**/api/v1/factors/20/class-subclass-map*';
 const FACTOR_LIST_URL = '**/api/v1/factors/20/list*';
+// `research-facilities` -> enumSubmodule['research-facilities'] = 70, the
+// endpoint PlannerResearchFacilityRows fires twice on mount (#2391 / GlitchTip 312).
+const RF_FACTOR_LIST_URL = '**/api/v1/factors/70/list*';
 
 test('concurrent resolveCarbonReportId calls share one lookup request', async ({
   page,
@@ -192,5 +195,33 @@ test('concurrent ensureFactorList calls (via fetchClassOptions labels) share one
   });
 
   await expect(component).toContainText('options:1,1,1,1,1');
+  expect(requests).toBe(1);
+});
+
+test('concurrent fetchFactorList calls (planner lookups) share one request', async ({
+  page,
+  mount,
+}) => {
+  let requests = 0;
+  await page.route(RF_FACTOR_LIST_URL, async (route) => {
+    requests++;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          researchfacility_id: 1,
+          researchfacility_name: 'Platform One',
+          use_unit: 'h',
+        },
+      ]),
+    });
+  });
+
+  const component = await mount(RequestDedupHarness, {
+    props: { scenario: 'factor-list-direct-concurrent' },
+  });
+
+  await expect(component).toContainText('rows:1,1,1,1,1');
   expect(requests).toBe(1);
 });
