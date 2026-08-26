@@ -245,6 +245,43 @@ async def lifespan(app: FastAPI):
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 
 
+def exclude_per_chunk_asgi_spans(app: FastAPI) -> None:
+    """Re-apply FastAPI's OTel instrumentation with per-chunk spans dropped.
+
+    opentelemetry-instrument (backend/Dockerfile) already instrumented `app`
+    inside its own FastAPI() constructor call, with kwargs that don't
+    include ``exclude_spans`` -- that's a keyword-only setting with no
+    OTEL_* env var, and there is no other point at which to pass it (#2397:
+    one upload produced 805 per-body-chunk `http receive` spans, created and
+    exported on the event loop). Re-applying instrumentation here is the
+    only way. A no-op under plain `uv run uvicorn`/pytest, which never runs
+    opentelemetry-instrument -- ``_is_instrumented_by_opentelemetry`` is
+    only ever set by it.
+
+    Must run after every ``app.add_middleware(...)`` call, not before:
+    ``uninstrument_app`` eagerly rebuilds and assigns
+    ``app.middleware_stack``, and Starlette refuses ``add_middleware`` once
+    that attribute is set -- calling this any earlier crashes the app at
+    boot (verified against the pinned packages). ``instrument_app`` then
+    only re-patches the ``build_middleware_stack`` *method*, not the
+    already-built stack, so the explicit rebuild on the last line is
+    required too -- without it every span this app produces (not just
+    receive/send) silently stops being exported, with no exception and no
+    change in response behaviour (also verified).
+
+    Deliberately not wrapped in try/except: a boot-time crash from a wrong
+    assumption here is far more visible than a running app that silently
+    lost this instrumentation.
+    """
+    if not getattr(app, "_is_instrumented_by_opentelemetry", False):
+        return
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+    FastAPIInstrumentor.uninstrument_app(app)
+    FastAPIInstrumentor.instrument_app(app, exclude_spans=["receive", "send"])
+    app.middleware_stack = app.build_middleware_stack()
+
+
 # Create FastAPI application
 app = FastAPI(
     title=settings.APP_NAME,
@@ -401,6 +438,10 @@ app.add_middleware(
 # the stack outside-in from the last registration): a request rejected for its
 # origin must not touch session state on the way out.
 app.add_middleware(RequestOriginMiddleware)
+
+# Must run after every add_middleware() call above -- see the function's
+# docstring for why order here is load-bearing, not stylistic (#2397).
+exclude_per_chunk_asgi_spans(app)
 
 # Register exception handlers for permission-based access control
 app.add_exception_handler(PermissionDeniedError, permission_denied_handler)
