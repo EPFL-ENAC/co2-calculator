@@ -899,53 +899,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/factors/{data_entry_type}/class-subclass-map": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Class Subclass Map
-         * @description Get mapping of equipment classes to subclasses for a given submodule.
-         *
-         *     Scoped to ``year`` so the options match the year-scoped factor lookup in
-         *     ``get_factor`` — otherwise the dropdown could offer a class that has no
-         *     factor for the selected year.
-         */
-        get: operations["get_class_subclass_map_v1_factors__data_entry_type__class_subclass_map_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/factors/{data_entry_type}/list": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Factors
-         * @description List every factor of a type for a year, classification + values merged.
-         *
-         *     Backs the Project Grant research-facilities grid, which offers the
-         *     reference year's whole platform list for selection (#1980).
-         */
-        get: operations["list_factors_v1_factors__data_entry_type__list_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/factors/{data_entry_type_id}/classes/{kind}/values": {
         parameters: {
             query?: never;
@@ -4334,6 +4287,10 @@ export interface components {
             label: string;
             /** Translation Key */
             translation_key?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
             /** Children */
             children?: components["schemas"]["TaxonomyNode"][] | null;
         };
@@ -6265,80 +6222,6 @@ export interface operations {
                     "application/json": {
                         [key: string]: number;
                     };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_class_subclass_map_v1_factors__data_entry_type__class_subclass_map_get: {
-        parameters: {
-            query: {
-                year: number;
-            };
-            header?: never;
-            path: {
-                data_entry_type: components["schemas"]["DataEntryTypeEnum"];
-            };
-            cookie?: {
-                auth_token?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string[];
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_factors_v1_factors__data_entry_type__list_get: {
-        parameters: {
-            query: {
-                year: number;
-            };
-            header?: never;
-            path: {
-                data_entry_type: components["schemas"]["DataEntryTypeEnum"];
-            };
-            cookie?: {
-                auth_token?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
                 };
             };
             /** @description Validation Error */

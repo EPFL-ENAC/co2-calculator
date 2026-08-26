@@ -236,6 +236,10 @@ serve-docs: ## Serve documentation with live reload
 	@echo "Starting documentation server..."
 	if [ -d "docs" ]; then cd docs && $(MAKE) serve-docs; fi
 
+.PHONY: gen-module-constants
+gen-module-constants: ## Generate frontend module lookup constants from backend enums (backend/app/generate_module_constants_ts.py)
+	cd backend && $(MAKE) gen-module-constants
+
 .PHONY: sync-agent-rules
 sync-agent-rules: ## Re-vendor the shared ENAC IT4R rules from it4r-agent-kit
 	@sha=$$(gh api repos/EPFL-ENAC/it4r-agent-kit/commits/main --jq .sha); \

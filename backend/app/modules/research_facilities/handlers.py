@@ -36,6 +36,9 @@ class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
     # know it by (SCITAS-GE). Without this the taxonomy labels every facility
     # with its id, and the frontend relabels selects from the taxonomy (#2007).
     kind_label_field: str | None = "researchfacility_name"
+    # The planner grid enters a planned use in the platform's own metric, so
+    # the option has to carry that unit to render its input suffix (#2391).
+    taxonomy_meta_fields: tuple[str, ...] = ("use_unit",)
     require_subkind_for_factor = False
 
     sort_map = {
@@ -140,8 +143,11 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
 
     kind_field: str = "researchfacility_id"
     subkind_field: str = "researchfacility_type"
-    # See the common handler: label facilities by acronym, not by unit code.
+    # See the common handler: label facilities by acronym, not by unit code,
+    # and carry the metric unit per (facility, housing type) — the unit is a
+    # per-factor-row value, so it belongs on the subkind node too.
     kind_label_field: str | None = "researchfacility_name"
+    taxonomy_meta_fields: tuple[str, ...] = ("use_unit",)
     require_subkind_for_factor = False
 
     sort_map = {

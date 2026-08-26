@@ -78,12 +78,10 @@ mutable during preparation and immutable after — which is what lets decision
    `emission-taxonomy.gen.ts` precedent (`make gen-emission-taxonomy`):
    `enumSubmodule`, room types, cabin classes, currencies, SIUS categories.
 7. **One frontend discipline**: a single lookup store with in-flight promise
-   dedup (pattern of #2378/#2383, largely in place) fed only by the batch
-   endpoint; no component calls `api.get` for lookups directly
-   (`PlannerResearchFacilityRows` is the remaining offender — it reads
-   `use_unit` and other row metadata off `factors/{det}/list`, not the
-   taxonomy tree, so decision 3's strip doesn't touch it; migrating it onto
-   the batch endpoint + store is decision 7's remaining work).
+   dedup (pattern of #2378/#2383) fed only by the taxonomy endpoint; no
+   component calls `api.get` for lookups directly. `use_unit`, the one row
+   field `PlannerResearchFacilityRows` needed off `factors/{det}/list`, now
+   travels on the taxonomy node as declared display metadata (decision 1).
 
 ## Open points for the plan
 
@@ -117,17 +115,53 @@ mutable during preparation and immutable after — which is what lets decision
       merged to `dev` earlier the same day (2026-08-26) — verified present
       in both the pre- and post-regen snapshot, not something this PR did.
       Delivered by PR #2396.
-- [ ] **Decision 7 (remainder)** — move `PlannerResearchFacilityRows.vue` off
-      its direct `factors/{det}/list` call onto the batch taxonomy endpoint /
-      factors store. Tracked on `fix/2391-planner-rows-factors-store`.
-- [ ] **Decision 1** — retire `class-subclass-map` and `/list` as
-      frontend-facing routes once every consumer reads from the batch endpoint.
+- [x] **Decision 7 (remainder)** — `PlannerResearchFacilityRows.vue` reads the
+      taxonomy tree through the factors store; no component calls `api.get`
+      for lookup data any more. Delivered with decision 1.
+- [x] **Decision 1** — the taxonomy endpoint is the single lookup endpoint;
+      `factors/{det}/class-subclass-map` and `factors/{det}/list` are deleted
+      (`GET factors/{det}/classes/{kind}/values`, the equipment prefill,
+      stays). Detailed below.
 - [ ] **Decision 2** — raise the server TTL and add an `ETag` to the batch
       endpoint response.
 - [ ] **Decision 4** — purchase server-side typeahead; ingest
       `purchase_institutional_description`; delete `i18n/purchase_factors.ts`.
-- [ ] **Decision 6** — generate `enumSubmodule`, room types, cabin classes,
-      currencies, SIUS categories from backend enums.
+- [x] **Decision 6** — generate `enumSubmodule`, room types, cabin classes,
+      currencies, SIUS categories from backend enums
+      (`make gen-module-constants`, new
+      `frontend/src/types/module-lookups.gen.ts`). Confirmed
+      `enumSubmodule` drift (`building_embodied_energy = 32`) was
+      behavior-safe to add — every consumer does a keyed lookup, none
+      iterates the object. `external-cloud-and-ai.ts`'s 3-currency subset
+      (`eur`/`chf`/`usd`, vs. the full 9-currency backend set) is left
+      hand-written: it isn't a mirror of a backend constant, and widening it
+      would be an unreviewed behavior change. Delivered by PR #2400.
+
+### Decision 1 — the two handler-declared mechanisms
+
+**Labels** were already there: `kind_label_field` / `subkind_label_field` on
+`BaseModuleHandler`, set to `researchfacility_name` on both research-facility
+handlers since #2007. The issue text called for a new `label_field`; it would
+have been a second name for a solved problem, so nothing was added.
+
+**Display metadata** is new: `taxonomy_meta_fields: tuple[str, ...]` (default
+empty) copies whitelisted classification/values fields onto a new optional
+`TaxonomyNode.meta`. Research facilities declare `("use_unit",)`. Both
+node-construction sites in `ModuleHandlerService.get_taxonomy` populate it, so
+a subkind node carries its _own_ row's metadata — an animal facility meters
+rodents in housings and fish in tanks. Display only: `ef_*` and power
+coefficients stay server-side (#2396), and `meta` defaults to `None` so
+`response_model_exclude_none` leaves every other module's payload byte-for-byte
+as it was.
+
+Frontend: the factors store caches the taxonomy tree per `(submodule, year)` —
+same TTL and in-flight dedup as before — and derives class options, subclass
+options and the planner's facility rows from it. One consequence worth naming:
+a form's options and the taxonomy relabel can no longer disagree, which is
+exactly what the #2007 bug was.
+
+Decision 4 will set `kind_label_field = purchase_institutional_description` for
+purchase once ingestion lands.
 
 ## References
 

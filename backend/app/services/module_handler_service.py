@@ -17,6 +17,22 @@ if TYPE_CHECKING:
     from app.schemas.data_entry import ModuleHandler
 
 
+def _display_meta(handler: ModuleHandler, factor) -> dict | None:
+    """Whitelisted display metadata for the node this factor row builds.
+
+    Only the fields the handler declares in ``taxonomy_meta_fields`` travel —
+    a factor's other values are emission coefficients and stay server-side
+    (#2396). ``None`` when the handler declares none, so
+    ``response_model_exclude_none`` keeps unaffected payloads unchanged.
+    """
+    fields = handler.taxonomy_meta_fields
+    if not fields:
+        return None
+    source = {**(factor.classification or {}), **(factor.values or {})}
+    meta = {field: source[field] for field in fields if field in source}
+    return meta or None
+
+
 class ModuleHandlerService:
     """Orchestrates factor-dependent operations for module handlers."""
 
@@ -112,6 +128,7 @@ class ModuleHandlerService:
                     name=kind_value,
                     label=label,
                     translation_key=kind_value,
+                    meta=_display_meta(handler, factor),
                 )
                 children.append(kind_node)
 
@@ -142,6 +159,10 @@ class ModuleHandlerService:
                     name=subkind_value,
                     label=subkind_label,
                     translation_key=subkind_value,
+                    # Per-row, not per-kind: an animal facility carries one
+                    # metric unit per housing type, so the subkind node must
+                    # take its own factor's meta rather than the kind's.
+                    meta=_display_meta(handler, factor),
                 )
             )
 

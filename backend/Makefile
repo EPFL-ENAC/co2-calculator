@@ -210,3 +210,8 @@ erd: ## Generate Mermaid ERD diagram from SQLAlchemy models
 .PHONY: gen-emission-taxonomy
 gen-emission-taxonomy: ## Generate frontend emission-taxonomy constant from EmissionType
 	uv run -m app.generate_emission_taxonomy_ts > ../frontend/src/types/emission-taxonomy.gen.ts
+
+.PHONY: gen-module-constants
+gen-module-constants: ## Generate frontend module lookup constants (submodule ids, currencies, room types, cabin classes, SIUS codes)
+	uv run -m app.generate_module_constants_ts > ../frontend/src/types/module-lookups.gen.ts
+	cd ../frontend && npx prettier --write src/types/module-lookups.gen.ts

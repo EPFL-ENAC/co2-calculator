@@ -136,26 +136,51 @@ const MODULE_TYPE_IDS: Record<string, number> = {
   'process-emissions': 8,
 };
 
-// ─── Factor catalogue (class → subclasses), keyed by enumSubmodule id ─────────
+// ─── Factor catalogue (class → subclasses), keyed by data entry name ─────────
+// Named, not id-keyed: since #2391 decision 1 the options come from
+// `taxonomies/module/{module}/{data_entry}`, and the numeric ids only ever
+// addressed the retired `factors/{det}/class-subclass-map`.
 
-export const FACTOR_CLASS_MAP: Record<number, Record<string, string[]>> = {
-  50: { co2: ['fossil'], ch4: ['biogenic'], sf6: ['electrical'] },
-  31: { natural_gas: [], heating_oil: [], pellets: [] },
-  30: { BC: [], GC: [] },
-  10: { Centrifuge: ['Benchtop', 'Floor'], Microscope: ['Optical'] },
-  11: { Laptop: [], Monitor: [] },
-  12: { Freezer: ['-80 °C'], Fridge: ['Standard'] },
-  40: { AWS: ['virtualisation', 'stockage'], Azure: ['calcul'] },
-  41: { OpenAI: ['chat'], Anthropic: ['chat'] },
-  60: { 'Laboratory equipment': [] },
-  61: { Computers: [] },
-  62: { 'Lab consumables': [] },
-  63: { Solvents: [] },
-  64: { Consulting: [] },
-  65: { Cars: [] },
-  66: { Furniture: [] },
-  67: { LN2: [] },
+export const FACTOR_CLASS_MAP: Record<string, Record<string, string[]>> = {
+  process_emissions: {
+    co2: ['fossil'],
+    ch4: ['biogenic'],
+    sf6: ['electrical'],
+  },
+  energy_combustion: { natural_gas: [], heating_oil: [], pellets: [] },
+  building: { BC: [], GC: [] },
+  scientific: { Centrifuge: ['Benchtop', 'Floor'], Microscope: ['Optical'] },
+  it: { Laptop: [], Monitor: [] },
+  other: { Freezer: ['-80 °C'], Fridge: ['Standard'] },
+  external_clouds: { AWS: ['virtualisation', 'stockage'], Azure: ['calcul'] },
+  external_ai: { OpenAI: ['chat'], Anthropic: ['chat'] },
+  scientific_equipment: { 'Laboratory equipment': [] },
+  it_equipment: { Computers: [] },
+  consumable_accessories: { 'Lab consumables': [] },
+  biological_chemical_gaseous_product: { Solvents: [] },
+  services: { Consulting: [] },
+  vehicles: { Cars: [] },
+  other_purchases: { Furniture: [] },
+  purchases_centralized: { LN2: [] },
 };
+
+/** The tree ``ModuleHandlerService.get_taxonomy`` builds for one entry. */
+export function taxonomyTreeFor(dataEntry: string) {
+  return {
+    name: dataEntry,
+    label: dataEntry,
+    children: Object.entries(FACTOR_CLASS_MAP[dataEntry] ?? {}).map(
+      ([kind, subkinds]) => ({
+        name: kind,
+        label: kind,
+        children: subkinds.map((subkind) => ({
+          name: subkind,
+          label: subkind,
+        })),
+      }),
+    ),
+  };
+}
 
 const FACTOR_VALUES: Record<number, Record<string, unknown>> = {
   31: { unit: 'kWh' },
@@ -672,20 +697,15 @@ export async function mockExplorerBackend(
   );
 
   // ─── Taxonomy / factors ────────────────────────────────────────────────────
-  await context.route('**/api/v1/taxonomies/**', (route) =>
-    json(route, { name: '', label: '', children: [] }),
-  );
-
+  // The single lookup endpoint (#2391): every form select's options come from
+  // here. The batch `/data-entries` variant is registered later (LIFO wins).
   await context.route(
-    /.*\/api\/v1\/factors\/(\d+)\/class-subclass-map/,
+    /.*\/api\/v1\/taxonomies\/module\/[^/]+\/([^/?]+)/,
     (route) => {
-      const id = Number(
-        route
-          .request()
-          .url()
-          .match(/factors\/(\d+)\//)![1],
-      );
-      return json(route, FACTOR_CLASS_MAP[id] ?? {});
+      const dataEntry = new URL(route.request().url()).pathname
+        .split('/')
+        .pop()!;
+      return json(route, taxonomyTreeFor(dataEntry.replace(/-/g, '_')));
     },
   );
 
@@ -701,10 +721,6 @@ export async function mockExplorerBackend(
       ? json(route, values)
       : route.fulfill({ status: 404, body: '' });
   });
-
-  await context.route(/.*\/api\/v1\/factors\/7[01]\/list/, (route) =>
-    json(route, []),
-  );
 
   await context.route(/.*\/api\/v1\/modules\/building-rooms/, (route) => {
     const url = new URL(route.request().url());
@@ -845,7 +861,10 @@ export async function mockExplorerBackend(
       'entries',
     );
     const body = Object.fromEntries(
-      entries.map((entry) => [entry, { name: entry, label: '', children: [] }]),
+      entries.map((entry) => [
+        entry,
+        taxonomyTreeFor(entry.replace(/-/g, '_')),
+      ]),
     );
     return route.fulfill({
       status: 200,

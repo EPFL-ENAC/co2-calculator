@@ -24,3 +24,22 @@ export async function getModuleDataEntriesTaxonomies(
     )
     .json<Record<string, TaxonomyNode>>();
 }
+
+/**
+ * One data entry type's taxonomy — the single lookup endpoint for form
+ * options (#2391 decision 1): classification names, labels, and whatever
+ * display metadata the module's handler whitelists. It replaced
+ * `factors/{det}/class-subclass-map` and `factors/{det}/list`, which shipped
+ * every emission coefficient alongside the names.
+ */
+export async function getDataEntryTaxonomy(
+  moduleType: string,
+  dataEntry: string,
+  year: number | string,
+): Promise<TaxonomyNode> {
+  return api
+    .get(
+      `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(dataEntry)}?year=${encodeURIComponent(String(year))}`,
+    )
+    .json<TaxonomyNode>();
+}

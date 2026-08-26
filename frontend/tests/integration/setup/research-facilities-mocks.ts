@@ -6,10 +6,10 @@
  * which is the very thing the ``inputs_deactivated`` scenario asserts on.
  * Same rationale as ``home-module-visibility-mocks.ts``.
  *
- * The facility catalog is served from ``factors/{det}/list`` (the select's
- * option source) and the taxonomy separately, because the two disagreed in
- * the shipped bug: options carried the acronym while the taxonomy relabelled
- * them with the unit code.
+ * Since #2391 decision 1 the taxonomy endpoint is the select's only option
+ * source. The shipped bug was exactly those two sources disagreeing — the
+ * catalog carried the acronym while the taxonomy relabelled it with the unit
+ * code — so there is now a single payload to get right.
  */
 import type { Page } from '@playwright/test';
 
@@ -91,7 +91,10 @@ export const ANIMAL_FACTORS = [
   },
 ];
 
-/** What the backend builds once `kind_label_field` is set on the handlers. */
+/**
+ * What the backend builds from `kind_label_field` (the acronym label) and
+ * `taxonomy_meta_fields` (the metric unit, #2391).
+ */
 function taxonomyFor(det: number) {
   if (det === ANIMAL_DET) {
     return {
@@ -102,10 +105,13 @@ function taxonomyFor(det: number) {
           name: '1321',
           label: 'CPG',
           translation_key: '1321',
-          children: [
-            { name: 'rodent', label: 'rodent', translation_key: 'rodent' },
-            { name: 'fish', label: 'fish', translation_key: 'fish' },
-          ],
+          meta: { use_unit: 'housings' },
+          children: ANIMAL_FACTORS.map((f) => ({
+            name: f.researchfacility_type,
+            label: f.researchfacility_type,
+            translation_key: f.researchfacility_type,
+            meta: { use_unit: f.use_unit },
+          })),
         },
       ],
     };
@@ -117,6 +123,7 @@ function taxonomyFor(det: number) {
       name: f.researchfacility_id,
       label: f.researchfacility_name,
       translation_key: f.researchfacility_id,
+      meta: { use_unit: f.use_unit },
     })),
   };
 }
@@ -304,36 +311,6 @@ export async function mockResearchFacilitiesBackend(
         ? ANIMAL_DET
         : COMMON_DET;
       return route.fulfill(json(taxonomyFor(det)));
-    },
-  );
-
-  // The facility catalog: the select's option source (#2007).
-  await page.route(/.*\/api\/v1\/factors\/(70|71)\/list(\?.*)?$/, (route) => {
-    const det = route.request().url().includes('/71/')
-      ? ANIMAL_DET
-      : COMMON_DET;
-    return route.fulfill(
-      json(det === ANIMAL_DET ? ANIMAL_FACTORS : COMMON_FACTORS),
-    );
-  });
-
-  // Subkind options: facility id → its housing types.
-  await page.route(
-    /.*\/api\/v1\/factors\/(70|71)\/class-subclass-map(\?.*)?$/,
-    (route) => {
-      const det = route.request().url().includes('/71/')
-        ? ANIMAL_DET
-        : COMMON_DET;
-      if (det === ANIMAL_DET) {
-        return route.fulfill(json({ '1321': ['fish', 'rodent'] }));
-      }
-      return route.fulfill(
-        json(
-          Object.fromEntries(
-            COMMON_FACTORS.map((f) => [f.researchfacility_id, []]),
-          ),
-        ),
-      );
     },
   );
 

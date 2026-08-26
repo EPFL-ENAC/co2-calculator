@@ -1,57 +1,21 @@
+"""Factor routes.
+
+Form options no longer come from here: ``GET taxonomies/module/{module}/
+{data_entry}`` (and its batch sibling) is the single lookup endpoint since
+#2391 decision 1, which retired ``/class-subclass-map`` and ``/list``. What
+remains is the narrow per-class values prefill below — the only place a
+client legitimately reads factor values.
+"""
+
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.user import User
-from app.schemas.data_entry import BaseModuleHandler
 from app.services.factor_service import FactorService
 
 router = APIRouter()
-
-
-@router.get(
-    "/{data_entry_type}/class-subclass-map",
-    response_model=dict[str, list[str]],
-)
-async def get_class_subclass_map(
-    data_entry_type: DataEntryTypeEnum,
-    year: int = Query(...),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict[str, list[str]]:
-    """Get mapping of equipment classes to subclasses for a given submodule.
-
-    Scoped to ``year`` so the options match the year-scoped factor lookup in
-    ``get_factor`` — otherwise the dropdown could offer a class that has no
-    factor for the selected year.
-    """
-    handler = BaseModuleHandler.get_by_type(data_entry_type)
-    return await FactorService(db).get_class_subclass_map(
-        data_entry_type=data_entry_type,
-        kind_field=handler.kind_field or "",
-        subkind_field=handler.subkind_field or "",
-        year=year,
-    )
-
-
-@router.get("/{data_entry_type}/list", response_model=list[dict])
-async def list_factors(
-    data_entry_type: DataEntryTypeEnum,
-    year: int = Query(...),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[dict]:
-    """List every factor of a type for a year, classification + values merged.
-
-    Backs the Project Grant research-facilities grid, which offers the
-    reference year's whole platform list for selection (#1980).
-    """
-    factors = await FactorService(db).list_by_data_entry_type(data_entry_type, year)
-    return [
-        {"factor_id": f.id, **(f.classification or {}), **(f.values or {})}
-        for f in factors
-    ]
 
 
 # example of call
