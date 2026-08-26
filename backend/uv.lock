@@ -2,9 +2,6 @@ version = 1
 revision = 3
 requires-python = "==3.14.*"
 
-[manifest]
-overrides = [{ name = "aiohttp", specifier = ">=3.14.3" }]
-
 [[package]]
 name = "aiobotocore"
 version = "2.12.4"
@@ -485,7 +482,7 @@ requires-dist = [
     { name = "cryptography", specifier = ">=50.0.0" },
     { name = "elasticsearch", specifier = ">=8.0.0,<9.0.0" },
     { name = "email-validator", specifier = "==2.3.0" },
-    { name = "enacit4r-files", git = "https://github.com/EPFL-ENAC/enacit4r-files?tag=1.1.0" },
+    { name = "enacit4r-files", git = "https://github.com/EPFL-ENAC/enacit4r-files?tag=1.2.0" },
     { name = "fastapi", extras = ["standard"], specifier = "==0.141.1" },
     { name = "haversine", specifier = "==2.9.0" },
     { name = "httpx", specifier = "==0.28.1" },
@@ -706,10 +703,11 @@ wheels = [
 
 [[package]]
 name = "enacit4r-files"
-version = "1.1.0"
-source = { git = "https://github.com/EPFL-ENAC/enacit4r-files?tag=1.1.0#35f730e382addcceaf32a4a329366c33280757dd" }
+version = "1.2.0"
+source = { git = "https://github.com/EPFL-ENAC/enacit4r-files?tag=1.2.0#53901d81341d21d41980279e353e22cb14a4200a" }
 dependencies = [
     { name = "aiobotocore" },
+    { name = "aiohttp" },
     { name = "cryptography" },
     { name = "fastapi" },
     { name = "pydantic" },

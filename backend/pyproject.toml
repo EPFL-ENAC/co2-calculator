@@ -148,12 +148,9 @@ prepend_sys_path = ["."]
 
 [tool.uv]
 package = true
-# aiobotocore (via enacit4r-files) pins aiohttp below the CVE-2026-69244 fix;
-# force the resolver past it until aiobotocore's own pin catches up.
-override-dependencies = ["aiohttp>=3.14.3"]
 
 [tool.uv.sources]
-enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files", tag = "1.1.0" }
+enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files", tag = "1.2.0" }
 
 # timezone to use when rendering the date within the migration file
 # as well as the filename.
