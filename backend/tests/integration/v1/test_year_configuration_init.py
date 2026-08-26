@@ -23,6 +23,7 @@ import app.api.deps as deps_module
 from app.main import app
 from app.models.data_ingestion import DataIngestionJob
 from app.models.user import UserProvider
+from tests.unit.v1.test_temp_upload_auth_ordering import valid_access_token
 
 CREATE_URL = "/api/v1/year-configuration/{year}"
 
@@ -42,7 +43,9 @@ async def db_factory():
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies
+    # run, so the get_current_user override alone no longer gets past it.
+    with TestClient(app, cookies={"auth_token": valid_access_token()}) as c:
         yield c
 
 

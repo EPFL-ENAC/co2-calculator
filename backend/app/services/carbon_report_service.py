@@ -436,29 +436,19 @@ class CarbonReportService:
         )
         for m in module_rows:
             modules_by_report.setdefault(m.carbon_report_id, []).append(m)
-        reports = (
-            (
-                await self.session.execute(
-                    select(CarbonReport).where(
-                        col(CarbonReport.id).in_(carbon_report_ids)
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-        type_rows = (
+        report_rows = (
             await self.session.execute(
-                select(col(CarbonReport.id), col(CarbonProject.carbon_report_type))
-                .join(
+                select(CarbonReport, col(CarbonProject.carbon_report_type))
+                .outerjoin(
                     CarbonProject,
                     col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
                 )
                 .where(col(CarbonReport.id).in_(carbon_report_ids))
             )
         ).all()
-        report_types: dict[int, CarbonReportType] = {
-            report_id: report_type for report_id, report_type in type_rows
+        reports = [report for report, _ in report_rows]
+        report_types: dict[int, CarbonReportType | None] = {
+            report.id: report_type for report, report_type in report_rows
         }
 
         now_ts = int(datetime.now(UTC).timestamp())
