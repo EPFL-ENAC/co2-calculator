@@ -10,35 +10,35 @@ import {
   watch,
 } from 'vue';
 import { QSkeleton } from 'quasar';
-import { MODULES_LIST, MODULES, type Module } from 'src/constant/modules';
-import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import { getModuleIconColors } from 'src/composables/useModuleIconColors';
+import { MODULES_LIST, MODULES, type Module } from '@/constant/modules';
+import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import { getModuleIconColors } from '@/composables/useModuleIconColors';
 import {
   getResultsSummary,
   getMergedResultsSummary,
   type ResultsSummary,
   type ModuleResult,
-} from 'src/api/modules';
+} from '@/api/modules';
 
-import { useWorkspaceStore } from 'src/stores/workspace';
+import { useWorkspaceStore } from '@/stores/workspace';
 import {
   useTimelineStore,
   useModuleStore,
   type MergedUnitsContext,
-} from 'src/stores/modules';
-import { useResultsFiltersStore } from 'src/stores/resultsFilters';
+} from '@/stores/modules';
+import { useResultsFiltersStore } from '@/stores/resultsFilters';
 import { storeToRefs } from 'pinia';
-import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
-import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
+import { IT_FOCUS_SOURCE_MODULES } from '@/constant/itFocus';
+import { MODULE_STATES, getModuleTypeId } from '@/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import ReductionObjectiveChart from 'src/components/charts/results/ReductionObjectiveChart.vue';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import ReductionObjectiveChart from '@/components/charts/results/ReductionObjectiveChart.vue';
 import { useRoute, useRouter } from 'vue-router';
-import { nOrDash } from 'src/utils/number';
-import { resolveLanguage } from 'src/utils/language';
-import { buildUnitPerimeterLabel } from 'src/utils/unitPerimeterLabel';
-import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
+import { nOrDash } from '@/utils/number';
+import { resolveLanguage } from '@/utils/language';
+import { buildUnitPerimeterLabel } from '@/utils/unitPerimeterLabel';
+import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
 
 const yearConfigStore = useYearConfigStore();
 const { anyAdditionalCategoryActive } = useModuleCategoriesAvailability();
@@ -53,24 +53,24 @@ const ChartChunkSkeleton = () =>
 
 const ModuleCarbonFootprintChart = defineAsyncComponent({
   loader: () =>
-    import('src/components/charts/results/ModuleCarbonFootprintChart.vue'),
+    import('@/components/charts/results/ModuleCarbonFootprintChart.vue'),
   loadingComponent: ChartChunkSkeleton,
   delay: 0,
 });
 
 const CarbonFootPrintPerPersonChart = defineAsyncComponent({
   loader: () =>
-    import('src/components/charts/results/CarbonFootPrintPerPersonChart.vue'),
+    import('@/components/charts/results/CarbonFootPrintPerPersonChart.vue'),
   loadingComponent: ChartChunkSkeleton,
   delay: 0,
 });
 
 const CompareYearsDialog = defineAsyncComponent(
-  () => import('src/components/charts/results/CompareYearsDialog.vue'),
+  () => import('@/components/charts/results/CompareYearsDialog.vue'),
 );
 
 const ModuleCharts = defineAsyncComponent({
-  loader: () => import('src/components/organisms/module/ModuleCharts.vue'),
+  loader: () => import('@/components/organisms/module/ModuleCharts.vue'),
   loadingComponent: ChartChunkSkeleton,
   delay: 0,
 });
@@ -84,13 +84,13 @@ const AdditionalSectionSkeleton = () =>
 
 const AdditionalCategoriesSection = defineAsyncComponent({
   loader: () =>
-    import('src/components/organisms/AdditionalCategoriesSection.vue'),
+    import('@/components/organisms/AdditionalCategoriesSection.vue'),
   loadingComponent: AdditionalSectionSkeleton,
   delay: 0,
 });
 
 const ItFocusSection = defineAsyncComponent({
-  loader: () => import('src/components/organisms/ItFocusSection.vue'),
+  loader: () => import('@/components/organisms/ItFocusSection.vue'),
   loadingComponent: AdditionalSectionSkeleton,
   delay: 0,
 });
@@ -519,11 +519,11 @@ const adjustedTonnesPerFte = computed(() => {
 // Lazy-loaded: only used in below-fold expansion items
 const modulesConfig = ref<Record<
   string,
-  import('src/constant/moduleConfig').ModuleConfig
+  import('@/constant/moduleConfig').ModuleConfig
 > | null>(null);
 const loadModulesConfig = async () => {
   if (!modulesConfig.value) {
-    const { MODULES_CONFIG } = await import('src/constant/module-config');
+    const { MODULES_CONFIG } = await import('@/constant/module-config');
     modulesConfig.value = MODULES_CONFIG;
   }
 };

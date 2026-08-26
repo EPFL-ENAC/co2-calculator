@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref } from 'vue';
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 
 export interface FileObject extends Blob {
   readonly size: number;

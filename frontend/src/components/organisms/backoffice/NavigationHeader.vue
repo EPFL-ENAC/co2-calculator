@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NavItem } from 'src/constant/navigation';
+import { NavItem } from '@/constant/navigation';
 
 defineProps<{
   item: NavItem;

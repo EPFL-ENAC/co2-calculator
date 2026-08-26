@@ -1,4 +1,4 @@
-import type { Module } from 'src/constant/modules';
+import type { Module } from '@/constant/modules';
 
 /**
  * The space a module is rendered in. The same module carries different guidance

@@ -1,5 +1,5 @@
-import { MODULES } from 'src/constant/modules';
-import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
+import { MODULES } from '@/constant/modules';
+import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
 
 export default {
   [MODULES.Headcount]: {

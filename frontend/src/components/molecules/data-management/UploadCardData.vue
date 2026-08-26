@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { computed, inject, type ComputedRef } from 'vue';
-import { useUploadCard } from 'src/composables/useUploadCard';
-import { mergeLivePipelineJob } from 'src/composables/useModuleConfig';
-import {
-  TargetType,
-  IngestionState,
-} from 'src/stores/backofficeDataManagement';
-import type { ImportRow } from 'src/stores/backofficeDataManagement';
-import type { RecalculationStatusEntry } from 'src/stores/yearConfig';
-import type { PipelineJob, PipelineProgress } from 'src/stores/pipelineStream';
+import { useUploadCard } from '@/composables/useUploadCard';
+import { mergeLivePipelineJob } from '@/composables/useModuleConfig';
+import { TargetType, IngestionState } from '@/stores/backofficeDataManagement';
+import type { ImportRow } from '@/stores/backofficeDataManagement';
+import type { RecalculationStatusEntry } from '@/stores/yearConfig';
+import type { PipelineJob, PipelineProgress } from '@/stores/pipelineStream';
 import UploadCard from './UploadCard.vue';
 
 interface Props {

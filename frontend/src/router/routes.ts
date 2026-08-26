@@ -1,12 +1,12 @@
 import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
-import { MODULES_PATTERN } from 'src/constant/modules';
-import { CARBON_PROJECT } from 'src/constant/carbon-project';
-import { resolveLanguage } from 'src/utils/language';
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
+import { MODULES_PATTERN } from '@/constant/modules';
+import { CARBON_PROJECT } from '@/constant/carbon-project';
+import { resolveLanguage } from '@/utils/language';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
 import redirectToDefaultRoute from './guards/redirectToDefaultRoute';
 import { permissionGuard } from './guards/permissionGuard';
 import { moduleEnabledGuard } from './guards/moduleEnabledGuard';
-import { PermissionAction } from 'src/stores/auth';
+import { PermissionAction } from '@/stores/auth';
 import { isDevEnvironment } from './routeNames';
 
 // Route parameter validation patterns
@@ -47,12 +47,12 @@ const routes: RouteRecordRaw[] = [
   // Print preview — own layout so no header/sidebar appears
   {
     path: `/:language(${LANGUAGE_PATTERN})/:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})/results/print`,
-    component: () => import('layouts/PrintLayout.vue'),
+    component: () => import('@/layouts/PrintLayout.vue'),
     children: [
       {
         path: '',
         name: 'results-print',
-        component: () => import('pages/app/ResultsPrintPage.vue'),
+        component: () => import('@/pages/app/ResultsPrintPage.vue'),
         meta: {
           requiresAuth: true,
           note: 'Results – Print/PDF preview (no chrome)',
@@ -64,12 +64,12 @@ const routes: RouteRecordRaw[] = [
   // Simulation explore print preview — own layout, no header/sidebar
   {
     path: `/:language(${LANGUAGE_PATTERN})/:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})/simulation/explore/print`,
-    component: () => import('layouts/PrintLayout.vue'),
+    component: () => import('@/layouts/PrintLayout.vue'),
     children: [
       {
         path: '',
         name: 'simulation-explore-print',
-        component: () => import('pages/app/SimulationExplorePrintPage.vue'),
+        component: () => import('@/pages/app/SimulationExplorePrintPage.vue'),
         meta: {
           requiresAuth: true,
           note: 'Simulation Explore – Print/PDF preview (no chrome)',
@@ -82,12 +82,12 @@ const routes: RouteRecordRaw[] = [
   // Project planner print preview — own layout, no header/sidebar
   {
     path: `/:language(${LANGUAGE_PATTERN})/:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})/simulation/project-planner/:planId(\\d+)/print`,
-    component: () => import('layouts/PrintLayout.vue'),
+    component: () => import('@/layouts/PrintLayout.vue'),
     children: [
       {
         path: '',
         name: 'project-planner-print',
-        component: () => import('pages/app/ProjectPlannerPrintPage.vue'),
+        component: () => import('@/pages/app/ProjectPlannerPrintPage.vue'),
         meta: {
           requiresAuth: true,
           note: 'Project Planner – Print/PDF preview (no chrome)',
@@ -100,12 +100,12 @@ const routes: RouteRecordRaw[] = [
   // Backoffice reporting print previews — own layout, no header/sidebar
   {
     path: `/:language(${LANGUAGE_PATTERN})/back-office/reporting/print`,
-    component: () => import('layouts/PrintLayout.vue'),
+    component: () => import('@/layouts/PrintLayout.vue'),
     children: [
       {
         path: '',
         name: 'backoffice-reporting-print',
-        component: () => import('pages/back-office/ReportingPrintPage.vue'),
+        component: () => import('@/pages/back-office/ReportingPrintPage.vue'),
         meta: {
           requiresAuth: true,
           note: 'Backoffice Reporting – Combined PDF print preview (no chrome)',
@@ -117,13 +117,13 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: `/:language(${LANGUAGE_PATTERN})/back-office/reporting/results-print`,
-    component: () => import('layouts/PrintLayout.vue'),
+    component: () => import('@/layouts/PrintLayout.vue'),
     children: [
       {
         path: '',
         name: 'backoffice-results-print',
         component: () =>
-          import('pages/back-office/BackofficeResultsPrintPage.vue'),
+          import('@/pages/back-office/BackofficeResultsPrintPage.vue'),
         meta: {
           requiresAuth: true,
           note: 'Backoffice Reporting – Results PDF print preview (no chrome)',
@@ -135,7 +135,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/',
-    component: () => import('layouts/MainLayout.vue'),
+    component: () => import('@/layouts/MainLayout.vue'),
     name: 'root',
     children: [
       {
@@ -168,7 +168,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'login',
             name: LOGIN_ROUTE_NAME,
-            component: () => import('pages/app/LoginPage.vue'),
+            component: () => import('@/pages/app/LoginPage.vue'),
             meta: {
               note: 'User authentication - Login page',
               breadcrumb: false,
@@ -179,7 +179,7 @@ const routes: RouteRecordRaw[] = [
                 {
                   path: 'login-test',
                   name: LOGIN_TEST_ROUTE_NAME,
-                  component: () => import('pages/app/LoginTestPage.vue'),
+                  component: () => import('@/pages/app/LoginTestPage.vue'),
                   meta: {
                     note: 'Test User authentication - Login page',
                     breadcrumb: false,
@@ -193,7 +193,7 @@ const routes: RouteRecordRaw[] = [
             // Pass-through layout: the workspace is loaded by the global
             // `workspaceGuard`, so this parent only hosts the child
             // <router-view>.
-            component: () => import('pages/app/WorkspacePage.vue'),
+            component: () => import('@/pages/app/WorkspacePage.vue'),
             children: [
               {
                 name: 'home-redirect',
@@ -203,7 +203,7 @@ const routes: RouteRecordRaw[] = [
               {
                 path: 'home',
                 name: HOME_ROUTE_NAME,
-                component: () => import('pages/app/HomePage.vue'),
+                component: () => import('@/pages/app/HomePage.vue'),
                 meta: {
                   requiresAuth: true,
                   note: 'Home - Main overview and navigation',
@@ -213,7 +213,7 @@ const routes: RouteRecordRaw[] = [
               {
                 path: `:module(${MODULES_PATTERN})`,
                 name: 'module',
-                component: () => import('pages/app/ModulePage.vue'),
+                component: () => import('@/pages/app/ModulePage.vue'),
                 beforeEnter: [permissionGuard, moduleEnabledGuard()],
                 meta: {
                   requiresAuth: true,
@@ -225,7 +225,7 @@ const routes: RouteRecordRaw[] = [
               {
                 path: 'results',
                 name: 'results',
-                component: () => import('pages/app/ResultsPage.vue'),
+                component: () => import('@/pages/app/ResultsPage.vue'),
                 meta: {
                   requiresAuth: true,
                   note: 'Results - Consolidated overview across all modules',
@@ -237,7 +237,7 @@ const routes: RouteRecordRaw[] = [
                 // home page (CO2ProjectPlanner); :name is the plan name.
                 path: 'simulation/plan/:planId(\\d+)',
                 name: 'project-planner',
-                component: () => import('pages/app/ProjectPlannerPage.vue'),
+                component: () => import('@/pages/app/ProjectPlannerPage.vue'),
                 meta: {
                   requiresAuth: true,
                   note: 'Project Planner - plan a project simulation',
@@ -248,7 +248,8 @@ const routes: RouteRecordRaw[] = [
               {
                 path: `simulation/explore/:explore(${SIMULATION_ID_PATTERN})`,
                 name: 'simulation-explore',
-                component: () => import('pages/app/SimulationExplorePage.vue'),
+                component: () =>
+                  import('@/pages/app/SimulationExplorePage.vue'),
                 meta: {
                   requiresAuth: true,
                   note: 'Simulation - Explore a simulation',
@@ -260,7 +261,7 @@ const routes: RouteRecordRaw[] = [
               {
                 path: 'documentation',
                 name: 'documentation',
-                component: () => import('pages/app/DocumentationPage.vue'),
+                component: () => import('@/pages/app/DocumentationPage.vue'),
                 meta: {
                   requiresAuth: true,
                   note: 'Documentation - Main application guide',
@@ -289,7 +290,8 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'back-office/user-management',
             name: BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName,
-            component: () => import('pages/back-office/UserManagementPage.vue'),
+            component: () =>
+              import('@/pages/back-office/UserManagementPage.vue'),
             beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.users',
@@ -303,7 +305,8 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'back-office/data-management',
             name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
-            component: () => import('pages/back-office/DataManagementPage.vue'),
+            component: () =>
+              import('@/pages/back-office/DataManagementPage.vue'),
             beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.configuration',
@@ -318,7 +321,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/pipeline-operations',
             name: BACKOFFICE_NAV.BACKOFFICE_PIPELINE_OPERATIONS.routeName,
             component: () =>
-              import('pages/back-office/PipelineOperationsConsolePage.vue'),
+              import('@/pages/back-office/PipelineOperationsConsolePage.vue'),
             beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.pipeline_operations',
@@ -333,7 +336,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/documentation-editing',
             name: BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName,
             component: () =>
-              import('pages/back-office/DocumentationEditingPage.vue'),
+              import('@/pages/back-office/DocumentationEditingPage.vue'),
             beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.documentation',
@@ -347,7 +350,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'back-office/reporting',
             name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
-            component: () => import('pages/back-office/ReportingPage.vue'),
+            component: () => import('@/pages/back-office/ReportingPage.vue'),
             beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.reporting',
@@ -361,7 +364,8 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'back-office/ui-texts-editing',
             name: BACKOFFICE_NAV.BACKOFFICE_UI_TEXTS_EDITING.routeName,
-            component: () => import('pages/back-office/UITextsEditingPage.vue'),
+            component: () =>
+              import('@/pages/back-office/UITextsEditingPage.vue'),
             beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.ui_texts',
@@ -375,7 +379,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'back-office/logs',
             name: BACKOFFICE_NAV.BACKOFFICE_LOGS.routeName,
-            component: () => import('pages/system/LogsPage.vue'),
+            component: () => import('@/pages/system/LogsPage.vue'),
             beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.logs',
@@ -389,7 +393,8 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'back-office/documentation',
             name: 'back-office-documentation',
-            component: () => import('pages/back-office/DocumentationPage.vue'),
+            component: () =>
+              import('@/pages/back-office/DocumentationPage.vue'),
             beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.documentation',
@@ -406,13 +411,13 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/unauthorized',
     name: UNAUTHORIZED_ROUTE_NAME,
-    component: () => import('pages/ErrorUnauthorized.vue'),
+    component: () => import('@/pages/ErrorUnauthorized.vue'),
   },
   // Catch-all: show 404
   {
     path: '/:catchAll(.*)*',
     name: NOT_FOUND_ROUTE_NAME,
-    component: () => import('pages/ErrorNotFound.vue'),
+    component: () => import('@/pages/ErrorNotFound.vue'),
   },
 ];
 

@@ -8,12 +8,12 @@ import { TooltipComponent, GridComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
-import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
+import type { TooltipRow, TooltipState } from '@/types/chartTooltip';
 import {
   normalizeAxisParams,
   extractSeriesValue,
   formatTooltipTonnes,
-} from 'src/utils/chart-tooltip-extractors';
+} from '@/utils/chart-tooltip-extractors';
 
 use([CanvasRenderer, BarChart, TooltipComponent, GridComponent]);
 

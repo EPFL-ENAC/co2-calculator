@@ -21,7 +21,7 @@
  * ``mergeLivePipelineJob.ts``.
  */
 
-import type { PipelineProgress } from 'src/stores/pipelineStream';
+import type { PipelineProgress } from '@/stores/pipelineStream';
 
 /** Ingest pipelines (csv/api/factor/reference) — unchanged 3-step vocabulary. */
 export const PIPELINE_PHASE_LABEL_KEYS: Record<string, string> = {

@@ -4,9 +4,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useModuleStore } from 'src/stores/modules';
-import { getHeadcountMembers } from 'src/api/modules';
-import { CARBON_PROJECT } from 'src/constant/carbon-project';
+import { useModuleStore } from '@/stores/modules';
+import { getHeadcountMembers } from '@/api/modules';
+import { CARBON_PROJECT } from '@/constant/carbon-project';
 
 // Test-only driver for the request-dedup regression tests (#2360): runs one
 // scenario against the real store/api layer and renders the outcome, so the

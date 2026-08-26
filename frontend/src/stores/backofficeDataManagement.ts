@@ -2,12 +2,12 @@ import { defineStore } from 'pinia';
 // Moved to a leaf module so pure-function Playwright specs can import the
 // enums without dragging api/i18n (import.meta.glob) into the node runner;
 // re-exported here so existing importers keep one canonical path.
-import { IngestionState, IngestionResult } from 'src/constant/ingestion';
+import { IngestionState, IngestionResult } from '@/constant/ingestion';
 import { computed, ref } from 'vue';
-import { api } from 'src/api/http';
-import { Module } from 'src/constant/modules';
-import { getModuleTypeId } from 'src/constant/moduleStates';
-import { usePipelineStateStore } from 'src/stores/pipelineState';
+import { api } from '@/api/http';
+import { Module } from '@/constant/modules';
+import { getModuleTypeId } from '@/constant/moduleStates';
+import { usePipelineStateStore } from '@/stores/pipelineState';
 
 export interface DataIngestionJob {
   job_id: number;

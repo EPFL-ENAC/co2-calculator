@@ -1,5 +1,5 @@
-import { Threshold } from 'src/constant/modules';
-import type { AllSubmoduleTypes } from 'src/constant/modules';
+import { Threshold } from '@/constant/modules';
+import type { AllSubmoduleTypes } from '@/constant/modules';
 export type FormStructure = 'single' | 'perSubmodule' | 'grouped';
 
 export const COLUMN_SIZES = {

@@ -2,8 +2,8 @@ import { defineStore } from 'pinia';
 import { HTTPError } from 'ky';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
-import { api } from 'src/api/http';
-import type { SimulatorPlan } from 'src/stores/simulatorPlans';
+import { api } from '@/api/http';
+import type { SimulatorPlan } from '@/stores/simulatorPlans';
 
 export interface Unit {
   id: number;

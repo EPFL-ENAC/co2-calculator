@@ -6,8 +6,8 @@ import {
   SUBMODULE_HEADCOUNT_TYPES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
   SUBMODULE_PURCHASE_TYPES,
-} from 'src/constant/modules';
-import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
+} from '@/constant/modules';
+import type { AllSubmoduleTypes, Module } from '@/constant/modules';
 
 // Key format: "moduleType" or "moduleType:submoduleType"
 const TEMPLATE_MAP: Record<string, string> = {

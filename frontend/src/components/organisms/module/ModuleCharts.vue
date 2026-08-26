@@ -172,31 +172,31 @@
 <script setup lang="ts">
 import { computed, inject, ref, watch, type ComputedRef } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Module, MODULES } from 'src/constant/modules';
-import ChartEmptyState from 'src/components/molecules/ChartEmptyState.vue';
-import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
-import TripsMap from 'src/components/molecules/TripsMap.vue';
-import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
-import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
-import { useModuleStore, type MergedUnitsContext } from 'src/stores/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useAuthStore } from 'src/stores/auth';
-import { PermissionAction } from 'src/utils/permission';
-import { usePrintMode } from 'src/composables/print/usePrintMode';
+import { Module, MODULES } from '@/constant/modules';
+import ChartEmptyState from '@/components/molecules/ChartEmptyState.vue';
+import HeadCountBarChart from '@/components/molecules/HeadCountBarChart.vue';
+import TripsMap from '@/components/molecules/TripsMap.vue';
+import GenericEmissionTreeMapChart from '@/components/charts/GenericEmissionTreeMapChart.vue';
+import EmissionTypeBreakdownChart from '@/components/charts/results/EmissionTypeBreakdownChart.vue';
+import { useModuleStore, type MergedUnitsContext } from '@/stores/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useAuthStore } from '@/stores/auth';
+import { PermissionAction } from '@/utils/permission';
+import { usePrintMode } from '@/composables/print/usePrintMode';
 import {
   buildModuleTreemapData,
   CATEGORY_CHART_KEYS,
-} from 'src/composables/useEmissionTreemap';
+} from '@/composables/useEmissionTreemap';
 import {
   CHART_CATEGORY_COLOR_SCALES,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
   MODULE_TO_CATEGORIES,
-} from 'src/constant/charts';
-import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
-import { getHeadcountChartKeys } from 'src/utils/headcountChart';
-import { getHeadcountMembers } from 'src/api/modules';
-import { resolveTravelerNames } from 'src/utils/trips-map-data';
-import { travelerSentinelMapEntries } from 'src/constant/module-config/traveler-options';
+} from '@/constant/charts';
+import { getEmissionTypeBreakdownInfoKey } from '@/constant/emissionTypeBreakdownInfo';
+import { getHeadcountChartKeys } from '@/utils/headcountChart';
+import { getHeadcountMembers } from '@/api/modules';
+import { resolveTravelerNames } from '@/utils/trips-map-data';
+import { travelerSentinelMapEntries } from '@/constant/module-config/traveler-options';
 
 const props = withDefaults(
   defineProps<{
@@ -492,7 +492,7 @@ const topClassBreakdownData = computed(() => {
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .module-charts {
   color: tokens.$graph-color-primary;

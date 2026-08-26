@@ -9,13 +9,13 @@ import {
   type ImportRow,
   type SyncJobResponse,
   type JobUpdatePayload,
-} from 'src/stores/backofficeDataManagement';
-import { useYearConfigStore, type SyncJobSummary } from 'src/stores/yearConfig';
-import { useAuthStore, PermissionAction } from 'src/stores/auth';
+} from '@/stores/backofficeDataManagement';
+import { useYearConfigStore, type SyncJobSummary } from '@/stores/yearConfig';
+import { useAuthStore, PermissionAction } from '@/stores/auth';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import type { SubmoduleConfig } from 'src/constant/backoffice-module-config';
-import { resolveLanguage } from 'src/utils/language';
+import type { SubmoduleConfig } from '@/constant/backoffice-module-config';
+import { resolveLanguage } from '@/utils/language';
 
 export function useSubmoduleConfig() {
   const { t: $t } = useI18n();

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { useBackofficeStore } from 'src/stores/backoffice';
+import { useBackofficeStore } from '@/stores/backoffice';
 
 const backofficeStore = useBackofficeStore();
 

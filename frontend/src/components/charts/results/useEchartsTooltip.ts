@@ -1,5 +1,5 @@
 import { ref, computed, onBeforeUnmount } from 'vue';
-import type { TooltipState } from 'src/types/chartTooltip';
+import type { TooltipState } from '@/types/chartTooltip';
 import type { EChartsType } from 'echarts/types/dist/shared';
 
 type InternalTooltipState = {

@@ -1,18 +1,18 @@
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { getHeadcountMembers } from 'src/api/modules';
-import { MODULES } from 'src/constant/modules';
-import { useModuleStore } from 'src/stores/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { sumBreakdownTonnes } from 'src/utils/breakdownTotal';
-import { getExploreModules } from 'src/utils/exploreModules';
+import { getHeadcountMembers } from '@/api/modules';
+import { MODULES } from '@/constant/modules';
+import { useModuleStore } from '@/stores/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { sumBreakdownTonnes } from '@/utils/breakdownTotal';
+import { getExploreModules } from '@/utils/exploreModules';
 import {
   fetchPlannerHeadcountRows,
   type PlannerHeadcountRow,
-} from 'src/utils/plannerHeadcountRows';
-import { fetchAllSubmoduleRows } from 'src/utils/printSubmoduleRows';
-import type { PrintRow } from 'src/utils/printTable';
+} from '@/utils/plannerHeadcountRows';
+import { fetchAllSubmoduleRows } from '@/utils/printSubmoduleRows';
+import type { PrintRow } from '@/utils/printTable';
 
 export function useSimulationExplorePrintData() {
   const route = useRoute();

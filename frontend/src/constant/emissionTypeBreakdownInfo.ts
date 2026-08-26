@@ -1,5 +1,5 @@
-import type { Module } from 'src/constant/modules';
-import { MODULES } from 'src/constant/modules';
+import type { Module } from '@/constant/modules';
+import { MODULES } from '@/constant/modules';
 
 /** i18n keys for the emission-type (stacked bar) chart explanatory tooltip. */
 export const EMISSION_TYPE_BREAKDOWN_INFO_KEYS: Partial<

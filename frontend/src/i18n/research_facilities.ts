@@ -1,7 +1,7 @@
 import {
   MODULES,
   SUBMODULE_RESEARCH_FACILITIES_TYPES,
-} from 'src/constant/modules';
+} from '@/constant/modules';
 
 export default {
   [MODULES.ResearchFacilities]: {

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
-import ReportPage from 'src/components/organisms/ReportPage.vue';
-import type { ModuleResult } from 'src/api/modules';
-import type { ModuleConfig } from 'src/constant/moduleConfig';
-import type { Module } from 'src/constant/modules';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import ModuleCharts from '@/components/organisms/module/ModuleCharts.vue';
+import ReportPage from '@/components/organisms/ReportPage.vue';
+import type { ModuleResult } from '@/api/modules';
+import type { ModuleConfig } from '@/constant/moduleConfig';
+import type { Module } from '@/constant/modules';
 
 interface Props {
   module: Module;

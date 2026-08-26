@@ -17,26 +17,26 @@ import {
 import VChart from 'vue-echarts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
-import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
+import type { TooltipRow, TooltipState } from '@/types/chartTooltip';
 import {
   normalizeAxisParams,
   extractSeriesValue,
   formatTooltipTonnes,
-} from 'src/utils/chart-tooltip-extractors';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useColorblindStore } from 'src/stores/colorblind';
-import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+} from '@/utils/chart-tooltip-extractors';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useColorblindStore } from '@/stores/colorblind';
+import { useModuleStore, useTimelineStore } from '@/stores/modules';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
   getModuleForCategoryKey,
   RESULTS_CATEGORY_LABEL_KEYS,
   RESULTS_CATEGORY_ORDER,
-} from 'src/constant/charts';
-import { MODULE_STATES } from 'src/constant/moduleStates';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
-import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
+} from '@/constant/charts';
+import { MODULE_STATES } from '@/constant/moduleStates';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
+import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
 
 interface Props {
   hideResearchFacilities?: boolean;

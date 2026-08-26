@@ -2,9 +2,9 @@
 import { computed } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import { formatRelativeTime } from 'src/utils/date';
-import { useBackofficeStore } from 'src/stores/backoffice';
-import { ROLES } from 'src/constant/roles';
+import { formatRelativeTime } from '@/utils/date';
+import { useBackofficeStore } from '@/stores/backoffice';
+import { ROLES } from '@/constant/roles';
 
 interface UnitReportingData {
   id: string | number;
@@ -294,7 +294,7 @@ const columns = computed<QTableColumn[]>(() => [
 <!-- Not scoped: .co2-table's rules reach into Quasar's rendered table internals
      (thead/tbody/td/tr), which do not receive scoped style attributes. -->
 <style lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .co2-table {
   border: 1px solid tokens.$container-default-border;

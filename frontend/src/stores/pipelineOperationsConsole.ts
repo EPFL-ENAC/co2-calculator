@@ -12,8 +12,8 @@
 
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { api } from 'src/api/http';
-import type { PipelineProgress } from 'src/stores/pipelineStream';
+import { api } from '@/api/http';
+import type { PipelineProgress } from '@/stores/pipelineStream';
 
 export interface PipelineJobListEntry {
   job_id: number;

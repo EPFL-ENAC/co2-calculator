@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { ReportingStats } from 'src/api/backoffice';
-import { MODULE_STATES } from 'src/constant/moduleStates';
+import type { ReportingStats } from '@/api/backoffice';
+import { MODULE_STATES } from '@/constant/moduleStates';
 
 const { t } = useI18n();
 

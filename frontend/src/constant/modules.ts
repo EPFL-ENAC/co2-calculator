@@ -1,5 +1,5 @@
-import { MODULES_ORDER } from 'src/constant/timelineItems';
-import type { DataEntryPolicies } from 'src/utils/dataEntryPolicy';
+import { MODULES_ORDER } from '@/constant/timelineItems';
+import type { DataEntryPolicies } from '@/utils/dataEntryPolicy';
 
 export const MODULES = {
   Headcount: 'headcount',

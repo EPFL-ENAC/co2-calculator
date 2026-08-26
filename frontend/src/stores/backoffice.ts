@@ -1,17 +1,17 @@
 import { defineStore } from 'pinia';
 import { reactive, ref } from 'vue';
-import { api } from 'src/api/http';
-import { applyUnitFiltersToParams } from 'src/api/backoffice';
-import type { ModuleState } from 'src/constant/moduleStates';
+import { api } from '@/api/http';
+import { applyUnitFiltersToParams } from '@/api/backoffice';
+import type { ModuleState } from '@/constant/moduleStates';
 import type {
   EmissionBreakdownResponse,
   ItBreakdownResponse,
-} from 'src/stores/modules';
+} from '@/stores/modules';
 import {
   toEmissionBreakdown,
   toItBreakdown,
   type ReportStats,
-} from 'src/utils/emissionStatsAdapter';
+} from '@/utils/emissionStatsAdapter';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE_UNITS = 10;

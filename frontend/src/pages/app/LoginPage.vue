@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import LoginCard from 'src/components/organisms/login/LoginCard.vue';
+import LoginCard from '@/components/organisms/login/LoginCard.vue';
 </script>
 
 <template>
@@ -9,7 +9,7 @@ import LoginCard from 'src/components/organisms/login/LoginCard.vue';
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .login-page {
   position: relative;

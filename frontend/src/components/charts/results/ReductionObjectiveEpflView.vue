@@ -18,10 +18,10 @@ import {
 import VChart from 'vue-echarts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useColorblindStore } from 'src/stores/colorblind';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useColorblindStore } from '@/stores/colorblind';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
@@ -29,15 +29,15 @@ import {
   getModuleForCategoryKey,
   RESULTS_CATEGORY_LABEL_KEYS,
   RESULTS_CATEGORY_ORDER,
-} from 'src/constant/charts';
-import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
+} from '@/constant/charts';
+import type { TooltipRow, TooltipState } from '@/types/chartTooltip';
 import {
   normalizeAxisParams,
   extractSeriesValue,
   formatTooltipTonnes,
   formatTooltipPopulation,
-} from 'src/utils/chart-tooltip-extractors';
-import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
+} from '@/utils/chart-tooltip-extractors';
+import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
 
 interface Props {
   hideResearchFacilities?: boolean;

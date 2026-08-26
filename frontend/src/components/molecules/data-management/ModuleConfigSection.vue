@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useModuleConfig } from 'src/composables/useModuleConfig';
-import { useYearConfigStore } from 'src/stores/yearConfig';
+import { useModuleConfig } from '@/composables/useModuleConfig';
+import { useYearConfigStore } from '@/stores/yearConfig';
 import { useI18n } from 'vue-i18n';
 
 interface Props {

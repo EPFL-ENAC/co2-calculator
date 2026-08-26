@@ -28,8 +28,8 @@
 import { ref } from 'vue';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import { currencyLabel } from 'src/constant/currencies';
-import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
+import { currencyLabel } from '@/constant/currencies';
+import { useSimulatorPlansStore } from '@/stores/simulatorPlans';
 
 const props = withDefaults(
   defineProps<{

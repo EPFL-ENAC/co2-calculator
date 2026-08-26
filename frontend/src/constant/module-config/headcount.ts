@@ -1,7 +1,7 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { MODULES, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
-import { formatFTE } from 'src/utils/number';
-import type { Module } from 'src/constant/modules';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { MODULES, MODULES_THRESHOLD_TYPES } from '@/constant/modules';
+import { formatFTE } from '@/utils/number';
+import type { Module } from '@/constant/modules';
 
 // Define an icon map to convert string keys to SVG icons
 import {

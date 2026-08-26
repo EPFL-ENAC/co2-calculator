@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { ModuleThreshold, ThresholdType } from 'src/constant/modules';
+import type { ModuleThreshold, ThresholdType } from '@/constant/modules';
 
 const props = defineProps<{
   modelValue: ModuleThreshold;

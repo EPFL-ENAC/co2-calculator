@@ -31,16 +31,16 @@
 
 <script setup lang="ts">
 import { computed, Ref } from 'vue';
-import { ModuleConfig } from 'src/constant/moduleConfig';
-import { MODULES_CONFIG } from 'src/constant/module-config';
-import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
+import { ModuleConfig } from '@/constant/moduleConfig';
+import { MODULES_CONFIG } from '@/constant/module-config';
+import SubModuleSection from '@/components/organisms/module/SubModuleSection.vue';
 
-import type { ModuleResponse } from 'src/constant/modules';
-import { MODULES_THRESHOLD_TYPES, type Threshold } from 'src/constant/modules';
+import type { ModuleResponse } from '@/constant/modules';
+import { MODULES_THRESHOLD_TYPES, type Threshold } from '@/constant/modules';
 
-import { Module } from 'src/constant/modules';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import type { TooltipScope } from 'src/utils/tooltipScope';
+import { Module } from '@/constant/modules';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import type { TooltipScope } from '@/utils/tooltipScope';
 
 const props = defineProps<{
   type: Module;

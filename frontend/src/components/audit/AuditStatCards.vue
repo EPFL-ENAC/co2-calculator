@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { AuditStats } from 'src/api/audit';
+import type { AuditStats } from '@/api/audit';
 
 const { t } = useI18n();
 

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { Module, MODULES_LIST } from 'src/constant/modules';
-import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
-import { useTimelineStore } from 'src/stores/modules';
-import { MODULE_STATES } from 'src/constant/moduleStates';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { useAuthStore } from 'src/stores/auth';
+import { Module, MODULES_LIST } from '@/constant/modules';
+import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
+import { useTimelineStore } from '@/stores/modules';
+import { MODULE_STATES } from '@/constant/moduleStates';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { useAuthStore } from '@/stores/auth';
 
 const props = defineProps<{
   currentModule: Module;
@@ -134,7 +134,7 @@ function validateCurrentModule() {
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .module-navigation {
   display: flex;

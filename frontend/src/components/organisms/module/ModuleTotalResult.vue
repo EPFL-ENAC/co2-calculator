@@ -218,16 +218,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useTimelineStore, useModuleStore } from 'src/stores/modules';
-import { useAuthStore } from 'src/stores/auth';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { Module, MODULES } from 'src/constant/modules';
-import { ModuleConfig } from 'src/constant/moduleConfig';
-import {
-  MODULE_STATES,
-  MODULE_STATUS_DISPLAY,
-} from 'src/constant/moduleStates';
-import { getModuleIconColors } from 'src/composables/useModuleIconColors';
+import { useTimelineStore, useModuleStore } from '@/stores/modules';
+import { useAuthStore } from '@/stores/auth';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { Module, MODULES } from '@/constant/modules';
+import { ModuleConfig } from '@/constant/moduleConfig';
+import { MODULE_STATES, MODULE_STATUS_DISPLAY } from '@/constant/moduleStates';
+import { getModuleIconColors } from '@/composables/useModuleIconColors';
 
 const props = defineProps<{
   type: Module;
@@ -331,7 +328,7 @@ function toggleValidation() {
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 /* ── Sidebar variant ───────────────────────────────────────────────── */
 .mtr-sidebar {
