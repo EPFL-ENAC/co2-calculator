@@ -13,6 +13,8 @@ import RequestDedupHarness from './RequestDedupHarness.vue';
 
 const REPORT_LOOKUP_URL = '**/api/v1/carbon-reports/unit/7/year/2024/';
 const MEMBERS_URL = '**/api/v1/carbon-reports/9/modules/headcount/members';
+const EXPLORE_LOOKUP_URL =
+  '**/api/v1/carbon-reports/simulator/explore/unit/7/reference-year/2024/';
 
 test('concurrent resolveCarbonReportId calls share one lookup request', async ({
   page,
@@ -88,4 +90,28 @@ test('concurrent getHeadcountMembers calls share one request, later calls refetc
   // deliberately not cached so roster edits stay visible) — 2 requests total.
   await expect(component).toContainText('members:1,1,1;followup:1');
   expect(requests).toBe(2);
+});
+
+test('resolveCarbonReportId reuses the id the workspace store already resolved', async ({
+  page,
+  mount,
+}) => {
+  let requests = 0;
+  await page.route(EXPLORE_LOOKUP_URL, async (route) => {
+    requests++;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 789, unit_id: 7, year: 2024 }),
+    });
+  });
+
+  const component = await mount(RequestDedupHarness, {
+    props: { scenario: 'explore-seed-cache' },
+  });
+
+  await expect(component).toContainText('seeded:789,resolved:789');
+  // Without the seeding fix, resolveCarbonReportId re-issues this same
+  // lookup, so 2 requests would land instead of 1 (#2360 follow-up).
+  expect(requests).toBe(1);
 });

@@ -469,6 +469,18 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  // Lets a resolution done elsewhere (the explore page's workspace-home call)
+  // seed this cache, so the module components' later resolveCarbonReportId
+  // calls for the same key hit cache instead of re-resolving (#2360 follow-up).
+  function seedReportId(
+    unit: number | string,
+    year: number | string,
+    project: CarbonProject,
+    id: number,
+  ) {
+    reportIdCache[`${unit}|${year}|${project}`] = id;
+  }
+
   async function modulePath(
     moduleType: Module,
     unit: number | string,
@@ -1387,6 +1399,7 @@ export const useModuleStore = defineStore('modules', () => {
     validatedTotalsCarbonReportId,
     carbonProject,
     resolveCarbonReportId,
+    seedReportId,
     state,
   };
 });

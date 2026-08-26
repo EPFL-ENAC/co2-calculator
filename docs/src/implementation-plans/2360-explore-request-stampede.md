@@ -102,7 +102,7 @@ endpoint or batch before adding a new call.
    (`selectSimulatorExploreCarbonReport`) and once through the module store's
    `resolveCarbonReportId`. Seeding `reportIdCache` from the workspace-store
    result (or routing the page through the module store) makes it 1. Frontend
-   only, no endpoint change — natural next PR.
+   only, no endpoint change — natural next PR. — delivered in PR #2384
 2. **Batch the 6 `?preview_limit=0` count calls.** Each returns one
    `data_entry_types_total_items` map. A single
    `GET carbon-reports/{id}/modules?counts=true`-style extension of an
