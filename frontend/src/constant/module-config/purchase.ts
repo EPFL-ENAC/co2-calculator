@@ -47,6 +47,7 @@ const purchaseFields: ModuleField[] = [
     ratio: '1/4',
     icon: 'o_category',
     columnSize: 'md',
+    maxColumnWidth: 260,
   },
   {
     id: 'quantity',
