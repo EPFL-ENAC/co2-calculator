@@ -6,6 +6,7 @@
 import { ref } from 'vue';
 import { useModuleStore } from '@/stores/modules';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { useFactorsStore } from '@/stores/factors';
 import { getHeadcountMembers } from '@/api/modules';
 import { CARBON_PROJECT } from '@/constant/carbon-project';
 
@@ -17,15 +18,25 @@ const props = defineProps<{
     | 'resolve-concurrent'
     | 'resolve-retry'
     | 'members-dedup'
-    | 'explore-seed-cache';
+    | 'explore-seed-cache'
+    | 'subclass-map-concurrent'
+    | 'subclass-map-retry'
+    | 'factor-list-concurrent';
 }>();
 
 const result = ref('pending');
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
+const factorsStore = useFactorsStore();
 
 const resolveOnce = () =>
   moduleStore.resolveCarbonReportId(7, 2024, CARBON_PROJECT.calculator);
+const classOptionsOnce = () => factorsStore.fetchClassOptions('plane', 2024);
+const labelledOptionsOnce = () =>
+  factorsStore.fetchClassOptions('plane', 2024, {
+    valueField: 'id',
+    labelField: 'name',
+  });
 
 async function run(): Promise<string> {
   if (props.scenario === 'resolve-concurrent') {
@@ -40,6 +51,28 @@ async function run(): Promise<string> {
       // Expected: the first lookup fails; a rejection must not be cached.
     }
     return `retried:${await resolveOnce()}`;
+  }
+  if (props.scenario === 'subclass-map-concurrent') {
+    const maps = await Promise.all(
+      [1, 2, 3, 4, 5].map(() => classOptionsOnce()),
+    );
+    return `classes:${maps.map((m) => m.length).join(',')}`;
+  }
+  if (props.scenario === 'subclass-map-retry') {
+    try {
+      await classOptionsOnce();
+      return 'unexpected-success';
+    } catch {
+      // Expected: the first lookup fails; a rejection must not be cached.
+    }
+    const retried = await classOptionsOnce();
+    return `retried:${retried.length}`;
+  }
+  if (props.scenario === 'factor-list-concurrent') {
+    const opts = await Promise.all(
+      [1, 2, 3, 4, 5].map(() => labelledOptionsOnce()),
+    );
+    return `options:${opts.map((o) => o.length).join(',')}`;
   }
   if (props.scenario === 'members-dedup') {
     const bursts = await Promise.all(

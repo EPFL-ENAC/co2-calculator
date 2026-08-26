@@ -115,7 +115,8 @@ endpoint or batch before adding a new call.
    form select in one round trip.
 4. **In-flight dedup in the factors store** (`ensureSubclassOptionMap` /
    `ensureFactorList`): same promise-cache pattern as this PR, ~6 lines each,
-   closes the latent stampede before a second consumer finds it.
+   closes the latent stampede before a second consumer finds it — delivered
+   in PR #2383.
 5. **Ship static taxonomies/config with the bundle** where they are
    year-invariant, instead of one GET per form.
 6. **Over-budget singles need backend attention regardless of batching:**
