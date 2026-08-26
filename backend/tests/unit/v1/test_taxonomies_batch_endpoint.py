@@ -9,6 +9,7 @@ requested entry name -- and still fail loudly on an unresolvable entry
 instead of silently dropping it.
 """
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -173,8 +174,14 @@ def test_batch_route_response_has_no_coefficients_or_classification():
         assert forbidden not in body
 
 
-def _batch_body(module: str, entry: str, factors: list[Factor]) -> dict:
-    """Drive the real router + service stack for one module's entry."""
+def _taxonomy_bodies(module: str, entry: str, factors: list[Factor]) -> list[dict]:
+    """One entry's tree from both routes, through the real router + service.
+
+    Both are asserted: the batch route is what a report page calls, the
+    single-entry one is what the factors store calls for a form's options
+    (#2391 decision 1). A `response_model` set on only one of them would be
+    invisible otherwise.
+    """
     app.dependency_overrides[get_db] = lambda: MagicMock()
     app.dependency_overrides[get_current_user] = lambda: MagicMock()
     taxonomy_cache.clear()
@@ -185,23 +192,28 @@ def _batch_body(module: str, entry: str, factors: list[Factor]) -> dict:
             new=AsyncMock(return_value=factors),
         ):
             with TestClient(app) as client:
-                response = client.get(
+                batched = client.get(
                     f"/api/v1/taxonomies/module/{module}/data-entries",
                     params={"entries": [entry], "year": 2025},
+                )
+                single = client.get(
+                    f"/api/v1/taxonomies/module/{module}/{entry}",
+                    params={"year": 2025},
                 )
     finally:
         app.dependency_overrides.clear()
         taxonomy_cache.clear()
-    assert response.status_code == 200
-    return response.json()
+    assert batched.status_code == 200, batched.text
+    assert single.status_code == 200, single.text
+    return [batched.json()[entry], single.json()]
 
 
-def test_batch_route_carries_declared_display_meta():
+def test_taxonomy_routes_carry_declared_display_meta():
     """#2391 decision 1: the lookup endpoint has to carry what a form needs to
     render an option — here the per-facility metric unit the planner grid
     shows as its input suffix.
     """
-    body = _batch_body(
+    bodies = _taxonomy_bodies(
         "research-facilities",
         "research_facilities",
         [
@@ -216,17 +228,20 @@ def test_batch_route_carries_declared_display_meta():
         ],
     )
 
-    (facility,) = body["research_facilities"]["children"]
-    assert facility["name"] == "1902"
-    assert facility["label"] == "SCITAS-GE"
-    assert facility["meta"] == {"use_unit": "CHF"}
+    for body in bodies:
+        (facility,) = body["children"]
+        assert facility["name"] == "1902"
+        assert facility["label"] == "SCITAS-GE"
+        assert facility["meta"] == {"use_unit": "CHF"}
+        # The whitelist is the point: `total_use` is a coefficient (#2396).
+        assert "total_use" not in json.dumps(body)
 
 
-def test_batch_route_omits_meta_for_a_module_that_declares_none():
+def test_taxonomy_routes_omit_meta_for_a_module_that_declares_none():
     """`response_model_exclude_none` must keep unaffected payloads the size
     they are today — no empty `meta` object per node.
     """
-    body = _batch_body(
+    bodies = _taxonomy_bodies(
         "equipment",
         "scientific",
         [
@@ -238,9 +253,10 @@ def test_batch_route_omits_meta_for_a_module_that_declares_none():
         ],
     )
 
-    (kind,) = body["scientific"]["children"]
-    assert "meta" not in kind
-    assert all("meta" not in child for child in kind["children"])
+    for body in bodies:
+        (kind,) = body["children"]
+        assert "meta" not in kind
+        assert all("meta" not in child for child in kind["children"])
 
 
 def test_batch_route_wins_over_single_entry_catch_all():

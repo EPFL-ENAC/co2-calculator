@@ -36,8 +36,11 @@ const PLANE_TAXONOMY = {
       name: 'Boeing',
       label: 'Boeing',
       children: [
-        { name: '737', label: '737' },
         { name: '777', label: '777' },
+        { name: '737', label: '737' },
+        // The retired class-subclass-map deduped and sorted server-side; the
+        // tree does neither, so the store has to.
+        { name: '737', label: '737' },
       ],
     },
   ],
@@ -242,5 +245,27 @@ test('concurrent fetchClassNodes calls (planner lookups) share one request', asy
   });
 
   await expect(component).toContainText('rows:1,1,1,1,1');
+  expect(requests).toBe(1);
+});
+
+test('subclass options are deduped and sorted, off the same cached tree', async ({
+  page,
+  mount,
+}) => {
+  let requests = 0;
+  await page.route(PLANE_TAXONOMY_URL, async (route) => {
+    requests++;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(PLANE_TAXONOMY),
+    });
+  });
+
+  const component = await mount(RequestDedupHarness, {
+    props: { scenario: 'subclass-options' },
+  });
+
+  await expect(component).toContainText('subclasses:737|777');
   expect(requests).toBe(1);
 });

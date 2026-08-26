@@ -120,9 +120,11 @@ export const useFactorsStore = defineStore('factors', () => {
     equipmentClass: string,
     year: number | string,
   ): Promise<Option[]> {
-    const node = await ensureTaxonomy(module, submodule, year);
-    const kind = node.children?.find((c) => c.name === equipmentClass);
-    return kind ? subclassOptionsOf(kind) : [];
+    // Through the map, not a scan of `children`: one inline-select cell per
+    // table row calls this on mount, and purchase trees hold ~10k kind nodes.
+    await ensureTaxonomy(module, submodule, year);
+    const key = cacheKey(submodule, year);
+    return subclassOptionMapByKey.value[key]?.[equipmentClass] ?? [];
   }
 
   /**

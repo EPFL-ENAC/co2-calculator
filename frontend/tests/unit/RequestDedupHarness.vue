@@ -23,6 +23,7 @@ const props = defineProps<{
     | 'class-options-concurrent'
     | 'class-options-retry'
     | 'labelled-options-concurrent'
+    | 'subclass-options'
     | 'class-nodes-concurrent';
 }>();
 
@@ -41,6 +42,13 @@ const labelledOptionsOnce = () =>
     'plane',
     2024,
     true,
+  );
+const subclassOptionsOnce = () =>
+  factorsStore.fetchSubclassOptions(
+    MODULES.ProfessionalTravel,
+    'plane',
+    'Boeing',
+    2024,
   );
 // Same shape the planner rows component calls (#2391): the submodule key,
 // not the numeric factor id.
@@ -86,6 +94,10 @@ async function run(): Promise<string> {
       [1, 2, 3, 4, 5].map(() => labelledOptionsOnce()),
     );
     return `options:${opts.map((o) => o.length).join(',')}`;
+  }
+  if (props.scenario === 'subclass-options') {
+    const subs = await subclassOptionsOnce();
+    return `subclasses:${subs.map((o) => o.value).join('|')}`;
   }
   if (props.scenario === 'class-nodes-concurrent') {
     const lists = await Promise.all(
