@@ -1,10 +1,35 @@
 ---
-status: proposed
+status: parked
 issue: 2278
 last_updated: 2026-08-22
 title: "Cache the per-request user lookup"
 summary: "Investigation of #2049 item C1. Every authenticated request pays an uncached SELECT users (15.2 ms idle, 71.7 ms burst) whose result carries the roles that permissions are calculated from, so caching it is a permission-scoping change and gated on maintainer review. Recommendation is DEFER: n=2 measurement, #2049 A1 unanswered, and the burst that produces the 71.7 ms figure is already being dismantled by #2275 and B2. If approved anyway, the design is a 30 s process-local TTL on an immutable snapshot, TTL-only with no eviction hooks and no cross-pod broadcast, failing closed on miss."
 ---
+
+> **PARKED — 2026-08-26. Not being built; the ROI does not justify it.**
+>
+> The cache would remove ~11% of a 134 ms route and ~3.5% of a 2064 ms one,
+> in exchange for taking on **stale-authorization risk** — a cached user
+> carries roles, roles produce permissions, and a stale entry means revoked
+> access that still works. That trade was never good, and three things since
+> made it worse:
+>
+> - The 71.7 ms burst figure came from a **31-request** report-page fan-out.
+>   `#2280` (batching) and the `#2360` series (de-duplication) have both cut
+>   that count, so the per-request floor is paid far fewer times.
+> - It only ever removed **half** the floor: `pool_pre_ping` stays (A2).
+> - The measurement behind it is **n=2 traces**.
+>
+> Kept rather than deleted because the _investigation_ is the valuable part
+> and is expensive to redo — in particular: only `roles_raw` feeds
+> `calculate_permissions()`; `create_user`/`update_user`/`delete_user` have
+> **no callers**, so there is no deactivation path and no "admin revokes a
+> role, expects it now" flow today; and there are eight writers of
+> `roles_raw`, two of which bypass the ORM.
+>
+> **Revisit only if** a user-management endpoint appears (which creates the
+> revocation expectation this design has to satisfy), or if a measurement
+> after the batching work still shows the auth lookup as a top cost.
 
 # 2278 — Cache the per-request user lookup
 
@@ -74,7 +99,7 @@ Two narrowings shrink it; one fact enlarges it.
 
 **Only `roles_raw` matters.** `User.calculate_permissions()`
 (`models/user.py:333`, `:382`) calls `calculate_user_permissions(self.roles)`,
-and the `roles` property (`:315`) reads *only* `roles_raw` — no other
+and the `roles` property (`:315`) reads _only_ `roles_raw` — no other
 column, no other table, no relationship. So `last_login` and
 `last_roles_sync_at` bumps are not invalidation events, and `unit_users`
 writes matter only insofar as they feed a later role sync that rewrites
@@ -94,16 +119,16 @@ is invisible to pods B and C. This decides the design below.
 
 Everything that writes `users.roles_raw`:
 
-| # | Site | Trigger | Process |
-| --- | --- | --- | --- |
-| 1 | `api/v1/auth.py:430` → `upsert_user(roles=…)` | `GET /v1/auth/callback` — every OAuth login | API pod, user's own request |
-| 2 | `services/role_sync_service.py:149` — `user.roles = new_roles` | `POST /v1/session` (`auth.py:612`) → `background_tasks.add_task(trigger_role_sync_for_user)` (`auth.py:659`), 15-min per-user TTL (`role_sync_service.py:43`) | in-process `BackgroundTasks`, own session, same API pod |
-| 3 | `api/v1/auth.py:296` → `upsert_user(roles=…)` | `GET /v1/auth/login-test` — DEBUG builds only (`auth.py:547`) | API pod, user's own request |
-| 4 | `tasks/unit_sync_tasks.py:196` → `bulk_upsert(principal_users)` | `unit_sync` ACCRED job (~2231 units) | worker pod if `worker.enabled`, else an API pod — `helm/values.yaml:231` defaults it `false` |
-| 5 | `seed/seed_units_from_accred.py:54` | `make seed-units` | separate CLI |
-| 6 | `seed/seed_fake_user_unit.py:25` | seed CLI | separate CLI |
-| 7 | `seed/random_generator/populate_units_and_users.py:234` | perf-seed CLI — raw asyncpg `INSERT … roles_raw` | separate CLI |
-| 8 | `scripts/migrate_test_users.py:72` | one-shot CLI — raw `UPDATE users SET institutional_id`, mutates the cache key itself | separate CLI |
+| #   | Site                                                            | Trigger                                                                                                                                                       | Process                                                                                      |
+| --- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1   | `api/v1/auth.py:430` → `upsert_user(roles=…)`                   | `GET /v1/auth/callback` — every OAuth login                                                                                                                   | API pod, user's own request                                                                  |
+| 2   | `services/role_sync_service.py:149` — `user.roles = new_roles`  | `POST /v1/session` (`auth.py:612`) → `background_tasks.add_task(trigger_role_sync_for_user)` (`auth.py:659`), 15-min per-user TTL (`role_sync_service.py:43`) | in-process `BackgroundTasks`, own session, same API pod                                      |
+| 3   | `api/v1/auth.py:296` → `upsert_user(roles=…)`                   | `GET /v1/auth/login-test` — DEBUG builds only (`auth.py:547`)                                                                                                 | API pod, user's own request                                                                  |
+| 4   | `tasks/unit_sync_tasks.py:196` → `bulk_upsert(principal_users)` | `unit_sync` ACCRED job (~2231 units)                                                                                                                          | worker pod if `worker.enabled`, else an API pod — `helm/values.yaml:231` defaults it `false` |
+| 5   | `seed/seed_units_from_accred.py:54`                             | `make seed-units`                                                                                                                                             | separate CLI                                                                                 |
+| 6   | `seed/seed_fake_user_unit.py:25`                                | seed CLI                                                                                                                                                      | separate CLI                                                                                 |
+| 7   | `seed/random_generator/populate_units_and_users.py:234`         | perf-seed CLI — raw asyncpg `INSERT … roles_raw`                                                                                                              | separate CLI                                                                                 |
+| 8   | `scripts/migrate_test_users.py:72`                              | one-shot CLI — raw `UPDATE users SET institutional_id`, mutates the cache key itself                                                                          | separate CLI                                                                                 |
 
 Dispatchers of #4: `POST /v1/data-sync/units` (`data_sync.py:2028`),
 `create_year_configuration` auto-enqueue (`year_configuration.py:715`), the
@@ -120,7 +145,7 @@ ACCRED — the actual authority on roles — is already ~8 hours:
   task (`auth.py:659`).
 - The frontend calls it **only reactively on a 401** —
   `frontend/src/api/http.ts:42-48` `beforeRetry`, `API_REFRESH_URL =
-  'session'` (`http.ts:20`). No proactive timer.
+'session'` (`http.ts:20`). No proactive timer.
 - `RoleSyncService` gates on `sync_ttl_minutes: int = 15`
   (`role_sync_service.py:35`) even when called.
 
