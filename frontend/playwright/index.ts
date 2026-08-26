@@ -8,10 +8,25 @@ import '../src/App.vue'; // Example import of a component to be used in the comp
 import { beforeMount } from '@playwright/experimental-ct-vue/hooks';
 import { createPinia } from 'pinia';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import { Notify, Quasar } from 'quasar';
+import {
+  Notify,
+  Quasar,
+  QCard,
+  QSeparator,
+  QExpansionItem,
+  QIcon,
+  QTooltip,
+} from 'quasar';
+import { i18n } from '@/boot/i18n';
 // Pinia stores in this app (e.g. useModuleStore) call useRoute() at setup
 // time, so any CT mount that instantiates a store needs both plugins
 // installed globally, the same way main.ts wires them for the real app.
+// i18n is installed for the same reason (useI18n() at setup time).
+//
+// Quasar's app-vite build auto-registers every q-* tag used in a template;
+// this bare Vite instance doesn't, so each component under test must
+// register the q-* tags it renders (mirrors storybook/.storybook/preview.ts,
+// which solves the same problem for Storybook).
 const router = createRouter({
   history: createMemoryHistory(),
   routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }],
@@ -21,4 +36,11 @@ beforeMount(async ({ app }) => {
   app.use(Quasar, { plugins: { Notify } });
   app.use(createPinia());
   app.use(router);
+  app.use(i18n);
+
+  app.component('QCard', QCard);
+  app.component('QSeparator', QSeparator);
+  app.component('QExpansionItem', QExpansionItem);
+  app.component('QIcon', QIcon);
+  app.component('QTooltip', QTooltip);
 });
