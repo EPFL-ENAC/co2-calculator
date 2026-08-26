@@ -21,11 +21,14 @@ from fastapi.testclient import TestClient
 from app.api.v1 import files as files_module
 from app.main import app
 from app.models.user import User
+from tests.unit.v1.test_temp_upload_auth_ordering import valid_access_token
 
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies
+    # run, so the get_current_user override alone no longer gets past it.
+    with TestClient(app, cookies={"auth_token": valid_access_token()}) as c:
         yield c
     app.dependency_overrides.clear()
 
