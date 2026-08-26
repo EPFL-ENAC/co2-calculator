@@ -68,6 +68,15 @@ export interface HeadcountMemberDropdownItem {
   name: string;
 }
 
+// Concurrent mount-time callers (travel tables, traveler selects, charts)
+// share one request per report (4 identical GETs observed on explore-page
+// mount, #2360). Only the in-flight promise is held — never the result — so
+// later calls refetch and see roster edits.
+const headcountMembersInFlight = new Map<
+  number,
+  Promise<HeadcountMemberDropdownItem[]>
+>();
+
 /**
  * Fetch headcount members that have an institutional_id, for the traveler dropdown.
  *
@@ -78,11 +87,16 @@ export interface HeadcountMemberDropdownItem {
 export async function getHeadcountMembers(
   carbonReportId: number,
 ): Promise<HeadcountMemberDropdownItem[]> {
-  return api
+  const inFlight = headcountMembersInFlight.get(carbonReportId);
+  if (inFlight) return inFlight;
+  const request = api
     .get(
       `carbon-reports/${encodeURIComponent(String(carbonReportId))}/modules/headcount/members`,
     )
-    .json<HeadcountMemberDropdownItem[]>();
+    .json<HeadcountMemberDropdownItem[]>()
+    .finally(() => headcountMembersInFlight.delete(carbonReportId));
+  headcountMembersInFlight.set(carbonReportId, request);
+  return request;
 }
 
 /**
