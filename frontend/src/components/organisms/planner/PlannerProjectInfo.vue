@@ -201,7 +201,7 @@ const yearByYearChecked = computed({
 
 // Per-year sections hold the unit's real annual data, so a plan carrying them
 // stays private to its creator: the share checkbox reads unchecked and is
-// locked while "Ongoing Project" is on. Derived straight from the plan (the
+// locked while "Detailed per year" is on. Derived straight from the plan (the
 // save round-trip refreshes it), so there is no local copy to keep in sync.
 const isViewableByUnitMembers = computed({
   get: () => props.plan.is_viewable_by_unit_members && !yearByYearChecked.value,
