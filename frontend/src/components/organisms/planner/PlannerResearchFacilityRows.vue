@@ -131,11 +131,11 @@ import { useI18n } from 'vue-i18n';
 import { api } from '@/api/http';
 import PlannerSubmoduleBudget from '@/components/organisms/planner/PlannerSubmoduleBudget.vue';
 import {
-  enumSubmodule,
   MODULES,
   SUBMODULE_RESEARCH_FACILITIES_TYPES,
 } from '@/constant/modules';
 import { getModuleTypeId } from '@/constant/moduleStates';
+import { useFactorsStore } from '@/stores/factors';
 import { useModuleStore } from '@/stores/modules';
 
 /**
@@ -197,6 +197,7 @@ const props = defineProps<{
 const $q = useQuasar();
 const { t, n } = useI18n();
 const moduleStore = useModuleStore();
+const factorsStore = useFactorsStore();
 
 const GROUPS: { sub: RfSub; titleKey: string }[] = [
   {
@@ -283,9 +284,8 @@ function rowKey(sub: RfSub, facilityId: string, facilityType: string | null) {
 // the factor behind its kgCO₂eq.
 async function fetchFactors(sub: RfSub): Promise<RfFactor[]> {
   if (props.factorYear === null) return [];
-  return api
-    .get(`factors/${enumSubmodule[sub]}/list?year=${props.factorYear}`)
-    .json<RfFactor[]>();
+  const rows = await factorsStore.fetchFactorList(sub, props.factorYear);
+  return rows as RfFactor[];
 }
 
 async function fetchEntries(sub: RfSub): Promise<RfEntry[]> {

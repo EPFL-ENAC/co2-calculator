@@ -21,7 +21,8 @@ const props = defineProps<{
     | 'explore-seed-cache'
     | 'subclass-map-concurrent'
     | 'subclass-map-retry'
-    | 'factor-list-concurrent';
+    | 'factor-list-concurrent'
+    | 'factor-list-direct-concurrent';
 }>();
 
 const result = ref('pending');
@@ -37,6 +38,10 @@ const labelledOptionsOnce = () =>
     valueField: 'id',
     labelField: 'name',
   });
+// Same shape the planner rows component calls (#2391): the submodule key,
+// not the numeric factor id.
+const factorListOnce = () =>
+  factorsStore.fetchFactorList('research-facilities', 2024);
 
 async function run(): Promise<string> {
   if (props.scenario === 'resolve-concurrent') {
@@ -73,6 +78,12 @@ async function run(): Promise<string> {
       [1, 2, 3, 4, 5].map(() => labelledOptionsOnce()),
     );
     return `options:${opts.map((o) => o.length).join(',')}`;
+  }
+  if (props.scenario === 'factor-list-direct-concurrent') {
+    const lists = await Promise.all(
+      [1, 2, 3, 4, 5].map(() => factorListOnce()),
+    );
+    return `rows:${lists.map((l) => l.length).join(',')}`;
   }
   if (props.scenario === 'members-dedup') {
     const bursts = await Promise.all(
