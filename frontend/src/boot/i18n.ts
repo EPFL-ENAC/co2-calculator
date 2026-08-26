@@ -1,14 +1,14 @@
-import { boot } from 'quasar/wrappers';
+import { defineBoot } from '#q-app';
 import { createI18n } from 'vue-i18n';
 import { Cookies } from 'quasar';
-import { LOCALE_MAP, Language } from 'src/constant/languages';
-import messages from 'src/i18n';
+import { LOCALE_MAP, Language } from '@/constant/languages';
+import messages from '@/i18n';
 import {
   nOrDash,
   formatTonnesCO2,
   formatKgCO2,
   formatFTE,
-} from 'src/utils/number';
+} from '@/utils/number';
 
 const LOCALE_COOKIE_KEY = 'locale';
 
@@ -106,7 +106,7 @@ export const i18n = createI18n({
   fallbackWarn: import.meta.env.DEV,
 });
 
-export default boot(({ app }) => {
+export default defineBoot(({ app }) => {
   app.use(i18n);
   app.config.globalProperties.$nOrDash = nOrDash;
   app.config.globalProperties.$formatTonnesCO2 = formatTonnesCO2;

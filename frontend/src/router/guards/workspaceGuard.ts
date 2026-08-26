@@ -3,27 +3,24 @@ import {
   useTimelineStore,
   useModuleStore,
   type CarbonReportModuleResponse,
-} from 'src/stores/modules';
+} from '@/stores/modules';
 import {
   toEmissionBreakdown,
   type ReportStats,
-} from 'src/utils/emissionStatsAdapter';
-import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
-import { useWorkspaceStore } from 'src/stores/workspace';
+} from '@/utils/emissionStatsAdapter';
+import { useSimulatorPlansStore } from '@/stores/simulatorPlans';
+import { useWorkspaceStore } from '@/stores/workspace';
 import {
   useYearConfigStore,
   type YearConfigurationResponse,
-} from 'src/stores/yearConfig';
-import { resolveLanguage } from 'src/utils/language';
-import { resolveWorkspaceUnit } from 'src/utils/resolveWorkspaceUnit';
+} from '@/stores/yearConfig';
+import { resolveLanguage } from '@/utils/language';
+import { resolveWorkspaceUnit } from '@/utils/resolveWorkspaceUnit';
 import {
   CARBON_PROJECT,
   resolveCarbonProject,
-} from 'src/constant/carbon-project';
-import {
-  DEFAULT_ROUTE_NAME,
-  WORKSPACE_ROUTE_NAME,
-} from 'src/router/routeNames';
+} from '@/constant/carbon-project';
+import { DEFAULT_ROUTE_NAME, WORKSPACE_ROUTE_NAME } from '@/router/routeNames';
 
 async function validateUnit() {
   const workspaceStore = useWorkspaceStore();

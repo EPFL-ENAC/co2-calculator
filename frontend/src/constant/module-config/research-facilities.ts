@@ -1,10 +1,10 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import {
   MODULES,
   SUBMODULE_RESEARCH_FACILITIES_TYPES,
-} from 'src/constant/modules';
-import { formatTonnesCO2 } from 'src/utils/number';
-import type { Module, ResearchFacilitiesSubType } from 'src/constant/modules';
+} from '@/constant/modules';
+import { formatTonnesCO2 } from '@/utils/number';
+import type { Module, ResearchFacilitiesSubType } from '@/constant/modules';
 
 // #2007: manual entry picks a platform from the year's factor catalog — the id
 // is the factor's classification key, the name is only its label. Free-typing

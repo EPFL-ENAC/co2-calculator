@@ -22,8 +22,8 @@
  * regression test asserts the round-trip explicitly.
  */
 
-import type { SyncJobResponse } from 'src/stores/backofficeDataManagement';
-import type { PipelineJob } from 'src/stores/pipelineStream';
+import type { SyncJobResponse } from '@/stores/backofficeDataManagement';
+import type { PipelineJob } from '@/stores/pipelineStream';
 
 // Pinned to ``IngestionState`` in ``backofficeDataManagement.ts``.
 const STATE_NAME_TO_VALUE: Record<string, number | undefined> = {

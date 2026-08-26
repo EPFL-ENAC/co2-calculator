@@ -27,12 +27,12 @@
  */
 
 import { onUnmounted } from 'vue';
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 import {
   usePipelineStreamStore,
   type PipelineSnapshot,
   type PipelineUpdate,
-} from 'src/stores/pipelineStream';
+} from '@/stores/pipelineStream';
 
 /**
  * Reconnect strategy: trust native ``EventSource`` retry.

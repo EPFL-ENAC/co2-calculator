@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, inject, type ComputedRef } from 'vue';
-import { useUploadCard } from 'src/composables/useUploadCard';
-import { resolvePipelinePhaseLabelKey } from 'src/composables/pipelinePhaseLabel';
+import { useUploadCard } from '@/composables/useUploadCard';
+import { resolvePipelinePhaseLabelKey } from '@/composables/pipelinePhaseLabel';
 import {
   TargetType,
   IngestionResult,
   IngestionState,
   IngestionMethod,
-} from 'src/stores/backofficeDataManagement';
+} from '@/stores/backofficeDataManagement';
 import type {
   ImportRow,
   SyncJobResponse,
-} from 'src/stores/backofficeDataManagement';
-import type { RecalculationStatusEntry } from 'src/stores/yearConfig';
-import type { PipelineJob, PipelineProgress } from 'src/stores/pipelineStream';
+} from '@/stores/backofficeDataManagement';
+import type { RecalculationStatusEntry } from '@/stores/yearConfig';
+import type { PipelineJob, PipelineProgress } from '@/stores/pipelineStream';
 
 interface Props {
   title: string;

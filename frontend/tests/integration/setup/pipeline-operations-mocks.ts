@@ -16,7 +16,7 @@ import type { Page } from '@playwright/test';
 import type {
   PipelineListItem,
   PipelineListResponse,
-} from 'src/stores/pipelineOperationsConsole';
+} from '@/stores/pipelineOperationsConsole';
 import {
   installPlaywrightTestShims,
   mockApiCatchAll,

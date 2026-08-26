@@ -2,10 +2,10 @@ import type {
   ModuleConfig,
   ModuleField,
   Submodule,
-} from 'src/constant/moduleConfig';
-import type { Module } from 'src/constant/modules';
-import { MODULES_CONFIG } from 'src/constant/module-config';
-import { PLANNER_MODULE_CONFIG } from 'src/constant/planner-module-config';
+} from '@/constant/moduleConfig';
+import type { Module } from '@/constant/modules';
+import { MODULES_CONFIG } from '@/constant/module-config';
+import { PLANNER_MODULE_CONFIG } from '@/constant/planner-module-config';
 
 /**
  * ModuleConfig objects rendered inside the Simulator Plan by

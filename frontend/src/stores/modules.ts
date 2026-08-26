@@ -1,35 +1,36 @@
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref } from 'vue';
-import { MODULES, Module } from 'src/constant/modules';
-import { api } from 'src/api/http';
+import { MODULES, Module } from '@/constant/modules';
+import { api } from '@/api/http';
+import { getModuleDataEntriesTaxonomies } from '@/api/taxonomies';
 import {
   MODULE_STATES,
   ModuleState,
   ModuleStates,
   getModuleTypeId,
   getModuleFromTypeId,
-} from 'src/constant/moduleStates';
+} from '@/constant/moduleStates';
 
 import type {
   AllSubmoduleTypes,
   ModuleResponse,
   Submodule,
   TaxonomyNode,
-} from 'src/constant/modules';
+} from '@/constant/modules';
 import { useRoute } from 'vue-router';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
-import { buildModulePath, hasValidModuleParams } from 'src/utils/modulePath';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useSimulatorPlansStore } from '@/stores/simulatorPlans';
+import { buildModulePath, hasValidModuleParams } from '@/utils/modulePath';
 import {
   toEmissionBreakdown,
   toItBreakdown,
   type ReportStats,
-} from 'src/utils/emissionStatsAdapter';
+} from '@/utils/emissionStatsAdapter';
 import {
   carbonReportLookupPath,
   resolveCarbonProject,
   type CarbonProject,
-} from 'src/constant/carbon-project';
+} from '@/constant/carbon-project';
 
 /**
  * API response for validated totals endpoint.
@@ -724,6 +725,54 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  /**
+   * Batch variant of getSubmoduleTaxonomy: one round trip for every
+   * submodule of a module instead of one call each (#2049 T6). Populates
+   * the same state.taxonomySubmodule keys, so existing readers (ModuleTable,
+   * ModuleForm, ...) don't need to know which path filled them in.
+   */
+  async function getSubmoduleTaxonomiesBatch(
+    moduleType: Module,
+    submoduleTypes: string[],
+    year: string,
+  ) {
+    if (submoduleTypes.length === 0) return;
+    state.loading = true;
+    state.error = null;
+    for (const submoduleType of submoduleTypes) {
+      state.taxonomySubmodule[submoduleType] = null;
+    }
+    try {
+      const taxonomies = await getModuleDataEntriesTaxonomies(
+        moduleType,
+        submoduleTypes,
+        year,
+      );
+      const missing: string[] = [];
+      for (const submoduleType of submoduleTypes) {
+        // A submodule the backend couldn't resolve (logged loud there,
+        // #2258 follow-up) is simply absent from the response — leave
+        // it null rather than throwing, so one bad entry doesn't blank
+        // every other, already-resolved submodule in the batch too.
+        const node = taxonomies[submoduleType];
+        state.taxonomySubmodule[submoduleType] = node ? markRaw(node) : null;
+        if (!node) missing.push(submoduleType);
+      }
+      // Surface the gap instead of a silently-empty submodule (no
+      // silent fallbacks) — the backend already logged the cause.
+      if (missing.length > 0) {
+        state.error = `Failed to load taxonomy for: ${missing.join(', ')}`;
+      }
+    } catch (err: unknown) {
+      state.error = err instanceof Error ? err.message : 'Unknown error';
+      for (const submoduleType of submoduleTypes) {
+        state.taxonomySubmodule[submoduleType] = null;
+      }
+    } finally {
+      state.loading = false;
+    }
+  }
+
   interface Option {
     label: string;
     value: string;
@@ -1331,6 +1380,7 @@ export const useModuleStore = defineStore('modules', () => {
     getSubmoduleData,
     refreshLoadedSubmodules,
     getSubmoduleTaxonomy,
+    getSubmoduleTaxonomiesBatch,
     postItem,
     patchItem,
     deleteItem,

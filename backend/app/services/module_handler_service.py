@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.factor_taxonomy_cache import taxonomy_cache
 from app.models.data_entry import DataEntryTypeEnum
 from app.schemas.taxonomy import TaxonomyNode
 from app.services.factor_service import FactorService
@@ -68,6 +69,16 @@ class ModuleHandlerService:
             data_entry_type: The data entry type to build taxonomy for
             year: The year for which to retrieve factors
         """
+        # Cache key omits `handler` on purpose: both call sites (taxonomies.py)
+        # derive it as `BaseModuleHandler.get_by_type(data_entry_type)`, so it's
+        # a pure function of `data_entry_type` and never varies independently —
+        # if a future caller passes a different handler for the same
+        # (data_entry_type, year), the key must include it too.
+        cache_key = (data_entry_type, year)
+        cached = taxonomy_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         factors = await self.factor_service.list_by_data_entry_type(
             data_entry_type, year
         )
@@ -145,9 +156,14 @@ class ModuleHandlerService:
                 )
             )
 
-        # Return root node with children grouped by kind and subkind
-        return TaxonomyNode(
+        # Return root node with children grouped by kind and subkind.
+        # Callers (see taxonomies.py) only ever wrap this node as a `children`
+        # entry of a parent — they never mutate it — so sharing the cached
+        # instance across requests is safe.
+        node = TaxonomyNode(
             name=data_entry_type.name,
             label=handler.to_label(data_entry_type.name),
             children=children,
         )
+        taxonomy_cache.set(cache_key, node)
+        return node

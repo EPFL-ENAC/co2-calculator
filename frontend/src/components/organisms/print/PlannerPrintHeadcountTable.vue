@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { PlannerHeadcountRow } from 'src/utils/plannerHeadcountRows';
-import { plannerHeadcountLabelKey } from 'src/constant/planner-headcount';
+import type { PlannerHeadcountRow } from '@/utils/plannerHeadcountRows';
+import { plannerHeadcountLabelKey } from '@/constant/planner-headcount';
 
 const props = defineProps<{ rows: PlannerHeadcountRow[] }>();
 

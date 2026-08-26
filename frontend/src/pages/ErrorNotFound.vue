@@ -51,9 +51,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { HOME_ROUTE_NAME, DEFAULT_ROUTE_NAME } from 'src/router/routes';
-import { currentLanguage } from 'src/utils/language';
-import { useWorkspaceStore } from 'src/stores/workspace';
+import { HOME_ROUTE_NAME, DEFAULT_ROUTE_NAME } from '@/router/routes';
+import { currentLanguage } from '@/utils/language';
+import { useWorkspaceStore } from '@/stores/workspace';
 
 const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();

@@ -62,12 +62,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useResultsFiltersStore } from 'src/stores/resultsFilters';
+import { useResultsFiltersStore } from '@/stores/resultsFilters';
 import {
   CHART_CATEGORY_COLOR_SCHEMES,
   ADDITIONAL_DATA_ICON,
-} from 'src/constant/charts';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+} from '@/constant/charts';
+import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
 
 defineProps<{ collapsed: boolean }>();
 
@@ -109,7 +109,7 @@ const filters = computed(() => [
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 // ── Expanded ────────────────────────────────────────────────────────────────
 

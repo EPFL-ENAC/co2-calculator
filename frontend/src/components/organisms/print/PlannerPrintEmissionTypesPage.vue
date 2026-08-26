@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import ReportPage from 'src/components/organisms/ReportPage.vue';
-import PlannerPrintEmissionTypesTable from 'src/components/organisms/print/PlannerPrintEmissionTypesTable.vue';
-import type { EmissionBreakdownResponse } from 'src/stores/modules';
-import type { SimulatorPlanYear } from 'src/stores/simulatorPlans';
+import ReportPage from '@/components/organisms/ReportPage.vue';
+import PlannerPrintEmissionTypesTable from '@/components/organisms/print/PlannerPrintEmissionTypesTable.vue';
+import type { EmissionBreakdownResponse } from '@/stores/modules';
+import type { SimulatorPlanYear } from '@/stores/simulatorPlans';
 
 interface Props {
   year: SimulatorPlanYear;

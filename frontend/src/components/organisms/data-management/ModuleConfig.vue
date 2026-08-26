@@ -1,23 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, provide, watch } from 'vue';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
-import { useModuleConfig } from 'src/composables/useModuleConfig';
-import { useRecalculation } from 'src/composables/useRecalculation';
-import { resolvePipelinePhaseLabelKey } from 'src/composables/pipelinePhaseLabel';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { usePipelineStateStore } from 'src/stores/pipelineState';
-import { usePipelineStream } from 'src/composables/usePipelineStream';
-import type { PipelineJob, PipelineProgress } from 'src/stores/pipelineStream';
-import {
-  TargetType,
-  type ImportRow,
-} from 'src/stores/backofficeDataManagement';
-import DataEntryDialog from 'src/components/organisms/data-management/DataEntryDialog.vue';
-import ModuleRecalculationDialog from 'src/components/molecules/data-management/ModuleRecalculationDialog.vue';
-import ModuleConfigSection from 'src/components/molecules/data-management/ModuleConfigSection.vue';
-import ModuleUploadsSection from 'src/components/molecules/data-management/ModuleUploadsSection.vue';
-import PipelineDiagnosticTooltip from 'src/components/molecules/data-management/PipelineDiagnosticTooltip.vue';
-import SubmoduleConfig from 'src/components/organisms/data-management/SubmoduleConfig.vue';
+import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
+import { useModuleConfig } from '@/composables/useModuleConfig';
+import { useRecalculation } from '@/composables/useRecalculation';
+import { resolvePipelinePhaseLabelKey } from '@/composables/pipelinePhaseLabel';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { usePipelineStateStore } from '@/stores/pipelineState';
+import { usePipelineStream } from '@/composables/usePipelineStream';
+import type { PipelineJob, PipelineProgress } from '@/stores/pipelineStream';
+import { TargetType, type ImportRow } from '@/stores/backofficeDataManagement';
+import DataEntryDialog from '@/components/organisms/data-management/DataEntryDialog.vue';
+import ModuleRecalculationDialog from '@/components/molecules/data-management/ModuleRecalculationDialog.vue';
+import ModuleConfigSection from '@/components/molecules/data-management/ModuleConfigSection.vue';
+import ModuleUploadsSection from '@/components/molecules/data-management/ModuleUploadsSection.vue';
+import PipelineDiagnosticTooltip from '@/components/molecules/data-management/PipelineDiagnosticTooltip.vue';
+import SubmoduleConfig from '@/components/organisms/data-management/SubmoduleConfig.vue';
 
 interface Props {
   module: string;

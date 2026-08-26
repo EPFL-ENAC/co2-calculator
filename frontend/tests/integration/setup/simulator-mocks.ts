@@ -545,6 +545,23 @@ function parseJsonBody(req: Request): Record<string, unknown> {
   }
 }
 
+// Shared shape for a module's ?preview_limit=0 totals response.
+function buildModuleTotalsResponse(
+  module: string,
+  totals: Record<number, number>,
+) {
+  return {
+    module_type: module,
+    unit: UNIT_ID,
+    year: String(YEAR),
+    data_entry_types_total_items: totals,
+    carbon_report_module_id: 100 + (MODULE_TYPE_IDS[module] ?? 0),
+    retrieved_at: '2024-01-01T00:00:00Z',
+    submodules: {},
+    totals: { total_submodules: 0, total_items: 0 },
+  };
+}
+
 export async function installExplorerInitScripts(
   context: BrowserContext,
 ): Promise<void> {
@@ -762,16 +779,7 @@ export async function mockExplorerBackend(
       SUBMODULES.filter((s) => s.module === module).forEach((s) => {
         totals[s.enumId] = rowsOf(reportId, module, s.sub).length;
       });
-      return json(route, {
-        module_type: module,
-        unit: UNIT_ID,
-        year: String(YEAR),
-        data_entry_types_total_items: totals,
-        carbon_report_module_id: 100 + (MODULE_TYPE_IDS[module] ?? 0),
-        retrieved_at: '2024-01-01T00:00:00Z',
-        submodules: {},
-        totals: { total_submodules: 0, total_items: 0 },
-      });
+      return json(route, buildModuleTotalsResponse(module, totals));
     }
 
     if (sub === 'members') {
@@ -826,6 +834,38 @@ export async function mockExplorerBackend(
       },
     ]);
   });
+
+  // Print/explore page's fetchAllData batches taxonomy fetches as one
+  // .../data-entries call per module instead of one per submodule
+  // (#2049 T6) — returns a map keyed by entry, not one TaxonomyNode.
+  // Registered after the catch-all above so LIFO picks this more
+  // specific route first for that path.
+  await page.route('**/api/v1/taxonomies/module/*/data-entries*', (route) => {
+    const entries = new URL(route.request().url()).searchParams.getAll(
+      'entries',
+    );
+    const body = Object.fromEntries(
+      entries.map((entry) => [entry, { name: entry, label: '', children: [] }]),
+    );
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+
+  // All other module preview_limit=0 calls (non-headcount modules).
+  // Identity-addressed by the explore report id (99).
+  await page.route(
+    /.*\/api\/v1\/carbon-reports\/99\/modules\/[^/?]+\?.*preview_limit/,
+    (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildModuleTotalsResponse('unknown', {})),
+      });
+    },
+  );
 
   let nextJobId = 1;
   await context.route('**/api/v1/sync/dispatch', (route) => {

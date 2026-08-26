@@ -38,6 +38,7 @@ from app.models.user import (
     User,
     calculate_user_permissions,
 )
+from tests.unit.v1.test_temp_upload_auth_ordering import valid_access_token
 
 USER_IID = "1111"
 
@@ -50,7 +51,9 @@ AFFILIATION_WITH_NO_UNITS = "ALLALONE"  # this one should not be linked to any u
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies
+    # run, so the get_current_user override alone no longer gets past it.
+    with TestClient(app, cookies={"auth_token": valid_access_token()}) as c:
         yield c
 
 

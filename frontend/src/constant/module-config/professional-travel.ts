@@ -1,18 +1,18 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { MODULES, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
-import { formatTonnesCO2 } from 'src/utils/number';
-import type { ProfessionalTravelSubType } from 'src/constant/modules';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { MODULES, MODULES_THRESHOLD_TYPES } from '@/constant/modules';
+import { formatTonnesCO2 } from '@/utils/number';
+import type { ProfessionalTravelSubType } from '@/constant/modules';
 
 // "Other traveler" sentinels + resolver live in a standalone light module so
 // they stay unit-testable (issue #1153); re-exported here for convenience.
-import { TRAVELER_OTHER_INTERNAL } from 'src/constant/module-config/traveler-options';
+import { TRAVELER_OTHER_INTERNAL } from '@/constant/module-config/traveler-options';
 export {
   TRAVELER_OTHER_INTERNAL,
   TRAVELER_OTHER_EXTERNAL,
   TRAVELER_OTHER_INTERNAL_LABEL_KEY,
   TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
   resolveTravelerName,
-} from 'src/constant/module-config/traveler-options';
+} from '@/constant/module-config/traveler-options';
 
 const commonTravelFields: ModuleField[] = [
   {

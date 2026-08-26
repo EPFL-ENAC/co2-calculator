@@ -1,7 +1,7 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { SUBMODULE_PROCESSES_TYPES, MODULES } from 'src/constant/modules';
-import type { ProcessesSubType, Module } from 'src/constant/modules';
-import { formatTonnesCO2 } from 'src/utils/number';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { SUBMODULE_PROCESSES_TYPES, MODULES } from '@/constant/modules';
+import type { ProcessesSubType, Module } from '@/constant/modules';
+import { formatTonnesCO2 } from '@/utils/number';
 const processEmissionsFields: ModuleField[] = [
   {
     id: 'category',

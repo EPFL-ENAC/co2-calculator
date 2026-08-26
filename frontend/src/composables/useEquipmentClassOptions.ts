@@ -1,7 +1,7 @@
 import { ref, shallowReactive, watch, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useFactorsStore } from 'src/stores/factors';
-import { AllSubmoduleTypes } from 'src/constant/modules';
+import { useFactorsStore } from '@/stores/factors';
+import { AllSubmoduleTypes } from '@/constant/modules';
 
 type Option = { label: string; value: string };
 

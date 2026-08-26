@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { useDataEntryDialog } from 'src/composables/useDataEntryDialog';
+import { useDataEntryDialog } from '@/composables/useDataEntryDialog';
 import type {
   SyncJobResponse,
   ImportRow,
-} from 'src/stores/backofficeDataManagement';
-import { TargetType } from 'src/stores/backofficeDataManagement';
+} from '@/stores/backofficeDataManagement';
+import { TargetType } from '@/stores/backofficeDataManagement';
 import { computed, watch, toRef } from 'vue';
 
 interface Props {

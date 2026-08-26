@@ -55,8 +55,8 @@ import {
   outlinedArticle,
   outlinedInfo,
 } from '@quasar/extras/material-icons-outlined';
-import { Module } from 'src/constant/modules';
-import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
+import { Module } from '@/constant/modules';
+import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -83,7 +83,7 @@ const documentationTitle = computed(() => t('module_documentation_title'));
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .module-title-card {
   height: 100%;

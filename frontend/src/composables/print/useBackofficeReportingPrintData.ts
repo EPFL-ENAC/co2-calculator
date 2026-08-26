@@ -1,7 +1,7 @@
 import { computed } from 'vue';
 import { useBackofficePrintBase } from './useBackofficePrintBase';
-import { MODULE_STATES } from 'src/constant/moduleStates';
-import type { ReportingStats } from 'src/api/backoffice';
+import { MODULE_STATES } from '@/constant/moduleStates';
+import type { ReportingStats } from '@/api/backoffice';
 
 export function useBackofficeReportingPrintData() {
   const base = useBackofficePrintBase();

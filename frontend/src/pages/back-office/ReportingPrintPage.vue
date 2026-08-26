@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import ReportPage from 'src/components/organisms/ReportPage.vue';
-import PrintReportShell from 'src/components/organisms/print/PrintReportShell.vue';
-import CompletionRateBar from 'src/components/organisms/backoffice/reporting/CompletionRateBar.vue';
-import ReportingStatCards from 'src/components/organisms/backoffice/reporting/ReportingStatCards.vue';
-import ReportingStatCardUnit from 'src/components/organisms/backoffice/reporting/ReportingStatCardUnit.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
-import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
-import EmissionBreakdownChart from 'src/components/charts/EmissionBreakdownChart.vue';
-import ItFocusBreakdownChart from 'src/components/charts/results/ItFocusBreakdownChart.vue';
-import { useBackofficeReportingPrintData } from 'src/composables/print/useBackofficeReportingPrintData';
-import { MODULE_STATES } from 'src/constant/moduleStates';
-import { toPrintDocumentTitle } from 'src/utils/unitPerimeterLabel';
+import ReportPage from '@/components/organisms/ReportPage.vue';
+import PrintReportShell from '@/components/organisms/print/PrintReportShell.vue';
+import CompletionRateBar from '@/components/organisms/backoffice/reporting/CompletionRateBar.vue';
+import ReportingStatCards from '@/components/organisms/backoffice/reporting/ReportingStatCards.vue';
+import ReportingStatCardUnit from '@/components/organisms/backoffice/reporting/ReportingStatCardUnit.vue';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
+import CarbonFootPrintPerPersonChart from '@/components/charts/results/CarbonFootPrintPerPersonChart.vue';
+import EmissionBreakdownChart from '@/components/charts/EmissionBreakdownChart.vue';
+import ItFocusBreakdownChart from '@/components/charts/results/ItFocusBreakdownChart.vue';
+import { useBackofficeReportingPrintData } from '@/composables/print/useBackofficeReportingPrintData';
+import { MODULE_STATES } from '@/constant/moduleStates';
+import { toPrintDocumentTitle } from '@/utils/unitPerimeterLabel';
 
 const { t } = useI18n();
 

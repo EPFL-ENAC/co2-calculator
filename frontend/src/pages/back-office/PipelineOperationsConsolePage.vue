@@ -2,21 +2,21 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { copyToClipboard, debounce, Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import { api } from 'src/api/http';
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
-import RecomputeStatsCard from 'src/components/molecules/backoffice/RecomputeStatsCard.vue';
-import { usePipelineStream } from 'src/composables/usePipelineStream';
-import { usePipelineStreamStore } from 'src/stores/pipelineStream';
-import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { usePipelineJobRecovery } from 'src/composables/usePipelineJobRecovery';
-import { fmtDuration, fmtQueued, fmtWhen } from 'src/utils/pipelineFormat';
+import { api } from '@/api/http';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
+import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
+import RecomputeStatsCard from '@/components/molecules/backoffice/RecomputeStatsCard.vue';
+import { usePipelineStream } from '@/composables/usePipelineStream';
+import { usePipelineStreamStore } from '@/stores/pipelineStream';
+import { useBackofficeDataManagement } from '@/stores/backofficeDataManagement';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { usePipelineJobRecovery } from '@/composables/usePipelineJobRecovery';
+import { fmtDuration, fmtQueued, fmtWhen } from '@/utils/pipelineFormat';
 import {
   usePipelineOperationsConsole,
   type PipelineListItem,
   type PipelineJobListEntry,
-} from 'src/stores/pipelineOperationsConsole';
+} from '@/stores/pipelineOperationsConsole';
 
 /**
  * Wire shape of ``GET /v1/sync/workers`` — one row per live pod.

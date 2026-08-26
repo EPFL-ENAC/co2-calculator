@@ -6,7 +6,7 @@ import {
   API_LOGOUT_URL,
   API_LOGIN_TEST_URL,
   API_ME_URL,
-} from 'src/api/http';
+} from '@/api/http';
 import { Router } from 'vue-router';
 import { computed } from 'vue';
 import {
@@ -18,10 +18,10 @@ import {
   hasBackOfficeAreaPermission,
   getModulePermissionPath,
   type FlatUserPermissions,
-} from 'src/utils/permission';
-import { Module } from 'src/constant/modules';
-import type { components } from 'src/types/api/openapi';
-import { currentLanguage } from 'src/utils/language';
+} from '@/utils/permission';
+import { Module } from '@/constant/modules';
+import type { components } from '@/types/api/openapi';
+import { currentLanguage } from '@/utils/language';
 import { useWorkspaceStore, type Unit } from './workspace';
 import {
   useYearConfigStore,

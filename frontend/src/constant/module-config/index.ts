@@ -1,13 +1,13 @@
-import { ModuleConfig } from 'src/constant/moduleConfig';
-import { equipment } from 'src/constant/module-config/equipment';
-import { professionalTravel } from 'src/constant/module-config/professional-travel';
-import { headcount } from 'src/constant/module-config/headcount';
-import { researchFacilities } from 'src/constant/module-config/research-facilities';
-import { externalCloudAndAi } from 'src/constant/module-config/external-cloud-and-ai';
-import { buildings } from 'src/constant/module-config/buildings';
-import { purchase } from 'src/constant/module-config/purchase';
-import { processEmissions } from 'src/constant/module-config/process_emissions';
-import { MODULES } from 'src/constant/modules';
+import { ModuleConfig } from '@/constant/moduleConfig';
+import { equipment } from '@/constant/module-config/equipment';
+import { professionalTravel } from '@/constant/module-config/professional-travel';
+import { headcount } from '@/constant/module-config/headcount';
+import { researchFacilities } from '@/constant/module-config/research-facilities';
+import { externalCloudAndAi } from '@/constant/module-config/external-cloud-and-ai';
+import { buildings } from '@/constant/module-config/buildings';
+import { purchase } from '@/constant/module-config/purchase';
+import { processEmissions } from '@/constant/module-config/process_emissions';
+import { MODULES } from '@/constant/modules';
 
 export const MODULES_CONFIG: Record<string, ModuleConfig> = {
   [MODULES.Equipment]: equipment,

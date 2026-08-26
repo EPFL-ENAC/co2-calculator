@@ -1,14 +1,14 @@
 import { RouteLocationNormalized } from 'vue-router';
-import { LOCALE_MAP, Language } from 'src/constant/languages';
+import { LOCALE_MAP, Language } from '@/constant/languages';
 import { Cookies } from 'quasar';
 
-import messages from 'src/i18n';
+import messages from '@/i18n';
 
 const LOCALE_COOKIE_KEY = 'locale';
 const LOCALE_COOKIE_EXPIRE_DAYS = 30;
 const LOCALE_COOKIE_PATH = '/';
 
-import { i18n } from 'src/boot/i18n';
+import { i18n } from '@/boot/i18n';
 import { ROUTES_WITHOUT_LANGUAGE } from '../routes';
 
 export type MessageLanguages = keyof typeof messages;

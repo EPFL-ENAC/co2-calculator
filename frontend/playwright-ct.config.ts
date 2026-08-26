@@ -35,11 +35,8 @@ export default defineConfig({
      * Playwright Component Testing starts its own Vite instance and does not
      * automatically inherit Quasar's generated Vite configuration.
      *
-     * Quasar injects aliases such as:
-     *   - src/*
-     *   - components/*
-     *   - stores/*
-     * during `quasar dev/build`, so application code resolves correctly there.
+     * Quasar injects the `@/*` alias (pointing at `/src`) during
+     * `quasar dev/build`, so application code resolves correctly there.
      *
      * However, Playwright CT only sees TypeScript path mappings from
      * `.quasar/tsconfig.json`, and Vite/Rollup cannot use TS `paths`
@@ -48,27 +45,29 @@ export default defineConfig({
      * Without `vite-tsconfig-paths` (or equivalent manual aliases),
      * imports such as:
      *
-     *   import { useFooStore } from 'src/stores/foo'
+     *   import { useFooStore } from '@/stores/foo'
      *
      * fail at bundle time with:
      *
-     *   Rollup failed to resolve import "src/..."
+     *   Rollup failed to resolve import "@/..."
      *
      * The plugin below makes the Playwright CT Vite instance reuse the
-     * same path aliases defined by Quasar/TypeScript, avoiding alias drift
+     * same path alias defined by Quasar/TypeScript, avoiding alias drift
      * between app runtime, IDE tooling, and component tests.
      */
 
     ctViteConfig: {
       resolve: {
         alias: {
-          src: resolve(__dirname, './src'),
-          components: resolve(__dirname, './src/components'),
-          layouts: resolve(__dirname, './src/layouts'),
-          pages: resolve(__dirname, './src/pages'),
-          assets: resolve(__dirname, './src/assets'),
-          boot: resolve(__dirname, './src/boot'),
-          stores: resolve(__dirname, './src/stores'),
+          '@': resolve(__dirname, './src'),
+          // Boot/router/store files import wrapper helpers (defineBoot,
+          // defineRouter, ...) from '#q-app'. `quasar dev/build` registers
+          // this alias internally (to @quasar/app-vite's `import` export,
+          // the real runtime wrappers); Playwright's own Vite instance
+          // doesn't know it, and without it Node's resolver falls back to
+          // the package's `types` export — a type-only .d.ts that fails
+          // to bundle as real code.
+          '#q-app': '@quasar/app-vite',
         },
       },
     },

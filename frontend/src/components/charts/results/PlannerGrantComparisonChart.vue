@@ -62,12 +62,12 @@ import {
   CHART_CATEGORY_COLOR_SCALES,
   RESULTS_CATEGORY_LABEL_KEYS,
   RESULTS_SUBCATEGORY_LABEL_KEYS,
-} from 'src/constant/charts';
-import type { EmissionBreakdownResponse } from 'src/stores/modules';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
-import { downloadCsv, escapeCsvValue } from 'src/utils/csvDownload';
-import { withYearRange } from 'src/utils/plannerYearRange';
-import { usePrintMode } from 'src/composables/print/usePrintMode';
+} from '@/constant/charts';
+import type { EmissionBreakdownResponse } from '@/stores/modules';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
+import { downloadCsv, escapeCsvValue } from '@/utils/csvDownload';
+import { withYearRange } from '@/utils/plannerYearRange';
+import { usePrintMode } from '@/composables/print/usePrintMode';
 
 /**
  * Grant Proposal vs effective (year-by-year) results, two bars per

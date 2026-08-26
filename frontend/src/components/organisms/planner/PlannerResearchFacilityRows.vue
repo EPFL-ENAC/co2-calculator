@@ -128,15 +128,15 @@ import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
-import { api } from 'src/api/http';
-import PlannerSubmoduleBudget from 'src/components/organisms/planner/PlannerSubmoduleBudget.vue';
+import { api } from '@/api/http';
+import PlannerSubmoduleBudget from '@/components/organisms/planner/PlannerSubmoduleBudget.vue';
 import {
   enumSubmodule,
   MODULES,
   SUBMODULE_RESEARCH_FACILITIES_TYPES,
-} from 'src/constant/modules';
-import { getModuleTypeId } from 'src/constant/moduleStates';
-import { useModuleStore } from 'src/stores/modules';
+} from '@/constant/modules';
+import { getModuleTypeId } from '@/constant/moduleStates';
+import { useModuleStore } from '@/stores/modules';
 
 /**
  * Project Grant research-facilities grid (#1980): a dropdown offers the
@@ -411,7 +411,7 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .planner-rf__header {
   padding: tokens.$spacing-md;

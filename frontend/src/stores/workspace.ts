@@ -2,10 +2,10 @@ import { defineStore } from 'pinia';
 import { HTTPError } from 'ky';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
-import { api } from 'src/api/http';
-import type { SimulatorPlan } from 'src/stores/simulatorPlans';
-import { useModuleStore } from 'src/stores/modules';
-import { CARBON_PROJECT } from 'src/constant/carbon-project';
+import { api } from '@/api/http';
+import type { SimulatorPlan } from '@/stores/simulatorPlans';
+import { useModuleStore } from '@/stores/modules';
+import { CARBON_PROJECT } from '@/constant/carbon-project';
 
 export interface Unit {
   id: number;

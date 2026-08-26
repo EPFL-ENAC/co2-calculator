@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { ModuleConfig, Submodule } from 'src/constant/moduleConfig';
-import { useAuthStore } from 'src/stores/auth';
-import { useModuleStore } from 'src/stores/modules';
-import { nOrDash } from 'src/utils/number';
+import type { ModuleConfig, Submodule } from '@/constant/moduleConfig';
+import { useAuthStore } from '@/stores/auth';
+import { useModuleStore } from '@/stores/modules';
+import { nOrDash } from '@/utils/number';
 import {
   buildPrintColumns,
   renderPrintCell,
   type PrintCellContext,
   type PrintRow,
-} from 'src/utils/printTable';
+} from '@/utils/printTable';
 
 interface Props {
   submodule: Submodule;

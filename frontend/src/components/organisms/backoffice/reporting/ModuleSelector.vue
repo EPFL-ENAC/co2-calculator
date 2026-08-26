@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { ModuleCard } from 'src/constant/moduleCards';
-import { MODULE_STATES, type ModuleState } from 'src/constant/moduleStates';
+import type { ModuleCard } from '@/constant/moduleCards';
+import { MODULE_STATES, type ModuleState } from '@/constant/moduleStates';
 import { computed } from 'vue';
-import type { Module } from 'src/constant/modules';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import type { Module } from '@/constant/modules';
+import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
 
 export interface ModuleStateData {
   module: Module;

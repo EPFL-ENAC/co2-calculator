@@ -30,21 +30,21 @@
 import { useRoute } from 'vue-router';
 import { computed, onMounted, provide, watch, Ref } from 'vue';
 
-import ModuleTitle from 'src/components/organisms/module/ModuleTitle.vue';
-import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
-import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
-import ModuleNavigation from 'src/components/organisms/module/ModuleNavigation.vue';
-import { Module } from 'src/constant/modules';
-import { useModuleStore } from 'src/stores/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { ModuleConfig } from 'src/constant/moduleConfig';
-import { MODULES_CONFIG } from 'src/constant/module-config';
-import { getModuleTypeId } from 'src/constant/moduleStates';
-import { usePipelineStateStore } from 'src/stores/pipelineState';
-import { usePipelineStream } from 'src/composables/usePipelineStream';
+import ModuleTitle from '@/components/organisms/module/ModuleTitle.vue';
+import ModuleCharts from '@/components/organisms/module/ModuleCharts.vue';
+import ModuleTableSection from '@/components/organisms/module/ModuleTableSection.vue';
+import ModuleNavigation from '@/components/organisms/module/ModuleNavigation.vue';
+import { Module } from '@/constant/modules';
+import { useModuleStore } from '@/stores/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { ModuleConfig } from '@/constant/moduleConfig';
+import { MODULES_CONFIG } from '@/constant/module-config';
+import { getModuleTypeId } from '@/constant/moduleStates';
+import { usePipelineStateStore } from '@/stores/pipelineState';
+import { usePipelineStream } from '@/composables/usePipelineStream';
 const $route = useRoute();
 const currentModuleType = computed(() => $route.params.module as Module);
-import { useTimelineStore } from 'src/stores/modules';
+import { useTimelineStore } from '@/stores/modules';
 const timelineStore = useTimelineStore();
 
 const workspaceStore = useWorkspaceStore();
@@ -198,7 +198,7 @@ watch(
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 .module-page {
   padding-top: tokens.$template-padding-y;
   padding-bottom: tokens.$template-padding-y;

@@ -12,9 +12,20 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core.factor_taxonomy_cache import taxonomy_cache
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.services.module_handler_service import ModuleHandlerService
+
+
+@pytest.fixture(autouse=True)
+def _clear_taxonomy_cache():
+    """The taxonomy cache is a process-wide singleton (#2258) — reset it
+    around every test so one test's cached tree can't leak into another's.
+    """
+    taxonomy_cache.clear()
+    yield
+    taxonomy_cache.clear()
 
 
 @pytest.fixture
@@ -151,3 +162,57 @@ async def test_get_taxonomy_builds_tree(service):
     b_node = result.children[1]
     assert b_node.name == "B"
     assert len(b_node.children) == 1
+
+
+# ── get_taxonomy caching (#2258) ────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_taxonomy_second_call_served_from_cache(service):
+    """A second call for the same (data_entry_type, year) must not re-query
+    factors — the whole point of caching this expensive tree build (#2258).
+    """
+    handler = _make_handler()
+    factors = [Factor(emission_type_id=1, classification={"kind": "A"})]
+    service.factor_service.list_by_data_entry_type = AsyncMock(return_value=factors)
+
+    first = await service.get_taxonomy(handler, DataEntryTypeEnum.scientific, year=2025)
+    second = await service.get_taxonomy(
+        handler, DataEntryTypeEnum.scientific, year=2025
+    )
+
+    service.factor_service.list_by_data_entry_type.assert_awaited_once()
+    assert second is first
+
+
+@pytest.mark.asyncio
+async def test_get_taxonomy_different_year_is_not_cached_together(service):
+    """Cache key includes year — a different year must still hit the DB."""
+    handler = _make_handler()
+    service.factor_service.list_by_data_entry_type = AsyncMock(
+        return_value=[Factor(emission_type_id=1, classification={"kind": "A"})]
+    )
+
+    await service.get_taxonomy(handler, DataEntryTypeEnum.scientific, year=2025)
+    await service.get_taxonomy(handler, DataEntryTypeEnum.scientific, year=2026)
+
+    assert service.factor_service.list_by_data_entry_type.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_get_taxonomy_cache_cleared_forces_requery(service):
+    """Simulates what a factor write does (``FactorRepository`` calls
+    ``taxonomy_cache.clear()`` on every write, see test_factor_repo.py):
+    once cleared, the next call must hit the DB again rather than serve the
+    now-stale cached tree.
+    """
+    handler = _make_handler()
+    service.factor_service.list_by_data_entry_type = AsyncMock(
+        return_value=[Factor(emission_type_id=1, classification={"kind": "A"})]
+    )
+
+    await service.get_taxonomy(handler, DataEntryTypeEnum.scientific, year=2025)
+    taxonomy_cache.clear()
+    await service.get_taxonomy(handler, DataEntryTypeEnum.scientific, year=2025)
+
+    assert service.factor_service.list_by_data_entry_type.await_count == 2

@@ -1,0 +1,69 @@
+name: Auto-format i18n
+
+# Contributors editing i18n files in the GitHub web UI bypass the local
+# format hook, so their PRs fail prettier with no way to fix it themselves.
+# When a same-repo PR touches ONLY frontend/src/i18n/, format it for them
+# and push the fix back to the PR branch.
+on:
+  pull_request:
+    branches: [main, dev, stage]
+    paths:
+      - 'frontend/src/i18n/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-format-i18n-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    # GITHUB_TOKEN cannot push to forks; web-UI contributor branches are same-repo
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          # PAT so the pushed commit re-triggers quality checks — pushes made
+          # with the default github.token do not start new workflow runs.
+          token: ${{ secrets.AUTO_FORMAT_PAT || github.token }}
+
+      - name: Skip unless the PR touches only frontend/src/i18n/
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          outside=$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename' | grep -v '^frontend/src/i18n/' || true)
+          if [ -n "$outside" ]; then
+            echo "PR touches files outside frontend/src/i18n/ — leaving formatting to the author:"
+            echo "$outside"
+          fi
+          echo "only_i18n=$([ -z "$outside" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        if: steps.scope.outputs.only_i18n == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      - name: Format and push back
+        if: steps.scope.outputs.only_i18n == 'true'
+        run: |
+          npm ci --ignore-scripts
+          npx prettier --write src/i18n --ignore-unknown
+          if git diff --quiet; then
+            echo "Already formatted — nothing to push."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "style: auto-format i18n"
+          git push

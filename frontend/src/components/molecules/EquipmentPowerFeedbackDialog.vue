@@ -101,11 +101,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { runtimeConfig } from 'src/config/runtime';
+import { runtimeConfig } from '@/config/runtime';
 import {
   buildPowerRequestBody,
   buildMailtoUrl,
-} from 'src/utils/equipmentPowerFeedbackMail';
+} from '@/utils/equipmentPowerFeedbackMail';
 
 const { t: $t } = useI18n();
 

@@ -1,9 +1,9 @@
-import { useAuthStore, PermissionAction } from 'src/stores/auth';
+import { useAuthStore, PermissionAction } from '@/stores/auth';
 import type {
   RouteLocationNormalized,
   NavigationGuardReturn,
 } from 'vue-router';
-import type { Module } from 'src/constant/modules';
+import type { Module } from '@/constant/modules';
 
 /**
  * Single permission guard for route `beforeEnter`.

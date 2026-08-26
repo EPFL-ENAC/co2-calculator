@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { NavItem } from 'src/constant/navigation';
+import { NavItem } from '@/constant/navigation';
 import { useRouter } from 'vue-router';
-import { useAuthStore } from 'src/stores/auth';
-import { PermissionAction } from 'src/stores/auth';
+import { useAuthStore } from '@/stores/auth';
+import { PermissionAction } from '@/stores/auth';
 
 interface Props {
   items: Record<string, NavItem>;
@@ -80,7 +80,7 @@ function isItemDisabled(item: NavItem): boolean {
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .co2-sidebar {
   height: 100%;

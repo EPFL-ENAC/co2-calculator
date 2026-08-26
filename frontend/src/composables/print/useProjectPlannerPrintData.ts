@@ -1,25 +1,25 @@
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { getModuleTypeId } from 'src/constant/moduleStates';
-import { MODULES } from 'src/constant/modules';
-import type { EmissionBreakdownResponse } from 'src/stores/modules';
+import { getModuleTypeId } from '@/constant/moduleStates';
+import { MODULES } from '@/constant/modules';
+import type { EmissionBreakdownResponse } from '@/stores/modules';
 import {
   useSimulatorPlansStore,
   type SimulatorPlan,
   type SimulatorPlanYear,
-} from 'src/stores/simulatorPlans';
-import { useAuthStore } from 'src/stores/auth';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { sumBreakdownTonnes } from 'src/utils/breakdownTotal';
+} from '@/stores/simulatorPlans';
+import { useAuthStore } from '@/stores/auth';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { sumBreakdownTonnes } from '@/utils/breakdownTotal';
 import {
   toEmissionBreakdown,
   type ReportStats,
-} from 'src/utils/emissionStatsAdapter';
+} from '@/utils/emissionStatsAdapter';
 import {
   fetchPlannerHeadcountRows,
   type PlannerHeadcountRow,
-} from 'src/utils/plannerHeadcountRows';
+} from '@/utils/plannerHeadcountRows';
 
 /**
  * One sheet of the report. The list is built after fetching so a year with no

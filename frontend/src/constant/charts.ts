@@ -1,5 +1,5 @@
 import { computed } from 'vue';
-import { useColorblindStore } from 'src/stores/colorblind';
+import { useColorblindStore } from '@/stores/colorblind';
 import { MODULES, type Module } from './modules';
 
 /** Interpolate between two `#RRGGBB` colours. */

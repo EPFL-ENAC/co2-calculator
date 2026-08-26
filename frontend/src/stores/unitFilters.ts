@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed, nextTick } from 'vue';
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 
 export interface Options {
   label: string;

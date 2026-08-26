@@ -6,7 +6,7 @@
 // Configuration for your app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js
 
-import { defineConfig } from '#q-app/wrappers';
+import { defineConfig } from '#q-app';
 // import { fileURLToPath } from 'node:url'
 
 import path from 'path';
@@ -110,9 +110,8 @@ export default defineConfig(function () {
       // rebuildCache: true, // rebuilds Vite/linter/etc cache on startup
 
       publicPath: '/',
-      // analyze: true,
-      env: {
-        // Bundle identity (baked into runtime as process.env.APP_VERSION /
+      defineEnv: {
+        // Bundle identity (baked into runtime as import.meta.env.APP_VERSION /
         // APP_BUILD_TIME). Sentry release tag keys off APP_VERSION.
         APP_VERSION,
         APP_BUILD_TIME,
@@ -148,7 +147,6 @@ export default defineConfig(function () {
         APP_PLANNER_MIN_YEAR: process.env.APP_PLANNER_MIN_YEAR || '',
         APP_PLANNER_MAX_YEAR: process.env.APP_PLANNER_MAX_YEAR || '',
       },
-      // rawDefine: {}
       // ignorePublicFolder: true,
       minify: true,
       // Source maps disabled in production. Empirically, `sourcemap: true`
@@ -159,7 +157,6 @@ export default defineConfig(function () {
       // the bloat, switch to `'hidden'` (external .map next to .js, no
       // sourceMappingURL comment in the JS) and reinstate the upload step.
       sourcemap: false,
-      // polyfillModulePreload: true,
       // distDir
       sassVariables: 'src/css/quasar.variables.scss',
       // viteVuePluginOptions: {},
