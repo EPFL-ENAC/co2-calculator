@@ -433,6 +433,11 @@ export const useModuleStore = defineStore('modules', () => {
   // unit/year resolve to a carbon report id once per context; every module
   // operation then addresses /carbon-reports/{id}/modules/... directly.
   const reportIdCache = reactive<Record<string, number>>({});
+  // In-flight lookups for the same key share one request: every module
+  // table/chart/select mounting at once would otherwise each fire the same
+  // GET (7 identical lookups observed on explore-page mount, #2360).
+  // Rejections are never stored — a failed lookup retries on the next call.
+  const reportIdInFlight = new Map<string, Promise<number>>();
 
   // The planner addresses reports by id directly (a unit can hold several
   // plans with overlapping years, so unit/year cannot identify a report):
@@ -447,10 +452,20 @@ export const useModuleStore = defineStore('modules', () => {
     const key = `${unit}|${year}|${project}`;
     const cached = reportIdCache[key];
     if (cached) return cached;
-    const path = carbonReportLookupPath(project, unit, year);
-    const report = await api.get(path).json<{ id: number }>();
-    reportIdCache[key] = report.id;
-    return report.id;
+    const inFlight = reportIdInFlight.get(key);
+    if (inFlight) return inFlight;
+    const request = (async () => {
+      const path = carbonReportLookupPath(project, unit, year);
+      const report = await api.get(path).json<{ id: number }>();
+      reportIdCache[key] = report.id;
+      return report.id;
+    })();
+    reportIdInFlight.set(key, request);
+    try {
+      return await request;
+    } finally {
+      reportIdInFlight.delete(key);
+    }
   }
 
   async function modulePath(
