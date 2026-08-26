@@ -18,7 +18,6 @@
           :show-reference-columns="showReferenceColumns"
           :project-years-count="projectYearsCount"
           :percentage-locked="percentageLocked"
-          :exclude-snapshots="excludeSnapshots"
           :show-grant-budget="showGrantBudgets"
           :grant-budget="grantBudgets?.[sub.id] ?? null"
           :grant-budget-currency="grantBudgetCurrency"
@@ -65,8 +64,6 @@ const props = defineProps<{
   projectYearsCount?: number | null;
   /** Grant equipment global mode: per-row % controls read-only (#1981). */
   percentageLocked?: boolean;
-  /** Grant equipment global mode: list only manually added entries (#1981). */
-  excludeSnapshots?: boolean;
   /** Planner Project Grant: show a budget field above each submodule table. */
   showGrantBudgets?: boolean;
   /** Grant submodule budgets of this module, keyed by submodule id (#1978). */
