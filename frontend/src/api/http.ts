@@ -1,7 +1,7 @@
 import ky, { type Options } from 'ky';
 import { Notify } from 'quasar';
 import { i18n } from 'src/boot/i18n';
-import { captureError } from 'src/utils/glitchtip';
+import { captureError, traceparent } from 'src/utils/glitchtip';
 
 declare module 'ky' {
   interface Options {
@@ -40,6 +40,13 @@ export const api = ky.create({
     methods: ['get', 'put', 'post', 'patch', 'head', 'delete', 'options'],
   },
   hooks: {
+    beforeRequest: [
+      // Propagate the per-navigation trace id so backend OTel spans join the
+      // browser's trace — GlitchTip trace_ids become searchable in Tempo (#2372).
+      (request) => {
+        request.headers.set('traceparent', traceparent());
+      },
+    ],
     beforeRetry: [
       async ({ request }) => {
         if (!isRefresh(request.url, request.method))
