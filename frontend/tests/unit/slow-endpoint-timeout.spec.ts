@@ -9,14 +9,19 @@
  * exceeded that ceiling — the browser aborted a request the backend was still
  * answering, surfacing to users as a timeout on a healthy system.
  *
- * The fix is a per-call `timeout: SLOW_REQUEST_TIMEOUT_MS` override. This
- * test pins the *behaviour*, not the constant: it holds the response past
- * ky's default and asserts the call still resolves. Remove the override and
- * it fails with a TimeoutError.
+ * The fix sets `timeout: REQUEST_TIMEOUT_MS` on the client itself, so it
+ * applies to every call. An earlier attempt raised it only on endpoints with
+ * measured cause; a fourth one (#2404) timed out within hours, which is why
+ * a hand-maintained "known slow" list was abandoned.
+ *
+ * This test pins the *behaviour*, not the constant: it holds the response
+ * past ky's default and asserts the call still resolves. Remove the client
+ * timeout and it fails with a TimeoutError.
  *
  * It is deliberately slow (~11 s) — there is no way to observe an
  * AbortSignal timer without outliving it, and a test that only asserted
- * `SLOW_REQUEST_TIMEOUT_MS > 10_000` would pass even if no call site used it.
+ * `REQUEST_TIMEOUT_MS > 10_000` would pass even with the client left at its
+ * default.
  */
 
 import { test, expect } from '@playwright/experimental-ct-vue';

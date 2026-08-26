@@ -1,4 +1,4 @@
-import { api, SLOW_REQUEST_TIMEOUT_MS } from '@/api/http';
+import { api } from '@/api/http';
 import type { TaxonomyNode } from '@/constant/modules';
 
 /**
@@ -21,12 +21,6 @@ export async function getModuleDataEntriesTaxonomies(
   return api
     .get(
       `taxonomies/module/${encodeURIComponent(moduleType)}/data-entries?${searchParams.toString()}`,
-      // Batching (#2280) concentrated N single-entry calls into one request,
-      // so this one carries the sum of work that used to be spread across N
-      // separate timeouts — the slowest single entry measured 2064 ms
-      // (#2049). Each entry hits the same server-side cache, so a warm call
-      // is fast; a cold one right after an ingestion is what needs headroom.
-      { timeout: SLOW_REQUEST_TIMEOUT_MS },
     )
     .json<Record<string, TaxonomyNode>>();
 }
