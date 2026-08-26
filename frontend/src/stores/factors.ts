@@ -10,14 +10,23 @@ function byLabel(a: Option, b: Option): number {
   return a.label.localeCompare(b.label);
 }
 
-/** Distinct child options of a kind node, in the order the selects render. */
+/**
+ * Distinct child options of a kind node, in the order the selects render.
+ *
+ * Not sorted: the classification value IS the label here (a gas type, a
+ * cloud provider, …), and the backend's declared order can carry meaning
+ * (e.g. CO2/CH4/SF6 in GHG-protocol order) that an alphabetical resort
+ * would silently discard. `fetchClassOptions`'s `labelled` case — an
+ * opaque id mapped to a human name — sorts explicitly, because that's the
+ * one shape a long, browsable list needs it (#2007).
+ */
 function subclassOptionsOf(kind: TaxonomyNode): Option[] {
   const byName = new Map<string, Option>();
   for (const child of kind.children ?? []) {
     if (!byName.has(child.name))
       byName.set(child.name, { label: child.name, value: child.name });
   }
-  return [...byName.values()].sort(byLabel);
+  return [...byName.values()];
 }
 
 export const useFactorsStore = defineStore('factors', () => {
@@ -95,9 +104,13 @@ export const useFactorsStore = defineStore('factors', () => {
   /**
    * Options for a `kind` select. By default the class value is also its label
    * (equipment classes are already readable, and the i18n fallback in
-   * `useEquipmentClassOptions` keys off the raw value). `labelled` switches to
-   * the node's server-side label, for classifications stored as opaque codes
-   * — a research facility id reads as its acronym (#2007).
+   * `useEquipmentClassOptions` keys off the raw value) — the backend's own
+   * order is kept, since for a plain classification list (a gas type, a
+   * cloud provider, …) that order can be meaningful and isn't ours to
+   * discard. `labelled` switches to the node's server-side label, for
+   * classifications stored as opaque codes — a research facility id reads
+   * as its acronym (#2007) — and a long id-keyed list is sorted so it stays
+   * browsable.
    */
   async function fetchClassOptions(
     module: string,
@@ -106,12 +119,11 @@ export const useFactorsStore = defineStore('factors', () => {
     labelled = false,
   ): Promise<Option[]> {
     const node = await ensureTaxonomy(module, submodule, year);
-    return (node.children ?? [])
-      .map((kind) => ({
-        label: labelled ? kind.label : kind.name,
-        value: kind.name,
-      }))
-      .sort(byLabel);
+    const options = (node.children ?? []).map((kind) => ({
+      label: labelled ? kind.label : kind.name,
+      value: kind.name,
+    }));
+    return labelled ? options.sort(byLabel) : options;
   }
 
   async function fetchSubclassOptions(
