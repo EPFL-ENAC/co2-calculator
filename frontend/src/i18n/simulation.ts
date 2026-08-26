@@ -208,8 +208,8 @@ export default {
     fr: 'Visible par tous les membres du laboratoire',
   },
   planner_share_with_lab_disabled_hint: {
-    en: 'An ongoing project stays private to its creator.',
-    fr: 'Un projet en cours reste privé, visible par son créateur uniquement.',
+    en: 'A project detailed per year stays private to its creator.',
+    fr: 'Un projet détaillé par année reste privé, visible par son créateur uniquement.',
   },
   planner_grant_proposal_label: {
     en: 'Grant proposal',
@@ -228,24 +228,24 @@ export default {
     fr: 'Demande de financement',
   },
   planner_year_by_year_checkbox: {
-    en: 'Ongoing project',
-    fr: 'Projet en cours',
+    en: 'Detailed per year',
+    fr: 'Détail par année',
   },
   planner_year_by_year_hint: {
     en: 'Add detailed sections for each year.',
     fr: 'Ajoute des sections détaillées pour chaque année.',
   },
   planner_sections_need_one: {
-    en: 'Select the ongoing project, the grant proposal, or both.',
-    fr: 'Sélectionnez le projet en cours, la demande de financement, ou les deux.',
+    en: 'Select the detail per year, the grant proposal, or both.',
+    fr: 'Sélectionnez le détail par année, la demande de financement, ou les deux.',
   },
   planner_generate_sections_button: {
     en: 'Create project sections',
     fr: 'Créer les sections du projet',
   },
   planner_generate_sections_hint: {
-    en: 'Creates the selected sections: one editable section per year between the start and end year for an ongoing project, plus the grant proposal section when the project is a grant proposal.',
-    fr: 'Crée les sections sélectionnées : une section modifiable par année entre les années de début et de fin pour un projet en cours, ainsi que la section Demande de financement si le projet est une demande de financement.',
+    en: 'Creates the selected sections: one editable section per year between the start and end year for a project detailed per year, plus the grant proposal section when the project is a grant proposal.',
+    fr: 'Crée les sections sélectionnées : une section modifiable par année entre les années de début et de fin pour un projet détaillé par année, ainsi que la section Demande de financement si le projet est une demande de financement.',
   },
   planner_sections_generated: {
     en: 'Project sections updated',
