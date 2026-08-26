@@ -622,15 +622,16 @@ const chartOption = computed<EChartsOption | null>(() => {
 </template>
 
 <style scoped lang="scss">
+/* #2027: a definite height, not min-height — same constraint as the other
+   results charts: vue-echarts 8.1.0 keeps a zero-height canvas forever if the
+   chart measures 0 once at init. */
 .objective-chart {
-  height: 100%;
-  min-height: 620px;
+  height: 620px;
 }
 
 .objective-chart__canvas {
   width: 100%;
-  height: 100%;
-  min-height: 620px;
+  height: 620px;
 }
 
 .objective-chart__empty {
