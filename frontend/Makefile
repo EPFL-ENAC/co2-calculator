@@ -46,7 +46,14 @@ format: ## Format code with prettier, eslint, and stylelint
 lint: ## Check code formatting
 	@set -e; \
 	if [ "$(FILES)" = "." ]; then \
-		npx prettier --check . --ignore-unknown && \
+		npx prettier --check . --ignore-unknown || { \
+			echo ""; \
+			echo "Prettier diff below: apply the '+' lines (drop the '-' lines), or run 'make format' locally."; \
+			npx prettier --list-different . --ignore-unknown | while read -r f; do \
+				npx prettier "$$f" | diff -u "$$f" - || true; \
+			done; \
+			exit 1; \
+		} && \
 		npx eslint . && \
 		npx stylelint "**/*.{css,scss}"; \
 	else \
