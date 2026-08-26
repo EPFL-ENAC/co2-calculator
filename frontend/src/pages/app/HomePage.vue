@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { MODULES_LIST } from 'src/constant/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useAuthStore } from 'src/stores/auth';
-import { useModuleStore } from 'src/stores/modules';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { nOrDash } from 'src/utils/number';
-import { runtimeConfig } from 'src/config/runtime';
-import WorkspaceSelectorBar from 'src/components/organisms/workspace-selector/WorkspaceSelectorBar.vue';
-import CO2ProjectPlanner from 'src/components/organisms/home/CO2ProjectPlanner.vue';
-import CO2Explorer from 'src/components/organisms/home/CO2Explorer.vue';
-import ChartSkeleton from 'src/components/charts/ChartSkeleton.vue';
+import { MODULES_LIST } from '@/constant/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useAuthStore } from '@/stores/auth';
+import { useModuleStore } from '@/stores/modules';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { nOrDash } from '@/utils/number';
+import { runtimeConfig } from '@/config/runtime';
+import WorkspaceSelectorBar from '@/components/organisms/workspace-selector/WorkspaceSelectorBar.vue';
+import CO2ProjectPlanner from '@/components/organisms/home/CO2ProjectPlanner.vue';
+import CO2Explorer from '@/components/organisms/home/CO2Explorer.vue';
+import ChartSkeleton from '@/components/charts/ChartSkeleton.vue';
 
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
@@ -26,7 +26,7 @@ const hasText = (key: string) => te(key) && t(key).trim().length > 0;
 // chunk; ChartSkeleton holds the layout while it loads.
 const ModuleCarbonFootprintChart = defineAsyncComponent({
   loader: () =>
-    import('src/components/charts/results/ModuleCarbonFootprintChart.vue'),
+    import('@/components/charts/results/ModuleCarbonFootprintChart.vue'),
   loadingComponent: ChartSkeleton,
   delay: 0,
 });
@@ -502,7 +502,7 @@ const calculatorUpdates = computed(() => {
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .about-btn :deep(.q-icon.on-left) {
   margin-right: tokens.$spacing-sm;

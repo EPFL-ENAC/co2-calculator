@@ -1,4 +1,4 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES } from '@/constant/modules';
 
 // Toggled independently from the rest of Buildings — see
 // MODULE_SUBMODULES[MODULES.Buildings] below.

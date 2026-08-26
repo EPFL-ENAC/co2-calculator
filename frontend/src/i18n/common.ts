@@ -1,4 +1,4 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES } from '@/constant/modules';
 
 export default {
   validation_must_be_at_least: {

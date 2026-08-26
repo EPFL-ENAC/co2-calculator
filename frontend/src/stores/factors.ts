@@ -5,9 +5,9 @@ import {
   getFactorValues,
   listFactors,
   type ValueFactorResponse,
-} from 'src/api/factors';
-import { type AllSubmoduleTypes, enumSubmodule } from 'src/constant/modules';
-import { toClassOptions, type FactorRow } from 'src/utils/factorOptions';
+} from '@/api/factors';
+import { type AllSubmoduleTypes, enumSubmodule } from '@/constant/modules';
+import { toClassOptions, type FactorRow } from '@/utils/factorOptions';
 
 type Option = { label: string; value: string };
 
@@ -26,6 +26,16 @@ export const useFactorsStore = defineStore('factors', () => {
   // this — it is only ever read inside the fetch below.
   const factorListByKey: Record<string, FactorRow[]> = {};
   const factorListFetchedAt: Record<string, number> = {};
+
+  // In-flight lookups for the same key share one request: several forms for
+  // the same submodule mounting at once would otherwise each fire the same
+  // GET before the first write lands (#2360). Rejections are never stored —
+  // a failed lookup retries on the next call.
+  const subclassMapInFlight = new Map<
+    string,
+    Promise<Record<string, Option[]>>
+  >();
+  const factorListInFlight = new Map<string, Promise<FactorRow[]>>();
 
   function cacheKey(
     submodule: keyof typeof enumSubmodule,
@@ -47,16 +57,27 @@ export const useFactorsStore = defineStore('factors', () => {
       return existing;
     }
 
-    const rawMap = await getSubclassMap(submodule, year);
-    const optionMap: Record<string, Option[]> = {};
-    Object.entries(rawMap).forEach(([cls, list]) => {
-      optionMap[cls] = (list ?? []).map((s) => ({ label: s, value: s }));
-    });
+    const inFlight = subclassMapInFlight.get(key);
+    if (inFlight) return inFlight;
 
-    subclassOptionMapByKey[key] = optionMap;
-    subclassMapFetchedAt[key] = now;
+    const request = (async () => {
+      const rawMap = await getSubclassMap(submodule, year);
+      const optionMap: Record<string, Option[]> = {};
+      Object.entries(rawMap).forEach(([cls, list]) => {
+        optionMap[cls] = (list ?? []).map((s) => ({ label: s, value: s }));
+      });
 
-    return optionMap;
+      subclassOptionMapByKey[key] = optionMap;
+      subclassMapFetchedAt[key] = now;
+
+      return optionMap;
+    })();
+    subclassMapInFlight.set(key, request);
+    try {
+      return await request;
+    } finally {
+      subclassMapInFlight.delete(key);
+    }
   }
 
   /**
@@ -89,11 +110,22 @@ export const useFactorsStore = defineStore('factors', () => {
       return existing;
     }
 
-    const rows = await listFactors(submodule, year);
-    factorListByKey[key] = rows;
-    factorListFetchedAt[key] = now;
+    const inFlight = factorListInFlight.get(key);
+    if (inFlight) return inFlight;
 
-    return rows;
+    const request = (async () => {
+      const rows = await listFactors(submodule, year);
+      factorListByKey[key] = rows;
+      factorListFetchedAt[key] = now;
+
+      return rows;
+    })();
+    factorListInFlight.set(key, request);
+    try {
+      return await request;
+    } finally {
+      factorListInFlight.delete(key);
+    }
   }
 
   async function fetchLabelledClassOptions(

@@ -1,7 +1,7 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { type Module } from 'src/constant/modules';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { type Module } from '@/constant/modules';
 
 export function useUnifiedModuleConfig() {
   const route = useRoute();

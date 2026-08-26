@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useAuthStore } from 'src/stores/auth';
+import { useAuthStore } from '@/stores/auth';
 import { useI18n } from 'vue-i18n';
-import { ROLES } from 'src/constant/roles';
+import { ROLES } from '@/constant/roles';
 
 const authStore = useAuthStore();
 const { loading } = storeToRefs(authStore);
@@ -107,7 +107,7 @@ const buttonLabel = computed(() => {
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .login-card {
   box-shadow: tokens.$login-card-box-shadow;

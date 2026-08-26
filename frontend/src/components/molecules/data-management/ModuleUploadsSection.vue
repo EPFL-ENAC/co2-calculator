@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, inject, type ComputedRef } from 'vue';
-import type { PipelineProgress } from 'src/stores/pipelineStream';
-import { useModuleConfig } from 'src/composables/useModuleConfig';
-import { useRecalculation } from 'src/composables/useRecalculation';
+import type { PipelineProgress } from '@/stores/pipelineStream';
+import { useModuleConfig } from '@/composables/useModuleConfig';
+import { useRecalculation } from '@/composables/useRecalculation';
 import {
   useBackofficeDataManagement,
   TargetType,
   type ImportRow,
-} from 'src/stores/backofficeDataManagement';
-import UploadCardData from 'src/components/molecules/data-management/UploadCardData.vue';
-import UploadCardFactors from 'src/components/molecules/data-management/UploadCardFactors.vue';
+} from '@/stores/backofficeDataManagement';
+import UploadCardData from '@/components/molecules/data-management/UploadCardData.vue';
+import UploadCardFactors from '@/components/molecules/data-management/UploadCardFactors.vue';
 
 interface Props {
   module: string;

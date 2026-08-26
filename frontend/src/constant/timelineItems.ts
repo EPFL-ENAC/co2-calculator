@@ -1,4 +1,4 @@
-import type { Module } from 'src/constant/modules';
+import type { Module } from '@/constant/modules';
 
 export type { Module };
 

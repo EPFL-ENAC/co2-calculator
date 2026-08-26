@@ -1,11 +1,11 @@
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 
 import type {
   AirportResponse,
   Location,
   RailwayStationResponse,
   TransportMode,
-} from 'src/constant/locations';
+} from '@/constant/locations';
 
 /**
  * Search for airports by name.

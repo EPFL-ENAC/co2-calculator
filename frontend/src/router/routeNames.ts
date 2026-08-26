@@ -9,7 +9,7 @@
  * Anything in this file MUST stay free of Vite-specific imports and
  * runtime side effects.
  */
-import { runtimeConfig } from 'src/config/runtime';
+import { runtimeConfig } from '@/config/runtime';
 
 export const isDevEnvironment =
   runtimeConfig.environment === 'development' ||

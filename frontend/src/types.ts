@@ -3,8 +3,8 @@ import {
   formatTonnesCO2,
   formatKgCO2,
   formatFTE,
-} from 'src/utils/number';
-import { i18n } from 'src/boot/i18n';
+} from '@/utils/number';
+import { i18n } from '@/boot/i18n';
 
 declare module '@vue/runtime-core' {
   interface ComponentCustomProperties {

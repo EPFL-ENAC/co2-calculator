@@ -249,6 +249,13 @@ POLLER / DISPATCH_JOBS_INLINE) layered on top by the caller.
   valueFrom:
     fieldRef:
       fieldPath: metadata.namespace
+# #2258 follow-up — routable pod IP, stored in the ``pods`` heartbeat
+# table so a factor write can POST an internal cache-clear directly to
+# every other live pod instead of relying solely on the 60s TTL.
+- name: POD_IP
+  valueFrom:
+    fieldRef:
+      fieldPath: status.podIP
 - name: OTEL_RESOURCE_ATTRIBUTES
   value: k8s.pod.name=$(POD_NAME),k8s.namespace.name=$(POD_NAMESPACE)
 {{- end -}}

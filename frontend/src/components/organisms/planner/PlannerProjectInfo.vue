@@ -155,15 +155,15 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
-import { runtimeConfig } from 'src/config/runtime';
-import { pickDefaultYear } from 'src/router/guards/redirectToDefaultRoute';
-import { useYearConfigStore } from 'src/stores/yearConfig';
+import { runtimeConfig } from '@/config/runtime';
+import { pickDefaultYear } from '@/router/guards/redirectToDefaultRoute';
+import { useYearConfigStore } from '@/stores/yearConfig';
 
 import {
   useSimulatorPlansStore,
   type SimulatorPlan,
   type SimulatorPlanUpdatePayload,
-} from 'src/stores/simulatorPlans';
+} from '@/stores/simulatorPlans';
 
 const props = defineProps<{ plan: SimulatorPlan }>();
 const emit = defineEmits<{ updated: [plan: SimulatorPlan] }>();

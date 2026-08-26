@@ -2,7 +2,7 @@ import {
   CHART_CATEGORY_COLOR_SCALES,
   MODULE_TO_CATEGORIES,
   colors,
-} from 'src/constant/charts';
+} from '@/constant/charts';
 
 function lerpHex(a: string, b: string, t: number): string {
   const mix = (i: number) => {

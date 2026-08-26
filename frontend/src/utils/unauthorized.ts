@@ -5,7 +5,7 @@
  * without mounting Vue — importing a store would drag `src/i18n/index.ts`
  * (`import.meta.glob`) into the Playwright loader.
  */
-import { UNAUTHORIZED_ROUTE_NAME } from 'src/router/routeNames';
+import { UNAUTHORIZED_ROUTE_NAME } from '@/router/routeNames';
 
 /** Why a workspace can't be resolved: no assigned unit, or no globally-open year. */
 export type NoWorkspaceReason = 'no-unit' | 'no-open-year';

@@ -2,22 +2,19 @@
 import { computed, ref, watch, provide } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
-import { MODULES_LIST } from 'src/constant/modules';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
+import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
+import { MODULES_LIST } from '@/constant/modules';
 
-import ModuleConfig from 'src/components/organisms/data-management/ModuleConfig.vue';
-import ReductionObjectivesSection from 'src/components/organisms/data-management/ReductionObjectivesSection.vue';
-import DataEntryDialog from 'src/components/organisms/data-management/DataEntryDialog.vue';
-import ConnectorsCard from 'src/components/molecules/backoffice/ConnectorsCard.vue';
+import ModuleConfig from '@/components/organisms/data-management/ModuleConfig.vue';
+import ReductionObjectivesSection from '@/components/organisms/data-management/ReductionObjectivesSection.vue';
+import DataEntryDialog from '@/components/organisms/data-management/DataEntryDialog.vue';
+import ConnectorsCard from '@/components/molecules/backoffice/ConnectorsCard.vue';
 
-import {
-  TargetType,
-  type ImportRow,
-} from 'src/stores/backofficeDataManagement';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { usePipelineStateStore } from 'src/stores/pipelineState';
-import { usePipelineStream } from 'src/composables/usePipelineStream';
+import { TargetType, type ImportRow } from '@/stores/backofficeDataManagement';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { usePipelineStateStore } from '@/stores/pipelineState';
+import { usePipelineStream } from '@/composables/usePipelineStream';
 import { Notify, Loading } from 'quasar';
 import { useI18n } from 'vue-i18n';
 

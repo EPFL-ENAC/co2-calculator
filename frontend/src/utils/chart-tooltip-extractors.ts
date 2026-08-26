@@ -1,4 +1,4 @@
-import { formatTonnesForChart } from 'src/utils/number';
+import { formatTonnesForChart } from '@/utils/number';
 
 export type TooltipAxisParam = {
   axisValue?: unknown;

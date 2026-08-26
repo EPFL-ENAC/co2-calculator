@@ -53,8 +53,8 @@
 </template>
 
 <script setup lang="ts">
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
-import type { TooltipState } from 'src/types/chartTooltip';
+import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
+import type { TooltipState } from '@/types/chartTooltip';
 
 defineProps<{
   tooltipState: TooltipState;
@@ -62,7 +62,7 @@ defineProps<{
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .chart-tooltip {
   background: tokens.$tooltip-background;

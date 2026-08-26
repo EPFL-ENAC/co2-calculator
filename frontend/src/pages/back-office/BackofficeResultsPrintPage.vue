@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import ReportPage from 'src/components/organisms/ReportPage.vue';
-import PrintReportShell from 'src/components/organisms/print/PrintReportShell.vue';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import CompletionRateBar from 'src/components/organisms/backoffice/reporting/CompletionRateBar.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
-import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
-import EmissionBreakdownChart from 'src/components/charts/EmissionBreakdownChart.vue';
-import ItFocusBreakdownChart from 'src/components/charts/results/ItFocusBreakdownChart.vue';
-import { useBackofficeResultsPrintData } from 'src/composables/print/useBackofficeResultsPrintData';
-import { toPrintDocumentTitle } from 'src/utils/unitPerimeterLabel';
+import ReportPage from '@/components/organisms/ReportPage.vue';
+import PrintReportShell from '@/components/organisms/print/PrintReportShell.vue';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import CompletionRateBar from '@/components/organisms/backoffice/reporting/CompletionRateBar.vue';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
+import CarbonFootPrintPerPersonChart from '@/components/charts/results/CarbonFootPrintPerPersonChart.vue';
+import EmissionBreakdownChart from '@/components/charts/EmissionBreakdownChart.vue';
+import ItFocusBreakdownChart from '@/components/charts/results/ItFocusBreakdownChart.vue';
+import { useBackofficeResultsPrintData } from '@/composables/print/useBackofficeResultsPrintData';
+import { toPrintDocumentTitle } from '@/utils/unitPerimeterLabel';
 
 const { t } = useI18n();
 

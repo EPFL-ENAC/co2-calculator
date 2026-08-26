@@ -14,16 +14,16 @@ import {
 import VChart from 'vue-echarts';
 import TooltipEcharts from './results/TooltipEcharts.vue';
 import { useEchartsTooltip } from './results/useEchartsTooltip';
-import { usePrintMode } from 'src/composables/print/usePrintMode';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
-import { useColorblindStore } from 'src/stores/colorblind';
+import { usePrintMode } from '@/composables/print/usePrintMode';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
+import { useColorblindStore } from '@/stores/colorblind';
 
 import {
   buildChartDecal,
   RESULTS_SUBCATEGORY_LABEL_KEYS,
-} from 'src/constant/charts';
-import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap';
-import { formatTonnesForChart } from 'src/utils/number';
+} from '@/constant/charts';
+import type { EmissionTreemapCategory } from '@/composables/useEmissionTreemap';
+import { formatTonnesForChart } from '@/utils/number';
 
 const { t } = useI18n();
 const isPrintMode = usePrintMode();

@@ -477,15 +477,15 @@
 </template>
 
 <script setup lang="ts">
-import FilesUploadDialog from 'src/components/organisms//data-management/FilesUploadDialog.vue';
+import FilesUploadDialog from '@/components/organisms//data-management/FilesUploadDialog.vue';
 
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
-import { COLUMN_SIZES } from 'src/constant/moduleConfig';
+import { COLUMN_SIZES } from '@/constant/moduleConfig';
 import type {
   ModuleField,
   ModuleConfig,
   Submodule,
-} from 'src/constant/moduleConfig';
+} from '@/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
@@ -493,59 +493,59 @@ import {
   DATE_INPUT_MASK,
   isValidCalendarDate,
   matchesDateInputFormat,
-} from 'src/utils/date';
-import NoteDialog from 'src/components/molecules/NoteDialog.vue';
-import EquipmentPowerFeedbackDialog from 'src/components/molecules/EquipmentPowerFeedbackDialog.vue';
-import { useWorkspaceStore } from 'src/stores/workspace';
+} from '@/utils/date';
+import NoteDialog from '@/components/molecules/NoteDialog.vue';
+import EquipmentPowerFeedbackDialog from '@/components/molecules/EquipmentPowerFeedbackDialog.vue';
+import { useWorkspaceStore } from '@/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
-import { useModuleStore, useTimelineStore } from 'src/stores/modules';
-import { useFactorsStore } from 'src/stores/factors';
-import { resolveFactorYear } from 'src/utils/factor-year';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { useAuthStore } from 'src/stores/auth';
+import { useModuleStore, useTimelineStore } from '@/stores/modules';
+import { useFactorsStore } from '@/stores/factors';
+import { resolveFactorYear } from '@/utils/factor-year';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { useAuthStore } from '@/stores/auth';
 import {
   useBackofficeDataManagement,
   TargetType,
-} from 'src/stores/backofficeDataManagement';
-import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
-import { PermissionAction } from 'src/stores/auth';
-import { getTemplateFileName } from 'src/constant/templateMapping';
-import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
-import { CARBON_PROJECT } from 'src/constant/carbon-project';
-import { resolveTravelerCellText } from 'src/constant/module-config/traveler-options';
+} from '@/stores/backofficeDataManagement';
+import type { JobUpdatePayload } from '@/stores/backofficeDataManagement';
+import { PermissionAction } from '@/stores/auth';
+import { getTemplateFileName } from '@/constant/templateMapping';
+import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
+import { CARBON_PROJECT } from '@/constant/carbon-project';
+import { resolveTravelerCellText } from '@/constant/module-config/traveler-options';
 import type {
   Module,
   ConditionalSubmoduleProps,
   Threshold,
   EnumSubmoduleType,
-} from 'src/constant/modules';
-import { enumSubmodule, SUBMODULE_PURCHASE_TYPES } from 'src/constant/modules';
+} from '@/constant/modules';
+import { enumSubmodule, SUBMODULE_PURCHASE_TYPES } from '@/constant/modules';
 
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
   SUBMODULE_EXTERNAL_CLOUD_TYPES,
-} from 'src/constant/modules';
+} from '@/constant/modules';
 import {
   getHeadcountMembers,
   type HeadcountMemberDropdownItem,
-} from 'src/api/modules';
-import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
-import { nOrDash } from 'src/utils/number';
-import { getModuleIconColors } from 'src/composables/useModuleIconColors';
-import { formatRowErrorLines } from 'src/utils/rowErrors';
-import { isFieldEditable, isRowDeletable } from 'src/utils/dataEntryPolicy';
+} from '@/api/modules';
+import { getModuleTypeId, MODULE_STATES } from '@/constant/moduleStates';
+import { nOrDash } from '@/utils/number';
+import { getModuleIconColors } from '@/composables/useModuleIconColors';
+import { formatRowErrorLines } from '@/utils/rowErrors';
+import { isFieldEditable, isRowDeletable } from '@/utils/dataEntryPolicy';
 import {
   clampReferencePercentage,
   REFERENCE_PERCENTAGE_MAX,
   REFERENCE_PERCENTAGE_MIN,
-} from 'src/utils/reference-percentage';
+} from '@/utils/reference-percentage';
 import {
   hasRowEditPermission,
   isModuleNoteDisabled,
   isModuleTableDisabled,
   type ModuleTableAccess,
-} from 'src/utils/module-table-access';
+} from '@/utils/module-table-access';
 
 function getNumericRules(col: TableViewColumn) {
   const rules = [];
@@ -2377,7 +2377,7 @@ onUnmounted(() => {
 <!-- Not scoped: .co2-table's rules reach into Quasar's rendered table internals
      (thead/tbody/td/tr), which do not receive scoped style attributes. -->
 <style lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .co2-table {
   border: 1px solid tokens.$container-default-border;

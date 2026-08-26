@@ -2,17 +2,17 @@
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { REPORT_TYPES } from 'src/constant/report';
-// import type { ModuleState } from 'src/constant/moduleStates';
+import { REPORT_TYPES } from '@/constant/report';
+// import type { ModuleState } from '@/constant/moduleStates';
 import { Notify } from 'quasar';
 import {
   exportReport,
   downloadUsageReportFile,
   downloadDetailedReportFile,
   downloadResultsReportFile,
-} from 'src/api/backoffice';
-import type { ReportFormat, ReportType } from 'src/api/backoffice';
-import { type UnitFilters } from 'src/stores/backoffice';
+} from '@/api/backoffice';
+import type { ReportFormat, ReportType } from '@/api/backoffice';
+import { type UnitFilters } from '@/stores/backoffice';
 const { t } = useI18n();
 const router = useRouter();
 

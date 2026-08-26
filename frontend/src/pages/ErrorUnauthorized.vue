@@ -101,10 +101,10 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { DEFAULT_ROUTE_NAME } from 'src/router/routes';
-import { currentLanguage, resolveLanguage } from 'src/utils/language';
-import { unauthorizedReasonMessageKey } from 'src/utils/unauthorized';
-import { useAuthStore, PermissionAction } from 'src/stores/auth';
+import { DEFAULT_ROUTE_NAME } from '@/router/routes';
+import { currentLanguage, resolveLanguage } from '@/utils/language';
+import { unauthorizedReasonMessageKey } from '@/utils/unauthorized';
+import { useAuthStore, PermissionAction } from '@/stores/auth';
 
 const route = useRoute();
 const router = useRouter();

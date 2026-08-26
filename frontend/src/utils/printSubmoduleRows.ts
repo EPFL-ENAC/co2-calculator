@@ -1,10 +1,10 @@
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 import type {
   Module,
   Submodule as SubmoduleResponse,
-} from 'src/constant/modules';
-import { buildModulePath } from 'src/utils/modulePath';
-import type { PrintRow } from 'src/utils/printTable';
+} from '@/constant/modules';
+import { buildModulePath } from '@/utils/modulePath';
+import type { PrintRow } from '@/utils/printTable';
 
 /** The API caps `limit` at 1000, so that is the largest page worth asking for. */
 const PAGE_LIMIT = 1000;

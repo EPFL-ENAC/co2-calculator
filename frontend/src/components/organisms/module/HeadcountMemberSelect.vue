@@ -37,20 +37,20 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { MODULES } from 'src/constant/modules';
+import { MODULES } from '@/constant/modules';
 import {
   TRAVELER_OTHER_INTERNAL,
   TRAVELER_OTHER_EXTERNAL,
   TRAVELER_OTHER_INTERNAL_LABEL_KEY,
   TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
-} from 'src/constant/module-config/traveler-options';
-import { useAuthStore } from 'src/stores/auth';
-import { useModuleStore } from 'src/stores/modules';
+} from '@/constant/module-config/traveler-options';
+import { useAuthStore } from '@/stores/auth';
+import { useModuleStore } from '@/stores/modules';
 import {
   getHeadcountMembers,
   type HeadcountMemberDropdownItem,
-} from 'src/api/modules';
-import { PermissionAction } from 'src/stores/auth';
+} from '@/api/modules';
+import { PermissionAction } from '@/stores/auth';
 
 const { t: $t } = useI18n();
 

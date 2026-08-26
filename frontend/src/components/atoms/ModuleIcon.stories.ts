@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/vue3';
 import ModuleIcon from './ModuleIcon.vue';
-import { icons } from 'src/plugin/module-icon';
+import { icons } from '@/plugin/module-icon';
 
 /**
  * ModuleIcon displays SVG icons from the module-icon plugin.

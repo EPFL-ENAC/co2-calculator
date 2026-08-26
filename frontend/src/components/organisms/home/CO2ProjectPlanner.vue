@@ -7,11 +7,11 @@ import { useRoute, useRouter } from 'vue-router';
 import {
   useSimulatorPlansStore,
   type SimulatorPlan,
-} from 'src/stores/simulatorPlans';
-import { useAuthStore } from 'src/stores/auth';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { parseUtcDate } from 'src/utils/date';
-import { formatTonnesCO2 } from 'src/utils/number';
+} from '@/stores/simulatorPlans';
+import { useAuthStore } from '@/stores/auth';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { parseUtcDate } from '@/utils/date';
+import { formatTonnesCO2 } from '@/utils/number';
 
 const { t, locale } = useI18n();
 const route = useRoute();
@@ -323,7 +323,7 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 // Full-width grey band spanning the whole content area (sits outside the
 // centred page-grid); its inner content stays aligned with the page width.

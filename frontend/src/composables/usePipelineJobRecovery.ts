@@ -1,8 +1,8 @@
 import { ref } from 'vue';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import { api } from 'src/api/http';
-import type { PipelineJobListEntry } from 'src/stores/pipelineOperationsConsole';
+import { api } from '@/api/http';
+import type { PipelineJobListEntry } from '@/stores/pipelineOperationsConsole';
 
 /**
  * Manual recovery of a stale RUNNING job (owning pod died mid-job).

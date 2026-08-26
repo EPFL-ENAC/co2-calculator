@@ -1,27 +1,27 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
-import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
-import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
-import { usePrintMode } from 'src/composables/print/usePrintMode';
+import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
+import GenericEmissionTreeMapChart from '@/components/charts/GenericEmissionTreeMapChart.vue';
+import EmissionTypeBreakdownChart from '@/components/charts/results/EmissionTypeBreakdownChart.vue';
+import { usePrintMode } from '@/composables/print/usePrintMode';
 import {
   MODULE_TO_CATEGORIES,
   CHART_CATEGORY_COLOR_SCALES,
   CHART_CATEGORY_COLOR_SCHEMES,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
-} from 'src/constant/charts';
-import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
-import { MODULES, MODULES_LIST } from 'src/constant/modules';
+} from '@/constant/charts';
+import { getEmissionTypeBreakdownInfoKey } from '@/constant/emissionTypeBreakdownInfo';
+import { MODULES, MODULES_LIST } from '@/constant/modules';
 import {
   CATEGORY_CHART_KEYS,
   type EmissionTreemapCategory,
   type EmissionTreemapChild,
-} from 'src/composables/useEmissionTreemap';
+} from '@/composables/useEmissionTreemap';
 import type {
   EmissionBreakdownCategoryRow,
   EmissionBreakdownValue,
-} from 'src/stores/modules';
+} from '@/stores/modules';
 
 interface BreakdownData {
   module_breakdown: Array<Record<string, unknown>>;

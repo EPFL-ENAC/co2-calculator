@@ -102,20 +102,24 @@ endpoint or batch before adding a new call.
    (`selectSimulatorExploreCarbonReport`) and once through the module store's
    `resolveCarbonReportId`. Seeding `reportIdCache` from the workspace-store
    result (or routing the page through the module store) makes it 1. Frontend
-   only, no endpoint change — natural next PR.
-2. **Batch the 6 `?preview_limit=0` count calls.** Each returns one
-   `data_entry_types_total_items` map. A single
-   `GET carbon-reports/{id}/modules?counts=true`-style extension of an
-   existing endpoint (or folding the counts into the explore-report lookup
-   response) turns 6 calls (~3 s of stage TTFB, incl. the 871 ms purchase
-   call) into 1.
-3. **Batch the per-factor `class-subclass-map` calls.** 5 calls differ only in
-   factor id; the page knows all ids at mount. A multi-id variant
-   (`?factor_ids=63,64,65,66,67`) or one map keyed by factor id serves every
-   form select in one round trip.
+   only, no endpoint change — natural next PR. — delivered in PR #2384
+2. **`?preview_limit=0` count calls: deferred, not batched.** All 6 modules
+   arrive collapsed, and QExpansionItem mounts its content slot even while
+   collapsed (`v-show`, not `v-if`) — that's what fired all 6 on mount in the
+   first place. `ExploreModuleExpansionList` now gates each module's content
+   behind an "opened at least once" flag and fetches only that module's count
+   on first open, so a mount that never opens anything fires 0 of these
+   instead of 6. A batching endpoint stays available if a user who opens
+   every module ever needs it — deferral alone removes the mount-time cost.
+   — delivered in PR #2385.
+3. **Per-factor `class-subclass-map` calls: deferred, not batched.** Same
+   mechanism: each call came from a `ModuleForm` mounted inside a collapsed
+   expansion item, so the same content gate defers it to that module's first
+   open instead of firing all 5 on mount. — delivered in PR #2385.
 4. **In-flight dedup in the factors store** (`ensureSubclassOptionMap` /
    `ensureFactorList`): same promise-cache pattern as this PR, ~6 lines each,
-   closes the latent stampede before a second consumer finds it.
+   closes the latent stampede before a second consumer finds it — delivered
+   in PR #2383.
 5. **Ship static taxonomies/config with the bundle** where they are
    year-invariant, instead of one GET per form.
 6. **Over-budget singles need backend attention regardless of batching:**

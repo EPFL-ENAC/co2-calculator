@@ -1,6 +1,6 @@
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { Module } from 'src/constant/modules';
-import { resolveLanguage } from 'src/utils/language';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { Module } from '@/constant/modules';
+import { resolveLanguage } from '@/utils/language';
 
 export function moduleEnabledGuard() {
   return async (to) => {

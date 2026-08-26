@@ -479,40 +479,40 @@ import { computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
-import { api } from 'src/api/http';
-import { formatTonnesCO2 } from 'src/utils/number';
-import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
-import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
+import { api } from '@/api/http';
+import { formatTonnesCO2 } from '@/utils/number';
+import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
+import ModuleTableSection from '@/components/organisms/module/ModuleTableSection.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
-import { moduleTooltipKey, type TooltipScope } from 'src/utils/tooltipScope';
-import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
-import PlannerPurchaseRows from 'src/components/organisms/planner/PlannerPurchaseRows.vue';
-import PlannerResearchFacilityRows from 'src/components/organisms/planner/PlannerResearchFacilityRows.vue';
-import PlannerSubmoduleBudget from 'src/components/organisms/planner/PlannerSubmoduleBudget.vue';
-import PlannerReferenceYearDialog from 'src/components/organisms/planner/PlannerReferenceYearDialog.vue';
-import { CURRENCY_OPTIONS, currencyLabel } from 'src/constant/currencies';
+import { moduleTooltipKey, type TooltipScope } from '@/utils/tooltipScope';
+import PlannerHeadcountRows from '@/components/organisms/planner/PlannerHeadcountRows.vue';
+import PlannerPurchaseRows from '@/components/organisms/planner/PlannerPurchaseRows.vue';
+import PlannerResearchFacilityRows from '@/components/organisms/planner/PlannerResearchFacilityRows.vue';
+import PlannerSubmoduleBudget from '@/components/organisms/planner/PlannerSubmoduleBudget.vue';
+import PlannerReferenceYearDialog from '@/components/organisms/planner/PlannerReferenceYearDialog.vue';
+import { CURRENCY_OPTIONS, currencyLabel } from '@/constant/currencies';
 import {
   PLANNER_MODULES,
   type PlannerModuleConfig,
-} from 'src/constant/planner-module-config';
+} from '@/constant/planner-module-config';
 import {
   getPlannerModuleConfig,
   type PlannerSelfTraveler,
-} from 'src/constant/planner-module-config/module-configs';
-import { getModuleTypeId } from 'src/constant/moduleStates';
+} from '@/constant/planner-module-config/module-configs';
+import { getModuleTypeId } from '@/constant/moduleStates';
 import {
   MODULES,
   SUBMODULE_EQUIPMENT_TYPES,
   type Module,
-} from 'src/constant/modules';
-import { useAuthStore } from 'src/stores/auth';
-import { useModuleStore } from 'src/stores/modules';
-import { factorMountKey } from 'src/utils/factor-year';
+} from '@/constant/modules';
+import { useAuthStore } from '@/stores/auth';
+import { useModuleStore } from '@/stores/modules';
+import { factorMountKey } from '@/utils/factor-year';
 import {
   useSimulatorPlansStore,
   type SimulatorPlanModule,
   type SimulatorPlanYear,
-} from 'src/stores/simulatorPlans';
+} from '@/stores/simulatorPlans';
 
 interface ModuleEntry {
   config: PlannerModuleConfig;
@@ -995,7 +995,7 @@ async function onToggleActive(entry: ModuleEntry, active: boolean) {
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 // Both states share one box so the set and unset slots stay the same size.
 // q-btn brings its own min-height / line-height; drop both so the padding

@@ -20,86 +20,13 @@
         height="200px"
         class="full-width"
       />
-      <q-card v-else flat bordered class="q-pa-none">
-        <template v-for="(m, mIdx) in modules" :key="m.type">
-          <q-separator v-if="mIdx > 0" />
-          <q-expansion-item
-            v-model="expandedModules[m.type]"
-            header-class="q-py-md"
-          >
-            <template #header>
-              <div class="flex items-center">
-                <ModuleIconBox :name="m.type" size="sm" class="q-mr-sm" />
-                <div class="text-h5 text-weight-medium">
-                  {{ $t(m.type) }}
-                </div>
-                <q-icon
-                  v-if="moduleTooltip(m.type)"
-                  :name="outlinedInfo"
-                  size="16px"
-                  color="grey-6"
-                  class="cursor-pointer q-ml-sm"
-                  :aria-label="$t('module-info-label')"
-                  @click.stop
-                >
-                  <q-tooltip
-                    anchor="center right"
-                    self="top right"
-                    class="u-tooltip"
-                  >
-                    {{ moduleTooltip(m.type) }}
-                  </q-tooltip>
-                </q-icon>
-              </div>
-            </template>
-
-            <q-separator />
-
-            <template v-if="m.type === MODULES.ResearchFacilities">
-              <PlannerResearchFacilityRows
-                v-if="carbonReportId != null"
-                :carbon-report-id="carbonReportId"
-                :factor-year="year"
-                hide-budget
-                :disable="false"
-              />
-            </template>
-            <template v-else-if="m.type === MODULES.Headcount">
-              <p class="text-body2 text-grey-7 q-px-lg q-pt-md q-mb-md">
-                {{ $t('simulation_headcount_fte_hint') }}
-              </p>
-              <PlannerHeadcountRows
-                v-if="carbonReportId != null"
-                :carbon-report-id="carbonReportId"
-                :disable="false"
-              />
-            </template>
-            <div v-else class="q-px-lg q-py-md">
-              <div
-                v-for="(sub, subIdx) in m.submodules"
-                :key="`${m.type}-${sub.id}`"
-                :class="{ 'q-mb-md': subIdx < m.submodules.length - 1 }"
-              >
-                <SubModuleSection
-                  :submodule="sub"
-                  :module-config="m.config"
-                  :module-type="m.type"
-                  :disable="false"
-                  :is-explorer="true"
-                  tooltip-scope="explorer"
-                  :submodule-type="sub.type"
-                  :data="null"
-                  :loading="false"
-                  :error="null"
-                  :unit-id="unitId"
-                  :year="year"
-                  :threshold="m.config.threshold || defaultThreshold"
-                />
-              </div>
-            </div>
-          </q-expansion-item>
-        </template>
-      </q-card>
+      <ExploreModuleExpansionList
+        v-else
+        :modules="modules"
+        :unit-id="unitId"
+        :year="year"
+        :carbon-report-id="carbonReportId"
+      />
       <q-skeleton
         v-if="!breakdownReady"
         type="rect"
@@ -161,33 +88,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
-import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
-import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
-import PlannerResearchFacilityRows from 'src/components/organisms/planner/PlannerResearchFacilityRows.vue';
-import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
-import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
-import {
-  MODULES,
-  MODULES_THRESHOLD_TYPES,
-  type Module,
-  type Threshold,
-} from 'src/constant/modules';
-import { moduleTooltipKey } from 'src/utils/tooltipScope';
-import { useModuleStore } from 'src/stores/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { getExploreModules } from 'src/utils/exploreModules';
-import { formatTonnesCO2 } from 'src/utils/number';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
+import ExploreModuleExpansionList from '@/components/organisms/module/ExploreModuleExpansionList.vue';
+import { useModuleStore } from '@/stores/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { getExploreModules } from '@/utils/exploreModules';
+import { formatTonnesCO2 } from '@/utils/number';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
 
 const router = useRouter();
 const route = useRoute();
-const { t, locale } = useI18n();
+const { locale } = useI18n();
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
@@ -218,11 +134,6 @@ const ready = computed(
     workspaceStore.selectedUnit != null && workspaceStore.selectedYear != null,
 );
 
-const defaultThreshold: Threshold = {
-  type: MODULES_THRESHOLD_TYPES[0],
-  value: 0,
-};
-
 const mountPrimaryCharts = ref(false);
 const simulatorReady = ref(false);
 // Gates the results card: until the Explorer's own breakdown is fetched, the
@@ -230,12 +141,6 @@ const simulatorReady = ref(false);
 const breakdownReady = ref(false);
 
 const modules = computed(() => getExploreModules(yearConfigStore.getModule));
-
-function moduleTooltip(module: Module): string {
-  return t(moduleTooltipKey('explorer', module));
-}
-
-const expandedModules = reactive<Record<string, boolean>>({});
 
 const totalTonnesCo2eq = computed(() => {
   const breakdown = moduleStore.state.emissionBreakdown;
@@ -260,23 +165,6 @@ async function fetchEmissionBreakdown() {
   await moduleStore.getEmissionBreakdown(carbonReportId, []);
 }
 
-async function prefetchSubmoduleCounts() {
-  // One preview_limit=0 request per module instead of one per submodule.
-  // data_entry_types_total_items covers all submodule counts in a single response.
-  await moduleStore.prefetchAllModuleCounts(
-    modules.value
-      .filter(
-        (m) =>
-          m.type !== MODULES.Headcount && m.type !== MODULES.ResearchFacilities,
-      )
-      .map((m) => ({
-        type: m.type,
-        unit: unitId.value,
-        year: String(year.value),
-      })),
-  );
-}
-
 onMounted(async () => {
   mountPrimaryCharts.value = true;
   if (unitId.value && year.value) {
@@ -288,7 +176,9 @@ onMounted(async () => {
     // so that module table requests don't 404 before the record is created.
     simulatorReady.value = true;
   }
-  await Promise.all([prefetchSubmoduleCounts(), fetchEmissionBreakdown()]);
+  // Submodule counts and per-module requests defer to a module's first
+  // expansion (ExploreModuleExpansionList) — nothing else needs them eagerly.
+  await fetchEmissionBreakdown();
   breakdownReady.value = true;
 });
 </script>

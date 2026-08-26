@@ -239,9 +239,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { MODULES } from 'src/constant/modules';
-import type { TripLeg } from 'src/stores/modules';
-import { formatKgCo2eq, niceCeil } from 'src/utils/number';
+import { MODULES } from '@/constant/modules';
+import type { TripLeg } from '@/stores/modules';
+import { formatKgCo2eq, niceCeil } from '@/utils/number';
 import {
   CO2_RAMP_CSS,
   LINE_COLOR_EXPR,
@@ -253,7 +253,7 @@ import {
   travelerRouteKeys,
   legsToRender,
   toggleTravelerSelection,
-} from 'src/utils/trips-map';
+} from '@/utils/trips-map';
 
 const props = withDefaults(
   defineProps<{

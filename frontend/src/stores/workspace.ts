@@ -2,8 +2,10 @@ import { defineStore } from 'pinia';
 import { HTTPError } from 'ky';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
-import { api } from 'src/api/http';
-import type { SimulatorPlan } from 'src/stores/simulatorPlans';
+import { api } from '@/api/http';
+import type { SimulatorPlan } from '@/stores/simulatorPlans';
+import { useModuleStore } from '@/stores/modules';
+import { CARBON_PROJECT } from '@/constant/carbon-project';
 
 export interface Unit {
   id: number;
@@ -193,6 +195,9 @@ export const useWorkspaceStore = defineStore(
       referenceYear: number,
     ) {
       const url = `carbon-reports/simulator/explore/unit/${unitId}/reference-year/${referenceYear}/`;
+      // Grabbed before the first await: first-time store instantiation reads
+      // the active route, which needs a live component context to inject.
+      const moduleStore = useModuleStore();
       let inv: CarbonReport;
       try {
         // 404 is expected here — the catch branch creates the explore report.
@@ -208,6 +213,14 @@ export const useWorkspaceStore = defineStore(
         }
       }
       selectedCarbonReport.value = inv;
+      // Seed the module store's cache so every module component's later
+      // resolveCarbonReportId for this unit/year hits cache (#2360 follow-up).
+      moduleStore.seedReportId(
+        unitId,
+        referenceYear,
+        CARBON_PROJECT.explorer,
+        inv.id,
+      );
       return inv;
     }
 

@@ -36,7 +36,7 @@ from sqlalchemy import text
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.tasks._pod_id import POD_ID
+from app.tasks._pod_id import POD_ID, POD_IP
 
 logger = get_logger(__name__)
 
@@ -62,14 +62,17 @@ async def _upsert_pod_row(*, started_at: datetime) -> None:
         stmt = text(
             """
             INSERT INTO pods (
-                pod_id, git_sha, app_version, started_at, last_heartbeat_at
+                pod_id, git_sha, app_version, pod_ip, started_at,
+                last_heartbeat_at
             )
             VALUES (
-                :pod_id, :git_sha, :app_version, :started_at, :last_heartbeat_at
+                :pod_id, :git_sha, :app_version, :pod_ip, :started_at,
+                :last_heartbeat_at
             )
             ON CONFLICT (pod_id) DO UPDATE SET
                 git_sha = EXCLUDED.git_sha,
                 app_version = EXCLUDED.app_version,
+                pod_ip = EXCLUDED.pod_ip,
                 last_heartbeat_at = EXCLUDED.last_heartbeat_at
             """
         )
@@ -79,6 +82,12 @@ async def _upsert_pod_row(*, started_at: datetime) -> None:
                 "pod_id": POD_ID,
                 "git_sha": settings.GIT_SHA,
                 "app_version": settings.APP_VERSION,
+                # Refreshed on every tick (unlike started_at) — a Deployment
+                # (no stable network identity like a StatefulSet) can reuse
+                # a POD_ID only by coincidence, and its IP changes across
+                # restarts, so a stale value here would silently misdirect
+                # every other pod's broadcast POST (#2258 follow-up).
+                "pod_ip": POD_IP,
                 # ``started_at`` is the loop's first-tick value;
                 # the ON CONFLICT clause deliberately omits it so a
                 # subsequent heartbeat doesn't reset it.

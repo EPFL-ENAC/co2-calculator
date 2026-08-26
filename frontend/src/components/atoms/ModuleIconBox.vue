@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
 import {
   getModuleIconColors,
   makeBoxBackground,
-} from 'src/composables/useModuleIconColors';
+} from '@/composables/useModuleIconColors';
 
 const props = withDefaults(
   defineProps<{
@@ -35,7 +35,7 @@ const colors = computed(() =>
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .module-icon-box {
   display: inline-flex;

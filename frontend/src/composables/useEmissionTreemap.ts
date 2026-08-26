@@ -1,11 +1,11 @@
 import {
   CHART_CATEGORY_COLOR_SCHEMES,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
-} from 'src/constant/charts';
+} from '@/constant/charts';
 import type {
   EmissionBreakdownCategoryRow,
   EmissionBreakdownValue,
-} from 'src/stores/modules';
+} from '@/stores/modules';
 
 export interface EmissionTreemapChild {
   name: string;

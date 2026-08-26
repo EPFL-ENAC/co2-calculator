@@ -7,18 +7,18 @@ import {
   getMergedResultsSummary,
   type ResultsSummary,
   type ModuleResult,
-} from 'src/api/modules';
-import { MODULES, MODULES_LIST, type Module } from 'src/constant/modules';
-import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
-import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
+} from '@/api/modules';
+import { MODULES, MODULES_LIST, type Module } from '@/constant/modules';
+import { IT_FOCUS_SOURCE_MODULES } from '@/constant/itFocus';
+import { getModuleTypeId, MODULE_STATES } from '@/constant/moduleStates';
 import {
   useModuleStore,
   useTimelineStore,
   type MergedUnitsContext,
-} from 'src/stores/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { buildUnitPerimeterLabel } from 'src/utils/unitPerimeterLabel';
+} from '@/stores/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { buildUnitPerimeterLabel } from '@/utils/unitPerimeterLabel';
 
 export function useResultsPrintData() {
   const route = useRoute();
@@ -129,12 +129,12 @@ export function useResultsPrintData() {
 
   const modulesConfig = ref<Record<
     string,
-    import('src/constant/moduleConfig').ModuleConfig
+    import('@/constant/moduleConfig').ModuleConfig
   > | null>(null);
 
   const loadModulesConfig = async () => {
     if (!modulesConfig.value) {
-      const { MODULES_CONFIG } = await import('src/constant/module-config');
+      const { MODULES_CONFIG } = await import('@/constant/module-config');
       modulesConfig.value = MODULES_CONFIG;
     }
   };

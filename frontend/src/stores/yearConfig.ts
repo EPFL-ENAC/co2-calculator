@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 import {
   MODULE_SUBMODULES,
   type SubmoduleConfig as ModuleUploadConfig,
   type SubmoduleConfig as StaticSubmoduleConfig,
-} from 'src/constant/backoffice-module-config';
-import { type Module } from 'src/constant/modules';
+} from '@/constant/backoffice-module-config';
+import { type Module } from '@/constant/modules';
 
 export interface FileMetadata {
   path: string;

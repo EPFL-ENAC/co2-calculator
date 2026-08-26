@@ -37,13 +37,13 @@ import { onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 import {
   PLANNER_HEADCOUNT_CODES as HEADCOUNT_CODES,
   PLANNER_HEADCOUNT_SUBMODULE,
   plannerHeadcountLabelKey,
-} from 'src/constant/planner-headcount';
-import { useModuleStore } from 'src/stores/modules';
+} from '@/constant/planner-headcount';
+import { useModuleStore } from '@/stores/modules';
 
 interface HeadcountRow {
   sius_code: string;
@@ -129,7 +129,7 @@ onMounted(load);
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .headcount-table {
   &__row {

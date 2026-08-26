@@ -1,7 +1,7 @@
-import { useAuthStore } from 'src/stores/auth';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { PermissionAction } from 'src/utils/permission';
-import type { Module } from 'src/constant/modules';
+import { useAuthStore } from '@/stores/auth';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { PermissionAction } from '@/utils/permission';
+import type { Module } from '@/constant/modules';
 
 /**
  * Single source of truth for "does this module render normally, or

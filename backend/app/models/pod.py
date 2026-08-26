@@ -21,11 +21,14 @@ Lifecycle:
   of the live list within ~1 minute.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import Column
 from sqlalchemy import DateTime as SADateTime
 from sqlmodel import Field, SQLModel
+
+from app.core.config import get_settings
+from app.utils.datetime_utc import as_utc
 
 
 class Pod(SQLModel, table=True):
@@ -46,6 +49,10 @@ class Pod(SQLModel, table=True):
     # scenario that surfaced this requirement.
     git_sha: str | None = Field(default=None, max_length=64)
     app_version: str | None = Field(default=None, max_length=64)
+    # Routable pod IP (Kubernetes Downward API ``status.podIP``). ``None``
+    # outside Kubernetes (local dev) — a pod with no IP is simply never a
+    # broadcast target for cross-pod cache invalidation (#2258 follow-up).
+    pod_ip: str | None = Field(default=None, max_length=64)
     # When this pod first registered.  Differs from
     # ``last_heartbeat_at`` so the UI can show "pod uptime" alongside
     # "heartbeat age".  ``timezone=True`` so asyncpg / psycopg
@@ -60,3 +67,24 @@ class Pod(SQLModel, table=True):
     last_heartbeat_at: datetime = Field(
         sa_column=Column(SADateTime(timezone=True), nullable=False)
     )
+
+
+def live_cutoff() -> datetime:
+    """Heartbeat cutoff before which a pod counts as dead.
+
+    2x ``POD_HEARTBEAT_INTERVAL_SECONDS`` absorbs one missed tick
+    (transient DB hiccup) without declaring the pod dead — see
+    ``app.tasks._pod_heartbeat``. Single source of truth for the three
+    call sites that each need "is this pod still live": the workers
+    list, the cross-pod cache broadcast, and the internal endpoint that
+    authorizes it.
+    """
+    settings = get_settings()
+    return datetime.now(UTC) - timedelta(
+        seconds=2 * settings.POD_HEARTBEAT_INTERVAL_SECONDS
+    )
+
+
+def is_live(pod: Pod, cutoff: datetime) -> bool:
+    """True when ``pod`` heartbeated at or after ``cutoff``."""
+    return as_utc(pod.last_heartbeat_at) >= cutoff

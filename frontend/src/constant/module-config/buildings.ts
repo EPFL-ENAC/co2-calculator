@@ -1,8 +1,8 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { SUBMODULE_BUILDINGS_TYPES, MODULES } from 'src/constant/modules';
-import type { BuildingsSubType, Module } from 'src/constant/modules';
-import { formatTonnesCO2 } from 'src/utils/number';
-import type { AllSubmoduleTypes } from 'src/constant/modules';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { SUBMODULE_BUILDINGS_TYPES, MODULES } from '@/constant/modules';
+import type { BuildingsSubType, Module } from '@/constant/modules';
+import { formatTonnesCO2 } from '@/utils/number';
+import type { AllSubmoduleTypes } from '@/constant/modules';
 
 const roomFields: ModuleField[] = [
   {
