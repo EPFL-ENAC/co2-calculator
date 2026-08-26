@@ -6,8 +6,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.factor_taxonomy_cache import taxonomy_cache
-from app.core.taxonomy_cache_broadcast import broadcast_taxonomy_cache_clear
+from app.core.taxonomy_cache_broadcast import schedule_taxonomy_cache_invalidation
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
@@ -79,13 +78,12 @@ class FactorRepository:
         self.session = session
 
     async def _invalidate_taxonomy_cache(self) -> None:
-        """Clear the local taxonomy cache, then best-effort broadcast the
-        clear to every other live pod (#2258 follow-up) — see
-        ``app.core.taxonomy_cache_broadcast`` for the invalidation story
-        and why the 60s TTL stays in place regardless.
+        """Queue a taxonomy-cache clear + cross-pod broadcast for once
+        this write's transaction actually commits (#2258 follow-up) —
+        see ``app.core.taxonomy_cache_broadcast`` for why this can't
+        fire at flush time and why the 60s TTL stays in place regardless.
         """
-        taxonomy_cache.clear()
-        await broadcast_taxonomy_cache_clear(self.session)
+        await schedule_taxonomy_cache_invalidation(self.session)
 
     async def get(self, id: int) -> Factor | None:
         """Get factor by ID."""

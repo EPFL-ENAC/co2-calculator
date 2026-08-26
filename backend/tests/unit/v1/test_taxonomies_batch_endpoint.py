@@ -160,6 +160,37 @@ def test_batch_route_wins_over_single_entry_catch_all():
 
 
 @pytest.mark.asyncio
+async def test_batch_endpoint_isolates_a_per_entry_runtime_failure():
+    """#2258 follow-up: a per-entry runtime failure (not a request-shape
+    bug like an unknown/mismatched entry — see the 404/400 tests above)
+    must not blank every other, already-resolved entry in the batch.
+    """
+    fake_db = object()
+    fake_user = object()
+
+    async def _flaky_get_taxonomy(handler, data_entry_type, year):
+        if data_entry_type.name == "it":
+            raise RuntimeError("transient DB hiccup")
+        return _fake_taxonomy(data_entry_type)
+
+    with patch.object(
+        taxonomies_mod.ModuleHandlerService,
+        "get_taxonomy",
+        new=AsyncMock(side_effect=_flaky_get_taxonomy),
+    ):
+        batched = await taxonomies_mod.get_taxonomies_for_module_data_entries(
+            response=Response(),
+            module="equipment",
+            entries=["scientific", "it", "other"],
+            year=2025,
+            db=fake_db,
+            current_user=fake_user,
+        )
+
+    assert set(batched.keys()) == {"scientific", "other"}
+
+
+@pytest.mark.asyncio
 async def test_batch_endpoint_still_sets_the_cache_header():
     """The batch route must carry the same ``Cache-Control`` as the
     single-entry one.

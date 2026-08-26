@@ -1,10 +1,12 @@
 """Tests for FactorRepository."""
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core import taxonomy_cache_broadcast as taxonomy_cache_broadcast_mod
 from app.core.factor_taxonomy_cache import taxonomy_cache
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
@@ -14,8 +16,19 @@ from app.repositories.factor_repo import FactorRepository
 
 
 @pytest.fixture
-def repo():
+def repo(monkeypatch):
+    """FactorRepository over a bare MagicMock session.
+
+    For tests that only care about query construction / return values.
+    Taxonomy-cache invalidation now hooks real SQLAlchemy session
+    events (commit-gated, #2258) and can't run against a mock session —
+    stubbed out here so it stays a no-op; the dedicated section below
+    exercises the real thing against the real ``db_session`` fixture.
+    """
     session = MagicMock()
+    monkeypatch.setattr(
+        factor_repo_mod, "schedule_taxonomy_cache_invalidation", AsyncMock()
+    )
     return FactorRepository(session)
 
 
@@ -24,19 +37,6 @@ def _clear_taxonomy_cache():
     taxonomy_cache.clear()
     yield
     taxonomy_cache.clear()
-
-
-@pytest.fixture(autouse=True)
-def _no_op_broadcast(monkeypatch):
-    """The cross-pod broadcast (#2258 follow-up) has its own dedicated
-    tests in test_taxonomy_cache_broadcast.py — a no-op here keeps every
-    write-method test above focused on local cache invalidation without
-    each one having to stub a ``pods`` table query on its mock session.
-    """
-    monkeypatch.setattr(
-        "app.repositories.factor_repo.broadcast_taxonomy_cache_clear",
-        AsyncMock(),
-    )
 
 
 @pytest.mark.asyncio
@@ -399,16 +399,32 @@ async def test_list_by_emission_types_empty_input_queries_nothing(db_session):
 
 
 # ======================================================================
-# #2258 — every factor write invalidates the taxonomy cache
+# #2258 — every factor write invalidates the taxonomy cache, but only
+# once the write actually commits (never at flush time — a concurrent
+# reader between flush and commit would otherwise repopulate the cache
+# with the pre-write data it still sees under READ COMMITTED). These
+# use the real ``db_session`` fixture, not the mock ``repo`` fixture:
+# the deferral hooks real SQLAlchemy session events, which a MagicMock
+# session can't participate in.
 # ======================================================================
 
 
+async def _create_factor(repo, db_session) -> Factor:
+    factor = Factor(
+        emission_type_id=EmissionType.food,
+        data_entry_type_id=DataEntryTypeEnum.member,
+        classification={},
+        values={},
+    )
+    db_session.add(factor)
+    await db_session.flush()
+    return factor
+
+
 @pytest.mark.asyncio
-async def test_create_invalidates_taxonomy_cache(repo):
+async def test_create_defers_taxonomy_cache_clear_until_commit(db_session):
+    repo = FactorRepository(db_session)
     taxonomy_cache.set(("stale-key",), "stale-tree")
-    repo.session.add = MagicMock()
-    repo.session.flush = AsyncMock()
-    repo.session.refresh = AsyncMock()
 
     await repo.create(
         Factor(
@@ -418,20 +434,24 @@ async def test_create_invalidates_taxonomy_cache(repo):
             values={},
         )
     )
+    assert taxonomy_cache.get(("stale-key",)) == "stale-tree"
 
+    await db_session.commit()
     assert taxonomy_cache.get(("stale-key",)) is None
 
 
 @pytest.mark.asyncio
-async def test_create_broadcasts_cache_clear_to_other_pods(repo):
-    """Pins the wiring (#2258 follow-up): a write must call the cross-pod
-    broadcast, not just the local ``clear()`` — a refactor that drops
-    this call would otherwise leave every other test above green while
-    silently regressing cross-pod staleness back to ~120s.
+async def test_create_broadcasts_cache_clear_to_other_pods_after_commit(
+    db_session, monkeypatch
+):
+    """Pins the wiring (#2258 follow-up): a write must eventually call the
+    cross-pod broadcast, not just the local ``clear()`` — a refactor that
+    drops this call would otherwise leave every other test above green
+    while silently regressing cross-pod staleness back to ~120s.
     """
-    repo.session.add = MagicMock()
-    repo.session.flush = AsyncMock()
-    repo.session.refresh = AsyncMock()
+    post_clear = AsyncMock()
+    monkeypatch.setattr(taxonomy_cache_broadcast_mod, "_post_clear_to", post_clear)
+    repo = FactorRepository(db_session)
 
     await repo.create(
         Factor(
@@ -441,24 +461,25 @@ async def test_create_broadcasts_cache_clear_to_other_pods(repo):
             values={},
         )
     )
+    post_clear.assert_not_awaited()
 
-    factor_repo_mod.broadcast_taxonomy_cache_clear.assert_awaited_once_with(
-        repo.session
-    )
+    await db_session.commit()
+    await asyncio.sleep(0)  # let the fire_and_forget task run
+
+    post_clear.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_update_invalidates_taxonomy_cache(repo):
+async def test_update_defers_taxonomy_cache_clear_until_commit(db_session):
+    repo = FactorRepository(db_session)
+    factor = await _create_factor(repo, db_session)
+    await db_session.commit()
     taxonomy_cache.set(("stale-key",), "stale-tree")
-    factor = SimpleNamespace(id=1, name="old")
-    result_mock = MagicMock()
-    result_mock.one_or_none.return_value = factor
-    repo.session.exec = AsyncMock(return_value=result_mock)
-    repo.session.flush = AsyncMock()
-    repo.session.refresh = AsyncMock()
 
-    await repo.update(1, {"name": "new"})
+    await repo.update(factor.id, {"values": {"co2": 1}})
+    assert taxonomy_cache.get(("stale-key",)) == "stale-tree"
 
+    await db_session.commit()
     assert taxonomy_cache.get(("stale-key",)) is None
 
 
@@ -476,42 +497,43 @@ async def test_update_not_found_leaves_cache_untouched(repo):
 
 
 @pytest.mark.asyncio
-async def test_delete_invalidates_taxonomy_cache(repo):
+async def test_delete_defers_taxonomy_cache_clear_until_commit(db_session):
+    repo = FactorRepository(db_session)
+    factor = await _create_factor(repo, db_session)
+    await db_session.commit()
     taxonomy_cache.set(("stale-key",), "stale-tree")
-    factor = SimpleNamespace(id=1)
-    result_mock = MagicMock()
-    result_mock.one_or_none.return_value = factor
-    repo.session.exec = AsyncMock(return_value=result_mock)
-    repo.session.delete = AsyncMock()
-    repo.session.flush = AsyncMock()
 
-    await repo.delete(1)
+    await repo.delete(factor.id)
+    assert taxonomy_cache.get(("stale-key",)) == "stale-tree"
 
+    await db_session.commit()
     assert taxonomy_cache.get(("stale-key",)) is None
 
 
 @pytest.mark.asyncio
-async def test_bulk_delete_invalidates_taxonomy_cache(repo):
+async def test_bulk_delete_defers_taxonomy_cache_clear_until_commit(db_session):
+    repo = FactorRepository(db_session)
+    factor = await _create_factor(repo, db_session)
+    await db_session.commit()
     taxonomy_cache.set(("stale-key",), "stale-tree")
-    result_mock = MagicMock()
-    result_mock.all.return_value = [SimpleNamespace(id=1)]
-    repo.session.exec = AsyncMock(return_value=result_mock)
-    repo.session.delete = AsyncMock()
-    repo.session.flush = AsyncMock()
 
-    await repo.bulk_delete([1])
+    await repo.bulk_delete([factor.id])
+    assert taxonomy_cache.get(("stale-key",)) == "stale-tree"
 
+    await db_session.commit()
     assert taxonomy_cache.get(("stale-key",)) is None
 
 
 @pytest.mark.asyncio
-async def test_delete_stale_for_year_invalidates_taxonomy_cache(db_session):
+async def test_delete_stale_for_year_defers_taxonomy_cache_clear_until_commit(
+    db_session,
+):
     """Exercises the real ingestion sweep path (#2258): a factor CSV upload
     that supersedes rows for a (det, year) must not leave the previous
-    upload's cached taxonomy tree being served afterwards.
+    upload's cached taxonomy tree being served afterwards — but only
+    once the sweep is actually durable.
     """
     repo = FactorRepository(db_session)
-    taxonomy_cache.set(("stale-key",), "stale-tree")
     db_session.add(
         Factor(
             emission_type_id=EmissionType.food.value,
@@ -523,9 +545,61 @@ async def test_delete_stale_for_year_invalidates_taxonomy_cache(db_session):
         )
     )
     await db_session.flush()
+    taxonomy_cache.set(("stale-key",), "stale-tree")
 
     await repo.delete_stale_for_year(
         2025, det_ids=[DataEntryTypeEnum.member.value], threshold_job_id=2
     )
+    assert taxonomy_cache.get(("stale-key",)) == "stale-tree"
 
+    await db_session.commit()
     assert taxonomy_cache.get(("stale-key",)) is None
+
+
+@pytest.mark.asyncio
+async def test_rollback_never_invalidates_taxonomy_cache(db_session):
+    """A rolled-back write must never clear the cache — nothing changed."""
+    repo = FactorRepository(db_session)
+    taxonomy_cache.set(("stale-key",), "stale-tree")
+
+    await repo.create(
+        Factor(
+            emission_type_id=EmissionType.food,
+            data_entry_type_id=DataEntryTypeEnum.member,
+            classification={},
+            values={},
+        )
+    )
+    await db_session.rollback()
+
+    assert taxonomy_cache.get(("stale-key",)) == "stale-tree"
+
+
+@pytest.mark.asyncio
+async def test_multiple_writes_in_one_transaction_broadcast_once(
+    db_session, monkeypatch
+):
+    """#2258 follow-up: several writes on the same session/transaction
+    (e.g. a factor-recompute job looping per-row, all under one commit)
+    must collapse into a single post-commit clear + broadcast, not one
+    per write — otherwise a large recompute turns one logical
+    invalidation into hundreds of redundant cross-pod broadcasts.
+    """
+    post_clear = AsyncMock()
+    monkeypatch.setattr(taxonomy_cache_broadcast_mod, "_post_clear_to", post_clear)
+    repo = FactorRepository(db_session)
+
+    for _ in range(3):
+        await repo.create(
+            Factor(
+                emission_type_id=EmissionType.food,
+                data_entry_type_id=DataEntryTypeEnum.member,
+                classification={},
+                values={},
+            )
+        )
+
+    await db_session.commit()
+    await asyncio.sleep(0)
+
+    post_clear.assert_awaited_once()

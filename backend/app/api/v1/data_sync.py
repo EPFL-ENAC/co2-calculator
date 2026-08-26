@@ -1,7 +1,7 @@
 import asyncio
 import enum
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi import (
@@ -37,7 +37,7 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
-from app.models.pod import Pod
+from app.models.pod import Pod, is_live, live_cutoff
 from app.models.unit import Unit
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
@@ -1203,10 +1203,8 @@ async def list_workers(
     visible in one screen.
 
     """
-    settings = get_settings()
-    live_window = 2 * settings.POD_HEARTBEAT_INTERVAL_SECONDS
     now = datetime.now(UTC)
-    cutoff = now - timedelta(seconds=live_window)
+    cutoff = live_cutoff()
 
     # Live pods only — pods whose process crashed leave a row behind
     # until the next deploy, and we don't want them showing as
@@ -1222,7 +1220,7 @@ async def list_workers(
         .all()
     )
 
-    pods = [p for p in pods_all if as_utc(p.last_heartbeat_at) >= cutoff]
+    pods = [p for p in pods_all if is_live(p, cutoff)]
     if not pods:
         return []
 

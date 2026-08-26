@@ -5,6 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.factor_taxonomy_cache import TAXONOMY_CACHE_TTL_SECONDS
+from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
     ModuleTypeEnum,
@@ -15,6 +16,8 @@ from app.models.user import User
 from app.schemas.data_entry import BaseModuleHandler
 from app.schemas.taxonomy import TaxonomyNode
 from app.services.module_handler_service import ModuleHandlerService
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -173,13 +176,31 @@ async def get_taxonomies_for_module_data_entries(
     round trips into one call per module (#2049 T6). Each entry still
     resolves through get_taxonomy_for_data_entry_type, so it hits/populates
     the same (data_entry_type, year) cache a single-entry call would.
+
+    An ``HTTPException`` (bad entry name, entry not in this module) means
+    the request itself is malformed — that's not one submodule's problem,
+    it propagates and fails the whole batch. Any other exception is a
+    per-entry runtime failure (e.g. a transient DB hiccup) and must not
+    blank every other, already-resolved entry in the batch (#2258
+    follow-up) — logged loud and the entry is left out of the response
+    rather than silently rendered as an empty taxonomy.
     """
-    return {
-        entry: await _resolve_module_data_entry_taxonomy(
-            response, module, entry, year, db, current_user
-        )
-        for entry in entries
-    }
+    results: dict[str, TaxonomyNode] = {}
+    for entry in entries:
+        try:
+            results[entry] = await _resolve_module_data_entry_taxonomy(
+                response, module, entry, year, db, current_user
+            )
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception(
+                "get_taxonomies_for_module_data_entries: entry %r of module "
+                "%r failed, omitting it from the batch response",
+                entry,
+                module,
+            )
+    return results
 
 
 @router.get(

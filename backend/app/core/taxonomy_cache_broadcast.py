@@ -18,19 +18,25 @@ which stays in place as the fallback, not a replacement.
 """
 
 import asyncio
-from datetime import UTC, datetime, timedelta
 
 import httpx
+from sqlalchemy import event
+from sqlalchemy.orm import Session
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
+from app.core.factor_taxonomy_cache import taxonomy_cache
 from app.core.logging import get_logger
-from app.models.pod import Pod
+from app.models.pod import Pod, is_live, live_cutoff
+from app.tasks._background import fire_and_forget
 from app.tasks._pod_id import POD_ID
-from app.utils.datetime_utc import as_utc
 
 logger = get_logger(__name__)
+
+# ``Session.info`` key marking "a post-commit clear is already queued for
+# this session" — collapses N writes in one transaction into one clear.
+_PENDING_INFO_KEY = "taxonomy_cache_invalidation_pending"
 
 # Bounds one write's added latency to ~one round trip no matter how many
 # pods are live — see module docstring. The TTL is the fallback for
@@ -44,15 +50,12 @@ async def _live_other_pods(session: AsyncSession) -> list[Pod]:
     """Every other pod with a known IP, heartbeating within the same
     2x-interval live window the workers view uses (``GET /v1/sync/workers``).
     """
-    settings = get_settings()
-    cutoff = datetime.now(UTC) - timedelta(
-        seconds=2 * settings.POD_HEARTBEAT_INTERVAL_SECONDS
-    )
+    cutoff = live_cutoff()
     result = await session.execute(select(Pod).where(col(Pod.pod_id) != POD_ID))
     return [
         pod
         for pod in result.scalars().all()
-        if pod.pod_ip is not None and as_utc(pod.last_heartbeat_at) >= cutoff
+        if pod.pod_ip is not None and is_live(pod, cutoff)
     ]
 
 
@@ -76,6 +79,17 @@ async def _clear_remote(client: httpx.AsyncClient, pod: Pod) -> None:
         )
 
 
+async def _post_clear_to(live_others: list[Pod]) -> None:
+    """POST the internal cache-clear endpoint to every pod in ``live_others``."""
+    if not live_others:
+        return
+    async with httpx.AsyncClient(timeout=BROADCAST_TIMEOUT_SECONDS) as client:
+        await asyncio.gather(
+            *(_clear_remote(client, pod) for pod in live_others),
+            return_exceptions=True,
+        )
+
+
 async def broadcast_taxonomy_cache_clear(session: AsyncSession) -> None:
     """Best-effort fan-out of a taxonomy-cache clear to every other live pod.
 
@@ -83,12 +97,44 @@ async def broadcast_taxonomy_cache_clear(session: AsyncSession) -> None:
     ``FactorRepository`` write site. Never raises — a broadcast failure
     must never fail the write itself.
     """
-    live_others = await _live_other_pods(session)
-    if not live_others:
-        return
+    await _post_clear_to(await _live_other_pods(session))
 
-    async with httpx.AsyncClient(timeout=BROADCAST_TIMEOUT_SECONDS) as client:
-        await asyncio.gather(
-            *(_clear_remote(client, pod) for pod in live_others),
-            return_exceptions=True,
-        )
+
+async def schedule_taxonomy_cache_invalidation(session: AsyncSession) -> None:
+    """Clear the taxonomy cache (+ broadcast) once ``session`` actually
+    commits — never at flush time.
+
+    Clearing early is worse than not clearing at all: the write is
+    still uncommitted, so a concurrent reader (this pod or another)
+    still sees pre-write rows under READ COMMITTED and would repopulate
+    the now-empty cache with stale data for a fresh TTL. Registering a
+    one-shot ``after_commit`` hook on the session's underlying sync
+    ``Session`` guarantees the clear only ever fires once the write is
+    durable and visible to every other transaction.
+
+    Who's live is read up front (a plain, unrelated-table lookup that's
+    safe to run before commit — it doesn't depend on the pending write)
+    so the deferred half needs no session of its own: only the actual
+    clear + POSTs, which must reflect the write, wait for commit.
+
+    ``FactorRepository`` may call this several times inside one
+    transaction (e.g. an upsert followed by ``delete_stale_for_year``);
+    the ``info`` flag collapses those into a single post-commit clear.
+    A rollback never fires ``after_commit`` at all, so a rolled-back
+    write correctly triggers no invalidation — the still-registered
+    hook just waits for whatever commit eventually happens on this
+    session, if any.
+    """
+    sync_session = session.sync_session
+    if sync_session.info.get(_PENDING_INFO_KEY):
+        return
+    sync_session.info[_PENDING_INFO_KEY] = True
+
+    live_others = await _live_other_pods(session)
+
+    def _on_commit(sync_sess: Session) -> None:
+        sync_sess.info[_PENDING_INFO_KEY] = False
+        taxonomy_cache.clear()
+        fire_and_forget(_post_clear_to(live_others), name="taxonomy-cache-broadcast")
+
+    event.listen(sync_session, "after_commit", _on_commit, once=True)

@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2258
-last_updated: 2026-08-21
+last_updated: 2026-08-26
 title: "Cache the factors query behind taxonomy lookups"
 summary: "Process-local TTL cache for ModuleHandlerService.get_taxonomy, keyed on (data_entry_type, year), invalidated on every FactorRepository write and backstopped by a 60s TTL for the cross-process case ingestion runs in a separate worker deployment. Follow-up: active cross-pod invalidation broadcast on top of the TTL, dropping worst-case staleness from ~120s to the time one broadcast round-trip takes."
 ---
@@ -96,21 +96,24 @@ server TTL, so a browser can serve its own cached response for up to
 stale. That combined ~120s bound is the number a maintainer is actually
 signing off on below.
 
-There is also a smaller, same-process gap: `FactorRepository` calls
-`taxonomy_cache.clear()` at `session.flush()`/`session.execute()` time,
-not at commit — per the guardrails, the commit happens in the route.
-A write that later rolls back has over-evicted (free, harmless), but a
-read on another connection between this flush and the eventual commit
-can repopulate the cache with pre-commit data, which then lives for one
-more TTL window. This doesn't change the staleness ceiling above — the
-TTL still bounds it — but it does mean the ceiling isn't purely
-"time since ingestion finished."
+**Resolved:** `FactorRepository` used to call `taxonomy_cache.clear()` at
+`session.flush()`/`session.execute()` time, not at commit — per the
+guardrails, the commit happens in the route. A read on another
+connection between that flush and the eventual commit would repopulate
+the cache with pre-commit data, for a fresh TTL window — invalidating
+_before_ the write was durable made staleness worse than not
+invalidating at all, on top of the ~120s bound above.
 
-**Open question for a maintainer:** is a ~120s worst-case staleness
-window for factor data after an ingestion job completes acceptable, or
-does this need a real cross-process invalidation mechanism (pub/sub,
-Redis, or a version counter read from the DB) before merging? The PR is
-opened as a draft pending this confirmation.
+Fixed: `FactorRepository._invalidate_taxonomy_cache` now calls
+`app.core.taxonomy_cache_broadcast.schedule_taxonomy_cache_invalidation`,
+which registers a one-shot `after_commit` hook on the session (plain
+`sqlalchemy.event.listen`, no new dependency) instead of clearing
+inline. The local `clear()` and the cross-pod broadcast both fire only
+once the write is durable; a rollback never fires `after_commit` at
+all, so it correctly triggers no invalidation. Multiple writes on one
+session/transaction (e.g. a factor-recompute job's per-row loop)
+collapse into a single post-commit clear + broadcast via a pending flag
+on `session.info`, instead of one redundant broadcast per row.
 
 ## What wasn't verified
 
@@ -145,8 +148,10 @@ reasoning from the code:
   re-query.
 - `backend/tests/unit/repositories/test_factor_repo.py` — `create`,
   `update`, `delete`, `bulk_delete`, and `delete_stale_for_year` each
-  invalidate a pre-populated cache entry; a no-op `update` (factor not
-  found) leaves the cache untouched.
+  defer invalidating a pre-populated cache entry until commit (not at
+  flush); a no-op `update` (factor not found) leaves the cache
+  untouched; a rollback never invalidates; several writes on the same
+  transaction broadcast exactly once.
 
 ## Not in scope
 
@@ -204,4 +209,61 @@ live pod, skips self/stale/no-IP pods, one pod's failure doesn't stop
 the others or raise), `test_internal_cache_endpoint.py` (clears the
 local cache for a live-pod caller, 403s otherwise), plus a wiring
 assertion in `test_factor_repo.py` that a write actually calls the
-broadcast.
+broadcast (after commit — see "Resolved" above).
+
+## Follow-ups parked from code review
+
+A review of this branch (`code-review`, medium effort) surfaced a few
+more findings alongside the flush-vs-commit one above. Fixed in this PR:
+
+- The batch endpoint (`GET /module/{module}/data-entries`) had no
+  per-entry error isolation: one bad entry failed the whole batch, and
+  the frontend then blanked every already-resolved submodule in it, not
+  just the failing one. Fixed: an `HTTPException` (bad entry name,
+  entry not in this module) is a request-shape bug and still fails the
+  whole batch loudly; any other exception is a per-entry runtime
+  failure, now logged loud and left out of the response instead of
+  nulling the rest.
+- The pod-liveness cutoff (`now - 2×POD_HEARTBEAT_INTERVAL_SECONDS`)
+  was hand-duplicated in three places (`taxonomy_cache_broadcast.py`,
+  `internal.py`, `data_sync.py`'s `list_workers`). Deduplicated into
+  `app.models.pod.live_cutoff()` / `is_live()`.
+
+Parked, not fixed here — each needs more than this PR's scope:
+
+- **Internal cache-clear endpoint auth is IP-based**
+  (`app/api/internal.py:_caller_is_live_pod`), which is spoofable via
+  pod-IP reuse in Kubernetes within the liveness window. Fixing this
+  properly means a real internal-auth primitive (shared token, mTLS)
+  — an architecture change that needs a maintainer's sign-off, not an
+  improvised fix while they're away.
+- **Cached `TaxonomyNode` is a shared, mutable object.**
+  `model_config = ConfigDict(frozen=True)` only blocks attribute
+  _reassignment_ (`node.label = "x"`), not mutation of the contained
+  `children` list/`classification` dict (`node.children.append(...)`)
+  — verified empirically, not assumed. Real immutability needs
+  `children: tuple[TaxonomyNode, ...]` plus frozen mappings, which
+  cascades into `ModuleHandlerService.get_taxonomy`'s construction (it
+  currently mutates nodes in place while building the tree) and every
+  consumer. Bigger than a one-file fix; not attempted here.
+- **`_TTLCache.clear()` evicts the whole cache on any write**, not just
+  the affected `(data_entry_type, year)` keys. Threading exact keys
+  through would only fix the _local_ half — ingestion runs on a
+  separate worker deployment from the API pods serving reads (see
+  "Problem" above), so the pod doing the write is the one with nothing
+  cached to spare; the API pods that actually hold hot trees still get
+  a full `clear()` via the broadcast either way, since its wire
+  protocol (`POST /internal/cache/taxonomy/clear`, no body) carries no
+  key information. Doing this right means extending that protocol too.
+  The per-row-recompute case this would have mattered most for is
+  already fixed above (N writes on one transaction now broadcast once
+  instead of N times).
+- **The batch endpoint resolves entries sequentially, not
+  concurrently.** `asyncio.gather` over the per-entry resolution would
+  run every entry's `factor_service.list_by_data_entry_type` on the
+  _same_ `AsyncSession` from `Depends(get_db)` concurrently — SQLAlchemy
+  `AsyncSession` isn't safe for concurrent use from two coroutines at
+  once. Fixing it means giving each entry its own session, which the
+  route doesn't have a way to do today. The warm-cache path (the common
+  case) does no DB work either way, so the risk only shows up on a cold
+  batch — low enough traffic to defer.

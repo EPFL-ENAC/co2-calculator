@@ -17,17 +17,13 @@ table — no new auth machinery, just the pod registry this feature already
 needs for discovery.
 """
 
-from datetime import UTC, datetime, timedelta
-
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
-from app.core.config import get_settings
 from app.core.factor_taxonomy_cache import taxonomy_cache
-from app.models.pod import Pod
-from app.utils.datetime_utc import as_utc
+from app.models.pod import Pod, is_live, live_cutoff
 
 # include_in_schema=False: pod-to-pod only, never called by a browser. Keeping
 # it out of the public schema stops it appearing in /api/docs and in the
@@ -45,14 +41,9 @@ async def _caller_is_live_pod(db: AsyncSession, host: str | None) -> bool:
     """
     if not host:
         return False
-    settings = get_settings()
-    cutoff = datetime.now(UTC) - timedelta(
-        seconds=2 * settings.POD_HEARTBEAT_INTERVAL_SECONDS
-    )
+    cutoff = live_cutoff()
     result = await db.execute(select(Pod).where(col(Pod.pod_ip) == host))
-    return any(
-        as_utc(pod.last_heartbeat_at) >= cutoff for pod in result.scalars().all()
-    )
+    return any(is_live(pod, cutoff) for pod in result.scalars().all())
 
 
 @router.post("/cache/taxonomy/clear", status_code=status.HTTP_204_NO_CONTENT)

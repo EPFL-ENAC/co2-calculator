@@ -737,9 +737,12 @@ export const useModuleStore = defineStore('modules', () => {
         year,
       );
       for (const submoduleType of submoduleTypes) {
-        state.taxonomySubmodule[submoduleType] = markRaw(
-          taxonomies[submoduleType],
-        );
+        // A submodule the backend couldn't resolve (logged loud there,
+        // #2258 follow-up) is simply absent from the response — leave
+        // it null rather than throwing, so one bad entry doesn't blank
+        // every other, already-resolved submodule in the batch too.
+        const node = taxonomies[submoduleType];
+        state.taxonomySubmodule[submoduleType] = node ? markRaw(node) : null;
       }
     } catch (err: unknown) {
       state.error = err instanceof Error ? err.message : 'Unknown error';
