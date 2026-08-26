@@ -2,7 +2,7 @@
 """add pod_ip to pods table
 
 Revision ID: a62060da49c0
-Revises: ad1593afc72f
+Revises: ff4f9bac0339
 Create Date: 2026-08-21 21:07:39.637371
 
 """
@@ -24,7 +24,7 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "a62060da49c0"  # noqa: F841
-down_revision: str | Sequence[str] | None = "ad1593afc72f"  # noqa: F841
+down_revision: str | Sequence[str] | None = "ff4f9bac0339"  # noqa: F841
 branch_labels: str | Sequence[str] | None = None  # noqa: F841
 depends_on: str | Sequence[str] | None = None  # noqa: F841
 

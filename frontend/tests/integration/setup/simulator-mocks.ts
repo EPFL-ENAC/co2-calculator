@@ -545,6 +545,23 @@ function parseJsonBody(req: Request): Record<string, unknown> {
   }
 }
 
+// Shared shape for a module's ?preview_limit=0 totals response.
+function buildModuleTotalsResponse(
+  module: string,
+  totals: Record<number, number>,
+) {
+  return {
+    module_type: module,
+    unit: UNIT_ID,
+    year: String(YEAR),
+    data_entry_types_total_items: totals,
+    carbon_report_module_id: 100 + (MODULE_TYPE_IDS[module] ?? 0),
+    retrieved_at: '2024-01-01T00:00:00Z',
+    submodules: {},
+    totals: { total_submodules: 0, total_items: 0 },
+  };
+}
+
 export async function installExplorerInitScripts(
   context: BrowserContext,
 ): Promise<void> {
@@ -762,16 +779,7 @@ export async function mockExplorerBackend(
       SUBMODULES.filter((s) => s.module === module).forEach((s) => {
         totals[s.enumId] = rowsOf(reportId, module, s.sub).length;
       });
-      return json(route, {
-        module_type: module,
-        unit: UNIT_ID,
-        year: String(YEAR),
-        data_entry_types_total_items: totals,
-        carbon_report_module_id: 100 + (MODULE_TYPE_IDS[module] ?? 0),
-        retrieved_at: '2024-01-01T00:00:00Z',
-        submodules: {},
-        totals: { total_submodules: 0, total_items: 0 },
-      });
+      return json(route, buildModuleTotalsResponse(module, totals));
     }
 
     if (sub === 'members') {
