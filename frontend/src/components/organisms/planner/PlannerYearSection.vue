@@ -458,7 +458,6 @@
                 "
                 :project-years-count="grantYearsCount"
                 :percentage-locked="isGlobalEquipment(entry.config.module)"
-                :exclude-snapshots="isGlobalEquipment(entry.config.module)"
                 :show-grant-budgets="
                   yearData.is_grant && !isGlobalEquipment(entry.config.module)
                 "
@@ -937,7 +936,6 @@ async function refreshExpandedModule(module: Module) {
     props.unitId,
     String(props.yearData.year),
     props.yearData.id,
-    isGlobalEquipment(module),
   );
 }
 

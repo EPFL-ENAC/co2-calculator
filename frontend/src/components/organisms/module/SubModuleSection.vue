@@ -66,7 +66,6 @@
           :show-reference-columns="showReferenceColumns"
           :project-years-count="projectYearsCount"
           :percentage-locked="percentageLocked"
-          :exclude-snapshots="excludeSnapshots"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -219,8 +218,6 @@ type CommonProps = {
   projectYearsCount?: number | null;
   /** Grant equipment global mode: per-row % controls read-only (#1981). */
   percentageLocked?: boolean;
-  /** Grant equipment global mode: list only manually added entries (#1981). */
-  excludeSnapshots?: boolean;
   /** Planner Project Grant: show this submodule's budget field (#1978). */
   showGrantBudget?: boolean;
   /** The submodule's saved share of the grant budget. */
@@ -251,7 +248,6 @@ const props = withDefaults(defineProps<SubModuleSectionProps>(), {
   showReferenceColumns: undefined,
   projectYearsCount: null,
   percentageLocked: false,
-  excludeSnapshots: false,
   showGrantBudget: false,
   grantBudget: null,
   grantBudgetCurrency: null,

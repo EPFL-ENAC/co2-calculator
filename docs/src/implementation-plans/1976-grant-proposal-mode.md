@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 1976
-last_updated: 2026-08-21
+last_updated: 2026-08-26
 title: "Simulator Plan — Grant proposal mode (first increment)"
 summary: "Plans gain a persisted Grant proposal checkbox and, when checked, a Project Grant section (a dedicated grant carbon report) rendered before the year sections. Grant tables carry a kgCO₂eq-over-project-years column (#1979), the section carries a total grant budget with currency plus per-submodule budgets and a distribution check (#1978), Research Facilities render a platform-selection grid (#1980), Equipment gets a per-line vs global-percentage planning toggle (#1981), and results show a grant vs year-by-year comparison chart plus a grant page in the PDF (#1977)."
 ---
@@ -165,6 +165,16 @@ Grant section renders **before** (not instead of) the year sections.
   entry (`source_data_entry_id` set), recomputes their emissions and the
   stats; the table remounts to refetch its rows. Per-row % controls are
   read-only in global mode (`percentageLocked` prop chain).
+- Global mode lists the same prefilled snapshot rows as per-line mode.
+  An earlier cut (2026-08-19) filtered them out of the lists and counts
+  via an `exclude_snapshots` query param so global mode showed only
+  hand-added lines; since every prefilled row is a `PLANNER_SNAPSHOT`
+  entry, the tables rendered empty for principal users. That param and
+  its frontend prop chain are removed (2026-08-26); visibility is
+  governed solely by the standard-user read-time hide
+  (`_hide_planner_snapshots_for_viewer`, #2120), so standard users still
+  see no snapshot rows in grant modules while principal/global users see
+  them in both modes.
 - Budgets follow the mode: per-submodule budget fields in per-line mode,
   one module-level budget (key `equipment`) in global mode. Values saved
   in one mode keep counting in the distribution check when the other mode
