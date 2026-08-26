@@ -16,7 +16,8 @@
 // own concern and is fully exercised without it. ResearchFacilities needs no
 // such registrations: PlannerResearchFacilityRows fetches from its own
 // `onMounted`, which Vue runs even when its q-* descendants render inert —
-// it's also the exact GlitchTip 312 call (`factors/70/list?year=...`), so it
+// it's also the exact GlitchTip 312 lookup (now
+// `taxonomies/module/research-facilities/...?year=...`), so it
 // proves the content-mount gate for real. Building this data here, inside a
 // .vue file, keeps `@/...`-aliased imports out of the spec file, which
 // Playwright's Node-side test loader cannot resolve (only the Vite bundle

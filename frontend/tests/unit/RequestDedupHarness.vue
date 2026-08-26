@@ -9,6 +9,7 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { useFactorsStore } from '@/stores/factors';
 import { getHeadcountMembers } from '@/api/modules';
 import { CARBON_PROJECT } from '@/constant/carbon-project';
+import { MODULES } from '@/constant/modules';
 
 // Test-only driver for the request-dedup regression tests (#2360): runs one
 // scenario against the real store/api layer and renders the outcome, so the
@@ -19,10 +20,11 @@ const props = defineProps<{
     | 'resolve-retry'
     | 'members-dedup'
     | 'explore-seed-cache'
-    | 'subclass-map-concurrent'
-    | 'subclass-map-retry'
-    | 'factor-list-concurrent'
-    | 'factor-list-direct-concurrent';
+    | 'class-options-concurrent'
+    | 'class-options-retry'
+    | 'labelled-options-concurrent'
+    | 'subclass-options'
+    | 'class-nodes-concurrent';
 }>();
 
 const result = ref('pending');
@@ -32,16 +34,30 @@ const factorsStore = useFactorsStore();
 
 const resolveOnce = () =>
   moduleStore.resolveCarbonReportId(7, 2024, CARBON_PROJECT.calculator);
-const classOptionsOnce = () => factorsStore.fetchClassOptions('plane', 2024);
+const classOptionsOnce = () =>
+  factorsStore.fetchClassOptions(MODULES.ProfessionalTravel, 'plane', 2024);
 const labelledOptionsOnce = () =>
-  factorsStore.fetchClassOptions('plane', 2024, {
-    valueField: 'id',
-    labelField: 'name',
-  });
+  factorsStore.fetchClassOptions(
+    MODULES.ProfessionalTravel,
+    'plane',
+    2024,
+    true,
+  );
+const subclassOptionsOnce = () =>
+  factorsStore.fetchSubclassOptions(
+    MODULES.ProfessionalTravel,
+    'plane',
+    'Boeing',
+    2024,
+  );
 // Same shape the planner rows component calls (#2391): the submodule key,
 // not the numeric factor id.
-const factorListOnce = () =>
-  factorsStore.fetchFactorList('research-facilities', 2024);
+const classNodesOnce = () =>
+  factorsStore.fetchClassNodes(
+    MODULES.ResearchFacilities,
+    'research-facilities',
+    2024,
+  );
 
 async function run(): Promise<string> {
   if (props.scenario === 'resolve-concurrent') {
@@ -57,13 +73,13 @@ async function run(): Promise<string> {
     }
     return `retried:${await resolveOnce()}`;
   }
-  if (props.scenario === 'subclass-map-concurrent') {
+  if (props.scenario === 'class-options-concurrent') {
     const maps = await Promise.all(
       [1, 2, 3, 4, 5].map(() => classOptionsOnce()),
     );
     return `classes:${maps.map((m) => m.length).join(',')}`;
   }
-  if (props.scenario === 'subclass-map-retry') {
+  if (props.scenario === 'class-options-retry') {
     try {
       await classOptionsOnce();
       return 'unexpected-success';
@@ -73,15 +89,19 @@ async function run(): Promise<string> {
     const retried = await classOptionsOnce();
     return `retried:${retried.length}`;
   }
-  if (props.scenario === 'factor-list-concurrent') {
+  if (props.scenario === 'labelled-options-concurrent') {
     const opts = await Promise.all(
       [1, 2, 3, 4, 5].map(() => labelledOptionsOnce()),
     );
     return `options:${opts.map((o) => o.length).join(',')}`;
   }
-  if (props.scenario === 'factor-list-direct-concurrent') {
+  if (props.scenario === 'subclass-options') {
+    const subs = await subclassOptionsOnce();
+    return `subclasses:${subs.map((o) => o.value).join('|')}`;
+  }
+  if (props.scenario === 'class-nodes-concurrent') {
     const lists = await Promise.all(
-      [1, 2, 3, 4, 5].map(() => factorListOnce()),
+      [1, 2, 3, 4, 5].map(() => classNodesOnce()),
     );
     return `rows:${lists.map((l) => l.length).join(',')}`;
   }

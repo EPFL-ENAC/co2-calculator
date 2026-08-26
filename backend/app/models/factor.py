@@ -6,6 +6,28 @@ from sqlmodel import JSON, Column, Field, Integer, SQLModel
 
 from app.models._field_defaults import default_dict
 
+# #2404: the distinct ``kind_field`` JSON keys across all module handlers —
+# the keys ``_resolved_factor_id`` matches ``classification->>key`` against
+# per row. Each gets a partial expression index below. Kept as a module
+# constant (not derived from the handler registry) to avoid a models →
+# schemas import cycle; ``test_factor_resolution_indexes`` asserts this set
+# still covers every registered handler, so adding a handler with a new
+# ``kind_field`` fails a test instead of silently reintroducing the
+# per-row seq scan this fixes.
+FACTOR_RESOLUTION_INDEX_KEYS = (
+    "building_name",
+    "category",
+    "equipment_class",
+    "name",
+    "provider",
+    # declared assignment-style (no type annotation) in
+    # modules_planner/purchase/handlers.py -- the census grep that built this
+    # list missed it; the registry test now guards against exactly that.
+    "purchase_category",
+    "purchase_institutional_code",
+    "researchfacility_id",
+)
+
 
 class FactorBase(SQLModel):
     """Base factor model with shared fields."""
@@ -100,6 +122,24 @@ class Factor(FactorBase, table=True):
             "ix_factors_data_entry_type_year",
             "data_entry_type_id",
             "year",
+        ),
+        # #2404: one partial expression index per distinct handler
+        # ``kind_field``, serving ``_resolved_factor_id``'s correlated
+        # per-row lookup — measured 10× per evaluation (2.08 ms → 0.19 ms)
+        # and a 3× buffer cut on that branch. Partial (`IS NOT NULL`)
+        # so each index stores only the factor rows carrying its key;
+        # Postgres proves the query's strict `->> =` equality implies the
+        # predicate. Keys enumerated in FACTOR_RESOLUTION_INDEX_KEYS above;
+        # a unit test pins the set against the live handler registry.
+        *(
+            Index(
+                f"ix_factors_res_{key}",
+                "data_entry_type_id",
+                "year",
+                text(f"(classification->>'{key}')"),
+                postgresql_where=text(f"(classification->>'{key}') IS NOT NULL"),
+            ).ddl_if(dialect="postgresql")
+            for key in FACTOR_RESOLUTION_INDEX_KEYS
         ),
         # Partial unique identity guards (created in migration
         # b1f0a2c3d4e5). Mirrored here so Alembic autogenerate sees them

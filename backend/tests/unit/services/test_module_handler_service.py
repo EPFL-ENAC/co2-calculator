@@ -15,6 +15,7 @@ import pytest
 from app.core.factor_taxonomy_cache import taxonomy_cache
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
+from app.schemas.data_entry import BaseModuleHandler
 from app.services.module_handler_service import ModuleHandlerService
 
 
@@ -40,6 +41,7 @@ def _make_handler(kind_field="kind", subkind_field="subkind"):
         subkind_field=subkind_field,
         kind_label_field=None,
         subkind_label_field=None,
+        taxonomy_meta_fields=(),
         to_label=lambda x: x.capitalize(),
     )
     return handler
@@ -55,6 +57,7 @@ def _purchase_handler():
         kind_field_override="purchase_additional_code",
         kind_label_field=None,
         subkind_label_field=None,
+        taxonomy_meta_fields=(),
         to_label=lambda x: x.capitalize(),
     )
 
@@ -220,6 +223,128 @@ async def test_get_taxonomy_strips_coefficients_from_the_tree(service):
         assert forbidden not in dumped
 
 
+# ── get_taxonomy display metadata (#2391 decision 1) ────────
+
+
+_RF_COMMON_FACTORS = [
+    Factor(
+        emission_type_id=1,
+        classification={
+            "researchfacility_id": "1902",
+            "researchfacility_name": "SCITAS-GE",
+        },
+        values={"use_unit": "CHF", "total_use": 2195625.795, "kg_co2eq_sum": 42.0},
+    )
+]
+
+# Deliberately two housing types with *different* units: meta copied onto the
+# kind node only (or onto every subkind from the first row) would still label
+# both "housings" and the bug would pass unnoticed.
+_RF_ANIMAL_FACTORS = [
+    Factor(
+        emission_type_id=1,
+        classification={
+            "researchfacility_id": "1321",
+            "researchfacility_name": "CPG",
+            "researchfacility_type": "rodent",
+        },
+        values={"use_unit": "housings", "total_use": 3917},
+    ),
+    Factor(
+        emission_type_id=1,
+        classification={
+            "researchfacility_id": "1321",
+            "researchfacility_name": "CPG",
+            "researchfacility_type": "fish",
+        },
+        values={"use_unit": "tanks", "total_use": 602},
+    ),
+]
+
+
+@pytest.mark.asyncio
+async def test_taxonomy_carries_declared_meta_on_a_flat_tree(service):
+    """research_facilities has no subkind: one level of facility nodes, each
+    labelled by acronym and carrying its own metric unit.
+    """
+    det = DataEntryTypeEnum.research_facilities
+    handler = BaseModuleHandler.get_by_type(det)
+    service.factor_service.list_by_data_entry_type = AsyncMock(
+        return_value=_RF_COMMON_FACTORS
+    )
+
+    taxonomy = await service.get_taxonomy(handler, det, year=2025)
+
+    (facility,) = taxonomy.children
+    assert (facility.name, facility.label) == ("1902", "SCITAS-GE")
+    assert facility.children is None
+    assert facility.meta == {"use_unit": "CHF"}
+
+
+@pytest.mark.asyncio
+async def test_taxonomy_meta_follows_the_subkind_row_not_the_kind(service):
+    """animal_facilities keys factors by (facility, housing type), so the unit
+    is a per-subkind value — the planner reads it off the child node.
+    """
+    det = DataEntryTypeEnum.animal_facilities
+    handler = BaseModuleHandler.get_by_type(det)
+    service.factor_service.list_by_data_entry_type = AsyncMock(
+        return_value=_RF_ANIMAL_FACTORS
+    )
+
+    taxonomy = await service.get_taxonomy(handler, det, year=2025)
+
+    (facility,) = taxonomy.children
+    assert (facility.name, facility.label) == ("1321", "CPG")
+    assert {(c.name, c.meta["use_unit"]) for c in facility.children} == {
+        ("rodent", "housings"),
+        ("fish", "tanks"),
+    }
+
+
+@pytest.mark.asyncio
+async def test_meta_only_carries_whitelisted_fields(service):
+    """`total_use`/`kg_co2eq_sum` are coefficients, not display metadata — a
+    generic values passthrough is exactly what #2396 removed.
+    """
+    det = DataEntryTypeEnum.research_facilities
+    handler = BaseModuleHandler.get_by_type(det)
+    service.factor_service.list_by_data_entry_type = AsyncMock(
+        return_value=_RF_COMMON_FACTORS
+    )
+
+    taxonomy = await service.get_taxonomy(handler, det, year=2025)
+
+    dumped = taxonomy.model_dump_json()
+    for forbidden in ("total_use", "kg_co2eq_sum", "values", "classification"):
+        assert forbidden not in dumped
+
+
+@pytest.mark.asyncio
+async def test_no_meta_key_for_a_module_that_declares_none(service):
+    """Unaffected modules' payloads must not grow — `meta` is None and
+    `response_model_exclude_none` drops it (asserted on the route in
+    tests/unit/v1/test_taxonomies_batch_endpoint.py).
+    """
+    det = DataEntryTypeEnum.scientific
+    handler = BaseModuleHandler.get_by_type(det)
+    service.factor_service.list_by_data_entry_type = AsyncMock(
+        return_value=[
+            Factor(
+                emission_type_id=1,
+                classification={"equipment_class": "Centrifuge", "sub_class": "Ultra"},
+                values={"active_power_w": 150},
+            )
+        ]
+    )
+
+    taxonomy = await service.get_taxonomy(handler, det, year=2025)
+
+    (kind,) = taxonomy.children
+    assert kind.meta is None
+    assert all(child.meta is None for child in kind.children)
+
+
 @pytest.mark.asyncio
 async def test_get_taxonomy_different_year_is_not_cached_together(service):
     """Cache key includes year — a different year must still hit the DB."""
@@ -251,3 +376,53 @@ async def test_get_taxonomy_cache_cleared_forces_requery(service):
     await service.get_taxonomy(handler, DataEntryTypeEnum.scientific, year=2025)
 
     assert service.factor_service.list_by_data_entry_type.await_count == 2
+
+
+# ── get_taxonomy_with_etag (#2391 decision 2) ────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_taxonomy_with_etag_same_data_same_etag_across_rebuilds(service):
+    """Same factors, cache cleared and rebuilt, must produce the same
+    ETag -- that's what lets every pod agree on it with zero per-request
+    queries.
+    """
+    handler = _make_handler()
+    service.factor_service.list_by_data_entry_type = AsyncMock(
+        return_value=[Factor(emission_type_id=1, classification={"kind": "A"})]
+    )
+
+    first = await service.get_taxonomy_with_etag(
+        handler, DataEntryTypeEnum.scientific, year=2025
+    )
+    taxonomy_cache.clear()
+    second = await service.get_taxonomy_with_etag(
+        handler, DataEntryTypeEnum.scientific, year=2025
+    )
+
+    assert first.etag == second.etag
+
+
+@pytest.mark.asyncio
+async def test_get_taxonomy_with_etag_different_year_different_etag(service):
+    """Different years carry different factors, so their trees -- and
+    hence their content-hashed ETags -- must differ too.
+    """
+    handler = _make_handler()
+
+    async def _factors_for_year(data_entry_type, year):
+        kind = "A" if year == 2025 else "B"
+        return [Factor(emission_type_id=1, classification={"kind": kind})]
+
+    service.factor_service.list_by_data_entry_type = AsyncMock(
+        side_effect=_factors_for_year
+    )
+
+    entry_2025 = await service.get_taxonomy_with_etag(
+        handler, DataEntryTypeEnum.scientific, year=2025
+    )
+    entry_2026 = await service.get_taxonomy_with_etag(
+        handler, DataEntryTypeEnum.scientific, year=2026
+    )
+
+    assert entry_2025.etag != entry_2026.etag

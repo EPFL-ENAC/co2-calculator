@@ -3373,138 +3373,6 @@
         }
       }
     },
-    "/v1/factors/{data_entry_type}/class-subclass-map": {
-      "get": {
-        "tags": [
-          "factors"
-        ],
-        "summary": "Get Class Subclass Map",
-        "description": "Get mapping of equipment classes to subclasses for a given submodule.\n\nScoped to ``year`` so the options match the year-scoped factor lookup in\n``get_factor`` \u2014 otherwise the dropdown could offer a class that has no\nfactor for the selected year.",
-        "operationId": "get_class_subclass_map_v1_factors__data_entry_type__class_subclass_map_get",
-        "parameters": [
-          {
-            "name": "data_entry_type",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/DataEntryTypeEnum"
-            }
-          },
-          {
-            "name": "year",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
-            }
-          },
-          {
-            "name": "auth_token",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Auth Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "title": "Response Get Class Subclass Map V1 Factors  Data Entry Type  Class Subclass Map Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/factors/{data_entry_type}/list": {
-      "get": {
-        "tags": [
-          "factors"
-        ],
-        "summary": "List Factors",
-        "description": "List every factor of a type for a year, classification + values merged.\n\nBacks the Project Grant research-facilities grid, which offers the\nreference year's whole platform list for selection (#1980).",
-        "operationId": "list_factors_v1_factors__data_entry_type__list_get",
-        "parameters": [
-          {
-            "name": "data_entry_type",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/DataEntryTypeEnum"
-            }
-          },
-          {
-            "name": "year",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
-            }
-          },
-          {
-            "name": "auth_token",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Auth Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "title": "Response List Factors V1 Factors  Data Entry Type  List Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/factors/{data_entry_type_id}/classes/{kind}/values": {
       "get": {
         "tags": [
@@ -12250,6 +12118,18 @@
               }
             ],
             "title": "Translation Key"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
           },
           "children": {
             "anyOf": [

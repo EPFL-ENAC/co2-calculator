@@ -3,9 +3,9 @@
  * `SimulationExplorePage` rendered one collapsed `q-expansion-item` per
  * module, but QExpansionItem mounts its default slot even while collapsed —
  * so a single page load fired every module's `preview_limit=0` count fetch,
- * every submodule form's `class-subclass-map` fetch, and
- * `PlannerResearchFacilityRows`'s `factors/{id}/list` fetch (the exact
- * GlitchTip call) all at once.
+ * every submodule form's option lookup, and `PlannerResearchFacilityRows`'s
+ * own lookup (the exact GlitchTip call) all at once. Both lookups are the
+ * taxonomy endpoint since #2391 decision 1.
  *
  * `ExploreModuleExpansionList` now gates that content behind an "opened at
  * least once" flag, and fetches a module's counts only on its first open.
@@ -21,16 +21,17 @@ const RESEARCH_FACILITIES_TITLE_TESTID =
 
 const REPORT_LOOKUP_URL = '**/api/v1/carbon-reports/unit/7/year/2024/';
 const PREVIEW_URL = '**/api/v1/carbon-reports/*/modules/*preview_limit=0*';
-const CLASS_SUBCLASS_URL = '**/api/v1/factors/*/class-subclass-map*';
-const RF_FACTORS_LIST_URL = '**/api/v1/factors/*/list*';
+// One endpoint now backs both lookups, so they are told apart by module
+// segment: research-facilities is the planner grid's, anything else a form's.
+const TAXONOMY_URL = '**/api/v1/taxonomies/module/**';
 const RF_ENTRIES_URL =
   '**/api/v1/carbon-reports/*/modules/research-facilities/*';
 
 async function routeCounters(page: Page) {
   const counts = {
     preview: [] as string[],
-    classSubclass: 0,
-    rfFactorsList: [] as string[],
+    formTaxonomy: 0,
+    rfTaxonomy: [] as string[],
   };
 
   await page.route(REPORT_LOOKUP_URL, async (route) => {
@@ -48,20 +49,17 @@ async function routeCounters(page: Page) {
       body: JSON.stringify({ data_entry_types_total_items: {} }),
     });
   });
-  await page.route(CLASS_SUBCLASS_URL, async (route) => {
-    counts.classSubclass++;
+  await page.route(TAXONOMY_URL, async (route) => {
+    const url = route.request().url();
+    if (url.includes('/module/research-facilities/')) {
+      counts.rfTaxonomy.push(url);
+    } else {
+      counts.formTaxonomy++;
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({}),
-    });
-  });
-  await page.route(RF_FACTORS_LIST_URL, async (route) => {
-    counts.rfFactorsList.push(route.request().url());
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([]),
+      body: JSON.stringify({ name: 'root', label: 'root', children: [] }),
     });
   });
   await page.route(RF_ENTRIES_URL, async (route) => {
@@ -75,7 +73,7 @@ async function routeCounters(page: Page) {
   return counts;
 }
 
-test('mounting the module list fires zero count, class-subclass-map and research-facility-list requests', async ({
+test('mounting the module list fires zero count and zero taxonomy lookup requests', async ({
   page,
   mount,
 }) => {
@@ -88,8 +86,8 @@ test('mounting the module list fires zero count, class-subclass-map and research
   await page.waitForTimeout(300);
 
   expect(counts.preview).toHaveLength(0);
-  expect(counts.classSubclass).toBe(0);
-  expect(counts.rfFactorsList).toHaveLength(0);
+  expect(counts.formTaxonomy).toBe(0);
+  expect(counts.rfTaxonomy).toHaveLength(0);
 });
 
 test('opening a module fetches only that module counts, once', async ({
@@ -121,7 +119,7 @@ test('opening a module fetches only that module counts, once', async ({
   expect(counts.preview.length).toBe(previewAfterFirstOpen);
 });
 
-test('opening ResearchFacilities fetches its factor list once, content stays mounted on re-collapse', async ({
+test('opening ResearchFacilities fetches its taxonomy once, content stays mounted on re-collapse', async ({
   page,
   mount,
 }) => {
@@ -131,12 +129,12 @@ test('opening ResearchFacilities fetches its factor list once, content stays mou
 
   await component.getByTestId(RESEARCH_FACILITIES_TITLE_TESTID).click();
 
-  await expect.poll(() => counts.rfFactorsList.length).toBeGreaterThan(0);
+  await expect.poll(() => counts.rfTaxonomy.length).toBeGreaterThan(0);
 
   // ResearchFacilities has no submodule-count prefetch (task #2360 spec).
   expect(counts.preview).toHaveLength(0);
 
-  const rfListAfterFirstOpen = counts.rfFactorsList.length;
+  const rfLookupsAfterFirstOpen = counts.rfTaxonomy.length;
 
   // Collapse and reopen: PlannerResearchFacilityRows stays mounted, its own
   // onMounted never runs a second time.
@@ -144,5 +142,5 @@ test('opening ResearchFacilities fetches its factor list once, content stays mou
   await component.getByTestId(RESEARCH_FACILITIES_TITLE_TESTID).click();
   await page.waitForTimeout(200);
 
-  expect(counts.rfFactorsList.length).toBe(rfListAfterFirstOpen);
+  expect(counts.rfTaxonomy.length).toBe(rfLookupsAfterFirstOpen);
 });

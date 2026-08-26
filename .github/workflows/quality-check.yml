@@ -65,6 +65,54 @@ jobs:
         run: make type-check
 
 
+  gen-constants-check:
+    name: Generated Frontend Constants Up To Date
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: uv sync
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: "npm"
+          cache-dependency-path: "./frontend/package-lock.json"
+
+      # gen-module-constants' recipe formats its output with prettier —
+      # needs frontend's node_modules, not just Node itself.
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci --ignore-scripts
+
+      - name: Regenerate frontend constants from backend enums
+        working-directory: ./backend
+        # Importing the app constructs Settings; CI has no backend/.env, so
+        # seed it from the example the way the Makefile's test targets do.
+        run: |
+          cp .env.example .env
+          make gen-emission-taxonomy
+          make gen-module-constants
+
+      - name: Fail if generated constants are stale
+        run: |
+          git diff --exit-code \
+            frontend/src/types/emission-taxonomy.gen.ts \
+            frontend/src/types/module-lookups.gen.ts
+
+
   docs-quality:
     name: Docs Build
     runs-on: ubuntu-latest

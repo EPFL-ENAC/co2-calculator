@@ -730,6 +730,7 @@ if (props.moduleType === MODULES.Equipment) {
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
   useEquipmentClassOptions(
     form,
+    toRef(props, 'moduleType'),
     toRef(props, 'submoduleType'),
     {
       classFieldId: kindFieldId.value ?? undefined,

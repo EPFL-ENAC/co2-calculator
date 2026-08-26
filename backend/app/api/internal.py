@@ -54,8 +54,10 @@ async def clear_taxonomy_cache(
 
     Called by ``broadcast_taxonomy_cache_clear`` on every OTHER live pod
     right after a factor write clears the caller's own cache — closes the
-    cross-pod staleness window the 60s TTL alone would otherwise leave
-    open for up to ~120s (see ``app.core.factor_taxonomy_cache``).
+    cross-pod staleness window the TTL alone would otherwise leave open
+    for as long as the cache's TTL (see ``app.core.factor_taxonomy_cache``,
+    now sized for hit rate rather than staleness since this broadcast is
+    the correctness mechanism, #2391).
     """
     client_host = request.client.host if request.client else None
     if not await _caller_is_live_pod(db, client_host):

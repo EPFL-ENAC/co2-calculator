@@ -632,6 +632,28 @@ class Settings(BaseSettings):
         ),
     )
 
+    # #2049 T5 — event-loop lag probe. 683ms of CPU-bound serialisation was
+    # measured blocking the loop under load, but nothing had ever measured
+    # loop blocking directly; every other latency number is traffic-shaped.
+    RUN_EVENT_LOOP_LAG_PROBE: bool = Field(
+        default=True,
+        description=(
+            "Whether to run the in-process event-loop lag probe. Test/"
+            "diagnostic kill-switch, not a real production lever — this "
+            "is a pure background metric with no request-path consumer."
+        ),
+    )
+    EVENT_LOOP_LAG_PROBE_INTERVAL_SECONDS: float = Field(
+        default=0.1,
+        ge=0.01,
+        description=(
+            "Seconds requested per asyncio.sleep tick; the excess over "
+            "this is recorded as event_loop_lag_seconds. 100ms matches "
+            "the granularity needed to see sub-second blocking without "
+            "adding measurable overhead of its own."
+        ),
+    )
+
     # Build provenance — populated by CI on deploy.  Optional in dev.
     GIT_SHA: str | None = Field(
         default=None,
