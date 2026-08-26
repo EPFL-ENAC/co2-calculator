@@ -93,9 +93,13 @@ async def _post_clear_to(live_others: list[Pod]) -> None:
 async def broadcast_taxonomy_cache_clear(session: AsyncSession) -> None:
     """Best-effort fan-out of a taxonomy-cache clear to every other live pod.
 
-    Call this right after the local ``taxonomy_cache.clear()`` at a
-    ``FactorRepository`` write site. Never raises — a broadcast failure
-    must never fail the write itself.
+    Not called from production write paths — ``schedule_taxonomy_cache_
+    invalidation`` below inlines the same ``_live_other_pods`` + ``_post_
+    clear_to`` sequence itself, since it needs to snapshot live pods
+    *before* commit but only fire the POSTs *after*. Kept as the tested
+    unit for that pod-lookup + broadcast behavior in isolation (see
+    ``test_taxonomy_cache_broadcast.py``); never raises — a broadcast
+    failure must never fail a write.
     """
     await _post_clear_to(await _live_other_pods(session))
 
@@ -124,6 +128,20 @@ async def schedule_taxonomy_cache_invalidation(session: AsyncSession) -> None:
     write correctly triggers no invalidation — the still-registered
     hook just waits for whatever commit eventually happens on this
     session, if any.
+
+    Known latent gap: ``info`` and the ``live_others`` snapshot below
+    both survive a rollback untouched (verified empirically — SQLAlchemy
+    resets neither on rollback), and the ``once=True`` listener stays
+    registered rather than firing. A session that rolled back a write
+    here and then committed a *later*, unrelated write on the same
+    session would broadcast to the first write's now-possibly-stale
+    pod list. No current caller reuses a session this way (factor CSV
+    ingestion rolls back and re-raises, ending that session's writes —
+    see ``base_factor_csv_provider.py``), so this is parked rather than
+    fixed: distinguishing "rolled back" from the flush-level rollbacks
+    SQLAlchemy does internally needs ``after_rollback`` vs ``after_soft_
+    rollback``, and picking the wrong one risks a double broadcast,
+    which is worse than the staleness this would close.
     """
     sync_session = session.sync_session
     if sync_session.info.get(_PENDING_INFO_KEY):
@@ -135,6 +153,11 @@ async def schedule_taxonomy_cache_invalidation(session: AsyncSession) -> None:
     def _on_commit(sync_sess: Session) -> None:
         sync_sess.info[_PENDING_INFO_KEY] = False
         taxonomy_cache.clear()
+        # fire_and_forget, not app.tasks._chain's drain-after-commit queue:
+        # that pattern exists to stop a child task from starting before its
+        # parent transaction is visible, which an after_commit hook already
+        # guarantees here by construction -- there's no separate drain point
+        # an ordinary FastAPI route could call after its own commit.
         fire_and_forget(_post_clear_to(live_others), name="taxonomy-cache-broadcast")
 
     event.listen(sync_session, "after_commit", _on_commit, once=True)

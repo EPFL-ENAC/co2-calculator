@@ -207,9 +207,13 @@ from the ~120s worst case above.
 **Tests:** `test_taxonomy_cache_broadcast.py` (fans out to every other
 live pod, skips self/stale/no-IP pods, one pod's failure doesn't stop
 the others or raise), `test_internal_cache_endpoint.py` (clears the
-local cache for a live-pod caller, 403s otherwise), plus a wiring
-assertion in `test_factor_repo.py` that a write actually calls the
-broadcast (after commit — see "Resolved" above).
+local cache for a live-pod caller, 403s otherwise), `test_factor_repo.py`
+(defer-to-commit, rollback never invalidates, N writes in one
+transaction broadcast once, a no-op delete/sweep invalidates nothing),
+`test_taxonomies_batch_endpoint.py` (a per-entry runtime failure is
+isolated and rolls back the session instead of poisoning the rest of
+the batch), and `taxonomy-batch.spec.ts` (a missing entry surfaces
+through `state.error` instead of failing silently).
 
 ## Follow-ups parked from code review
 
@@ -267,3 +271,69 @@ Parked, not fixed here — each needs more than this PR's scope:
   route doesn't have a way to do today. The warm-cache path (the common
   case) does no DB work either way, so the risk only shows up on a cold
   batch — low enough traffic to defer.
+
+### Round 2: findings on the round-1 fixes
+
+A second review, scoped to the fixes above, found that the batch
+endpoint's per-entry isolation had a gap of its own, plus a few smaller
+issues. Fixed:
+
+- **The per-entry `except Exception` didn't roll back a poisoned
+  session.** A real DB error leaves the shared `AsyncSession`'s
+  transaction aborted; every entry ordered after the failing one would
+  raise too, undermining the isolation the round-1 fix was for. Fixed
+  by rolling back before logging (`app/api/v1/taxonomies.py`) —
+  regression test drives this via a mocked session and asserts
+  `rollback` was awaited.
+- **A failed entry silently missing from the response** is itself a
+  "no silent fallbacks" violation once you count the frontend: the
+  backend logs loud, but nothing distinguishes "no taxonomy exists"
+  from "this entry errored" in the API response the UI renders. Fixed
+  on the frontend instead of widening the response contract: a missing
+  key now sets `state.error` in `getSubmoduleTaxonomiesBatch`
+  (`frontend/src/stores/modules.ts`), which the UI already renders —
+  no new response field, no OpenAPI regen.
+- **`bulk_delete` / `delete_stale_for_year` invalidated the cache even
+  on a no-op** (nothing actually deleted) — a real path via
+  `FactorService.bulk_delete_by_data_entry_type_and_year` on an empty
+  `(det, year)`. Both now skip invalidation when nothing changed,
+  mirroring `update`'s existing not-found guard.
+- **`broadcast_taxonomy_cache_clear`'s docstring claimed it was the
+  production call site**; it isn't since round 1 —
+  `schedule_taxonomy_cache_invalidation` inlines the same
+  lookup-then-POST sequence itself (needs to snapshot live pods before
+  commit but fire after). Docstring corrected to say so explicitly;
+  function kept as the tested unit for that behavior in isolation.
+- **`fire_and_forget` inside the `after_commit` listener has no comment
+  explaining why it doesn't reuse `app/tasks/_chain.py`'s
+  drain-after-commit queue.** That pattern exists to stop a child task
+  starting before its parent's transaction is visible — already
+  guaranteed here by firing from `after_commit` itself. Comment added
+  in place; no rewrite.
+
+Parked, with a code comment at the point of the gap rather than a plan
+bullet:
+
+- **`_PENDING_INFO_KEY` / the `live_others` snapshot survive a rollback
+  untouched** (verified empirically), and the `once=True` listener
+  stays registered rather than firing. A session that rolled back a
+  write here and later committed an unrelated write on the same
+  session would broadcast to the first write's stale pod list. No
+  current caller does this (factor CSV ingestion rolls back and
+  re-raises, ending that session's writes). Closing it needs
+  `after_rollback` vs. `after_soft_rollback` — picking the wrong one
+  risks a double broadcast, worse than the staleness being fixed — so
+  it's documented at `taxonomy_cache_broadcast.py`'s
+  `schedule_taxonomy_cache_invalidation` rather than attempted blind.
+
+Reported but not touched — pre-existing, not introduced by either
+round:
+
+- `factor_taxonomy_cache.py`'s `_MAX_ENTRIES = 64` comment undersells
+  how fast the cache fills (a single print/export page load already
+  spans most `DataEntryTypeEnum` members for one year); the eviction
+  mechanism itself is safe regardless. A tuning call for whoever owns
+  the cache-size budget, not a bug.
+- `Cache-Control` header-setting is duplicated by hand across the three
+  taxonomy routes instead of a router-level dependency — predates both
+  review rounds, orthogonal to the caching work itself.

@@ -525,6 +525,25 @@ async def test_bulk_delete_defers_taxonomy_cache_clear_until_commit(db_session):
 
 
 @pytest.mark.asyncio
+async def test_bulk_delete_noop_does_not_invalidate_taxonomy_cache(
+    db_session, monkeypatch
+):
+    """Deleting an empty/already-gone ID set must not schedule a clear +
+    broadcast — a caller like ``bulk_delete_by_data_entry_type_and_year``
+    can run this on a (det, year) with nothing to delete.
+    """
+    schedule = AsyncMock()
+    monkeypatch.setattr(
+        factor_repo_mod, "schedule_taxonomy_cache_invalidation", schedule
+    )
+    repo = FactorRepository(db_session)
+
+    await repo.bulk_delete([])
+
+    schedule.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_delete_stale_for_year_defers_taxonomy_cache_clear_until_commit(
     db_session,
 ):
@@ -554,6 +573,27 @@ async def test_delete_stale_for_year_defers_taxonomy_cache_clear_until_commit(
 
     await db_session.commit()
     assert taxonomy_cache.get(("stale-key",)) is None
+
+
+@pytest.mark.asyncio
+async def test_delete_stale_for_year_noop_does_not_invalidate_taxonomy_cache(
+    db_session, monkeypatch
+):
+    """A sweep that finds nothing superseded must not schedule a clear +
+    broadcast — this runs at the end of every factor ingest, most of
+    which touch only a fraction of the ~26 data entry types.
+    """
+    schedule = AsyncMock()
+    monkeypatch.setattr(
+        factor_repo_mod, "schedule_taxonomy_cache_invalidation", schedule
+    )
+    repo = FactorRepository(db_session)
+
+    await repo.delete_stale_for_year(
+        2025, det_ids=[DataEntryTypeEnum.member.value], threshold_job_id=2
+    )
+
+    schedule.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -165,7 +165,7 @@ async def test_batch_endpoint_isolates_a_per_entry_runtime_failure():
     bug like an unknown/mismatched entry — see the 404/400 tests above)
     must not blank every other, already-resolved entry in the batch.
     """
-    fake_db = object()
+    fake_db = AsyncMock()
     fake_user = object()
 
     async def _flaky_get_taxonomy(handler, data_entry_type, year):
@@ -188,6 +188,9 @@ async def test_batch_endpoint_isolates_a_per_entry_runtime_failure():
         )
 
     assert set(batched.keys()) == {"scientific", "other"}
+    # A real DB error leaves the shared session's transaction aborted --
+    # every later entry would fail too without a rollback in between.
+    fake_db.rollback.assert_awaited_once()
 
 
 @pytest.mark.asyncio

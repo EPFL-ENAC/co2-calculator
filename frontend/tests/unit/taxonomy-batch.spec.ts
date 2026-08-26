@@ -57,3 +57,41 @@ test('one batched request replaces one-per-submodule taxonomy calls', async ({
     '/api/v1/taxonomies/module/equipment/data-entries',
   );
 });
+
+/**
+ * #2258 follow-up — the backend omits an entry it couldn't resolve
+ * instead of failing the whole batch (logged loud server-side). That
+ * must not read as a silent success on the frontend: the other entries
+ * still resolve, but the gap surfaces through the store's error state.
+ */
+test('a submodule missing from the batch response surfaces a visible error', async ({
+  mount,
+  page,
+}) => {
+  await page.route('**/api/v1/taxonomies/**', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        scientific: { name: 'scientific', label: 'Scientific' },
+        // "it" omitted -- simulates a per-entry runtime failure.
+        other: { name: 'other', label: 'Other' },
+      }),
+    });
+  });
+
+  const component = await mount(TaxonomyBatchHarness, {
+    props: {
+      moduleType: 'equipment',
+      entries: ['scientific', 'it', 'other'],
+      year: '2025',
+    },
+  });
+
+  await expect(component.getByTestId('taxonomy-scientific')).toHaveText(
+    'resolved',
+  );
+  await expect(component.getByTestId('taxonomy-it')).toHaveText('missing');
+  await expect(component.getByTestId('taxonomy-other')).toHaveText('resolved');
+  await expect(component.getByTestId('store-error')).toHaveText(/it/);
+});

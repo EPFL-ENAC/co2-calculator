@@ -331,10 +331,12 @@ class FactorRepository:
             ),
         )
         result = await self.session.execute(stmt)
-        await self._invalidate_taxonomy_cache()
         # rowcount is a CursorResult attribute on DML; cast away the
         # narrower Result[Any] type Pyright infers from session.execute.
-        return getattr(result, "rowcount", 0) or 0
+        deleted = getattr(result, "rowcount", 0) or 0
+        if deleted:
+            await self._invalidate_taxonomy_cache()
+        return deleted
 
     async def update(self, factor_id: int, update_data: dict) -> Factor | None:
         """Update an existing factor."""
@@ -366,6 +368,8 @@ class FactorRepository:
         stmt = select(Factor).where(col(Factor.id).in_(factor_ids))
         result = await self.session.exec(stmt)
         factors_to_delete = result.all()
+        if not factors_to_delete:
+            return
 
         for factor in factors_to_delete:
             await self.session.delete(factor)

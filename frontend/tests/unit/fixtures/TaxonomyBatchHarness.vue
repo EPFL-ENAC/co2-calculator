@@ -22,4 +22,14 @@ onMounted(async () => {
 
 <template>
   <div>harness-ready</div>
+  <div data-testid="store-error">{{ moduleStore.state.error ?? '' }}</div>
+  <ul>
+    <li
+      v-for="entry in props.entries"
+      :key="entry"
+      :data-testid="`taxonomy-${entry}`"
+    >
+      {{ moduleStore.state.taxonomySubmodule[entry] ? 'resolved' : 'missing' }}
+    </li>
+  </ul>
 </template>

@@ -194,6 +194,14 @@ async def get_taxonomies_for_module_data_entries(
         except HTTPException:
             raise
         except Exception:
+            # A DB-level error leaves the shared session's transaction
+            # aborted -- every subsequent entry would fail too without
+            # this, turning one bad entry into "the rest of the batch
+            # went blank" (#2258 follow-up). Roll back before logging:
+            # logging a SQLAlchemy exception can trigger lazy-load
+            # __repr__ calls on ORM instances, which would themselves
+            # hit the still-aborted session.
+            await db.rollback()
             logger.exception(
                 "get_taxonomies_for_module_data_entries: entry %r of module "
                 "%r failed, omitting it from the batch response",
