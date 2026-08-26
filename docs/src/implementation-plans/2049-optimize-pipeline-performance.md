@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 2049
-last_updated: 2026-08-22
+last_updated: 2026-08-26
 title: "Optimize Pipeline/Report Performance — what remains after the v3 investigation"
 summary: "Rewritten 2026-08-22. The v3 trace investigation (200 Tempo traces + 5 OTLP traces) is finished and its alerting half shipped as #1402. This plan carries what's left: the connection-pool decision, the shared per-request floor, the OTel double-instrumentation tax, the remaining request fan-out, and the 201s pipeline. Nine claims are corrected here — read those first; corrections 8-9 retire C3's premise and its proposed mechanism."
 ---
@@ -201,14 +201,14 @@ they bind:
    `pg_advisory_xact_lock(1237, module_type_id * 100000 + year)`
    (`backend/app/tasks/_locks.py:38-78`, taken at
    `emission_recalculation_tasks.py:330`). It is **exclusive**, and it is
-   held until `data_session` commits — which the runner does only *after*
+   held until `data_session` commits — which the runner does only _after_
    the handler returns, so it spans the whole job. The key does **not**
    include `data_entry_type_id`, and the fan-out is one child per det of
    **one** module — so **all N siblings of a pipeline hash to the same
    key and execute strictly one at a time**, serialised by Postgres.
    A `purchase` upload is 10 recalcs in a queue of one.
 2. **`MAX_CONCURRENT_JOBS = 4`** (`config.py:471`), a per-pod
-   `asyncio.Semaphore` acquired in `run_job` *before* the claim
+   `asyncio.Semaphore` acquired in `run_job` _before_ the claim
    (`runner.py:131`). Caps this pod at 4 jobs at once.
 3. **Per-entry Python.** `recalculate_for_data_entry_type` loops entry by
    entry doing `model_validate` + `prepare_create`
@@ -216,10 +216,10 @@ they bind:
    on wall time only. Same event loop, so co-resident jobs interleave but
    do not parallelise.
 
-Then the **aggregation** takes a *second*, coarser lock:
+Then the **aggregation** takes a _second_, coarser lock:
 `pg_advisory_xact_lock(1236, year)` (`aggregation_tasks.py:131-135`) —
-per-**year**, so it serialises aggregations across *every module and
-every pipeline* of that year.
+per-**year**, so it serialises aggregations across _every module and
+every pipeline_ of that year.
 
 _Inherent vs incidental._ This is the distinction the task turns on:
 
@@ -232,7 +232,7 @@ _Inherent vs incidental._ This is the distinction the task turns on:
   `emission_recalc` (reader)** — that is exactly what `_locks.py`'s
   docstring says it is for, and it is real.
 - **Incidental — `emission_recalc` excluding `emission_recalc`.** Gate 1
-  is an *exclusive* lock, but siblings only **read** `factors`; they write
+  is an _exclusive_ lock, but siblings only **read** `factors`; they write
   `data_entry_emissions` for **disjoint** entry sets (different
   `data_entry_type_id`), and module-stats writing was moved out of this
   workflow into the aggregation handler
@@ -243,7 +243,7 @@ _Inherent vs incidental._ This is the distinction the task turns on:
   in code requires reader-vs-reader exclusion.
   Proposal (not implemented, needs review): shared lock on the recalc
   side, exclusive on the factor side → **[#2276](https://github.com/EPFL-ENAC/co2-calculator/issues/2276)**.
-- **Second-order, also incidental:** the advisory lock is taken *inside*
+- **Second-order, also incidental:** the advisory lock is taken _inside_
   the semaphore, so a job **blocked on the lock still burns a
   `MAX_CONCURRENT_JOBS` permit and both its pool connections** for the
   whole wait. Four queued purchase siblings can occupy every permit on a
@@ -297,17 +297,49 @@ This document has been wrong four times by reasoning past that line.
 ### B. Ready now
 
 **B1 — Fix the third `/api`-prefix instance** (correction 6). Fix the
-trace-side `drop-health` policy; leave the metrics-side exclusion dead. _In
-flight._
+trace-side `drop-health` policy; leave the metrics-side exclusion dead.
+_Not started._
 
-**B2 — Batch the `modules/{m}/{sub}` fan-out.** The larger, untouched half
-of the 31-request burst (~18 of 31). Unlike taxonomies this carries
-per-submodule permission checks, so batching must preserve them exactly —
-a batch that collapses distinct authorization decisions is worse than 18
-fast requests. _In flight._
+⚠️ **Do not "fix" this blind.** The `transform` processor carries only
+`metric_statements`, so `route_class` exists on metrics and **never on
+spans** — the tail-sampling policy cannot key on it. Whether the current
+policy is already a no-op depends on whether span-side `http.target`
+carries the `/api` prefix, which is a **Tempo lookup**, not a PromQL one:
+search for `/healthz` spans — present means the policy is dead, absent
+means it already works. Getting `invert_match` wrong here risks silently
+dropping worker traces, which is how the pipeline investigation would
+lose its evidence.
+
+**B2 — Batch the `modules/{m}/{sub}` fan-out. DROPPED (2026-08-26).** Not
+being built; the empty branch and worktree are deleted. Recorded here with
+its findings so it is not re-proposed from the request-count argument alone.
+
+The blocking question it was waiting on **was answered, and the answer was
+"no gate needed"**: the authorization check is
+`check_module_permission_for_report(..., module_id=module_id, action="view", …)`
+(`carbon_report_module.py:759`) — keyed on **module, not submodule**. N
+single-entry calls ask the identical question, so batching collapses N
+redundant checks into one and introduces **no new authorization decision**.
+It was ordinary work, not permission scoping.
+
+⚠️ **If this is ever revived, the trap is
+`_get_professional_travel_institutional_id_filter`**
+(`carbon_report_module.py:162`). It _does_ vary per submodule: `None` for
+most types, but for `plane`/`train` it restricts rows to the caller's own
+`institutional_id` unless they hold principal/global access. It sits next to
+the permission check and reads like boilerplate, so the obvious batch
+implementation hoists it out of the loop — at which point a request for
+`[plane, equipment]` returns **unfiltered travel rows, i.e. other people's
+trips**. That is a **200 with too much data**, so every status-code test
+still passes. It must be computed per entry, inside the loop, with a test
+asserting exactly that.
+
+Note also that #2360's fix took a different route for the explore page —
+_deferring_ fetches until expansion rather than batching them — so the
+request-count argument for B2 is weaker than when it was written.
 
 **B3 — Dashboard remainder** (§4.9): split 4xx/5xx, scope the `$pod`
-variable to a metric name, add `$namespace`. _In flight._
+variable to a metric name, add `$namespace`. _Not started._
 
 **B4 — `ApiLatencySLOBreach`, added in parallel.** Measured live: job-class
 p95 **and** p99 both returned exactly `10000` — the histogram's highest
@@ -316,7 +348,7 @@ measurement; 10 s and 200 s are indistinguishable. Proportion-of-slow-
 requests has no interpolation and degrades gracefully at low volume.
 **Add only — do not delete `LatencyP50/P95/P99High` yet.** Run both a week,
 compare fire counts; "the new rule never fired" is a result to measure, not
-assume. _In flight._
+assume. _Not started._
 
 **B5 — Alertmanager severity routing + inhibit rules, and de-hardcode the
 namespace.** `severity` is set on every rule and consumed by nothing; a
@@ -324,7 +356,7 @@ namespace.** `severity` is set on every rule and consumed by nothing; a
 error-rate alerts it caused. ⚠️ A malformed `AlertmanagerConfig` is
 **silently dropped** — symptom is no alerts at all, with nothing reporting
 an error. Ships with a post-merge verification checklist, not
-fire-and-forget. _In flight._
+fire-and-forget. _Not started._
 
 ### C. Gated — needs a written plan reviewed by both maintainers
 
@@ -408,7 +440,7 @@ write access has to make it.
 _Verdict on the path-scoped Route: withdrawn._ Three reasons.
 
 1. **The surviving rationale doesn't need it.** A path-scoped Route earns
-   its keep when a path needs a *different timeout value*. With `10m`
+   its keep when a path needs a _different timeout value_. With `10m`
    applied route-wide, `/v1/sync` needs nothing the rest of `/api` doesn't.
 2. **It's the wrong instrument for the metrics bonus.** Splitting
    `HaproxyRouteHighLatency`'s `avg` is an **alerting** problem, and the
@@ -417,7 +449,7 @@ _Verdict on the path-scoped Route: withdrawn._ Three reasons.
    traffic routing** to fix a dashboard inverts the risk/benefit, and
    "ship small / defer, don't improvise" points the other way. Rescope or
    retire the HAProxy-side alert instead.
-3. **Concrete footgun.** All three Routes are *already* path-scoped
+3. **Concrete footgun.** All three Routes are _already_ path-scoped
    (`/api`, `/docs`, `/`; `helm/templates/routes.yaml:24,55,83`), and the
    backend Route carries `haproxy.router.openshift.io/rewrite-target: /`,
    injected by the template unless overridden (`routes.yaml:11-17`). A
