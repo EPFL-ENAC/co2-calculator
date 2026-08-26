@@ -92,31 +92,35 @@ const affiliationSegments = computed(
           <span class="text-caption text-secondary text-weight-medium">
             {{ $t('workspace_unit_label') }}
           </span>
-          <q-select
-            v-model="selectedUnitId"
-            :options="unitOptions"
-            emit-value
-            map-options
-            dense
-            outlined
-            options-dense
-            data-testid="workspace-unit-select"
-            class="workspace-selector-bar__select"
-          />
+          <!-- testid on this wrapper, not q-select: Quasar 2.25 also forwards
+               it onto the internal focus-target input, doubling matches. -->
+          <div data-testid="workspace-unit-select">
+            <q-select
+              v-model="selectedUnitId"
+              :options="unitOptions"
+              emit-value
+              map-options
+              dense
+              outlined
+              options-dense
+              class="workspace-selector-bar__select"
+            />
+          </div>
         </div>
         <div class="workspace-selector-bar__field">
           <span class="text-caption text-secondary text-weight-medium">
             {{ $t('workspace_year_label') }}
           </span>
-          <q-select
-            v-model="selectedYear"
-            :options="yearOptions"
-            dense
-            outlined
-            options-dense
-            data-testid="workspace-year-select"
-            class="workspace-selector-bar__select"
-          />
+          <div data-testid="workspace-year-select">
+            <q-select
+              v-model="selectedYear"
+              :options="yearOptions"
+              dense
+              outlined
+              options-dense
+              class="workspace-selector-bar__select"
+            />
+          </div>
         </div>
       </div>
 
