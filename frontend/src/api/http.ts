@@ -83,6 +83,12 @@ export const api = ky.create({
           });
           location.replace(loginPageName);
         } else if (res.status === 403) {
+          // Caller declared 403 an expected outcome (skipErrorCodes): skip the
+          // toast + hard /unauthorized redirect and let it handle the
+          // HTTPError itself (e.g. the unit guard's soft redirect, #2369).
+          if (((options as ApiOptions).skipErrorCodes ?? []).includes(403)) {
+            return;
+          }
           // Parse permission error details from response body
           let permissionDetails: {
             path?: string;

@@ -270,7 +270,11 @@ export const useWorkspaceStore = defineStore(
       try {
         unitLoading.value = true;
         unitErrors.value = [];
-        selectedUnit.value = (await api.get(`units/${id}`).json()) as Unit;
+        // 403/404 are expected — the unit guard probes units outside the
+        // membership list (#2369) and redirects on refusal. No global toast.
+        selectedUnit.value = (await api
+          .get(`units/${id}`, { skipErrorCodes: [403, 404] })
+          .json()) as Unit;
       } catch (error) {
         console.error('Error getting unit:', error);
         const errorObj =
