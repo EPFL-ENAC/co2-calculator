@@ -128,11 +128,11 @@ let client: Client | null = null;
 //     ~250–400 lines — this is the bulk of @sentry/vue's tracing and the
 //     subtle, bug-prone part (span lifecycles, sampling, clocks). Prefer
 //     lazily re-adding @sentry/vue for tracing only over hand-rolling it.
-//   • Distributed tracing: inject `sentry-trace` + `baggage` headers on /api
-//     requests (a ky beforeRequest hook) AND run a Sentry/OTel SDK on the
-//     backend reporting to the same GlitchTip — only then do these IDs link a
-//     request across front ↔ back. Without the backend half, the IDs alone
-//     just group front-end errors.
+//   • Sentry-native distributed tracing: `sentry-trace` + `baggage` headers
+//     AND a Sentry/OTel SDK on the backend reporting to the same GlitchTip.
+//     We instead ship the W3C `traceparent` header (see traceparent() below,
+//     stamped on /api calls by api/http.ts) so backend OTel spans join this
+//     trace id and GlitchTip events become searchable in Tempo (#2372).
 function randomHex(bytes: number): string {
   const buf = new Uint8Array(bytes);
   crypto.getRandomValues(buf);
@@ -146,6 +146,14 @@ let spanId = randomHex(8); // 16 hex chars
 export function startNavigationTrace(): void {
   traceId = randomHex(16);
   spanId = randomHex(8);
+}
+
+// W3C tracecontext header value for outgoing /api requests: same trace id as
+// the GlitchTip events of this navigation, fresh span id per request. FastAPI's
+// OTel instrumentation extracts it, so backend server spans join the browser's
+// trace and any GlitchTip trace_id is searchable in Tempo (#2372).
+export function traceparent(): string {
+  return `00-${traceId}-${randomHex(8)}-01`;
 }
 
 export function initGlitchTip(opts: GlitchTipOptions): void {
