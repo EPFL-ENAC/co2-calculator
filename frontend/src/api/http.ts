@@ -32,8 +32,20 @@ const isSessionCheck = (u: string, m: string) =>
  *
  * Every other request uses ky's **default 10 s** — which nothing here sets,
  * so it is easy to miss that it exists at all. It is a hard ceiling: the
- * browser aborts, regardless of the server still working. #2360 was exactly
+ * browser aborts regardless of the server still working. #2360 was exactly
  * that, on `factors/{id}/list`.
+ *
+ * **590 s = the OpenShift Route timeout (10 m) minus 10 s.** Deliberately
+ * just *under* the router, so on a genuinely stuck request the browser is
+ * always the one that gives up first and the failure is attributable: a
+ * client abort at ~590 s and a router 504 at 600 s are then distinguishable
+ * by when they happen. Equal values would make the two indistinguishable.
+ *
+ * ⚠️ **Coupled to infrastructure.** `haproxy.router.openshift.io/timeout: 10m`
+ * is set on the backend Route in all three environments
+ * (`epfl/co2-calculator/overlays/{dev,stage,prod}/kustomization.yaml` in the
+ * ops repo). If that annotation changes, change this with it — nothing
+ * enforces the relationship at build or deploy time.
  *
  * Applied per call, never as a new default, so raising it is always a
  * deliberate statement about one endpoint.
@@ -44,7 +56,7 @@ const isSessionCheck = (u: string, m: string) =>
  * that would make it unnecessary. Do not reach for it to silence a
  * regression.
  */
-export const SLOW_REQUEST_TIMEOUT_MS = 60_000;
+export const SLOW_REQUEST_TIMEOUT_MS = 590_000;
 
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
