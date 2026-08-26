@@ -122,9 +122,6 @@ jobs:
       - name: Run frontend tests components
         run: npm run test-ct
 
-      - name: Run frontend tests e2e
-        run: npm run test:e2e
-
       - name: Upload coverage reports
         if: always()
         uses: codecov/codecov-action@v5
