@@ -186,6 +186,41 @@ async def test_get_taxonomy_second_call_served_from_cache(service):
 
 
 @pytest.mark.asyncio
+async def test_get_taxonomy_strips_coefficients_from_the_tree(service):
+    """#2391 decision 3: bulk taxonomy payloads must never carry emission
+    coefficients -- the only client consumer of factor values is the narrow
+    GET factors/{det}/classes/{kind}/values prefill endpoint, not this tree.
+    """
+    handler = _make_handler()
+    factors = [
+        Factor(
+            emission_type_id=1,
+            classification={"kind": "A", "subkind": "A1"},
+            values={
+                "ef_kg_co2eq_per_kwh": 0.42,
+                "active_power_w": 150,
+                "standby_power_w": 5,
+            },
+        )
+    ]
+    service.factor_service.list_by_data_entry_type = AsyncMock(return_value=factors)
+
+    result = await service.get_taxonomy(
+        handler, DataEntryTypeEnum.scientific, year=2025
+    )
+
+    dumped = result.model_dump_json()
+    for forbidden in (
+        "values",
+        "classification",
+        "ef_kg_co2eq_per_kwh",
+        "active_power_w",
+        "standby_power_w",
+    ):
+        assert forbidden not in dumped
+
+
+@pytest.mark.asyncio
 async def test_get_taxonomy_different_year_is_not_cached_together(service):
     """Cache key includes year — a different year must still hit the DB."""
     handler = _make_handler()
