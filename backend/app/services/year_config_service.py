@@ -163,3 +163,22 @@ async def is_submodule_inputs_deactivated(
     if submodule_config is None:
         return False
     return bool(submodule_config.get("inputs_deactivated", False))
+
+
+async def is_year_started(
+    session: AsyncSession, year: int, provider: UserProvider
+) -> bool:
+    """Whether ``year`` has been opened to end users for ``provider``.
+
+    Drives the taxonomies endpoints' Cache-Control split (#2391 decision
+    2): a started year's factors never change again (the lifecycle
+    invariant), so its responses can carry a long max-age. A year with no
+    configuration row resolves to ``False`` — the conservative direction,
+    since nothing uploaded/opened yet is never safe to treat as immutable.
+    """
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == provider,
+    )
+    year_config = (await session.exec(stmt)).first()
+    return bool(year_config.is_started) if year_config else False

@@ -376,3 +376,53 @@ async def test_get_taxonomy_cache_cleared_forces_requery(service):
     await service.get_taxonomy(handler, DataEntryTypeEnum.scientific, year=2025)
 
     assert service.factor_service.list_by_data_entry_type.await_count == 2
+
+
+# ── get_taxonomy_with_etag (#2391 decision 2) ────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_taxonomy_with_etag_same_data_same_etag_across_rebuilds(service):
+    """Same factors, cache cleared and rebuilt, must produce the same
+    ETag -- that's what lets every pod agree on it with zero per-request
+    queries.
+    """
+    handler = _make_handler()
+    service.factor_service.list_by_data_entry_type = AsyncMock(
+        return_value=[Factor(emission_type_id=1, classification={"kind": "A"})]
+    )
+
+    first = await service.get_taxonomy_with_etag(
+        handler, DataEntryTypeEnum.scientific, year=2025
+    )
+    taxonomy_cache.clear()
+    second = await service.get_taxonomy_with_etag(
+        handler, DataEntryTypeEnum.scientific, year=2025
+    )
+
+    assert first.etag == second.etag
+
+
+@pytest.mark.asyncio
+async def test_get_taxonomy_with_etag_different_year_different_etag(service):
+    """Different years carry different factors, so their trees -- and
+    hence their content-hashed ETags -- must differ too.
+    """
+    handler = _make_handler()
+
+    async def _factors_for_year(data_entry_type, year):
+        kind = "A" if year == 2025 else "B"
+        return [Factor(emission_type_id=1, classification={"kind": kind})]
+
+    service.factor_service.list_by_data_entry_type = AsyncMock(
+        side_effect=_factors_for_year
+    )
+
+    entry_2025 = await service.get_taxonomy_with_etag(
+        handler, DataEntryTypeEnum.scientific, year=2025
+    )
+    entry_2026 = await service.get_taxonomy_with_etag(
+        handler, DataEntryTypeEnum.scientific, year=2026
+    )
+
+    assert entry_2025.etag != entry_2026.etag

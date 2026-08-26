@@ -85,10 +85,13 @@ mutable during preparation and immutable after — which is what lets decision
 
 ## Open points for the plan
 
-- Where `building_rooms` fits: fold into the unified endpoint's Buildings
-  response, or keep as the one legitimate side table.
-- ETag derivation: last-ingestion timestamp per `(det, year)` vs. content
-  hash of the cached tree.
+- ~~Where `building_rooms` fits~~ — settled 2026-08-26: stays a side table
+  (genuinely different, year-less data); documented as the one legitimate
+  exception to the unified lookup path.
+- ~~ETag derivation~~ — settled with decision 2: content hash of the built
+  tree (no ingestion-timestamp column exists to use instead).
+- Purchase label i18n schema — parked on #2401 (team decision), blocks
+  decision 4.
 - Exact per-module migration order (equipment last — it carries the
   values-prefill edge case).
 
@@ -122,8 +125,20 @@ mutable during preparation and immutable after — which is what lets decision
       `factors/{det}/class-subclass-map` and `factors/{det}/list` are deleted
       (`GET factors/{det}/classes/{kind}/values`, the equipment prefill,
       stays). Detailed below.
-- [ ] **Decision 2** — raise the server TTL and add an `ETag` to the batch
-      endpoint response.
+- [x] **Decision 2** — server TTL raised 60s → 3600s (the cross-pod broadcast
+      is now the correctness mechanism; the TTL is only a backstop for what
+      it doesn't reach). ETag is a content hash of the built tree
+      (`factors` carries no updated-at column to use as an ingestion
+      marker), computed once at build time and cached alongside the tree so
+      every pod emits the identical ETag with zero extra queries; the batch
+      route combines per-entry ETags deterministically (sorted, so query
+      order doesn't matter) and both routes answer `If-None-Match` with an
+      empty 304 before serializing. `Cache-Control` now splits on the year
+      lifecycle: `max-age=86400` once a year is started (its factors never
+      change again), `max-age=60` while still in preparation — a short,
+      cached `is_year_started` lookup decides which, defaulting to
+      not-started (short max-age) when no year-configuration row exists.
+      Delivered by PR #<fill in on push>.
 - [ ] **Decision 4** — purchase server-side typeahead; ingest
       `purchase_institutional_description`; delete `i18n/purchase_factors.ts`.
 - [x] **Decision 6** — generate `enumSubmodule`, room types, cabin classes,

@@ -24,8 +24,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.api.deps as deps_module
-from app.core.factor_taxonomy_cache import taxonomy_cache
+from app.core.factor_taxonomy_cache import started_year_cache, taxonomy_cache
 from app.main import app
+from app.models.user import UserProvider
 from tests.integration.services.data_ingestion.test_plan_310b_factor_pipeline_pg import (  # noqa: E501
     _make_factor,
 )
@@ -47,6 +48,9 @@ async def pg_app(pg_dsn):
     fake_user = MagicMock()
     fake_user.id = 1
     fake_user.email = "test@example.com"
+    # A real column bind, not a mock -- the taxonomies routes now query
+    # year_configuration by (year, provider) for Cache-Control (#2391).
+    fake_user.provider = UserProvider.DEFAULT
 
     app.dependency_overrides[deps_module.get_db] = override_get_db
     app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
@@ -91,9 +95,11 @@ async def test_taxonomy_options_scoped_to_year(pg_app):
         )
         await session.commit()
 
-    # The taxonomy cache is a process-wide singleton (#2258) — a tree another
-    # test built for the same (data_entry_type, year) would be served instead.
+    # Both caches are process-wide singletons (#2258, #2391) — a tree or an
+    # is_started read another test left behind for the same key would be
+    # served instead.
     taxonomy_cache.clear()
+    started_year_cache.clear()
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://test",
