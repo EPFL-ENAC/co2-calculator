@@ -19,6 +19,7 @@ from app.core.exceptions import (
     RecordAccessDeniedError,
 )
 from app.core.logging import get_logger, setup_logging
+from app.core.request_origin import RequestOriginMiddleware
 from app.tasks._db_health import DBHealthState, get_db_health_state, is_fresh
 
 # Setup logging
@@ -362,7 +363,10 @@ app = FastAPI(
 )
 
 
-# NO CORS origins configured allowed on this instance
+# CORS stays disabled on this instance, deliberately: with no CORS headers the
+# browser preflights and then drops every JSON-body and PUT/PATCH/DELETE
+# forgery. RequestOriginMiddleware below covers what preflights don't — see
+# docs/src/implementation-plans/89-security-in-depth.md.
 
 # Add this after creating the FastAPI app
 app.add_middleware(
@@ -373,6 +377,11 @@ app.add_middleware(
     same_site="lax",
     https_only=not settings.DEBUG,
 )
+
+# Registered after SessionMiddleware so it runs *before* it (Starlette builds
+# the stack outside-in from the last registration): a request rejected for its
+# origin must not touch session state on the way out.
+app.add_middleware(RequestOriginMiddleware)
 
 # Register exception handlers for permission-based access control
 app.add_exception_handler(PermissionDeniedError, permission_denied_handler)

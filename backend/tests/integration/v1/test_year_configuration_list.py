@@ -20,6 +20,7 @@ import app.api.deps as deps_module
 from app.main import app
 from app.models.user import UserProvider
 from app.models.year_configuration import YearConfiguration
+from tests.browser import SAME_ORIGIN_HEADERS
 from tests.unit.v1.test_temp_upload_auth_ordering import valid_access_token
 
 URL = "/api/v1/year-configuration/"
@@ -113,7 +114,11 @@ async def db_with_two_providers_same_year():
 def client():
     # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies
     # run, so the get_current_user override alone no longer gets past it.
-    with TestClient(app, cookies={"auth_token": valid_access_token()}) as c:
+    with TestClient(
+        app,
+        cookies={"auth_token": valid_access_token()},
+        headers=SAME_ORIGIN_HEADERS,
+    ) as c:
         yield c
 
 

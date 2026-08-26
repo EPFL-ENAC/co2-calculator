@@ -45,6 +45,7 @@ backend:
     OAUTH_SCOPE: "openid profile email"
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "http://localhost:3000" # Change to frontend URL in production
+    CSRF_ADDITIONAL_ORIGINS: "" # Extra origins for cookie-auth writes (#89); FRONTEND_URL is already allowed
     ACCRED_AUTHORIZATION_HEALTHCHECK_URL: "https://url-you-want-to-check"
     MIN_CONFIGURABLE_YEAR: "2025" # Earliest year an admin can create a YearConfiguration for
     APP_MIN_REDUCTION_YEAR: "1990" # Earliest reference year for reduction objective goals

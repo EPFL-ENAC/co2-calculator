@@ -199,8 +199,46 @@ See [ADR-012](../architecture-decision-records/012-jwt-authentication-strategy.m
 
 Bearer tokens in JS-readable storage are the OWASP cheat-sheet
 anti-pattern for SPAs: any XSS sink lifts the token. `httpOnly` cookies
-are out of reach of JavaScript and ride CSRF mitigations via `SameSite`
-and the standard `Origin`/`Referer` checks already in place.
+are out of reach of JavaScript, and the CSRF exposure they bring in
+exchange is covered by `SameSite=Lax` plus the request-origin check
+described below.
+
+### CSRF: `SameSite` plus a request-origin check
+
+Cookie auth is forgeable by construction, so two controls stand in front
+of every state-changing request:
+
+1. **`SameSite=Lax` on the auth cookies** — browser-enforced, so it holds
+   independently of our own code, and it keeps the cookie _off_ a
+   cross-site request entirely rather than receiving one and refusing it.
+2. **`RequestOriginMiddleware`** (`backend/app/core/request_origin.py`) —
+   rejects any request carrying an auth cookie that cannot show, via
+   `Sec-Fetch-Site`, `Origin` or `Referer`, that it came from our own
+   origin. Fail-closed: none of the three headers means `403`.
+
+The second exists because the first is not sufficient here. `SameSite` is
+evaluated against the **registrable domain**, so every application under
+`*.epfl.ch` is _same-site_ to us and `Lax` will attach `auth_token` to
+its requests. `Sec-Fetch-Site: same-site` is therefore rejected, not just
+`cross-site`.
+
+Two rebuttals worth recording, so they are not re-litigated each review:
+
+- **Why not `SameSite=Strict`?** The attacker in our threat model is
+  same-site by definition, so `Strict` blocks nothing they can do — while
+  breaking session state on every inbound link into the app.
+- **Why no CSRF token?** Naive double-submit is defeated by that same
+  attacker: any `*.epfl.ch` host can set a `Domain=epfl.ch` cookie and
+  forge the matching header. Signed double-submit would work but is
+  machinery a same-origin SPA does not need. A genuinely cross-origin
+  frontend would reopen the question as an ADR.
+
+CORS stays disabled on this instance, deliberately — with no CORS headers
+the browser preflights and drops every JSON-body and
+`PUT`/`PATCH`/`DELETE` forgery before it is sent. The middleware covers
+what preflights do not: `POST` requests whose body type is CORS-simple.
+
+See [plan #89](../implementation-plans/89-security-in-depth.md).
 
 ## 10. Future work
 

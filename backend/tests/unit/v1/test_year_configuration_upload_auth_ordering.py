@@ -19,6 +19,7 @@ from app.api.deps import get_current_user
 from app.api.v1 import year_configuration as year_config_module
 from app.main import app
 from app.models.user import User
+from tests.browser import SAME_ORIGIN_HEADERS
 from tests.unit.v1.test_temp_upload_auth_ordering import (
     build_multipart_body,
     call_asgi,
@@ -45,7 +46,11 @@ def authorised_editor(monkeypatch):
         return True
 
     monkeypatch.setattr(year_config_module, "is_permitted", _allow)
-    yield TestClient(app, cookies={"auth_token": valid_access_token()})
+    yield TestClient(
+        app,
+        cookies={"auth_token": valid_access_token()},
+        headers=SAME_ORIGIN_HEADERS,
+    )
     app.dependency_overrides.clear()
 
 

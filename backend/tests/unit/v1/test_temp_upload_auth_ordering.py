@@ -28,6 +28,7 @@ from app.api.v1 import files as files_module
 from app.core.security import create_access_token
 from app.main import app
 from app.models.user import User, UserProvider
+from tests.browser import SAME_ORIGIN_HEADERS
 
 TEMP_UPLOAD_PATH = "/api/v1/files/temp-upload"
 
@@ -56,7 +57,11 @@ def authenticated_client() -> TestClient:
     fake.id = 1
     fake.calculate_permissions.return_value = {"backoffice.configuration": ["edit"]}
     app.dependency_overrides[get_current_user] = lambda: fake
-    return TestClient(app, cookies={"auth_token": valid_access_token()})
+    return TestClient(
+        app,
+        cookies={"auth_token": valid_access_token()},
+        headers=SAME_ORIGIN_HEADERS,
+    )
 
 
 def build_multipart_body(field: str = "files") -> tuple[bytes, bytes]:
@@ -135,6 +140,9 @@ def test_oversized_content_length_rejected_before_body_is_read():
         (b"content-type", b"multipart/form-data; boundary=" + boundary),
         (b"content-length", str(MAX_REQUEST_BODY_BYTES + 1).encode()),
         (b"cookie", b"auth_token=" + valid_access_token().encode()),
+        # A cookie-authenticated write must clear the origin check (#89)
+        # before this test's subject — the size gate — can be reached.
+        (b"sec-fetch-site", b"same-origin"),
     ]
     receive_calls, status_code = call_asgi(
         TEMP_UPLOAD_PATH, body, boundary, headers=headers

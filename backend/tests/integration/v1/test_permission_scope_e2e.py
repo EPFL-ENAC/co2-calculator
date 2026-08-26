@@ -46,6 +46,7 @@ from app.models.user import (
     UserProvider,
     calculate_user_permissions,
 )
+from tests.browser import SAME_ORIGIN_HEADERS
 from tests.unit.v1.test_temp_upload_auth_ordering import valid_access_token
 
 UNIT_IID = "0184"
@@ -61,7 +62,11 @@ _ALL_MEMBERS = [
 def client():
     # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies
     # run, so the get_current_user override alone no longer gets past it.
-    with TestClient(app, cookies={"auth_token": valid_access_token()}) as c:
+    with TestClient(
+        app,
+        cookies={"auth_token": valid_access_token()},
+        headers=SAME_ORIGIN_HEADERS,
+    ) as c:
         yield c
 
 
