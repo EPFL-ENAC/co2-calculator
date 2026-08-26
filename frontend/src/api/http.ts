@@ -27,9 +27,39 @@ const isRefresh = (u: string, m: string) =>
 const isSessionCheck = (u: string, m: string) =>
   endsWithSession(u) && m.toUpperCase() === 'GET';
 
+/**
+ * Request timeout for every call through this client.
+ *
+ * ky's own default is **10 s**, and nothing here used to set it — so it was
+ * easy to miss that a hard ceiling existed at all. It aborts in the browser
+ * regardless of the server still working, which is what #2360 was.
+ *
+ * **590 s = the OpenShift Route timeout (10 m) minus 10 s.** Deliberately
+ * just *under* the router, so on a genuinely stuck request the browser is
+ * always the one that gives up first and the failure is attributable: a
+ * client abort at ~590 s and a router 504 at 600 s are distinguishable by
+ * when they happen. Equal values would collapse them into one symptom.
+ *
+ * ⚠️ **Coupled to infrastructure.** `haproxy.router.openshift.io/timeout: 10m`
+ * is set on the backend Route in all three environments
+ * (`epfl/co2-calculator/overlays/{dev,stage,prod}/kustomization.yaml` in the
+ * ops repo). If that annotation changes, change this with it — nothing
+ * enforces the relationship at build or deploy time.
+ *
+ * **Applied globally on purpose, not per endpoint.** The first attempt raised
+ * it only on the three endpoints with measured cause; a fourth
+ * (`carbon-reports/{id}/modules/{m}/{sub}`, #2404) timed out within hours.
+ * A hand-maintained list of "known slow" calls is a list that is always out
+ * of date, and being wrong means a *user-visible failure on a working
+ * backend*. Slowness is a monitoring problem — the latency alerts exist to
+ * say "this is too slow"; the client's job is not to guess.
+ */
+export const REQUEST_TIMEOUT_MS = 590_000;
+
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
   credentials: 'include',
+  timeout: REQUEST_TIMEOUT_MS,
   // ky's default `methods` excludes POST/PATCH, so without overriding it the
   // beforeRetry hook below would never fire on form submits — users mid-edit
   // would get bounced to /login on a single 401 even though the refresh
