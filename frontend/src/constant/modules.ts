@@ -1,5 +1,6 @@
 import { MODULES_ORDER } from '@/constant/timelineItems';
 import type { DataEntryPolicies } from '@/utils/dataEntryPolicy';
+import { DATA_ENTRY_TYPE_IDS } from '@/types/module-lookups.gen';
 
 export const MODULES = {
   Headcount: 'headcount',
@@ -85,44 +86,15 @@ type ProcessesProps = {
   submoduleType?: AllSubmoduleTypes; // ProcessesSubType;
 };
 
-// beware came straight from backend enum, make sure to keep in sync if backend changes
-// backend/app/models/data_entry.py
+// Generated from backend/app/models/data_entry.py (DataEntryTypeEnum) — see
+// frontend/src/types/module-lookups.gen.ts. Two keys are added on top: the
+// hyphenated research-facilities alias, and energy_mix (frontend-only, not a
+// submodule). Extra keys are safe — nothing iterates this object, every
+// consumer does a keyed lookup.
 export const enumSubmodule = {
-  member: 1,
-  student: 2,
-  // todo replace with equipment types
-  [SUBMODULE_EQUIPMENT_TYPES.Scientific]: 10,
-  [SUBMODULE_EQUIPMENT_TYPES.IT]: 11,
-  [SUBMODULE_EQUIPMENT_TYPES.Other]: 12,
-  // travel
-  plane: 20,
-  train: 21,
-  // building room
-  building: 30,
-  energy_combustion: 31,
-  // external cloud and ai
-  [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
-  [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
-  // process emissions
-  process_emissions: 50,
-  // purchase submodules
-  [SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases]: 60,
-  [SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases]: 61,
-  [SUBMODULE_PURCHASE_TYPES.ConsumablePurchases]: 62,
-  [SUBMODULE_PURCHASE_TYPES.BioProductPurchases]: 63,
-  [SUBMODULE_PURCHASE_TYPES.ServicePurchases]: 64,
-  [SUBMODULE_PURCHASE_TYPES.VehiclePurchases]: 65,
-  [SUBMODULE_PURCHASE_TYPES.OtherPurchases]: 66,
-  [SUBMODULE_PURCHASE_TYPES.PurchasesCentralized]: 67,
-
-  // research facilities
-  [SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities]: 70,
-  [SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities]: 71,
-  // Simulator Plan (planner) kinds — mirror backend DataEntryTypeEnum 80+
-  planner_headcount: 80,
-  planner_purchase: 81,
-  planner_purchase_budget: 82,
-  // not a module per se
+  ...DATA_ENTRY_TYPE_IDS,
+  [SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities]:
+    DATA_ENTRY_TYPE_IDS.research_facilities,
   energy_mix: 100,
 } as const;
 

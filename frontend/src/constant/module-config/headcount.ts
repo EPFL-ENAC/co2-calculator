@@ -2,6 +2,7 @@ import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import { MODULES, MODULES_THRESHOLD_TYPES } from '@/constant/modules';
 import { formatFTE } from '@/utils/number';
 import type { Module } from '@/constant/modules';
+import { SIUS_CODES } from '@/types/module-lookups.gen';
 
 // Define an icon map to convert string keys to SVG icons
 import {
@@ -47,16 +48,7 @@ const memberFields: ModuleField[] = [
     // renderCell falls back to this key template when no option matches.
     optionLabelKey: '{value}',
 
-    options: [
-      { value: '51', label: '51' },
-      { value: '52', label: '52' },
-      { value: '53', label: '53' },
-      { value: '54', label: '54' },
-      { value: '56', label: '56' },
-      { value: '57', label: '57' },
-      { value: '58', label: '58' },
-      { value: '59', label: '59' },
-    ],
+    options: SIUS_CODES.map((value) => ({ value, label: value })),
   },
   {
     id: 'user_institutional_id',

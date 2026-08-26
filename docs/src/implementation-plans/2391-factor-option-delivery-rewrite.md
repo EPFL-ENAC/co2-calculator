@@ -126,8 +126,16 @@ mutable during preparation and immutable after — which is what lets decision
       endpoint response.
 - [ ] **Decision 4** — purchase server-side typeahead; ingest
       `purchase_institutional_description`; delete `i18n/purchase_factors.ts`.
-- [ ] **Decision 6** — generate `enumSubmodule`, room types, cabin classes,
-      currencies, SIUS categories from backend enums.
+- [x] **Decision 6** — generate `enumSubmodule`, room types, cabin classes,
+      currencies, SIUS categories from backend enums
+      (`make gen-module-constants`, new
+      `frontend/src/types/module-lookups.gen.ts`). Confirmed
+      `enumSubmodule` drift (`building_embodied_energy = 32`) was
+      behavior-safe to add — every consumer does a keyed lookup, none
+      iterates the object. `external-cloud-and-ai.ts`'s 3-currency subset
+      (`eur`/`chf`/`usd`, vs. the full 9-currency backend set) is left
+      hand-written: it isn't a mirror of a backend constant, and widening it
+      would be an unreviewed behavior change. Delivered by PR #2400.
 
 ## References
 

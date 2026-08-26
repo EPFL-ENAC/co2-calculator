@@ -12,12 +12,14 @@ STAT_BUCKETS: tuple[StatBucket, ...] = (
     ),
 )
 
-_PLANE_CABIN_MAP: dict[str, EmissionType] = {
+# Public: also the source of truth for the frontend's cabin-class options
+# (see `make gen-module-constants`) — keys are the valid `cabin_class` values.
+PLANE_CABIN_MAP: dict[str, EmissionType] = {
     "business": EmissionType.professional_travel__plane__business,
     "economy": EmissionType.professional_travel__plane__eco,
 }
 
-_TRAIN_CLASS_MAP: dict[str, EmissionType] = {
+TRAIN_CLASS_MAP: dict[str, EmissionType] = {
     "first": EmissionType.professional_travel__train__class_1,
     "second": EmissionType.professional_travel__train__class_2,
 }
@@ -37,8 +39,8 @@ def _resolve_cabin(
 
 
 def resolve_plane(data: dict) -> list[EmissionType]:
-    return _resolve_cabin(data, _PLANE_CABIN_MAP, "plane")
+    return _resolve_cabin(data, PLANE_CABIN_MAP, "plane")
 
 
 def resolve_train(data: dict) -> list[EmissionType]:
-    return _resolve_cabin(data, _TRAIN_CLASS_MAP, "train")
+    return _resolve_cabin(data, TRAIN_CLASS_MAP, "train")
