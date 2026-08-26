@@ -43,7 +43,6 @@ _IT_CLOUD_AI_TYPES: frozenset[EmissionType] = frozenset(
         EmissionType.external__ai__provider_mistral_ai,
         EmissionType.external__ai__provider_anthropic,
         EmissionType.external__ai__provider_openai,
-        EmissionType.external__ai__provider_cohere,
         EmissionType.external__ai__provider_github,
         EmissionType.external__ai__provider_microsoft,
         EmissionType.external__ai__provider_others,

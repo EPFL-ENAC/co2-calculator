@@ -262,7 +262,7 @@ async def _seed_external_ai(s: AsyncSession, module_id: int) -> tuple[int, int]:
     factor = Factor(
         emission_type_id=EmissionType.external__ai__provider_openai.value,
         data_entry_type_id=DataEntryTypeEnum.external_ai.value,
-        classification={"provider": "openai", "usage_type": "chat"},
+        classification={"provider": "ChatGPT (OpenAI)", "usage_type": "text"},
         values={"ef_kg_co2eq_per_request": 0.01},
         year=2025,
     )
@@ -273,8 +273,8 @@ async def _seed_external_ai(s: AsyncSession, module_id: int) -> tuple[int, int]:
         data_entry_type_id=DataEntryTypeEnum.external_ai.value,
         carbon_report_module_id=module_id,
         data={
-            "provider": "openai",
-            "usage_type": "chat",
+            "provider": "ChatGPT (OpenAI)",
+            "usage_type": "text",
             "fte_count": 1.0,
             "requests_per_user_per_day": "5_20",
         },

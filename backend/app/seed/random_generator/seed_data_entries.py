@@ -318,8 +318,10 @@ def build_external_cloud() -> dict:
 
 def build_external_ai() -> dict:
     return {
-        "provider": random.choice(["OpenAI", "Anthropic", "Mistral"]),  # nosec B311
-        "usage_type": fake.sentence(nb_words=3),
+        "provider": random.choice(  # nosec B311
+            ["ChatGPT (OpenAI)", "Claude (Anthropic)", "Mistral AI"]
+        ),
+        "usage_type": random.choice(["text", "image", "code"]),  # nosec B311
         "requests_per_user_per_day": random.choice(  # nosec B311
             REQUESTS_FREQUENCY_OPTIONS
         ),
@@ -507,6 +509,7 @@ _SEED_EMISSION_ROOTS: dict[DataEntryTypeEnum, EmissionType] = {
     DataEntryTypeEnum.plane: EmissionType.professional_travel__plane,
     DataEntryTypeEnum.train: EmissionType.professional_travel__train,
     DataEntryTypeEnum.external_clouds: EmissionType.external__clouds,
+    DataEntryTypeEnum.external_ai: EmissionType.external__ai,
     DataEntryTypeEnum.process_emissions: EmissionType.process_emissions,
     DataEntryTypeEnum.research_facilities: EmissionType.research_facilities,
     DataEntryTypeEnum.animal_facilities: (EmissionType.research_facilities),

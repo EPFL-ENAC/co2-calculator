@@ -17,26 +17,17 @@ _CLOUD_SUBKIND_MAP: dict[str, EmissionType] = {
     "storage": EmissionType.external__clouds__stockage,
 }
 
-# Keyed on ``canonical_token`` output. Both spellings are declared: the
-# vendor name, and the product-name form the EPFL CSVs actually carry
-# ("Claude (Anthropic)" -> claude_anthropic). Before #2091 only
-# ``mistral_ai`` happened to match, so 16 of 19 factor rows disappeared
-# into ``provider_others`` and the AI breakdown chart read as one bucket.
+# Keyed on ``canonical_token`` output of the product-name categories the
+# EPFL CSVs carry since #2252 ("Claude (Anthropic)" -> claude_anthropic).
+# The pre-#2252 vendor-slug spellings are gone with the DB re-upload.
 _AI_USE_MAP: dict[str, EmissionType] = {
-    "google": EmissionType.external__ai__provider_google,
     "gemini_google": EmissionType.external__ai__provider_google,
     "mistral_ai": EmissionType.external__ai__provider_mistral_ai,
-    "anthropic": EmissionType.external__ai__provider_anthropic,
     "claude_anthropic": EmissionType.external__ai__provider_anthropic,
-    "openai": EmissionType.external__ai__provider_openai,
     "chatgpt_openai": EmissionType.external__ai__provider_openai,
-    "cohere": EmissionType.external__ai__provider_cohere,
-    "github": EmissionType.external__ai__provider_github,
-    "copilot_github": EmissionType.external__ai__provider_github,
-    "microsoft": EmissionType.external__ai__provider_microsoft,
     "copilot_microsoft": EmissionType.external__ai__provider_microsoft,
+    "copilot_github": EmissionType.external__ai__provider_github,
     "other": EmissionType.external__ai__provider_others,
-    "others": EmissionType.external__ai__provider_others,
 }
 
 

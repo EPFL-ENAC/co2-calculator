@@ -10,6 +10,7 @@ from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
+from app.modules.external_cloud_and_ai.emissions import resolve_ai
 
 fake = Faker()
 
@@ -188,28 +189,18 @@ async def create_factors(session: AsyncSession):
 
     # Create external AI factors
     ai_providers = [
-        "OpenAI",
-        "Anthropic",
-        "Google AI",
-        "Microsoft Azure AI",
-        "Amazon AI",
+        "Gemini (Google)",
+        "Mistral AI",
+        "Claude (Anthropic)",
+        "ChatGPT (OpenAI)",
+        "Copilot (Microsoft)",
+        "Copilot (GitHub)",
+        "Other",
     ]
-    ai_uses = [
-        "text_generation",
-        "image_generation",
-        "code_generation",
-        "voice_processing",
-        "video_analysis",
-    ]
+    ai_uses = ["text", "image", "code"]
 
     for provider in ai_providers:
-        emission_type_id = EmissionType.external__ai__provider_others
-        if provider == "OpenAI":
-            emission_type_id = EmissionType.external__ai__provider_openai
-        elif provider == "Anthropic":
-            emission_type_id = EmissionType.external__ai__provider_anthropic
-        elif provider == "Google AI":
-            emission_type_id = EmissionType.external__ai__provider_google
+        emission_type_id = resolve_ai({"provider": provider})[0]
         for use in ai_uses:
             factor = Factor(
                 emission_type_id=emission_type_id,
