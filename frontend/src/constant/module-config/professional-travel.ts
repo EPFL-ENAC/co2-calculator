@@ -2,6 +2,28 @@ import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import { MODULES, MODULES_THRESHOLD_TYPES } from '@/constant/modules';
 import { formatTonnesCO2 } from '@/utils/number';
 import type { ProfessionalTravelSubType } from '@/constant/modules';
+import {
+  PLANE_CABIN_CLASSES,
+  TRAIN_CABIN_CLASSES,
+} from '@/types/module-lookups.gen';
+
+// Generated values, hand-kept labels — a backend cabin-class addition/removal
+// fails typecheck here rather than drifting silently.
+const PLANE_CABIN_CLASS_LABELS: Record<
+  (typeof PLANE_CABIN_CLASSES)[number],
+  string
+> = {
+  business: 'charts-business-class-subcategory',
+  economy: 'charts-eco-class-subcategory',
+};
+
+const TRAIN_CABIN_CLASS_LABELS: Record<
+  (typeof TRAIN_CABIN_CLASSES)[number],
+  string
+> = {
+  first: 'class_1',
+  second: 'class_2',
+};
 
 // "Other traveler" sentinels + resolver live in a standalone light module so
 // they stay unit-testable (issue #1153); re-exported here for convenience.
@@ -152,10 +174,10 @@ const planeCabinClassField: ModuleField = {
   ratio: '1/1',
   editableInline: true,
   optionLabelsAreKeys: true,
-  options: [
-    { value: 'business', label: 'charts-business-class-subcategory' },
-    { value: 'economy', label: 'charts-eco-class-subcategory' },
-  ],
+  options: PLANE_CABIN_CLASSES.map((value) => ({
+    value,
+    label: PLANE_CABIN_CLASS_LABELS[value],
+  })),
 };
 
 const planeFields: ModuleField[] = buildTravelFields(
@@ -183,10 +205,10 @@ const trainCabinClassField: ModuleField = {
   ratio: '1/1',
   editableInline: true,
   optionLabelsAreKeys: true,
-  options: [
-    { value: 'first', label: 'class_1' },
-    { value: 'second', label: 'class_2' },
-  ],
+  options: TRAIN_CABIN_CLASSES.map((value) => ({
+    value,
+    label: TRAIN_CABIN_CLASS_LABELS[value],
+  })),
 };
 
 const trainFields: ModuleField[] = buildTravelFields(

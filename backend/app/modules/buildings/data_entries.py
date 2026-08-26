@@ -51,13 +51,14 @@ class BuildingRoomHandlerResponse(DataEntryResponseGen):
     kg_co2eq: float | None = None
 
 
+# Order matches the frontend room-type dropdown (see `make gen-module-constants`).
 VALID_ROOM_TYPES: list[str | None] = [
-    "office",
-    "miscellaneous",
     "laboratories",
+    "office",
     "archives",
     "libraries",
     "auditoriums",
+    "miscellaneous",
     None,
 ]
 
