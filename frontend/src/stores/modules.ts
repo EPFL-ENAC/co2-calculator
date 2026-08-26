@@ -495,6 +495,21 @@ export const useModuleStore = defineStore('modules', () => {
     return buildModulePath(moduleType, await resolveCarbonReportId(unit, year));
   }
 
+  // Resolve the carbon_report_module_id for a table's own identity
+  // (moduleType + unit/year or explicit report id). CSV dispatch must never
+  // read it from the shared `state.data`, which another page may have filled
+  // with a different report's module.
+  async function resolveCarbonReportModuleId(
+    moduleType: Module,
+    unit: number | string,
+    year: number | string,
+    carbonReportId?: number,
+  ): Promise<number | undefined> {
+    const path = `${await modulePath(moduleType, unit, year, carbonReportId)}?preview_limit=0`;
+    const data = (await api.get(path).json()) as ModuleResponse;
+    return data?.carbon_report_module_id;
+  }
+
   function initializeSubmoduleState(submoduleId: string) {
     if (!(submoduleId in state.expandedSubmodules)) {
       state.expandedSubmodules[submoduleId] = false;
@@ -1399,6 +1414,7 @@ export const useModuleStore = defineStore('modules', () => {
     validatedTotalsCarbonReportId,
     carbonProject,
     resolveCarbonReportId,
+    resolveCarbonReportModuleId,
     seedReportId,
     state,
   };
