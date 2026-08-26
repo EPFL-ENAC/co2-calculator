@@ -36,6 +36,10 @@ COPY alembic.ini ./
 # =========================
 FROM python:3.14-alpine AS runtime
 
+# CVE-2026-14456: openssl < 3.5.8-r0 in the alpine 3.24 base; drop once the
+# base image ships the fix (apk upgrade becomes a no-op then).
+RUN apk upgrade --no-cache libcrypto3 libssl3
+
 WORKDIR /app
 
 RUN addgroup -g 1001 appgroup && \

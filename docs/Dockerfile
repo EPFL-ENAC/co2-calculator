@@ -37,6 +37,13 @@ RUN uv run mkdocs build --strict --site-dir /dist
 # packages that dominate CVE scans and are unused for serving static files)
 FROM nginxinc/nginx-unprivileged:stable-alpine-slim
 
+# CVE-2026-14456: openssl < 3.5.8-r0 in the alpine base; drop once the base
+# image ships the fix (apk upgrade becomes a no-op then). Base runs as
+# uid 101 (nginx) — apk needs root.
+USER root
+RUN apk upgrade --no-cache libcrypto3 libssl3
+USER 101
+
 # Copy built documentation from builder stage
 COPY --from=builder /dist /usr/share/nginx/html
 
