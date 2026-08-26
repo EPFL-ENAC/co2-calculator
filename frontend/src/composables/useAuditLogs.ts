@@ -12,7 +12,7 @@ import {
   type AuditLogDetail,
   type AuditStats,
   type AuditQueryParams,
-} from 'src/api/audit';
+} from '@/api/audit';
 
 export function useAuditLogs() {
   const router = useRouter();

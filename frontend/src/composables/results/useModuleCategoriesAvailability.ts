@@ -1,9 +1,9 @@
 import { computed } from 'vue';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { MODULES } from 'src/constant/modules';
-import { BUILDING_EMBODIED_ENERGY_SUBMODULE_KEY } from 'src/constant/backoffice-module-config';
-import { getModuleForCategoryKey } from 'src/constant/charts';
-import { CATEGORY_TO_SUBMODULE } from 'src/composables/useModuleIconColors';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { MODULES } from '@/constant/modules';
+import { BUILDING_EMBODIED_ENERGY_SUBMODULE_KEY } from '@/constant/backoffice-module-config';
+import { getModuleForCategoryKey } from '@/constant/charts';
+import { CATEGORY_TO_SUBMODULE } from '@/composables/useModuleIconColors';
 
 // commuting/food/waste are derived slices of Headcount, embodied_energy of
 // Buildings — they aren't real back-office modules, so their activation

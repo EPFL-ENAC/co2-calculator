@@ -9,7 +9,9 @@
  * {'@'} with straight quotes.
  *
  * This scans every file in ``src/i18n`` and asserts each "@" character is
- * part of the exact sequence {'@'}.
+ * part of the exact sequence {'@'}. Import lines are skipped: they
+ * legitimately contain "@" as part of the `@/...` path alias, which is
+ * unrelated to translation message content.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -27,6 +29,10 @@ const ESCAPED_AT = "{'@'}";
 function findUnescapedAt(source: string): { line: number; context: string }[] {
   const violations: { line: number; context: string }[] = [];
   source.split('\n').forEach((text, index) => {
+    const trimmed = text.trim();
+    if (trimmed.startsWith('import ') || trimmed.startsWith('} from ')) {
+      return;
+    }
     for (
       let col = text.indexOf('@');
       col !== -1;

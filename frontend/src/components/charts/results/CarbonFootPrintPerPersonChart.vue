@@ -5,15 +5,15 @@ import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import TooltipEcharts from './TooltipEcharts.vue';
-import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
+import type { TooltipRow, TooltipState } from '@/types/chartTooltip';
 import type { EChartsOption, SeriesOption } from 'echarts';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
   colors,
-} from 'src/constant/charts';
-import { useColorblindStore } from 'src/stores/colorblind';
-import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
+} from '@/constant/charts';
+import { useColorblindStore } from '@/stores/colorblind';
+import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
 import {
   TooltipComponent,
   LegendComponent,
@@ -33,10 +33,10 @@ use([
   DatasetComponent,
 ]);
 
-import { formatTonnesForChart } from 'src/utils/number';
-import { usePrintMode } from 'src/composables/print/usePrintMode';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
-import { downloadCsv, escapeCsvValue } from 'src/utils/csvDownload';
+import { formatTonnesForChart } from '@/utils/number';
+import { usePrintMode } from '@/composables/print/usePrintMode';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
+import { downloadCsv, escapeCsvValue } from '@/utils/csvDownload';
 
 const props = withDefaults(
   defineProps<{

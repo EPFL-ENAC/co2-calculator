@@ -1,10 +1,10 @@
-import { api } from 'src/api/http';
-import { MODULES } from 'src/constant/modules';
+import { api } from '@/api/http';
+import { MODULES } from '@/constant/modules';
 import {
   PLANNER_HEADCOUNT_CODES,
   PLANNER_HEADCOUNT_SUBMODULE,
-} from 'src/constant/planner-headcount';
-import { buildModulePath } from 'src/utils/modulePath';
+} from '@/constant/planner-headcount';
+import { buildModulePath } from '@/utils/modulePath';
 
 export interface PlannerHeadcountRow {
   sius_code: string;

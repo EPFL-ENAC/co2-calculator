@@ -1,4 +1,4 @@
-import type { EmissionBreakdownResponse } from 'src/stores/modules';
+import type { EmissionBreakdownResponse } from '@/stores/modules';
 
 /**
  * Total tonnes summed off the same rows the module chart draws, so a headline

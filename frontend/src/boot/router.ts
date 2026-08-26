@@ -1,7 +1,7 @@
-import { boot } from 'quasar/wrappers';
+import { defineBoot } from '#q-app';
 import { getActivePinia } from 'pinia';
 
-export default boot(({ router }) => {
+export default defineBoot(({ router }) => {
   // Get the active Pinia instance
   const pinia = getActivePinia();
 

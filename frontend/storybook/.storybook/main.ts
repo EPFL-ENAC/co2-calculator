@@ -38,13 +38,11 @@ const config: StorybookConfig = {
         plugins: [vue()],
         resolve: {
           alias: {
-            src: path.resolve(projectRoot, 'src'),
-            components: path.resolve(projectRoot, 'src/components'),
-            layouts: path.resolve(projectRoot, 'src/layouts'),
-            pages: path.resolve(projectRoot, 'src/pages'),
-            assets: path.resolve(projectRoot, 'src/assets'),
-            boot: path.resolve(projectRoot, 'src/boot'),
-            stores: path.resolve(projectRoot, 'src/stores'),
+            '@': path.resolve(projectRoot, 'src'),
+            // See playwright-ct.config.ts for why this is needed: Storybook's
+            // own Vite instance doesn't know Quasar's internal '#q-app'
+            // alias used by boot/router/store files.
+            '#q-app': '@quasar/app-vite',
           },
         },
         css: {

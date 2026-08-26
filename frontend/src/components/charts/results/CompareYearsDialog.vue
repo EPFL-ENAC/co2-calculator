@@ -1,22 +1,22 @@
 <script setup lang="ts">
 import { computed, ref, watch, type PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useModuleStore } from 'src/stores/modules';
-import type { MultiYearReportStatsResponse } from 'src/stores/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
+import { useModuleStore } from '@/stores/modules';
+import type { MultiYearReportStatsResponse } from '@/stores/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
 import {
   RESULTS_CATEGORY_ORDER,
   RESULTS_CATEGORY_LABEL_KEYS,
   CHART_CATEGORY_COLOR_SCHEMES,
-} from 'src/constant/charts';
+} from '@/constant/charts';
 import {
   defaultSelectedYears,
   presentCategories,
   computeCompareYearsTotal,
   computeCompareYearsObjectives,
-} from 'src/utils/compareYears';
-import { nOrDash } from 'src/utils/number';
+} from '@/utils/compareYears';
+import { nOrDash } from '@/utils/number';
 import CompareYearsChart, {
   type CompareYearsSeries,
   type CompareYearsObjectiveBar,
@@ -574,7 +574,7 @@ const scopeObjectiveBars = computed(() =>
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .compare-years-dialog {
   width: 100%;

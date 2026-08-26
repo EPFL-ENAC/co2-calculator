@@ -3,8 +3,8 @@ import {
   buildChartDecal,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
   getChartSubcategoryColor,
-} from 'src/constant/charts';
-import type { TooltipState } from 'src/types/chartTooltip';
+} from '@/constant/charts';
+import type { TooltipState } from '@/types/chartTooltip';
 
 export type AdditionalCategoryKey =
   'commuting' | 'food' | 'waste' | 'embodied_energy';

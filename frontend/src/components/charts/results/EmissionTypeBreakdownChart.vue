@@ -11,7 +11,7 @@ import {
   CHART_CATEGORY_COLOR_SCALES,
   RESULTS_CATEGORY_LABEL_KEYS,
   RESULTS_SUBCATEGORY_LABEL_KEYS,
-} from 'src/constant/charts';
+} from '@/constant/charts';
 import {
   TooltipComponent,
   LegendComponent,
@@ -20,10 +20,10 @@ import {
   AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
-import ChartEmptyState from 'src/components/molecules/ChartEmptyState.vue';
+import ChartEmptyState from '@/components/molecules/ChartEmptyState.vue';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
-import { useColorblindStore } from 'src/stores/colorblind';
+import { useColorblindStore } from '@/stores/colorblind';
 
 use([
   CanvasRenderer,
@@ -35,14 +35,14 @@ use([
   AriaComponent,
 ]);
 
-import type { EmissionBreakdownCategoryRow } from 'src/stores/modules';
+import type { EmissionBreakdownCategoryRow } from '@/stores/modules';
 import {
   CATEGORY_CHART_KEYS,
   normalizeParentKey,
-} from 'src/composables/useEmissionTreemap';
-import { formatTonnesForChart } from 'src/utils/number';
-import { usePrintMode } from 'src/composables/print/usePrintMode';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
+} from '@/composables/useEmissionTreemap';
+import { formatTonnesForChart } from '@/utils/number';
+import { usePrintMode } from '@/composables/print/usePrintMode';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
 
 const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 

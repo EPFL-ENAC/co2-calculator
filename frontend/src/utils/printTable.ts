@@ -1,5 +1,5 @@
-import type { ModuleField } from 'src/constant/moduleConfig';
-import { resolveTravelerName } from 'src/constant/module-config/traveler-options';
+import type { ModuleField } from '@/constant/moduleConfig';
+import { resolveTravelerName } from '@/constant/module-config/traveler-options';
 
 export type PrintRow = Record<string, unknown>;
 

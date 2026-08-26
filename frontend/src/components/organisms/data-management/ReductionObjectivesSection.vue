@@ -5,17 +5,17 @@ import {
   useYearConfigStore,
   type ReductionObjectiveGoal,
   type FileMetadata,
-} from 'src/stores/yearConfig';
+} from '@/stores/yearConfig';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
 import { inject } from 'vue';
 import {
   TargetType,
   type ImportRow,
   type SyncJobResponse,
-} from 'src/stores/backofficeDataManagement';
-import UploadCard from 'src/components/molecules/data-management/UploadCard.vue';
+} from '@/stores/backofficeDataManagement';
+import UploadCard from '@/components/molecules/data-management/UploadCard.vue';
 
 const props = defineProps<{
   minReductionYear: number;

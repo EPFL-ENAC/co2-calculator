@@ -1,4 +1,4 @@
-import { MODULES, SUBMODULE_PURCHASE_TYPES } from 'src/constant/modules';
+import { MODULES, SUBMODULE_PURCHASE_TYPES } from '@/constant/modules';
 
 export default {
   [MODULES.Purchase]: {

@@ -1,8 +1,8 @@
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 
-import type { AllSubmoduleTypes } from 'src/constant/modules';
-import { enumSubmodule } from 'src/constant/modules';
-import type { FactorRow } from 'src/utils/factorOptions';
+import type { AllSubmoduleTypes } from '@/constant/modules';
+import { enumSubmodule } from '@/constant/modules';
+import type { FactorRow } from '@/utils/factorOptions';
 
 export async function getSubclassMap(
   submodule: keyof typeof enumSubmodule,

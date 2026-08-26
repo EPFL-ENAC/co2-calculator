@@ -149,7 +149,7 @@ const comparisonParts = computed(() => {
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .big-number {
   height: 100%;

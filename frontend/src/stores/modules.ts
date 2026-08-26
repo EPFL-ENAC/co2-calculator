@@ -1,35 +1,35 @@
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref } from 'vue';
-import { MODULES, Module } from 'src/constant/modules';
-import { api } from 'src/api/http';
+import { MODULES, Module } from '@/constant/modules';
+import { api } from '@/api/http';
 import {
   MODULE_STATES,
   ModuleState,
   ModuleStates,
   getModuleTypeId,
   getModuleFromTypeId,
-} from 'src/constant/moduleStates';
+} from '@/constant/moduleStates';
 
 import type {
   AllSubmoduleTypes,
   ModuleResponse,
   Submodule,
   TaxonomyNode,
-} from 'src/constant/modules';
+} from '@/constant/modules';
 import { useRoute } from 'vue-router';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
-import { buildModulePath, hasValidModuleParams } from 'src/utils/modulePath';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useSimulatorPlansStore } from '@/stores/simulatorPlans';
+import { buildModulePath, hasValidModuleParams } from '@/utils/modulePath';
 import {
   toEmissionBreakdown,
   toItBreakdown,
   type ReportStats,
-} from 'src/utils/emissionStatsAdapter';
+} from '@/utils/emissionStatsAdapter';
 import {
   carbonReportLookupPath,
   resolveCarbonProject,
   type CarbonProject,
-} from 'src/constant/carbon-project';
+} from '@/constant/carbon-project';
 
 /**
  * API response for validated totals endpoint.

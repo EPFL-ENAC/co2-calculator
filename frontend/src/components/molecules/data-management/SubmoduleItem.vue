@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { ref, inject, computed, type ComputedRef, type Ref } from 'vue';
-import { useSubmoduleConfig } from 'src/composables/useSubmoduleConfig';
-import { useRecalculation } from 'src/composables/useRecalculation';
+import { useSubmoduleConfig } from '@/composables/useSubmoduleConfig';
+import { useRecalculation } from '@/composables/useRecalculation';
 import {
   useBackofficeDataManagement,
   TargetType,
   type ImportRow,
-} from 'src/stores/backofficeDataManagement';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import type { SubmoduleConfig } from 'src/constant/backoffice-module-config';
-import type { PipelineProgress } from 'src/stores/pipelineStream';
-import UploadCardData from 'src/components/molecules/data-management/UploadCardData.vue';
-import UploadCardFactors from 'src/components/molecules/data-management/UploadCardFactors.vue';
-import UploadCardReferences from 'src/components/molecules/data-management/UploadCardReferences.vue';
-import ComputedFactorDialog from 'src/components/molecules/data-management/ComputedFactorDialog.vue';
+} from '@/stores/backofficeDataManagement';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import type { SubmoduleConfig } from '@/constant/backoffice-module-config';
+import type { PipelineProgress } from '@/stores/pipelineStream';
+import UploadCardData from '@/components/molecules/data-management/UploadCardData.vue';
+import UploadCardFactors from '@/components/molecules/data-management/UploadCardFactors.vue';
+import UploadCardReferences from '@/components/molecules/data-management/UploadCardReferences.vue';
+import ComputedFactorDialog from '@/components/molecules/data-management/ComputedFactorDialog.vue';
 
 interface Props {
   submodule: SubmoduleConfig;

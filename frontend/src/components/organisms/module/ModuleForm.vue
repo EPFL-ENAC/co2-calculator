@@ -320,8 +320,8 @@
 <script setup lang="ts">
 import { reactive, watch, computed, ref, toRef } from 'vue';
 
-import type { ModuleField } from 'src/constant/moduleConfig';
-import { useWorkspaceStore } from 'src/stores/workspace';
+import type { ModuleField } from '@/constant/moduleConfig';
+import { useWorkspaceStore } from '@/stores/workspace';
 import {
   QInput,
   QSelect,
@@ -334,28 +334,28 @@ import {
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
-import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
-import NoteDialog from 'src/components/molecules/NoteDialog.vue';
-import VirtualSelectField from 'src/components/molecules/VirtualSelectField.vue';
-import HeadcountMemberSelect from 'src/components/organisms/module/HeadcountMemberSelect.vue';
-import { calculateDistance } from 'src/api/locations';
-import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
-import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
-import { resolveFactorYear } from 'src/utils/factor-year';
+import DirectionInput from '@/components/atoms/CO2DestinationInput.vue';
+import NoteDialog from '@/components/molecules/NoteDialog.vue';
+import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
+import HeadcountMemberSelect from '@/components/organisms/module/HeadcountMemberSelect.vue';
+import { calculateDistance } from '@/api/locations';
+import { useEquipmentClassOptions } from '@/composables/useEquipmentClassOptions';
+import { useBuildingRoomDynamicOptions } from '@/composables/useBuildingRoomDynamicOptions';
+import { resolveFactorYear } from '@/utils/factor-year';
 import {
   DATE_INPUT_MASK,
   isValidCalendarDate,
   matchesDateInputFormat,
-} from 'src/utils/date';
-import { createFieldInteractionTracker } from 'src/utils/fieldInteraction';
-import { isTravelLocationResolved } from 'src/utils/directionLocationValidation';
-import { getModuleIconColors } from 'src/composables/useModuleIconColors';
+} from '@/utils/date';
+import { createFieldInteractionTracker } from '@/utils/fieldInteraction';
+import { isTravelLocationResolved } from '@/utils/directionLocationValidation';
+import { getModuleIconColors } from '@/composables/useModuleIconColors';
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
-} from 'src/constant/modules';
-import { useModuleStore } from 'src/stores/modules';
+} from '@/constant/modules';
+import { useModuleStore } from '@/stores/modules';
 
 const { t: $t, te: $te } = useI18n();
 const workspaceStore = useWorkspaceStore();
@@ -372,9 +372,9 @@ interface Option {
   value: string;
 }
 type FieldValue = string | number | boolean | null | Option;
-import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
-import { sortByOrder } from 'src/utils/options';
-import { nOrDash } from 'src/utils/number';
+import type { AllSubmoduleTypes, Module } from '@/constant/modules';
+import { sortByOrder } from '@/utils/options';
+import { nOrDash } from '@/utils/number';
 
 const props = withDefaults(
   defineProps<{
@@ -1410,7 +1410,7 @@ function saveNote(note: string) {
 }
 </script>
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 .action-no-margin {
   padding: 0;
 }

@@ -1,4 +1,4 @@
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 
 /**
  * Response type for module totals endpoint

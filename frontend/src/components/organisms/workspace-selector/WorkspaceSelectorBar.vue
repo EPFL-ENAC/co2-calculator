@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useWorkspaceStore, unitSlug } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { HOME_ROUTE_NAME } from 'src/router/routeNames';
-import { pickDefaultYear } from 'src/router/guards/redirectToDefaultRoute';
-import { resolveNoWorkspaceRoute } from 'src/utils/unauthorized';
+import { useWorkspaceStore, unitSlug } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { HOME_ROUTE_NAME } from '@/router/routeNames';
+import { pickDefaultYear } from '@/router/guards/redirectToDefaultRoute';
+import { resolveNoWorkspaceRoute } from '@/utils/unauthorized';
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
@@ -150,7 +150,7 @@ const affiliationSegments = computed(
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .workspace-selector-bar {
   &__field {

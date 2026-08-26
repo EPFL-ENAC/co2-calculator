@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { MODULE_SUBMODULES } from 'src/constant/backoffice-module-config';
-import SubmoduleItem from 'src/components/molecules/data-management/SubmoduleItem.vue';
+import { MODULE_SUBMODULES } from '@/constant/backoffice-module-config';
+import SubmoduleItem from '@/components/molecules/data-management/SubmoduleItem.vue';
 
 interface Props {
   module: string;

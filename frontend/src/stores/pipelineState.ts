@@ -23,7 +23,7 @@
 
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 
 /**
  * Wire shape of ``GET /v1/sync/active-pipelines``.

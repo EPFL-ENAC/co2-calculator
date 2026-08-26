@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { nOrDash } from 'src/utils/number';
-import { toPrintDocumentTitle } from 'src/utils/unitPerimeterLabel';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ReportPage from 'src/components/organisms/ReportPage.vue';
-import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
-import AdditionalCategoriesSection from 'src/components/organisms/AdditionalCategoriesSection.vue';
-import ItFocusSection from 'src/components/organisms/ItFocusSection.vue';
-import PrintReportShell from 'src/components/organisms/print/PrintReportShell.vue';
-import ResultsPrintModulePage from 'src/components/organisms/print/ResultsPrintModulePage.vue';
-import { useResultsPrintData } from 'src/composables/print/useResultsPrintData';
-import { useModuleStore } from 'src/stores/modules';
-import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
+import { nOrDash } from '@/utils/number';
+import { toPrintDocumentTitle } from '@/utils/unitPerimeterLabel';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import ReportPage from '@/components/organisms/ReportPage.vue';
+import CarbonFootPrintPerPersonChart from '@/components/charts/results/CarbonFootPrintPerPersonChart.vue';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
+import AdditionalCategoriesSection from '@/components/organisms/AdditionalCategoriesSection.vue';
+import ItFocusSection from '@/components/organisms/ItFocusSection.vue';
+import PrintReportShell from '@/components/organisms/print/PrintReportShell.vue';
+import ResultsPrintModulePage from '@/components/organisms/print/ResultsPrintModulePage.vue';
+import { useResultsPrintData } from '@/composables/print/useResultsPrintData';
+import { useModuleStore } from '@/stores/modules';
+import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
 
 const {
   resultsSummary,
@@ -316,7 +316,7 @@ onMounted(async () => {
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .module-page-header {
   margin-bottom: 0px;

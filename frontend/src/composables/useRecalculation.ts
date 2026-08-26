@@ -3,14 +3,14 @@ import {
   useBackofficeDataManagement,
   IngestionResult,
   type JobUpdatePayload,
-} from 'src/stores/backofficeDataManagement';
+} from '@/stores/backofficeDataManagement';
 import {
   useYearConfigStore,
   type RecalculationStatusEntry,
-} from 'src/stores/yearConfig';
+} from '@/stores/yearConfig';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import type { SubmoduleConfig as SubmoduleConfigItem } from 'src/constant/backoffice-module-config';
+import type { SubmoduleConfig as SubmoduleConfigItem } from '@/constant/backoffice-module-config';
 
 export function useRecalculation() {
   const { t: $t } = useI18n();

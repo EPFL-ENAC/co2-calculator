@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ItFocusBreakdownChart from 'src/components/charts/results/ItFocusBreakdownChart.vue';
-import { formatTonnesCO2 } from 'src/utils/number';
-import type { ItBreakdownResponse } from 'src/stores/modules';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import ItFocusBreakdownChart from '@/components/charts/results/ItFocusBreakdownChart.vue';
+import { formatTonnesCO2 } from '@/utils/number';
+import type { ItBreakdownResponse } from '@/stores/modules';
 
 const props = withDefaults(
   defineProps<{

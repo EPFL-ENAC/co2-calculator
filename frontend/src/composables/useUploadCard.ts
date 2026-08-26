@@ -1,20 +1,17 @@
 import { useI18n } from 'vue-i18n';
-import {
-  TargetType,
-  IngestionResult,
-} from 'src/stores/backofficeDataManagement';
+import { TargetType, IngestionResult } from '@/stores/backofficeDataManagement';
 import type {
   ImportRow,
   JobRowError,
   SyncJobResponse,
-} from 'src/stores/backofficeDataManagement';
+} from '@/stores/backofficeDataManagement';
 import {
   formatRowErrorLines,
   groupMissingSyncedUnitErrors,
   type MissingSyncedUnitErrorGroup,
-} from 'src/utils/rowErrors';
+} from '@/utils/rowErrors';
 
-import { resolveDataButtonColor } from 'src/composables/uploadCardColor';
+import { resolveDataButtonColor } from '@/composables/uploadCardColor';
 
 export function useUploadCard() {
   const { t } = useI18n();

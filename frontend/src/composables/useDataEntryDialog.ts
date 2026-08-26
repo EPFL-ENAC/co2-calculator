@@ -1,16 +1,16 @@
 import { ref, computed, watch, type Ref } from 'vue';
-import { useFilesStore, type FileObject } from 'src/stores/files';
+import { useFilesStore, type FileObject } from '@/stores/files';
 import {
   useBackofficeDataManagement,
   TargetType,
   type SyncJobResponse,
   type JobUpdatePayload,
   type ImportRow,
-} from 'src/stores/backofficeDataManagement';
+} from '@/stores/backofficeDataManagement';
 import {
   useConnectorsStore,
   type ConnectorSpecRead,
-} from 'src/stores/connectors';
+} from '@/stores/connectors';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 

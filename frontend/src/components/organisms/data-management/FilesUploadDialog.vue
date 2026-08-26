@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { ref, watch } from 'vue';
-import { useFilesStore, type FileObject } from 'src/stores/files';
+import { useFilesStore, type FileObject } from '@/stores/files';
 
 const filesStore = useFilesStore();
 

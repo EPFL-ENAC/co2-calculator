@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 
 /**
  * Hand-typed DTOs mirroring backend/app/schemas/connector.py (#1552).

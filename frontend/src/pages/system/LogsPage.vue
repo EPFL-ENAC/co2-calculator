@@ -2,15 +2,15 @@
 import { onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
-import AuditStatCards from 'src/components/audit/AuditStatCards.vue';
-import AuditFilterBar from 'src/components/audit/AuditFilterBar.vue';
-import AuditSearchBar from 'src/components/audit/AuditSearchBar.vue';
-import AuditTable from 'src/components/audit/AuditTable.vue';
-import AuditPagination from 'src/components/audit/AuditPagination.vue';
-import AuditDetailDrawer from 'src/components/audit/AuditDetailDrawer.vue';
-import { useAuditLogs } from 'src/composables/useAuditLogs';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
+import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
+import AuditStatCards from '@/components/audit/AuditStatCards.vue';
+import AuditFilterBar from '@/components/audit/AuditFilterBar.vue';
+import AuditSearchBar from '@/components/audit/AuditSearchBar.vue';
+import AuditTable from '@/components/audit/AuditTable.vue';
+import AuditPagination from '@/components/audit/AuditPagination.vue';
+import AuditDetailDrawer from '@/components/audit/AuditDetailDrawer.vue';
+import { useAuditLogs } from '@/composables/useAuditLogs';
 
 const { t } = useI18n();
 

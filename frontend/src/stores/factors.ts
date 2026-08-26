@@ -5,9 +5,9 @@ import {
   getFactorValues,
   listFactors,
   type ValueFactorResponse,
-} from 'src/api/factors';
-import { type AllSubmoduleTypes, enumSubmodule } from 'src/constant/modules';
-import { toClassOptions, type FactorRow } from 'src/utils/factorOptions';
+} from '@/api/factors';
+import { type AllSubmoduleTypes, enumSubmodule } from '@/constant/modules';
+import { toClassOptions, type FactorRow } from '@/utils/factorOptions';
 
 type Option = { label: string; value: string };
 

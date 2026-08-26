@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
-import { useAuthStore } from 'src/stores/auth';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useColorblindStore } from 'src/stores/colorblind';
+import Co2LanguageSelector from '@/components/atoms/Co2LanguageSelector.vue';
+import { useAuthStore } from '@/stores/auth';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useColorblindStore } from '@/stores/colorblind';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
-import { isBackOfficeRoute } from 'src/router/routes';
-import { DEFAULT_ROUTE_NAME, HOME_ROUTE_NAME } from 'src/router/routeNames';
-import { resolveLanguage } from 'src/utils/language';
-import { PermissionAction } from 'src/stores/auth';
+import { isBackOfficeRoute } from '@/router/routes';
+import { DEFAULT_ROUTE_NAME, HOME_ROUTE_NAME } from '@/router/routeNames';
+import { resolveLanguage } from '@/utils/language';
+import { PermissionAction } from '@/stores/auth';
 
 const authStore = useAuthStore();
 const router = useRouter();

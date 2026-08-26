@@ -19,7 +19,7 @@
 import { computed, ref } from 'vue';
 import { copyToClipboard, Notify, type QTooltip } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import { usePipelineStreamStore } from 'src/stores/pipelineStream';
+import { usePipelineStreamStore } from '@/stores/pipelineStream';
 
 interface Props {
   pipelineId: string;

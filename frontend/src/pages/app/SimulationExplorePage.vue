@@ -165,25 +165,25 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
-import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
-import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
-import PlannerResearchFacilityRows from 'src/components/organisms/planner/PlannerResearchFacilityRows.vue';
-import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
+import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
+import PlannerHeadcountRows from '@/components/organisms/planner/PlannerHeadcountRows.vue';
+import PlannerResearchFacilityRows from '@/components/organisms/planner/PlannerResearchFacilityRows.vue';
+import SubModuleSection from '@/components/organisms/module/SubModuleSection.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import {
   MODULES,
   MODULES_THRESHOLD_TYPES,
   type Module,
   type Threshold,
-} from 'src/constant/modules';
-import { moduleTooltipKey } from 'src/utils/tooltipScope';
-import { useModuleStore } from 'src/stores/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { getExploreModules } from 'src/utils/exploreModules';
-import { formatTonnesCO2 } from 'src/utils/number';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
+} from '@/constant/modules';
+import { moduleTooltipKey } from '@/utils/tooltipScope';
+import { useModuleStore } from '@/stores/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { getExploreModules } from '@/utils/exploreModules';
+import { formatTonnesCO2 } from '@/utils/number';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
 
 const router = useRouter();
 const route = useRoute();

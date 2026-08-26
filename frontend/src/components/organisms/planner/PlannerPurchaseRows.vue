@@ -167,10 +167,10 @@ import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
-import { api } from 'src/api/http';
-import { CURRENCY_OPTIONS, currencyLabel } from 'src/constant/currencies';
-import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
-import { formatTonnesCO2 } from 'src/utils/number';
+import { api } from '@/api/http';
+import { CURRENCY_OPTIONS, currencyLabel } from '@/constant/currencies';
+import { useSimulatorPlansStore } from '@/stores/simulatorPlans';
+import { formatTonnesCO2 } from '@/utils/number';
 
 // The 8 backend categories (modules_planner/purchase/emissions.py
 // PLANNER_PURCHASE_EMISSIONS), rendered as fixed rows in the design's order.
@@ -537,7 +537,7 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 // The stripes run edge to edge, so only the mode choice above them is inset.
 .planner-purchase__header {

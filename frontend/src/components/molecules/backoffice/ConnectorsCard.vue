@@ -135,7 +135,7 @@ import { useI18n } from 'vue-i18n';
 import {
   useConnectorsStore,
   type ConnectorSpecRead,
-} from 'src/stores/connectors';
+} from '@/stores/connectors';
 
 const connectorsStore = useConnectorsStore();
 const { t } = useI18n();

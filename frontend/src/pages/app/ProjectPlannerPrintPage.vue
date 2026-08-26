@@ -1,22 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ReportPage from 'src/components/organisms/ReportPage.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
-import PlannerGrantComparisonChart from 'src/components/charts/results/PlannerGrantComparisonChart.vue';
-import PlannerPrintEmissionTypesPage from 'src/components/organisms/print/PlannerPrintEmissionTypesPage.vue';
-import PlannerPrintHeadcountTable from 'src/components/organisms/print/PlannerPrintHeadcountTable.vue';
-import PlannerPrintYearPage from 'src/components/organisms/print/PlannerPrintYearPage.vue';
-import PrintReportShell from 'src/components/organisms/print/PrintReportShell.vue';
-import { useProjectPlannerPrintData } from 'src/composables/print/useProjectPlannerPrintData';
-import { formatTonnesCO2 } from 'src/utils/number';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import ReportPage from '@/components/organisms/ReportPage.vue';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
+import PlannerGrantComparisonChart from '@/components/charts/results/PlannerGrantComparisonChart.vue';
+import PlannerPrintEmissionTypesPage from '@/components/organisms/print/PlannerPrintEmissionTypesPage.vue';
+import PlannerPrintHeadcountTable from '@/components/organisms/print/PlannerPrintHeadcountTable.vue';
+import PlannerPrintYearPage from '@/components/organisms/print/PlannerPrintYearPage.vue';
+import PrintReportShell from '@/components/organisms/print/PrintReportShell.vue';
+import { useProjectPlannerPrintData } from '@/composables/print/useProjectPlannerPrintData';
+import { formatTonnesCO2 } from '@/utils/number';
 import {
   filledYearRange,
   formatYearRange,
   withYearRange,
-} from 'src/utils/plannerYearRange';
-import { toPrintDocumentTitle } from 'src/utils/unitPerimeterLabel';
+} from '@/utils/plannerYearRange';
+import { toPrintDocumentTitle } from '@/utils/unitPerimeterLabel';
 
 const { t } = useI18n();
 

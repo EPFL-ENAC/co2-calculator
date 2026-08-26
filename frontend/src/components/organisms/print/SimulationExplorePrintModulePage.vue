@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import ReportPage from 'src/components/organisms/ReportPage.vue';
-import PlannerPrintHeadcountTable from 'src/components/organisms/print/PlannerPrintHeadcountTable.vue';
-import PrintModuleTable from 'src/components/organisms/print/PrintModuleTable.vue';
-import { MODULES } from 'src/constant/modules';
-import type { ExploreModule } from 'src/utils/exploreModules';
-import type { PlannerHeadcountRow } from 'src/utils/plannerHeadcountRows';
-import type { PrintRow } from 'src/utils/printTable';
+import ReportPage from '@/components/organisms/ReportPage.vue';
+import PlannerPrintHeadcountTable from '@/components/organisms/print/PlannerPrintHeadcountTable.vue';
+import PrintModuleTable from '@/components/organisms/print/PrintModuleTable.vue';
+import { MODULES } from '@/constant/modules';
+import type { ExploreModule } from '@/utils/exploreModules';
+import type { PlannerHeadcountRow } from '@/utils/plannerHeadcountRows';
+import type { PrintRow } from '@/utils/printTable';
 
 interface Props {
   module: ExploreModule;

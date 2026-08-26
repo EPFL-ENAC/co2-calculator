@@ -1,7 +1,7 @@
 import ky, { type Options } from 'ky';
 import { Notify } from 'quasar';
-import { i18n } from 'src/boot/i18n';
-import { captureError, traceparent } from 'src/utils/glitchtip';
+import { i18n } from '@/boot/i18n';
+import { captureError, traceparent } from '@/utils/glitchtip';
 
 declare module 'ky' {
   interface Options {
@@ -249,6 +249,10 @@ export const api = ky.create({
   },
 });
 
-if (process.env.NODE_ENV === 'development') {
+// `typeof import.meta.env !== 'undefined' &&` guards this: this file can be
+// loaded by Playwright's component-test collection phase directly in Node,
+// without Vite's transform, where `import.meta.env` is plain `undefined` —
+// an unguarded `import.meta.env.DEV` throws there.
+if (typeof import.meta.env !== 'undefined' && import.meta.env.DEV) {
   window['api'] = api; // Expose for debugging
 }

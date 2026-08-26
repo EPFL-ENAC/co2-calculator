@@ -12,19 +12,19 @@ import {
   getModuleForCategoryKey,
   RESULTS_CATEGORY_LABEL_KEYS,
   ADDITIONAL_DATA_ICON,
-} from 'src/constant/charts';
-import { buildCarbonFootprintCsvRows } from 'src/utils/results-csv';
-import { type Module } from 'src/constant/modules';
-import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
-import { CATEGORY_TO_SUBMODULE } from 'src/composables/useModuleIconColors';
-import { CATEGORY_CHART_KEYS } from 'src/composables/useEmissionTreemap';
-import { useColorblindStore } from 'src/stores/colorblind';
-import { isModuleFullyAvailable } from 'src/composables/useModuleAvailability';
+} from '@/constant/charts';
+import { buildCarbonFootprintCsvRows } from '@/utils/results-csv';
+import { type Module } from '@/constant/modules';
+import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
+import { CATEGORY_TO_SUBMODULE } from '@/composables/useModuleIconColors';
+import { CATEGORY_CHART_KEYS } from '@/composables/useEmissionTreemap';
+import { useColorblindStore } from '@/stores/colorblind';
+import { isModuleFullyAvailable } from '@/composables/useModuleAvailability';
 import {
   useModuleCategoriesAvailability,
   ADDITIONAL_HEADCOUNT_CATEGORY_KEYS as ADDITIONAL_HEADCOUNT_CATEGORIES,
   ADDITIONAL_BUILDINGS_CATEGORY_KEYS as ADDITIONAL_BUILDINGS_CATEGORIES,
-} from 'src/composables/results/useModuleCategoriesAvailability';
+} from '@/composables/results/useModuleCategoriesAvailability';
 import {
   TooltipComponent,
   LegendComponent,
@@ -48,13 +48,13 @@ use([
   AriaComponent,
 ]);
 
-import type { EmissionBreakdownResponse } from 'src/stores/modules';
-import type { TooltipRow } from 'src/types/chartTooltip';
-import { formatTonnesForChart } from 'src/utils/number';
-import { stackShade } from 'src/utils/chart-shades';
-import { usePrintMode } from 'src/composables/print/usePrintMode';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
-import { downloadCsv, escapeCsvValue } from 'src/utils/csvDownload';
+import type { EmissionBreakdownResponse } from '@/stores/modules';
+import type { TooltipRow } from '@/types/chartTooltip';
+import { formatTonnesForChart } from '@/utils/number';
+import { stackShade } from '@/utils/chart-shades';
+import { usePrintMode } from '@/composables/print/usePrintMode';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
+import { downloadCsv, escapeCsvValue } from '@/utils/csvDownload';
 
 const props = defineProps({
   breakdownData: {

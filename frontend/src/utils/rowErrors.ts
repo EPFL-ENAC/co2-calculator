@@ -1,5 +1,5 @@
-import type { JobRowError } from 'src/stores/backofficeDataManagement';
-import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
+import type { JobRowError } from '@/stores/backofficeDataManagement';
+import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
 
 /**
  * Cap on how many individual row-error lines a CSV upload result renders.
