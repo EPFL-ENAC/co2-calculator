@@ -15,6 +15,7 @@ from app.models.module_type import get_module_type_for_data_entry_type
 from app.schemas.factor import BaseFactorHandler
 from app.seed._stub_jobs import create_seed_stub_job
 from app.services.data_ingestion.csv_providers.local_seed import LocalFactorCSVProvider
+from app.tasks._background import wait_for_background_tasks
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -250,6 +251,12 @@ async def main(years: Iterable[int] = (DEFAULT_YEAR,)) -> None:
     async with SessionLocal() as session:
         for year in years:
             await seed_all_factors(session, year)
+    # Each commit above schedules a fire-and-forget taxonomy-cache
+    # broadcast (#2258) once its transaction lands. asyncio.run() below
+    # cancels anything still pending the moment this coroutine returns —
+    # drain it here so seeding doesn't end in a spurious "task was
+    # cancelled" warning.
+    await wait_for_background_tasks()
 
 
 if __name__ == "__main__":

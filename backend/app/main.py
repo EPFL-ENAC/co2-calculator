@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.engine import make_url
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.api.internal import router as internal_router
 from app.api.router import api_router
 from app.core.config import RoleProviderType, UnitProviderType, get_settings
 from app.core.exception_handlers import permission_denied_handler
@@ -380,6 +381,11 @@ app.add_exception_handler(RecordAccessDeniedError, permission_denied_handler)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_VERSION)
+
+# Intra-cluster-only endpoints (#2258 follow-up) — deliberately outside
+# settings.API_VERSION and never referenced by a Helm Route; see
+# app.api.internal's module docstring for the trust boundary.
+app.include_router(internal_router)
 
 
 @app.get("/")

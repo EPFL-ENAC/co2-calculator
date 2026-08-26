@@ -188,6 +188,7 @@ erDiagram
     VARCHAR git_sha
     DATETIME last_heartbeat_at
     VARCHAR pod_id PK
+    VARCHAR pod_ip
     DATETIME started_at
   }
   unit_users {
