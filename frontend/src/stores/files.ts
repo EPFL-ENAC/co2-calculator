@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref } from 'vue';
-import { api } from '@/api/http';
+import { api, SLOW_REQUEST_TIMEOUT_MS } from '@/api/http';
 
 export interface FileObject extends Blob {
   readonly size: number;
@@ -40,6 +40,11 @@ export const useFilesStore = defineStore(
 
       const response = await api.post<FileNode[]>('files/temp-upload', {
         body: formData,
+        // Wall time here is dominated by the *client's* upload bandwidth, not
+        // by the server: a large CSV on a slow link exceeds ky's 10 s default
+        // while everything is working correctly. The server's own per-file cap
+        // (FILES_MAX_SIZE_MB, #2261) is what actually bounds this.
+        timeout: SLOW_REQUEST_TIMEOUT_MS,
       });
       const nodes = await response.json();
       tempFiles.value.push(...nodes);

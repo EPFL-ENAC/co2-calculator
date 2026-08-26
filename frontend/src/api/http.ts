@@ -27,6 +27,25 @@ const isRefresh = (u: string, m: string) =>
 const isSessionCheck = (u: string, m: string) =>
   endsWithSession(u) && m.toUpperCase() === 'GET';
 
+/**
+ * Timeout for the handful of calls that are legitimately slow.
+ *
+ * Every other request uses ky's **default 10 s** — which nothing here sets,
+ * so it is easy to miss that it exists at all. It is a hard ceiling: the
+ * browser aborts, regardless of the server still working. #2360 was exactly
+ * that, on `factors/{id}/list`.
+ *
+ * Applied per call, never as a new default, so raising it is always a
+ * deliberate statement about one endpoint.
+ *
+ * ⚠️ This makes a slow endpoint *tolerable*, not fast. Each use is a slow
+ * endpoint we chose to wait for rather than fix, so the reason belongs at the
+ * call site — and a call that needs this is a candidate for the backend work
+ * that would make it unnecessary. Do not reach for it to silence a
+ * regression.
+ */
+export const SLOW_REQUEST_TIMEOUT_MS = 60_000;
+
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
   credentials: 'include',

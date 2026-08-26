@@ -1,4 +1,4 @@
-import { api } from '@/api/http';
+import { api, SLOW_REQUEST_TIMEOUT_MS } from '@/api/http';
 
 import type { AllSubmoduleTypes } from '@/constant/modules';
 import { enumSubmodule } from '@/constant/modules';
@@ -27,6 +27,11 @@ export async function listFactors(
   const res = await api
     .get(
       `factors/${encodeURIComponent(enumSubmodule[submodule])}/list?year=${encodeURIComponent(String(year))}`,
+      // Returns a whole year's factor catalog for the submodule, and the
+      // largest of those measured 20,915 rows / 1338 ms server-side (#2049)
+      // — under load it exceeded ky's 10 s default and the browser aborted
+      // a request the backend was still answering (#2360).
+      { timeout: SLOW_REQUEST_TIMEOUT_MS },
     )
     .json<FactorRow[]>();
   return res ?? [];
