@@ -22,7 +22,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app import db as db_module
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
-from app.core.policy import check_module_permission
+from app.core.policy import (
+    check_module_permission,
+    check_module_permission_for_report,
+    require_plan_scope_for_report,
+)
 from app.core.security import is_permitted, require_permission
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntryTypeEnum
@@ -172,14 +176,13 @@ async def _validate_provider_connection_or_503(
         )
 
 
-async def _institutional_id_for_crm(
+async def _report_for_crm(
     db: AsyncSession,
     carbon_report_module_id: int,
-) -> str | None:
-    """Resolve carbon_report_module_id → unit.institutional_id."""
+) -> CarbonReport | None:
+    """Resolve carbon_report_module_id → its CarbonReport row."""
     stmt = (
-        select(Unit.institutional_id)
-        .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
+        select(CarbonReport)
         .join(
             CarbonReportModule,
             col(CarbonReportModule.carbon_report_id) == CarbonReport.id,
@@ -730,6 +733,8 @@ async def sync_module_data_entries(
     OR `modules.{name}.sync` for the unit (principal users uploading from the
     module page). The module-owner path requires `target_type=DATA_ENTRIES`
     with both `carbon_report_module_id` and `module_type_id` in config.
+    Simulator reports (Explore/Plan) relax to unit membership plus plan
+    scoping, matching the report-addressed module routes (#1988, #2366).
 
     Example of request body for module_type_year:
     {
@@ -767,22 +772,31 @@ async def sync_module_data_entries(
             and crm_id is not None
             and mod_type_id is not None
         ):
-            institutional_id = await _institutional_id_for_crm(db, crm_id)
-            if institutional_id is None:
+            report = await _report_for_crm(db, crm_id)
+            if report is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Unit for carbon_report_module_id {crm_id} not found",
+                    detail=(
+                        f"Carbon report for carbon_report_module_id {crm_id} not found"
+                    ),
                 )
-            await check_module_permission(
-                current_user,
-                mod_type_id,
-                "sync",
-                institutional_id=institutional_id,
+            await require_plan_scope_for_report(db, current_user, report, "edit")
+            await check_module_permission_for_report(
+                current_user=current_user,
+                module_id=ModuleTypeEnum(mod_type_id).name,
+                action="sync",
+                db=db,
+                report=report,
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Permission denied: requires backoffice.configuration.edit",
+                detail=(
+                    "Permission denied: data-entry dispatch requires "
+                    "carbon_report_module_id and module_type_id in config "
+                    "(module-scoped upload), or backoffice.configuration.edit "
+                    "(global dispatch)."
+                ),
             )
 
     if syncRequest.target_type == TargetType.FACTORS and syncRequest.year is None:

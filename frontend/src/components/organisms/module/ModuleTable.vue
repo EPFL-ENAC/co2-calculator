@@ -724,8 +724,15 @@ const onFilesUploaded = async (filePaths: string[]) => {
       message: $t('csv_sync_starting'),
       position: 'top',
     });
-    const carbonReportModuleId =
-      moduleStore.state.data?.carbon_report_module_id;
+    const carbonReportModuleId = await moduleStore.resolveCarbonReportModuleId(
+      props.moduleType as Module,
+      props.unitId,
+      String(props.year),
+      props.carbonReportId,
+    );
+    if (carbonReportModuleId == null) {
+      throw new Error($t('csv_sync_failed_to_initiate'));
+    }
     const jobId = await dataManagementStore.initiateSync({
       module_type_id: moduleTypeId,
       year: Number(props.year),
