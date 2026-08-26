@@ -828,6 +828,7 @@ class DataEntryService:
         filter: str | None = None,
         institutional_id_filter: str | None = None,
         exclude_planner_snapshots: bool = False,
+        factor_year: int | None = None,
     ) -> SubmoduleResponse:
         """Get module data for a unit and year.
 
@@ -836,6 +837,12 @@ class DataEntryService:
         over an empty snapshot keyed on the *module* — so the two submodule
         fetches a Travel page issues in parallel raced each other's head swap
         and 500ed (#1958). It also committed mid-read from a service.
+
+        ``factor_year`` is the year whose factors apply to this report
+        (``resolve_factor_year``, resolved by the caller) — for Simulator
+        Plan reports it can differ from the report's own year, so it must
+        drive the display-side factor join rather than the entries' own
+        denormalized ``year``.
         """
         response = await self.repo.get_submodule_data(
             carbon_report_module_id=carbon_report_module_id,
@@ -847,6 +854,7 @@ class DataEntryService:
             filter=filter,
             institutional_id_filter=institutional_id_filter,
             exclude_planner_snapshots=exclude_planner_snapshots,
+            factor_year=factor_year,
         )
         if response is not None:
             response.data_entry_policies = submodule_policies(

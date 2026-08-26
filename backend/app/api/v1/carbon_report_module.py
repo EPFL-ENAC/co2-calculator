@@ -57,6 +57,7 @@ from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import SIMULATOR_REPORT_TYPES, DataEntryService
+from app.utils.factor_year import resolve_factor_year
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 from app.workflows.embodied_energy import EmbodiedEnergyWorkflow
@@ -797,6 +798,7 @@ async def get_submodule(
     exclude_planner_snapshots = exclude_snapshots or _hide_planner_snapshots_for_viewer(
         report, _module_type_from_slug(module_id), current_user, unit
     )
+    factor_year = await resolve_factor_year(db, report)
 
     submodule_data = await DataEntryService(db).get_submodule_data(
         carbon_report_module_id=module.id,
@@ -808,6 +810,7 @@ async def get_submodule(
         filter=filter,
         institutional_id_filter=institutional_id_filter,
         exclude_planner_snapshots=exclude_planner_snapshots,
+        factor_year=factor_year,
     )
 
     if not submodule_data:
