@@ -1789,18 +1789,6 @@
             "description": "Items per submodule"
           },
           {
-            "name": "exclude_snapshots",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Hide reference-year snapshot rows from item lists and counts; stats and totals keep them (#1981 grant global mode)",
-              "default": false,
-              "title": "Exclude Snapshots"
-            },
-            "description": "Hide reference-year snapshot rows from item lists and counts; stats and totals keep them (#1981 grant global mode)"
-          },
-          {
             "name": "auth_token",
             "in": "cookie",
             "required": false,
@@ -2183,18 +2171,6 @@
               "title": "Filter"
             },
             "description": "Filter string to search in name or display_name"
-          },
-          {
-            "name": "exclude_snapshots",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Hide reference-year snapshot rows; grant equipment global mode lists only manually added entries (#1981)",
-              "default": false,
-              "title": "Exclude Snapshots"
-            },
-            "description": "Hide reference-year snapshot rows; grant equipment global mode lists only manually added entries (#1981)"
           },
           {
             "name": "auth_token",
@@ -2846,7 +2822,7 @@
           "modules-stats"
         ],
         "summary": "Get Merged Multi Year Breakdown",
-        "description": "Return per-year emission breakdown summed over the requested units.\n\nFeeds the \"Compare Years\" pop-up: one entry per year with stat-bucket\ntotals (``modules``) and scope totals (``scopes``) in tonnes CO2eq, read\nstraight off each report's persisted stats. Units with no reports simply\ncontribute nothing; no report at all yields ``{\"years\": []}``.\n\nReturns:\n    {\"years\": [{\"year\": 2023, \"total_tonnes_co2eq\": 61.7,\n                \"modules\": {...}, \"scopes\": {...}}, ...]}",
+        "description": "Return per-year emission breakdown summed over the requested units.\n\nFeeds the \"Compare Years\" pop-up: one entry per year with stat-bucket\ntotals (``modules``) and scope totals (``scopes``) in tonnes CO2eq,\naggregated in SQL from each report's persisted stats. Units with no\nreports simply contribute nothing; no report at all yields ``{\"years\": []}``.",
         "operationId": "get_merged_multi_year_breakdown_v1_modules_stats_merged_multi_year_report_stats_get",
         "parameters": [
           {
@@ -3631,200 +3607,13 @@
         }
       }
     },
-    "/v1/taxonomies/module_type/{module_type}": {
-      "get": {
-        "tags": [
-          "taxonomies"
-        ],
-        "summary": "Get Taxonomy For Module Type",
-        "description": "Get taxonomy for a given module type.",
-        "operationId": "get_taxonomy_for_module_type_v1_taxonomies_module_type__module_type__get",
-        "parameters": [
-          {
-            "name": "module_type",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ModuleTypeEnum"
-            }
-          },
-          {
-            "name": "year",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "description": "Year for which to retrieve the taxonomy",
-              "title": "Year"
-            },
-            "description": "Year for which to retrieve the taxonomy"
-          },
-          {
-            "name": "auth_token",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Auth Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaxonomyNode"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/taxonomies/data_entry_type/{data_entry_type}": {
-      "get": {
-        "tags": [
-          "taxonomies"
-        ],
-        "summary": "Get Taxonomy For Data Entry Type",
-        "description": "Get taxonomy for a given data entry type.",
-        "operationId": "get_taxonomy_for_data_entry_type_v1_taxonomies_data_entry_type__data_entry_type__get",
-        "parameters": [
-          {
-            "name": "data_entry_type",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/DataEntryTypeEnum"
-            }
-          },
-          {
-            "name": "year",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "description": "Year for which to retrieve the taxonomy",
-              "title": "Year"
-            },
-            "description": "Year for which to retrieve the taxonomy"
-          },
-          {
-            "name": "auth_token",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Auth Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaxonomyNode"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/taxonomies/module/{module}": {
-      "get": {
-        "tags": [
-          "taxonomies"
-        ],
-        "summary": "Get Taxonomy For Module",
-        "description": "Get taxonomy for a given module and data entry type.",
-        "operationId": "get_taxonomy_for_module_v1_taxonomies_module__module__get",
-        "parameters": [
-          {
-            "name": "module",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Module"
-            }
-          },
-          {
-            "name": "year",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "description": "Year for which to retrieve the taxonomy",
-              "title": "Year"
-            },
-            "description": "Year for which to retrieve the taxonomy"
-          },
-          {
-            "name": "auth_token",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Auth Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaxonomyNode"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/taxonomies/module/{module}/data-entries": {
       "get": {
         "tags": [
           "taxonomies"
         ],
         "summary": "Get Taxonomies For Module Data Entries",
-        "description": "Batch-fetch taxonomies for several data entry types of one module.\n\nCollapses a report page's ~11 sequential /module/{module}/{data_entry}\nround trips into one call per module (#2049 T6). Each entry still\nresolves through get_taxonomy_for_data_entry_type, so it hits/populates\nthe same (data_entry_type, year) cache a single-entry call would.",
+        "description": "Batch-fetch taxonomies for several data entry types of one module.\n\nCollapses a report page's ~11 sequential /module/{module}/{data_entry}\nround trips into one call per module (#2049 T6). Each entry still\nresolves through get_taxonomy_for_data_entry_type, so it hits/populates\nthe same (data_entry_type, year) cache a single-entry call would.\n\nAn ``HTTPException`` (bad entry name, entry not in this module) means\nthe request itself is malformed \u2014 that's not one submodule's problem,\nit propagates and fails the whole batch. Any other exception is a\nper-entry runtime failure (e.g. a transient DB hiccup) and must not\nblank every other, already-resolved entry in the batch (#2258\nfollow-up) \u2014 logged loud and the entry is left out of the response\nrather than silently rendered as an empty taxonomy.",
         "operationId": "get_taxonomies_for_module_data_entries_v1_taxonomies_module__module__data_entries_get",
         "parameters": [
           {
@@ -4147,7 +3936,7 @@
           "carbon-reports"
         ],
         "summary": "Get Simulator Explore Carbon Report",
-        "description": "Get an existing Simulator Explore carbon report.\n\nIf the report has exceeded its TTL (24 h) a background task is scheduled\nto delete the stale report and seed a fresh one \u2014 the current (stale)\nreport is returned immediately so the user is not blocked.",
+        "description": "Get an existing Simulator Explore carbon report.\n\nIf the report has exceeded its TTL (EXPLORE_TTL_SECONDS) a background task\nis scheduled\nto delete the stale report and seed a fresh one \u2014 the current (stale)\nreport is returned immediately so the user is not blocked.",
         "operationId": "get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___get",
         "parameters": [
           {
@@ -5755,7 +5544,7 @@
           "data-sync"
         ],
         "summary": "Sync Module Data Entries",
-        "description": "Sync data entries for a specific module.\n\n**Required Permission**: `backoffice.configuration.edit` (global data-sync)\nOR `modules.{name}.sync` for the unit (principal users uploading from the\nmodule page). The module-owner path requires `target_type=DATA_ENTRIES`\nwith both `carbon_report_module_id` and `module_type_id` in config.\n\nExample of request body for module_type_year:\n{\n    \"ingestion_method\": \"csv\",\n    \"target_type\": 0,\n    \"year\": 2025,\n    \"carbon_report_module_id\": 123,\n    \"filters\": {},\n    \"config\": {},\n    \"file_path\": \"tmp/1770129151949277/seed_equipment_data.csv\"\n}\n\nexample of request body for carbon_report_module_id only:\n{\n    \"ingestion_method\": \"api\",\n    \"target_type\": 0,\n    \"carbon_report_module_id\": 123,\n    \"filters\": {},\n    \"config\": {}\n}",
+        "description": "Sync data entries for a specific module.\n\n**Required Permission**: `backoffice.configuration.edit` (global data-sync)\nOR `modules.{name}.sync` for the unit (principal users uploading from the\nmodule page). The module-owner path requires `target_type=DATA_ENTRIES`\nwith both `carbon_report_module_id` and `module_type_id` in config.\nSimulator reports (Explore/Plan) relax to unit membership plus plan\nscoping, matching the report-addressed module routes (#1988, #2366).\n\nExample of request body for module_type_year:\n{\n    \"ingestion_method\": \"csv\",\n    \"target_type\": 0,\n    \"year\": 2025,\n    \"carbon_report_module_id\": 123,\n    \"filters\": {},\n    \"config\": {},\n    \"file_path\": \"tmp/1770129151949277/seed_equipment_data.csv\"\n}\n\nexample of request body for carbon_report_module_id only:\n{\n    \"ingestion_method\": \"api\",\n    \"target_type\": 0,\n    \"carbon_report_module_id\": 123,\n    \"filters\": {},\n    \"config\": {}\n}",
         "operationId": "sync_module_data_entries_v1_sync_dispatch_post",
         "parameters": [
           {
@@ -11755,11 +11544,6 @@
             ],
             "title": "Total Tonnes Co2Eq"
           },
-          "can_manage": {
-            "type": "boolean",
-            "title": "Can Manage",
-            "default": false
-          },
           "prefill_job_id": {
             "anyOf": [
               {
@@ -12480,60 +12264,6 @@
               }
             ],
             "title": "Children"
-          },
-          "classification": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Classification"
-          },
-          "values": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Values"
           }
         },
         "type": "object",

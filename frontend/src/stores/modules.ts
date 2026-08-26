@@ -356,7 +356,6 @@ export const useModuleStore = defineStore('modules', () => {
     loading: boolean;
     error: string | null;
     data: ModuleResponse | null;
-    taxonomy: TaxonomyNode | null;
     expandedSubmodules: Record<string, boolean>; // key: submodule ID
     loadingSubmodule: Record<string, boolean>; // key: submodule ID
     errorSubmodule: Record<string, string | null>; // key: submodule ID
@@ -398,7 +397,6 @@ export const useModuleStore = defineStore('modules', () => {
     loading: false,
     error: null,
     data: null,
-    taxonomy: null,
     filterTermSubmodule: reactive({}),
     expandedSubmodules: reactive({}),
     loadingSubmodule: reactive({}),
@@ -590,27 +588,6 @@ export const useModuleStore = defineStore('modules', () => {
         state.error = err.message ?? 'Unknown error';
       } else {
         state.error = 'Unknown error';
-      }
-    } finally {
-      state.loading = false;
-    }
-  }
-
-  async function getModuleTaxonomy(moduleType: Module) {
-    state.loading = true;
-    state.error = null;
-    state.taxonomy = null;
-    try {
-      state.taxonomy = (await api
-        .get(`taxonomies/module_type/${encodeURIComponent(moduleType)}`)
-        .json()) as TaxonomyNode;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        state.error = err.message ?? 'Unknown error';
-        state.taxonomy = null;
-      } else {
-        state.error = 'Unknown error';
-        state.taxonomy = null;
       }
     } finally {
       state.loading = false;
@@ -1391,7 +1368,6 @@ export const useModuleStore = defineStore('modules', () => {
     initializeSubmoduleState,
     getModuleData,
     getModuleTotals,
-    getModuleTaxonomy,
     getSubmoduleData,
     refreshLoadedSubmodules,
     getSubmoduleTaxonomy,
