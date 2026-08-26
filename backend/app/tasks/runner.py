@@ -41,6 +41,9 @@ Concurrency model per ``run_job`` invocation:
 
 import asyncio
 
+from opentelemetry import context as otel_context
+from opentelemetry import trace
+
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
@@ -52,6 +55,7 @@ from app.tasks._pod_id import POD_ID
 from app.tasks.registry import get_handler
 
 logger = get_logger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 # #1723 — per-pod concurrency bound.  Lazily created (not at import
@@ -174,6 +178,20 @@ async def run_job(job_id: int) -> None:
             # post-commit ``job_session`` would risk an expired-instance
             # lazy load; a local value sidesteps that entirely.
             pipeline_id_for_status = job.pipeline_id
+
+            # #2371 — one OTel span per job execution, so every SQL span the
+            # handler, ``finish_job``, the post-commit pipeline recompute, and
+            # the heartbeat ticks emit nests under it instead of exporting as
+            # a parentless root trace.  Manual start/attach (not ``with``)
+            # keeps the existing try/finally structure untouched; the context
+            # token is detached and the span ended in ``finally``.  Without a
+            # configured exporter (local/tests) this is a no-op.
+            span = tracer.start_span(f"job {job_type}")
+            span.set_attribute("job.id", job_id)
+            span.set_attribute("job.type", job_type)
+            if pipeline_id_for_status is not None:
+                span.set_attribute("pipeline.id", str(pipeline_id_for_status))
+            otel_token = otel_context.attach(trace.set_span_in_context(span))
 
             # Plain ``asyncio.create_task`` (not ``fire_and_forget``): the
             # local ``heartbeat_task`` ref keeps the task alive for the
@@ -388,6 +406,8 @@ async def run_job(job_id: int) -> None:
                 except asyncio.CancelledError:
                     # Expected — we cancelled it ourselves.
                     pass
+                otel_context.detach(otel_token)
+                span.end()
 
 
 async def _heartbeat_loop(job_id: int, abort_event: asyncio.Event) -> None:
