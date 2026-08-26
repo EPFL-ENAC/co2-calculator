@@ -183,8 +183,11 @@ and apply role + scope filters before reaching the repository. See
 - **Rate Limiting**: Configurable per endpoint
 - **Authentication Required**: All endpoints except `/health`
   and `/docs`
-
-CSRF protection is not needed (stateless JWT, no cookies).
+- **CSRF Protection**: `SameSite=Lax` auth cookies plus a fail-closed
+  request-origin check (`RequestOriginMiddleware`) on every
+  cookie-authenticated write — see
+  [the auth flow](../architecture/04-auth-flow.md) and
+  [plan #89](../implementation-plans/89-security-in-depth.md)
 
 ## Troubleshooting
 

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: delivered
 issue: 89
 last_updated: 2026-08-26
 title: "CSRF: Origin/Sec-Fetch-Site enforcement — implementation plan"
@@ -32,17 +32,17 @@ requests are CSRF-exempt, cookie-auth ones never are.
 
 Decision rules, in order — first match wins:
 
-* **`GET` / `HEAD` / `OPTIONS` → pass.** (Audited: no state-changing
+- **`GET` / `HEAD` / `OPTIONS` → pass.** (Audited: no state-changing
   `GET` in prod; the OAuth callback protects itself with `state`.)
-* **`Sec-Fetch-Site` present →** accept only `same-origin` or `none`.
-  * `same-site` → **403** — this IS the attack. Not `cross-site` only.
-  * **Why primary:** forbidden header — page script can never set it,
+- **`Sec-Fetch-Site` present →** accept only `same-origin` or `none`.
+  - `same-site` → **403** — this IS the attack. Not `cross-site` only.
+  - **Why primary:** forbidden header — page script can never set it,
     and every supported browser sends it.
-* **Else `Origin`, else `Referer` →** exact scheme+host+port match
+- **Else `Origin`, else `Referer` →** exact scheme+host+port match
   against `{FRONTEND_URL} ∪ CSRF_ADDITIONAL_ORIGINS`.
-  * Exact match only — no `startswith`, no substring.
-  * Literal `Origin: null` → 403, never special-cased.
-* **None of the three headers → 403.** Fail closed; an unverifiable
+  - Exact match only — no `startswith`, no substring.
+  - Literal `Origin: null` → 403, never special-cased.
+- **None of the three headers → 403.** Fail closed; an unverifiable
   origin is a rejected origin.
 
 Rejections: `403`, opaque detail, `WARNING` log with route/method/origin.
@@ -51,29 +51,33 @@ Length-cap and strip control chars from the logged origin
 
 ### 2. `backend/app/main.py`
 
-* Register the middleware **after** `SessionMiddleware` in source order
+- Register the middleware **after** `SessionMiddleware` in source order
   (so it **runs before** it — no session touch on rejected requests).
-* Delete the comment `# NO CORS origins configured allowed on this
-  instance`; point to the plan instead. Keep CORS disabled — it does
+- Delete the comment `# NO CORS origins configured allowed on this
+instance`; point to the plan instead. Keep CORS disabled — it does
   real work (preflights block all JSON-body and PUT/PATCH/DELETE
   forgeries).
 
 ### 3. `backend/app/core/config.py`
 
 ```python
-CSRF_ADDITIONAL_ORIGINS: list[str] = Field(default_factory=list)
+CSRF_ADDITIONAL_ORIGINS: str = Field(default="")   # comma-separated
 ```
 
-Empty in every normal deployment. Surface it empty in
+**Delivered as a comma-separated `str`, not `list[str]`** — mirrors the
+existing `CONNECTOR_ALLOWED_HOST_SUFFIXES`, and avoids pydantic-settings'
+JSON-only parsing of `list` from the environment (helm would otherwise
+have to set `'["https://…"]'`). A `csrf_additional_origins` computed
+field does the split. Empty in every normal deployment; surfaced empty in
 `backend/.env.example` and `helm/values.yaml`.
 
 ### 4. Cookies: change nothing
 
-* Keep `Secure` + `HttpOnly` + `SameSite=Lax`. Exactly as is.
-* **Not `Strict`:** the attacker is same-site by definition — Strict
+- Keep `Secure` + `HttpOnly` + `SameSite=Lax`. Exactly as is.
+- **Not `Strict`:** the attacker is same-site by definition — Strict
   blocks nothing they can do, and breaks login state on inbound links.
-* **Not `None`, ever:** re-attaches the cookie cross-site for zero gain.
-* **Why keep `Lax` at all:** browser-enforced, fails independently of
+- **Not `None`, ever:** re-attaches the cookie cross-site for zero gain.
+- **Why keep `Lax` at all:** browser-enforced, fails independently of
   our app code, and keeps the cookie **off** cross-site requests
   entirely — stronger than receiving it and returning 403.
 
@@ -116,20 +120,30 @@ same two + Sec-Fetch-Site: same-origin                   → reach permission ga
 
 ### 7. Fix the docs (they're currently false)
 
-* `docs/src/backend/01-overview.md:187` — delete "CSRF protection is not
+- `docs/src/backend/01-overview.md:187` — delete "CSRF protection is not
   needed (stateless JWT, no cookies)"; the app is cookie-only.
-* `docs/src/architecture/04-auth-flow.md:201` — the claimed
+- `docs/src/architecture/04-auth-flow.md:201` — the claimed
   Origin/Referer checks now actually exist; describe them, link the
   plan, and record the two rebuttals (why not Strict, why keep Lax) so
   they aren't re-litigated in every review.
 
-## Before merging — the one blocker
+## Blocker — resolved
 
 **Tableau/connector integration**
-(`1552-api-connect-tableau-credentials-plan.md`): if it calls the API
-server-to-server **with cookies**, it sends none of the three headers and
-gets 403 on day one. If so, exempt it keyed on its auth method — never
-on a header it could spoof. Verify this first.
+(`1552-api-connect-tableau-credentials-plan.md`): confirmed not affected.
+The cookie precondition covers it in any case — a server-to-server caller
+sends no auth cookie, so the middleware never engages and the request
+falls through to normal authentication.
+
+## Delivered — test-suite impact
+
+The middleware being fail-closed means a bare `TestClient` looks exactly
+like the forged request it stops: 32 existing tests that POST with an
+auth cookie began returning 403. They were doing something a browser
+never does, so the fix is realism, not an exemption —
+`tests/browser.py::SAME_ORIGIN_HEADERS` is attached at the `TestClient`
+construction site in each affected file. The tests that exercise the
+middleware itself deliberately omit it.
 
 ## Deliberately out of scope
 

@@ -357,10 +357,27 @@ class Settings(BaseSettings):
         default="http://localhost:9000",
         description="Frontend application URL for OAuth redirects",
     )
+    CSRF_ADDITIONAL_ORIGINS: str = Field(
+        default="",
+        description=(
+            "Comma-separated origins accepted on cookie-authenticated writes, "
+            "beyond the one derived from FRONTEND_URL (#89). Empty in every "
+            "normal deployment; exists so a genuine second frontend host does "
+            "not require a code change."
+        ),
+    )
     FORMULA_VERSION_SHA256_SHORT: str = Field(
         default="",
         description="SHA256 short hash of formula (e.g., git commit)",
     )
+
+    # `@property` under `@computed_field` (unlike `oauth_metadata_url` below):
+    # callers iterate this, and without it the type checker sees a bound method.
+    @computed_field
+    @property
+    def csrf_additional_origins(self) -> list[str]:
+        """Split CSRF_ADDITIONAL_ORIGINS, dropping blanks from stray commas."""
+        return [o.strip() for o in self.CSRF_ADDITIONAL_ORIGINS.split(",") if o.strip()]
 
     @computed_field
     def oauth_metadata_url(self) -> str:
