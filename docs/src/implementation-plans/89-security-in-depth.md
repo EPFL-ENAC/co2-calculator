@@ -41,10 +41,22 @@ One XSS, or one attacker-influenced app, anywhere under `epfl.ch` is
 enough to issue credentialed, state-changing requests to this API, and
 `Lax` will attach `auth_token`.
 
-Chrome's `Lax-allowing-unsafe` grace period compounds it: a top-level
-cross-site `POST` still carries a cookie less than ~2 minutes old, and
-our cookies are re-minted on every `POST /api/v1/session` refresh, so
-that window reopens continuously.
+For the same reason, **`SameSite=Strict` is not the answer either**: the
+attacker in our threat model is same-site by definition, so Strict blocks
+exactly nothing they can do, while degrading legitimate top-level
+navigations into the app (users arriving from external links look logged
+out until the next same-site request). This rebuttal goes into the docs
+fix below, because "just use Strict" is the review comment this plan will
+otherwise receive forever.
+
+A secondary amplifier, to be verified rather than relied on: Chrome's
+`Lax-allowing-unsafe` grace period historically let a top-level
+cross-site `POST` carry a cookie less than ~2 minutes old — and our
+cookies are re-minted on every `POST /api/v1/session` refresh, so that
+window would reopen continuously. Chrome has been retiring this behavior;
+**check its current status against our supported-browser set before
+citing it in the docs**. The sibling-subdomain argument above stands on
+its own without it.
 
 ### What is _already_ safe (and must stay that way)
 
@@ -118,11 +130,20 @@ Decision rules, in order:
    exemption is written down explicitly so a future change to that route
    cannot silently lose the reasoning.
 3. **`Sec-Fetch-Site`** — when present, require `same-origin` (accept
-   `none`, which is a user-initiated navigation). Every browser we
-   support sends this header, so it is the primary check.
+   `none`, which is a user-initiated navigation). **`same-site` is a
+   rejection** — that value is precisely the sibling-subdomain attacker.
+   This is the primary check, deliberately ahead of `Origin`: it is a
+   forbidden header (a browser will never let page script set it, and a
+   non-browser attacker has no victim cookies to ride), and every browser
+   we support sends it on every request, whereas `Origin` presence varies
+   by request type.
 4. **`Origin`, then `Referer`** — match the scheme+host+port against an
    allowlist derived from `settings.FRONTEND_URL`, plus an explicit
    settings field for any extra origin an environment genuinely needs.
+   The comparison is an exact full-origin match — never prefix, substring
+   or suffix. The literal value `Origin: null` (sandboxed iframes, some
+   redirect chains, `data:` URIs) is not in any allowlist and is
+   rejected; it must never be special-cased into a pass.
 5. **Fail closed** — an unsafe method arriving with _none_ of
    `Sec-Fetch-Site` / `Origin` / `Referer` is rejected with `403`. Per
    the no-silent-fallbacks invariant, an unverifiable origin is a
@@ -130,7 +151,10 @@ Decision rules, in order:
 
 Rejections return `403` with an opaque detail and are logged at
 `WARNING` with a structured marker (route path, method, observed origin)
-so the ingress can alert on them.
+so the ingress can alert on them. The observed origin is
+attacker-controlled input: **length-cap and sanitize it** (strip control
+characters and newlines) before it enters the structured log, so a forged
+header cannot inject log records or bloat the log pipeline.
 
 ### Where it goes
 
@@ -162,15 +186,15 @@ not force a code change; it is not expected to be set.
 ## Changes
 
 | File                                                 | Change                                                                                                                                                   |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `backend/app/core/request_origin.py`                 | **New.** The middleware and its allowlist derivation                                                                                                     |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backend/app/core/request_origin.py`                 | **New.** The middleware, its allowlist derivation, and the log-sanitization helper                                                                       |
 | `backend/app/main.py`                                | Register the middleware; delete the now-false `# NO CORS origins configured allowed on this instance` comment and replace it with a pointer to this plan |
 | `backend/app/core/config.py`                         | Add `CSRF_ADDITIONAL_ORIGINS`                                                                                                                            |
 | `backend/.env.example`, `helm/values.yaml`           | Surface the new setting, empty                                                                                                                           |
 | `backend/tests/unit/core/test_request_origin.py`     | **New.** Unit tests for the decision rules                                                                                                               |
 | `backend/tests/integration/v1/test_auth_security.py` | Extend with the end-to-end regression                                                                                                                    |
 | `docs/src/backend/01-overview.md`                    | Replace the false "CSRF protection is not needed" line                                                                                                   |
-| `docs/src/architecture/04-auth-flow.md`              | Make the `Origin`/`Referer` claim true, and link here                                                                                                    |
+| `docs/src/architecture/04-auth-flow.md`              | Make the `Origin`/`Referer` claim true, link here, and record the two standing rebuttals in one short paragraph: `Strict` does not help (the attacker is same-site by definition on `*.epfl.ch`), and `Lax` is not made redundant by the middleware (browser-enforced, fails independently of app code, and keeps the cookie off cross-site requests entirely rather than rejecting them after arrival) |
 
 ## Tests
 
@@ -184,14 +208,22 @@ rules directly, no DB:
 - `POST` with `Sec-Fetch-Site: same-site` → **403** (this is the
   sibling-subdomain case, and the single most important assertion in
   the file).
-- `POST` with `Sec-Fetch-Site: cross-site` → 403.
+- `POST` with `Sec-Fetch-Site: cross-site` → 403 (kept alongside the
+  `same-site` case: it documents that both attacker distances fail, and
+  it is the case every generic checklist reaches for).
 - `POST` with no `Sec-Fetch-Site` but `Origin` matching `FRONTEND_URL` →
   passes; a mismatched `Origin` → 403.
+- `POST` with `Origin: null` (the literal string) → 403 (sandboxed
+  iframes and some redirect chains send this; pins that it is never
+  special-cased into a pass).
 - `POST` with `Origin: https://co2-calculator.epfl.ch.evil.com` → 403
   (guards against a substring/`startswith` match creeping into the
   allowlist comparison).
 - `POST` with none of the three headers → 403 (fail-closed).
 - An origin listed in `CSRF_ADDITIONAL_ORIGINS` → passes.
+- A rejected request with a hostile `Origin` containing newlines →
+  the emitted `WARNING` record is single-line and length-capped (pins
+  the log sanitization).
 
 **Integration** (`tests/integration/v1/test_auth_security.py`) — with a
 real signed token in the cookie jar, mirroring the pattern in
@@ -221,13 +253,27 @@ token rather than relying on `dependency_overrides`:
   exotic proxy that strips `Origin`. Accepted deliberately: the
   alternative is a silent fallback, and the `WARNING` log makes the case
   visible rather than mysterious.
-- **Not a substitute for `SameSite`.** Both stay. The middleware is
-  defense in depth; `samesite="lax"` remains the first line and must not
-  be relaxed to `none` on the strength of this change.
+- **Not a substitute for `SameSite`.** Both stay, because they fail
+  independently and act at different points. The middleware is app code:
+  a dropped registration, an allowlist bug, or an over-broad
+  `CSRF_ADDITIONAL_ORIGINS` can disable it; `Lax` is enforced by the
+  victim's browser and no bug in this codebase can turn it off. And
+  `Lax` stops the cookie **at the source** — a cross-site forgery
+  arrives with no `auth_token` at all — whereas the middleware rejects a
+  request that already carried the credential. Not sending the token is
+  strictly stronger than sending it and refusing to honor it. `Lax` is
+  the outer wall (removes the entire cross-site internet from the threat
+  model, at zero UX cost for a same-origin SPA); the middleware handles
+  the `*.epfl.ch` same-site remainder that `Lax` structurally cannot
+  see, and backstops it everywhere else. It must not be relaxed to
+  `none` on the strength of this change — that would re-attach the
+  cookie to every cross-site request for no gain. Nor is a move to
+  `Strict` part of this plan — see the rebuttal in the Problem section.
 
 ## Out of scope
 
-- Any change to the cookie attributes themselves.
+- Any change to the cookie attributes themselves (including
+  `SameSite=Strict` — same-site attacker, see above).
 - A CSRF _token_ scheme, double-submit or otherwise — see the rationale
   above. If a future requirement puts a genuinely cross-origin frontend
   in play, that decision reopens as an ADR, not as an edit to this plan.
@@ -246,3 +292,6 @@ token rather than relying on `dependency_overrides`:
   here), A02 (Security Misconfiguration).
 - OWASP ASVS 5.0 V3, Web Frontend Security — CSRF defenses, which admit
   origin verification as a primary control, not merely a supplement.
+- Fetch Metadata (`Sec-Fetch-Site`) — W3C Fetch Metadata Request Headers;
+  the header is forbidden to page script, which is why it leads the
+  decision order.
