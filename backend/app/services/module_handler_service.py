@@ -86,7 +86,6 @@ class ModuleHandlerService:
 
         for factor in factors:
             classification = factor.classification or {}
-            values = factor.values or {}
 
             # Lookup kind
             kind_field = handler.kind_field
@@ -112,7 +111,7 @@ class ModuleHandlerService:
                 kind_node = TaxonomyNode(
                     name=kind_value,
                     label=label,
-                    translation_key=values.get("translation_key") or kind_value,
+                    translation_key=kind_value,
                 )
                 children.append(kind_node)
 
@@ -122,17 +121,9 @@ class ModuleHandlerService:
                 if "subkind" in classification:
                     subkind_field = "subkind"
                 else:
-                    # if no subkind field defined,
-                    # add classification and values to kind node
-                    kind_node.classification = classification
-                    kind_node.values = values
                     continue  # if no subkind field defined, skip adding subkind nodes
             subkind_value = classification.get(subkind_field, "")
             if subkind_value is None or subkind_value == "":
-                # if no subkind field defined, add classification
-                # and values to kind node
-                kind_node.classification = classification
-                kind_node.values = values
                 continue  # skip if no subkind in classification
             # Build subkind node as a child of kind node
             if kind_node.children is None:
@@ -150,9 +141,7 @@ class ModuleHandlerService:
                 TaxonomyNode(
                     name=subkind_value,
                     label=subkind_label,
-                    translation_key=values.get("translation_key") or subkind_value,
-                    classification=classification,
-                    values=values,
+                    translation_key=subkind_value,
                 )
             )
 

@@ -7,11 +7,7 @@ from app.api.deps import get_current_user, get_db
 from app.core.factor_taxonomy_cache import TAXONOMY_CACHE_TTL_SECONDS
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.module_type import (
-    ModuleTypeEnum,
-    get_data_entry_types_for_module_type,
-    get_module_type_for_data_entry_type,
-)
+from app.models.module_type import get_module_type_for_data_entry_type
 from app.models.user import User
 from app.schemas.data_entry import BaseModuleHandler
 from app.schemas.taxonomy import TaxonomyNode
@@ -29,55 +25,19 @@ router = APIRouter()
 _CACHE_CONTROL = f"private, max-age={int(TAXONOMY_CACHE_TTL_SECONDS)}"
 
 
-@router.get(
-    "/module_type/{module_type}",
-    response_model=TaxonomyNode,
-    response_model_exclude_none=True,
-)
-async def get_taxonomy_for_module_type(
-    response: Response,
-    module_type: ModuleTypeEnum,
-    year: int = Query(
-        default_factory=lambda: datetime.now().year,
-        description="Year for which to retrieve the taxonomy",
-    ),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> TaxonomyNode:
-    """Get taxonomy for a given module type."""
-    response.headers["Cache-Control"] = _CACHE_CONTROL
-    # Taxonomies are year-parameterized classification metadata with no unit
-    # data; authentication is the only gate — the simulators render every
-    # module's form for any unit member.
-    handler_service = ModuleHandlerService(db)
-    nodes = []
-    for data_entry_type in get_data_entry_types_for_module_type(module_type):
-        handler = BaseModuleHandler.get_by_type(data_entry_type)
-        nodes.append(await handler_service.get_taxonomy(handler, data_entry_type, year))
-
-    return TaxonomyNode(
-        name=module_type.name,
-        label=BaseModuleHandler.to_label(module_type.name),
-        children=nodes,
-    )
-
-
-@router.get(
-    "/data_entry_type/{data_entry_type}",
-    response_model=TaxonomyNode,
-    response_model_exclude_none=True,
-)
 async def get_taxonomy_for_data_entry_type(
     response: Response,
     data_entry_type: DataEntryTypeEnum,
-    year: int = Query(
-        default_factory=lambda: datetime.now().year,
-        description="Year for which to retrieve the taxonomy",
-    ),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    year: int,
+    db: AsyncSession,
+    current_user: User,
 ) -> TaxonomyNode:
-    """Get taxonomy for a given data entry type."""
+    """Resolve the taxonomy tree for a data entry type.
+
+    Plain function, not a route — the only HTTP-facing callers are the
+    single-entry and batch routes below, via `_resolve_module_data_entry_
+    taxonomy`. Sets the shared Cache-Control header so both routes carry it.
+    """
     response.headers["Cache-Control"] = _CACHE_CONTROL
     module_type = get_module_type_for_data_entry_type(data_entry_type)
     if not module_type:
@@ -88,31 +48,6 @@ async def get_taxonomy_for_data_entry_type(
     handler = BaseModuleHandler.get_by_type(data_entry_type)
     handler_service = ModuleHandlerService(db)
     return await handler_service.get_taxonomy(handler, data_entry_type, year)
-
-
-@router.get(
-    "/module/{module}",
-    response_model=TaxonomyNode,
-    response_model_exclude_none=True,
-)
-async def get_taxonomy_for_module(
-    response: Response,
-    module: str,
-    year: int = Query(
-        default_factory=lambda: datetime.now().year,
-        description="Year for which to retrieve the taxonomy",
-    ),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> TaxonomyNode:
-    """Get taxonomy for a given module and data entry type."""
-    module_name = module.replace("-", "_")
-    if module_name not in ModuleTypeEnum.__members__:
-        raise HTTPException(status_code=404, detail="Module not found")
-    module_type = ModuleTypeEnum[module_name]
-    return await get_taxonomy_for_module_type(
-        response, module_type, year, db, current_user
-    )
 
 
 async def _resolve_module_data_entry_taxonomy(

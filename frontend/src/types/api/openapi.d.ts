@@ -692,13 +692,9 @@ export interface paths {
          * @description Return per-year emission breakdown summed over the requested units.
          *
          *     Feeds the "Compare Years" pop-up: one entry per year with stat-bucket
-         *     totals (``modules``) and scope totals (``scopes``) in tonnes CO2eq, read
-         *     straight off each report's persisted stats. Units with no reports simply
-         *     contribute nothing; no report at all yields ``{"years": []}``.
-         *
-         *     Returns:
-         *         {"years": [{"year": 2023, "total_tonnes_co2eq": 61.7,
-         *                     "modules": {...}, "scopes": {...}}, ...]}
+         *     totals (``modules``) and scope totals (``scopes``) in tonnes CO2eq,
+         *     aggregated in SQL from each report's persisted stats. Units with no
+         *     reports simply contribute nothing; no report at all yields ``{"years": []}``.
          */
         get: operations["get_merged_multi_year_breakdown_v1_modules_stats_merged_multi_year_report_stats_get"];
         put?: never;
@@ -970,66 +966,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/taxonomies/module_type/{module_type}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Taxonomy For Module Type
-         * @description Get taxonomy for a given module type.
-         */
-        get: operations["get_taxonomy_for_module_type_v1_taxonomies_module_type__module_type__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/taxonomies/data_entry_type/{data_entry_type}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Taxonomy For Data Entry Type
-         * @description Get taxonomy for a given data entry type.
-         */
-        get: operations["get_taxonomy_for_data_entry_type_v1_taxonomies_data_entry_type__data_entry_type__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/taxonomies/module/{module}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Taxonomy For Module
-         * @description Get taxonomy for a given module and data entry type.
-         */
-        get: operations["get_taxonomy_for_module_v1_taxonomies_module__module__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/taxonomies/module/{module}/data-entries": {
         parameters: {
             query?: never;
@@ -1045,6 +981,14 @@ export interface paths {
          *     round trips into one call per module (#2049 T6). Each entry still
          *     resolves through get_taxonomy_for_data_entry_type, so it hits/populates
          *     the same (data_entry_type, year) cache a single-entry call would.
+         *
+         *     An ``HTTPException`` (bad entry name, entry not in this module) means
+         *     the request itself is malformed — that's not one submodule's problem,
+         *     it propagates and fails the whole batch. Any other exception is a
+         *     per-entry runtime failure (e.g. a transient DB hiccup) and must not
+         *     blank every other, already-resolved entry in the batch (#2258
+         *     follow-up) — logged loud and the entry is left out of the response
+         *     rather than silently rendered as an empty taxonomy.
          */
         get: operations["get_taxonomies_for_module_data_entries_v1_taxonomies_module__module__data_entries_get"];
         put?: never;
@@ -1146,7 +1090,8 @@ export interface paths {
          * Get Simulator Explore Carbon Report
          * @description Get an existing Simulator Explore carbon report.
          *
-         *     If the report has exceeded its TTL (24 h) a background task is scheduled
+         *     If the report has exceeded its TTL (EXPLORE_TTL_SECONDS) a background task
+         *     is scheduled
          *     to delete the stale report and seed a fresh one — the current (stale)
          *     report is returned immediately so the user is not blocked.
          */
@@ -1670,6 +1615,8 @@ export interface paths {
          *     OR `modules.{name}.sync` for the unit (principal users uploading from the
          *     module page). The module-owner path requires `target_type=DATA_ENTRIES`
          *     with both `carbon_report_module_id` and `module_type_id` in config.
+         *     Simulator reports (Explore/Plan) relax to unit membership plus plan
+         *     scoping, matching the report-addressed module routes (#1988, #2366).
          *
          *     Example of request body for module_type_year:
          *     {
@@ -4136,11 +4083,6 @@ export interface components {
             creator_name?: string | null;
             /** Total Tonnes Co2Eq */
             total_tonnes_co2eq?: number | null;
-            /**
-             * Can Manage
-             * @default false
-             */
-            can_manage: boolean;
             /** Prefill Job Id */
             prefill_job_id?: number | null;
         };
@@ -4394,14 +4336,6 @@ export interface components {
             translation_key?: string | null;
             /** Children */
             children?: components["schemas"]["TaxonomyNode"][] | null;
-            /** Classification */
-            classification?: {
-                [key: string]: number | string | null;
-            } | null;
-            /** Values */
-            values?: {
-                [key: string]: number | string | null;
-            } | null;
         };
         /**
          * TransportModeEnum
@@ -5543,8 +5477,6 @@ export interface operations {
             query?: {
                 /** @description Items per submodule */
                 preview_limit?: number;
-                /** @description Hide reference-year snapshot rows from item lists and counts; stats and totals keep them (#1981 grant global mode) */
-                exclude_snapshots?: boolean;
             };
             header?: never;
             path: {
@@ -5726,8 +5658,6 @@ export interface operations {
                 sort_order?: string;
                 /** @description Filter string to search in name or display_name */
                 filter?: string | null;
-                /** @description Hide reference-year snapshot rows; grant equipment global mode lists only manually added entries (#1981) */
-                exclude_snapshots?: boolean;
             };
             header?: never;
             path: {
@@ -6448,114 +6378,6 @@ export interface operations {
                     "application/json": {
                         [key: string]: number | string | null;
                     } | null;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_taxonomy_for_module_type_v1_taxonomies_module_type__module_type__get: {
-        parameters: {
-            query?: {
-                /** @description Year for which to retrieve the taxonomy */
-                year?: number;
-            };
-            header?: never;
-            path: {
-                module_type: components["schemas"]["ModuleTypeEnum"];
-            };
-            cookie?: {
-                auth_token?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaxonomyNode"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_taxonomy_for_data_entry_type_v1_taxonomies_data_entry_type__data_entry_type__get: {
-        parameters: {
-            query?: {
-                /** @description Year for which to retrieve the taxonomy */
-                year?: number;
-            };
-            header?: never;
-            path: {
-                data_entry_type: components["schemas"]["DataEntryTypeEnum"];
-            };
-            cookie?: {
-                auth_token?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaxonomyNode"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_taxonomy_for_module_v1_taxonomies_module__module__get: {
-        parameters: {
-            query?: {
-                /** @description Year for which to retrieve the taxonomy */
-                year?: number;
-            };
-            header?: never;
-            path: {
-                module: string;
-            };
-            cookie?: {
-                auth_token?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaxonomyNode"];
                 };
             };
             /** @description Validation Error */

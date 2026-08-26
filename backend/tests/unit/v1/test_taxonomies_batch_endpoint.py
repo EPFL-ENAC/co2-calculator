@@ -17,8 +17,11 @@ from fastapi.testclient import TestClient
 
 from app.api.deps import get_current_user, get_db
 from app.api.v1 import taxonomies as taxonomies_mod
+from app.core.factor_taxonomy_cache import taxonomy_cache
 from app.main import app
+from app.models.factor import Factor
 from app.schemas.taxonomy import TaxonomyNode
+from app.services.factor_service import FactorService
 
 
 def _fake_taxonomy(data_entry_type) -> TaxonomyNode:
@@ -123,6 +126,51 @@ async def test_batch_endpoint_entry_from_other_module_raises_400():
                 current_user=fake_user,
             )
     assert exc.value.status_code == 400
+
+
+def test_batch_route_response_has_no_coefficients_or_classification():
+    """#2391 decision 3, end-to-end through the real router + service stack
+    (not the `get_taxonomy` mock the other tests use): a batch response
+    must carry no `values`/`classification` keys or coefficient values,
+    even though the underlying factors have them.
+    """
+    fake_user = MagicMock()
+    app.dependency_overrides[get_db] = lambda: MagicMock()
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+
+    factors = [
+        Factor(
+            emission_type_id=1,
+            classification={"equipment_class": "Centrifuge", "sub_class": "Ultra"},
+            values={"ef_kg_co2eq_per_kwh": 0.42, "active_power_w": 150},
+        )
+    ]
+
+    taxonomy_cache.clear()
+    try:
+        with patch.object(
+            FactorService,
+            "list_by_data_entry_type",
+            new=AsyncMock(return_value=factors),
+        ):
+            with TestClient(app) as client:
+                response = client.get(
+                    "/api/v1/taxonomies/module/equipment/data-entries",
+                    params={"entries": ["scientific"], "year": 2025},
+                )
+    finally:
+        app.dependency_overrides.clear()
+        taxonomy_cache.clear()
+
+    assert response.status_code == 200
+    body = response.text
+    for forbidden in (
+        "values",
+        "classification",
+        "ef_kg_co2eq_per_kwh",
+        "active_power_w",
+    ):
+        assert forbidden not in body
 
 
 def test_batch_route_wins_over_single_entry_catch_all():
