@@ -96,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
@@ -111,7 +111,10 @@ import {
   type Threshold,
 } from '@/constant/modules';
 import { moduleTooltipKey } from '@/utils/tooltipScope';
+import { getModuleTypeId } from '@/constant/moduleStates';
 import { useModuleStore } from '@/stores/modules';
+import { usePipelineStateStore } from '@/stores/pipelineState';
+import { usePipelineStream } from '@/composables/usePipelineStream';
 import type { ExploreModule } from '@/utils/exploreModules';
 
 const props = defineProps<{
@@ -123,6 +126,8 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const moduleStore = useModuleStore();
+const pipelineStateStore = usePipelineStateStore();
+const { subscribe, unsubscribe, progressFor } = usePipelineStream();
 
 const defaultThreshold: Threshold = {
   type: MODULES_THRESHOLD_TYPES[0],
@@ -150,4 +155,82 @@ function onToggle(m: ExploreModule, isOpen: boolean) {
     { type: m.type, unit: props.unitId, year: String(props.year) },
   ]);
 }
+
+// A CSV upload (ModuleTable) dispatches a 3-phase pipeline (data →
+// emissions → aggregation). The upload's own single-job SSE only covers
+// the csv_ingest job, so per-row kg_co2eq and the aggregated stats are
+// written AFTER its "completed" refresh already ran. As on ModulePage,
+// watch the whole-pipeline SSE per module and refresh once each phase
+// actually finishes.
+const activePipelineIds = computed<Record<string, string | null>>(() => {
+  const ids: Record<string, string | null> = {};
+  for (const m of props.modules) {
+    const moduleTypeId = getModuleTypeId(m.type);
+    ids[m.type] =
+      moduleTypeId == null
+        ? null
+        : pipelineStateStore.getPipelineId(moduleTypeId, props.year);
+  }
+  return ids;
+});
+
+// Subscribe/unsubscribe as a module's active pipeline_id transitions
+// (null → uuid on upload, uuidA → uuidB on a second upload).
+const lastSubscribedIds: Record<string, string | null> = {};
+watch(
+  activePipelineIds,
+  async (next) => {
+    for (const [moduleType, id] of Object.entries(next)) {
+      const prev = lastSubscribedIds[moduleType] ?? null;
+      if (prev === id) continue;
+      if (prev) unsubscribe(prev);
+      lastSubscribedIds[moduleType] = id;
+      if (id) await subscribe(id);
+    }
+  },
+  { immediate: true },
+);
+
+// Emissions phase done: per-row kg_co2eq is now written — refresh the
+// loaded submodules' rows, preserving pagination/sort/filter.
+const emissionsReady = computed<Record<string, boolean>>(() => {
+  const ready: Record<string, boolean> = {};
+  for (const [moduleType, id] of Object.entries(activePipelineIds.value)) {
+    const p = id ? progressFor(id).value : null;
+    ready[moduleType] = !!p && (p.done || p.phase_label === 'aggregation');
+  }
+  return ready;
+});
+watch(emissionsReady, (next, wasReady) => {
+  for (const m of props.modules) {
+    if (next[m.type] && !wasReady?.[m.type]) {
+      void moduleStore.refreshLoadedSubmodules(
+        m.type,
+        props.unitId,
+        String(props.year),
+        m.submodules.map((sub) => sub.id),
+      );
+    }
+  }
+});
+
+// Whole pipeline done: aggregation wrote the report stats — refresh the
+// submodule title counts and the results card's breakdown/total.
+const pipelineDone = computed<Record<string, boolean>>(() => {
+  const done: Record<string, boolean> = {};
+  for (const [moduleType, id] of Object.entries(activePipelineIds.value)) {
+    done[moduleType] = id ? progressFor(id).value?.done === true : false;
+  }
+  return done;
+});
+watch(pipelineDone, (next, wasDone) => {
+  for (const m of props.modules) {
+    if (next[m.type] && !wasDone?.[m.type]) {
+      void moduleStore.prefetchAllModuleCounts([
+        { type: m.type, unit: props.unitId, year: String(props.year) },
+      ]);
+      void moduleStore.refreshEmissionBreakdownIfNeeded();
+    }
+  }
+});
 </script>
