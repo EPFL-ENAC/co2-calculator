@@ -8,7 +8,7 @@ from starlette.datastructures import URL, Headers
 import app.api.v1.auth as auth_module
 import app.core.config as config
 from app.main import app
-from app.models.user import UserProvider
+from app.models.user import User, UserProvider
 
 API_PREFIX = config.get_settings().API_VERSION
 
@@ -29,6 +29,19 @@ def _login_request(callback_url: str) -> MagicMock:
     request = MagicMock()
     request.url_for = lambda name: URL(callback_url)
     request.headers = Headers({})
+    return request
+
+
+def _session_request(host: str | None = "128.178.1.2") -> MagicMock:
+    """A fake Request carrying the one thing ``get_session`` reads from it.
+
+    ``scope["client"]`` is what uvicorn's ProxyHeadersMiddleware rewrites from
+    X-Forwarded-For once FORWARDED_ALLOW_IPS trusts the proxy, so this is the
+    address the endpoint must echo back to the browser — never the raw header,
+    which a client can forge.
+    """
+    request = MagicMock()
+    request.client = MagicMock(host=host) if host else None
     return request
 
 
@@ -141,7 +154,7 @@ async def test_get_session_invalid_token(monkeypatch, payload):
     monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value=payload))
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(auth_token="token", db=db)
+        await auth_module.get_session(_session_request(), auth_token="token", db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -161,7 +174,7 @@ async def test_get_session_user_missing(monkeypatch, user_attr):
     monkeypatch.setattr(auth_module.UserService, "get_by_id", mock_get_user_by_user_id)
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(auth_token="token", db=db)
+        await auth_module.get_session(_session_request(), auth_token="token", db=db)
     assert exc.value.status_code in [
         status.HTTP_401_UNAUTHORIZED,
         status.HTTP_403_FORBIDDEN,
@@ -172,7 +185,7 @@ async def test_get_session_user_missing(monkeypatch, user_attr):
 async def test_get_session_no_token():
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(auth_token=None, db=db)
+        await auth_module.get_session(_session_request(), auth_token=None, db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -183,8 +196,40 @@ async def test_get_session_exception(monkeypatch):
     )
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(auth_token="token", db=db)
+        await auth_module.get_session(_session_request(), auth_token="token", db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("host", "expected"), [("128.178.1.2", "128.178.1.2"), (None, None)]
+)
+async def test_get_session_echoes_the_address_the_server_saw(
+    monkeypatch, host, expected
+):
+    """The browser cannot discover its own IP, and GlitchTip stores Sentry's
+    ``{{auto}}`` sentinel verbatim instead of resolving it (seen on a real dev
+    event), so the session payload has to carry a real value for error reports
+    to be attributable. It comes from ``scope["client"]`` — which uvicorn
+    resolves against FORWARDED_ALLOW_IPS — never from the forgeable header.
+    """
+    user = User(id=2, institutional_id="123456", email="tester@epfl.ch")
+    monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value={"sub": "2"}))
+    monkeypatch.setattr(
+        auth_module, "resolve_user_by_jwt_payload", AsyncMock(return_value=user)
+    )
+    monkeypatch.setattr(
+        auth_module.UnitService, "get_user_units", AsyncMock(return_value=[])
+    )
+    monkeypatch.setattr(
+        auth_module, "list_configured_years", AsyncMock(return_value=[])
+    )
+
+    session = await auth_module.get_session(
+        _session_request(host), auth_token="token", db=MagicMock()
+    )
+
+    assert session.client_ip == expected
 
 
 @pytest.mark.asyncio
