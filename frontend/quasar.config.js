@@ -182,6 +182,24 @@ export default defineConfig(function () {
         ],
       ],
       extendViteConf(viteConf) {
+        // Dev-only: surface the co2-first-load meta from the last production
+        // build so the homepage badge is visible under `quasar dev` too. No
+        // dist or no meta → nothing injected, badge stays hidden.
+        viteConf.plugins = viteConf.plugins || [];
+        viteConf.plugins.push({
+          name: 'co2-first-load-dev',
+          apply: 'serve',
+          transformIndexHtml(html) {
+            const distIndex = path.resolve(__dirname, 'dist/spa/index.html');
+            if (!fs.existsSync(distIndex)) return html;
+            const meta = fs
+              .readFileSync(distIndex, 'utf8')
+              .match(/<meta name="co2-first-load" content="[^"]*">/)?.[0];
+            if (!meta) return html;
+            return html.replace('</head>', `${meta}</head>`);
+          },
+        });
+
         // Remove Quasar's auto-injected CSS
         if (!viteConf.css) viteConf.css = {};
         if (!viteConf.css.preprocessorOptions)
