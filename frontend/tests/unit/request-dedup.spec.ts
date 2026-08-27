@@ -38,8 +38,12 @@ const PLANE_TAXONOMY = {
       children: [
         { name: '777', label: '777' },
         { name: '737', label: '737' },
-        // The retired class-subclass-map deduped and sorted server-side; the
-        // tree does neither, so the store has to.
+        // The retired class-subclass-map deduped server-side; the tree
+        // doesn't, so the store has to. Deliberately NOT re-sorted (#2412):
+        // subclass codes are a plain classification list where the value
+        // IS the label, so the backend's declared order can be meaningful
+        // and sorting would silently discard it. First-occurrence order is
+        // preserved through the dedup: 777, 737 (the second 737 drops).
         { name: '737', label: '737' },
       ],
     },
@@ -248,7 +252,7 @@ test('concurrent fetchClassNodes calls (planner lookups) share one request', asy
   expect(requests).toBe(1);
 });
 
-test('subclass options are deduped and sorted, off the same cached tree', async ({
+test('subclass options are deduped but not re-sorted, off the same cached tree', async ({
   page,
   mount,
 }) => {
@@ -266,6 +270,8 @@ test('subclass options are deduped and sorted, off the same cached tree', async 
     props: { scenario: 'subclass-options' },
   });
 
-  await expect(component).toContainText('subclasses:737|777');
+  // Deduped (the second '737' drops), not re-sorted: 777 stays first,
+  // matching the backend-declared child order (#2412).
+  await expect(component).toContainText('subclasses:777|737');
   expect(requests).toBe(1);
 });
