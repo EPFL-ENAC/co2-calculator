@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 issue: 2445
 last_updated: 2026-08-27
 summary: Retry auto-generated plan names on unique-index race instead of surfacing a 409 the user cannot act on
@@ -82,9 +82,40 @@ repo boundary). A second test asserts the explicit-name collision still raises.
 - [ ] Regression tests (race retry + explicit-name 409 kept)
 - [ ] Flip this plan to `delivered`
 
+## The write cascade, and where the lock lives
+
+Duplicating a plan (and PATCHing its year range) runs the whole downward
+cascade inside one request transaction. Every lock acquired along the way —
+including the `(unit_id, name)` unique-index key from the very first INSERT —
+is held until the final COMMIT, so the 409 window is exactly as long as the
+slowest thing in the box:
+
+```mermaid
+flowchart TD
+    subgraph request["duplicate / year-range PATCH — one request transaction today"]
+        A["INSERT carbon_projects<br/>acquires (unit_id, name) unique key"]
+        A --> B["per year: INSERT carbon_reports"]
+        B --> C["per module type: INSERT carbon_report_modules"]
+        C --> D["grant report sync (insert / move / delete)"]
+        D --> E["COMMIT — every lock above releases here"]
+    end
+    E -. "enqueue (#2050 pattern, prefill only today)" .-> J
+    subgraph job["simulator_plan_prefill background job — idempotent"]
+        J["copy data_entries from reference year"]
+        J --> K["compute emissions (factor resolution)"]
+        K --> L["update carbon_report_module stats"]
+        L --> M["roll up carbon_report stats (merge_report_stats)"]
+    end
+```
+
+The upward rollup (entry → emission → module stats → report stats) is the
+same chain a user edit walks; #2050 already moved the bulk version of it out
+of the request. The downward fan-out (project → reports → modules) was left
+in-request, which is what held the name key for ≥41 s in this incident.
+
 ## Follow-up (out of scope here)
 
-The winner held the name key uncommitted for ≥41 s — `duplicate_plan` doing all
-its per-year report sync inside one transaction is a latency bug of its own,
-and the reason the losers _blocked_ rather than failed fast. Shrinking that
-window (as plan #2050 did for prefill) is a separate issue.
+Tracked separately: split the duplicate/year-sync cascade the same way #2050
+split prefill — commit the cheap metadata write in the route, hand the
+fan-out to an idempotent job. That shrinks the name-key hold from
+tens of seconds to milliseconds; the bounded retry here covers the residue.
