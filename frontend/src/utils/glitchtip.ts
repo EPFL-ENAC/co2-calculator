@@ -142,6 +142,16 @@ function randomHex(bytes: number): string {
 let traceId = randomHex(16); // 32 hex chars; stable for the current navigation
 let spanId = randomHex(8); // 16 hex chars
 
+// Who is logged in, attached to every event so a report can be tied to the
+// backend spans of the same person. Deliberately our own `User.id`, never the
+// sciper: a sciper identifies a person across every EPFL system, this id means
+// nothing outside our database. Cleared on logout — the store watches for it.
+let userId: string | null = null;
+
+export function setGlitchTipUser(id: string | null): void {
+  userId = id;
+}
+
 // Begin a fresh trace for a new route navigation (called from boot/sentry.ts).
 export function startNavigationTrace(): void {
   traceId = randomHex(16);
@@ -248,7 +258,7 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
       // the ingest connection, but only when the event asks for it with this
       // sentinel (what `sendDefaultPii` sends in the real SDK). Without it,
       // every event arrived with no IP at all.
-      user: { ip_address: '{{auto}}' },
+      user: { ip_address: '{{auto}}', ...(userId ? { id: userId } : {}) },
       // GlitchTip parses the User-Agent server-side into browser/os/device
       // tags (+ icons) — the same way the Sentry SDK gets them. We just have
       // to ship the header in the request context.

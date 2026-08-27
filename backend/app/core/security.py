@@ -109,18 +109,25 @@ def decode_jwt(token: str) -> dict:
         )
 
 
-def tag_span_with_user(institutional_id: str) -> None:
+def tag_span_with_user(user: User) -> None:
     """Name who is behind the request on the current server span.
 
     Chasing one tester's traces by IP is unreliable — NAT, VPN and a router
-    rescheduled onto an untrusted address all break it. The institutional id
-    is stable, and BETA_COHORTS turns a whole test group into a single
-    TraceQL filter (``{ span.beta_cohort = "team-a" }``). A no-op without a
-    tracer configured, which is every local run.
+    rescheduled onto an untrusted address all break it — and BETA_COHORTS
+    turns a whole test group into a single TraceQL filter
+    (``{ span.beta_cohort = "team-a" }``).
+
+    Deliberately our own ``User.id``, never the institutional id: a sciper
+    identifies a person across every EPFL system, while this id means nothing
+    without our database. Traces leave the namespace for a shared collector,
+    so the pseudonymous key is the one that belongs there — worth the extra
+    lookup it costs us. A no-op without a tracer configured, which is every
+    local run.
     """
     span = trace.get_current_span()
-    span.set_attribute("user.id", institutional_id)
-    cohort = settings.beta_cohort_by_user.get(institutional_id)
+    user_id = str(user.id)
+    span.set_attribute("user.id", user_id)
+    cohort = settings.beta_cohort_by_user.get(user_id)
     if cohort:
         span.set_attribute("beta_cohort", cohort)
 
@@ -188,7 +195,7 @@ async def resolve_user_by_jwt_payload(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
-    tag_span_with_user(user.institutional_id)
+    tag_span_with_user(user)
     return user
 
 

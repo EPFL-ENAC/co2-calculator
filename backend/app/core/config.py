@@ -373,10 +373,12 @@ class Settings(BaseSettings):
     BETA_COHORTS: str = Field(
         default="",
         description=(
-            "Named tester groups over institutional IDs, "
-            "'cohort:id,id;cohort:id' (e.g. 'team-a:123456,234567;team-b:"
-            "345678'). Their server spans carry beta_cohort, so a whole test "
-            "group's traces are one TraceQL filter. Empty outside dev."
+            "Named tester groups, 'cohort:id,id;cohort:id' (e.g. "
+            "'team-a:41,58;team-b:77'). Their server spans carry beta_cohort, "
+            "so a whole test group's traces are one TraceQL filter. The ids "
+            "are our own User.id, never scipers: a sciper identifies a person "
+            "across every EPFL system, and traces leave for a shared "
+            "collector. Empty outside dev."
         ),
     )
 
