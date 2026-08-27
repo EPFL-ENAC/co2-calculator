@@ -1,12 +1,16 @@
 ---
-status: proposed
+status: delivered
 issue: 2397
-last_updated: 2026-08-26
+last_updated: 2026-08-27
 title: "Suppress per-chunk ASGI receive/send spans"
-summary: "One upload produces 805 spans, one per body chunk, each created and exported on the event loop. The pinned opentelemetry-instrumentation-asgi 0.65b0 supports exclude_spans natively, but only as a keyword argument — and the app is instrumented inside the FastAPI() constructor by opentelemetry-instrument, before our code runs. Proposes an explicit uninstrument/re-instrument at boot, sequenced after #2263 so the win can be measured rather than assumed."
+summary: "One upload produces 805 spans, one per body chunk, each created and exported on the event loop. The pinned opentelemetry-instrumentation-asgi 0.65b0 supports exclude_spans natively, but only as a keyword argument — and the app is instrumented inside the FastAPI() constructor by opentelemetry-instrument, before our code runs. Shipped as an explicit uninstrument/re-instrument at boot (#2409), sequenced after #2263 so the win can be measured rather than assumed."
 ---
 
 # Suppress per-chunk ASGI receive/send spans (#2397)
+
+**Delivered 2026-08-27 as [#2409](https://github.com/EPFL-ENAC/co2-calculator/pull/2409)**,
+implementing option A exactly as recommended below. The body is left as
+originally written — it's the record of the decision, not a changelog.
 
 Split out of [#2049](2049-optimize-pipeline-performance.md) (was D2, promoted
 to B6 on 2026-08-26 — its "after A and B land" placement came from a

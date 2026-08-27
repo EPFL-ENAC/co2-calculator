@@ -1,7 +1,7 @@
 ---
-status: parked
+status: abandoned
 issue: 2278
-last_updated: 2026-08-22
+last_updated: 2026-08-27
 title: "Cache the per-request user lookup"
 summary: "Investigation of #2049 item C1. Every authenticated request pays an uncached SELECT users (15.2 ms idle, 71.7 ms burst) whose result carries the roles that permissions are calculated from, so caching it is a permission-scoping change and gated on maintainer review. Recommendation is DEFER: n=2 measurement, #2049 A1 unanswered, and the burst that produces the 71.7 ms figure is already being dismantled by #2275 and B2. If approved anyway, the design is a 30 s process-local TTL on an immutable snapshot, TTL-only with no eviction hooks and no cross-pod broadcast, failing closed on miss."
 ---
