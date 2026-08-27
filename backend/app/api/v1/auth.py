@@ -554,6 +554,7 @@ if settings.DEBUG:
 
 @session_router.get("", response_model=SessionRead, response_model_exclude_none=True)
 async def get_session(
+    request: Request,
     auth_token: str | None = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ):
@@ -597,6 +598,12 @@ async def get_session(
             units=units,
             configured_years=configured_years,
             min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
+            # scope["client"], not the X-Forwarded-For header: uvicorn resolves
+            # it against FORWARDED_ALLOW_IPS by walking the chain from the
+            # right, so a client-supplied header cannot forge it. The browser
+            # cannot learn its own address any other way, and GlitchTip does
+            # not fill one in.
+            client_ip=request.client.host if request.client else None,
         )
 
     except HTTPException:

@@ -59,13 +59,21 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
   const loading = ref(false);
 
+  // The address the backend saw for this session (`GET /v1/session`). The
+  // browser cannot discover its own, and GlitchTip stores Sentry's `{{auto}}`
+  // sentinel verbatim instead of resolving it, so it has to come from here.
+  const clientIp = ref<string | undefined>(undefined);
+
   // Every GlitchTip event carries whoever is logged in, so a crash report
   // and the backend spans of the same request share one identity. Watched
   // rather than pushed from bootstrap(): login, logout and session expiry
   // all assign `user`, and only one of them is bootstrap().
-  watch(user, (u) => setGlitchTipUser(u ? String(u.id) : null), {
-    immediate: true,
-  });
+  watch(
+    user,
+    (u) =>
+      setGlitchTipUser(u ? { id: String(u.id), ip: clientIp.value } : null),
+    { immediate: true },
+  );
 
   const workspaceStore = useWorkspaceStore();
 
@@ -88,6 +96,7 @@ export const useAuthStore = defineStore('auth', () => {
     units: Unit[];
     configured_years: YearConfigurationListItem[];
     min_configurable_year: number;
+    client_ip?: string;
   }
 
   /**
@@ -106,6 +115,9 @@ export const useAuthStore = defineStore('auth', () => {
         // `response_model_exclude_none=True`. Normalize once here so
         // every call site can treat `roles_raw` as a non-optional array.
         const u: User = { ...raw.user, roles_raw: raw.user.roles_raw ?? [] };
+        // Before `user`, so the watcher above reports the identity and the
+        // address together on the first event of the session.
+        clientIp.value = raw.client_ip;
         user.value = u;
         // Hydrate the workspace context that used to come from separate
         // `/users/units` and `/year-configuration/` calls.

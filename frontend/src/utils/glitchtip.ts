@@ -146,10 +146,14 @@ let spanId = randomHex(8); // 16 hex chars
 // backend spans of the same person. Deliberately our own `User.id`, never the
 // sciper: a sciper identifies a person across every EPFL system, this id means
 // nothing outside our database. Cleared on logout — the store watches for it.
-let userId: string | null = null;
+//
+// `ip` comes from `GET /v1/session` — the browser cannot discover its own
+// address, and GlitchTip stores the Sentry `{{auto}}` sentinel verbatim rather
+// than resolving it (seen on a real dev event), so it has to arrive as a value.
+let currentUser: { id: string; ip?: string } | null = null;
 
-export function setGlitchTipUser(id: string | null): void {
-  userId = id;
+export function setGlitchTipUser(user: { id: string; ip?: string } | null) {
+  currentUser = user;
 }
 
 // Begin a fresh trace for a new route navigation (called from boot/sentry.ts).
@@ -254,11 +258,17 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
       level: ctx?.level ?? 'error',
       release,
       environment,
-      // The browser cannot know its own public IP: GlitchTip fills it in from
-      // the ingest connection, but only when the event asks for it with this
-      // sentinel (what `sendDefaultPii` sends in the real SDK). Without it,
-      // every event arrived with no IP at all.
-      user: { ip_address: '{{auto}}', ...(userId ? { id: userId } : {}) },
+      // Identity of whoever hit the error: our own User.id, plus the IP the
+      // backend saw for this session. Both are set by the auth store; an event
+      // fired before login (or after logout) simply carries neither.
+      ...(currentUser
+        ? {
+            user: {
+              id: currentUser.id,
+              ...(currentUser.ip ? { ip_address: currentUser.ip } : {}),
+            },
+          }
+        : {}),
       // GlitchTip parses the User-Agent server-side into browser/os/device
       // tags (+ icons) — the same way the Sentry SDK gets them. We just have
       // to ship the header in the request context.
