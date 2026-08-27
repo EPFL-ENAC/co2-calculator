@@ -553,11 +553,11 @@ const getUncertainty = (
 ): { color: string; label: string } => {
   switch (uncertainty) {
     case 'high':
-      return { color: 'negative', label: t('uncertainty_high') };
+      return { color: 'positive', label: t('uncertainty_high') };
     case 'medium':
       return { color: 'warning', label: t('uncertainty_medium') };
     case 'low':
-      return { color: 'positive', label: t('uncertainty_low') };
+      return { color: 'negative', label: t('uncertainty_low') };
     default:
       return { color: 'primary', label: '' };
   }
