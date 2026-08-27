@@ -3,8 +3,12 @@ name: Tests
 on:
   pull_request:
     branches: [main, dev, stage]
+  # Deliberately NOT main/dev/stage (#2432): those are PR heads on the two
+  # promotion PRs (dev -> stage, stage -> main), so listing them here ran the
+  # whole suite twice on the same commit. `pull_request` already tests the
+  # merge result.
   push:
-    branches: [main, dev, stage, 'ci-test/**']
+    branches: ["ci-test/**"]
 
 jobs:
   test-backend:
@@ -94,7 +98,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: "npm"
           cache-dependency-path: "./frontend/package-lock.json"
 
