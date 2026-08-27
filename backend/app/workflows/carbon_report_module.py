@@ -2,9 +2,19 @@ from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.data_entry_permissions import (
+    ALWAYS_WRITABLE_FIELDS,
+    can_delete,
+    is_policy_exempt,
+    provenance_of,
+    writable_fields_for_row,
+)
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntryTypeEnum
+from app.models.carbon_report import CarbonReport
+from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.module_type import ModuleTypeEnum
+from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.schemas.data_entry import (
     BaseModuleHandler,
@@ -13,21 +23,170 @@ from app.schemas.data_entry import (
     DataEntryUpdate,
 )
 from app.schemas.user import UserRead
+from app.schemas.write_scope import WriteScope
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
+from app.services.exchange_rates_service import ExchangeRatesService
 from app.services.module_handler_service import ModuleHandlerService
+from app.services.year_config_service import is_submodule_inputs_deactivated
+from app.utils.factor_year import resolve_factor_year
 
 logger = get_logger(__name__)
 
 
 class CarbonReportModuleWorkflow:
-    """
-    Base workflow for processing data entries and calculating emissions.
-    """
+    """Base workflow for processing data entries and calculating emissions."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def _reject_when_inputs_deactivated(
+        self,
+        carbon_report_module: CarbonReportModuleRead,
+        data_entry_type: DataEntryTypeEnum,
+        current_user: UserRead,
+    ) -> None:
+        """#2007: make the backoffice "deactivate inputs" switch fail closed.
+
+        It only ever hid the form, so any API client could still write to a
+        submodule the backoffice had switched off. Plan and grant reports are
+        exempt: their rows are the user's own scenario, not calculator data
+        entry, and the switch is a calculator-side control.
+        """
+        if is_policy_exempt(data_entry_type):
+            return
+        report = await self.session.get(
+            CarbonReport, carbon_report_module.carbon_report_id
+        )
+        if report is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="CARBON_REPORT_NOT_FOUND",
+            )
+        if report.carbon_project_id is not None:
+            return
+        if await is_submodule_inputs_deactivated(
+            self.session,
+            report.year,
+            current_user.provider,
+            ModuleTypeEnum(carbon_report_module.module_type_id),
+            data_entry_type,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "INPUTS_DEACTIVATED"},
+            )
+
+    async def _check_planner_purchase_exclusivity(
+        self,
+        carbon_report_module_id: int,
+        data_entry_type: DataEntryTypeEnum,
+        data: dict,
+        exclude_entry_id: int | None = None,
+    ) -> None:
+        """PRD #1555: submodule CHF totals XOR one global budget.
+
+        Rejects a submodule total while a global budget exists (and vice
+        versa), a second global budget, and a duplicate submodule category.
+        ``exclude_entry_id`` drops the row being edited from the scan so an
+        update that keeps its own category isn't flagged as a self-collision.
+        """
+        rows = [
+            r
+            for r in await DataEntryRepository(self.session).list_by_module(
+                carbon_report_module_id
+            )
+            if r.id != exclude_entry_id
+        ]
+        budgets = [
+            r
+            for r in rows
+            if r.data_entry_type_id == DataEntryTypeEnum.planner_purchase_budget.value
+        ]
+        totals = [
+            r
+            for r in rows
+            if r.data_entry_type_id == DataEntryTypeEnum.planner_purchase.value
+        ]
+        if data_entry_type is DataEntryTypeEnum.planner_purchase:
+            if budgets:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="PURCHASES_GLOBAL_BUDGET_SET",
+                )
+            category = data.get("purchase_category")
+            if any(r.data.get("purchase_category") == category for r in totals):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="DUPLICATE_PURCHASE_CATEGORY",
+                )
+            return
+        if totals:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="PURCHASES_SUBMODULE_TOTALS_SET",
+            )
+        if budgets:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="PURCHASES_GLOBAL_BUDGET_EXISTS",
+            )
+
+    @staticmethod
+    def _planner_purchase_scopes(dump: dict) -> list[dict]:
+        """The DTO dump carries the payload twice: flat and nested under
+        ``data`` (the stored dict) — both must agree.
+        """
+        payload = dump.get("data")
+        return [dump] + ([payload] if isinstance(payload, dict) else [])
+
+    async def _convert_planner_purchase_amount(
+        self,
+        carbon_report_module: CarbonReportModuleRead,
+        dump: dict,
+    ) -> dict:
+        """Stored planner purchase amounts are always EUR.
+
+        ``currency`` is transport-only: it names the currency the submitted
+        amount is denominated in. A non-EUR amount is converted here at the
+        report's factor year's average ECB rate; the key is never stored.
+        """
+        scopes = self._planner_purchase_scopes(dump)
+        currency = "eur"
+        for scope in scopes:
+            currency = scope.pop("currency", None) or currency
+        amount = next(
+            (
+                scope["amount_eur"]
+                for scope in scopes
+                if scope.get("amount_eur") is not None
+            ),
+            None,
+        )
+        if currency == "eur" or amount is None:
+            return dump
+        report = await self.session.get(
+            CarbonReport, carbon_report_module.carbon_report_id
+        )
+        year = await resolve_factor_year(self.session, report) if report else None
+        if year is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="PURCHASES_CURRENCY_RATE_UNAVAILABLE",
+            )
+        try:
+            rate = ExchangeRatesService().get_exchange_rate_to_eur(year, currency)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="PURCHASES_CURRENCY_RATE_UNAVAILABLE",
+            ) from e
+        converted = amount * rate
+        for scope in scopes:
+            if "amount_eur" in scope:
+                scope["amount_eur"] = converted
+        return dump
 
     async def create(
         self,
@@ -37,8 +196,13 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
-        year: int,
+        scope: WriteScope | None = None,
     ) -> DataEntryResponse:
+        await self._reject_when_inputs_deactivated(
+            carbon_report_module,
+            DataEntryTypeEnum(data_entry_type_id),
+            current_user,
+        )
         try:
             create_payload = {
                 **item_data,
@@ -47,12 +211,24 @@ class CarbonReportModuleWorkflow:
             }
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             handler = BaseModuleHandler.get_by_type(data_entry_type)
-            handler_service = ModuleHandlerService(self.session)
-            create_payload, factor = await handler_service.resolve_primary_factor_id(
-                handler, create_payload, data_entry_type, year=year
-            )
 
             validated_data = handler.validate_create(create_payload)
+
+            # DTO-level ``str | None`` is intentional (CSV rows validate
+            # before ``enrich_csv_row`` resolves the natural_key — #1186) so
+            # this can't be a pydantic required-field check. API/UI creates
+            # always carry the resolved natural_key from the station
+            # autocomplete (ModuleForm's direction-input guard, #1186); a
+            # payload missing it means that guard was bypassed or a raw API
+            # client skipped station lookup.
+            if data_entry_type == DataEntryTypeEnum.train and (
+                not create_payload.get("origin_natural_key")
+                or not create_payload.get("destination_natural_key")
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="TRAIN_STATION_NOT_RESOLVED",
+                )
 
             data_entry_create = DataEntryCreate(
                 **validated_data.model_dump(exclude_unset=True)
@@ -70,22 +246,21 @@ class CarbonReportModuleWorkflow:
                 detail=f"Invalid item_data for creation: {str(e)}",
             )
 
-        if (
-            data_entry_type == DataEntryTypeEnum.member
-            and validated_data.model_dump().get("user_institutional_id")
+        if data_entry_type in (
+            DataEntryTypeEnum.planner_purchase,
+            DataEntryTypeEnum.planner_purchase_budget,
         ):
-            uid = validated_data.model_dump()["user_institutional_id"]
-            is_unique = await DataEntryService(
-                self.session
-            ).check_institutional_id_unique(
-                carbon_report_module_id=carbon_report_module.id,
-                uid=uid,
+            await self._check_planner_purchase_exclusivity(
+                carbon_report_module.id,
+                data_entry_type,
+                validated_data.model_dump(),
             )
-            if not is_unique:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="DUPLICATE_INSTITUTIONAL_ID",
+            data_entry_create = DataEntryCreate(
+                **await self._convert_planner_purchase_amount(
+                    carbon_report_module,
+                    validated_data.model_dump(exclude_unset=True),
                 )
+            )
 
         try:
             item = await DataEntryService(self.session).create(
@@ -95,6 +270,9 @@ class CarbonReportModuleWorkflow:
                 data=data_entry_create,
                 request_context=request_context,
                 background_tasks=background_tasks,
+                source=DataEntrySourceEnum.USER_MANUAL.value,
+                created_by_id=current_user.id,
+                scope=scope,
             )
             if item is None:
                 raise HTTPException(
@@ -102,25 +280,49 @@ class CarbonReportModuleWorkflow:
                     detail="Failed to create item",
                 )
 
-            await DataEntryEmissionService(self.session).upsert_by_data_entry(
-                data_entry_response=item,
-            )
+            # #2050 J4: ``create``, not ``upsert_by_data_entry`` — the entry
+            # was inserted a few statements ago and cannot have emissions to
+            # replace, so upsert's pre-delete lookup is a guaranteed-empty
+            # SELECT. The update path below keeps using upsert.
+            await DataEntryEmissionService(self.session).create(item, scope=scope)
+            # #2050 J9: the report rollup stays in this transaction. J4
+            # deferred it on the premise that nobody reads report totals in
+            # this interaction; the frontend's own waterfall disproves that —
+            # it fetches report-stats right after the write, and that endpoint
+            # serves the persisted carbon_reports.stats column.
             await CarbonReportModuleService(self.session).recompute_stats(
-                carbon_report_module.id
+                carbon_report_module.id, scope=scope
             )
             await self.session.commit()
         except IntegrityError as e:
             await self.session.rollback()
-
-            if "data_entries_unique_member_uid_per_module_idx" in str(e.orig):
+            # #2050 J4: the member-role uniqueness pre-check is gone. The
+            # unique index reports the same condition, without the
+            # check-then-act race two concurrent POSTs used to both win.
+            if "uq_member_role_per_module" in str(e.orig):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="This user institutional id already exists in this module.",
-                )
+                    detail="DUPLICATE_INSTITUTIONAL_ID",
+                ) from e
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Database integrity error.",
+            ) from e
+
+        except ValueError as e:
+            # #2050 J1's fail-hard raises (unresolvable factors, formulas
+            # that can't produce a value, ...) are data problems, not bugs —
+            # the message already names the missing input, so surface it
+            # instead of the generic 500 below.
+            await self.session.rollback()
+            logger.warning(
+                f"Data entry rejected for "
+                f"module_id={carbon_report_module.module_type_id}: {e}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(e),
             ) from e
 
         except Exception as e:
@@ -157,8 +359,15 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
-        year: int,
     ) -> DataEntryResponse:
+        # A note is writable on any row in any state (#951), including rows the
+        # backoffice has closed to data entry — annotation is not data entry.
+        if not set(item_data) <= ALWAYS_WRITABLE_FIELDS:
+            await self._reject_when_inputs_deactivated(
+                carbon_report_module,
+                DataEntryTypeEnum(data_entry_type_id),
+                current_user,
+            )
         try:
             existing_entry = await DataEntryService(self.session).get(id=item_id)
             existing_data = existing_entry.data if existing_entry else {}
@@ -175,14 +384,14 @@ class CarbonReportModuleWorkflow:
             }
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             handler = BaseModuleHandler.get_by_type(data_entry_type)
-            handler_service = ModuleHandlerService(self.session)
-            update_payload, _ = await handler_service.resolve_primary_factor_if_changed(
+            # No factor resolution on update: subkind/override code that
+            # belonged to the old kind are cleared, everything else is the
+            # emission compute's job (it resolves on its own).
+            update_payload = ModuleHandlerService.clear_dependent_fields_on_kind_change(
                 handler,
                 update_payload,
-                data_entry_type,
                 item_data,
                 existing_data,
-                year=year,
             )
 
             # For equipment partial PATCH, validate against merged persisted+incoming
@@ -203,11 +412,86 @@ class CarbonReportModuleWorkflow:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid item_data for update: {str(e)}",
             )
+        # Outside the validation try so its 422 code isn't swallowed into a
+        # generic 400 (matches the create() placement).
+        if data_entry_type in (
+            DataEntryTypeEnum.planner_purchase,
+            DataEntryTypeEnum.planner_purchase_budget,
+        ):
+            await self._check_planner_purchase_exclusivity(
+                carbon_report_module.id,
+                data_entry_type,
+                validated_data.model_dump(),
+                exclude_entry_id=item_id,
+            )
+            update_data = validated_data.model_dump(exclude_unset=True)
+            if "amount_eur" in item_data:
+                update_data = await self._convert_planner_purchase_amount(
+                    carbon_report_module, update_data
+                )
+            else:
+                for scope in self._planner_purchase_scopes(update_data):
+                    scope.pop("currency", None)
+            data_entry_update = DataEntryUpdate(**update_data)
         if current_user.id is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Current user ID is required to update item",
             )
+        if not is_policy_exempt(data_entry_type):
+            module_type = ModuleTypeEnum(carbon_report_module.module_type_id)
+            # DataEntryService.get() (line 226) always raises on a missing
+            # entry, never returns None — existing_entry is guaranteed here.
+            allowed = writable_fields_for_row(
+                module_type, data_entry_type, existing_entry.source
+            )
+            # Diffs the caller's literal item_data, not update_payload — the
+            # latter can carry dependent-field resets from
+            # clear_dependent_fields_on_kind_change() (e.g. Purchase's
+            # purchase_additional_code nulled when purchase_institutional_code
+            # changes). Those are data-integrity cascades of an ALLOWED edit,
+            # not a user attempting to write a locked field directly, and are
+            # intentionally not checked here (decision 2026-08-13, code
+            # review; see test_update_purchase_kind_change_clears_locked_
+            # dependent_field for the pinned behavior).
+            changed_locked_fields = [
+                field
+                for field, value in item_data.items()
+                if field not in allowed and existing_data.get(field) != value
+            ]
+            if changed_locked_fields:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "code": "FIELD_NOT_EDITABLE",
+                        "fields": changed_locked_fields,
+                    },
+                )
+        # #951: SCIPER (user_institutional_id) is now updatable on a user
+        # row (policy-gated above); mirrors create()'s uniqueness check
+        # (a person can hold multiple roles, so the key is the pair, not
+        # just the person) — same check the DTO can't express, now needed
+        # on update too since the field wasn't writable before.
+        if data_entry_type == DataEntryTypeEnum.member and (
+            "user_institutional_id" in item_data or "sius_code" in item_data
+        ):
+            member_data = validated_data.model_dump()
+            uid = member_data.get("user_institutional_id")
+            sius_code = member_data.get("sius_code")
+            if uid and sius_code:
+                is_unique = await DataEntryService(
+                    self.session
+                ).check_member_role_unique(
+                    carbon_report_module_id=carbon_report_module.id,
+                    uid=uid,
+                    sius_code=sius_code,
+                    exclude_id=item_id,
+                )
+                if not is_unique:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail="DUPLICATE_INSTITUTIONAL_ID",
+                    )
         try:
             item = await DataEntryService(self.session).update(
                 id=item_id,
@@ -232,6 +516,15 @@ class CarbonReportModuleWorkflow:
             # upsert could fail if emission factor lookup fails, but we still want to
             # return the updated item
             await self.session.commit()
+        except ValueError as e:
+            # See create()'s matching clause: #2050 J1's fail-hard raises
+            # name the missing input, so surface it instead of a generic 500.
+            await self.session.rollback()
+            logger.warning(f"Data entry update rejected for item_id={item_id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(e),
+            ) from e
         except Exception as e:
             await self.session.rollback()
             logger.error(
@@ -253,6 +546,23 @@ class CarbonReportModuleWorkflow:
         request_context: dict,
         background_tasks: BackgroundTasks,
     ) -> None:
+        try:
+            entry = await DataEntryService(self.session).get(id=data_entry_id)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
+            ) from e
+        data_entry_type = DataEntryTypeEnum(entry.data_entry_type_id)
+        await self._reject_when_inputs_deactivated(
+            carbon_report_module, data_entry_type, current_user
+        )
+        if not is_policy_exempt(data_entry_type) and not can_delete(
+            provenance_of(entry.source)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "ROW_NOT_DELETABLE"},
+            )
         await DataEntryService(self.session).delete(
             id=data_entry_id,
             current_user=current_user,

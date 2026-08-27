@@ -1,13 +1,17 @@
-from typing import Optional
-
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
+from app.services.data_ingestion.api_providers.headcount_members_api_provider import (
+    HeadcountMembersApiProvider,
+)
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
     ProfessionalTravelApiProvider,
+)
+from app.services.data_ingestion.api_providers.research_facilities_api_provider import (
+    ResearchFacilitiesApiProvider,
 )
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.computed_providers.research_facilities_animal import (
@@ -27,7 +31,8 @@ from app.services.data_ingestion.csv_providers import (
 
 class ProviderFactory:
     """Factory to create the right provider based on module + provider
-    type + entity type"""
+    type + entity type
+    """
 
     # Registry of CSV/API providers.
     # Key: (module_type, ingestion_method, target_type, entity_type)
@@ -92,6 +97,18 @@ class ProviderFactory:
             TargetType.DATA_ENTRIES,
             EntityType.MODULE_PER_YEAR,
         ): ProfessionalTravelApiProvider,
+        (
+            ModuleTypeEnum.headcount,
+            IngestionMethod.api,
+            TargetType.DATA_ENTRIES,
+            EntityType.MODULE_PER_YEAR,
+        ): HeadcountMembersApiProvider,
+        (
+            ModuleTypeEnum.research_facilities,
+            IngestionMethod.api,
+            TargetType.DATA_ENTRIES,
+            EntityType.MODULE_PER_YEAR,
+        ): ResearchFacilitiesApiProvider,
     }
 
     # WHAT IS THAT?
@@ -109,7 +126,7 @@ class ProviderFactory:
     ] = {
         (
             ModuleTypeEnum.research_facilities,
-            DataEntryTypeEnum.mice_and_fish_animal_facilities,
+            DataEntryTypeEnum.animal_facilities,
             IngestionMethod.computed,
             TargetType.FACTORS,
             EntityType.MODULE_PER_YEAR,
@@ -131,22 +148,19 @@ class ProviderFactory:
     @staticmethod
     def get_provider_class(
         provider_class_name: str,
-    ) -> Optional[type[DataIngestionProvider]]:
-        """
-        Get the appropriate provider class.
-        """
+    ) -> type[DataIngestionProvider] | None:
+        """Get the appropriate provider class."""
         return ProviderFactory.PROVIDERS_BY_CLASS_NAME.get(provider_class_name)
 
     @staticmethod
     def get_provider_by_keys(
-        module_type_id: Optional[ModuleTypeEnum],
+        module_type_id: ModuleTypeEnum | None,
         ingestion_method: IngestionMethod,
         target_type: TargetType,
         entity_type: EntityType,
         data_entry_type_id: DataEntryTypeEnum | int | None = None,
-    ) -> Optional[type[DataIngestionProvider]]:
-        """
-        Get the appropriate provider class by routing keys.
+    ) -> type[DataIngestionProvider] | None:
+        """Get the appropriate provider class by routing keys.
 
         For computed providers, a 5-tuple lookup using data_entry_type is
         attempted first; falls back to the 4-tuple PROVIDERS dict for CSV/API
@@ -181,11 +195,10 @@ class ProviderFactory:
         target_type: TargetType,
         config: dict,
         user: User,
-        job_session: Optional[AsyncSession] = None,
-        data_session: Optional[AsyncSession] = None,
-    ) -> Optional[DataIngestionProvider]:
-        """
-        Create the appropriate provider instance.
+        job_session: AsyncSession | None = None,
+        data_session: AsyncSession | None = None,
+    ) -> DataIngestionProvider | None:
+        """Create the appropriate provider instance.
 
         Determines entity_type from config (carbon_report_module_id presence)
         and uses it to select the correct provider class.
@@ -197,7 +210,7 @@ class ProviderFactory:
 
         try:
             entity_type = EntityType(entity_type_value)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             # Invalid entity_type value - return None to signal configuration error
             return None
 

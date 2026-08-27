@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useAuthStore } from 'src/stores/auth';
+import { useAuthStore } from '@/stores/auth';
 import { useI18n } from 'vue-i18n';
-import { ROLES } from 'src/constant/roles';
+import { ROLES } from '@/constant/roles';
 
 const authStore = useAuthStore();
 const { loading } = storeToRefs(authStore);
@@ -40,6 +40,14 @@ function validate() {
   });
 }
 
+// #2050: the button is type="submit" inside this q-form (QBtn's real native-
+// type prop — an earlier "html-type" here wasn't a recognized prop at all,
+// so the button silently rendered as type="button" and never submitted the
+// form; a since-removed @click="validate" was the only thing that ever
+// triggered login). One click -> native submit -> handleSubmit -> validate().
+// Do not also bind @click on the button: that used to fire validate() (and
+// so authStore.login()) twice per click, racing the backend's audit trail
+// with two concurrent OAuth logins for the same user.
 const handleSubmit = async (event: SubmitEvent) => {
   event.preventDefault();
   validate();
@@ -82,7 +90,7 @@ const buttonLabel = computed(() => {
       <!-- submit button -->
       <div class="login__button">
         <q-btn
-          html-type="submit"
+          type="submit"
           :fullwidth="true"
           :label="buttonLabel"
           :disabled="loading"
@@ -92,9 +100,18 @@ const buttonLabel = computed(() => {
           text-color="white"
           width="100px"
           no-caps
-          @click="validate"
         />
       </div>
     </q-form>
   </q-card>
 </template>
+
+<style scoped lang="scss">
+@use '@/css/02-tokens' as tokens;
+
+.login-card {
+  box-shadow: tokens.$login-card-box-shadow;
+  min-width: tokens.$layout-pop-up-min-width;
+  padding: tokens.$spacing-page;
+}
+</style>

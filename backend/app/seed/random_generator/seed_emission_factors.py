@@ -6,24 +6,22 @@ This script populates the emission_factors and power_factors tables with initial
 """
 
 import asyncio
-import csv
 from pathlib import Path
 
 from sqlalchemy import or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import app.modules.process_emissions  # noqa: F401  # registers the handlers
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 
 # from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.models.factor import Factor
-from app.modules.process_emissions import (
-    schemas as schemas,
-)  # This ensures the handlers are registered
+from app.modules.emissions import EmissionType
+from app.utils.csv_dialect import csv_dict_reader
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -64,8 +62,8 @@ async def seed_power_factors(session: AsyncSession) -> None:
     current_submodule = None
     # current_sub_category = None
 
-    with open(csv_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
+    with open(csv_path, encoding="utf-8") as f:
+        reader = csv_dict_reader(f.read())
         for row in reader:
             # Track submodule and sub-category (they persist across rows when empty)
             submodule_val = row.get("data_entry_type", "").strip()

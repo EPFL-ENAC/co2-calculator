@@ -1,5 +1,4 @@
-"""
-Ultra-fast PostgreSQL COPY seeder for:
+"""Ultra-fast PostgreSQL COPY seeder for:
 
 - data_entries
 - data_entry_emissions
@@ -12,37 +11,51 @@ No ORM inserts.
 import asyncio
 import json
 import random
-from datetime import date, datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, date, datetime
 
 import asyncpg
 from faker import Faker
 
 from app.core.config import get_settings
 from app.models.data_entry import DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
-from app.modules import (
+from app.modules.buildings import (
+    VALID_ROOM_TYPES,
+    BuildingEmbodiedEnergyHandlerCreate,
     BuildingRoomHandlerCreate,
     EnergyCombustionHandlerCreate,
-    EquipmentHandlerCreate,
+)
+from app.modules.emissions import EmissionType
+from app.modules.emissions.registry import (
+    DATA_ENTRY_TO_EMISSION_TYPES,
+    emission_type_scope,
+)
+from app.modules.emissions.taxonomy import get_subtree_leaves
+from app.modules.equipment import EquipmentHandlerCreate
+from app.modules.external_cloud_and_ai import (
+    REQUESTS_FREQUENCY_OPTIONS,
     ExternalAIHandlerCreate,
     ExternalCloudHandlerCreate,
+)
+from app.modules.headcount import (
+    SIUS_CODE_VALUES,
     HeadCountCreate,
     HeadCountStudentCreate,
-    ProcessEmissionsHandlerCreate,
+)
+from app.modules.process_emissions import ProcessEmissionsHandlerCreate
+from app.modules.professional_travel import (
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelTrainHandlerCreate,
-    PurchaseAdditionalHandlerCreate,
+)
+from app.modules.purchase import (
+    PurchaseCentralizedHandlerCreate,
     PurchaseHandlerCreate,
+)
+from app.modules.research_facilities import (
     ResearchFacilitiesAnimalHandlerCreate,
     ResearchFacilitiesCommonHandlerCreate,
 )
-from app.modules.buildings.schemas import (
-    VALID_ROOM_TYPES,
-    BuildingEmbodiedEnergyHandlerCreate,
-)
-from app.modules.external_cloud_and_ai.schemas import REQUESTS_FREQUENCY_OPTIONS
-from app.modules.headcount.schemas import SIUS_CODE_VALUES
 from app.seed.seed_helper import versionapi
 
 fake = Faker()
@@ -56,6 +69,8 @@ BATCH_SIZE = 1000
 
 async def get_connection():
     settings = get_settings()
+    if settings.DB_URL is None:
+        raise ValueError("DB_URL must be set to run this seed script")
     db_url = settings.DB_URL.replace("postgresql+psycopg", "postgresql")
     return await asyncpg.connect(db_url)
 
@@ -178,7 +193,7 @@ DATA_ENTRY_TYPE_TO_DTO: dict[DataEntryTypeEnum, type] = {
     # process emissions
     DataEntryTypeEnum.process_emissions: ProcessEmissionsHandlerCreate,
     # purchases (standard purchase DTO covers all subkinds except
-    # ``additional_purchases``, which has its own DTO).
+    # ``purchases_centralized``, which has its own DTO).
     DataEntryTypeEnum.scientific_equipment: PurchaseHandlerCreate,
     DataEntryTypeEnum.it_equipment: PurchaseHandlerCreate,
     DataEntryTypeEnum.consumable_accessories: PurchaseHandlerCreate,
@@ -186,12 +201,10 @@ DATA_ENTRY_TYPE_TO_DTO: dict[DataEntryTypeEnum, type] = {
     DataEntryTypeEnum.services: PurchaseHandlerCreate,
     DataEntryTypeEnum.vehicles: PurchaseHandlerCreate,
     DataEntryTypeEnum.other_purchases: PurchaseHandlerCreate,
-    DataEntryTypeEnum.additional_purchases: PurchaseAdditionalHandlerCreate,
+    DataEntryTypeEnum.purchases_centralized: PurchaseCentralizedHandlerCreate,
     # research facilities
     DataEntryTypeEnum.research_facilities: ResearchFacilitiesCommonHandlerCreate,
-    DataEntryTypeEnum.mice_and_fish_animal_facilities: (
-        ResearchFacilitiesAnimalHandlerCreate
-    ),
+    DataEntryTypeEnum.animal_facilities: (ResearchFacilitiesAnimalHandlerCreate),
 }
 
 
@@ -211,7 +224,7 @@ def build_plane_travel() -> dict:
         "user_institutional_id": _user_institutional_id(),
         "origin_iata": fake.lexify(text="???").upper(),
         "destination_iata": fake.lexify(text="???").upper(),
-        "cabin_class": random.choice(["economy", "business", "first"]),  # nosec B311
+        "cabin_class": random.choice(["economy", "business"]),  # nosec B311
         "departure_date": date.today().isoformat(),
         "number_of_trips": random.randint(1, 10),  # nosec B311
         "note": maybe(fake.sentence(nb_words=6)),
@@ -305,8 +318,10 @@ def build_external_cloud() -> dict:
 
 def build_external_ai() -> dict:
     return {
-        "provider": random.choice(["OpenAI", "Anthropic", "Mistral"]),  # nosec B311
-        "usage_type": fake.sentence(nb_words=3),
+        "provider": random.choice(  # nosec B311
+            ["ChatGPT (OpenAI)", "Claude (Anthropic)", "Mistral AI"]
+        ),
+        "usage_type": random.choice(["text", "image", "code"]),  # nosec B311
         "requests_per_user_per_day": random.choice(  # nosec B311
             REQUESTS_FREQUENCY_OPTIONS
         ),
@@ -380,7 +395,7 @@ def build_energy_combustion() -> dict:
 
 def build_building_embodied_energy() -> dict:
     return {
-        "building_name": fake.last_name() + " Hall",
+        "room_name": f"R{random.randint(100, 999)}",  # nosec B311
     }
 
 
@@ -388,7 +403,7 @@ def build_process_emissions() -> dict:
     return {
         "category": fake.word(),
         "subcategory": maybe(fake.word()),
-        "quantity": round(random.uniform(0, 5000), 2),  # nosec B311
+        "quantity_kg": round(random.uniform(0, 5000), 2),  # nosec B311
         "note": maybe(fake.sentence(nb_words=6)),
     }
 
@@ -406,12 +421,12 @@ def build_research_facility_common() -> dict:
 def build_research_facility_animal() -> dict:
     payload = build_research_facility_common()
     payload["researchfacility_type"] = random.choice(  # nosec B311
-        ["mice", "fish", "rat"]
+        ["rodent", "fish"]
     )
     return payload
 
 
-DTO_BUILDERS: dict[type, object] = {
+DTO_BUILDERS: dict[type, Callable[[], dict]] = {
     ProfessionalTravelPlaneHandlerCreate: build_plane_travel,
     ProfessionalTravelTrainHandlerCreate: build_train_travel,
     EquipmentHandlerCreate: build_equipment,
@@ -420,7 +435,7 @@ DTO_BUILDERS: dict[type, object] = {
     HeadCountCreate: build_headcount,
     HeadCountStudentCreate: build_student,
     PurchaseHandlerCreate: build_purchase,
-    PurchaseAdditionalHandlerCreate: build_purchase_additional,
+    PurchaseCentralizedHandlerCreate: build_purchase_additional,
     BuildingRoomHandlerCreate: build_building_room,
     EnergyCombustionHandlerCreate: build_energy_combustion,
     BuildingEmbodiedEnergyHandlerCreate: build_building_embodied_energy,
@@ -445,9 +460,14 @@ def generate_data_entries_for_module(module_id, module_type_id):
         ENTRIES_PER_MODULE_MIN, ENTRIES_PER_MODULE_MAX
     )
 
-    matching_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
-        module_type_id, [DataEntryTypeEnum.member]
-    )
+    # Planner kinds never appear in randomly seeded Calculator modules.
+    matching_types = [
+        t
+        for t in MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
+            module_type_id, [DataEntryTypeEnum.member]
+        )
+        if not t.is_planner_kind
+    ]
 
     for _ in range(num_entries):
         data_entry_type = random.choice(matching_types)  # nosec B311
@@ -479,14 +499,53 @@ def generate_data_entries_for_module(module_id, module_type_id):
     return rows
 
 
+# The app resolves these data entry types' emission types at compute time from
+# the factor rows (``_RUNTIME_RESOLVERS``), which the seeder deliberately skips.
+# Seeding needs *some* valid leaf under the right taxonomy root, otherwise the
+# emission falls outside the module's stat buckets and recompute yields zero.
+_SEED_EMISSION_ROOTS: dict[DataEntryTypeEnum, EmissionType] = {
+    DataEntryTypeEnum.building: EmissionType.buildings__rooms,
+    DataEntryTypeEnum.energy_combustion: EmissionType.buildings__combustion,
+    DataEntryTypeEnum.plane: EmissionType.professional_travel__plane,
+    DataEntryTypeEnum.train: EmissionType.professional_travel__train,
+    DataEntryTypeEnum.external_clouds: EmissionType.external__clouds,
+    DataEntryTypeEnum.external_ai: EmissionType.external__ai,
+    DataEntryTypeEnum.process_emissions: EmissionType.process_emissions,
+    DataEntryTypeEnum.research_facilities: EmissionType.research_facilities,
+    DataEntryTypeEnum.animal_facilities: (EmissionType.research_facilities),
+    DataEntryTypeEnum.purchases_centralized: EmissionType.purchases,
+}
+
+
+def seed_emission_candidates(
+    data_entry_type: DataEntryTypeEnum,
+) -> list[EmissionType]:
+    """Emission types a seeded entry of this data entry type may carry.
+
+    Every data entry type of every module must resolve to at least one leaf, or
+    that module seeds entries with no emissions and recomputes to an empty
+    chart. ``tests/unit/seed/test_seed_data_entries.py`` pins that.
+    """
+    static = DATA_ENTRY_TO_EMISSION_TYPES.get(data_entry_type)
+    if static:
+        return list(static)
+    root = _SEED_EMISSION_ROOTS.get(data_entry_type)
+    if root is None:
+        return []
+    return [EmissionType(leaf_id) for leaf_id in get_subtree_leaves(root)]
+
+
 def generate_emissions_for_entry(entry_id, data_entry_type_id):
     rows = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # simple placeholder logic for speed — no factor lookup; primary_factor_id
     # stays NULL. Fields mirror ``DataEntryEmissionBase``.
-    emission_type = random.choice(list(EmissionType))  # nosec B311
-    scope = emission_type.scope.value if emission_type.scope is not None else None
+    candidates = seed_emission_candidates(DataEntryTypeEnum(data_entry_type_id))
+    if not candidates:
+        return rows
+    emission_type = random.choice(candidates)  # nosec B311
+    scope = emission_type_scope(emission_type)
 
     rows.append(
         (
@@ -582,6 +641,8 @@ async def main():
 
             # Commit every COMMIT_EVERY batches
             if batch_number % COMMIT_EVERY == 0:
+                if transaction is None:
+                    raise RuntimeError(f"no open transaction at batch {batch_number}")
                 await transaction.commit()
                 print(f"✓ Committed up to batch {batch_number}\n")
                 transaction = None

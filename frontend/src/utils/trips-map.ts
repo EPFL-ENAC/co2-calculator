@@ -1,18 +1,18 @@
-import { MODULES } from 'src/constant/modules';
-import { formatKgCo2eq } from 'src/utils/number';
-import type { AggregatedLeg } from 'src/utils/trips-map-data';
+import { MODULES } from '@/constant/modules';
+import { formatKgCo2eq } from '@/utils/number';
+import type { AggregatedLeg } from '@/utils/trips-map-data';
 
 // Pure aggregation + member-filter helpers live in ./trips-map-data (i18n-free
 // so they're unit-testable in Node); re-exported here so callers have a single
 // trips-map entry point.
-export type { AggregatedLeg, TravelerTotal } from 'src/utils/trips-map-data';
+export type { AggregatedLeg, TravelerTotal } from '@/utils/trips-map-data';
 export {
   aggregateLegs,
   travelerTotals,
   travelerRouteKeys,
   legsToRender,
   toggleTravelerSelection,
-} from 'src/utils/trips-map-data';
+} from '@/utils/trips-map-data';
 
 // Turbo emissions ramp, right half only (green → red). The CSS gradient drives
 // the legend; the maplibre expression drives the lines — same stops, two forms.

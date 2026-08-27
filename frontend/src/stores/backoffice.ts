@@ -1,12 +1,17 @@
 import { defineStore } from 'pinia';
 import { reactive, ref } from 'vue';
-import { api } from 'src/api/http';
-import { applyUnitFiltersToParams } from 'src/api/backoffice';
-import type { ModuleState } from 'src/constant/moduleStates';
+import { api } from '@/api/http';
+import { applyUnitFiltersToParams } from '@/api/backoffice';
+import type { ModuleState } from '@/constant/moduleStates';
 import type {
   EmissionBreakdownResponse,
   ItBreakdownResponse,
-} from 'src/stores/modules';
+} from '@/stores/modules';
+import {
+  toEmissionBreakdown,
+  toItBreakdown,
+  type ReportStats,
+} from '@/utils/emissionStatsAdapter';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE_UNITS = 10;
@@ -126,7 +131,15 @@ export const useBackofficeStore = defineStore('backoffice', () => {
         ? `backoffice/units?${queryString}`
         : 'backoffice/units';
 
-      const data = await api.get(url).json<BackofficeUnitDataPagination>();
+      const data = await api
+        .get(url)
+        .json<BackofficeUnitDataPagination & { stats?: ReportStats }>();
+      if (data?.stats) {
+        // The overview ships one merged stats payload; reshape it once here
+        // so the reporting page and print composables keep their row shapes.
+        data.emission_breakdown = toEmissionBreakdown(data.stats);
+        data.it_breakdown = toItBreakdown(data.stats);
+      }
       units.value = data || null;
     } catch (error) {
       console.error('Error getting units:', error);

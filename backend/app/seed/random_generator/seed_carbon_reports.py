@@ -1,5 +1,4 @@
-"""
-Ultra-fast PostgreSQL COPY seeder for:
+"""Ultra-fast PostgreSQL COPY seeder for:
 
 - carbon_reports
 - carbon_report_modules
@@ -31,6 +30,8 @@ YEARS = [2023, 2024, 2025]
 
 async def get_connection():
     settings = get_settings()
+    if settings.DB_URL is None:
+        raise ValueError("DB_URL must be set to run this seed script")
     db_url = settings.DB_URL.replace("postgresql+psycopg", "postgresql")
     return await asyncpg.connect(db_url)
 
@@ -101,8 +102,10 @@ async def insert_carbon_projects(conn):
 async def insert_carbon_reports(conn, unit_to_project):
     print(f"Creating carbon reports for {len(unit_to_project)} units...")
 
+    # `overall_status` is NOT NULL and its default lives on the SQLModel field,
+    # not on the column — a raw INSERT must supply it.
     records = [
-        (year, unit_id, project_id)
+        (year, unit_id, project_id, ModuleStatus.NOT_STARTED.value)
         for unit_id, project_id in unit_to_project.items()
         for year in YEARS
     ]
@@ -111,15 +114,16 @@ async def insert_carbon_reports(conn, unit_to_project):
         CREATE TEMP TABLE tmp_carbon_reports (
             year INTEGER,
             unit_id INTEGER,
-            carbon_project_id INTEGER
+            carbon_project_id INTEGER,
+            overall_status INTEGER
         ) ON COMMIT DROP
     """)
 
     await conn.copy_records_to_table("tmp_carbon_reports", records=records)
 
     inserted = await conn.fetch("""
-        INSERT INTO carbon_reports (year, unit_id, carbon_project_id)
-        SELECT year, unit_id, carbon_project_id
+        INSERT INTO carbon_reports (year, unit_id, carbon_project_id, overall_status)
+        SELECT year, unit_id, carbon_project_id, overall_status
         FROM tmp_carbon_reports
         ON CONFLICT (carbon_project_id, year) DO NOTHING
         RETURNING id

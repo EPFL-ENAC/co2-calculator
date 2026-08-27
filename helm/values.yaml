@@ -17,6 +17,9 @@ backend:
     tag: "latest"
     pullPolicy: IfNotPresent
 
+  command: []
+  args: []
+  
   service:
     type: ClusterIP
     port: 8000
@@ -37,26 +40,60 @@ backend:
     ALGORITHM: "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: "480"
     REFRESH_TOKEN_EXPIRE_HOURS: "24"
-    PROVIDER_PLUGIN: "default" # Could be 'default' or 'accred' or 'test'
+    ROLE_PROVIDER_TYPE: "jwt" # Could be 'jwt', 'accred', or 'test'
+    UNIT_PROVIDER_TYPE: "database" # Could be 'database', 'accred', or 'test'
     OAUTH_SCOPE: "openid profile email"
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "http://localhost:3000" # Change to frontend URL in production
-    ACCRED_API_HEALTH_URL: "https://url-you-want-to-check"
+    CSRF_ADDITIONAL_ORIGINS: "" # Extra origins for cookie-auth writes (#89); FRONTEND_URL is already allowed
+    ACCRED_AUTHORIZATION_HEALTHCHECK_URL: "https://url-you-want-to-check"
+    MIN_CONFIGURABLE_YEAR: "2025" # Earliest year an admin can create a YearConfiguration for
+    APP_MIN_REDUCTION_YEAR: "1990" # Earliest reference year for reduction objective goals
+    APP_MAX_REDUCTION_YEAR: "2050" # Latest reference year for reduction objective goals
     # Background job safety poller (orphan-job recovery)
     RUN_BACKGROUND_POLLER: "true"
     POLLER_INTERVAL_SECONDS: "2" # Seconds between poller sweeps
     POLLER_BATCH_LIMIT: "100" # Max NOT_STARTED jobs dispatched per sweep
-    STALE_JOB_TIMEOUT_MINUTES: "60" # RUNNING jobs older than this are auto-recovered
+    STALE_JOB_TIMEOUT_MINUTES: "5" # RUNNING jobs whose heartbeat is older than this are auto-recovered
     INGEST_COPY_BATCH_SIZE: "50000" # Rows per COPY batch for bulk CSV data_entries ingest
     ELASTICSEARCH_TIMEOUT: "30" # Key in the existing secret for Elasticsearch timeout
     ELASTICSEARCH_MAX_RETRIES: "3" # Key in the existing secret for Elasticsearch max retries
     ELASTICSEARCH_RETRY_ON_TIMEOUT: "true" # Key in the existing secret for Elasticsearch retry on timeout
+    # SQLAlchemy/psycopg auto-instrumentation creates one span per SQL
+    # statement, which measured as ~2/3 of the total OTel tax on this app
+    # (plan #2050 C1 follow-up: -33% throughput with it on, -16% with it
+    # off — sampling ratio barely moves it either way once this is off).
+    # HTTP-level spans (FastAPI/Starlette) stay on. Unset this (empty
+    # string) in an environment-specific override if SQL-level traces are
+    # needed for active debugging — the cost is worth it there, not always-on.
+    OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "sqlalchemy,psycopg"
+    # co2-calculator#2260: FastAPI puts each endpoint's *un-prefixed* leaf
+    # route into scope["route"], so opentelemetry-instrumentation-asgi's
+    # http.target (root_path + route.path_format) loses every
+    # include_router(prefix=...) ancestor and can collide across routers
+    # (confirmed: GET/PATCH/POST .../year-configuration/{year} all collapse
+    # to "/api/{year}"). "http/dup" dual-writes a second metric,
+    # http.server.request.duration (seconds), that carries the correct,
+    # fully-qualified http.route -- without touching the existing
+    # http.server.duration (ms) metric or its http.target attribute, so no
+    # dashboard/alert built on it breaks. Migrating the ops-repo
+    # route_class transform/alerts to the new metric is a follow-up, not
+    # done by this flag alone.
+    #
+    # Deliberately NOT defaulted here: "http/dup" makes every pod emit a
+    # second HTTP histogram permanently, and a chart default reaches prod
+    # too. Nothing consumes http.route yet, and the new metric's rendered
+    # Prometheus name is still unconfirmed. Enable it per-environment
+    # (dev first, to confirm that name) and only promote once the ops-repo
+    # transform actually reads it.
+    #   OTEL_SEMCONV_STABILITY_OPT_IN: "http/dup"
 
   secrets:
     # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
-    # Generate a secure key using: openssl rand -hex 32
+    # Generate a secure, distinct value for EACH key using: openssl rand -hex 32
     # Use backend.existingSecret.enabled=true for production environments
-    SECRET_KEY: "" # REQUIRED: Must be set via --set flag or existing secret
+    JWT_HMAC_KEY: "" # REQUIRED: JWT signing key. Must be set via --set flag or existing secret
+    SESSION_HMAC_KEY: "" # REQUIRED: OAuth-flow session cookie signing key. Must be set via --set flag or existing secret
 
     # OAuth/OIDC Configuration (optional, for future OAuth implementation)
     # OAUTH_CLIENT_ID: ""  # OAuth2 client ID from your identity provider
@@ -85,7 +122,11 @@ backend:
     limits:
       memory: 512Mi
     requests:
-      cpu: 100m
+      # #2050 A3: 100m gave this pod roughly a tenth of a busy node's CPU
+      # share under contention (no limit means no throttling, but CFS
+      # shares are proportional to the request) — stacked on top of a
+      # slower node this was a meaningful chunk of the dev/dev2 gap.
+      cpu: 1
       memory: 128Mi
 
   livenessProbe:
@@ -131,20 +172,23 @@ backend:
   existingSecret:
     # Default: reference a pre-existing Secret (production path).
     # For local/dev chart-managed secrets, set enabled=false and provide
-    # backend.secrets.SECRET_KEY.
+    # backend.secrets.JWT_HMAC_KEY / backend.secrets.SESSION_HMAC_KEY.
     enabled: true
     name: "" # REQUIRED when enabled=true: name of the pre-existing Secret
     keys:
-      secretKeyKey: SECRET_KEY # Key in the existing secret for SECRET_KEY
+      jwtHmacKeyKey: JWT_HMAC_KEY # Key in the existing secret for JWT_HMAC_KEY
+      sessionHmacKeyKey: SESSION_HMAC_KEY # Key in the existing secret for SESSION_HMAC_KEY
       oauthClientIdKey: OAUTH_CLIENT_ID # Key in the existing secret for OAuth client ID
       oauthClientSecretKey: OAUTH_CLIENT_SECRET # Key in the existing secret for OAuth client secret
       oauthIssuerUrlKey: OAUTH_ISSUER_URL # Key in the existing secret for OAuth issuer URL
       oauthTenantIdKey: OAUTH_TENANT_ID # Key in the existing secret for OAuth tenant ID
       accredApiKeyKey: ACCRED_API_KEY # Key in the existing secret for Accred API key
       accredApiUsernameKey: ACCRED_API_USERNAME # Key in the existing secret for Accred API username
-      accredApiUrlKey: ACCRED_API_URL # Key in the existing secret for Accred API URL
+      accredApiBaseUrlKey: ACCRED_API_BASE_URL # Key in the existing secret for Accred API base URL
       filesEncryptionKeyKey: FILES_ENCRYPTION_KEY # Key in the existing secret for files encryption key
       filesEncryptionSaltKey: FILES_ENCRYPTION_SALT # Key in the existing secret for files encryption salt
+      credentialsEncryptionKeyKey: CREDENTIALS_ENCRYPTION_KEY # Key in the existing secret for credential encryption key
+      credentialsEncryptionSaltKey: CREDENTIALS_ENCRYPTION_SALT # Key in the existing secret for credential encryption salt
       filesMaxSizeMbKey: FILES_MAX_SIZE_MB # Key in the existing secret for maximum file size (MB)
       s3EndpointProtocolKey: S3_ENDPOINT_PROTOCOL # Key in the existing secret for S3 endpoint protocol
       s3EndpointHostnameKey: S3_ENDPOINT_HOSTNAME # Key in the existing secret for S3 endpoint hostname
@@ -163,9 +207,12 @@ backend:
       filename: http_ca_test.crt
       path: /tmp/
   tableau:
+    verifySsl: "true"
     requestTimeoutSeconds: "300"
     restMinApiVersion: "2.4"
     maxFields: "50"
+  connector:
+    allowedHostSuffixes: "" # SSRF guard; empty fails closed, e.g. "epfl.ch"
 
   initContainers:
     waitForPostgres:
@@ -193,6 +240,62 @@ backend:
         requests:
           cpu: 50m
           memory: 64Mi
+
+# #2050 Track B — poller-only worker deployment. Disabled by default (the
+# app runs as a single backend deployment, as it always has); set
+# enabled=true to split job execution off the API pods. Reuses
+# backend.image / backend.securityContext / backend.existingSecret — this
+# is the same app process, not a separate build. See
+# templates/backend-worker-deployment.yaml and
+# templates/_helpers.tpl#backendSecretEnv.
+worker:
+  enabled: false
+  replicaCount: 1
+
+  env: {}
+  # RUN_BACKGROUND_POLLER and DISPATCH_JOBS_INLINE are set unconditionally
+  # by the template, not here — see backend-worker-deployment.yaml.
+
+  podAnnotations: {}
+
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      # Generous on purpose: this pod runs the CPU-heavy recalc/ingestion
+      # work the API deployment no longer has to. No neighbours to be
+      # fair to on a dedicated job pod.
+      cpu: 2
+      memory: 256Mi
+
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 5
+
+  # #2049: no Service, so this never gates traffic — but it does gate
+  # RollingUpdate progress. Without it a new worker counts as "ready" the
+  # instant the container starts, so maxSurge:1/maxUnavailable:0 would
+  # swap in a worker that can't reach the DB. /ready reads the same
+  # background-poller cache as the API deployment. No startupProbe: the
+  # wait-for-postgres init container below already blocks the main
+  # container from starting until Postgres is reachable.
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
 frontend:
   enabled: true
@@ -225,6 +328,20 @@ frontend:
     # Environment label attached to every Sentry event. Override per-cluster
     # in the ops repo (e.g. "stage", "production").
     APP_ENVIRONMENT: "production"
+    # Public label + portal URL shown in the calculator's access popover (role
+    # delegation). Free text — NOT the backend ROLE_PROVIDER_TYPE/
+    # UNIT_PROVIDER_TYPE provider selection.
+    # Example placeholders only; real per-env values are set in the ops repo.
+    # No code default: if unset the popover CTA/label is hidden.
+    APP_ACCESS_MANAGEMENT_PROVIDER_NAME: "ACCRED"
+    APP_ACCESS_MANAGEMENT_PROVIDER_URL: "https://access-management.example.com"
+    APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL: "https://access-management.example.com/about"
+    APP_ROLES_DOC_URL: "https://docs.example.com/roles/"
+    APP_EQUIPMENT_POWER_FEEDBACK_EMAIL: "test@epfl.ch"
+    # Project-planner horizon: bounds for the plan start/end year selects.
+    # No code default — unset leaves the year selects empty.
+    APP_PLANNER_MIN_YEAR: "2016"
+    APP_PLANNER_MAX_YEAR: "2050"
 
   podAnnotations: {}
 
@@ -385,9 +502,16 @@ podDisruptionBudget:
   minAvailable: 1
   maxUnavailable: ""
 
-networkPolicy:
+networkPolicies:
   enabled: false
-  ingress: []
+  ingressFromRoutes: [] # Define allowed ingress sources (e.g., namespaces, pods) for network policies
+    # Example
+    # - namespaceSelector:
+    #     matchLabels:
+    #       kubernetes.io/metadata.name: openshift-ingress
+    #   podSelector:
+    #     matchLabels:
+    #       ingresscontroller.operator.openshift.io/deployment-ingresscontroller: ingress-private
 
 # -----------------------------------------------------------------------------
 # Documentation deployment

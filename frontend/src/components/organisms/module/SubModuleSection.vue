@@ -1,6 +1,6 @@
 <template>
   <q-expansion-item
-    v-if="submodule.tableNameKey && collapsible"
+    v-if="submodule.tableNameKey"
     v-model="moduleStore.state.expandedSubmodules[submodule.id]"
     flat
     header-class="text-h5 text-weight-medium"
@@ -8,34 +8,64 @@
   >
     <template #header>
       <div class="row flex items-center full-width">
-        <div class="col">
-          {{ $t(submodule.tableNameKey, { count: submoduleCount || 0 }) }}
+        <div class="col row items-center no-wrap">
+          <span>
+            {{ $t(submodule.tableNameKey, { count: submoduleCount || 0 }) }}
+          </span>
+          <q-icon
+            v-if="hasTableTooltip && inlineTooltip"
+            :name="outlinedInfo"
+            size="16px"
+            color="grey-6"
+            class="cursor-pointer q-ml-sm"
+            :aria-label="$t('module-info-label')"
+          >
+            <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+              {{ $t(tableTooltipKey) }}
+            </q-tooltip>
+          </q-icon>
         </div>
         <q-icon
-          v-if="hasTableTooltip"
+          v-if="hasTableTooltip && !inlineTooltip"
           :name="outlinedInfo"
           size="sm"
           class="cursor-pointer q-mr-sm"
           :aria-label="$t('module-info-label')"
         >
-          <q-tooltip
-            v-if="hasTableTooltip"
-            anchor="center right"
-            self="top right"
-            class="u-tooltip"
-          >
-            {{ $t(`module-${moduleType}-submodule-${submodule.type}`) }}
+          <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+            {{ $t(tableTooltipKey) }}
           </q-tooltip>
         </q-icon>
       </div>
     </template>
     <q-separator />
     <q-card-section class="q-pa-none">
+      <!-- The submodule's share of the grant budget, reconciled against the
+           total in the Project Grant section header (#1978). -->
+      <template v-if="showGrantBudget">
+        <planner-submodule-budget
+          v-if="carbonReportId !== undefined"
+          class="q-mx-lg q-my-lg"
+          :carbon-report-id="carbonReportId"
+          :module-type-id="getModuleTypeId(moduleType)"
+          :submodule="submodule.id"
+          :name="submoduleName"
+          :currency="grantBudgetCurrency"
+          :saved="grantBudget"
+          :disable="disable"
+        />
+        <q-separator />
+      </template>
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
+          :factor-year="factorYear"
+          :carbon-report-id="carbonReportId"
+          :show-reference-columns="showReferenceColumns"
+          :project-years-count="projectYearsCount"
+          :percentage-locked="percentageLocked"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -43,14 +73,14 @@
           :module-config="moduleConfig"
           :submodule-config="submodule"
           :disable="isTableDisabled"
-          :is-simulator="isSimulator"
+          :is-explorer="isExplorer"
           :module-color="submoduleColor"
           :module-color-lighter="submoduleLighterColor"
         />
       </div>
       <q-separator />
       <div
-        v-if="isInputDeactivated"
+        v-if="isInputDeactivated && !isExplorer && !isPlanner"
         class="q-mx-lg q-my-md inputs-deactivated-notice"
       >
         <div class="inputs-deactivated-notice__content">
@@ -73,6 +103,7 @@
             :add-button-label-key="submodule.addButtonLabelKey"
             :unit-id="unitId"
             :year="year"
+            :factor-year="factorYear"
             :form-defaults="formDefaults"
             :module-color="submoduleColor"
             @submit="submitForm"
@@ -81,109 +112,45 @@
       </template>
     </q-card-section>
   </q-expansion-item>
-
-  <q-card
-    v-else-if="submodule.tableNameKey"
-    flat
-    class="q-mb-md container container--pa-none module-submodule-section q-mb-xl"
-  >
-    <q-card-section>
-      <div class="row flex items-center full-width">
-        <div class="col text-h5 text-weight-medium">
-          {{ $t(submodule.tableNameKey, { count: submoduleCount || 0 }) }}
-        </div>
-        <q-icon
-          v-if="hasTableTooltip"
-          :name="outlinedInfo"
-          size="sm"
-          class="cursor-pointer q-mr-sm"
-          :aria-label="$t('module-info-label')"
-        >
-          <q-tooltip
-            v-if="hasTableTooltip"
-            anchor="center right"
-            self="top right"
-            class="u-tooltip"
-          >
-            {{ $t(`module-${moduleType}-submodule-${submodule.type}`) }}
-          </q-tooltip>
-        </q-icon>
-      </div>
-    </q-card-section>
-    <q-separator />
-    <q-card-section class="q-pa-none">
-      <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
-        <module-table
-          :module-fields="submodule.moduleFields"
-          :unit-id="unitId"
-          :year="year"
-          :threshold="effectiveThreshold"
-          :has-top-bar="submodule.hasTableTopBar"
-          :module-type="moduleType"
-          :submodule-type="submodule.id"
-          :module-config="moduleConfig"
-          :submodule-config="submodule"
-          :disable="disable"
-          :is-simulator="isSimulator"
-        />
-      </div>
-      <q-separator />
-      <div v-if="hasModuleForm && !disable && canEdit" class="q-mx-lg">
-        <module-form
-          ref="formRef"
-          :fields="submodule.moduleFields"
-          :submodule-type="submodule.type"
-          :module-type="moduleType"
-          :item="item"
-          :has-subtitle="submodule.hasFormSubtitle"
-          :has-add-with-note="submodule.hasFormAddWithNote"
-          :add-button-label-key="submodule.addButtonLabelKey"
-          :unit-id="unitId"
-          :year="year"
-          :form-defaults="formDefaults"
-          @submit="submitForm"
-        />
-      </div>
-      <div
-        v-else-if="submodule.moduleFields && !disable && !canEdit"
-        class="q-mx-lg q-my-md"
-      >
-        <q-badge color="warning" class="q-px-md q-py-sm">
-          {{ $t('common_view_only') }}
-        </q-badge>
-      </div>
-    </q-card-section>
-  </q-card>
 </template>
 
 <script setup lang="ts">
 import {
   Submodule as ConfigSubmodule,
   ModuleConfig,
-} from 'src/constant/moduleConfig';
-import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
-import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
+} from '@/constant/moduleConfig';
+import ModuleTable from '@/components/organisms/module/ModuleTable.vue';
+import ModuleForm from '@/components/organisms/module/ModuleForm.vue';
+import PlannerSubmoduleBudget from '@/components/organisms/planner/PlannerSubmoduleBudget.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
-import { useAuthStore } from 'src/stores/auth';
-import { PermissionAction } from 'src/stores/auth';
+import { useAuthStore } from '@/stores/auth';
+import { PermissionAction } from '@/stores/auth';
 import type {
   ModuleResponse,
   Threshold,
   AllSubmoduleTypes,
   EnumSubmoduleType,
   Module,
-} from 'src/constant/modules';
-import { enumSubmodule, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
-import { useModuleStore, useTimelineStore } from 'src/stores/modules';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
+} from '@/constant/modules';
+import { enumSubmodule, MODULES_THRESHOLD_TYPES } from '@/constant/modules';
+import { getModuleTypeId } from '@/constant/moduleStates';
+import { useModuleStore, useTimelineStore } from '@/stores/modules';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
+import { submitCreateItem } from '@/utils/submitCreateItem';
 import { Notify } from 'quasar';
 import {
   getSubmoduleIconColor,
   getSubmoduleLighterColor,
-} from 'src/composables/useModuleIconColors';
+} from '@/composables/useModuleIconColors';
+import {
+  canShowModuleForm,
+  resolveExplorerFormDefaults,
+  resolvePlannerFormDefaults,
+} from '@/utils/module-table-access';
+import { submoduleTooltipKey, type TooltipScope } from '@/utils/tooltipScope';
 interface Option {
   label: string;
   value: string;
@@ -193,12 +160,16 @@ const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
 
 onMounted(() => {
+  // The timeline store only ever holds the Calculator's report (#2000) — an
+  // Explorer table has no validated state of its own, so fetching it here
+  // would just be wasted, unused traffic.
   const needsFte = props.submodule.moduleFields?.some(
     (f) => f.defaultFrom === 'total_fte',
   );
   const carbonReportId = timelineStore.currentCarbonReportId;
   if (
     needsFte &&
+    !props.isExplorer &&
     carbonReportId &&
     carbonReportId !== moduleStore.validatedTotalsCarbonReportId
   ) {
@@ -208,12 +179,22 @@ onMounted(() => {
 
 const formDefaults = computed<Record<string, unknown> | undefined>(() => {
   const validatedTotals = moduleStore.state.validatedTotals;
-  if (!validatedTotals) return undefined;
+  const fields = props.submodule.moduleFields ?? [];
 
-  const defaults: Record<string, unknown> = {};
-  for (const field of props.submodule.moduleFields ?? []) {
-    if (field.defaultFrom === 'total_fte') {
-      defaults[field.id] = Math.round(validatedTotals.total_fte);
+  const defaults: Record<string, unknown> = resolvePlannerFormDefaults(
+    fields,
+    props.carbonReportId != null,
+  );
+  if (props.isExplorer) {
+    // Explorer never shows the Calculator's validated FTE total (#2000).
+    Object.assign(defaults, resolveExplorerFormDefaults(fields));
+  } else if (validatedTotals) {
+    for (const field of fields) {
+      // A validated total of 0 means there's nothing to pre-fill — leave
+      // the field empty rather than showing a misleading 0.
+      if (field.defaultFrom === 'total_fte' && validatedTotals.total_fte) {
+        defaults[field.id] = Math.round(validatedTotals.total_fte);
+      }
     }
   }
   return Object.keys(defaults).length > 0 ? defaults : undefined;
@@ -227,9 +208,27 @@ type CommonProps = {
   data?: ModuleResponse | null;
   unitId: number;
   year: string | number;
+  /** Year whose factors the class/subclass options resolve against — see ModuleForm. */
+  factorYear?: number | null;
+  /** Plan-year report id; when set, module calls address it directly. */
+  carbonReportId?: number;
+  /** Planner prefilled: show the reference-kg column + % slider. */
+  showReferenceColumns?: boolean;
+  /** Planner Project Grant: plan year count for the "× project years" column. */
+  projectYearsCount?: number | null;
+  /** Grant equipment global mode: per-row % controls read-only (#1981). */
+  percentageLocked?: boolean;
+  /** Planner Project Grant: show this submodule's budget field (#1978). */
+  showGrantBudget?: boolean;
+  /** The submodule's saved share of the grant budget. */
+  grantBudget?: number | null;
+  /** Currency code of the grant budget, shown as the field's suffix. */
+  grantBudgetCurrency?: string | null;
   threshold: Threshold;
   disable: boolean;
-  isSimulator?: boolean;
+  isExplorer?: boolean;
+  /** Which space this section renders in; selects the tooltip text set. */
+  tooltipScope?: TooltipScope;
 };
 
 type ModuleTypeProps = {
@@ -240,20 +239,37 @@ type ModuleTypeProps = {
 type SubModuleSectionProps = ModuleTypeProps & CommonProps;
 
 const yearConfigStore = useYearConfigStore();
-const props = withDefaults(
-  defineProps<SubModuleSectionProps & { collapsible?: boolean }>(),
-  {
-    collapsible: true,
-    error: null,
-    data: null,
-    submoduleType: undefined,
-  },
-);
+const props = withDefaults(defineProps<SubModuleSectionProps>(), {
+  error: null,
+  data: null,
+  submoduleType: undefined,
+  carbonReportId: undefined,
+  factorYear: undefined,
+  showReferenceColumns: undefined,
+  projectYearsCount: null,
+  percentageLocked: false,
+  showGrantBudget: false,
+  grantBudget: null,
+  grantBudgetCurrency: null,
+  tooltipScope: 'calculator',
+});
 const authStore = useAuthStore();
 
 const submoduleKey = computed(() => {
   return props.submodule.id;
 });
+
+// The table titles embed a count ("Rooms ({count})"); translating with a
+// plural count and stripping the parenthetical yields the bare name the
+// budget label needs ("Rooms budget").
+const submoduleName = computed(() =>
+  props.submodule.tableNameKey
+    ? t(props.submodule.tableNameKey, { count: 2 }).replace(
+        /\s*\([^)]*\)\s*$/,
+        '',
+      )
+    : '',
+);
 
 const submoduleColor = computed(() =>
   getSubmoduleIconColor(props.submodule.id, props.moduleType),
@@ -270,16 +286,22 @@ const isInputDeactivated = computed(() => {
   return subConfig?.inputs_deactivated ?? false;
 });
 
-const isTableDisabled = computed(
-  () => !props.isSimulator && (props.disable || isInputDeactivated.value),
-);
+// Planner tables address a plan-year report by id; the Calculator never does.
+const isPlanner = computed(() => props.carbonReportId != null);
+
+const isTableDisabled = computed(() => {
+  if (props.isExplorer) return false;
+  return props.disable || (!isPlanner.value && isInputDeactivated.value);
+});
 
 const backendThreshold = computed<Threshold | null>(() => {
   const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
   if (!unifiedConfig) return null;
 
+  // `== null` covers a missing subConfig too — planner submodules
+  // (planner_headcount, ...) have no unified year-config entry.
   const subConfig = unifiedConfig.submodules[submoduleKey.value];
-  if (subConfig?.threshold === null || subConfig.threshold === undefined) {
+  if (subConfig?.threshold == null) {
     return null;
   }
 
@@ -300,8 +322,6 @@ const canEdit = computed(() => {
     PermissionAction.EDIT,
   );
 });
-
-const isFormDisabled = computed(() => props.disable);
 
 const submoduleCount = computed(() => {
   const submoduleEnumId =
@@ -345,14 +365,31 @@ const hasModuleForm = computed(() => {
 });
 
 const showModuleForm = computed(
-  () => hasModuleForm.value && !isFormDisabled.value && canEdit.value,
+  () =>
+    hasModuleForm.value &&
+    canShowModuleForm({
+      isExplorer: props.isExplorer === true,
+      isPlanner: isPlanner.value,
+      canEdit: canEdit.value,
+      disable: props.disable,
+    }),
 );
+
+const tableTooltipKey = computed(() =>
+  submoduleTooltipKey(
+    props.tooltipScope,
+    props.moduleType,
+    props.submodule.type ?? '',
+  ),
+);
+
+// Planner and Explorer sit the icon right after the title, small and grey, to
+// match their module headers; the Calculator keeps its right-aligned icon.
+const inlineTooltip = computed(() => props.tooltipScope !== 'calculator');
 
 const hasTableTooltip = computed(() => {
   if (!props.submodule.type) return false;
-  return (
-    t(`module-${props.moduleType}-submodule-${props.submodule.type}`) !== ''
-  );
+  return t(tableTooltipKey.value) !== '';
 });
 
 // actions
@@ -369,35 +406,53 @@ async function submitForm(payload: Record<string, FieldValue>) {
       String(props.year),
       item.value.id,
       payload,
+      props.carbonReportId,
     );
   } else {
-    try {
-      await moduleStore.postItem(
-        props.moduleType,
-        props.unitId,
-        props.year,
-        props.submoduleType,
-        payload,
-      );
-      if (props.submodule.notifyInfoOnAddKey) {
-        Notify.create({
-          type: 'info',
-          message: t(props.submodule.notifyInfoOnAddKey),
-        });
-      }
-    } catch (err: unknown) {
-      // Replace generic "user institutional id" in server error messages with
-      // the institution-specific label (SCIPER for EPFL).
-      const raw = err instanceof Error ? err.message : 'Unexpected error';
-      const message =
-        raw === 'DUPLICATE_INSTITUTIONAL_ID'
-          ? t('headcount-member-error-duplicate-uid', {
-              label: INSTITUTIONAL_ID_LABEL,
-            })
-          : raw.replace(/user institutional id/gi, INSTITUTIONAL_ID_LABEL);
+    await submitCreateItem(
+      (onCreated) =>
+        moduleStore.postItem(
+          props.moduleType,
+          props.unitId,
+          props.year,
+          props.submoduleType,
+          payload,
+          onCreated,
+          props.carbonReportId,
+        ),
+      {
+        onCreated: () => {
+          if (props.submodule.notifyInfoOnAddKey) {
+            Notify.create({
+              type: 'info',
+              message: t(props.submodule.notifyInfoOnAddKey),
+            });
+          }
+        },
+        // The item was already created server-side; this failure comes from
+        // an unrelated post-create refresh (totals/breakdown/state), not
+        // from the submitted data — don't misattribute it to a form field.
+        onRefreshFailed: () => {
+          Notify.create({
+            type: 'warning',
+            message: t('common_post_create_refresh_error'),
+          });
+        },
+        onCreateFailed: (err: unknown) => {
+          // Replace generic "user institutional id" in server error messages
+          // with the institution-specific label (SCIPER for EPFL).
+          const raw = err instanceof Error ? err.message : 'Unexpected error';
+          const message =
+            raw === 'DUPLICATE_INSTITUTIONAL_ID'
+              ? t('headcount-member-error-duplicate-uid', {
+                  label: INSTITUTIONAL_ID_LABEL,
+                })
+              : raw.replace(/user institutional id/gi, INSTITUTIONAL_ID_LABEL);
 
-      formRef.value?.setFieldError('user_institutional_id', message);
-    }
+          formRef.value?.setFieldError('user_institutional_id', message);
+        },
+      },
+    );
   }
 }
 </script>

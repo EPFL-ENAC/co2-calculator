@@ -15,10 +15,8 @@ flowchart LR
     SPA -->|1. /v1/auth/login| API[Backend API]
     API -->|2. 302| Entra[Entra ID]
     Entra -->|3. 302 with code| API
-    API -->|4. redirect with one-shot exchange code| SPA
-    SPA -->|5. POST /v1/session/exchange| API
-    API -->|6. Set-Cookie httpOnly JWT| SPA
-    SPA -->|7. cookie on every request| API
+    API -->|4. Set-Cookie + 302 /| SPA
+    SPA -->|5. cookie on every request| API
 ```
 
 ## 2. Trust boundaries
@@ -29,7 +27,7 @@ Three boundaries pinned by tests. The module docstring at
 | Boundary         | Trusted artefact                                                            | Untrusted artefact                                              | Test that pins it                                                   |
 | ---------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
 | IdP → backend    | `userinfo` claims from `authorize_access_token` (signed by IdP)             | Query params, headers, request body on `/callback`              | `test_callback_binds_session_to_idp_institutional_id`               |
-| Backend → cookie | JWTs minted by `_set_auth_cookies`, signed with `settings.SECRET_KEY`       | Anything else the client could return as evidence of identity   | `test_auth_cookies_secure_when_cookie_secure_true`                  |
+| Backend → cookie | JWTs minted by `_set_auth_cookies`, signed with `settings.JWT_HMAC_KEY`     | Anything else the client could return as evidence of identity   | `test_auth_cookies_secure_when_cookie_secure_true`                  |
 | Cookie → backend | `decode_jwt(cookie)` payload after signature + algorithm + `exp` validation | Cookie body in transit, query params, headers carrying identity | `test_jwt_expired_rejected`, `test_jwt_tampered_signature_rejected` |
 
 `/auth/login-test` deliberately bypasses boundary 1; its only safeguard
@@ -56,22 +54,17 @@ sequenceDiagram
     Entra-->>API: access_token + userinfo
     API->>API: Fetch roles via RoleProvider
     API->>DB: Upsert user, audit event
-    API->>API: Mint one-shot exchange code (server-side store)
-    API-->>SPA: 302 to FRONTEND/auth/complete#code=<exchange_code>
-    SPA->>SPA: Read code from URL fragment
-    SPA->>API: POST /v1/session/exchange { code }
-    API->>API: Validate + consume exchange code
-    API-->>SPA: 200 { user } + Set-Cookie auth_token + Set-Cookie refresh_token
-    SPA->>SPA: Hydrate auth store
+    API-->>SPA: 302 to FRONTEND/ + Set-Cookie auth_token + Set-Cookie refresh_token
+    SPA->>SPA: Hydrate auth store (GET /v1/session)
     SPA-->>U: Navigate to home
 ```
 
-> **Why the exchange step?** Cross-site `Set-Cookie` on the tail of a
-> redirect from Microsoft is unreliable under Safari ITP and modern
-> third-party-cookie defaults: the cookie can be silently dropped. The
-> SPA-initiated POST to `/v1/session/exchange` is a same-origin request,
-> so the cookie lands. See
-> [ADR-019: BFF cookie exchange](../architecture-decision-records/019-bff-cookie-exchange.md).
+> **Why Set-Cookie on the callback redirect?** Frontend and backend share
+> the same domain in all deployments (`/api` prefix in production,
+> `localhost` on both sides in dev). A cookie set on a same-domain `302`
+> is accepted by all browsers without ITP interference. See
+> [ADR-019](../architecture-decision-records/019-bff-cookie-exchange.md)
+> for the original BFF exchange design that was superseded by this approach.
 
 ## 4. Session lifecycle
 
@@ -79,8 +72,7 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> Anonymous
     Anonymous --> Authenticating: GET /v1/auth/login
-    Authenticating --> Exchanging: /v1/auth/callback issues one-shot code
-    Exchanging --> Authenticated: POST /v1/session/exchange sets cookies
+    Authenticating --> Authenticated: /v1/auth/callback sets cookies + 302 /
     Authenticated --> Authenticated: POST /v1/session (rotates both cookies)
     Authenticated --> Anonymous: DELETE /v1/session (clears cookies)
 ```
@@ -97,13 +89,13 @@ Claims minted by `_set_auth_cookies` in `backend/app/api/v1/auth.py`:
 
 | Claim              | Purpose                                                                              |
 | ------------------ | ------------------------------------------------------------------------------------ |
-| `sub`              | Opaque subject (currently `user.id` as string)                                       |
+| `sub`              | IdP sub claim (Entra object UUID); fallback to `str(user.id)` if IdP omits it        |
 | `institutional_id` | Stable EPFL identifier — the primary trust-boundary key                              |
 | `provider`         | `UserProvider` enum value (`1=DEFAULT`, `2=TEST`, `3=ACCRED`)                        |
 | `type`             | `"access"` or `"refresh"` — see `TOKEN_TYPE_ACCESS` / `TOKEN_TYPE_REFRESH` constants |
 | `exp`              | UTC expiry                                                                           |
 
-Algorithm: `HS256`. Key: `settings.SECRET_KEY` (single shared symmetric
+Algorithm: `HS256`. Key: `settings.JWT_HMAC_KEY` (single shared symmetric
 secret — see [ADR-012](../architecture-decision-records/012-jwt-authentication-strategy.md)).
 
 Validation path in `backend/app/core/security.py`:
@@ -119,16 +111,16 @@ Validation path in `backend/app/core/security.py`:
 
 `backend/app/providers/role_provider.py` defines three providers:
 
-- **`DefaultRoleProvider`** — reads roles from JWT claims. Used in
+- **`JwtClaimsRoleProvider`** — reads roles from JWT claims. Used in
   development and synthetic-data flows.
 - **`AccredRoleProvider`** — fetches from the EPFL Accred API. Production.
 - **`TestRoleProvider`** — synthetic roles for `/auth/login-test`
   (DEBUG-only route).
 
-Selection is driven by `settings.PROVIDER_PLUGIN` through the factory
+Selection is driven by `settings.ROLE_PROVIDER_TYPE` through the factory
 `get_role_provider(provider_type)`. F9 hardened the factory: an unknown
-`PROVIDER_PLUGIN` value now raises `ValueError` instead of silently
-falling back to `DefaultRoleProvider`. F11/F12 hardened claim parsing:
+provider type now raises `ValueError` instead of silently
+falling back to `JwtClaimsRoleProvider`. F11/F12 hardened claim parsing:
 malformed `RoleName` entries and unknown scope types are skipped with a
 warning rather than aborting the login.
 
@@ -157,43 +149,44 @@ truth: the implementation plan
 `docs/src/implementation-plans/458-security-authentication-integration-hardening.md`
 (landed with PR #1310 — [issue #458](https://github.com/EPFL-ENAC/co2-calculator/issues/458)).
 
-| Finding | Test file                                            | Test name                                                                                                                                    |
-| ------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1      | `backend/tests/integration/v1/test_auth_security.py` | `test_callback_binds_session_to_idp_institutional_id`                                                                                        |
-| F2      | `backend/tests/integration/v1/test_auth_security.py` | `test_auth_cookies_secure_when_cookie_secure_true`, `test_auth_cookies_not_secure_when_cookie_secure_false`                                  |
-| F3      | `backend/tests/integration/v1/test_auth_security.py` | `test_login_test_registration_matches_debug_flag`, `test_login_test_returns_404_in_prod_build`                                               |
-| F4      | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_alg_none_rejected`, `test_jwt_wrong_alg_rejected`, `test_jwt_tampered_signature_rejected`                                          |
-| F5      | `backend/tests/integration/v1/test_auth_security.py` | `test_refresh_rotates_both_auth_and_refresh_cookies`                                                                                         |
-| F6      | _deferred_                                           | _server-side JTI denylist — see follow-up comment_                                                                                           |
-| F7      | `backend/tests/integration/v1/test_auth_security.py` | `test_audit_event_failure_logs_error_with_marker`, `test_audit_event_must_succeed_propagates_failure`                                        |
-| F8      | `backend/tests/integration/v1/test_auth_security.py` | `test_me_rejects_legacy_user_id_only_token`, `test_refresh_rejects_legacy_user_id_only_token`                                                |
-| F9      | `backend/tests/unit/providers/test_role_provider.py` | `test_get_unknown_role_provider_raises` (in `TestGetRoleProvider`)                                                                           |
-| F10     | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_expired_rejected`                                                                                                                  |
-| F11     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_role_name_is_skipped_not_raised`, `test_empty_role_name_is_skipped_not_raised` (in `TestDefaultRoleProviderClaimCombinations`) |
-| F12     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_scope_type_warns_when_skipped` (in `TestDefaultRoleProviderClaimCombinations`)                                                 |
+| Finding | Test file                                            | Test name                                                                                                                                      |
+| ------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1      | `backend/tests/integration/v1/test_auth_security.py` | `test_callback_binds_session_to_idp_institutional_id`                                                                                          |
+| F2      | `backend/tests/integration/v1/test_auth_security.py` | `test_auth_cookies_secure_when_cookie_secure_true`, `test_auth_cookies_not_secure_when_cookie_secure_false`                                    |
+| F3      | `backend/tests/integration/v1/test_auth_security.py` | `test_login_test_registration_matches_debug_flag`, `test_login_test_returns_404_in_prod_build`                                                 |
+| F4      | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_alg_none_rejected`, `test_jwt_wrong_alg_rejected`, `test_jwt_tampered_signature_rejected`                                            |
+| F5      | `backend/tests/integration/v1/test_auth_security.py` | `test_refresh_rotates_both_auth_and_refresh_cookies`                                                                                           |
+| F6      | _deferred_                                           | _server-side JTI denylist — see follow-up comment_                                                                                             |
+| F7      | `backend/tests/integration/v1/test_auth_security.py` | `test_audit_event_failure_logs_error_with_marker`, `test_audit_event_must_succeed_propagates_failure`                                          |
+| F8      | `backend/tests/integration/v1/test_auth_security.py` | `test_me_rejects_legacy_user_id_only_token`, `test_refresh_rejects_legacy_user_id_only_token`                                                  |
+| F9      | `backend/tests/unit/providers/test_role_provider.py` | `test_get_unknown_role_provider_raises` (in `TestGetRoleProvider`)                                                                             |
+| F10     | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_expired_rejected`                                                                                                                    |
+| F11     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_role_name_is_skipped_not_raised`, `test_empty_role_name_is_skipped_not_raised` (in `TestJwtClaimsRoleProviderClaimCombinations`) |
+| F12     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_scope_type_warns_when_skipped` (in `TestJwtClaimsRoleProviderClaimCombinations`)                                                 |
 
 Additional pinning tests:
 
-- `test_e2e_callback_me_refresh_logout_happy_path` — end-to-end happy path.
+- `test_callback_sets_cookies_and_redirects_to_frontend` — pins the direct cookie-on-callback behaviour (PR #1687).
+- `test_e2e_callback_session_refresh_logout_happy_path` — end-to-end happy path.
 - `test_secure_cookie_is_dropped_over_http_breaking_followup_calls` —
   F2 regression guard; demonstrates the cookie-drop symptom.
-- `TestExchangeFlow::*` — exchange-flow tests, delivered in PR `#<TBD>`
-  (parallel Unit A worktree).
-- `TestDefaultRoleProviderClaimCombinations::*` — claim-combination
+- `TestJwtClaimsRoleProviderClaimCombinations::*` — claim-combination
   matrix for the role provider.
 - `backend/tests/unit/core/test_security_gates.py::*` — permission gate unit
   tests covering `is_permitted` / `check_permission` / `require_permission`.
 
 ## 9. Design choices and trade-offs
 
-### Why a BFF exchange code, not direct cookies on callback
+### Why direct cookies on the callback (not a BFF exchange step)
 
-Setting cookies on the tail of a cross-site redirect from Microsoft is
-unreliable: Safari ITP and modern third-party-cookie defaults can drop
-them. A same-origin SPA-to-backend POST is reliable. Trade-off: +1
-round-trip on login and a small server-side exchange-code store (DB-backed
-today). See
-[ADR-019](../architecture-decision-records/019-bff-cookie-exchange.md).
+Frontend and backend share the same domain in all deployments (production:
+`/api` path prefix on the same host; localhost dev: same `localhost` host,
+different ports that are treated as same-site). A `Set-Cookie` header on the
+OAuth-callback `302` is a same-site response; browsers accept it without ITP
+interference. The previous BFF exchange design (ADR-019) was motivated by a
+Safari ITP regression that only reproduced on localhost when the two processes
+ran on different ports — not a production concern. Removing it eliminates one
+DB table, one endpoint, one SPA page, and one round-trip on every login.
 
 ### Why HS256 with a shared secret, not RS256 with a key pair
 
@@ -206,8 +199,46 @@ See [ADR-012](../architecture-decision-records/012-jwt-authentication-strategy.m
 
 Bearer tokens in JS-readable storage are the OWASP cheat-sheet
 anti-pattern for SPAs: any XSS sink lifts the token. `httpOnly` cookies
-are out of reach of JavaScript and ride CSRF mitigations via `SameSite`
-and the standard `Origin`/`Referer` checks already in place.
+are out of reach of JavaScript, and the CSRF exposure they bring in
+exchange is covered by `SameSite=Lax` plus the request-origin check
+described below.
+
+### CSRF: `SameSite` plus a request-origin check
+
+Cookie auth is forgeable by construction, so two controls stand in front
+of every state-changing request:
+
+1. **`SameSite=Lax` on the auth cookies** — browser-enforced, so it holds
+   independently of our own code, and it keeps the cookie _off_ a
+   cross-site request entirely rather than receiving one and refusing it.
+2. **`RequestOriginMiddleware`** (`backend/app/core/request_origin.py`) —
+   rejects any request carrying an auth cookie that cannot show, via
+   `Sec-Fetch-Site`, `Origin` or `Referer`, that it came from our own
+   origin. Fail-closed: none of the three headers means `403`.
+
+The second exists because the first is not sufficient here. `SameSite` is
+evaluated against the **registrable domain**, so every application under
+`*.epfl.ch` is _same-site_ to us and `Lax` will attach `auth_token` to
+its requests. `Sec-Fetch-Site: same-site` is therefore rejected, not just
+`cross-site`.
+
+Two rebuttals worth recording, so they are not re-litigated each review:
+
+- **Why not `SameSite=Strict`?** The attacker in our threat model is
+  same-site by definition, so `Strict` blocks nothing they can do — while
+  breaking session state on every inbound link into the app.
+- **Why no CSRF token?** Naive double-submit is defeated by that same
+  attacker: any `*.epfl.ch` host can set a `Domain=epfl.ch` cookie and
+  forge the matching header. Signed double-submit would work but is
+  machinery a same-origin SPA does not need. A genuinely cross-origin
+  frontend would reopen the question as an ADR.
+
+CORS stays disabled on this instance, deliberately — with no CORS headers
+the browser preflights and drops every JSON-body and
+`PUT`/`PATCH`/`DELETE` forgery before it is sent. The middleware covers
+what preflights do not: `POST` requests whose body type is CORS-simple.
+
+See [plan #89](../implementation-plans/89-security-in-depth.md).
 
 ## 10. Future work
 
@@ -216,12 +247,12 @@ and the standard `Origin`/`Referer` checks already in place.
   stolen-token mitigation.
 - **`JWTClaimsRegistry` leeway tuning** — currently default `0` seconds;
   30 s is the candidate value to absorb pod-to-pod NTP drift.
-- **BFF exchange-code store** — current DB-backed store is single-pod-safe
-  but slower; a shared, higher-throughput store is a future option if
-  multi-pod scaling warrants it.
 - **Narrow the role-provider boundary** — F11/F12 are delivered, but the
   provider surface deserves its own scope-narrowing pass in a future
   tier (typed schema for IdP role payloads, strict mode for production).
+- **Ingress rate limiting on `/v1/auth/callback`** — no app-level throttle
+  exists on the callback endpoint; a `nginx.ingress.kubernetes.io/limit-rps`
+  annotation on the ingress is the recommended mitigation.
 
 ## Related docs
 
@@ -230,5 +261,5 @@ and the standard `Origin`/`Referer` checks already in place.
 - [Backend permission system](../backend/06-PERMISSION-SYSTEM.md)
 - [ADR-005 Authorization strategy](../architecture-decision-records/005-authorization-strategy.md)
 - [ADR-012 JWT authentication](../architecture-decision-records/012-jwt-authentication-strategy.md)
-- [ADR-019 BFF cookie exchange](../architecture-decision-records/019-bff-cookie-exchange.md)
+- [ADR-019 BFF cookie exchange (superseded)](../architecture-decision-records/019-bff-cookie-exchange.md)
 - [Issue #458 — security: authentication & integration hardening](https://github.com/EPFL-ENAC/co2-calculator/issues/458)

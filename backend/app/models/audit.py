@@ -6,11 +6,12 @@ for Postgres, with dialect-aware fallback for SQLite in tests/local dev.
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 from sqlalchemy import Column, Index, text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import JSON, Field, SQLModel
+
+from app.models._field_defaults import default_list, default_utcnow
 
 
 class SyncStatusEnum(str, Enum):
@@ -53,7 +54,7 @@ class AuditDocumentBase(SQLModel):
     data_snapshot: dict = Field(
         sa_column=Column(JSON), description="Canonical full JSON document"
     )
-    data_diff: Optional[dict] = Field(
+    data_diff: dict | None = Field(
         default=None, sa_column=Column(JSON), description="Optional JSON diff"
     )
 
@@ -67,16 +68,16 @@ class AuditDocumentBase(SQLModel):
         ),
         description="CREATE/UPDATE/DELETE/ROLLBACK; enforced by DB check constraint",
     )
-    change_reason: Optional[str] = Field(
+    change_reason: str | None = Field(
         default=None, description="Optional human-readable reason for change"
     )
-    changed_by: Optional[int] = Field(
+    changed_by: int | None = Field(
         default=None,
         nullable=True,
         description="Actor identifier (user_id or job_id)",
     )
     changed_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Timestamp of change (UTC)"
+        default_factory=default_utcnow, description="Timestamp of change (UTC)"
     )
 
     # Request context (mandatory audit fields)
@@ -84,22 +85,22 @@ class AuditDocumentBase(SQLModel):
         description="User provider code of who performed the action"
     )
     handled_ids: list[str] = Field(
-        default_factory=list,
+        default_factory=default_list,
         sa_column=Column(JSON),
         description="List of user provider codes whose data was affected",
     )
     ip_address: str = Field(description="IP address of the requester machine")
-    route_path: Optional[str] = Field(
+    route_path: str | None = Field(
         default=None, description="API route path that triggered the change"
     )
-    route_payload: Optional[dict] = Field(
+    route_payload: dict | None = Field(
         default=None,
         sa_column=Column(JSON),
         description="Route payload/parameters that triggered the change",
     )
 
     # Integrity chain (hashes)
-    previous_hash: Optional[str] = Field(
+    previous_hash: str | None = Field(
         default=None, description="Hash of previous version"
     )
     current_hash: str = Field(description="Hash of this version")
@@ -113,10 +114,10 @@ class AuditDocumentBase(SQLModel):
         ),
         description="Status of Elasticsearch sync: pending, syncing, synced, failed",
     )
-    sync_error: Optional[str] = Field(
+    sync_error: str | None = Field(
         default=None, description="Error message if Elasticsearch (ES) sync failed"
     )
-    synced_at: Optional[datetime] = Field(
+    synced_at: datetime | None = Field(
         default=None,
         description="Timestamp when the audit record was successfully synced to ES",
     )
@@ -135,7 +136,7 @@ class AuditDocument(AuditDocumentBase, table=True):
 
     __tablename__ = "audit_documents"
 
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: int | None = Field(default=None, primary_key=True, index=True)
     __table_args__ = (
         Index(
             "audit_document_one_current_idx",

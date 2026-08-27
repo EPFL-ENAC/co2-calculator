@@ -4,12 +4,10 @@ Each CSV is validated row-by-row with Pydantic, then the entire result is
 stored as a JSON array inside ``year_configuration.config.reduction_objectives``.
 """
 
-import csv
-import io
 import urllib.parse
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import Any, Dict, List, TypedDict
+from datetime import UTC, datetime
+from typing import Any, TypedDict
 
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import col, select
@@ -28,6 +26,7 @@ from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.year_configuration import BaseReductionObjectiveHandler
 from app.services.data_ingestion.base_csv_provider import _validate_file_path
 from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.utils.csv_dialect import csv_dict_reader
 
 logger = get_logger(__name__)
 
@@ -49,7 +48,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         user: User | None = None,
         job_session: Any = None,
         data_session: Any = None,
@@ -114,15 +113,15 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
     # DataIngestionProvider abstract stubs (not used for this flow)
     # ------------------------------------------------------------------
 
-    async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         return []
 
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         return raw_data
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         return {"inserted": 0, "skipped": 0, "errors": 0}
 
     # ------------------------------------------------------------------
@@ -153,8 +152,8 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
 
     async def ingest(
         self,
-        filters: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Override ingest to use the reduction-objective CSV flow."""
         try:
             await self._update_job(
@@ -179,7 +178,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
             logger.error(f"Reduction-objective CSV ingestion failed: {str(e)}")
             raise
 
-    async def _process_csv(self) -> Dict[str, Any]:
+    async def _process_csv(self) -> dict[str, Any]:
         """Setup → validate rows → store JSON → finalize."""
         try:
             setup = await self._setup_and_validate()
@@ -196,7 +195,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
 
             # -- Parse & validate every row ---------------------------------
             validated_rows: list[dict] = []
-            csv_reader = csv.DictReader(io.StringIO(csv_text, newline=""))
+            csv_reader = csv_dict_reader(csv_text)
 
             for row_idx, raw_row in enumerate(csv_reader, start=1):
                 # Strip whitespace from keys and values
@@ -244,7 +243,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
     # Setup
     # ------------------------------------------------------------------
 
-    async def _setup_and_validate(self) -> Dict[str, Any]:
+    async def _setup_and_validate(self) -> dict[str, Any]:
         """Download CSV, move to processing/, resolve handler, validate headers."""
         if not self.job and self.job_id:
             self.job = await self.repo.get_job_by_id(self.job_id)
@@ -263,15 +262,8 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         if not tmp_path:
             raise ValueError("Missing file_path in config")
         _validate_file_path(tmp_path)
-        filename = tmp_path.split("/")[-1]
-        processing_path = f"processing/{self.job_id}/{filename}"
-
-        logger.info(f"Moving file from {tmp_path} to {processing_path}")
-        move_result = await self.files_store.move_file(tmp_path, processing_path)
-        if not move_result:
-            raise ValueError(
-                f"Failed to move file from {tmp_path} to {processing_path}"
-            )
+        processing_path = await self._move_to_processing(tmp_path)
+        filename = processing_path.split("/")[-1]
 
         # Download & decode
         logger.info(f"Downloading CSV from {processing_path}")
@@ -306,7 +298,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         expected_columns: set[str],
         required_columns: set[str],
     ) -> None:
-        reader = csv.DictReader(io.StringIO(csv_text, newline=""))
+        reader = csv_dict_reader(csv_text)
         first_rows: list[dict] = []
         try:
             for idx, row in enumerate(reader):
@@ -405,11 +397,15 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         # Store parsed rows
         result.config["reduction_objectives"][config_key] = validated_rows
 
-        # Store file metadata
-        result.config["reduction_objectives"]["files"][config_key] = {
+        # Store file metadata. `config` is a dynamic JSON blob (no fixed
+        # schema); ty narrows the nested-subscript type from the last
+        # assignment seen above, which is a false positive here.
+        result.config["reduction_objectives"]["files"][  # ty: ignore[invalid-assignment]
+            config_key
+        ] = {
             "path": processed_path or "",
             "filename": filename,
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "uploaded_at": datetime.now(UTC).isoformat(),
             "rows_processed": rows_processed
             if rows_processed is not None
             else len(validated_rows),
@@ -438,18 +434,11 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
     async def _finalize(
         self,
         stats: ReductionObjectiveStatsDict,
-        setup: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        setup: dict[str, Any],
+    ) -> dict[str, Any]:
         """Move file to processed/, update job to FINISHED."""
         processing_path = setup["processing_path"]
-        processed_path = setup["processed_path"]
-
-        logger.info(f"Moving file from {processing_path} to {processed_path}")
-        move_result = await self.files_store.move_file(processing_path, processed_path)
-        if not move_result:
-            logger.warning(
-                f"Failed to move file from {processing_path} to {processed_path}"
-            )
+        await self._move_to_processed(processing_path)
 
         await self.data_session.flush()
 

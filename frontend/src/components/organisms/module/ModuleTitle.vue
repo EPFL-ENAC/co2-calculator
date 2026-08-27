@@ -17,10 +17,20 @@
           </p>
           <p
             v-if="hasDescriptionSubtext"
-            class="text-caption text-grey-5 q-mb-none q-mt-xs"
+            class="subtext text-caption text-grey-5 q-mb-none q-mt-xs q-mb-lg"
           >
             {{ $t(`${type}-title-subtext`) }}
           </p>
+          <a
+            v-if="documentationLink"
+            :href="documentationLink"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="doc-link text-caption text-grey-6 q-mt-sm"
+          >
+            <q-icon :name="outlinedArticle" size="16px" class="q-mr-xs" />
+            {{ documentationTitle }}
+          </a>
         </div>
         <q-icon
           v-if="tooltipText"
@@ -41,9 +51,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
-import { Module } from 'src/constant/modules';
-import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
+import {
+  outlinedArticle,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
+import { Module } from '@/constant/modules';
+import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -57,12 +70,20 @@ const props = withDefaults(
   },
 );
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const tooltipText = computed(() => t(`module-${props.type}-title`));
+
+// Per-module documentation URL lives in each module's i18n file; the label is
+// shared. Rendered only when the module defines a non-empty link.
+const documentationLink = computed(() => {
+  const key = `${props.type}-documentation-link`;
+  return te(key) ? t(key) : '';
+});
+const documentationTitle = computed(() => t('module_documentation_title'));
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .module-title-card {
   height: 100%;
@@ -79,5 +100,22 @@ const tooltipText = computed(() => t(`module-${props.type}-title`));
   display: flex;
   align-items: center;
   gap: tokens.$spacing-md;
+}
+
+// Preserve authored line breaks / blank lines so bullet lists in the
+// subtext render as intended instead of collapsing into one run-on line.
+.subtext {
+  white-space: pre-line;
+}
+
+.doc-link {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
 }
 </style>

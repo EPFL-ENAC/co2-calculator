@@ -25,13 +25,6 @@ erDiagram
     DATETIME synced_at
     INTEGER version "indexed"
   }
-  auth_exchange_code {
-    VARCHAR code PK
-    DATETIME consumed_at
-    DATETIME created_at
-    DATETIME expires_at
-    INTEGER user_id FK
-  }
   building_rooms {
     VARCHAR building_location "indexed"
     VARCHAR building_name "indexed"
@@ -41,7 +34,9 @@ erDiagram
     VARCHAR room_type
   }
   carbon_projects {
-    VARCHAR carbon_report_type
+    VARCHAR carbon_report_type "indexed"
+    DATETIME created_at
+    INTEGER created_by FK
     INTEGER end_year "indexed"
     INTEGER id PK
     BOOLEAN is_viewable_by_unit_members
@@ -50,23 +45,53 @@ erDiagram
     INTEGER unit_id FK
   }
   carbon_report_modules {
+    JSON budgets
     INTEGER carbon_report_id FK
     INTEGER id PK
+    BOOLEAN is_active
     INTEGER last_updated
     INTEGER module_type_id "indexed"
     JSON stats
     INTEGER status "indexed"
   }
   carbon_reports {
+    FLOAT budget
+    VARCHAR budget_currency
     INTEGER carbon_project_id FK
     VARCHAR completion_progress
     INTEGER id PK
+    BOOLEAN is_grant
     INTEGER last_updated
     INTEGER overall_status
     INTEGER reference_year
     JSON stats
     INTEGER unit_id FK
     INTEGER year
+  }
+  connector_connections {
+    VARCHAR client_id
+    VARCHAR connector
+    DATETIME created_at
+    INTEGER id PK
+    BOOLEAN is_active
+    VARCHAR label
+    VARCHAR secret_id
+    VARCHAR secret_value_encrypted
+    VARCHAR server_url
+    VARCHAR site_content_url
+    DATETIME updated_at
+    VARCHAR username
+  }
+  connector_datasources {
+    INTEGER connection_id FK
+    VARCHAR connector_luid
+    DATETIME created_at
+    INTEGER data_entry_type_id
+    INTEGER id PK
+    BOOLEAN is_active
+    VARCHAR label
+    INTEGER module_type_id "indexed"
+    DATETIME updated_at
   }
   data_entries {
     INTEGER carbon_report_module_id FK
@@ -94,6 +119,7 @@ erDiagram
   }
   data_ingestion_jobs {
     INTEGER attempts
+    DATETIME created_at
     INTEGER data_entry_type_id "indexed"
     INTEGER entity_id
     VARCHAR entity_type
@@ -162,6 +188,7 @@ erDiagram
     VARCHAR git_sha
     DATETIME last_heartbeat_at
     VARCHAR pod_id PK
+    VARCHAR pod_ip
     DATETIME started_at
   }
   unit_users {
@@ -210,6 +237,7 @@ erDiagram
   carbon_projects ||--}o carbon_reports : "carbon_project_id"
   carbon_report_modules ||--}o data_entries : "carbon_report_module_id"
   carbon_reports ||--}o carbon_report_modules : "carbon_report_id"
+  connector_connections ||--}o connector_datasources : "connection_id"
   data_entries ||--}o data_entry_emissions : "data_entry_id"
   data_ingestion_jobs ||--}o factors : "last_seen_job_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
@@ -217,7 +245,7 @@ erDiagram
   units ||--}o carbon_projects : "unit_id"
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"
-  users ||--}o auth_exchange_code : "user_id"
+  users ||--}o carbon_projects : "created_by"
   users ||--}o unit_users : "user_id"
 ```
 

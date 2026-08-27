@@ -10,12 +10,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
-    ProfessionalTravelApiProvider,
+from app.modules.emissions.registry import resolve_emission_types
+from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
+    CaptionSpec,
     normalize_vds_payload,
     to_bool,
 )
-from app.utils.data_entry_emission_type_map import resolve_emission_types
+from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
+    TRAVELER_OTHER_EXTERNAL,
+    TRAVELER_OTHER_INTERNAL,
+    ProfessionalTravelApiProvider,
+)
 
 # ---------------------------------------------------------------------------
 # to_bool
@@ -30,6 +35,17 @@ class TestToBool:
     def test_false_values(self):
         for v in ("false", "0", "no", "off", "", "random"):
             assert to_bool(v) is False
+
+
+# ---------------------------------------------------------------------------
+# Sentinel constants contract
+# ---------------------------------------------------------------------------
+
+
+def test_sentinel_constants_are_the_agreed_literals():
+    """Pins the exact wire values — frontend traveler-options.ts must match."""
+    assert TRAVELER_OTHER_INTERNAL == "-1"
+    assert TRAVELER_OTHER_EXTERNAL is None
 
 
 # ---------------------------------------------------------------------------
@@ -77,33 +93,35 @@ class TestNormalizeVdsPayload:
 
 
 def _make_provider(**config_overrides):
-    """Build a ProfessionalTravelApiProvider with mocked dependencies."""
+    """Build a ProfessionalTravelApiProvider with credentials pre-loaded.
+
+    Credentials now come from the DB via ``_ensure_credentials``; these
+    pure-unit tests never hit the DB, so we set the same instance attrs the
+    loader would set and mark them loaded, then exercise the real methods.
+    """
     config = {"year": 2024, "module_type_id": 2, **config_overrides}
     user = MagicMock()
     user.id = 1
 
-    with patch(
-        "app.services.data_ingestion.api_providers.professional_travel_api_provider.get_settings"
-    ) as mock_settings:
-        s = mock_settings.return_value
-        s.TABLEAU_SERVER_URL = "https://tableau.test"
-        s.TABLEAU_SITE_CONTENT_URL = "site"
-        s.TABLEAU_DS_FLIGHTS_LUID = "ds-luid"
-        s.TABLEAU_CONNECTED_APP_CLIENT_ID = "client-id"
-        s.TABLEAU_CONNECTED_APP_SECRET_ID = "secret-id"
-        s.TABLEAU_CONNECTED_APP_SECRET_VALUE = "secretvalue1234567890123456789012"
-        s.TABLEAU_REQUEST_TIMEOUT_SECONDS = "30"
-        s.TABLEAU_VERIFY_SSL = "false"
-        s.TABLEAU_REST_MIN_API_VERSION = "3.21"
-        s.TABLEAU_MAX_FIELDS = 50
-        s.TABLEAU_USERNAME = "testuser"
-
-        provider = ProfessionalTravelApiProvider(
-            config,
-            user,
-            job_session=None,
-            data_session=AsyncMock(),
-        )
+    provider = ProfessionalTravelApiProvider(
+        config,
+        user,
+        job_session=None,
+        data_session=AsyncMock(),
+    )
+    # Mirror the attributes ``_ensure_credentials`` sets from the connection.
+    provider.server_url = "https://tableau.test"
+    provider.site_content_url = "site"
+    provider.datasource_luid = "ds-luid"
+    provider.client_id = "client-id"
+    provider.secret_id = "secret-id"
+    provider.secret_value = "secretvalue1234567890123456789012"
+    provider.username = "testuser"
+    provider.timeout = 30
+    provider.verify_ssl = False
+    provider.min_api_version = "3.21"
+    provider.module_type_id = config.get("module_type_id")
+    provider._credentials_loaded = True
     return provider
 
 
@@ -148,12 +166,9 @@ class TestNormalizeClass:
         p = _make_provider()
         assert p._normalize_class("AIR BUSINESS CLASS") == "business"
 
-    def test_first(self):
-        p = _make_provider()
-        assert p._normalize_class("AIR FIRST CLASS") == "first"
-
     def test_unknown_defaults_to_economy(self):
         p = _make_provider()
+        assert p._normalize_class("AIR FIRST CLASS") == "economy"
         assert p._normalize_class("SOMETHING ELSE") == "economy"
         assert p._normalize_class("") == "economy"
 
@@ -242,16 +257,28 @@ class TestExtractFieldCaptions:
 class TestBuildPayload:
     def test_valid_payload(self):
         p = _make_provider()
-        result = p._build_payload(["Field1", "Field2"])
+        result = p._build_payload([CaptionSpec("Field1"), CaptionSpec("Field2")])
         assert result["datasource"]["datasourceLuid"] == "ds-luid"
         assert len(result["query"]["fields"]) == 2
         assert result["options"]["returnFormat"] == "OBJECTS"
+
+    def test_field_with_function_included(self):
+        p = _make_provider()
+        result = p._build_payload([CaptionSpec("Field1", "SUM")])
+        assert result["query"]["fields"] == [
+            {"fieldCaption": "Field1", "function": "SUM"}
+        ]
+
+    def test_field_without_function_omits_key(self):
+        p = _make_provider()
+        result = p._build_payload([CaptionSpec("Field1")])
+        assert result["query"]["fields"] == [{"fieldCaption": "Field1"}]
 
     def test_raises_without_datasource_luid(self):
         p = _make_provider()
         p.datasource_luid = None
         with pytest.raises(ValueError, match="datasource_luid"):
-            p._build_payload(["A"])
+            p._build_payload([CaptionSpec("A")])
 
     def test_raises_with_empty_captions(self):
         p = _make_provider()
@@ -347,10 +374,29 @@ class TestTransformData:
         result = await provider.transform_data(records)
         assert len(result) == 0
 
-    async def test_filters_missing_sciper(self, provider):
+    async def test_allows_missing_sciper(self, provider):
+        # #1153: SCIPER is no longer mandatory — a traveler with no EPFL
+        # SCIPER still comes through, tagged with the external-traveler
+        # sentinel the frontend resolves to "Other traveler (external)".
         records = [self._make_record(SCIPER="")]
         result = await provider.transform_data(records)
-        assert len(result) == 0
+        assert len(result) == 1
+        assert result[0]["user_institutional_id"] == TRAVELER_OTHER_EXTERNAL
+        # Pin the sentinel scheme itself (not just the imported symbol):
+        # External other is real JSON null, not a string sentinel.
+        assert result[0]["user_institutional_id"] is None
+
+    async def test_allows_none_sciper(self, provider):
+        records = [self._make_record(SCIPER=None)]
+        result = await provider.transform_data(records)
+        assert len(result) == 1
+        assert result[0]["user_institutional_id"] == TRAVELER_OTHER_EXTERNAL
+
+    async def test_allows_whitespace_sciper(self, provider):
+        records = [self._make_record(SCIPER="   ")]
+        result = await provider.transform_data(records)
+        assert len(result) == 1
+        assert result[0]["user_institutional_id"] == TRAVELER_OTHER_EXTERNAL
 
     async def test_filters_missing_iata(self, provider):
         records = [
@@ -387,6 +433,39 @@ class TestTransformData:
         records = [self._make_record(**{"Centre financier": None})]
         result = await provider.transform_data(records)
         assert result[0]["unit_institutional_id"] is None
+
+    async def test_logs_missing_field_counts(self, provider, caplog):
+        import logging
+
+        records = [
+            self._make_record(SCIPER=""),
+            self._make_record(**{"IN_Departure date": ""}),
+        ]
+        with caplog.at_level(
+            logging.INFO,
+            logger="app.services.data_ingestion."
+            "api_providers.professional_travel_api_provider",
+        ):
+            await provider.transform_data(records)
+
+        info_logs = [r.message for r in caplog.records if r.levelno == logging.INFO]
+        assert any("missing-value counts" in msg for msg in info_logs), info_logs
+        summary = next(msg for msg in info_logs if "missing-value counts" in msg)
+        assert "'SCIPER': 1" in summary
+        assert "'IN_Departure date': 1" in summary
+
+    async def test_no_missing_field_log_when_complete(self, provider, caplog):
+        import logging
+
+        records = [self._make_record()]
+        with caplog.at_level(
+            logging.INFO,
+            logger="app.services.data_ingestion."
+            "api_providers.professional_travel_api_provider",
+        ):
+            await provider.transform_data(records)
+
+        assert not any("missing-value counts" in r.message for r in caplog.records)
 
     async def test_resolve_modules_raises_when_all_units_missing(self, provider):
         provider.data_session = MagicMock()
@@ -534,7 +613,6 @@ class TestLoadDataKgCo2eqHandling:
         itself is path-independent and would also pass under the
         async path; this test specifically pins the override carrier.
         """
-
         # Patch ``get_settings`` on the provider module so the gate
         # in ``_load_data`` sees BULK_PATH_PURE_ASYNC=False without
         # needing to clear the lru_cache.  The other settings reads

@@ -104,3 +104,51 @@ test('hasAnyScopePermission: prefix isolation — backoffice.users does NOT matc
     hasAnyScopePermission(perms, 'backoffice.users', PermissionAction.EDIT),
   ).toBe(false);
 });
+
+// Issue #1403 (slice c) — the BackOffice Configuration route
+// (`back-office/data-management`) gates on `requiredPermission:
+// 'backoffice.configuration'` + `requiredAction: EDIT` (see
+// `router/routes.ts`); `permissionGuard` resolves it via
+// `hasAnyScopePermission`. These pin that exact gate so the route stays
+// hidden/blocked for a user without it — a scoped-only or view-only grant
+// must NOT be enough to reach the config tab.
+
+test('config tab gate: affiliation-scoped edit on backoffice.configuration grants access', () => {
+  const perms = {
+    'backoffice.configuration/ENAC-SG': ['view', 'edit'],
+  } as never;
+  expect(
+    hasAnyScopePermission(
+      perms,
+      'backoffice.configuration',
+      PermissionAction.EDIT,
+    ),
+  ).toBe(true);
+});
+
+test('config tab gate: view-only permission does NOT grant access (route requires edit)', () => {
+  const perms = {
+    'backoffice.configuration': ['view'],
+  } as never;
+  expect(
+    hasAnyScopePermission(
+      perms,
+      'backoffice.configuration',
+      PermissionAction.EDIT,
+    ),
+  ).toBe(false);
+});
+
+test('config tab gate: user without any backoffice.configuration key is blocked', () => {
+  const perms = {
+    'backoffice.reporting': ['view', 'edit'],
+    'modules.headcount/0184': ['view', 'edit'],
+  } as never;
+  expect(
+    hasAnyScopePermission(
+      perms,
+      'backoffice.configuration',
+      PermissionAction.EDIT,
+    ),
+  ).toBe(false);
+});

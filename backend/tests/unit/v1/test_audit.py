@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1131,7 +1131,7 @@ class TestExportAuditLogs:
             mock_query.return_value = ([mock_audit_doc], 1)
 
             with patch("app.api.v1.audit.datetime") as mock_dt:
-                mock_dt.now.return_value = datetime(2024, 1, 15, tzinfo=timezone.utc)
+                mock_dt.now.return_value = datetime(2024, 1, 15, tzinfo=UTC)
 
                 response = client.get("/api/v1/audit/export?format=csv")
 
@@ -1276,7 +1276,7 @@ class TestExportAuditLogs:
             mock_query.return_value = ([mock_audit_doc], 1)
 
             with patch("app.api.v1.audit.datetime") as mock_dt:
-                mock_dt.now.return_value = datetime(2024, 1, 15, tzinfo=timezone.utc)
+                mock_dt.now.return_value = datetime(2024, 1, 15, tzinfo=UTC)
 
                 response = client.get("/api/v1/audit/export?format=json")
 
@@ -1596,7 +1596,8 @@ class TestYearConfigurationAuditEncoding:
         """``entity_id = year * 10 + provider.value`` requires every
         UserProvider value to be a single decimal digit. If this fails,
         the encoding overflows into the next year — see #1268 for the
-        proper fix (add ``AuditDocument.provider`` column)."""
+        proper fix (add ``AuditDocument.provider`` column).
+        """
         max_value = max(p.value for p in UserProvider)
         assert max_value < 10, (
             f"UserProvider grew past value 9 (max={max_value}); "

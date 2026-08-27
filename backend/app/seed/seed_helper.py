@@ -1,5 +1,3 @@
-from typing import Dict, Optional
-
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
@@ -8,13 +6,13 @@ from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions.registry import resolve_factor_emission_type
 from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.data_entry import BaseModuleHandler
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.factor_service import FactorService
 from app.services.unit_service import UnitService
-from app.utils.data_entry_emission_type_map import resolve_factor_emission_type
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -24,16 +22,11 @@ versionapi = settings.FORMULA_VERSION_SHA256_SHORT
 def get_factor_emission_type_id(
     data_entry_type: DataEntryTypeEnum, factor: dict
 ) -> int:
-    emission_type_result = resolve_factor_emission_type(
+    """Raises ``EmissionTypeResolutionError`` when the row maps to nothing."""
+    return resolve_factor_emission_type(
         data_entry_type=data_entry_type,
         factor=factor,
-    )
-    if emission_type_result is None:
-        raise ValueError(
-            f"Unknown emission type resolution for data entry type "
-            f"{data_entry_type} with factor {factor}"
-        )
-    return emission_type_result.value
+    ).value
 
 
 async def get_carbon_report_module_id(
@@ -92,8 +85,8 @@ async def get_carbon_report_module_id(
 async def load_factors_map(
     session: AsyncSession,
     data_entry_type: DataEntryTypeEnum,
-    year: Optional[int] = None,
-) -> Dict[str, Factor]:
+    year: int | None = None,
+) -> dict[str, Factor]:
     """Load factors from database into a lookup dictionary.
 
     If year is provided, only factors matching that year are included.
@@ -104,7 +97,7 @@ async def load_factors_map(
     factors: list[Factor] = await service.list_by_data_entry_type(
         data_entry_type, year=year
     )
-    factors_map: Dict[str, Factor] = {}
+    factors_map: dict[str, Factor] = {}
 
     factor_handler = BaseModuleHandler.get_by_type(data_entry_type)
     kind_field = factor_handler.kind_field
@@ -116,8 +109,8 @@ async def load_factors_map(
             key_full = (
                 f"{pf.data_entry_type_id}:"
                 f"{pf_year}:"
-                f"{(pf.classification.get(kind_field, '') or '').lower()}:"
-                f"{(pf.classification.get(subkind_field, '') or '').lower()}"
+                f"{normalize_kind(pf.classification.get(kind_field, '') or '')}:"
+                f"{normalize_kind(pf.classification.get(subkind_field, '') or '')}"
             )
             factors_map[key_full] = pf
 
@@ -125,7 +118,7 @@ async def load_factors_map(
         key_kind = (
             f"{pf.data_entry_type_id}:"
             f"{pf_year}:"
-            f"{pf.classification.get(kind_field, '').lower()}"
+            f"{normalize_kind(pf.classification.get(kind_field, '') or '')}"
         )
         if key_kind not in factors_map:
             factors_map[key_kind] = pf
@@ -135,16 +128,19 @@ async def load_factors_map(
 
 
 def normalize_kind(kind: str) -> str:
-    """Normalize kind for case-insensitive matching."""
-    # Class names are mostly unique in table_power.csv
-    # Just normalize to lowercase for matching
-    return kind.lower().strip()
+    """Normalize kind for case- and whitespace-insensitive matching.
+
+    Collapses runs of internal whitespace too: backoffice CSV exports
+    (e.g. "Other furniture  equipment") carry stray double spaces the
+    canonical factor CSV doesn't, which `.strip()` alone doesn't fix.
+    """
+    return " ".join(kind.lower().split())
 
 
 def is_in_factors_map(
     kind: str,
-    subkind: Optional[str],
-    factors_map: Dict[str, Factor],
+    subkind: str | None,
+    factors_map: dict[str, Factor],
     *,
     require_subkind: bool = False,
 ) -> bool:
@@ -165,11 +161,10 @@ def is_in_factors_map(
 
 def lookup_factor(
     kind: str,
-    subkind: Optional[str],
-    factors_map: Dict[str, Factor],
-) -> Optional[Factor]:
-    """
-    Lookup factor for data_entry by kind only.
+    subkind: str | None,
+    factors_map: dict[str, Factor],
+) -> Factor | None:
+    """Lookup factor for data_entry by kind only.
 
     Returns None if no match found OR if multiple matches exist (ambiguous).
 
@@ -208,11 +203,10 @@ def lookup_factor(
 
 def lookup_data_entry_type_by_kind(
     kind: str,
-    subkind: Optional[str],
-    factors_maps_by_type: Dict[DataEntryTypeEnum, Dict[str, Factor]],
-) -> Optional[DataEntryTypeEnum]:
-    """
-    Infer data_entry_type from kind/subkind using partial factor matching.
+    subkind: str | None,
+    factors_maps_by_type: dict[DataEntryTypeEnum, dict[str, Factor]],
+) -> DataEntryTypeEnum | None:
+    """Infer data_entry_type from kind/subkind using partial factor matching.
 
     This function searches across multiple data entry types' factor maps to
     determine which data_entry_type a given kind/subkind belongs to.

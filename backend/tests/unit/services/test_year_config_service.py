@@ -5,6 +5,7 @@ import pytest
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.services.year_config_service import (
+    MANUAL_INPUT_OFF_BY_DEFAULT,
     check_threshold_exceeded,
     generate_default_year_config,
     get_module_config,
@@ -33,7 +34,39 @@ def test_generate_default_year_config_module_structure():
         expected_subs = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
         for det in expected_subs:
             sub = mod["submodules"][str(det.value)]
-            assert sub == {"enabled": True, "threshold": None}
+            deactivated = det in MANUAL_INPUT_OFF_BY_DEFAULT
+            assert sub == {
+                "enabled": True,
+                "threshold": None,
+                "inputs_deactivated": deactivated,
+                "csv_deactivated": deactivated,
+            }
+
+
+# #2007 — Research Facilities manual entry ships off; every other submodule
+# keeps its form. A regression here silently opens hand-entry on a module fed
+# by the platform API.
+def test_generate_default_year_config_research_facilities_inputs_off():
+    subs = generate_default_year_config()["modules"][
+        str(ModuleTypeEnum.research_facilities.value)
+    ]["submodules"]
+    for det in (
+        DataEntryTypeEnum.research_facilities,
+        DataEntryTypeEnum.animal_facilities,
+    ):
+        assert subs[str(det.value)]["inputs_deactivated"] is True
+        assert subs[str(det.value)]["csv_deactivated"] is True
+
+
+def test_generate_default_year_config_other_submodules_inputs_on():
+    cfg = generate_default_year_config()
+    for module_type in ModuleTypeEnum:
+        for det in MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, []):
+            if det in MANUAL_INPUT_OFF_BY_DEFAULT:
+                continue
+            sub = cfg["modules"][str(module_type.value)]["submodules"][str(det.value)]
+            assert sub["inputs_deactivated"] is False
+            assert sub["csv_deactivated"] is False
 
 
 def test_generate_default_year_config_reduction_objectives():

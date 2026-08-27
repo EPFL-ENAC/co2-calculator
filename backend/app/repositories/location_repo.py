@@ -1,7 +1,6 @@
 """Location repository for database operations."""
 
 import logging
-from typing import List, Optional
 
 from sqlalchemy import bindparam, case, or_, text
 from sqlmodel import col, select
@@ -23,9 +22,8 @@ class LocationRepository:
         query: str,
         transport_mode: TransportModeEnum,
         limit: int = 20,
-    ) -> List[Location]:
-        """
-        Search locations by keywords, municipality, iata and name with
+    ) -> list[Location]:
+        """Search locations by keywords, municipality, iata and name with
         relevance ordering.
 
         Search is performed across:
@@ -55,7 +53,6 @@ class LocationRepository:
             List of Location objects ordered by country (Switzerland first),
             relevance, and airport_size (for airport searches)
         """
-
         query = query.strip()
         if not query:
             return []
@@ -137,6 +134,8 @@ class LocationRepository:
 
         extended = extended.limit(limit)
 
+        # Strip newlines so a crafted query can't forge extra log lines
+        safe_query = query.replace("\r", "").replace("\n", "")
         try:
             compiled = extended.compile(compile_kwargs={"literal_binds": False})
             logger.debug(f"Location search SQL: {compiled}")
@@ -145,33 +144,33 @@ class LocationRepository:
             # Since we added a relevance column, extract just the Location objects
             locations = [row[0] for row in result.fetchall()]
 
-            logger.debug(f"Found {len(locations)} locations for query '{query}'")
+            logger.debug(f"Found {len(locations)} locations for query '{safe_query}'")
             return locations
         except Exception as e:
             logger.error(
-                f"Error executing location search query for '{query}'. Error: {e}",
+                f"Error executing location search query for '{safe_query}'. Error: {e}",
                 exc_info=True,
             )
             raise
 
-    async def get_by_id(self, location_id: int) -> Optional[Location]:
+    async def get_by_id(self, location_id: int) -> Location | None:
         """Get location by ID."""
         result = await self.session.get(Location, location_id)
         return result
 
-    async def get_by_natural_key(self, natural_key: str) -> Optional[Location]:
+    async def get_by_natural_key(self, natural_key: str) -> Location | None:
         """Get location by natural_key (unique index — always unambiguous)."""
         statement = select(Location).where(col(Location.natural_key) == natural_key)
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
-    async def get_by_iata(self, iata_code: str) -> Optional[Location]:
+    async def get_by_iata(self, iata_code: str) -> Location | None:
         """Get location by IATA code."""
         statement = select(Location).where(col(Location.iata_code) == iata_code)
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
-    async def get_by_iata_codes(self, iata_codes: List[str]) -> List[Location]:
+    async def get_by_iata_codes(self, iata_codes: list[str]) -> list[Location]:
         """Bulk-fetch locations for a set of IATA codes in one query.
 
         Lets the recalc slice resolve every flight's airports up front
@@ -188,7 +187,7 @@ class LocationRepository:
         name: str,
         country_code: str,
         limit: int = 2,
-    ) -> List[Location]:
+    ) -> list[Location]:
         """Exact-match train station lookup by name within a country.
 
         Case-insensitive on the lowercased+trimmed name. Used by the CSV

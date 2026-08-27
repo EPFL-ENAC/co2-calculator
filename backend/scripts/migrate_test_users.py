@@ -8,6 +8,8 @@ IMPORTANT: Run this script BEFORE deploying the authentication hardening changes
 """
 
 import asyncio
+import sys
+import traceback
 
 from dotenv import load_dotenv
 from sqlalchemy import text
@@ -95,10 +97,8 @@ async def migrate_test_users():
 if __name__ == "__main__":
     try:
         result = asyncio.run(migrate_test_users())
-        exit(0 if result else 1)
+        sys.exit(0 if result else 1)
     except Exception as e:
         print(f"❌ Migration failed: {e}")
-        import traceback
-
         traceback.print_exc()
-        exit(1)
+        sys.exit(1)

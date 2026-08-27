@@ -1,10 +1,11 @@
 """Unit repository for database operations."""
 
+import builtins
 from math import ceil
-from typing import Any, List, Optional, Union
+from typing import Any
 
 from attr import dataclass
-from sqlalchemy import asc, desc
+from sqlalchemy import asc, desc, inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -19,7 +20,7 @@ class UpsertResult:
     created: int
     updated: int
     total: int
-    data: List[Unit]
+    data: list[Unit]
 
     def __str__(self) -> str:
         return (
@@ -33,7 +34,7 @@ class UnitRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_id(self, unit_id: int | None) -> Optional[Unit]:
+    async def get_by_id(self, unit_id: int | None) -> Unit | None:
         """Get unit by ID (integer)."""
         if unit_id is None:
             return None
@@ -42,7 +43,7 @@ class UnitRepository:
 
     async def get_by_institutional_id(
         self, institutional_id: str | None
-    ) -> Optional[Unit]:
+    ) -> Unit | None:
         """Get unit by institutional_id."""
         if institutional_id is None:
             return None
@@ -51,9 +52,7 @@ class UnitRepository:
         )
         return result.one_or_none()
 
-    async def get_by_id_or_code(
-        self, identifier: Union[int, str, None]
-    ) -> Optional[Unit]:
+    async def get_by_id_or_code(self, identifier: int | str | None) -> Unit | None:
         """Get unit by either integer ID or string code."""
         if identifier is None:
             return None
@@ -62,14 +61,14 @@ class UnitRepository:
         # Try as institutional_id (string)
         return await self.get_by_institutional_id(identifier)
 
-    async def get_by_ids(self, unit_ids: List[int]) -> List[Unit]:
+    async def get_by_ids(self, unit_ids: builtins.list[int]) -> builtins.list[Unit]:
         """Get multiple units by IDs (integers)."""
         result = await self.session.exec(select(Unit).where(col(Unit.id).in_(unit_ids)))
         return list(result.all())
 
     async def get_by_institutional_ids(
-        self, institutional_ids: List[str]
-    ) -> List[Unit]:
+        self, institutional_ids: builtins.list[str]
+    ) -> builtins.list[Unit]:
         """Get multiple units by institutional_ids."""
         result = await self.session.exec(
             select(Unit).where(col(Unit.institutional_id).in_(institutional_ids))
@@ -80,9 +79,9 @@ class UnitRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        unit_id_filter: Optional[List[int]] = None,
-        institutional_id_filter: Optional[List[str]] = None,
-    ) -> List[Unit]:
+        unit_id_filter: builtins.list[int] | None = None,
+        institutional_id_filter: builtins.list[str] | None = None,
+    ) -> builtins.list[Unit]:
         """List units with optional filters."""
         query = select(Unit)
 
@@ -98,9 +97,9 @@ class UnitRepository:
     # // WIP, maybe deadcode
     async def get_units_with_filters(
         self,
-        years: Optional[List[int]] = None,
-        path_name: Optional[str] = None,
-        name: Optional[str] = None,
+        years: builtins.list[int] | None = None,
+        path_name: str | None = None,
+        name: str | None = None,
         page: int = 1,
         page_size: int = 20,
         sort_by: str = "name",
@@ -171,14 +170,14 @@ class UnitRepository:
         await self.session.refresh(db_obj)
         return db_obj
 
-    async def bulk_create(self, units: List[Unit]) -> List[Unit]:
+    async def bulk_create(self, units: builtins.list[Unit]) -> builtins.list[Unit]:
         """Bulk create units."""
         # db_objs = [Unit.model_validate(unit) for unit in units]
         self.session.add_all(units)
         await self.session.flush()
         return units
 
-    async def bulk_upsert(self, units: List[Unit]) -> UpsertResult:
+    async def bulk_upsert(self, units: builtins.list[Unit]) -> UpsertResult:
         """Insert-or-update by ``institutional_code`` (the unique key).
 
         **Race safety (#1236):** ``units`` is a GLOBAL table (not
@@ -206,7 +205,9 @@ class UnitRepository:
             return await self._bulk_upsert_on_conflict(units)
         return await self._bulk_upsert_select_then_merge(units)
 
-    async def _bulk_upsert_on_conflict(self, units: List[Unit]) -> UpsertResult:
+    async def _bulk_upsert_on_conflict(
+        self, units: builtins.list[Unit]
+    ) -> UpsertResult:
         """Postgres ``INSERT … ON CONFLICT DO UPDATE`` path — race-safe."""
         # Count "created" by checking which codes are NEW before the
         # write.  The count is informational (used in
@@ -226,10 +227,10 @@ class UnitRepository:
 
         # Build value dicts.  ``id`` is excluded (auto-assigned for new
         # rows; preserved for existing via the conflict-update returning
-        # the same row).  SQLModel exposes the SQLAlchemy Table via
-        # ``__table__``; mypy doesn't see it through the metaclass so
-        # access it via a typing escape hatch on the row type.
-        table = Unit.__table__  # type: ignore[attr-defined]
+        # the same row).  SQLModel exposes the mapped SQLAlchemy Table
+        # through the metaclass, invisible to static type checkers, so
+        # go through ``inspect()`` instead of ``Unit.__table__``.
+        table = inspect(Unit).local_table
         value_dicts = [
             {c.name: getattr(unit, c.name) for c in table.columns if c.name != "id"}
             for unit in units
@@ -255,7 +256,9 @@ class UnitRepository:
             created=created, updated=updated, total=len(units), data=merged
         )
 
-    async def _bulk_upsert_select_then_merge(self, units: List[Unit]) -> UpsertResult:
+    async def _bulk_upsert_select_then_merge(
+        self, units: builtins.list[Unit]
+    ) -> UpsertResult:
         """SQLite fallback — single-writer engine, no race to worry about."""
         rows = (await self.session.exec(select(Unit.institutional_code, Unit.id))).all()
         existing: dict[str | None, int] = {
@@ -278,7 +281,7 @@ class UnitRepository:
             created=created, updated=updated, total=len(units), data=merged
         )
 
-    async def update(self, data: UnitUpdate) -> Optional[Unit]:
+    async def update(self, data: UnitUpdate) -> Unit | None:
         """Update an existing unit."""
         statement = await self.session.exec(select(Unit).where(col(Unit.id) == data.id))
         db_obj = statement.one_or_none()
@@ -321,7 +324,7 @@ class UnitRepository:
 
             return await self.create(unit_data)
 
-    async def count(self, filters: Optional[dict] = None) -> int:
+    async def count(self, filters: dict | None = None) -> int:
         """Count units with optional filters."""
         query = select(func.count()).select_from(Unit)
 

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 310-a
 last_updated: 2026-05-06
 title: "310-a — Pod Safety + Atomic Claim"

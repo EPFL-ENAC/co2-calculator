@@ -1,16 +1,16 @@
-"""Factor update provider for research facilities animal (mice & fish) factors.
+"""Factor update provider for research facilities animal (rodent & fish) factors.
 
 Recomputes the kg_co2eq_sum_* fields on each factor by aggregating
 DataEntryEmission totals from the corresponding Unit's CarbonReport.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry_emission import EmissionType, get_all_nodes
 from app.models.factor import Factor
+from app.modules.emissions import EmissionType, get_subtree_leaves
 from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.repositories.unit_repo import UnitRepository
 from app.services.data_ingestion.factor_update_provider import BaseFactorUpdateProvider
@@ -19,36 +19,32 @@ logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Build a frozen mapping from source name → set of valid emission_type_id ints.
-# This covers every node in each sub-tree (root + intermediates + leaves) so
-# that emissions stored at any granularity level are correctly classified.
+# Leaves only: the stats by_emission_type map also carries subtree rollups,
+# and counting those would double the source totals.
 # ---------------------------------------------------------------------------
 _purchases_additional_ids: frozenset[int] = frozenset(
-    e.value for e in get_all_nodes(EmissionType.purchases__additional)
+    get_subtree_leaves(EmissionType.purchases__centralized)
 )
 _purchases_all_ids: frozenset[int] = frozenset(
-    e.value for e in get_all_nodes(EmissionType.purchases)
+    get_subtree_leaves(EmissionType.purchases)
 )
 
 # Mapping: factor value-field source name → frozenset of valid emission_type_ids
-SOURCE_EMISSION_MAP: Dict[str, frozenset[int]] = {
-    "processemissions": frozenset(
-        e.value for e in get_all_nodes(EmissionType.process_emissions)
-    ),
+SOURCE_EMISSION_MAP: dict[str, frozenset[int]] = {
+    "processemissions": frozenset(get_subtree_leaves(EmissionType.process_emissions)),
     "building_energycombustions": frozenset(
-        e.value for e in get_all_nodes(EmissionType.buildings__combustion)
+        get_subtree_leaves(EmissionType.buildings__combustion)
     ),
-    "building_rooms": frozenset(
-        e.value for e in get_all_nodes(EmissionType.buildings__rooms)
-    ),
+    "building_rooms": frozenset(get_subtree_leaves(EmissionType.buildings__rooms)),
     # purchases_additional is a sub-tree of purchases; common = all - additional
     "purchases_common": _purchases_all_ids - _purchases_additional_ids,
     "purchases_additional": _purchases_additional_ids,
-    "equipments": frozenset(e.value for e in get_all_nodes(EmissionType.equipment)),
+    "equipments": frozenset(get_subtree_leaves(EmissionType.equipment)),
 }
 
 
 class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
-    """Recomputes kg_co2eq_sum_* factor values for mice & fish animal facilities.
+    """Recomputes kg_co2eq_sum_* factor values for rodent & fish animal facilities.
 
     For each factor, uses ``classification.researchfacility_id`` to resolve
     the corresponding Unit, then aggregates DataEntryEmission totals across
@@ -63,7 +59,7 @@ class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
         factor: Factor,
         year: int,
         session: AsyncSession,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Compute updated kg_co2eq_sum_* values from actual emission data.
 
         Args:
@@ -82,7 +78,7 @@ class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
             ValueError: When the Unit or CarbonReport cannot be found — these
                         are surfaced as errors, not silent skips.
         """
-        researchfacility_id: Optional[str] = factor.classification.get(
+        researchfacility_id: str | None = factor.classification.get(
             "researchfacility_id"
         )
         if not researchfacility_id:
@@ -133,11 +129,17 @@ class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
         # breakdown: list of (emission_type_id, kg_co2eq_sum)
 
         # 4. Aggregate per source using the SOURCE_EMISSION_MAP
-        source_totals: Dict[str, float] = {src: 0.0 for src in SOURCE_EMISSION_MAP}
+        source_totals: dict[str, float] = {src: 0.0 for src in SOURCE_EMISSION_MAP}
         for emission_type_id, kg in breakdown:
             for source, valid_ids in SOURCE_EMISSION_MAP.items():
+                # Compute only sources that have 0 or missing factor.values
+                existing = factor.values.get(f"kg_co2eq_sum_{source}")
+                if existing is not None and existing != 0:
+                    source_totals[source] = float(existing)
+                    continue
                 if emission_type_id in valid_ids:
-                    source_totals[source] += kg
+                    source_share = factor.values.get(f"{source}_share", 0)
+                    source_totals[source] += kg * source_share
                     break  # each emission type belongs to exactly one source bucket
 
         # 5. Return only keys with actual data

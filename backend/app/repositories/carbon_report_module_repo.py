@@ -1,48 +1,43 @@
 """CarbonReportModule repository for database operations."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from math import ceil
-from typing import Any, List, Optional
+from typing import Any
 
 from sqlalchemy import Integer, case, cast
 from sqlmodel import col, delete, desc, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.constants import DEFAULT_COMPLETION_PROGRESS, ModuleStatus
+from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
-from app.models.module_type import ModuleTypeEnum
+from app.models.data_entry_emission import DataEntryEmission
+from app.models.module_type import DEFAULT_COMPLETION_PROGRESS, ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleCreate
-from app.utils.emission_category import build_chart_breakdown
-from app.utils.it_breakdown import (
-    IT_EMISSION_TYPES,
-    ITSqlTotals,
-    build_it_breakdown,
-    get_validated_source_module_type_ids,
-)
+from app.utils.report_stats import merge_report_stats
 
 logger = get_logger(__name__)
 
-# Top-level emission category roots exposed in the results report CSV/JSON, in
-
-RESULTS_REPORT_CATEGORY_ROOTS: list[EmissionType] = [
-    EmissionType.process_emissions,
-    EmissionType.buildings,
-    EmissionType.equipment,
-    EmissionType.external,
-    EmissionType.professional_travel,
-    EmissionType.purchases,
-    EmissionType.research_facilities,
-    EmissionType.commuting,
-    EmissionType.food,
-    EmissionType.waste,
-    EmissionType.buildings__construction_and_renovation,
-]
+# Results report CSV/JSON columns: column name -> stat bucket keys summed
+# into it. "buildings" keeps its historical meaning (rooms + combustion +
+# embodied) alongside the standalone embodied column.
+RESULTS_REPORT_COLUMNS: dict[str, tuple[str, ...]] = {
+    "process_emissions": ("process_emissions",),
+    "buildings": ("buildings_energy_combustion", "buildings_room", "embodied_energy"),
+    "equipment": ("equipment",),
+    "external": ("external_cloud_and_ai",),
+    "professional_travel": ("professional_travel",),
+    "purchases": ("purchases",),
+    "research_facilities": ("research_facilities",),
+    "commuting": ("commuting",),
+    "food": ("food",),
+    "waste": ("waste",),
+    "buildings__construction_and_renovation": ("embodied_energy",),
+}
 
 
 class CarbonReportModuleRepository:
@@ -71,7 +66,7 @@ class CarbonReportModuleRepository:
     async def bulk_create(
         self,
         carbon_report_modules_to_create: list[CarbonReportModuleCreate],
-    ) -> List[CarbonReportModule]:
+    ) -> list[CarbonReportModule]:
         """Create multiple carbon report module records in one transaction."""
         carbon_report_modules = [
             CarbonReportModule(**carbon_report_module.model_dump())
@@ -86,9 +81,9 @@ class CarbonReportModuleRepository:
     async def bulk_create_carbon_report_modules_of_carbon_report(
         self,
         carbon_report_id: int,
-        module_type_ids: List[int],
+        module_type_ids: list[int],
         status: int = ModuleStatus.NOT_STARTED,
-    ) -> List[CarbonReportModule]:
+    ) -> list[CarbonReportModule]:
         """Create multiple carbon report module records in one transaction."""
         db_objects = [
             CarbonReportModule(
@@ -111,7 +106,7 @@ class CarbonReportModuleRepository:
         module_type_id: ModuleTypeEnum,
         *,
         report_type: CarbonReportType = CarbonReportType.CALCULATOR,
-    ) -> Optional[CarbonReportModule]:
+    ) -> CarbonReportModule | None:
         statement = (
             select(CarbonReportModule)
             .join(
@@ -132,13 +127,13 @@ class CarbonReportModuleRepository:
         result = await self.session.exec(statement)
         return result.one_or_none()
 
-    async def get(self, id: int) -> Optional[CarbonReportModule]:
+    async def get(self, id: int) -> CarbonReportModule | None:
         """Get a carbon report module by ID."""
         statement = select(CarbonReportModule).where(CarbonReportModule.id == id)
         result = await self.session.exec(statement)
         return result.one_or_none()
 
-    async def get_module_type(self, carbon_report_module_id: int) -> Optional[int]:
+    async def get_module_type(self, carbon_report_module_id: int) -> int | None:
         """Get the module type ID for a given carbon report module ID."""
         statement = select(CarbonReportModule.module_type_id).where(
             CarbonReportModule.id == carbon_report_module_id
@@ -151,7 +146,7 @@ class CarbonReportModuleRepository:
 
     async def get_by_report_and_module_type(
         self, carbon_report_id: int, module_type_id: int
-    ) -> Optional[CarbonReportModule]:
+    ) -> CarbonReportModule | None:
         """Get a carbon report module by report ID and module type ID."""
         statement = select(CarbonReportModule).where(
             CarbonReportModule.carbon_report_id == carbon_report_id,
@@ -160,7 +155,7 @@ class CarbonReportModuleRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
-    async def list_by_report(self, carbon_report_id: int) -> List[CarbonReportModule]:
+    async def list_by_report(self, carbon_report_id: int) -> list[CarbonReportModule]:
         """List all modules for a given carbon report."""
         statement = (
             select(CarbonReportModule)
@@ -172,7 +167,7 @@ class CarbonReportModuleRepository:
 
     async def list_by_module_type_and_year(
         self, module_type_id: int, year: int
-    ) -> List[CarbonReportModule]:
+    ) -> list[CarbonReportModule]:
         """List all modules for a given (module_type_id, year) slice.
 
         ``module_type_id`` lives on ``CarbonReportModule``; ``year`` lives on
@@ -195,7 +190,7 @@ class CarbonReportModuleRepository:
 
     async def update_status(
         self, carbon_report_id: int, module_type_id: int, status: int
-    ) -> Optional[CarbonReportModule]:
+    ) -> CarbonReportModule | None:
         """Update the status of a carbon report module."""
         statement = select(CarbonReportModule).where(
             CarbonReportModule.carbon_report_id == carbon_report_id,
@@ -206,6 +201,55 @@ class CarbonReportModuleRepository:
         if not db_obj:
             return None
         db_obj.status = status
+        self.session.add(db_obj)
+        await self.session.flush()
+        await self.session.refresh(db_obj)
+        return db_obj
+
+    async def update_is_active(
+        self, carbon_report_id: int, module_type_id: int, is_active: bool
+    ) -> CarbonReportModule | None:
+        """Toggle the Active flag of a carbon report module."""
+        statement = select(CarbonReportModule).where(
+            col(CarbonReportModule.carbon_report_id) == carbon_report_id,
+            col(CarbonReportModule.module_type_id) == module_type_id,
+        )
+        result = await self.session.execute(statement)
+        db_obj = result.scalar_one_or_none()
+        if not db_obj:
+            return None
+        db_obj.is_active = is_active
+        self.session.add(db_obj)
+        await self.session.flush()
+        await self.session.refresh(db_obj)
+        return db_obj
+
+    async def update_submodule_budget(
+        self,
+        carbon_report_id: int,
+        module_type_id: int,
+        submodule: str,
+        budget: float | None,
+    ) -> CarbonReportModule | None:
+        """Set a grant submodule's share of the budget (#1978).
+
+        A null ``budget`` removes the submodule's entry. The dict is
+        reassigned (not mutated) so SQLAlchemy detects the JSON change.
+        """
+        statement = select(CarbonReportModule).where(
+            col(CarbonReportModule.carbon_report_id) == carbon_report_id,
+            col(CarbonReportModule.module_type_id) == module_type_id,
+        )
+        result = await self.session.execute(statement)
+        db_obj = result.scalar_one_or_none()
+        if not db_obj:
+            return None
+        budgets = dict(db_obj.budgets or {})
+        if budget is None:
+            budgets.pop(submodule, None)
+        else:
+            budgets[submodule] = budget
+        db_obj.budgets = budgets or None
         self.session.add(db_obj)
         await self.session.flush()
         await self.session.refresh(db_obj)
@@ -262,11 +306,11 @@ class CarbonReportModuleRepository:
 
     @staticmethod
     def _split_filter_values(
-        values: Optional[List[str]],
-    ) -> tuple[List[int], List[str]]:
+        values: list[str] | None,
+    ) -> tuple[list[int], list[str]]:
         """Split mixed query values into integer IDs and string names."""
-        ids: List[int] = []
-        names: List[str] = []
+        ids: list[int] = []
+        names: list[str] = []
         for raw in values or []:
             value = str(raw).strip()
             if not value:
@@ -278,8 +322,8 @@ class CarbonReportModuleRepository:
         return ids, names
 
     async def _get_selected_units(
-        self, values: Optional[List[str]]
-    ) -> List[tuple[int, Optional[str]]]:
+        self, values: list[str] | None
+    ) -> list[tuple[int, str | None]]:
         """Resolve selected units from mixed ID/name values to id/code tuples."""
         ids, names = self._split_filter_values(values)
         if not ids and not names:
@@ -322,7 +366,7 @@ class CarbonReportModuleRepository:
             if unit_id is not None
         }
 
-    async def _get_descendant_unit_ids(self, values: Optional[List[str]]) -> set[int]:
+    async def _get_descendant_unit_ids(self, values: list[str] | None) -> set[int]:
         """Resolve hierarchy nodes (name/id values) to descendant IDs, incl. self."""
         selected_units = await self._get_selected_units(values)
         if not selected_units:
@@ -336,7 +380,7 @@ class CarbonReportModuleRepository:
         # Ensure selected units are included even if path is null or non-standard.
         return selected_ids | await self._descendants_of_codes(selected_codes)
 
-    async def _get_scope_unit_ids(self, scope_cfs: Optional[set[str]]) -> set[int]:
+    async def _get_scope_unit_ids(self, scope_cfs: set[str] | None) -> set[int]:
         """Resolve backoffice scope cfs to their descendant subtree, incl. self.
 
         Scope tokens are unit cfs (institutional_id) at any level. Resolve each
@@ -353,18 +397,18 @@ class CarbonReportModuleRepository:
         anchor_codes = {code for _, code in rows if code}
         return anchor_ids | await self._descendants_of_codes(anchor_codes)
 
-    async def _get_direct_unit_ids(self, values: Optional[List[str]]) -> set[int]:
+    async def _get_direct_unit_ids(self, values: list[str] | None) -> set[int]:
         """Resolve direct unit filter values (ID/name) to unit IDs."""
         selected_units = await self._get_selected_units(values)
         return {unit_id for unit_id, _ in selected_units}
 
     async def _resolve_hierarchy_unit_ids(
         self,
-        path_affiliation: Optional[List[str]] = None,
-        path_lvl4: Optional[List[str]] = None,
+        path_affiliation: list[str] | None = None,
+        path_lvl4: list[str] | None = None,
         is_global: bool = True,
-        scope_cfs: Optional[set[str]] = None,
-    ) -> Optional[set[int]]:
+        scope_cfs: set[str] | None = None,
+    ) -> set[int] | None:
         """Effective unit ID filter: ``scope ∩ (affiliation ∪ lvl4)``.
 
         Endpoint filters keep OR semantics among themselves; the caller's
@@ -378,7 +422,7 @@ class CarbonReportModuleRepository:
         A scoped (non-global) caller NEVER returns None: it always resolves to
         its scope subtree, intersected with any filters. ``set()`` → zero rows.
         """
-        filter_set: Optional[set[int]] = None
+        filter_set: set[int] | None = None
         if path_affiliation is not None:
             filter_set = await self._get_descendant_unit_ids(path_affiliation)
         if path_lvl4 is not None:
@@ -395,8 +439,8 @@ class CarbonReportModuleRepository:
     @staticmethod
     def _apply_report_filters(
         stmt: Any,
-        hierarchy_unit_ids: Optional[set[int]],
-        overall_status: Optional["ModuleStatus"],
+        hierarchy_unit_ids: set[int] | None,
+        overall_status: ModuleStatus | None,
     ) -> Any:
         """Apply hierarchy and completion-status filters to a statement."""
         if hierarchy_unit_ids is not None:
@@ -406,8 +450,20 @@ class CarbonReportModuleRepository:
         return stmt
 
     @staticmethod
+    def _calculator_only(stmt: Any) -> Any:
+        """Restrict a CarbonReport-joined statement to Calculator projects.
+
+        Simulator Explore and Simulator Plan reports are ``carbon_reports`` rows
+        as well; backoffice reporting must never mix them into the assessment.
+        """
+        return stmt.join(
+            CarbonProject,
+            col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+        ).where(col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR)
+
+    @staticmethod
     def _get_completion_status_from_progress(
-        completion_progress: Optional[str],
+        completion_progress: str | None,
     ) -> ModuleStatus:
         """Map completion progress string (e.g. '5/7') to ModuleStatus."""
         if not completion_progress:
@@ -427,21 +483,20 @@ class CarbonReportModuleRepository:
 
     async def get_reporting_overview(
         self,
-        path_affiliation: Optional[List[str]] = None,
-        path_lvl4: Optional[List[str]] = None,
+        path_affiliation: list[str] | None = None,
+        path_lvl4: list[str] | None = None,
         is_global: bool = True,
-        scope_cfs: Optional[set[str]] = None,
-        overall_status: Optional[ModuleStatus] = None,
-        search: Optional[str] = None,
-        modules: Optional[List[str]] = None,
-        years: Optional[List[int]] = None,
+        scope_cfs: set[str] | None = None,
+        overall_status: ModuleStatus | None = None,
+        search: str | None = None,
+        modules: list[str] | None = None,
+        years: list[int] | None = None,
         page: int = 1,
         page_size: int = 50,
-        sort_by: Optional[str] = None,
-        sort_order: Optional[str] = None,
+        sort_by: str | None = None,
+        sort_order: str | None = None,
     ) -> dict:
-        """
-        Retrieves the aggregated reporting data using a Deferred Join strategy.
+        """Retrieves the aggregated reporting data using a Deferred Join strategy.
         First paginates the Units, then calculates footprints ONLY for those 50 units.
         """
         if years is None:
@@ -496,6 +551,7 @@ class CarbonReportModuleRepository:
                 .where(col(CarbonReport.year).in_(years))
                 .group_by(col(CarbonReport.unit_id))
             )
+            unit_rollup_stmt = self._calculator_only(unit_rollup_stmt)
             if hierarchy_unit_ids is not None:
                 unit_rollup_stmt = unit_rollup_stmt.where(
                     col(CarbonReport.unit_id).in_(hierarchy_unit_ids)
@@ -528,6 +584,7 @@ class CarbonReportModuleRepository:
                 .where(col(CarbonReport.year).in_(years))
                 .group_by(col(CarbonReport.overall_status))
             )
+            status_count_stmt = self._calculator_only(status_count_stmt)
             if hierarchy_unit_ids is not None:
                 status_count_stmt = status_count_stmt.where(
                     col(Unit.id).in_(hierarchy_unit_ids)
@@ -547,6 +604,7 @@ class CarbonReportModuleRepository:
             .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
             .where(col(CarbonReport.year).in_(years))
         )
+        base_count_stmt = self._calculator_only(base_count_stmt)
         if hierarchy_unit_ids is not None:
             base_count_stmt = base_count_stmt.where(
                 col(Unit.id).in_(hierarchy_unit_ids)
@@ -587,16 +645,18 @@ class CarbonReportModuleRepository:
 
             # Correlated subquery: stats from the most recent selected year.
             latest_stats_subq = (
-                select(CarbonReport.stats)
-                .where(CarbonReport.unit_id == Unit.id)
-                .where(col(CarbonReport.year).in_(years))
+                self._calculator_only(
+                    select(CarbonReport.stats)
+                    .where(CarbonReport.unit_id == Unit.id)
+                    .where(col(CarbonReport.year).in_(years))
+                )
                 .order_by(desc(CarbonReport.year))
                 .limit(1)
                 .correlate(Unit)
                 .scalar_subquery()
             )
 
-            units_stmt_columns: List[Any] = [
+            units_stmt_columns: list[Any] = [
                 col(Unit.id).label("unit_id"),
                 col(Unit.name).label("unit_name"),
                 col(Unit.path_name).label("path_name"),
@@ -609,7 +669,7 @@ class CarbonReportModuleRepository:
 
             units_stmt = (
                 select(*units_stmt_columns)
-                .join(CarbonReport, CarbonReport.unit_id == Unit.id)
+                .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
                 .outerjoin(
                     User,
                     User.institutional_id == Unit.principal_user_institutional_id,
@@ -617,6 +677,7 @@ class CarbonReportModuleRepository:
                 .where(col(CarbonReport.year).in_(years))
                 .group_by(Unit.id, Unit.name, Unit.path_name, User.display_name)
             )
+            units_stmt = self._calculator_only(units_stmt)
         else:
             # Single year: one row per unit, module-level completion progress.
             units_stmt_columns = [
@@ -632,22 +693,25 @@ class CarbonReportModuleRepository:
 
             units_stmt = (
                 select(*units_stmt_columns)
-                .join(CarbonReport, CarbonReport.unit_id == Unit.id)
+                .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
                 .outerjoin(
                     User,
-                    User.institutional_id == Unit.principal_user_institutional_id,
+                    col(User.institutional_id) == Unit.principal_user_institutional_id,
                 )
                 .where(col(CarbonReport.year).in_(years))
             )
+            units_stmt = self._calculator_only(units_stmt)
 
         units_stmt = self._apply_report_filters(
             units_stmt, hierarchy_unit_ids, overall_status
         )
 
         filtered_report_ids_stmt = self._apply_report_filters(
-            select(col(CarbonReport.id))
-            .join(Unit, col(CarbonReport.unit_id) == col(Unit.id))
-            .where(col(CarbonReport.year).in_(years)),
+            self._calculator_only(
+                select(col(CarbonReport.id))
+                .join(Unit, col(CarbonReport.unit_id) == col(Unit.id))
+                .where(col(CarbonReport.year).in_(years))
+            ),
             hierarchy_unit_ids,
             overall_status,
         )
@@ -657,18 +721,15 @@ class CarbonReportModuleRepository:
         filtered_report_ids_subq = filtered_report_ids_stmt.subquery()
         filtered_report_ids_in = select(filtered_report_ids_subq.c.id)
 
-        # if unit_ids:
-        #     units_stmt = units_stmt.where(col(Unit.id).in_(unit_ids))
-
         # Build order by clause
-        order_col: Any = Unit.name
+        order_col: Any = col(Unit.name)
         use_case_for_nulls = False
         null_value_for_sort = 0
 
         if sort_by == "unit_name":
-            order_col = Unit.name
+            order_col = col(Unit.name)
         elif sort_by == "affiliation":
-            order_col = Unit.path_name
+            order_col = col(Unit.path_name)
         elif sort_by == "validation_status":
             if is_multi_year:
                 order_col = func.sum(
@@ -689,9 +750,9 @@ class CarbonReportModuleRepository:
             use_case_for_nulls = True
             null_value_for_sort = 0
         elif sort_by == "principal_user":
-            order_col = User.display_name
+            order_col = col(User.display_name)
         elif sort_by == "last_update":
-            order_col = CarbonReport.last_updated
+            order_col = col(CarbonReport.last_updated)
             use_case_for_nulls = True
             null_value_for_sort = 0
         elif sort_by == "total_carbon_footprint":
@@ -710,7 +771,8 @@ class CarbonReportModuleRepository:
         # Apply sort order with NULL handling
         if use_case_for_nulls:
             order_col_for_sort = case(
-                (order_col.is_(None), null_value_for_sort), else_=order_col
+                (order_col.is_(None), null_value_for_sort),
+                else_=order_col,
             )
             if sort_order == "desc":
                 units_stmt = units_stmt.order_by(desc(order_col_for_sort))
@@ -728,106 +790,17 @@ class CarbonReportModuleRepository:
 
         paginated_units = (await self.session.exec(units_stmt)).all()
 
-        module_stats_stmt = select(
-            CarbonReportModule.module_type_id,
-            CarbonReportModule.status,
-            CarbonReportModule.stats,
-        ).where(col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids_in))
-        raw_module_stats_rows = (await self.session.exec(module_stats_stmt)).all()
-        module_stats_rows: list[tuple[int, int, Optional[dict[str, Any]]]] = [
-            (
-                int(module_type_id),
-                int(status),
-                stats if isinstance(stats, dict) else None,
-            )
-            for module_type_id, status, stats in raw_module_stats_rows
-        ]
-
-        global_fte_stmt = (
-            select(func.sum(func.coalesce(DataEntry.data["fte"].as_float(), 0.0)))
-            .join(
-                CarbonReportModule,
-                col(CarbonReportModule.id) == col(DataEntry.carbon_report_module_id),
-            )
-            .where(
-                col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids_in),
-                col(CarbonReportModule.module_type_id) == ModuleTypeEnum.headcount,
-            )
-        )
-        global_fte_result = (await self.session.exec(global_fte_stmt)).one()
-        global_fte = float(global_fte_result or 0.0)
-
-        chart_rows: list[tuple[int, int, float, float | None]] = []
-        validated_module_type_ids: set[int] = set()
-        headcount_validated = False
-
-        for module_type_id, status, stats in module_stats_rows:
-            if status == ModuleStatus.VALIDATED:
-                validated_module_type_ids.add(int(module_type_id))
-                if int(module_type_id) == int(ModuleTypeEnum.headcount):
-                    headcount_validated = True
-
-            if not isinstance(stats, dict):
-                continue
-
-            by_emission_type = stats.get("by_emission_type", {})
-            if not isinstance(by_emission_type, dict):
-                continue
-            by_additional_value = stats.get("by_additional_value", {})
-            if not isinstance(by_additional_value, dict):
-                by_additional_value = {}
-
-            for emission_type_id_raw, kg_value in by_emission_type.items():
-                try:
-                    emission_type_id = int(emission_type_id_raw)
-                except (TypeError, ValueError):
-                    continue
-
-                if not isinstance(kg_value, (int, float)):
-                    continue
-
-                add_raw = by_additional_value.get(emission_type_id_raw)
-                add_value = (
-                    float(add_raw) if isinstance(add_raw, (int, float)) else None
+        # Merge the persisted per-report stats across the filtered units —
+        # no re-aggregation from data entries.
+        report_stats_rows = (
+            await self.session.exec(
+                select(col(CarbonReport.stats)).where(
+                    col(CarbonReport.id).in_(filtered_report_ids_in)
                 )
-                chart_rows.append(
-                    (int(module_type_id), emission_type_id, float(kg_value), add_value)
-                )
-
-        emission_breakdown = build_chart_breakdown(
-            rows=chart_rows,
-            total_fte=global_fte,
-            headcount_validated=headcount_validated,
-            validated_module_type_ids=validated_module_type_ids,
-        )
-
-        # Build IT breakdown from the same aggregated rows (no extra SQL needed)
-        rows_no_add = [(mt, et, kg) for mt, et, kg, _add in chart_rows]
-        it_type_ids = {et.value for et in IT_EMISSION_TYPES}
-        validated_source_ids = set(
-            get_validated_source_module_type_ids(validated_module_type_ids)
-        )
-        it_total_kg = sum(kg for _mt, et, kg in rows_no_add if et in it_type_ids)
-        overall_total_kg = sum(kg for _mt, _et, kg in rows_no_add)
-        validated_source_total_kg = sum(
-            kg for mt, _et, kg in rows_no_add if mt in validated_source_ids
-        )
-        validated_it_kg = sum(
-            kg
-            for mt, et, kg in rows_no_add
-            if mt in validated_source_ids and et in it_type_ids
-        )
-        it_sql_totals: ITSqlTotals = {
-            "it_total_kg": float(it_total_kg),
-            "overall_total_kg": float(overall_total_kg),
-            "validated_source_total_kg": float(validated_source_total_kg),
-            "validated_it_kg": float(validated_it_kg),
-        }
-        it_breakdown = build_it_breakdown(
-            rows=rows_no_add,
-            total_fte=global_fte,
-            validated_module_type_ids=validated_module_type_ids,
-            sql_totals=it_sql_totals,
+            )
+        ).all()
+        aggregated_stats = merge_report_stats(
+            [stats for stats in report_stats_rows if isinstance(stats, dict)]
         )
 
         # --- STEP 3: Use cached stats from CarbonReport ---
@@ -843,7 +816,7 @@ class CarbonReportModuleRepository:
 
             last_update_dt = None
             if u.last_updated is not None:
-                last_update_dt = datetime.fromtimestamp(u.last_updated, tz=timezone.utc)
+                last_update_dt = datetime.fromtimestamp(u.last_updated, tz=UTC)
 
             if is_multi_year:
                 validated_count = getattr(u, "validated_years_count", 0) or 0
@@ -898,8 +871,7 @@ class CarbonReportModuleRepository:
             "page": page,
             "page_size": page_size,
             "total_pages": ceil(total / page_size) if page_size > 0 else 1,
-            "emission_breakdown": emission_breakdown,
-            "it_breakdown": it_breakdown,
+            "stats": aggregated_stats,
             "validated_units_count": validated_units_count,
             "in_progress_units_count": in_progress_units_count,
             "not_started_units_count": not_started_units_count,
@@ -909,17 +881,16 @@ class CarbonReportModuleRepository:
 
     async def get_usage_report(
         self,
-        path_affiliation: Optional[List[str]] = None,
-        path_lvl4: Optional[List[str]] = None,
+        path_affiliation: list[str] | None = None,
+        path_lvl4: list[str] | None = None,
         is_global: bool = True,
-        scope_cfs: Optional[set[str]] = None,
-        overall_status: Optional[ModuleStatus] = None,
-        search: Optional[str] = None,
-        modules: Optional[List[str]] = None,
-        years: Optional[List[int]] = None,
+        scope_cfs: set[str] | None = None,
+        overall_status: ModuleStatus | None = None,
+        search: str | None = None,
+        modules: list[str] | None = None,
+        years: list[int] | None = None,
     ) -> list[dict]:
-        """
-        Get a report of all carbon reports and their modules with status and
+        """Get a report of all carbon reports and their modules with status and
         last updated timestamp.
 
         Args:
@@ -930,6 +901,7 @@ class CarbonReportModuleRepository:
             modules: Optional filter for specific module types (ModuleTypeEnum names)
               and statuses (e.g., ["headcount:2", "professional_travel:1"])
             years: Optional filter for specific years (e.g., [2024, 2025])
+
         Returns:
             A list of dictionaries containing year, unit information, module type,
             module status, and last updated timestamp for each module matching
@@ -947,7 +919,7 @@ class CarbonReportModuleRepository:
 
         report: list[dict] = []
 
-        columns: List[Any] = [
+        columns: list[Any] = [
             col(CarbonReport.year),
             col(Unit.institutional_id).label("unit_institutional_id"),
             col(Unit.path_name).label("unit_path_name"),
@@ -964,6 +936,7 @@ class CarbonReportModuleRepository:
             .join(Unit, Unit.id == CarbonReport.unit_id)
             .order_by(CarbonReport.id, CarbonReportModule.module_type_id)
         )
+        statement = self._calculator_only(statement)
         if years:
             statement = statement.where(col(CarbonReport.year).in_(years))
         if overall_status is not None:
@@ -979,7 +952,7 @@ class CarbonReportModuleRepository:
                 )
             )
         if modules:
-            module_conditions: List[Any] = []
+            module_conditions: list[Any] = []
             for mod in modules:
                 if ":" in mod:
                     module_type_name, status_str = mod.split(":", 1)
@@ -1019,7 +992,7 @@ class CarbonReportModuleRepository:
                 last_updated_iso = None
                 if row.last_updated is not None:
                     last_updated_iso = datetime.fromtimestamp(
-                        row.last_updated, tz=timezone.utc
+                        row.last_updated, tz=UTC
                     ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
                 module_status_str = ModuleStatus(row.status).name
@@ -1040,17 +1013,16 @@ class CarbonReportModuleRepository:
     async def get_detailed_report(
         self,
         data_entry_type: DataEntryTypeEnum,
-        path_affiliation: Optional[List[str]] = None,
-        path_lvl4: Optional[List[str]] = None,
+        path_affiliation: list[str] | None = None,
+        path_lvl4: list[str] | None = None,
         is_global: bool = True,
-        scope_cfs: Optional[set[str]] = None,
-        overall_status: Optional[ModuleStatus] = None,
-        search: Optional[str] = None,
-        modules: Optional[List[str]] = None,
-        years: Optional[List[int]] = None,
+        scope_cfs: set[str] | None = None,
+        overall_status: ModuleStatus | None = None,
+        search: str | None = None,
+        modules: list[str] | None = None,
+        years: list[int] | None = None,
     ) -> list[dict]:
-        """
-        Get a detailed report of carbon report data entries for a given data entry
+        """Get a detailed report of carbon report data entries for a given data entry
         type, including associated units, years, raw data payloads, and emissions.
 
         Args:
@@ -1062,6 +1034,7 @@ class CarbonReportModuleRepository:
             modules: Optional filter for specific module types (ModuleTypeEnum names)
               and statuses (e.g., ["headcount:2", "professional_travel:1"])
             years: Optional filter for specific years (e.g., [2024, 2025])
+
         Returns:
             A list of dictionaries where each item represents a data entry and
             contains:
@@ -1074,6 +1047,10 @@ class CarbonReportModuleRepository:
               associated with the data entry.
             - All fields from the underlying data-entry payload, flattened into
               the top-level dictionary.
+
+        Only per-entry facts are returned: the unit-year CO2 rollups this used
+        to stamp on every row (``validated_categories_co2`` and friends) were
+        internal state that leaked into the backoffice CSV export (#589).
         """
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
             path_affiliation=path_affiliation,
@@ -1085,55 +1062,9 @@ class CarbonReportModuleRepository:
         if hierarchy_unit_ids is not None and not hierarchy_unit_ids:
             return []
 
-        # Pre-aggregate CO2 by (unit_id, year, module_status) across all modules
-        # so each data-entry row can carry per-status totals for its unit-year.
-        status_co2_cols: List[Any] = [
-            col(CarbonReport.unit_id).label("s_unit_id"),
-            col(CarbonReport.year).label("s_year"),
-            col(CarbonReportModule.status).label("module_status"),
-            func.coalesce(func.sum(col(DataEntryEmission.kg_co2eq)), 0).label(
-                "total_co2"
-            ),
-        ]
-        status_stmt = (
-            select(*status_co2_cols)
-            .select_from(DataEntry)
-            .join(
-                CarbonReportModule,
-                CarbonReportModule.id == DataEntry.carbon_report_module_id,
-            )
-            .join(
-                CarbonReport,
-                CarbonReport.id == CarbonReportModule.carbon_report_id,
-            )
-            .outerjoin(
-                DataEntryEmission,
-                DataEntryEmission.data_entry_id == DataEntry.id,
-            )
-            .group_by(
-                col(CarbonReport.unit_id),
-                col(CarbonReport.year),
-                col(CarbonReportModule.status),
-            )
-        )
-        if years:
-            status_stmt = status_stmt.where(col(CarbonReport.year).in_(years))
-        if hierarchy_unit_ids is not None:
-            status_stmt = status_stmt.where(
-                col(CarbonReport.unit_id).in_(hierarchy_unit_ids)
-            )
-
-        status_rows = (await self.session.exec(status_stmt)).all()
-        status_co2_lookup: dict[tuple, dict[int, float]] = {}
-        for sr in status_rows:
-            key = (sr.s_unit_id, sr.s_year)
-            if key not in status_co2_lookup:
-                status_co2_lookup[key] = {}
-            status_co2_lookup[key][sr.module_status] = float(sr.total_co2)
-
         report: list[dict] = []
 
-        columns: List[Any] = [
+        columns: list[Any] = [
             col(DataEntry.data_entry_type_id),
             col(CarbonReport.year),
             col(Unit.id).label("unit_id"),
@@ -1179,6 +1110,7 @@ class CarbonReportModuleRepository:
                 col(User.display_name),
             )
         )
+        statement = self._calculator_only(statement)
 
         # Additional filters based on provided parameters
         if years:
@@ -1196,7 +1128,7 @@ class CarbonReportModuleRepository:
                 )
             )
         if modules:
-            module_conditions: List[Any] = []
+            module_conditions: list[Any] = []
             for mod in modules:
                 if ":" in mod:
                     module_type_name, status_str = mod.split(":", 1)
@@ -1233,17 +1165,13 @@ class CarbonReportModuleRepository:
         cursor = await self.session.stream(statement)
         async for partition in cursor.partitions(500):
             for row in partition:
-                # Remove primary_factor_id from data
-                data = row.data.copy() if row.data else {}
-                data.pop("primary_factor_id", None)
+                data = row.data or {}
 
                 last_update_iso = None
                 if row.module_last_updated is not None:
                     last_update_iso = datetime.fromtimestamp(
-                        row.module_last_updated, tz=timezone.utc
+                        row.module_last_updated, tz=UTC
                     ).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-                status_breakdown = status_co2_lookup.get((row.unit_id, row.year), {})
 
                 report.append(
                     {
@@ -1258,15 +1186,6 @@ class CarbonReportModuleRepository:
                         "last_update": last_update_iso,
                         "data_entry_id": row.data_entry_id,
                         **data,
-                        "validated_categories_co2": round(
-                            status_breakdown.get(ModuleStatus.VALIDATED, 0), 1
-                        ),
-                        "in_progress_categories_co2": round(
-                            status_breakdown.get(ModuleStatus.IN_PROGRESS, 0), 1
-                        ),
-                        "not_started_categories_co2": round(
-                            status_breakdown.get(ModuleStatus.NOT_STARTED, 0), 1
-                        ),
                         "kg_co2eq": row.kg_co2eq,
                     }
                 )
@@ -1275,16 +1194,15 @@ class CarbonReportModuleRepository:
 
     async def get_results_report(
         self,
-        path_affiliation: Optional[List[str]] = None,
-        path_lvl4: Optional[List[str]] = None,
+        path_affiliation: list[str] | None = None,
+        path_lvl4: list[str] | None = None,
         is_global: bool = True,
-        scope_cfs: Optional[set[str]] = None,
-        overall_status: Optional[ModuleStatus] = None,
-        search: Optional[str] = None,
-        years: Optional[List[int]] = None,
+        scope_cfs: set[str] | None = None,
+        overall_status: ModuleStatus | None = None,
+        search: str | None = None,
+        years: list[int] | None = None,
     ) -> list[dict]:
-        """
-        Get a report of carbon report results aggregated at the unit-year level,
+        """Get a report of carbon report results aggregated at the unit-year level,
         including scope totals and breakdowns by emission type.
 
         Args:
@@ -1293,6 +1211,7 @@ class CarbonReportModuleRepository:
             overall_status: Optional filter for report-level completion status.
             search: Optional search term to filter results.
             years: Optional filter for specific years (e.g., [2024, 2025])
+
         Returns:
             A list of dictionaries containing year, unit info, scope1/2/3 totals,
             and breakdown by emission type.
@@ -1309,7 +1228,7 @@ class CarbonReportModuleRepository:
 
         report: list[dict] = []
 
-        columns: List[Any] = [
+        columns: list[Any] = [
             col(CarbonReport.year),
             col(Unit.institutional_id).label("unit_institutional_id"),
             col(Unit.path_name).label("unit_path_name"),
@@ -1320,6 +1239,7 @@ class CarbonReportModuleRepository:
             .join(Unit, Unit.id == CarbonReport.unit_id)
             .order_by(CarbonReport.id)
         )
+        statement = self._calculator_only(statement)
         if years:
             statement = statement.where(col(CarbonReport.year).in_(years))
         if overall_status is not None:
@@ -1341,11 +1261,13 @@ class CarbonReportModuleRepository:
         async for partition in cursor.partitions(500):
             for row in partition:
                 stats = row.stats if isinstance(row.stats, dict) else {}
-                by_emission_type = stats.get("by_emission_type") or {}
-                # Keep only the top-level category scope totals
+                buckets = stats.get("buckets") or {}
                 category_totals = {
-                    root.name: by_emission_type.get(str(root.value), 0)
-                    for root in RESULTS_REPORT_CATEGORY_ROOTS
+                    column: sum(
+                        (buckets.get(key) or {}).get("total_kg", 0) or 0
+                        for key in bucket_keys
+                    )
+                    for column, bucket_keys in RESULTS_REPORT_COLUMNS.items()
                 }
                 report.append(
                     {
@@ -1362,7 +1284,7 @@ class CarbonReportModuleRepository:
 
         return report
 
-    def _map_module_id_to_name(self, module_type_id: Optional[int]) -> str:
+    def _map_module_id_to_name(self, module_type_id: int | None) -> str:
         """Helper to map internal IDs to the display names used in UI."""
         if not module_type_id:
             return "—"

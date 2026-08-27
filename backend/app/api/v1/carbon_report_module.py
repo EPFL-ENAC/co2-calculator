@@ -1,6 +1,10 @@
-"""Unit Results API endpoints."""
+"""Module / data-entry API endpoints, identity-addressed by carbon report.
 
-from typing import List, Optional, Union
+All operations address a report directly: ``/{carbon_report_id}/modules/
+{module_id}/...`` (mounted under ``/carbon-reports``). The unit/year natural
+key survives as one lookup — ``GET /carbon-reports/unit/{unit_id}/year/{year}/``
+— after which every call carries the report id ("lookup once, then identity").
+"""
 
 from fastapi import (
     APIRouter,
@@ -18,23 +22,26 @@ from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import (
+    check_module_permission_for_report,
     check_module_permission_for_unit,
     get_module_permission_decision,
+    has_global_or_principal_access_for_unit,
+    require_plan_scope_for_report,
 )
-from app.core.role_priority import pick_role_for_institutional_id
-from app.models.carbon_report import CarbonReportType
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
     MODULE_TYPE_TO_DATA_ENTRY_TYPES,
     ModuleTypeEnum,
 )
 from app.models.unit import Unit
-from app.models.user import GlobalScope, RoleName, User
-from app.modules.headcount.schemas import (
+from app.models.user import GlobalScope, User
+from app.modules.emissions.registry import is_additional_breakdown_emission
+from app.modules.emissions.taxonomy import EmissionType
+from app.modules.headcount import (
     HeadcountItemResponse,
     HeadcountMemberDropdownItem,
 )
-from app.schemas.carbon_report import CarbonReportModuleRead
+from app.schemas.carbon_report import CarbonReportModuleRead, CarbonReportRead
 from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
@@ -45,10 +52,12 @@ from app.schemas.data_entry import (
     DataEntryResponse,
 )
 from app.schemas.user import UserRead
+from app.schemas.write_scope import WriteScope
 from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import DataEntryEmissionService
-from app.services.data_entry_service import DataEntryService
-from app.utils.emission_category import is_additional_breakdown_emission
+from app.services.data_entry_service import SIMULATOR_REPORT_TYPES, DataEntryService
+from app.utils.factor_year import resolve_factor_year
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 from app.workflows.embodied_energy import EmbodiedEnergyWorkflow
@@ -60,64 +69,95 @@ router = APIRouter()
 # on batch/create/update/delete
 
 
-_CARBON_PROJECT_TYPE_MAP: dict[int, CarbonReportType] = {
-    0: CarbonReportType.CALCULATOR,
-    1: CarbonReportType.SIMULATOR_EXPLORE,
-    2: CarbonReportType.SIMULATOR_PLAN,
-}
-
-
-def _resolve_carbon_report_type(carbon_project_type: int) -> CarbonReportType:
-    """Map the ?carbon_project_type query param integer to a CarbonReportType."""
-    report_type = _CARBON_PROJECT_TYPE_MAP.get(carbon_project_type)
-    if report_type is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid carbon_project_type: {carbon_project_type}",
-        )
-    return report_type
-
-
-async def get_carbon_report(
-    unit_id: int,
-    year: int,
-    module_type_id: ModuleTypeEnum,
-    db: AsyncSession,
-    *,
-    report_type: CarbonReportType = CarbonReportType.CALCULATOR,
-) -> CarbonReportModuleRead:
-    """Get carbon report module from unit and year.
-
-    Args:
-        unit_id: Unit ID to look up.
-        year: Report year.
-        module_type_id: Module type to retrieve.
-        db: Database session.
-        report_type: The CarbonReportType to resolve against. Derived from
-            the ``?carbon_project_type`` query parameter via
-            ``_resolve_carbon_report_type``.
-
-    Returns:
-        The matching CarbonReportModuleRead.
-
-    Raises:
-        HTTPException: 404 if no matching module exists.
-    """
-    CarbonReportModuleService_instance = CarbonReportModuleService(db)
-    carbon_report_module = (
-        await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
-            unit_id=unit_id,
-            year=year,
-            module_type_id=ModuleTypeEnum(module_type_id),
-            report_type=report_type,
-        )
-    )
-    if carbon_report_module is None or carbon_report_module.id is None:
+def _module_type_from_slug(module_id: str) -> ModuleTypeEnum:
+    """Map a URL module slug (e.g. 'professional-travel') to its enum."""
+    module_key = module_id.replace("-", "_")
+    try:
+        return ModuleTypeEnum[module_key]
+    except KeyError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
+            detail=f"Unknown module: {module_id}",
+        ) from exc
+
+
+async def resolve_report_module(
+    carbon_report_id: int,
+    module_id: str,
+    db: AsyncSession,
+    current_user: User,
+    action: str = "view",
+) -> tuple[CarbonReportRead, CarbonReportModuleRead]:
+    """Resolve identity addressing: the report and its module for a type.
+
+    Thin projection of :func:`resolve_write_scope` so both share one
+    resolution path — see there for the plan-scoping semantics.
+    """
+    scope = await resolve_write_scope(
+        carbon_report_id, module_id, db, current_user, action
+    )
+    return scope.report, scope.module
+
+
+async def resolve_write_scope(
+    carbon_report_id: int,
+    module_id: str,
+    db: AsyncSession,
+    current_user: User,
+    action: str = "edit",
+) -> WriteScope:
+    """Resolve the report, its module, and whether it is a Simulator report.
+
+    When the report belongs to a Simulator Plan project, plan scoping is
+    enforced on top of the module permission checks the routes perform:
+    unshared plans are invisible to non-creators, shared plans are editable by
+    every unit member.
+
+    The Simulator flag is kept rather than recomputed: plan scoping has to load
+    the project anyway, and that one fact is what ``is_simulator_module``
+    otherwise needed its own three-table JOIN to answer (#2050 J4).
+
+    Args:
+        carbon_report_id: The addressed carbon report (any project type —
+            Calculator, Explore or Plan; the report pins unit and year).
+        module_id: URL module slug (e.g. 'headcount', 'professional-travel').
+        db: Database session.
+        current_user: The authenticated user (for plan scoping).
+        action: ``"view"`` or ``"edit"`` — the intent of the calling route.
+
+    Returns:
+        The resolved :class:`WriteScope`.
+
+    Raises:
+        HTTPException: 404 when the report or module does not exist, 403 when
+            plan scoping rejects the action.
+    """
+    report = await CarbonReportService(db).get(carbon_report_id)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Carbon report not found",
         )
-    return carbon_report_module
+    project = await require_plan_scope_for_report(db, current_user, report, action)
+    module_type = _module_type_from_slug(module_id)
+    module = await CarbonReportModuleService(db).get_module(
+        carbon_report_id, int(module_type)
+    )
+    if module is None or module.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"Carbon report module not found for "
+                f"carbon_report_id={carbon_report_id}, module={module_id}"
+            ),
+        )
+    return WriteScope(
+        report=report,
+        module=module,
+        is_simulator=(
+            project is not None and project.carbon_report_type in SIMULATOR_REPORT_TYPES
+        ),
+    )
 
 
 async def _get_professional_travel_institutional_id_filter(
@@ -126,7 +166,7 @@ async def _get_professional_travel_institutional_id_filter(
     unit_id: int,
     current_user: User,
     data_entry_type_id: DataEntryTypeEnum,
-) -> Optional[str]:
+) -> str | None:
     """Return the institutional scope for professional-travel data access."""
     is_travel_type = data_entry_type_id in (
         DataEntryTypeEnum.plane,
@@ -155,23 +195,35 @@ async def _get_professional_travel_institutional_id_filter(
     return current_user.institutional_id
 
 
+def _hide_planner_snapshots_for_viewer(
+    report: CarbonReportRead,
+    module_type: ModuleTypeEnum,
+    current_user: User,
+    unit: Unit | None,
+) -> bool:
+    """Whether the reference-year prefill is hidden from this viewer (#1983).
+
+    Grant Proposal reports only: standard users get the input forms but not
+    the unit's reference-year snapshot rows. Professional travel is the
+    exception — its own-rows filter already narrows the snapshot to the
+    caller's own trips, which they are meant to see.
+    """
+    return (
+        bool(report.is_grant)
+        and module_type != ModuleTypeEnum.professional_travel
+        and not _has_global_or_principal_access_for_unit(
+            current_user=current_user,
+            unit=unit,
+        )
+    )
+
+
 def _has_global_or_principal_access_for_unit(
     current_user: User,
-    unit: Optional[Unit],
+    unit: Unit | None,
 ) -> bool:
-    """Return whether the user has global or principal access for the unit.
-
-    ``RoleScope.institutional_id`` always stores ``Unit.institutional_id``.
-    """
-    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
-        return True
-    if unit is None:
-        return False
-    return (
-        unit.institutional_id is not None
-        and pick_role_for_institutional_id(current_user.roles, unit.institutional_id)
-        == RoleName.CO2_USER_PRINCIPAL
-    )
+    """Return whether the user has global or principal access for the unit."""
+    return has_global_or_principal_access_for_unit(current_user, unit)
 
 
 async def get_request_context(request: Request) -> dict:
@@ -184,61 +236,63 @@ async def get_request_context(request: Request) -> dict:
     }
 
 
-async def get_carbon_report_id(
+async def get_module_id_for_unit_year(
     unit_id: int,
     year: int,
     module_type_id: ModuleTypeEnum,
     db: AsyncSession,
-    *,
-    report_type: CarbonReportType = CarbonReportType.CALCULATOR,
 ) -> int:
-    """Get carbon report module ID from unit and year.
+    """Natural-key lookup of a Calculator module id for a unit/year.
 
-    Args:
-        unit_id: Unit ID to look up.
-        year: Report year.
-        module_type_id: Module type to retrieve.
-        db: Database session.
-        report_type: The CarbonReportType to resolve against. Derived from
-            the ``?carbon_project_type`` query parameter via
-            ``_resolve_carbon_report_type``.
+    Only used where identity addressing cannot apply: aggregating OTHER
+    units into a combined view (the caller's own module comes from the
+    addressed report). This is a Calculator-only Results feature, so the
+    other units resolve their Calculator module.
 
-    Returns:
-        The carbon report module ID.
+    Raises HTTPException(404) when the unit has no such module — the service
+    signals this with ``ValueError``, which the combined-units loop expects
+    as an HTTPException so the unit drops out of the aggregate.
     """
-    carbon_report_module = await get_carbon_report(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=module_type_id,
-        db=db,
-        report_type=report_type,
-    )
+    try:
+        carbon_report_module = await CarbonReportModuleService(
+            db
+        ).get_carbon_report_by_year_and_unit(
+            unit_id=unit_id,
+            year=year,
+            module_type_id=ModuleTypeEnum(module_type_id),
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
+        ) from exc
+    if carbon_report_module.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
+        )
     return carbon_report_module.id
 
 
-@router.get("/{unit_id}/{year}/{module_id}", response_model=ModuleResponse)
+@router.get("/{carbon_report_id}/modules/{module_id}", response_model=ModuleResponse)
 async def get_module(
-    unit_id: int,
-    year: int,
+    carbon_report_id: int,
     module_id: str,  # Module identifier
     preview_limit: int = Query(
         default=20, ge=0, le=100, description="Items per submodule"
     ),
-    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Get module data with equipment and emissions.
+    """Get module data with equipment and emissions.
 
     Returns equipment items grouped by submodule with pre-calculated
     emissions from the database. Preview mode returns limited items
     per submodule.
 
     Args:
+        carbon_report_id: The addressed carbon report (pins unit and year)
         module_id: Module identifier
-        unit_id: Unit ID to filter equipment
-        year: Year for the data
         preview_limit: Max items per submodule (default 20, max 100)
         db: Database session
         current_user: Authenticated user
@@ -247,68 +301,58 @@ async def get_module(
         ModuleResponse with submodules, items, and calculated totals
     """
     logger.info(
-        f"GET module: module_id={sanitize(module_id)}, unit_id={sanitize(unit_id)}, "
-        f"year={sanitize(year)}, preview_limit={sanitize(preview_limit)}"
+        f"GET module: module_id={sanitize(module_id)}, "
+        f"carbon_report_id={sanitize(carbon_report_id)}, "
+        f"preview_limit={sanitize(preview_limit)}"
     )
     module_key = module_id.replace("-", "_")
-    report_type = _resolve_carbon_report_type(carbon_project_type)
-    unit = await check_module_permission_for_unit(
+    report, module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
+    unit = await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=unit_id,
+        report=report,
     )
-    carbon_report_module_id = await get_carbon_report_id(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=ModuleTypeEnum[module_key],
-        db=db,
-        report_type=report_type,
-    )
-
-    if carbon_report_module_id is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Carbon report module ID could not be determined",
-        )
-    travel_institutional_id_filter: Optional[str] = None
+    carbon_report_module_id = module.id
+    travel_institutional_id_filter: str | None = None
     if ModuleTypeEnum[module_key] == ModuleTypeEnum.professional_travel:
         if not _has_global_or_principal_access_for_unit(
             current_user=current_user,
             unit=unit,
         ):
             travel_institutional_id_filter = current_user.institutional_id
+    hide_for_viewer = _hide_planner_snapshots_for_viewer(
+        report, ModuleTypeEnum[module_key], current_user, unit
+    )
 
     module_data = await DataEntryService(db).get_module_data(
         carbon_report_module_id=carbon_report_module_id,
         travel_institutional_id_filter=travel_institutional_id_filter,
+        exclude_planner_snapshots=hide_for_viewer,
     )
 
     # if headcount compute FTE here
     total_annual_fte = None
     total_kg_co2eq = None
     if module_id == "headcount":
-        total_annual_fte = await DataEntryService(db).get_total_per_field(
-            field_name="fte",
+        # #2050 Track J: one round trip, not three. These asked the same
+        # table for the same field over the same module; on dev a round
+        # trip costs ~160ms, so the count was the cost (Track G2).
+        fte = await DataEntryService(db).get_headcount_fte_breakdown(
             carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=None,
         )
-        member_stats: dict = await DataEntryService(db).get_stats(
-            carbon_report_module_id=carbon_report_module_id,
-            aggregate_by="sius_code",
-            aggregate_field="fte",
-            data_entry_type_id=DataEntryTypeEnum.member.value,
-        )
-        student_total: float | None = await DataEntryService(db).get_total_per_field(
-            field_name="fte",
-            carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=DataEntryTypeEnum.student.value,
-        )
-        module_data.stats = {**member_stats, "student": student_total}
+        total_annual_fte = fte.total_fte
+        module_data.stats = {
+            **fte.member_fte_by_sius_code,
+            "student": fte.student_fte,
+        }
     else:
         module_data.stats = await DataEntryEmissionService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,
+            exclude_planner_snapshots=hide_for_viewer,
         )
 
         total_kg_co2eq = (
@@ -337,41 +381,31 @@ async def get_module(
 
 
 @router.get(
-    "/{unit_id}/{year}/{module_id}/stats-by-class",
+    "/{carbon_report_id}/modules/{module_id}/stats-by-class",
 )
 async def get_stats_by_class(
-    unit_id: int,
-    year: int,
+    carbon_report_id: int,
     module_id: str,
-    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> List:
-    """
-    Get travel emissions aggregated by travel category and cabin_class.
+) -> list:
+    """Get travel emissions aggregated by travel category and cabin_class.
 
     Returns treemap-format data for charts.
     """
-    report_type = _resolve_carbon_report_type(carbon_project_type)
-    await check_module_permission_for_unit(
+    report, module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=unit_id,
-    )
-
-    module_key = module_id.replace("-", "_")
-    carbon_report_module_id = await get_carbon_report_id(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=ModuleTypeEnum[module_key],
-        db=db,
-        report_type=report_type,
+        report=report,
     )
 
     stats = await DataEntryEmissionService(db).get_travel_stats_by_class(
-        carbon_report_module_id=carbon_report_module_id,
+        carbon_report_module_id=module.id,
     )
     return stats
 
@@ -391,40 +425,66 @@ _MODULE_TOP_CLASS_LABEL_FIELD: dict[ModuleTypeEnum, str] = {
 }
 
 # Per data-entry-type overrides of the group field. Animal facility bars
-# segment by facility type (mice / fish) rather than by facility name.
+# segment by facility type (rodent / fish) rather than by facility name.
+# Centralized purchases carry no institutional code — their factor key is
+# the free-text product name.
 _MODULE_TOP_CLASS_GROUP_FIELD_OVERRIDES: dict[
     ModuleTypeEnum, dict[DataEntryTypeEnum, str]
 ] = {
     ModuleTypeEnum.research_facilities: {
-        DataEntryTypeEnum.mice_and_fish_animal_facilities: "researchfacility_type",
+        DataEntryTypeEnum.animal_facilities: "researchfacility_type",
+    },
+    ModuleTypeEnum.purchase: {
+        DataEntryTypeEnum.purchases_centralized: "name",
+    },
+}
+
+# Splits one data entry type into several bars by emission type. Research
+# facilities share a single data entry type; IT vs non-IT only exists at the
+# emission-type level, so a DET-level grouping alone yields a single bar.
+_MODULE_TOP_CLASS_EMISSION_SPLITS: dict[
+    ModuleTypeEnum, dict[DataEntryTypeEnum, tuple[tuple[str, EmissionType], ...]]
+] = {
+    ModuleTypeEnum.research_facilities: {
+        DataEntryTypeEnum.research_facilities: (
+            ("facilities", EmissionType.research_facilities__facilities),
+            ("it_facilities", EmissionType.research_facilities__it_facilities),
+        ),
     },
 }
 
 
 @router.get(
-    "/{unit_id}/{year}/{module_id}/top-class-breakdown",
+    "/{carbon_report_id}/modules/{module_id}/top-class-breakdown",
 )
 async def get_top_class_breakdown(
-    unit_id: int,
-    year: int,
+    carbon_report_id: int,
     module_id: str,
-    carbon_project_type: int = Query(default=0, ge=0, le=2),
+    combine_unit_ids: list[int] = Query(default_factory=list),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> List:
+) -> list:
     """Get emissions aggregated by subcategory with top 3 items per subcategory.
 
     Returns a list per subcategory, each containing the top 3 items (by
     emission) and a "rest" bucket. Works for any module configured in
     ``_MODULE_TOP_CLASS_GROUP_FIELD``.
+
+    ``combine_unit_ids`` re-ranks the classes over the union of those units'
+    entries plus the addressed report's, for the Results page's
+    combined-units view (Calculator only — other units resolve by the
+    natural key (unit, report year)).
     """
-    report_type = _resolve_carbon_report_type(carbon_project_type)
-    await check_module_permission_for_unit(
+    report, module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
+    year = report.year
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=unit_id,
+        report=report,
     )
 
     module_key = module_id.replace("-", "_")
@@ -437,35 +497,74 @@ async def get_top_class_breakdown(
             detail=f"Top-class breakdown not supported for module '{module_id}'",
         )
 
-    carbon_report_module_id = await get_carbon_report_id(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=module_type,
-        db=db,
-        report_type=report_type,
-    )
+    carbon_report_module_ids = [module.id]
+    # A combined unit the caller cannot view, or that has no report this year,
+    # drops out of the aggregate. Raising here would surface as a 403 and the
+    # frontend turns any 403 into a hard redirect to /unauthorized.
+    for combine_unit_id in dict.fromkeys(combine_unit_ids):
+        if combine_unit_id == report.unit_id:
+            continue
+        try:
+            await check_module_permission_for_unit(
+                current_user=current_user,
+                module_id=module_id,
+                action="view",
+                db=db,
+                unit_id=combine_unit_id,
+            )
+            carbon_report_module_ids.append(
+                await get_module_id_for_unit_year(
+                    unit_id=combine_unit_id,
+                    year=year,
+                    module_type_id=module_type,
+                    db=db,
+                )
+            )
+        except HTTPException:
+            logger.info(
+                "Skipping combined unit in top-class breakdown",
+                extra={
+                    "unit_id": sanitize(combine_unit_id),
+                    "module_id": sanitize(module_id),
+                },
+            )
 
     data_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
     # Partition data entry types by their effective group field so types with
-    # an override (e.g. animal facilities grouped by mice/fish type) are
+    # an override (e.g. animal facilities grouped by rodent/fish type) are
     # aggregated separately, preserving the configured bar order.
     overrides = _MODULE_TOP_CLASS_GROUP_FIELD_OVERRIDES.get(module_type, {})
-    field_groups: dict[str, List[DataEntryTypeEnum]] = {}
+    field_groups: dict[str, list[DataEntryTypeEnum]] = {}
     for det in data_entry_types:
         field_groups.setdefault(overrides.get(det, group_field), []).append(det)
 
+    splits = _MODULE_TOP_CLASS_EMISSION_SPLITS.get(module_type, {})
     svc = DataEntryEmissionService(db)
     stats = []
     for field, dets in field_groups.items():
-        stats.extend(
-            await svc.get_top_class_breakdown(
-                carbon_report_module_id=carbon_report_module_id,
-                data_entry_types=dets,
-                group_by_field=field,
-                report_year=int(year),
+        plain_dets = [det for det in dets if det not in splits]
+        if plain_dets:
+            stats.extend(
+                await svc.get_top_class_breakdown(
+                    carbon_report_module_ids=carbon_report_module_ids,
+                    data_entry_types=plain_dets,
+                    group_by_field=field,
+                    report_year=int(year),
+                )
             )
-        )
+        for det in dets:
+            for name, emission_type in splits.get(det, ()):
+                groups = await svc.get_top_class_breakdown(
+                    carbon_report_module_ids=carbon_report_module_ids,
+                    data_entry_types=[det],
+                    group_by_field=field,
+                    report_year=int(year),
+                    emission_type_ids=[emission_type.value],
+                )
+                for group in groups:
+                    group["name"] = name
+                stats.extend(groups)
 
     factor_tk_field = _MODULE_TOP_CLASS_LABEL_FIELD.get(module_type)
     if factor_tk_field:
@@ -480,21 +579,18 @@ async def get_top_class_breakdown(
 
 
 @router.get(
-    "/{unit_id}/{year}/headcount/members",
-    response_model=List[HeadcountMemberDropdownItem],
+    "/{carbon_report_id}/modules/headcount/members",
+    response_model=list[HeadcountMemberDropdownItem],
 )
 async def list_headcount_members(
-    unit_id: int,
-    year: int,
-    carbon_project_type: int = Query(default=0, ge=0, le=2),
+    carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> List[HeadcountMemberDropdownItem]:
+) -> list[HeadcountMemberDropdownItem]:
     """List headcount members with an institutional ID for traveler dropdowns.
 
     Args:
-        unit_id: Unit ID.
-        year: Report year.
+        carbon_report_id: The addressed carbon report (pins unit and year).
         db: Database session.
         current_user: Authenticated user.
 
@@ -503,13 +599,16 @@ async def list_headcount_members(
         Users with headcount access for this unit receive the full list;
         users with only professional_travel access receive only their own record.
     """
+    report, module = await resolve_report_module(
+        carbon_report_id, "headcount", db, current_user
+    )
     # Load the unit up-front so we can scope the permission gate to its
     # institutional_id. Module permissions are stored as ``modules.X/{iid}``.
-    unit = await db.get(Unit, unit_id)
+    unit = await db.get(Unit, report.unit_id)
     if unit is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Unit {unit_id} not found",
+            detail=f"Unit {report.unit_id} not found",
         )
 
     # Gate: must have headcount.view OR professional_travel.view (scoped to this
@@ -548,17 +647,10 @@ async def list_headcount_members(
         unit=unit,
     )
 
-    carbon_report_module_id = await get_carbon_report_id(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=ModuleTypeEnum.headcount,
-        db=db,
-        report_type=_resolve_carbon_report_type(carbon_project_type),
-    )
     data_entry_service = DataEntryService(db)
     if has_full_access:
         rows = await data_entry_service.get_headcount_members(
-            carbon_report_module_id=carbon_report_module_id,
+            carbon_report_module_id=module.id,
         )
         return [HeadcountMemberDropdownItem(**row) for row in rows]
 
@@ -567,7 +659,7 @@ async def list_headcount_members(
     if not user_iid:
         return []
     row = await data_entry_service.get_member_by_institutional_id(
-        carbon_report_module_id=carbon_report_module_id,
+        carbon_report_module_id=module.id,
         institutional_id=user_iid,
     )
     if row is None:
@@ -576,13 +668,11 @@ async def list_headcount_members(
 
 
 @router.get(
-    "/{unit_id}/{year}/professional-travel/trips-map",
+    "/{carbon_report_id}/modules/professional-travel/trips-map",
     response_model=TripsMapResponse,
 )
 async def get_professional_travel_trips_map(
-    unit_id: int,
-    year: int,
-    carbon_project_type: int = Query(default=0, ge=0, le=2),
+    carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TripsMapResponse:
@@ -597,21 +687,15 @@ async def get_professional_travel_trips_map(
     see the unit's full data; standard users see only their own legs (via
     ``_get_professional_travel_institutional_id_filter``).
     """
-    report_type = _resolve_carbon_report_type(carbon_project_type)
-    await check_module_permission_for_unit(
+    report, module = await resolve_report_module(
+        carbon_report_id, "professional-travel", db, current_user
+    )
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id="professional-travel",
         action="view",
         db=db,
-        unit_id=unit_id,
-    )
-
-    carbon_report_module_id = await get_carbon_report_id(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=ModuleTypeEnum.professional_travel,
-        db=db,
-        report_type=report_type,
+        report=report,
     )
 
     # Use the train data_entry_type to drive the scoping helper — the helper
@@ -620,46 +704,40 @@ async def get_professional_travel_trips_map(
     # the repo method.
     institutional_id_filter = await _get_professional_travel_institutional_id_filter(
         db=db,
-        unit_id=unit_id,
+        unit_id=report.unit_id,
         current_user=current_user,
         data_entry_type_id=DataEntryTypeEnum.train,
     )
 
     return await DataEntryService(db).get_professional_travel_trips_map(
-        carbon_report_module_id=carbon_report_module_id,
+        carbon_report_module_id=module.id,
         institutional_id_filter=institutional_id_filter,
     )
 
 
 @router.get(
-    "/{unit_id}/{year}/{module_id}/{submodule_id}",
+    "/{carbon_report_id}/modules/{module_id}/{submodule_id}",
     response_model=SubmoduleResponse,
 )
 async def get_submodule(
-    unit_id: int,
-    year: int,
+    carbon_report_id: int,
     module_id: str,
     submodule_id: str,
-    request: Request,
-    background_tasks: BackgroundTasks,
     page: int = Query(default=1, ge=1, description="Page number"),
     limit: int = Query(default=100, le=1000, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
     sort_order: str = Query(default="asc", description="Sort order: 'asc' or 'desc'"),
-    filter: Optional[str] = Query(
+    filter: str | None = Query(
         default=None, description="Filter string to search in name or display_name"
     ),
-    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Get paginated data for a single submodule.
+    """Get paginated data for a single submodule.
 
     Args:
+        carbon_report_id: The addressed carbon report (pins unit and year)
         module_id: Module identifier
-        unit_id: Unit ID to filter equipment
-        year: Year for the data
         submodule_id: Submodule ID (e.g., 'sub_scientific')
         page: Page number (1-indexed)
         limit: Items per page (max 100)
@@ -671,30 +749,23 @@ async def get_submodule(
     Returns:
         SubmoduleResponse with paginated items and summary
     """
-    report_type = _resolve_carbon_report_type(carbon_project_type)
-    await check_module_permission_for_unit(
+    report, module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
+    unit = await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=unit_id,
+        report=report,
     )
 
     logger.info(
         f"GET submodule: module_id={sanitize(module_id)}, "
-        f"unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"carbon_report_id={sanitize(carbon_report_id)}, "
         f"submodule_id={sanitize(submodule_id)}, page={sanitize(page)}, "
         f"limit={sanitize(limit)}, sort_by={sanitize(sort_by)}, "
         f"sort_order={sanitize(sort_order)}"
-    )
-
-    module_key = module_id.replace("-", "_")
-    carbon_report_module_id = await get_carbon_report_id(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=ModuleTypeEnum[module_key],
-        db=db,
-        report_type=report_type,
     )
 
     # Calculate offset from page number
@@ -708,20 +779,19 @@ async def get_submodule(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Submodule {submodule_id} not found",
         )
-    if carbon_report_module_id is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Carbon report module ID could not be determined",
-        )
     institutional_id_filter = await _get_professional_travel_institutional_id_filter(
         db=db,
-        unit_id=unit_id,
+        unit_id=report.unit_id,
         current_user=current_user,
         data_entry_type_id=DataEntryTypeEnum(data_entry_type_id),
     )
+    exclude_planner_snapshots = _hide_planner_snapshots_for_viewer(
+        report, _module_type_from_slug(module_id), current_user, unit
+    )
+    factor_year = await resolve_factor_year(db, report)
 
     submodule_data = await DataEntryService(db).get_submodule_data(
-        carbon_report_module_id=carbon_report_module_id,
+        carbon_report_module_id=module.id,
         data_entry_type_id=data_entry_type_id,
         limit=limit,
         offset=offset,
@@ -729,9 +799,8 @@ async def get_submodule(
         sort_order=sort_order,
         filter=filter,
         institutional_id_filter=institutional_id_filter,
-        current_user=UserRead.model_validate(current_user),
-        request_context=await get_request_context(request),
-        background_tasks=background_tasks,
+        exclude_planner_snapshots=exclude_planner_snapshots,
+        factor_year=factor_year,
     )
 
     if not submodule_data:
@@ -748,19 +817,17 @@ async def get_submodule(
 
 
 @router.get(
-    "/{unit_id}/{year}/{module_id}/{submodule_id}/check-unique",
+    "/{carbon_report_id}/modules/{module_id}/{submodule_id}/check-unique",
 )
 async def check_unique(
-    unit_id: int,
-    year: int,
+    carbon_report_id: int,
     module_id: str,
     submodule_id: str,
     field: str = Query(..., description="JSON data field to check uniqueness for"),
     value: str = Query(..., description="Value to check"),
-    exclude_id: Optional[int] = Query(
+    exclude_id: int | None = Query(
         default=None, description="Entry ID to exclude (for PATCH pre-validation)"
     ),
-    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -770,8 +837,7 @@ async def check_unique(
     so the UI can surface a duplicate error before the round-trip.
 
     Args:
-        unit_id: Unit ID.
-        year: Report year.
+        carbon_report_id: The addressed carbon report (pins unit and year).
         module_id: Module identifier.
         submodule_id: Submodule identifier.
         field: JSON key inside ``data`` to check (e.g. ``user_institutional_id``).
@@ -782,28 +848,22 @@ async def check_unique(
         ``{"unique": true}`` when the value is available,
         ``{"unique": false}`` when a conflict exists.
     """
-    report_type = _resolve_carbon_report_type(carbon_project_type)
-    await check_module_permission_for_unit(
+    report, module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=unit_id,
+        report=report,
     )
 
-    module_key = module_id.replace("-", "_")
     submodule_key = submodule_id.replace("-", "_")
     data_entry_type_id = DataEntryTypeEnum[submodule_key].value
-    carbon_report_module_id = await get_carbon_report_id(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=ModuleTypeEnum[module_key],
-        db=db,
-        report_type=report_type,
-    )
 
     is_unique = await DataEntryService(db).check_json_field_unique(
-        carbon_report_module_id=carbon_report_module_id,
+        carbon_report_module_id=module.id,
         data_entry_type_id=data_entry_type_id,
         field=field,
         value=value,
@@ -813,28 +873,24 @@ async def check_unique(
 
 
 @router.post(
-    "/{unit_id}/{year}/{module_id}/{submodule_id}",
+    "/{carbon_report_id}/modules/{module_id}/{submodule_id}",
     response_model=DataEntryResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create(
-    unit_id: int,
-    year: int,
+    carbon_report_id: int,
     module_id: str,
     submodule_id: str,
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
     request: Request,
     background_tasks: BackgroundTasks,
-    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Create new equipment item.
+    """Create new equipment item.
 
     Args:
-        unit_id: Unit ID for the equipment
-        year: Year (informational)
+        carbon_report_id: The addressed carbon report (pins unit and year)
         module_id: Module identifier
         submodule_id: Submodule identifier
         item_data: Equipment creation data
@@ -849,34 +905,22 @@ async def create(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current user ID is required to create item",
         )
-    report_type = _resolve_carbon_report_type(carbon_project_type)
-    await check_module_permission_for_unit(
+    # #2050 J4: one resolution, carried through the whole write instead of
+    # four services re-deriving the same three rows.
+    scope = await resolve_write_scope(
+        carbon_report_id, module_id, db, current_user, action="edit"
+    )
+    report, carbon_report_module = scope.report, scope.module
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="edit",
         db=db,
-        unit_id=unit_id,
+        report=report,
     )
-
-    module_key = module_id.replace("-", "_")
-    module_type_id = ModuleTypeEnum[module_key].value
-    submodule_key = submodule_id.replace("-", "_")
-    data_entry_type_id = DataEntryTypeEnum[submodule_key].value
-    carbon_report_module = await get_carbon_report(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=ModuleTypeEnum(module_type_id),
-        db=db,
-        report_type=report_type,
-    )
-    if carbon_report_module is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Carbon report module could not be determined",
-        )
 
     logger.info(
-        f"POST item: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"POST item: carbon_report_id={sanitize(carbon_report_id)}, "
         f"module_id={sanitize(module_id)}, user={sanitize(current_user.id)}"
     )
 
@@ -892,7 +936,7 @@ async def create(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
-        year=year,
+        scope=scope,
     )
     await EmbodiedEnergyWorkflow(db).post_create(
         carbon_report_module,
@@ -900,21 +944,16 @@ async def create(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
-        year=year,
     )
     return response
 
 
 @router.get(
-    "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
-    response_model=Union[
-        HeadcountItemResponse,
-        DataEntryResponse,
-    ],
+    "/{carbon_report_id}/modules/{module_id}/{submodule_id}/{item_id}",
+    response_model=HeadcountItemResponse | DataEntryResponse,
 )
 async def get(
-    unit_id: int,
-    year: int,
+    carbon_report_id: int,
     module_id: str,
     submodule_id: str,
     item_id: int,
@@ -922,27 +961,22 @@ async def get(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await check_module_permission_for_unit(
+    report, _module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="view",
         db=db,
-        unit_id=unit_id,
+        report=report,
     )
 
     logger.info(
-        f"GET item: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"GET item: carbon_report_id={sanitize(carbon_report_id)}, "
         f"module_id={sanitize(module_id)}, item_id={sanitize(item_id)}"
     )
-    item: Union[
-        HeadcountItemResponse,
-        DataEntryResponse,
-    ]
-    if ModuleTypeEnum[module_id.replace("-", "_")] is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not supported for retrieval",
-        )
+    item: HeadcountItemResponse | DataEntryResponse
     item = await DataEntryService(db).get(
         id=item_id,
     )
@@ -952,15 +986,11 @@ async def get(
 
 
 @router.patch(
-    "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
-    response_model=Union[
-        HeadcountItemResponse,
-        DataEntryResponse,
-    ],
+    "/{carbon_report_id}/modules/{module_id}/{submodule_id}/{item_id}",
+    response_model=HeadcountItemResponse | DataEntryResponse,
 )
 async def update(
-    unit_id: int,
-    year: int,
+    carbon_report_id: int,
     module_id: str,
     # submodule_id is dataEntryType e.g 'external_clouds' or 'it'
     submodule_id: str,
@@ -968,46 +998,29 @@ async def update(
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
     request: Request,
     background_tasks: BackgroundTasks,
-    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    report_type = _resolve_carbon_report_type(carbon_project_type)
-    await check_module_permission_for_unit(
+    report, carbon_report_module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user, action="edit"
+    )
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="edit",
         db=db,
-        unit_id=unit_id,
+        report=report,
     )
 
     logger.info(
-        f"PATCH item: unit_id={sanitize(unit_id)}, "
-        f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
+        f"PATCH item: carbon_report_id={sanitize(carbon_report_id)}, "
+        f"module_id={sanitize(module_id)}, "
         f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
     )
     submodule_key = submodule_id.replace("-", "_")
-    module_key = module_id.replace("-", "_")
     data_entry_type = DataEntryTypeEnum[submodule_key]
     data_entry_type_id = data_entry_type.value
-    if ModuleTypeEnum[module_key] is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not supported for update",
-        )
-    if DataEntryTypeEnum[submodule_key] is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Submodule not supported for update",
-        )
-    carbon_report_module = await get_carbon_report(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=ModuleTypeEnum[module_key],
-        db=db,
-        report_type=report_type,
-    )
 
     request_context = await get_request_context(request)
 
@@ -1019,7 +1032,6 @@ async def update(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
-        year=year,
     )
     await EmbodiedEnergyWorkflow(db).post_update(
         carbon_report_module,
@@ -1027,34 +1039,33 @@ async def update(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
-        year=year,
     )
     return response
 
 
 @router.delete(
-    "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
+    "/{carbon_report_id}/modules/{module_id}/{submodule_id}/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete(
-    unit_id: int,
-    year: int,
+    carbon_report_id: int,
     module_id: str,
     submodule_id: str,
     item_id: int,
     request: Request,
     background_tasks: BackgroundTasks,
-    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    report_type = _resolve_carbon_report_type(carbon_project_type)
-    await check_module_permission_for_unit(
+    report, carbon_report_module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user, action="edit"
+    )
+    await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
         action="edit",
         db=db,
-        unit_id=unit_id,
+        report=report,
     )
 
     if current_user.id is None:
@@ -1063,27 +1074,14 @@ async def delete(
             detail="Current user ID is required to delete item",
         )
     logger.info(
-        f"DELETE item: unit_id={sanitize(unit_id)}, "
-        f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
+        f"DELETE item: carbon_report_id={sanitize(carbon_report_id)}, "
+        f"module_id={sanitize(module_id)}, "
         f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
     )
+    submodule_key = submodule_id.replace("-", "_")
+    data_entry_type = DataEntryTypeEnum[submodule_key]
     try:
-        if ModuleTypeEnum[module_id.replace("-", "_")] is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Module not supported for deletion",
-            )
-
-        # Resolve module ID before deleting the entry (needed for stats recompute)
-        module_key = module_id.replace("-", "_")
-        carbon_report_module = await get_carbon_report(
-            unit_id=unit_id,
-            year=year,
-            module_type_id=ModuleTypeEnum[module_key],
-            db=db,
-            report_type=report_type,
-        )
         request_context = await get_request_context(request)
 
         await CarbonReportModuleWorkflow(db).delete(
@@ -1095,7 +1093,7 @@ async def delete(
         )
         await EmbodiedEnergyWorkflow(db).post_delete(
             carbon_report_module,
-            item_id,
+            data_entry_type.value,
             current_user=UserRead.model_validate(current_user),
             request_context=request_context,
             background_tasks=background_tasks,

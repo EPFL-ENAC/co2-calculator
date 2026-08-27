@@ -5,14 +5,15 @@ import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import TooltipEcharts from './TooltipEcharts.vue';
-import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
+import type { TooltipRow, TooltipState } from '@/types/chartTooltip';
 import type { EChartsOption, SeriesOption } from 'echarts';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
   colors,
-} from 'src/constant/charts';
-import { useColorblindStore } from 'src/stores/colorblind';
+} from '@/constant/charts';
+import { useColorblindStore } from '@/stores/colorblind';
+import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
 import {
   TooltipComponent,
   LegendComponent,
@@ -32,23 +33,50 @@ use([
   DatasetComponent,
 ]);
 
-import { formatTonnesForChart } from 'src/utils/number';
-import { usePrintMode } from 'src/composables/print/usePrintMode';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
+import { formatTonnesForChart } from '@/utils/number';
+import { usePrintMode } from '@/composables/print/usePrintMode';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
+import { downloadCsv, escapeCsvValue } from '@/utils/csvDownload';
 
-const props = defineProps<{
-  perPersonBreakdown?: Record<string, number> | null;
-  validatedCategories?: string[] | null;
-  headcountValidated?: boolean;
-  showValidationPlaceholder?: boolean;
-  title?: string;
-  viewAdditionalData?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    perPersonBreakdown?: Record<string, number> | null;
+    validatedCategories?: string[] | null;
+    headcountValidated?: boolean;
+    showValidationPlaceholder?: boolean;
+    title?: string;
+    viewAdditionalData?: boolean;
+    /**
+     * Hide categories whose module/submodule is deactivated in the current
+     * year's back-office config. Defaults on for single-year workspace
+     * contexts; callers that aggregate data across multiple years/units with
+     * no single "current year" config loaded (e.g. the back-office Reporting
+     * page) must opt out — yearConfigStore only ever holds one year's
+     * config, so applying it there would silently hide every category or
+     * apply an arbitrary year's rules to the aggregate.
+     */
+    enforceModuleActivation?: boolean;
+  }>(),
+  {
+    perPersonBreakdown: null,
+    validatedCategories: null,
+    title: undefined,
+    enforceModuleActivation: true,
+  },
+);
 
 const { t } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
 const isColorblind = computed(() => colorblindStore.enabled);
+const { isCategoryModuleActive } = useModuleCategoriesAvailability();
+
+function isCategoryVisible(categoryKey: string): boolean {
+  if (props.enforceModuleActivation) {
+    return isCategoryModuleActive(categoryKey);
+  }
+  return true;
+}
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
   () => props.viewAdditionalData ?? toggleAdditionalData.value,
@@ -156,7 +184,7 @@ const additionalSeriesData = computed(() => {
       stack: 'total',
       encode: encodeFor('category', 'food'),
       itemStyle: {
-        color: colors.value.mint.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.food,
       },
       label: {
         show: false,
@@ -168,7 +196,7 @@ const additionalSeriesData = computed(() => {
       stack: 'total',
       encode: encodeFor('category', 'waste'),
       itemStyle: {
-        color: colors.value.periwinkle.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.waste,
       },
       label: {
         show: false,
@@ -197,7 +225,7 @@ function encodeFor(categoryAxis: string, valueAxis: string) {
 
 const seriesArray = computed(() => {
   const barMaxWidth = isPrintMode.value ? 40 : undefined;
-  return [
+  const allSeries = [
     {
       name: t('charts-process-emissions-category'),
       type: 'bar' as const,
@@ -265,7 +293,7 @@ const seriesArray = computed(() => {
       stack: 'total',
       encode: encodeFor('category', 'professional_travel'),
       itemStyle: {
-        color: colors.value.babyBlue.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.professional_travel,
       },
       label: {
         show: false,
@@ -277,7 +305,7 @@ const seriesArray = computed(() => {
       stack: 'total',
       encode: encodeFor('category', 'purchases'),
       itemStyle: {
-        color: colors.value.lightGreen.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.purchases,
       },
       label: {
         show: false,
@@ -289,7 +317,7 @@ const seriesArray = computed(() => {
       stack: 'total',
       encode: encodeFor('category', 'research_facilities'),
       itemStyle: {
-        color: colors.value.paleYellowGreen.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.research_facilities,
       },
       label: {
         show: false,
@@ -313,6 +341,12 @@ const seriesArray = computed(() => {
       : []),
     ...additionalSeriesData.value,
   ];
+  return allSeries.filter((s) => {
+    const encode = s.encode as { x?: unknown; y?: unknown } | undefined;
+    const key = isPrintMode.value ? encode?.x : encode?.y;
+    const visible = isCategoryVisible(String(key ?? ''));
+    return visible;
+  });
 });
 
 const chartTooltipOption = computed(() => {
@@ -335,6 +369,7 @@ const chartTooltipOption = computed(() => {
       const p = param as Record<string, unknown>;
       const series = seriesArray.value.find((s) => s.name === p.seriesName);
       const key = series?.encode.y;
+      if (!key) continue;
       const dataValue = Number(data?.[key]) || 0;
       if (dataValue > 0 && series) {
         rows.push({
@@ -446,16 +481,15 @@ const downloadPNG = () =>
   downloadEchartAsPng(chartRef.value?.chart, 'carbon-footprint-per-person');
 
 const downloadCSV = () => {
-  const escape = (v: unknown) => {
-    const s = String(v ?? '');
-    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const escape = escapeCsvValue;
 
   const headers = [
     ...new Set(datasetSource.value.flatMap((item) => Object.keys(item))),
-  ].sort((a, b) =>
-    a === 'category' ? -1 : b === 'category' ? 1 : a.localeCompare(b),
-  );
+  ]
+    .filter((key) => key === 'category' || isCategoryVisible(key))
+    .sort((a, b) =>
+      a === 'category' ? -1 : b === 'category' ? 1 : a.localeCompare(b),
+    );
 
   const csv = [
     headers.map(escape).join(','),
@@ -464,11 +498,10 @@ const downloadCSV = () => {
     ),
   ].join('\n');
 
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = `carbon-footprint-per-person-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadCsv(
+    csv,
+    `carbon-footprint-per-person-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`,
+  );
 };
 </script>
 
@@ -578,13 +611,19 @@ const downloadCSV = () => {
   flex-direction: column;
 }
 
+/* #2027: a definite height, not min-height. vue-echarts 8.1.0 renders an
+   <x-vue-echarts> custom element carrying its own `height: 100%`, and its
+   resize observer skips any resize where a dimension is 0 — so a chart that
+   measures zero once at init stays a zero-height canvas forever: fully
+   populated, no error, nothing drawn. Every chart that kept working through
+   the 8.0.1 -> 8.1.0 bump sets a definite height; the two that broke were the
+   two using min-height. Keep it definite. */
 .chart {
   width: 100%;
-  min-height: 420px;
+  height: 420px;
 }
 
 .chart--print {
-  min-height: unset;
   height: 120px !important;
 }
 

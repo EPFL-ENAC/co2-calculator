@@ -12,8 +12,6 @@ PR (`emission_recalc_handler` chains here, providers stop calling
 ``recompute_stats`` directly) lands next in the Plan-D Tier-2 sequence.
 """
 
-from typing import Optional
-
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -36,7 +34,7 @@ _AGGREGATION_LOCK_CATEGORY = 1236
 
 async def _collect_affected_module_ids(
     pipeline_id, session: AsyncSession
-) -> Optional[set[int]]:
+) -> set[int] | None:
     """4A.3 — union of ``affected_module_ids`` from FINISHED recalc siblings.
 
     Each ``emission_recalc`` records the precise ``carbon_report_module``
@@ -153,7 +151,7 @@ async def aggregation_handler(
     # weren't passed an explicit scope at chain time.
     own_config = (job.meta or {}).get("config") or {}
     own_scope = own_config.get("affected_module_ids")
-    affected_scope: Optional[set[int]]
+    affected_scope: set[int] | None
     if isinstance(own_scope, list):
         scope_set: set[int] = {int(i) for i in own_scope if isinstance(i, int)}
         logger.debug(
@@ -183,12 +181,19 @@ async def aggregation_handler(
             f"in scope module_type_id={job.module_type_id}/year={job.year}"
         )
 
+    # The admin recompute-stats backfill trigger (create_root_aggregation_job)
+    # sets this so a bulk re-derive of stats under current code doesn't stale
+    # out every module's validation — no underlying data changed, unlike the
+    # recalc-chained path (real upload/factor change), which always bumps.
+    skip_status_update = bool(own_config.get("skip_module_status_update"))
+
     # Set-based recompute: 3 grouped queries for the module level + 2
     # for the report rollup, instead of ~8 queries per module (a 137-
     # module scope was ~1.1k sequential statements; a full 2.2k-module
     # slice was minutes).
     refreshed = await svc.recompute_stats_many(
-        [m.id for m in affected if m.id is not None]
+        [m.id for m in affected if m.id is not None],
+        bump_status=not skip_status_update,
     )
 
     return {

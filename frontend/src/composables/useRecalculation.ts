@@ -3,14 +3,14 @@ import {
   useBackofficeDataManagement,
   IngestionResult,
   type JobUpdatePayload,
-} from 'src/stores/backofficeDataManagement';
+} from '@/stores/backofficeDataManagement';
 import {
   useYearConfigStore,
   type RecalculationStatusEntry,
-} from 'src/stores/yearConfig';
+} from '@/stores/yearConfig';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import type { SubmoduleConfig as SubmoduleConfigItem } from 'src/constant/backoffice-module-config';
+import type { SubmoduleConfig as SubmoduleConfigItem } from '@/constant/backoffice-module-config';
 
 export function useRecalculation() {
   const { t: $t } = useI18n();
@@ -89,6 +89,19 @@ export function useRecalculation() {
           void refreshAfterRecalc();
         },
         () => {
+          // The SSE connection itself errored (dropped connection, backend
+          // crash mid-stream) — distinct from onFail above, which fires
+          // when the job finished with an explicit error result. Without
+          // this the spinner just stopped with zero feedback: a silent
+          // failure. No job payload is available on a raw connection
+          // error, so the caption is generic rather than status_message.
+          Notify.create({
+            type: 'negative',
+            message: $t('data_management_recalculation_error'),
+            caption: $t('data_management_recalculation_connection_lost'),
+            position: 'top',
+            timeout: 5000,
+          });
           recalcRunning.value[moduleTypeId] = false;
         },
       );
@@ -160,6 +173,15 @@ export function useRecalculation() {
           void refreshAfterRecalc();
         },
         () => {
+          // See the matching onError branch in confirmModuleRecalculation
+          // above for why this needs its own Notify.
+          Notify.create({
+            type: 'negative',
+            message: $t('data_management_recalculation_error'),
+            caption: $t('data_management_recalculation_connection_lost'),
+            position: 'top',
+            timeout: 5000,
+          });
           recalcTypeRunning.value[key] = false;
         },
       );

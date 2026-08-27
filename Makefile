@@ -32,6 +32,10 @@ help: ## Show available targets
 	@echo "  make stop-db          Stop database services"
 	@echo "  make clean-db         Clean database (remove volumes)"
 	@echo ""
+	@echo "🔭 Local Trace Inspection:"
+	@echo "  make run-observability   Start Tempo + Grafana, re-point otel at Tempo"
+	@echo "  make stop-observability  Stop them"
+	@echo ""
 	@echo "🔍 CI Validation (use before pushing to dev/stage/main):"
 	@echo "  make ci               Run all CI checks (lint + type-check + test + build)"
 	@echo "  make lint             Run all linters"
@@ -105,6 +109,27 @@ connect-db:
 clean-db:
 	docker compose down -v
 	docker volume rm co2-calculator_postgres-data-18 || true
+
+.PHONY: dev-tmux
+dev-tmux: ## Start backend/frontend/claude/shell in a tmux session (or attach if running)
+	./scripts/tmux-dev.sh
+
+# =============================================================================
+# Development - Local Trace Inspection (Tempo + Grafana)
+# =============================================================================
+# Optional overlay on top of the base otel collector (which by default only
+# logs traces to stdout) — for viewing a request's trace waterfall locally,
+# the same way GlitchTip/Tempo shows it in dev/stage. See
+# docker-compose.observability.yml.
+
+.PHONY: run-observability
+run-observability:
+	docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d otel tempo grafana
+	@echo "Grafana: http://localhost:3001  (already logged in — Explore → Tempo, search by service.name=backend)"
+
+.PHONY: stop-observability
+stop-observability:
+	docker compose -f docker-compose.yml -f docker-compose.observability.yml down
 
 # =============================================================================
 # CI/CD - Validation Commands
@@ -210,3 +235,17 @@ build-docs: ## Build documentation site
 serve-docs: ## Serve documentation with live reload
 	@echo "Starting documentation server..."
 	if [ -d "docs" ]; then cd docs && $(MAKE) serve-docs; fi
+
+.PHONY: gen-module-constants
+gen-module-constants: ## Generate frontend module lookup constants from backend enums (backend/app/generate_module_constants_ts.py)
+	cd backend && $(MAKE) gen-module-constants
+
+.PHONY: sync-agent-rules
+sync-agent-rules: ## Re-vendor the shared ENAC IT4R rules from it4r-agent-kit
+	@sha=$$(gh api repos/EPFL-ENAC/it4r-agent-kit/commits/main --jq .sha); \
+	{ echo "<!-- Vendored from https://github.com/EPFL-ENAC/it4r-agent-kit @ $${sha:0:7}"; \
+	  echo "     Do not edit here — edit AGENTS.md upstream, then run \`make sync-agent-rules\`. -->"; \
+	  echo; \
+	  curl -fsSL https://raw.githubusercontent.com/EPFL-ENAC/it4r-agent-kit/main/AGENTS.md; \
+	} > docs/src/contributing/it4r-rules.md
+	@git diff --stat -- docs/src/contributing/it4r-rules.md

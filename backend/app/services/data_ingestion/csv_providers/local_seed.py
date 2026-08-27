@@ -11,13 +11,14 @@ import csv as csv_module
 import io
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from sqlmodel import col, select
+from sqlmodel import col, delete, select
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import IngestionResult, IngestionState
+from app.models.factor import Factor
 from app.models.location import Location, TransportModeEnum
 from app.services.data_ingestion.base_csv_provider import StatsDict
 from app.services.data_ingestion.base_factor_csv_provider import FactorStatsDict
@@ -52,10 +53,10 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
         When provided, deletion before seeding is scoped to exactly these
         DataEntryTypeEnum values.  Useful when a CSV covers only a subset of
         the module's types (e.g. purchases_common does not cover
-        additional_purchases).
+        purchases_centralized).
     """
 
-    def __init__(self, config: Dict[str, Any], data_session: Any):
+    def __init__(self, config: dict[str, Any], data_session: Any):
         # Pass job_session=None and user=None — no job tracking for seeds
         super().__init__(
             config=config,
@@ -64,6 +65,7 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
             data_session=data_session,
         )
         self._local_file_path: str | None = config.get("local_file_path")
+        self._seed_deleted_count = 0
         raw_ids: list[int] | None = config.get("explicit_entry_type_ids")
         self._explicit_types: list[DataEntryTypeEnum] | None = (
             [DataEntryTypeEnum(i) for i in raw_ids] if raw_ids is not None else None
@@ -86,7 +88,7 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
     # Override: read directly from disk, skip file-store moves and DB job
     # ------------------------------------------------------------------
 
-    async def _setup_and_validate(self) -> Dict[str, Any]:
+    async def _setup_and_validate(self) -> dict[str, Any]:
         if self.year is None:
             raise ValueError("year is required for factor CSV ingestion")
 
@@ -108,6 +110,21 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
         logger.info("Validating CSV headers for local seed")
         self._validate_csv_headers(csv_text, expected_columns, required_columns)
 
+        # Delete-and-insert: Plan 310B moved production ingest to an
+        # identity-keyed upsert (needs a job_id seeds don't have), so
+        # the seed replaces its covered entry types wholesale — without
+        # this delete a re-seed trips ``uq_factor_identity``.
+        det_ids = [
+            int(t) for t in self._get_types_to_delete(entity_setup["valid_entry_types"])
+        ]
+        result = await self.data_session.execute(
+            delete(Factor).where(
+                col(Factor.year) == self.year,
+                col(Factor.data_entry_type_id).in_(det_ids),
+            )
+        )
+        self._seed_deleted_count = getattr(result, "rowcount", 0) or 0
+
         return {
             "csv_text": csv_text,
             "handlers": handlers,
@@ -127,8 +144,8 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
         self,
         status_message: str,
         extra_metadata: dict | None = None,
-        state: Optional[IngestionState] = None,
-        result: Optional[IngestionResult] = None,
+        state: IngestionState | None = None,
+        result: IngestionResult | None = None,
     ) -> None:
         # Local seed runs do not persist ingestion jobs.
         logger.debug(
@@ -142,7 +159,7 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
 
     async def _upsert_batch(
         self,
-        batch: List[Any],
+        batch: list[Any],
         factor_repo: Any,
     ) -> int:
         """Local seed scripts have no DataIngestionJob and therefore no
@@ -161,24 +178,29 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
 
         factor_service = FactorService(self.data_session)
         await self._process_batch(batch, factor_service)
+        # Recorded here too: the base class tracks it in the upsert this
+        # override replaces, and post-ingest steps read it to know what
+        # the run actually wrote.
+        self._upserted_det_ids.update(f.data_entry_type_id for f in batch)
         return len(batch)
 
     async def _finalize_and_commit(
         self,
-        batch: List[Any],
+        batch: list[Any],
         factor_service: Any,
         stats: FactorStatsDict,
-        setup_result: Dict[str, Any],
+        setup_result: dict[str, Any],
         factor_repo: Any,  # signature-compat with base; legacy seed path
-        # uses bulk_create and assumes the factor table starts empty
-        # (seed scripts run against a fresh DB).
-    ) -> Dict[str, Any]:
+        # uses bulk_create — safe because _setup_and_validate cleared the
+        # covered (year, entry-type) factors first (delete-and-insert).
+    ) -> dict[str, Any]:
 
         if batch:
-            await self._process_batch(batch, factor_service)
+            await self._upsert_batch(batch, factor_repo)
 
         await self.data_session.flush()
 
+        stats["factors_deleted"] = self._seed_deleted_count
         result = self._compute_ingestion_result(stats)
 
         logger.info(
@@ -243,15 +265,17 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
         Transport mode used for location lookup (``"plane"`` or ``"train"``).
     """
 
-    def __init__(self, config: Dict[str, Any], data_session: Any):
+    def __init__(self, config: dict[str, Any], data_session: Any):
         super().__init__(
             config=config,
             user=None,
             job_session=None,
             data_session=data_session,
         )
-        # Fake job object — never persisted, satisfies base-class attribute access.
-        self.job = SimpleNamespace(  # type: ignore[assignment]
+        # Fake job object — never persisted, satisfies base-class attribute
+        # access (.module_type_id/.data_entry_type_id) without a real
+        # DataIngestionJob; deliberately duck-typed, not a real DataIngestionJob.
+        self.job = SimpleNamespace(  # ty: ignore[invalid-assignment]
             module_type_id=config.get("module_type_id"),
             data_entry_type_id=config.get("data_entry_type_id"),
         )
@@ -282,7 +306,7 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
     # Override: read from disk, skip file-store moves and DB job updates
     # ------------------------------------------------------------------
 
-    async def _setup_and_validate(self) -> Dict[str, Any]:
+    async def _setup_and_validate(self) -> dict[str, Any]:
         if not self._local_file_path:
             raise ValueError("Missing local_file_path in config")
 
@@ -315,7 +339,6 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
             "entity_type": self.entity_type,
             "handlers": entity_setup["handlers"],
             "factors_map": entity_setup["factors_map"],
-            "factor_id_to_factor": entity_setup["factor_id_to_factor"],
             "expected_columns": entity_setup["expected_columns"],
             "required_columns": entity_setup["required_columns"],
             # Dummy value — _finalize_and_commit skips file-store operations
@@ -394,12 +417,12 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
 
     async def _process_row(
         self,
-        row: Dict[str, str],
+        row: dict[str, str],
         row_idx: int,
-        setup_result: Dict[str, Any],
+        setup_result: dict[str, Any],
         stats: StatsDict,
         max_row_errors: int,
-        unit_to_module_map: Dict[str, int] | None = None,
+        unit_to_module_map: dict[str, int] | None = None,
     ) -> tuple[Any, str | None, Any, float | None]:
         if self._location_fields:
             row = dict(row)  # shallow copy to avoid mutating original
@@ -427,8 +450,8 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
         self,
         status_message: str,
         extra_metadata: dict | None = None,
-        state: Optional[IngestionState] = None,
-        result: Optional[IngestionResult] = None,
+        state: IngestionState | None = None,
+        result: IngestionResult | None = None,
     ) -> None:
         # Local seed runs do not persist ingestion jobs.
         logger.debug(
@@ -438,13 +461,13 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
 
     async def _finalize_and_commit(
         self,
-        batch: List[Any],
+        batch: list[Any],
         data_entry_service: Any,
         emission_service: Any,
         stats: StatsDict,
-        setup_result: Dict[str, Any],
-        batch_kg_co2eq_overrides: List[float | None],
-    ) -> Dict[str, Any]:
+        setup_result: dict[str, Any],
+        batch_kg_co2eq_overrides: list[float | None],
+    ) -> dict[str, Any]:
         if batch:
             await self._process_batch(
                 batch,

@@ -84,21 +84,24 @@ class TestResolveHandledId:
 
     def test_resolve_handled_id_with_empty_handled_ids(self):
         """Test resolving handled_id when handled_ids is empty but handler_id
-        is present."""
+        is present.
+        """
         audit_record = {"handled_ids": [], "handler_id": "handler-123"}
         result = resolve_handled_id(audit_record)
         assert result == "handler-123"
 
     def test_resolve_handled_id_with_none_handled_ids(self):
         """Test resolving handled_id when handled_ids is None but handler_id
-        is present."""
+        is present.
+        """
         audit_record = {"handled_ids": None, "handler_id": "handler-123"}
         result = resolve_handled_id(audit_record)
         assert result == "handler-123"
 
     def test_resolve_handled_id_no_handled_ids_no_handler_id(self):
         """Test that ValueError is raised when neither handled_ids nor handler_id
-        is available."""
+        is available.
+        """
         audit_record = {"handled_ids": [], "handler_id": None}
         with pytest.raises(
             ValueError, match="OPDo violation: handled_id cannot be null"
@@ -208,7 +211,8 @@ class TestMapToOpdoSchema:
 
     def test_map_to_opdo_schema_implicit_handled_id(self):
         """Test mapping when handled_ids is empty and handler_id
-        is used as implicit handled_id."""
+        is used as implicit handled_id.
+        """
         audit_record = {
             "id": "123",
             "changed_at": "2024-10-10 11:34:05.123456",
@@ -261,7 +265,8 @@ class TestMapToOpdoSchema:
 
     def test_map_to_opdo_schema_missing_handled_id(self):
         """Test that ValueError is raised when neither handled_ids nor
-        handler_id is available."""
+        handler_id is available.
+        """
         audit_record = {
             "id": "123",
             "changed_at": "2024-10-10 11:34:05.123456",
@@ -908,7 +913,12 @@ class TestElasticsearchClient:
         assert result["success"] == 0
         assert result["failed"] == 1  # Length of audit_records
         assert len(result["errors"]) == 1
-        assert result["errors"][0] == "General exception in bulk operation"
+        # errors entries are always dicts (matches every other return path),
+        # not bare strings - this used to crash callers indexing item["id"]
+        assert result["errors"][0] == {
+            "id": None,
+            "error": "General exception in bulk operation",
+        }
         # Verify that error was logged
         mock_logger.error.assert_called_once()
 

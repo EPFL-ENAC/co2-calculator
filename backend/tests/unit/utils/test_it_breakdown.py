@@ -1,295 +1,51 @@
-"""Unit tests for IT-focused emission breakdown."""
+"""Unit tests for IT categorisation over flat by_emission_type maps."""
 
-import pytest
-
-from app.models.data_entry_emission import EmissionType
-from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions.taxonomy import EmissionType
 from app.utils.it_breakdown import (
-    IT_CATEGORIES_ORDER,
     IT_CATEGORY_CLOUD_AI,
     IT_CATEGORY_EQUIPMENT,
-    IT_CATEGORY_PURCHASES,
     IT_CATEGORY_RESEARCH,
-    build_it_breakdown,
+    build_cloud_ai_detail,
+    build_it_category_totals,
 )
 
 
-def _sql(
-    it_kg: float,
-    overall_kg: float,
-    validated_it_kg: float = 0.0,
-    validated_source_kg: float = 0.0,
-) -> dict:
-    return {
-        "it_total_kg": it_kg,
-        "overall_total_kg": overall_kg,
-        "validated_it_kg": validated_it_kg,
-        "validated_source_total_kg": validated_source_kg,
+def test_category_totals_count_leaves_only():
+    by_et = {
+        str(EmissionType.equipment__it.value): 100.0,
+        # rollup entries must be ignored (their value duplicates the leaves)
+        str(EmissionType.equipment.value): 100.0,
+        str(EmissionType.external__clouds__calcul.value): 10.0,
+        str(EmissionType.external__clouds.value): 10.0,
+        str(EmissionType.external.value): 10.0,
+        # non-IT leaf
+        str(EmissionType.food__vegetarian.value): 5.0,
     }
+    totals = build_it_category_totals(by_et)
+    assert totals[IT_CATEGORY_EQUIPMENT] == 100.0
+    assert totals[IT_CATEGORY_CLOUD_AI] == 10.0
+    assert sum(totals.values()) == 110.0
 
 
-def _cat_by_key(categories: list[dict], key: str) -> dict:
-    return next(c for c in categories if c["category_key"] == key)
+def test_only_it_research_facilities_are_it():
+    by_et = {
+        str(EmissionType.research_facilities__facilities.value): 40.0,
+        str(EmissionType.research_facilities__it_facilities.value): 60.0,
+        str(EmissionType.research_facilities__animal__rodent.value): 30.0,
+        str(EmissionType.research_facilities__animal__fish.value): 20.0,
+        str(EmissionType.research_facilities__animal.value): 50.0,
+        str(EmissionType.research_facilities.value): 150.0,
+    }
+    totals = build_it_category_totals(by_et)
+    assert totals[IT_CATEGORY_RESEARCH] == 60.0
 
 
-class TestBuildItBreakdown:
-    def test_basic_aggregation_from_all_sources(self):
-        rows = [
-            (
-                ModuleTypeEnum.equipment.value,
-                EmissionType.equipment__it.value,
-                5_000.0,
-            ),
-            (
-                ModuleTypeEnum.purchase.value,
-                EmissionType.purchases__it_equipment.value,
-                3_000.0,
-            ),
-            (
-                ModuleTypeEnum.external_cloud_and_ai.value,
-                EmissionType.external__clouds__stockage.value,
-                2_000.0,
-            ),
-        ]
-        result = build_it_breakdown(
-            rows, total_fte=10.0, sql_totals=_sql(10_000, 20_000)
-        )
-
-        assert result["total_it_tonnes_co2eq"] == pytest.approx(10.0)
-        assert result["total_it_per_fte"] == pytest.approx(1.0)
-        assert result["percentage_of_total"] == pytest.approx(50.0)
-
-        equip = _cat_by_key(result["categories"], IT_CATEGORY_EQUIPMENT)
-        assert equip["tonnes_co2eq"] == pytest.approx(5.0)
-        assert equip["percentage"] == pytest.approx(50.0)
-
-        purch = _cat_by_key(result["categories"], IT_CATEGORY_PURCHASES)
-        assert purch["tonnes_co2eq"] == pytest.approx(3.0)
-
-        cloud = _cat_by_key(result["categories"], IT_CATEGORY_CLOUD_AI)
-        assert cloud["tonnes_co2eq"] == pytest.approx(2.0)
-
-    def test_empty_input_returns_zero_filled(self):
-        result = build_it_breakdown([], total_fte=10.0, sql_totals=_sql(0, 100_000))
-
-        assert result["total_it_tonnes_co2eq"] == 0.0
-        assert result["total_it_per_fte"] == 0.0
-        assert result["percentage_of_total"] == 0.0
-        assert len(result["categories"]) == len(IT_CATEGORIES_ORDER)
-        for cat in result["categories"]:
-            assert cat["tonnes_co2eq"] == 0.0
-            assert cat["percentage"] == 0.0
-
-    def test_zero_fte_gives_zero_per_fte(self):
-        rows = [
-            (
-                ModuleTypeEnum.equipment.value,
-                EmissionType.equipment__it.value,
-                5_000.0,
-            ),
-        ]
-        result = build_it_breakdown(rows, total_fte=0.0, sql_totals=_sql(5_000, 5_000))
-
-        assert result["total_it_per_fte"] == 0.0
-        assert result["total_it_tonnes_co2eq"] == pytest.approx(5.0)
-
-    def test_zero_total_emissions_gives_zero_percentage(self):
-        rows = [
-            (
-                ModuleTypeEnum.equipment.value,
-                EmissionType.equipment__it.value,
-                5_000.0,
-            ),
-        ]
-        result = build_it_breakdown(rows, sql_totals=_sql(5_000, 0))
-
-        assert result["percentage_of_total"] == 0.0
-
-    def test_non_it_rows_are_ignored(self):
-        rows = [
-            (
-                ModuleTypeEnum.equipment.value,
-                EmissionType.equipment__scientific.value,
-                10_000.0,
-            ),
-            (
-                ModuleTypeEnum.equipment.value,
-                EmissionType.equipment__it.value,
-                2_000.0,
-            ),
-            (
-                ModuleTypeEnum.professional_travel.value,
-                EmissionType.professional_travel__plane__eco.value,
-                8_000.0,
-            ),
-        ]
-        result = build_it_breakdown(rows, sql_totals=_sql(2_000, 20_000))
-
-        assert result["total_it_tonnes_co2eq"] == pytest.approx(2.0)
-
-    def test_scope_breakdown(self):
-        rows = [
-            (
-                ModuleTypeEnum.equipment.value,
-                EmissionType.equipment__it.value,
-                4_000.0,
-            ),
-            (
-                ModuleTypeEnum.purchase.value,
-                EmissionType.purchases__it_equipment.value,
-                3_000.0,
-            ),
-            (
-                ModuleTypeEnum.external_cloud_and_ai.value,
-                EmissionType.external__clouds__calcul.value,
-                1_000.0,
-            ),
-        ]
-        result = build_it_breakdown(rows, sql_totals=_sql(8_000, 8_000))
-
-        assert result["scope_breakdown"]["scope_2"] == pytest.approx(4.0)
-        assert result["scope_breakdown"]["scope_3"] == pytest.approx(4.0)
-
-    def test_cloud_ai_detail_emissions(self):
-        rows = [
-            (
-                ModuleTypeEnum.external_cloud_and_ai.value,
-                EmissionType.external__clouds__stockage.value,
-                1_000.0,
-            ),
-            (
-                ModuleTypeEnum.external_cloud_and_ai.value,
-                EmissionType.external__clouds__calcul.value,
-                2_000.0,
-            ),
-            (
-                ModuleTypeEnum.external_cloud_and_ai.value,
-                EmissionType.external__ai__provider_openai.value,
-                500.0,
-            ),
-            (
-                ModuleTypeEnum.external_cloud_and_ai.value,
-                EmissionType.external__ai__provider_anthropic.value,
-                300.0,
-            ),
-        ]
-        result = build_it_breakdown(rows, sql_totals=_sql(3_800, 3_800))
-        cloud = _cat_by_key(result["categories"], IT_CATEGORY_CLOUD_AI)
-
-        emissions = {e["key"]: e["value"] for e in cloud["emissions"]}
-        assert emissions["stockage"] == pytest.approx(1.0)
-        assert emissions["calcul"] == pytest.approx(2.0)
-        # AI providers grouped under "ai"
-        assert emissions["ai"] == pytest.approx(0.8)
-
-    def test_validation_all_validated(self):
-        validated = {
-            ModuleTypeEnum.equipment.value,
-            ModuleTypeEnum.purchase.value,
-            ModuleTypeEnum.external_cloud_and_ai.value,
-            ModuleTypeEnum.research_facilities.value,
-        }
-        result = build_it_breakdown(
-            [],
-            validated_module_type_ids=validated,
-            sql_totals=_sql(0, 0),
-        )
-        assert result["validated"] is True
-        assert result["partially_validated"] is False
-        assert len(result["validated_sources"]) == 4
-
-    def test_validation_partial(self):
-        validated = {ModuleTypeEnum.equipment.value}
-        result = build_it_breakdown(
-            [],
-            validated_module_type_ids=validated,
-            sql_totals=_sql(0, 0),
-        )
-        assert result["validated"] is False
-        assert result["partially_validated"] is True
-        assert result["validated_sources"] == [IT_CATEGORY_EQUIPMENT]
-
-    def test_validation_none(self):
-        result = build_it_breakdown(
-            [], validated_module_type_ids=set(), sql_totals=_sql(0, 0)
-        )
-        assert result["validated"] is False
-        assert result["partially_validated"] is False
-        assert result["validated_sources"] == []
-
-    def test_percentage_correctness(self):
-        rows = [
-            (
-                ModuleTypeEnum.equipment.value,
-                EmissionType.equipment__it.value,
-                3_000.0,
-            ),
-            (
-                ModuleTypeEnum.purchase.value,
-                EmissionType.purchases__it_equipment.value,
-                7_000.0,
-            ),
-        ]
-        result = build_it_breakdown(rows, sql_totals=_sql(10_000, 10_000))
-
-        equip = _cat_by_key(result["categories"], IT_CATEGORY_EQUIPMENT)
-        purch = _cat_by_key(result["categories"], IT_CATEGORY_PURCHASES)
-        assert equip["percentage"] == pytest.approx(30.0)
-        assert purch["percentage"] == pytest.approx(70.0)
-
-    def test_categories_order_is_deterministic(self):
-        result = build_it_breakdown([], sql_totals=_sql(0, 0))
-        keys = [c["category_key"] for c in result["categories"]]
-        assert keys == IT_CATEGORIES_ORDER
-
-    def test_unknown_emission_type_id_ignored(self):
-        rows = [
-            (4, 999999, 5_000.0),
-            (
-                ModuleTypeEnum.equipment.value,
-                EmissionType.equipment__it.value,
-                1_000.0,
-            ),
-        ]
-        result = build_it_breakdown(rows, sql_totals=_sql(1_000, 1_000))
-        assert result["total_it_tonnes_co2eq"] == pytest.approx(1.0)
-
-    def test_exclude_modules_drops_research_and_recomputes_percentage_denominator(self):
-        rows = [
-            (
-                ModuleTypeEnum.equipment.value,
-                EmissionType.equipment__it.value,
-                1_000.0,
-            ),
-            (
-                ModuleTypeEnum.research_facilities.value,
-                EmissionType.research_facilities.value,
-                9_000.0,
-            ),
-        ]
-        exclude = {ModuleTypeEnum.research_facilities.value}
-        result = build_it_breakdown(
-            rows,
-            exclude_module_type_ids=exclude,
-            sql_totals=_sql(1_000, 1_000),
-        )
-        assert result["total_it_tonnes_co2eq"] == pytest.approx(1.0)
-        assert result["percentage_of_total"] == pytest.approx(100.0)
-        research = _cat_by_key(result["categories"], IT_CATEGORY_RESEARCH)
-        assert research["tonnes_co2eq"] == pytest.approx(0.0)
-
-    def test_exclude_modules_omits_excluded_category_from_validation_requirement(self):
-        validated = {
-            ModuleTypeEnum.equipment.value,
-            ModuleTypeEnum.purchase.value,
-            ModuleTypeEnum.external_cloud_and_ai.value,
-        }
-        exclude = {ModuleTypeEnum.research_facilities.value}
-        result = build_it_breakdown(
-            [],
-            validated_module_type_ids=validated,
-            exclude_module_type_ids=exclude,
-            sql_totals=_sql(0, 0),
-        )
-        assert result["validated"] is True
-        assert IT_CATEGORY_RESEARCH not in result["validated_sources"]
+def test_cloud_ai_detail_groups_ai_providers():
+    by_et = {
+        str(EmissionType.external__clouds__calcul.value): 10.0,
+        str(EmissionType.external__clouds__stockage.value): 20.0,
+        str(EmissionType.external__ai__provider_openai.value): 1.0,
+        str(EmissionType.external__ai__provider_anthropic.value): 2.0,
+    }
+    detail = build_cloud_ai_detail(by_et)
+    assert detail == {"calcul": 10.0, "stockage": 20.0, "ai": 3.0}

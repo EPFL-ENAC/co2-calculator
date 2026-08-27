@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
-import ReportPage from 'src/components/organisms/ReportPage.vue';
-import type { ModuleResult } from 'src/api/modules';
-import type { ModuleConfig } from 'src/constant/moduleConfig';
-import type { Module } from 'src/constant/modules';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import ModuleCharts from '@/components/organisms/module/ModuleCharts.vue';
+import ReportPage from '@/components/organisms/ReportPage.vue';
+import type { ModuleResult } from '@/api/modules';
+import type { ModuleConfig } from '@/constant/moduleConfig';
+import type { Module } from '@/constant/modules';
 
 interface Props {
   module: Module;
@@ -16,9 +16,16 @@ interface Props {
   hasCo2PerKmKg: boolean;
   co2PerKmKg: number;
   currentYear: number;
+  combineUnitIds?: number[];
+  excludeModules?: number[];
+  scope?: string;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  combineUnitIds: () => [],
+  excludeModules: () => [],
+  scope: undefined,
+});
 
 const { t, te } = useI18n();
 
@@ -51,7 +58,7 @@ function getTotalModuleCarbonFootprintTitle(): string {
 </script>
 
 <template>
-  <ReportPage :title="$t(module)" :page-number="pageNumber">
+  <ReportPage :title="$t(module)" :scope="scope" :page-number="pageNumber">
     <h2 class="text-h5 q-mt-none report-h2">
       {{ $t(module) }}
     </h2>
@@ -152,6 +159,8 @@ function getTotalModuleCarbonFootprintTitle(): string {
           :type="module"
           forced-view="type"
           :show-controls="false"
+          :combine-unit-ids="props.combineUnitIds"
+          :exclude-modules="props.excludeModules"
         />
       </q-card>
 
@@ -163,6 +172,8 @@ function getTotalModuleCarbonFootprintTitle(): string {
           :type="module"
           forced-view="breakdown"
           :show-controls="false"
+          :combine-unit-ids="props.combineUnitIds"
+          :exclude-modules="props.excludeModules"
         />
       </q-card>
     </div>

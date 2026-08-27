@@ -1,14 +1,27 @@
 """Tests for BaseFactorCSVProvider."""
 
+import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import BaseModel, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionState
+from app.modules.emissions.taxonomy import EmissionTypeResolutionError
 from app.services.data_ingestion import base_factor_csv_provider
 from app.services.data_ingestion.base_factor_csv_provider import BaseFactorCSVProvider
+
+
+class _DummyFactorPayload(BaseModel):
+    """Minimal model used to trigger a real ``pydantic.ValidationError``
+    (float/date parsing failures) the same way ``BaseFactorHandler``'s real
+    ``create_dto`` would, without depending on the concrete handler.
+    """
+
+    co2_factor: float
+    date: datetime.date
 
 
 class ConcreteFactorProvider(BaseFactorCSVProvider):
@@ -252,6 +265,107 @@ async def test_process_row_validation_error_records_error(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_process_row_pydantic_validation_error_bad_float(monkeypatch):
+    """A bad-float value produces a readable ``field: reason (got value)``
+    message instead of pydantic's raw multi-line dump (issue #659).
+    """
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
+    handler.classification_fields = ["kind"]
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
+    )
+    stats = _build_stats()
+
+    def fake_validate_create(payload):
+        return _DummyFactorPayload(co2_factor="abc", date=datetime.date(2026, 1, 1))
+
+    handler.validate_create.side_effect = fake_validate_create
+
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "expected_columns": {"data_entry_type", "kind"},
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x"},
+        row_idx=2,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        factor_service=MagicMock(),
+    )
+
+    assert factor is None
+    assert error_msg == (
+        "co2_factor: Input should be a valid number, unable to parse "
+        "string as a number (got 'abc')"
+    )
+    assert stats["rows_skipped"] == 1
+    assert stats["row_errors"][0]["reason"] == error_msg
+
+
+@pytest.mark.asyncio
+async def test_process_row_pydantic_validation_error_bad_date(monkeypatch):
+    """An invalid date produces a readable per-field message (issue #659)."""
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
+    handler.classification_fields = ["kind"]
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
+    )
+    stats = _build_stats()
+
+    def fake_validate_create(payload):
+        return _DummyFactorPayload(co2_factor=1.0, date="2026-13-40")
+
+    handler.validate_create.side_effect = fake_validate_create
+
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "expected_columns": {"data_entry_type", "kind"},
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x"},
+        row_idx=3,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        factor_service=MagicMock(),
+    )
+
+    assert factor is None
+    assert error_msg.startswith("date: Input should be a valid date or datetime")
+    assert "(got '2026-13-40')" in error_msg
+    assert stats["rows_skipped"] == 1
+
+
+@pytest.mark.asyncio
 async def test_process_row_success(monkeypatch):
     handler_mock = MagicMock()
     handler_mock.category_field = "data_entry_type"
@@ -328,6 +442,7 @@ async def test_finalize_and_commit_move_file_failure():
         data_session=MagicMock(),
     )
     provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
     provider._files_store.move_file = AsyncMock(return_value=False)
     provider.data_session.flush = AsyncMock()
 
@@ -436,7 +551,8 @@ async def test_upsert_batch_raises_when_job_id_missing():
     with ``last_seen_job_id``.  If the job_id was never set (e.g. the
     seed-script path that bypasses DataIngestionJob creation), raise
     eagerly rather than persist factors with a NULL pointer to "current
-    factor job."""
+    factor job.
+    """
     provider = ConcreteFactorProvider(
         {"file_path": "tmp/test.csv", "data_entry_type_id": 1},
         data_session=MagicMock(),
@@ -453,10 +569,11 @@ async def test_upsert_batch_raises_when_job_id_missing():
 
 @pytest.mark.asyncio
 async def test_upsert_batch_falls_back_to_batch_size_when_rowcount_negative():
-    """asyncpg returns rowcount=-1 for executemany ON CONFLICT statements
+    """Asyncpg returns rowcount=-1 for executemany ON CONFLICT statements
     where it can't tally the result reliably.  ``_upsert_batch`` should
     fall back to the input batch size so operator-visible stats don't
-    show a confusing -1."""
+    show a confusing -1.
+    """
     provider = ConcreteFactorProvider(
         {"file_path": "tmp/test.csv", "data_entry_type_id": 1},
         data_session=MagicMock(),
@@ -470,3 +587,259 @@ async def test_upsert_batch_falls_back_to_batch_size_when_rowcount_negative():
     reported = await provider._upsert_batch(batch, factor_repo)
 
     assert reported == 3, "negative rowcount should fall back to len(batch)"
+
+
+@pytest.mark.asyncio
+async def test_process_row_unmapped_emission_type_aborts_upload(monkeypatch):
+    """#2091: an unmappable emission type must NOT become a skipped row.
+
+    Skipping commits every other row, so the factor table ends up
+    half-updated with a category quietly missing, and the job finishes
+    ``WARNING`` — a result nobody reads. The whole upload has to fail so
+    the operator fixes the CSV and re-uploads.
+    """
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
+    handler.classification_fields = ["headcount_class"]
+    handler.value_fields = []
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
+    )
+    stats = _build_stats()
+
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+
+    def unmapped(*args, **kwargs):
+        raise EmissionTypeResolutionError("no leaf for 'neon tubes'")
+
+    monkeypatch.setattr(
+        base_factor_csv_provider, "get_factor_emission_type_id", unmapped
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "expected_columns": {"data_entry_type", "headcount_class"},
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
+
+    with pytest.raises(EmissionTypeResolutionError) as excinfo:
+        await provider._process_row(
+            row={"data_entry_type": "member", "headcount_class": "recycling"},
+            row_idx=7,
+            setup_result=setup_result,
+            stats=stats,
+            max_row_errors=5,
+            factor_service=MagicMock(),
+        )
+
+    assert "Row 7" in str(excinfo.value), "the operator needs the row number"
+    assert "neon tubes" in str(excinfo.value)
+    assert stats["rows_skipped"] == 0, (
+        "an unmapped emission type is not a skippable row error"
+    )
+    assert stats["row_errors"] == []
+
+
+@pytest.mark.asyncio
+async def test_process_row_malformed_value_still_skips(monkeypatch):
+    """The escalation is scoped: only emission-type failures abort.
+
+    A bad float or a missing column keeps its existing skip-and-continue
+    semantics, so #2091 does not turn every messy CSV into a hard stop.
+    """
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
+    handler.classification_fields = ["kind"]
+    handler.value_fields = []
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
+    )
+    stats = _build_stats()
+    handler.validate_create.side_effect = ValueError("bad payload")
+
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x"},
+        row_idx=2,
+        setup_result={
+            "handlers": [handler],
+            "expected_columns": {"data_entry_type", "kind"},
+            "valid_entry_types": [DataEntryTypeEnum.member],
+        },
+        stats=stats,
+        max_row_errors=5,
+        factor_service=MagicMock(),
+    )
+
+    assert factor is None
+    assert "Validation error" in error_msg
+    assert stats["rows_skipped"] == 1
+
+
+@pytest.mark.asyncio
+async def test_process_row_persists_dto_coerced_values(monkeypatch):
+    """#1489 (audit F-3): what reaches Factor.values is the DTO-validated
+    value, not _convert_value's lenient parse. An int-typed field arriving as
+    "2" must persist as int 2, not float 2.0 — before the fix the validated
+    DTO was discarded and the hand-built dict was persisted verbatim.
+    """
+
+    class _CoercingPayload(BaseModel):
+        kind: str
+        hours: int
+
+    handler_mock = MagicMock()
+    handler_mock.category_field = "data_entry_type"
+    handler_mock.classification_fields = ["kind"]
+    handler_mock.value_fields = ["hours"]
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "year": 2024, "handlers": [handler_mock]},
+        data_session=MagicMock(),
+    )
+    stats = _build_stats()
+
+    handler = MagicMock()
+    handler.classification_fields = ["kind"]
+    handler.value_fields = ["hours"]
+    handler.validate_create.side_effect = lambda payload: (
+        _CoercingPayload.model_validate(
+            {k: v for k, v in payload.items() if k in ("kind", "hours")}
+        )
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+    factor_service = MagicMock()
+    factor_service.prepare_create = AsyncMock(return_value=SimpleNamespace(id=1))
+
+    setup_result = {
+        "handlers": [handler_mock],
+        "expected_columns": {"data_entry_type", "kind", "hours"},
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x", "hours": "2"},
+        row_idx=3,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        factor_service=factor_service,
+    )
+
+    assert error_msg is None
+    persisted = factor_service.prepare_create.await_args.kwargs["values"]
+    assert persisted["hours"] == 2
+    assert isinstance(persisted["hours"], int)
+    # classification stays the hand-built dict (310B identity contract)
+    assert factor_service.prepare_create.await_args.kwargs["classification"] == {
+        "kind": "x"
+    }
+
+
+@pytest.mark.asyncio
+async def test_process_row_persists_dto_normalized_values(monkeypatch):
+    """Validation and normalization are two different jobs (#1489, F-3).
+
+    A validator can accept a value while also returning a *cleaned* form of
+    it — pydantic's contract is that the validated model, not the input
+    dict, is the canonical data. ``"  CHF "`` raises nothing (it is valid),
+    yet the value to persist is ``"chf"``. Discarding validate_create's
+    return (the pre-#2231 behavior) stored the raw form even though
+    "validation passed" — the exact silent divergence this audit chases.
+    """
+
+    class _NormalizingPayload(BaseModel):
+        kind: str
+        currency: str
+
+        @field_validator("currency", mode="after")
+        @classmethod
+        def _normalize_currency(cls, v: str) -> str:
+            normalized = v.strip().lower()
+            if normalized not in ("chf", "eur", "usd"):
+                raise ValueError("bad currency")
+            return normalized
+
+    handler_mock = MagicMock()
+    handler_mock.category_field = "data_entry_type"
+    handler_mock.classification_fields = ["kind"]
+    handler_mock.value_fields = ["currency"]
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "year": 2024, "handlers": [handler_mock]},
+        data_session=MagicMock(),
+    )
+    stats = _build_stats()
+
+    handler = MagicMock()
+    handler.classification_fields = ["kind"]
+    handler.value_fields = ["currency"]
+    handler.validate_create.side_effect = lambda payload: (
+        _NormalizingPayload.model_validate(
+            {k: v for k, v in payload.items() if k in ("kind", "currency")}
+        )
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+    factor_service = MagicMock()
+    factor_service.prepare_create = AsyncMock(return_value=SimpleNamespace(id=1))
+
+    setup_result = {
+        "handlers": [handler_mock],
+        "expected_columns": {"data_entry_type", "kind", "currency"},
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x", "currency": "  CHF "},
+        row_idx=3,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        factor_service=factor_service,
+    )
+
+    assert error_msg is None  # "  CHF " is VALID — nothing raises
+    persisted = factor_service.prepare_create.await_args.kwargs["values"]
+    assert persisted["currency"] == "chf"  # ...but what persists is canonical
+
+    # An actually-invalid currency still raises — the fix did not weaken
+    # rejection, it only stopped discarding the accepted rows' clean form.
+    _, error = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x", "currency": "doubloons"},
+        row_idx=4,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        factor_service=factor_service,
+    )
+    assert error is not None and "bad currency" in error

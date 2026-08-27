@@ -52,7 +52,7 @@ status as suspect, and verify against code.
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Auth flow / token lifecycle     | [`backend/05-REQUEST_FLOW.md`](./backend/05-REQUEST_FLOW.md), ADR-012, ADR-013                                                    |
 | Permission model                | [`backend/06-PERMISSION-SYSTEM.md`](./backend/06-PERMISSION-SYSTEM.md), ADR-005                                                   |
-| Adding a permission             | [`backend/07-DEVELOPER-GUIDE-PERMISSIONS.md`](./backend/07-DEVELOPER-GUIDE-PERMISSIONS.md)                                        |
+| Adding a permission             | [`backend/06-PERMISSION-SYSTEM.md`](./backend/06-PERMISSION-SYSTEM.md)                                                            |
 | Background jobs / poller        | ADR-010, [`310-overview.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/implementation-plans/310-overview.md) |
 | CI/CD                           | [`architecture/cicd-workflows.md`](./architecture/cicd-workflows.md)                                                              |
 | Role sync (`/me` vs `/refresh`) | [`role-sync-architecture.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/role-sync-architecture.md)               |

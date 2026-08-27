@@ -156,10 +156,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { MODULES } from 'src/constant/modules';
+import { MODULES } from '@/constant/modules';
 import { useI18n } from 'vue-i18n';
-import { searchLocations } from 'src/api/locations';
-import type { Location } from 'src/constant/locations';
+import { searchLocations } from '@/api/locations';
+import type { Location } from '@/constant/locations';
 
 const { t: $t } = useI18n();
 
@@ -392,7 +392,7 @@ function swapValues() {
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 :deep(.q-select__dropdown-icon),
 :deep(.q-select-dropdown-icon),

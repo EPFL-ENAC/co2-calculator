@@ -51,9 +51,10 @@ re-invent fixture composition or chain-driving plumbing:
 import asyncio
 import contextlib
 import time
+from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Optional
+from typing import Any
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -69,7 +70,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 # Ensure every model class is registered with SQLModel.metadata before
 # create_all runs.  Top-level tests/conftest.py imports many of these for
 # the SQLite suite; we re-import here to be self-contained.
-from app.models import data_ingestion  # noqa: F401
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import (
     CarbonReport,
@@ -113,6 +113,7 @@ def postgres_container(docker_client):
             old = docker_client.containers.get(PG_CONTAINER_NAME)
             old.remove(force=True)
         except docker.errors.NotFound:
+            # No stale container to clean up
             pass
 
         try:
@@ -160,6 +161,7 @@ def postgres_container(docker_client):
             c = docker_client.containers.get(PG_CONTAINER_NAME)
             c.stop(timeout=10)
         except docker.errors.NotFound:
+            # Container already gone — nothing to stop
             pass
         except Exception as e:
             print(f"Error stopping postgres container: {e}")
@@ -371,7 +373,7 @@ async def seeded_year_with_units(
     )
 
 
-def _diff_subset(expected: Any, actual: Any, path: str = "$") -> Optional[str]:
+def _diff_subset(expected: Any, actual: Any, path: str = "$") -> str | None:
     """Return a human-readable diff path when ``actual`` does not contain
     every key/value in ``expected``; ``None`` when the subset matches.
 
@@ -460,6 +462,7 @@ _TRIMMED_CSV_FIXTURES: dict[tuple[str, str], str] = {
     ("purchases_common", "factors"): "purchases_common_factors_smoke.csv",
     ("external_clouds", "data"): "external_clouds_smoke.csv",
     ("processemissions", "data"): "process_emissions_smoke.csv",
+    ("processemissions", "legacy_quantity"): "process_emissions_legacy_quantity.csv",
     ("researchfacilities_common", "data"): "researchfacilities_common_smoke.csv",
     # Unit 3 — buildings (energy combustion + rooms)
     ("buildings_energycombustions", "data"): "building_energycombustions_smoke.csv",
@@ -514,7 +517,7 @@ def csv_fixture_path(module: str, kind: str) -> Path:
          (gitignored, dev-only — CI runs that need this should ship a
          trimmed fixture instead).
 
-    Raises
+    Raises:
     ------
     KeyError
         ``(module, kind)`` has no canonical seed mapping in either the
@@ -599,7 +602,7 @@ async def dispatch_csv_and_wait(
         stub like ``_stub_csv_provider()``; callers that want the real
         provider import + reference it directly.
 
-    Returns
+    Returns:
     -------
     (parent_job, [children])
         ``parent_job`` is the post-handler row reloaded from a fresh
@@ -686,7 +689,7 @@ async def dispatch_csv_and_wait(
     # than the runner's production SessionLocal.
     pending: list[int] = []
 
-    def _sync_fire_and_forget(coro: Awaitable[Any], *, name: Optional[str] = None):
+    def _sync_fire_and_forget(coro: Awaitable[Any], *, name: str | None = None):
         # Close the original run_job coroutine — it would have run on
         # the runner's session factory (production DB) and our test PG
         # would never see it.

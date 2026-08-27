@@ -114,3 +114,19 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+  # Base images in Dockerfiles (FROM tags). Note: this only bumps the tag when
+  # a new base version is published — OS-package fixes shipped under the same
+  # tag still require a rebuild, which the weekly registry scan surfaces.
+  - package-ecosystem: "docker"
+    directories:
+      - "/frontend"
+      - "/backend"
+      - "/docs"
+    schedule:
+      interval: "weekly"
+    target-branch: "dev"
+    assignees:
+      - "co2-calculator"
+    labels:
+      - "dependencies"
+      - "dev"

@@ -2,10 +2,11 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
-from sqlalchemy import Column, DateTime, Integer
+from sqlalchemy import Column, DateTime, Index, Integer, text
 from sqlmodel import JSON, Field, SQLModel
+
+from app.models._field_defaults import default_dict, default_utcnow
 
 
 class DataEntryStatusEnum(int, Enum):
@@ -42,20 +43,42 @@ class DataEntryTypeEnum(int, Enum):
     services = 64
     vehicles = 65
     other_purchases = 66
-    additional_purchases = 67
+    purchases_centralized = 67
 
     # Research facilities: Was internal services
     # Implementation of the module "Research facilities" and its sub-modules:
     research_facilities = 70
-    mice_and_fish_animal_facilities = 71
+    animal_facilities = 71
+
+    # Simulator Plan (planner) kinds — 80+ range. Planner modules whose
+    # entry shape differs from the Calculator get their own types here;
+    # their handlers live in app/modules_planner.
+    planner_headcount = 80
+    # Purchases: manual CHF total per submodule XOR one global budget
+    # (mutually exclusive — enforced at entry creation).
+    planner_purchase = 81
+    planner_purchase_budget = 82
+
+    @property
+    def is_planner_kind(self) -> bool:
+        """Whether this type belongs to the Simulator Plan (80+ range)."""
+        return self.value >= 80
 
 
 class DataEntrySourceEnum(int, Enum):
-    """
-    Enum representing the source of a data entry.
+    """Enum representing the source of a data entry.
 
     Used to track how data entries were created, enabling selective deletion
     and audit trails for different upload methods.
+
+    #951: which values bucket into the "user" edit-rights branch is
+    hardcoded in TWO places that must move together — there is no shared
+    source of truth for this specific bucketing (accepted tradeoff, see
+    docs/src/implementation-plans/951-edit-rights-per-dataset-permissions.md):
+      - backend: app.core.data_entry_permissions._USER_BRANCH_SOURCES
+      - frontend: src/utils/dataEntryPolicy.ts USER_BRANCH_SOURCES
+    Adding a new member here that should read as "user" (like
+    PLANNER_SNAPSHOT) means updating both.
     """
 
     USER_MANUAL = 0  # Manual entry via UI
@@ -64,6 +87,19 @@ class DataEntrySourceEnum(int, Enum):
     API_MODULE_PER_YEAR = 3  # API upload for module per year
     API_MODULE_UNIT_SPECIFIC = 4  # API upload for unit specific module
     EXTERNAL_INTEGRATION = 5  # Third-party integration or import
+    PLANNER_SNAPSHOT = 6  # Simulator Plan prefill copy of a reference-year entry
+
+
+# Machine-owned bulk per-year sources. A per-year ingest (CSV upload or API
+# sync) is a complete yearly export, so it replaces ALL of these — a CSV
+# upload after an API sync (or vice versa) must not collide with the other
+# mechanism's rows. Manual entries (USER_MANUAL) and unit-specific uploads
+# (*_UNIT_SPECIFIC) are operator-owned and always preserved.
+BULK_PER_YEAR_SOURCES: tuple[DataEntrySourceEnum, ...] = (
+    DataEntrySourceEnum.CSV_MODULE_PER_YEAR,
+    DataEntrySourceEnum.API_MODULE_PER_YEAR,
+    DataEntrySourceEnum.EXTERNAL_INTEGRATION,
+)
 
 
 ## Will be renamed to data_entries later
@@ -83,12 +119,12 @@ class DataEntryBase(SQLModel):
         description="Reference to parent carbon report module instance",
     )
     data: dict = Field(
-        default_factory=dict,
+        default_factory=default_dict,
         sa_column=Column(JSON),
         description="Dynamic JSON storage for module-specific data",
     )
 
-    status: Optional[DataEntryStatusEnum] = Field(
+    status: DataEntryStatusEnum | None = Field(
         default=DataEntryStatusEnum.PENDING,
         description="Optional status field for additional state tracking",
     )
@@ -108,8 +144,7 @@ class DataEntryBase(SQLModel):
 
 
 class DataEntry(DataEntryBase, table=True):
-    """
-    Generic module table for storing data across different module types.
+    """Generic module table for storing data across different module types.
 
     This table provides a flexible storage mechanism where:
     - module_type_id defines the category (headcount, equipment, travel)
@@ -126,7 +161,27 @@ class DataEntry(DataEntryBase, table=True):
 
     __tablename__ = "data_entries"
 
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    __table_args__ = (
+        # #2050 J4: one (module, person, role) per member row, enforced by the
+        # database. It replaces a check-then-act SELECT in the create workflow
+        # that two concurrent POSTs could both pass. A person can legitimately
+        # hold several roles in a unit, so sius_code is part of the key (#951).
+        # Partial + expression, hence the raw text: the key lives inside the
+        # JSON ``data`` column and applies to member rows only.
+        Index(
+            "uq_member_role_per_module",
+            "carbon_report_module_id",
+            text("(data ->> 'user_institutional_id')"),
+            text("(data ->> 'sius_code')"),
+            unique=True,
+            postgresql_where=text(
+                f"data_entry_type_id = {DataEntryTypeEnum.member.value} "
+                f"AND data ->> 'user_institutional_id' IS NOT NULL"
+            ),
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True, index=True)
 
     # Denormalized scope columns (source of truth is
     # carbon_report_module → carbon_report).  Carried on the row so
@@ -134,35 +189,35 @@ class DataEntry(DataEntryBase, table=True):
     # delete in CSV ingest — can filter by year/unit without resolving
     # the module tree.  Stamped by the bulk ingest paths; immutable
     # facts of an entry (entries never move between modules).
-    year: Optional[int] = Field(
+    year: int | None = Field(
         default=None,
         description="Denormalized report year (from carbon_report)",
         sa_column=Column(Integer, nullable=True, index=True),
     )
-    unit_id: Optional[int] = Field(
+    unit_id: int | None = Field(
         default=None,
         description="Denormalized unit id (from carbon_report.unit_id)",
         sa_column=Column(Integer, nullable=True, index=True),
     )
 
     # Source tracking fields
-    source: Optional[int] = Field(
+    source: int | None = Field(
         default=None,
         description="Entry source: user manual, CSV upload, API, etc.",
         sa_column=Column(Integer, nullable=True, index=True),
     )
-    created_by_id: Optional[int] = Field(
+    created_by_id: int | None = Field(
         default=None,
         index=True,
         description="Creator ID: user.id or data_ingestion_job.id",
     )
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=default_utcnow,
         sa_column=Column(DateTime, default=datetime.utcnow, nullable=False),
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=default_utcnow,
         sa_column=Column(
             DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
         ),

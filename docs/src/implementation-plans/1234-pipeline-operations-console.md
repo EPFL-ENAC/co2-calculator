@@ -1,3 +1,9 @@
+---
+status: delivered
+issue: 1234
+last_updated: 2026-05-19
+---
+
 # 1234 — Pipeline operations console
 
 Status: in progress · Branch: `feat/1234-pipeline-operations-console` · Base: `dev`

@@ -1,4 +1,4 @@
-import { route } from 'quasar/wrappers';
+import { defineRouter } from '#q-app';
 import {
   createMemoryHistory,
   createRouter,
@@ -8,6 +8,7 @@ import {
 
 import routes from './routes';
 import { authGuard } from './guards/authGuard';
+import workspaceGuard from './guards/workspaceGuard';
 import {
   defaultLanguageGuard,
   setLanguageCookieGuard,
@@ -21,10 +22,10 @@ import {
  * with the Router instance.
  */
 
-export default route(function (/* { store, ssrContext } */) {
-  const createHistory = process.env.SERVER
+export default defineRouter(function (/* { store, ssrContext } */) {
+  const createHistory = import.meta.env.QUASAR_SERVER
     ? createMemoryHistory
-    : process.env.VUE_ROUTER_MODE === 'history'
+    : import.meta.env.QUASAR_VUE_ROUTER_MODE === 'history'
       ? createWebHistory
       : createWebHashHistory;
 
@@ -47,30 +48,33 @@ export default route(function (/* { store, ssrContext } */) {
     // Leave this as is and make changes in quasar.conf.js instead!
     // quasar.conf.js -> build -> vueRouterMode
     // quasar.conf.js -> build -> publicPath
-    history: createHistory(process.env.VUE_ROUTER_BASE),
+    history: createHistory(import.meta.env.QUASAR_VUE_ROUTER_BASE),
   });
 
   /*
- EXPECTED BEHAVIOR workspace-setup IS THE DEFAULT ROUTE
-  ** LOGGED IN USERS **
-  / -> redirect to /:language(workspace-setup) with current locale
-  /en -> redirect to /en/workspace-setup
-  /en/login -> redirect to /en/workspace-setup
-  /en/403 -> show 404\
-  /404 -> show 404
-  /unauthorized -> show 403
+ EXPECTED BEHAVIOR — the parameterless landing (/en) IS THE DEFAULT ROUTE.
+ It renders nothing: its guard resolves a default unit/year and forwards to
+ the unified home page (/en/:unit/:year/home), or to /unauthorized when the
+ account has no units.
 
-  // not logged in
-  /en/workspace-setup when not authenticated -> redirect to /en/login
-  /en/login -> show login page
-  / -> redirect to /:language/login with current locale
-  /en -> redirect to /en/login
+  ** LOGGED IN USERS **
+  /              -> redirect to /:language with current locale
+  /en            -> resolve default workspace -> /en/:unit/:year/home
+  /en/login      -> redirect to /en (already authenticated)
+  /unauthorized  -> show the access-denied page (ErrorUnauthorized.vue)
+  any other path -> catch-all -> show 404 (ErrorNotFound.vue)
+
+  ** NOT LOGGED IN **
+  /              -> redirect to /:language/login with current locale
+  /en            -> redirect to /en/login
+  /en/login      -> show the login page
 */
 
   // Navigation guards
   Router.beforeEach(defaultLanguageGuard);
   Router.beforeEach(setLanguageCookieGuard);
   Router.beforeEach(authGuard);
+  Router.beforeEach(workspaceGuard);
 
   return Router;
 });

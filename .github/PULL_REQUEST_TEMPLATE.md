@@ -17,7 +17,7 @@ Please check the type that applies:
 - [ ] 🔧 Configuration change
 - [ ] 🧹 Code cleanup
 
-## Code quality checklist 
+## Code quality checklist
 
 - [ ] I confirm that my contribution is original and that I assign all intellectual property rights in this contribution to EPFL, retaining no ownership rights.
 - [ ] Code follows our standards (linter passes)
@@ -26,6 +26,14 @@ Please check the type that applies:
 - [ ] Commit messages follow convention
 - [ ] No console.log or debug statements
 
+## Security checklist
+
+- [ ] No secrets, keys, or credentials added to code, config, or tests
+- [ ] New or changed endpoints gate on a permission key, never on a role
+- [ ] Input from users or external APIs is validated at the boundary
+- [ ] No new silent fallback — missing data fails loudly
+- [ ] Encryption, key handling, or auth touched? Update
+      [Encryption and Key Management](../docs/src/architecture/encryption.md)
 
 ## Testing checklist
 

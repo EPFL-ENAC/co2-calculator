@@ -1,9 +1,11 @@
 """Plan 310-D follow-up — Strategy A (JSON-link) rematch regression net.
 
-The JSON-link path is the original Plan 310-D rematch surface (PR #1027):
-``EmissionRecalculationWorkflow`` walks ``factor_lookup`` and rewrites
-``entry.data['primary_factor_id']`` for handlers whose ``kind_field`` (and
-optional ``subkind_field``) live on ``entry.data``.  Modules covered:
+The JSON-link path is the original Plan 310-D rematch surface (PR #1027).
+Since #1661, ``EmissionRecalculationWorkflow`` no longer rewrites any
+stored id — ``FactorResolver`` resolves the matching factor on demand
+from ``entry.data``'s classification fields (``kind_field`` and optional
+``subkind_field``) on every recalc, so a changed factor value propagates
+without any rewrite step.  Modules covered:
 
 - equipment (it / scientific / other)
 - purchase (purchase_common / purchase_additional)
@@ -34,10 +36,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
@@ -182,7 +185,6 @@ async def _seed_equipment(
         data_entry_type_id=det.value,
         carbon_report_module_id=module_id,
         data={
-            "primary_factor_id": factor.id,
             "equipment_class": "Laptop",
             "sub_class": "Standard",
             "active_usage_hours_per_week": 40.0,
@@ -216,7 +218,6 @@ async def _seed_purchase(
         data_entry_type_id=det.value,
         carbon_report_module_id=module_id,
         data={
-            "primary_factor_id": factor.id,
             "purchase_institutional_code": "PIC-001",
             "name": "Test purchase",
             "supplier": "ACME",
@@ -245,7 +246,6 @@ async def _seed_external_cloud(s: AsyncSession, module_id: int) -> tuple[int, in
         data_entry_type_id=DataEntryTypeEnum.external_clouds.value,
         carbon_report_module_id=module_id,
         data={
-            "primary_factor_id": factor.id,
             "provider": "AWS",
             "service_type": "compute",
             "spent_amount": 200.0,
@@ -262,7 +262,7 @@ async def _seed_external_ai(s: AsyncSession, module_id: int) -> tuple[int, int]:
     factor = Factor(
         emission_type_id=EmissionType.external__ai__provider_openai.value,
         data_entry_type_id=DataEntryTypeEnum.external_ai.value,
-        classification={"provider": "openai", "usage_type": "chat"},
+        classification={"provider": "ChatGPT (OpenAI)", "usage_type": "text"},
         values={"ef_kg_co2eq_per_request": 0.01},
         year=2025,
     )
@@ -273,9 +273,8 @@ async def _seed_external_ai(s: AsyncSession, module_id: int) -> tuple[int, int]:
         data_entry_type_id=DataEntryTypeEnum.external_ai.value,
         carbon_report_module_id=module_id,
         data={
-            "primary_factor_id": factor.id,
-            "provider": "openai",
-            "usage_type": "chat",
+            "provider": "ChatGPT (OpenAI)",
+            "usage_type": "text",
             "fte_count": 1.0,
             "requests_per_user_per_day": "5_20",
         },
@@ -301,10 +300,9 @@ async def _seed_process_emissions(s: AsyncSession, module_id: int) -> tuple[int,
         data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
         carbon_report_module_id=module_id,
         data={
-            "primary_factor_id": factor.id,
             "category": "co2",
             "subcategory": "industrial",
-            "quantity": 100.0,
+            "quantity_kg": 100.0,
         },
     )
     s.add(entry)
@@ -328,7 +326,6 @@ async def _seed_energy_combustion(s: AsyncSession, module_id: int) -> tuple[int,
         data_entry_type_id=DataEntryTypeEnum.energy_combustion.value,
         carbon_report_module_id=module_id,
         data={
-            "primary_factor_id": factor.id,
             "name": "natural_gas",
             "quantity": 1000.0,
         },
@@ -358,7 +355,8 @@ async def test_equipment_factor_values_change_propagates(
     emission_type,
 ):
     """Equipment (it / scientific / other) — JSON-link, ef change doubles
-    kg_co2eq via the bulk-prefetch + ``upsert_by_data_entry`` path."""
+    kg_co2eq via the bulk-prefetch + ``upsert_by_data_entry`` path.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
@@ -399,7 +397,8 @@ async def test_equipment_factor_values_change_propagates(
 )
 async def test_purchase_factor_values_change_propagates(pg_dsn, det, emission_type):
     """Purchase (common / additional) — JSON-link, kind=purchase_institutional_code.
-    Doubling ef doubles kg_co2eq."""
+    Doubling ef doubles kg_co2eq.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:

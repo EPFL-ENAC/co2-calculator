@@ -59,7 +59,8 @@ async def test_active_pipelines_does_not_call_per_module_permission_check():
     """Pin the absence of the OPA call.  If a refactor reintroduces
     ``get_module_permission_decision`` in this endpoint without
     sub-perimeter scoping, it'll silently regress to filtering out
-    every module for BackOfficeMetier — this test makes that loud."""
+    every module for BackOfficeMetier — this test makes that loud.
+    """
     fake_db = MagicMock()
     fake_user = MagicMock()
     fake_repo = MagicMock()
@@ -85,7 +86,8 @@ async def test_active_pipelines_does_not_call_per_module_permission_check():
 @pytest.mark.asyncio
 async def test_active_pipelines_empty_modules_short_circuits():
     """Empty ``modules`` query param returns ``{}`` without calling the
-    repo — defensive contract, unchanged by the fix."""
+    repo — defensive contract, unchanged by the fix.
+    """
     fake_db = MagicMock()
     fake_user = MagicMock()
     fake_repo = MagicMock()

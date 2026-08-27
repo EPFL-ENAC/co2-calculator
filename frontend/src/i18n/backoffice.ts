@@ -1,9 +1,9 @@
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
 
 export default {
   [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName]: {
     en: 'User Management',
-    fr: 'Gestion des utilisateurs',
+    fr: 'Gestion des utilisateur·rices',
   },
   [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.description]: {
     en: 'backoffice-user-management-description',

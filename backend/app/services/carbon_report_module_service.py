@@ -1,7 +1,7 @@
 """CarbonReportModule service for business logic."""
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -9,90 +9,160 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReportModule, CarbonReportType
-from app.models.data_entry import DataEntry
-from app.models.data_entry_emission import (
-    EmissionType,
-    get_all_nodes,
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.module_type import (
+    ALL_MODULE_TYPE_IDS,
+    ModuleTypeEnum,
+)
+from app.modules.emissions import (
     get_children,
     get_subtree_leaves,
 )
-from app.models.module_type import (
-    ALL_MODULE_TYPE_IDS,
-    MODULE_TYPE_TO_EMISSION_ROOTS,
-    ModuleTypeEnum,
-)
+from app.modules.emissions.buckets import BucketNodes
+from app.modules.emissions.registry import MODULE_STAT_BUCKETS
+from app.modules.emissions.taxonomy import EmissionType
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
+from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import (
     CarbonReportModuleCreate,
     CarbonReportModuleRead,
     CarbonReportRead,
 )
+from app.schemas.data_entry import DataEntryResponse
+from app.schemas.write_scope import WriteScope
+from app.services.data_entry_emission_service import DataEntryEmissionService
 
 logger = get_logger(__name__)
+
+# Per-module IT top-class detail persisted into module stats: stats key,
+# data entry types to group, the classification field, and an optional
+# emission-type filter for types whose IT share is resolved per entry.
+_IT_TOP_CLASS_SPECS: dict[
+    ModuleTypeEnum, tuple[str, list[DataEntryTypeEnum], str, list[int] | None]
+] = {
+    ModuleTypeEnum.equipment: (
+        "equipment_it",
+        [DataEntryTypeEnum.it],
+        "equipment_class",
+        None,
+    ),
+    ModuleTypeEnum.purchase: (
+        "purchases_it",
+        [DataEntryTypeEnum.it_equipment],
+        "purchase_institutional_code",
+        None,
+    ),
+    ModuleTypeEnum.research_facilities: (
+        "research_facilities_it",
+        [DataEntryTypeEnum.research_facilities],
+        "researchfacility_name",
+        [EmissionType.research_facilities__it_facilities.value],
+    ),
+}
+
+
+def _compute_bucket_stats(
+    bucket_nodes: BucketNodes,
+    leaf_emissions: dict[str, float | None],
+    additional_values: dict[str, float | None],
+) -> dict:
+    """Aggregate one stat bucket from leaf-level DB totals.
+
+    ``by_emission_type`` holds leaf values plus subtree rollups; rollups are
+    restricted to the bucket's node set so a split module (buildings) never
+    counts an excluded subtree (heating_thermal) in its rooms rollup.
+    """
+    bucket = bucket_nodes.bucket
+    node_values = {node.value for node in bucket_nodes.nodes}
+    by_et: dict[str, float] = {}
+    by_additional: dict[str, float] = {}
+    total_kg = 0.0
+
+    for node in bucket_nodes.nodes:
+        key = str(node.value)
+        val = leaf_emissions.get(key)
+        if val:
+            by_et[key] = val
+            # Rollup rows persist their subtree sum; counting them again
+            # would double the bucket total.
+            if node in bucket_nodes.data_nodes:
+                total_kg += val
+        add_val = additional_values.get(key)
+        if add_val:
+            by_additional[key] = add_val
+
+    for node in bucket_nodes.nodes:
+        if not get_children(node):
+            continue
+        leaf_ids = [
+            leaf_id for leaf_id in get_subtree_leaves(node) if leaf_id in node_values
+        ]
+        rollup = sum(leaf_emissions.get(str(lid), 0) or 0 for lid in leaf_ids)
+        if rollup:
+            by_et[str(node.value)] = rollup
+        add_rollup = sum(additional_values.get(str(lid), 0) or 0 for lid in leaf_ids)
+        if add_rollup:
+            by_additional[str(node.value)] = add_rollup
+
+    return {
+        "scope": bucket.scope,
+        "additional": bucket.additional,
+        "total_kg": total_kg,
+        "by_emission_type": by_et,
+        "by_additional_value": by_additional,
+    }
 
 
 def compute_module_stats(
     leaf_emissions: dict[str, float | None],
     additional_values: dict[str, float | None],
-    emission_roots: list[EmissionType],
+    bucket_nodes: tuple[BucketNodes, ...],
     entry_count: int = 0,
+    bucket_extras: dict[str, dict] | None = None,
+    module_extras: dict | None = None,
 ) -> dict:
     """Build the stats dict from leaf-level emission totals.
 
     Args:
         leaf_emissions: {str(emission_type_id): kg_co2eq} from DB aggregation.
-        emission_roots: EmissionType roots for this module.
-        entry_count: Number of data entries in this module.
+        additional_values: {str(emission_type_id): physical quantity}.
+        bucket_nodes: the module's expanded stat buckets.
+        entry_count: number of data entries in this module.
+        bucket_extras: extra payload merged into a bucket by key (e.g. the
+            embodied bucket's by_building detail).
+        module_extras: extra top-level payload (e.g. headcount total_fte).
 
     Returns:
-        Stats dict with scope totals, by_emission_type (leaves + rollups),
-        computed_at, and entry_count.
+        {"buckets": {...}, "total": kg, "by_emission_type": merged,
+         "by_additional_value": merged, "entry_count", "computed_at"}.
+        ``total`` sums every bucket (headline behaviour); the per-bucket
+        ``additional`` flag carries the informative/organisational split.
     """
-    by_et: dict[str, float] = {}
-    by_additional: dict[str, float] = {}
-    scope_totals: dict[str, float] = {"scope1": 0.0, "scope2": 0.0, "scope3": 0.0}
+    buckets: dict[str, dict] = {}
+    merged_et: dict[str, float] = {}
+    merged_additional: dict[str, float] = {}
+    total_kg = 0.0
 
-    # Collect all nodes across all roots for this module
-    all_nodes: list[EmissionType] = []
-    for root in emission_roots:
-        all_nodes.extend(get_all_nodes(root))
-
-    # 1. Populate leaf values from DB results + accumulate scope totals
-    for node in all_nodes:
-        val = leaf_emissions.get(str(node.value))
-        if val is not None and val != 0:
-            by_et[str(node.value)] = val
-            # Scope totals only for actual leaves (data rows)
-            if node.scope is not None:
-                scope_totals[f"scope{int(node.scope)}"] += val
-        add_val = additional_values.get(str(node.value))
-        if add_val is not None and add_val != 0:
-            by_additional[str(node.value)] = add_val
-
-    # 2. Compute rollups for non-leaf nodes from their subtree leaves
-    for node in all_nodes:
-        if get_children(node):  # non-leaf
-            leaf_ids = get_subtree_leaves(node)
-            rollup = sum(leaf_emissions.get(str(lid), 0) or 0 for lid in leaf_ids)
-            if rollup != 0:
-                by_et[str(node.value)] = rollup
-            add_rollup = sum(
-                additional_values.get(str(lid), 0) or 0 for lid in leaf_ids
-            )
-            if add_rollup != 0:
-                by_additional[str(node.value)] = add_rollup
-
-    total = scope_totals["scope1"] + scope_totals["scope2"] + scope_totals["scope3"]
+    for bn in bucket_nodes:
+        bucket_stats = _compute_bucket_stats(bn, leaf_emissions, additional_values)
+        extra = (bucket_extras or {}).get(bn.bucket.key)
+        if extra:
+            bucket_stats.update(extra)
+        buckets[bn.bucket.key] = bucket_stats
+        merged_et.update(bucket_stats["by_emission_type"])
+        merged_additional.update(bucket_stats["by_additional_value"])
+        total_kg += bucket_stats["total_kg"]
 
     return {
-        **scope_totals,
-        "total": total,
-        "by_emission_type": by_et,
-        "by_additional_value": by_additional,
-        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "buckets": buckets,
+        "total": total_kg,
+        "by_emission_type": merged_et,
+        "by_additional_value": merged_additional,
         "entry_count": entry_count,
+        "computed_at": datetime.now(UTC).isoformat(),
+        **(module_extras or {}),
     }
 
 
@@ -140,9 +210,8 @@ class CarbonReportModuleService:
 
     async def create_all_modules_for_report(
         self, carbon_report_id: int
-    ) -> List[CarbonReportModuleRead]:
-        """
-        Create all module records for a new carbon report.
+    ) -> list[CarbonReportModuleRead]:
+        """Create all module records for a new carbon report.
 
         Creates one CarbonReportModule per module type (7 total) with
         status NOT_STARTED.
@@ -200,7 +269,7 @@ class CarbonReportModuleService:
 
     async def get_module(
         self, carbon_report_id: int, module_type_id: int
-    ) -> Optional[CarbonReportModuleRead]:
+    ) -> CarbonReportModuleRead | None:
         """Get a carbon report module by report and module type."""
         carbon_report_module = await self.repo.get_by_report_and_module_type(
             carbon_report_id, module_type_id
@@ -212,7 +281,7 @@ class CarbonReportModuleService:
     async def list_modules(
         self,
         carbon_report_id: int,
-    ) -> List[CarbonReportModuleRead]:
+    ) -> list[CarbonReportModuleRead]:
         """List all modules for a carbon report.
 
         Plan 310-D / Issue #1062 — ``current_pipeline_id`` enrichment
@@ -226,7 +295,7 @@ class CarbonReportModuleService:
 
     async def list_modules_for(
         self, module_type_id: int, year: int
-    ) -> List[CarbonReportModule]:
+    ) -> list[CarbonReportModule]:
         """Return all CarbonReportModule rows for a (module_type_id, year) slice.
 
         Used by the Plan 310-D ``aggregation`` handler to identify which
@@ -239,9 +308,8 @@ class CarbonReportModuleService:
 
     async def update_status(
         self, carbon_report_id: int, module_type_id: int, status: int
-    ) -> Optional[CarbonReportModuleRead]:
-        """
-        Update the status of a carbon report module.
+    ) -> CarbonReportModuleRead | None:
+        """Update the status of a carbon report module.
 
         Args:
             carbon_report_id: The carbon report ID
@@ -258,6 +326,20 @@ class CarbonReportModuleService:
                 f"{[s.value for s in ModuleStatus]}"
             )
 
+        if (
+            status == ModuleStatus.VALIDATED
+            and module_type_id == ModuleTypeEnum.equipment.value
+        ):
+            module = await self.repo.get_by_report_and_module_type(
+                carbon_report_id, module_type_id
+            )
+            if module is not None and module.id is not None:
+                incomplete = await DataEntryRepository(
+                    self.session
+                ).count_incomplete_new_equipment(module.id)
+                if incomplete > 0:
+                    raise ValueError("NEW_EQUIPMENT_USAGE_REQUIRED")
+
         logger.info(
             f"Updating report {sanitize(carbon_report_id)} module "
             f"status to {sanitize(ModuleStatus(status).name)}"
@@ -269,7 +351,86 @@ class CarbonReportModuleService:
             return None
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
-    async def recompute_stats_many(self, carbon_report_module_ids: list[int]) -> int:
+    async def update_is_active(
+        self, carbon_report_id: int, module_type_id: int, is_active: bool
+    ) -> CarbonReportModuleRead | None:
+        """Toggle a module's Active flag (Simulator Plan checkbox)."""
+        logger.info(
+            f"Setting report {sanitize(carbon_report_id)} module "
+            f"{sanitize(module_type_id)} is_active={sanitize(is_active)}"
+        )
+        carbon_report_module = await self.repo.update_is_active(
+            carbon_report_id, module_type_id, is_active
+        )
+        if carbon_report_module is None:
+            return None
+        return CarbonReportModuleRead.model_validate(carbon_report_module)
+
+    async def set_reference_percentage_all(
+        self, carbon_report_id: int, module_type_id: int, percentage: float
+    ) -> int | None:
+        """Set the reference percentage of every snapshot entry of a module.
+
+        Backs the grant equipment "global percentage" mode (#1981): one value
+        applied to every prefilled line at once. Hand-added entries carry no
+        ``source_data_entry_id`` and keep their own values. Emissions are
+        recomputed per entry, then the module stats. Returns the number of
+        entries updated, or None when the module does not exist.
+        """
+        logger.info(
+            f"Setting report {sanitize(carbon_report_id)} module "
+            f"{sanitize(module_type_id)} reference percentage to "
+            f"{sanitize(percentage)} on all snapshot entries"
+        )
+        module = await self.get_module(carbon_report_id, module_type_id)
+        if module is None:
+            return None
+        entry_repo = DataEntryRepository(self.session)
+        entries = await entry_repo.list_by_module(module.id)
+        snapshots = [
+            entry
+            for entry in entries
+            if entry.data.get("source_data_entry_id") is not None
+        ]
+        for entry in snapshots:
+            entry.data = {**entry.data, "percentage_of_reference_year": percentage}
+            self.session.add(entry)
+        await self.session.flush()
+        emission_service = DataEntryEmissionService(self.session)
+        for entry in snapshots:
+            await emission_service.upsert_by_data_entry(
+                DataEntryResponse.model_validate(entry)
+            )
+        await self.recompute_stats_many([module.id])
+        return len(snapshots)
+
+    async def update_submodule_budget(
+        self,
+        carbon_report_id: int,
+        module_type_id: int,
+        submodule: str,
+        budget: float | None,
+    ) -> CarbonReportModuleRead | None:
+        """Set a grant submodule's share of the budget (#1978)."""
+        logger.info(
+            f"Setting report {sanitize(carbon_report_id)} module "
+            f"{sanitize(module_type_id)} submodule {sanitize(submodule)} "
+            f"budget={sanitize(budget)}"
+        )
+        carbon_report_module = await self.repo.update_submodule_budget(
+            carbon_report_id, module_type_id, submodule, budget
+        )
+        if carbon_report_module is None:
+            return None
+        return CarbonReportModuleRead.model_validate(carbon_report_module)
+
+    async def recompute_stats_many(
+        self,
+        carbon_report_module_ids: list[int],
+        *,
+        bump_status: bool = True,
+        prefetched_years: dict[int, int] | None = None,
+    ) -> int:
         """Set-based stats recompute for the aggregation job.
 
         Replaces N sequential ``recompute_stats`` calls (~8 queries per
@@ -277,8 +438,16 @@ class CarbonReportModuleService:
         entry-count query, then one batched report rollup
         (``recompute_report_stats_many``) over the distinct parent
         reports.  Each refreshed module is also marked IN_PROGRESS (data
-        changed → prior validation is stale).  Returns the number of
-        modules refreshed.
+        changed → prior validation is stale) unless ``bump_status=False``.
+        Returns the number of modules refreshed.
+
+        ``bump_status=False`` is for the admin recompute-stats backfill
+        trigger (``aggregation_handler`` with
+        ``meta.config.skip_module_status_update``): that path re-derives
+        stats under current code from data that hasn't changed, so it
+        would otherwise stale-out every module's validation for no
+        reason. The recalc-chained call (real data change) always keeps
+        the default.
         """
         if not carbon_report_module_ids:
             return 0
@@ -301,44 +470,42 @@ class CarbonReportModuleService:
         emission_repo = DataEntryEmissionRepository(self.session)
         pairs = await emission_repo.get_stats_pair_many(carbon_report_module_ids)
 
-        count_rows = (
-            await self.session.execute(
-                select(
-                    col(DataEntry.carbon_report_module_id),
-                    func.count(),
-                )
-                .where(
-                    col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids)
-                )
-                .group_by(col(DataEntry.carbon_report_module_id))
-            )
-        ).all()
-        counts = {module_id: count for module_id, count in count_rows}
+        counts, fte_by_module = await self._entry_counts_and_fte(modules)
+        # #2050 J4: an interactive write knows its report's year already.
+        year_by_report = prefetched_years or await self._years_by_report(modules)
 
-        now_utc = int(datetime.now(timezone.utc).timestamp())
+        now_utc = int(datetime.now(UTC).timestamp())
         refreshed = 0
         report_ids: set[int] = set()
         for module in modules:
             if module.id is None:
                 continue
-            emission_roots = MODULE_TYPE_TO_EMISSION_ROOTS.get(
+            bucket_nodes = MODULE_STAT_BUCKETS.get(
                 ModuleTypeEnum(module.module_type_id)
             )
-            if not emission_roots:
+            if not bucket_nodes:
                 # Module type has no emission mapping (e.g. global_energy)
                 continue
             leaf_emissions, additional_values = pairs.get(module.id, ({}, {}))
             module.stats = compute_module_stats(
                 leaf_emissions=leaf_emissions,
                 additional_values=additional_values,
-                emission_roots=emission_roots,
+                bucket_nodes=bucket_nodes,
                 entry_count=counts.get(module.id, 0),
+                bucket_extras=await self._collect_bucket_extras(module),
+                module_extras=await self._collect_module_extras(
+                    module,
+                    report_year=year_by_report.get(module.carbon_report_id),
+                    fte_by_module=fte_by_module,
+                ),
             )
             module.last_updated = now_utc
-            # Recomputing means the underlying data changed, so the module is
-            # back in progress: any prior validation is now stale. The report
-            # rollup below re-derives overall_status from these statuses.
-            module.status = ModuleStatus.IN_PROGRESS
+            if bump_status:
+                # Recomputing means the underlying data changed, so the module
+                # is back in progress: any prior validation is now stale. The
+                # report rollup below re-derives overall_status from these
+                # statuses.
+                module.status = ModuleStatus.IN_PROGRESS
             self.session.add(module)
             report_ids.add(module.carbon_report_id)
             refreshed += 1
@@ -352,7 +519,12 @@ class CarbonReportModuleService:
         await report_service.recompute_report_stats_many(sorted(report_ids))
         return refreshed
 
-    async def recompute_stats(self, carbon_report_module_id: int) -> None:
+    async def recompute_stats(
+        self,
+        carbon_report_module_id: int,
+        *,
+        scope: WriteScope | None = None,
+    ) -> None:
         """Recompute and persist the stats JSON for a single module.
 
         Thin wrapper over the set-based :meth:`recompute_stats_many` so the
@@ -360,8 +532,172 @@ class CarbonReportModuleService:
         the IN_PROGRESS status bump, and the report rollup. A missing or
         unmapped module is skipped there (no stats written), matching the
         prior early-return behaviour.
+
+        ``scope`` lets an interactive write hand over the report year it has
+        already resolved, instead of paying a query for it (#2050 J4).
         """
-        await self.recompute_stats_many([carbon_report_module_id])
+        prefetched_years = None
+        if scope is not None and scope.report.id is not None and scope.year is not None:
+            prefetched_years = {scope.report.id: scope.year}
+        await self.recompute_stats_many(
+            [carbon_report_module_id], prefetched_years=prefetched_years
+        )
+
+    async def _entry_counts_and_fte(
+        self, modules: Sequence[CarbonReportModule]
+    ) -> tuple[dict[int, int], dict[int, float]]:
+        """Entry count per module and FTE sum per headcount module, one query.
+
+        #2050 J4: these were two grouped queries over the same table for the
+        same module ids. The headcount-only restriction on the FTE sum is
+        applied in Python — filtering it in SQL is what forced the second
+        query, and a non-headcount module must still carry no FTE at all.
+        """
+        module_ids = [m.id for m in modules if m.id is not None]
+        if not module_ids:
+            return {}, {}
+        headcount_ids = {
+            m.id
+            for m in modules
+            if m.id is not None and m.module_type_id == ModuleTypeEnum.headcount
+        }
+        rows = (
+            await self.session.execute(
+                select(
+                    col(DataEntry.carbon_report_module_id),
+                    func.count(),
+                    func.sum(DataEntry.data["fte"].as_float()),
+                )
+                .where(col(DataEntry.carbon_report_module_id).in_(module_ids))
+                .group_by(col(DataEntry.carbon_report_module_id))
+            )
+        ).all()
+        counts = {module_id: count for module_id, count, _ in rows}
+        fte = {
+            module_id: float(total or 0.0)
+            for module_id, _, total in rows
+            if module_id in headcount_ids
+        }
+        return counts, fte
+
+    async def _years_by_report(
+        self, modules: Sequence[CarbonReportModule]
+    ) -> dict[int, int]:
+        report_ids = {m.carbon_report_id for m in modules}
+        if not report_ids:
+            return {}
+        rows = (
+            await self.session.execute(
+                select(col(CarbonReport.id), col(CarbonReport.year)).where(
+                    col(CarbonReport.id).in_(report_ids)
+                )
+            )
+        ).all()
+        return {report_id: year for report_id, year in rows}
+
+    async def _collect_bucket_extras(
+        self, module: CarbonReportModule
+    ) -> dict[str, dict]:
+        """Buildings: persist embodied-energy by-building/by-category detail.
+
+        Building names are entry-level data, not derivable from emission
+        types, so they are queried once here instead of at read time.
+        """
+        if module.module_type_id != ModuleTypeEnum.buildings:
+            return {}
+        emission_repo = DataEntryEmissionRepository(self.session)
+        building_rows = await emission_repo.get_embodied_energy_by_building(
+            carbon_report_id=module.carbon_report_id
+        )
+        category_rows = await emission_repo.get_embodied_energy_by_category(
+            carbon_report_id=module.carbon_report_id
+        )
+        return {
+            "embodied_energy": {
+                "by_building": [
+                    {"building_name": name, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}
+                    for name, kg in building_rows
+                    if kg > 0
+                ],
+                "by_category": [
+                    {"category": cat, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}
+                    for cat, kg in category_rows
+                    if kg > 0
+                ],
+            }
+        }
+
+    async def _collect_module_extras(
+        self,
+        module: CarbonReportModule,
+        report_year: int | None,
+        fte_by_module: dict[int, float],
+    ) -> dict:
+        if module.module_type_id == ModuleTypeEnum.headcount and module.id is not None:
+            return {"total_fte": fte_by_module.get(module.id, 0.0)}
+        spec = _IT_TOP_CLASS_SPECS.get(ModuleTypeEnum(module.module_type_id))
+        if spec is None or module.id is None:
+            return {}
+        stats_key, data_entry_types, group_by_field, emission_type_ids = spec
+        emission_repo = DataEntryEmissionRepository(self.session)
+        rows = await emission_repo.get_top_class_breakdown(
+            carbon_report_module_ids=[module.id],
+            data_entry_types=data_entry_types,
+            group_by_field=group_by_field,
+            report_year=report_year,
+            emission_type_ids=emission_type_ids,
+        )
+        return {"it_top_classes": {stats_key: rows}}
+
+    async def build_merged_it_top_classes(
+        self, carbon_report_ids: list[int], report_year: int | None = None
+    ) -> dict[str, list]:
+        """Rank IT top classes across several reports as one aggregate.
+
+        The per-report ``it_top_classes`` persisted in module stats cannot be
+        unioned — a union of per-unit top-3 lists is not a top-3. This re-ranks
+        from the underlying data entries of every report at once.
+        """
+        if not carbon_report_ids:
+            return {}
+
+        rows = (
+            await self.session.execute(
+                select(
+                    col(CarbonReportModule.id),
+                    col(CarbonReportModule.module_type_id),
+                ).where(
+                    col(CarbonReportModule.carbon_report_id).in_(carbon_report_ids),
+                    col(CarbonReportModule.module_type_id).in_(
+                        [m.value for m in _IT_TOP_CLASS_SPECS]
+                    ),
+                )
+            )
+        ).all()
+
+        module_ids_by_type: dict[ModuleTypeEnum, list[int]] = {}
+        for module_id, module_type_id in rows:
+            module_ids_by_type.setdefault(ModuleTypeEnum(module_type_id), []).append(
+                module_id
+            )
+
+        emission_repo = DataEntryEmissionRepository(self.session)
+        top_classes: dict[str, list] = {}
+        for module_type, module_ids in module_ids_by_type.items():
+            (
+                stats_key,
+                data_entry_types,
+                group_by_field,
+                emission_type_ids,
+            ) = _IT_TOP_CLASS_SPECS[module_type]
+            top_classes[stats_key] = await emission_repo.get_top_class_breakdown(
+                carbon_report_module_ids=module_ids,
+                data_entry_types=data_entry_types,
+                group_by_field=group_by_field,
+                report_year=report_year,
+                emission_type_ids=emission_type_ids,
+            )
+        return top_classes
 
     async def delete_all_modules_for_report(self, carbon_report_id: int) -> int:
         """Delete all modules for a carbon report. Returns count deleted."""

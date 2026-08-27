@@ -1,19 +1,27 @@
 """DataEntry service for business logic."""
 
 import json
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import BackgroundTasks
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.data_entry_permissions import submodule_policies
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.audit import AuditChangeTypeEnum
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 
 # from app.repositories.headcount_repo import HeadCountRepository
-from app.repositories.data_entry_repo import DataEntryRepository
+from app.repositories.data_entry_repo import (
+    EQUIPMENT_DATA_ENTRY_TYPE_IDS,
+    DataEntryRepository,
+    HeadcountFteBreakdown,
+)
 from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
@@ -23,10 +31,19 @@ from app.schemas.carbon_report_response import (
 )
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
 from app.schemas.user import UserRead
+from app.schemas.write_scope import WriteScope
 from app.services.audit_service import AuditDocumentService
-from app.utils.audit_helpers import extract_handled_ids, extract_handled_ids_from_list
+from app.utils.audit_helpers import extract_handled_ids
 
 logger = get_logger(__name__)
+
+# Simulator entries are what-if scenarios — nothing is published from them, so
+# they carry no audit trail (#1958). The plan prefill already skips audit the
+# same way by inserting through Core.
+SIMULATOR_REPORT_TYPES = (
+    CarbonReportType.SIMULATOR_EXPLORE,
+    CarbonReportType.SIMULATOR_PLAN,
+)
 
 
 def _serialize_datetime(obj: Any) -> Any:
@@ -42,18 +59,20 @@ class DataEntryService:
     def __init__(
         self,
         session: AsyncSession,
-        versioning_service: Optional[AuditDocumentService] = None,
+        versioning_service: AuditDocumentService | None = None,
     ):
         self.session = session
         self.repo = DataEntryRepository(session)
         self.versioning = versioning_service or AuditDocumentService(session)
+        self._prior_equipment_usage_cache: dict[tuple[int, int], dict[str, dict]] = {}
+        self._prior_equipment_ids_cache: dict[tuple[int, int], set[str]] = {}
 
     async def get_stats(
         self,
         carbon_report_module_id: int,
         aggregate_by: str = "data_entry_type_id",
         aggregate_field: str = "fte",
-        data_entry_type_id: Optional[int] = None,
+        data_entry_type_id: int | None = None,
     ) -> dict[str, float | None]:
         """Get module statistics such as total items and submodules."""
         return await self.repo.get_stats(
@@ -63,32 +82,23 @@ class DataEntryService:
             data_entry_type_id=data_entry_type_id,
         )
 
-    async def check_institutional_id_unique(
-        self, carbon_report_module_id: int, uid: str, exclude_id: Optional[int] = None
+    async def check_member_role_unique(
+        self,
+        carbon_report_module_id: int,
+        uid: str,
+        sius_code: str,
+        exclude_id: int | None = None,
     ) -> bool:
-        """Check whether user_institutional_id is unique in member submodule."""
+        """Check whether (user_institutional_id, sius_code) is unique.
+
+        A person can legitimately hold multiple roles (``sius_code``) in the
+        same unit, so the uniqueness key is the role, not just the person.
+        """
         return await self.repo.check_json_field_unique(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=DataEntryTypeEnum.member.value,
-            field="user_institutional_id",
-            value=uid,
+            fields={"user_institutional_id": uid, "sius_code": sius_code},
             exclude_id=exclude_id,
-        )
-
-    async def get_stats_by_carbon_report_id(
-        self,
-        carbon_report_id: int,
-        aggregate_by: str = "data_entry_type_id",
-        aggregate_field: str = "fte",
-        *,
-        validated_only: bool = True,
-    ) -> dict[str, float]:
-        """Get DataEntry totals across modules for a carbon report."""
-        return await self.repo.get_stats_by_carbon_report_id(
-            carbon_report_id=carbon_report_id,
-            aggregate_by=aggregate_by,
-            aggregate_field=aggregate_field,
-            validated_only=validated_only,
         )
 
     async def check_json_field_unique(
@@ -97,7 +107,7 @@ class DataEntryService:
         data_entry_type_id: int,
         field: str,
         value: str,
-        exclude_id: Optional[int] = None,
+        exclude_id: int | None = None,
     ) -> bool:
         """Check whether a JSON data field value is unique within a submodule.
 
@@ -114,10 +124,163 @@ class DataEntryService:
         return await self.repo.check_json_field_unique(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
-            field=field,
-            value=value,
+            fields={field: value},
             exclude_id=exclude_id,
         )
+
+    async def fill_denormalized_scope(
+        self, data_entries: list[DataEntry], *, scope: WriteScope | None = None
+    ) -> None:
+        """Stamp denormalized ``year``/``unit_id`` from each entry's carbon report.
+
+        Central guarantee, not per-provider convention: the per-year
+        cross-source replace DELETE keys on ``data_entries.year`` and the
+        factor join keys on it too, so a NULL-year row silently escapes
+        both (stage incident 2026-07-17: API-synced rows without the stamp
+        survived every replace). One query per call over the distinct
+        module ids still missing a value; already-stamped entries cost
+        nothing. Unknown module ids are left for the FK to reject loudly.
+        """
+        # #2050 J4: an interactive write already resolved its report, so the
+        # year/unit stamp needs no query. Bulk callers pass no scope and keep
+        # the batched lookup below.
+        if scope is not None and scope.module.id is not None:
+            for entry in data_entries:
+                if entry.carbon_report_module_id != scope.module.id:
+                    raise ValueError(
+                        f"entry targets module {entry.carbon_report_module_id!r} "
+                        f"but the write scope resolved {scope.module.id!r}"
+                    )
+                if entry.year is None:
+                    entry.year = scope.year
+                if entry.unit_id is None:
+                    entry.unit_id = scope.unit_id
+            return
+
+        module_ids = {
+            e.carbon_report_module_id
+            for e in data_entries
+            if (e.year is None or e.unit_id is None)
+            and e.carbon_report_module_id is not None
+        }
+        if not module_ids:
+            return
+        stmt = (
+            select(
+                col(CarbonReportModule.id),
+                col(CarbonReport.year),
+                col(CarbonReport.unit_id),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReport.id) == col(CarbonReportModule.carbon_report_id),
+            )
+            .where(col(CarbonReportModule.id).in_(module_ids))
+        )
+        scope_by_module = {
+            module_id: (year, unit_id)
+            for module_id, year, unit_id in (await self.session.execute(stmt)).all()
+        }
+        for entry in data_entries:
+            resolved = scope_by_module.get(entry.carbon_report_module_id)
+            if resolved is None:
+                continue
+            if entry.year is None:
+                entry.year = resolved[0]
+            if entry.unit_id is None:
+                entry.unit_id = resolved[1]
+
+    async def simulator_module_ids(self, module_ids: set[int]) -> set[int]:
+        """Of ``module_ids``, those whose report belongs to a Simulator project.
+
+        One query per call, mirroring ``fill_denormalized_scope``. A module id
+        that resolves to nothing is absent from the result, so it stays
+        audited and the FK rejects it loudly downstream — skipping audit is a
+        positive Simulator match, never a lookup miss.
+        """
+        if not module_ids:
+            return set()
+        stmt = (
+            select(col(CarbonReportModule.id))
+            .join(
+                CarbonReport,
+                col(CarbonReport.id) == col(CarbonReportModule.carbon_report_id),
+            )
+            .join(
+                CarbonProject,
+                col(CarbonProject.id) == col(CarbonReport.carbon_project_id),
+            )
+            .where(
+                col(CarbonReportModule.id).in_(module_ids),
+                col(CarbonProject.carbon_report_type).in_(SIMULATOR_REPORT_TYPES),
+            )
+        )
+        return set((await self.session.execute(stmt)).scalars().all())
+
+    async def is_simulator_module(self, carbon_report_module_id: int) -> bool:
+        """Whether this module's report belongs to a Simulator project."""
+        return bool(await self.simulator_module_ids({carbon_report_module_id}))
+
+    async def apply_equipment_carry_forward(
+        self, data_entries: list[DataEntry]
+    ) -> None:
+        """Carry prior-year state onto incoming equipment entries (issue #259).
+
+        Two things, both decided once at ingest and then stored on the row:
+
+        **Usage hours.** Each field is taken independently: a value set last
+        year wins over whatever the ingest file supplies; a field last year
+        left unset stays unset and keeps tracking the factor default (then the
+        spec's 12/156 fallback in the emission formula).
+
+        **``is_new``.** True when this ``equipment_id`` did not exist in the
+        unit's most recent prior year. #2050 J10 moved this here from the read
+        path, where it was re-derived on every page load by pulling the unit's
+        entire prior-year id set into Python — 1711ms on dev to render 20 rows.
+        It is a fact about the import, so it belongs on the row. Rows created
+        by hand never pass through here and stay ``is_new`` false.
+
+        Prior-year lookups are cached per ``(unit_id, year)`` on the service
+        instance, so a 50k-row ingest costs one query per unit/year, never one
+        per entry.
+        """
+        equipment = [
+            e
+            for e in data_entries
+            if e.data_entry_type_id in EQUIPMENT_DATA_ENTRY_TYPE_IDS
+            and (e.data or {}).get("equipment_id")
+        ]
+        if not equipment:
+            return
+        await self.fill_denormalized_scope(equipment)
+        for entry in equipment:
+            if entry.unit_id is None or entry.year is None:
+                continue
+            scope = (entry.unit_id, entry.year)
+            prior_usage = self._prior_equipment_usage_cache.get(scope)
+            if prior_usage is None:
+                prior_usage = await self.repo.get_prior_year_equipment_usage(
+                    entry.unit_id, entry.year
+                )
+                self._prior_equipment_usage_cache[scope] = prior_usage
+            prior_ids = self._prior_equipment_ids_cache.get(scope)
+            if prior_ids is None:
+                prior_ids = await self.repo.get_prior_year_equipment_ids(
+                    entry.unit_id, entry.year
+                )
+                self._prior_equipment_ids_cache[scope] = prior_ids
+
+            prior = prior_usage.get(entry.data["equipment_id"])
+            if prior:
+                entry.data = {**entry.data, **prior}
+            # An empty prior year means the unit's first campaign: nothing is
+            # new. The usage map cannot stand in for the id set — it drops rows
+            # whose prior year set no usage fields at all.
+            entry.data = {
+                **entry.data,
+                "is_new": bool(prior_ids)
+                and entry.data["equipment_id"] not in prior_ids,
+            }
 
     async def create(
         self,
@@ -125,10 +288,11 @@ class DataEntryService:
         data_entry_type_id: int,
         user: UserRead,
         data: DataEntryCreate,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
-        source: Optional[int] = None,
-        created_by_id: Optional[int] = None,
+        request_context: dict | None = None,
+        background_tasks: BackgroundTasks | None = None,
+        source: int | None = None,
+        created_by_id: int | None = None,
+        scope: WriteScope | None = None,
     ) -> DataEntryResponse:
         logger.info(
             f"Creating data entry for module_id={sanitize(carbon_report_module_id)} "
@@ -147,39 +311,49 @@ class DataEntryService:
         if created_by_id is not None:
             entry.created_by_id = created_by_id
 
+        await self.fill_denormalized_scope([entry], scope=scope)
         created_entry = await self.repo.create(entry)
 
         # 3. replace by flush; commit should happen in 'orchestrator' or 'route'
         # top level domain)
         await self.session.flush()
-        await self.session.refresh(created_entry)
+        # No refresh: INSERT … RETURNING already supplied ``id``, and every
+        # other column was set in Python before the flush (#2050 J4 — one of
+        # two SELECTs that re-read a row we had just written).
 
-        # Extract context information
-        request_context = request_context or {}
-        handled_ids = extract_handled_ids(
-            created_entry, DataEntryTypeEnum(data_entry_type_id)
+        is_simulator = (
+            scope.is_simulator
+            if scope is not None
+            else await self.is_simulator_module(carbon_report_module_id)
         )
+        if not is_simulator:
+            # Extract context information
+            request_context = request_context or {}
+            handled_ids = extract_handled_ids(
+                created_entry, DataEntryTypeEnum(data_entry_type_id)
+            )
 
-        # Serialize data_snapshot to handle datetime objects
-        data_snapshot_str = json.dumps(
-            created_entry.model_dump(), default=_serialize_datetime
-        )
-        data_snapshot = json.loads(data_snapshot_str)
+            # Serialize data_snapshot to handle datetime objects
+            data_snapshot_str = json.dumps(
+                created_entry.model_dump(), default=_serialize_datetime
+            )
+            data_snapshot = json.loads(data_snapshot_str)
 
-        await self.versioning.create_version(
-            entity_type=self.repo.entity_type,
-            entity_id=created_entry.id or 0,
-            data_snapshot=data_snapshot,
-            change_type=AuditChangeTypeEnum.CREATE,
-            changed_by=user.id,
-            change_reason="Initial creation",
-            handler_id=user.institutional_id,
-            handled_ids=handled_ids,
-            ip_address=request_context.get("ip_address"),
-            route_path=request_context.get("route_path"),
-            route_payload=request_context.get("route_payload"),
-            background_tasks=background_tasks,
-        )
+            await self.versioning.create_version(
+                entity_type=self.repo.entity_type,
+                entity_id=created_entry.id or 0,
+                data_snapshot=data_snapshot,
+                change_type=AuditChangeTypeEnum.CREATE,
+                changed_by=user.id,
+                change_reason="Initial creation",
+                handler_id=user.institutional_id,
+                handled_ids=handled_ids,
+                ip_address=request_context.get("ip_address"),
+                route_path=request_context.get("route_path"),
+                route_payload=request_context.get("route_payload"),
+                background_tasks=background_tasks,
+                entity_is_new=True,
+            )
 
         # 5. return response
         return DataEntryResponse.model_validate(created_entry)
@@ -187,15 +361,14 @@ class DataEntryService:
     async def bulk_create(
         self,
         data_entries: list[DataEntry],
-        user: Optional[UserRead] = None,
-        request_context: Optional[dict] = None,
-        job_id: Optional[str | int] = None,
-        source: Optional[int] = None,  # DataEntrySourceEnum value
-        created_by_id: Optional[int] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
+        user: UserRead | None = None,
+        request_context: dict | None = None,
+        job_id: str | int | None = None,
+        source: int | None = None,  # DataEntrySourceEnum value
+        created_by_id: int | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> list[DataEntryResponse]:
-        """
-        Bulk create data entries with optional source tracking.
+        """Bulk create data entries with optional source tracking.
 
         Args:
             data_entries: List of data entries to create
@@ -214,11 +387,11 @@ class DataEntryService:
         if source is not None or created_by_id is not None:
             for entry in data_entries:
                 if source is not None:
-                    # Convert enum to integer value for database
-                    entry.source = source.value if hasattr(source, "value") else source
+                    entry.source = source
                 if created_by_id is not None:
                     entry.created_by_id = created_by_id
 
+        await self.fill_denormalized_scope(data_entries)
         db_objs = await self.repo.bulk_create(data_entries)
         await self.session.flush()  # Ensure data_entry IDs are populated
 
@@ -236,10 +409,15 @@ class DataEntryService:
             request_context = request_context or {}
             changed_by = user.id
             handler_id = user.institutional_id
+            simulator_modules = await self.simulator_module_ids(
+                {o.carbon_report_module_id for o in db_objs}
+            )
 
             # Build list of version metadata for bulk creation
             versions_data = []
             for obj in db_objs:
+                if obj.carbon_report_module_id in simulator_modules:
+                    continue
                 handled_ids = extract_handled_ids(
                     obj, DataEntryTypeEnum(obj.data_entry_type_id)
                 )
@@ -277,8 +455,8 @@ class DataEntryService:
         data_entries: list[DataEntry],
         *,
         job_id: str | int | None,
-        source: Optional[int] = None,
-        created_by_id: Optional[int] = None,
+        source: int | None = None,
+        created_by_id: int | None = None,
     ) -> int:
         """COPY-based bulk insert for the bulk ingest path.
 
@@ -289,9 +467,11 @@ class DataEntryService:
         """
         for entry in data_entries:
             if source is not None:
-                entry.source = source.value if hasattr(source, "value") else source
+                entry.source = source
             if created_by_id is not None:
                 entry.created_by_id = created_by_id
+        await self.fill_denormalized_scope(data_entries)
+        await self.apply_equipment_carry_forward(data_entries)
         count = await self.repo.bulk_copy(data_entries)
         logger.info(f"COPY-inserted {count} data entries (job {sanitize(job_id)})")
         return count
@@ -300,9 +480,9 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
         data_entry_type_id: DataEntryTypeEnum,
-        user: Optional[UserRead] = None,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
+        user: UserRead | None = None,
+        request_context: dict | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> None:
         """Bulk delete data entries by module and type."""
         logger.info(
@@ -315,7 +495,7 @@ class DataEntryService:
         entries_to_delete = []
         snapshots = {}
         handled_ids_map = {}
-        if user:
+        if user and not await self.is_simulator_module(carbon_report_module_id):
             entries_to_delete = await self.repo.get_list(
                 carbon_report_module_id=carbon_report_module_id,
                 limit=10000,
@@ -377,12 +557,11 @@ class DataEntryService:
         carbon_report_module_id: int,
         data_entry_type_id: DataEntryTypeEnum,
         source: int,  # DataEntrySourceEnum value
-        user: Optional[UserRead] = None,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
+        user: UserRead | None = None,
+        request_context: dict | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> None:
-        """
-        Delete entries matching source type with audit trail.
+        """Delete entries matching source type with audit trail.
 
         Args:
             carbon_report_module_id: The module to delete from
@@ -404,7 +583,7 @@ class DataEntryService:
         entries_to_delete = []
         snapshots = {}
         handled_ids_map = {}
-        if user:
+        if user and not await self.is_simulator_module(carbon_report_module_id):
             entries_to_delete = await self.repo.get_list(
                 carbon_report_module_id=carbon_report_module_id,
                 limit=10000,
@@ -469,10 +648,10 @@ class DataEntryService:
         id: int,
         data: DataEntryUpdate,
         user: UserRead,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
-        source: Optional[int] = None,
-        created_by_id: Optional[int] = None,
+        request_context: dict | None = None,
+        background_tasks: BackgroundTasks | None = None,
+        source: int | None = None,
+        created_by_id: int | None = None,
     ) -> DataEntryResponse:
         """Update an existing record."""
         try:
@@ -497,32 +676,33 @@ class DataEntryService:
 
             await self.session.refresh(entry)
 
-            # Extract context information
-            request_context = request_context or {}
-            handled_ids = extract_handled_ids(
-                entry, DataEntryTypeEnum(entry.data_entry_type_id)
-            )
+            if not await self.is_simulator_module(entry.carbon_report_module_id):
+                # Extract context information
+                request_context = request_context or {}
+                handled_ids = extract_handled_ids(
+                    entry, DataEntryTypeEnum(entry.data_entry_type_id)
+                )
 
-            # Serialize data_snapshot to handle datetime objects
-            data_snapshot_str = json.dumps(
-                entry.model_dump(), default=_serialize_datetime
-            )
-            data_snapshot = json.loads(data_snapshot_str)
+                # Serialize data_snapshot to handle datetime objects
+                data_snapshot_str = json.dumps(
+                    entry.model_dump(), default=_serialize_datetime
+                )
+                data_snapshot = json.loads(data_snapshot_str)
 
-            await self.versioning.create_version(
-                entity_type=self.repo.entity_type,
-                entity_id=entry.id or 0,
-                data_snapshot=data_snapshot,
-                change_type=AuditChangeTypeEnum.UPDATE,
-                changed_by=user.id,
-                change_reason="Data entry updated",
-                handler_id=user.institutional_id,
-                handled_ids=handled_ids,
-                ip_address=request_context.get("ip_address"),
-                route_path=request_context.get("route_path"),
-                route_payload=request_context.get("route_payload"),
-                background_tasks=background_tasks,
-            )
+                await self.versioning.create_version(
+                    entity_type=self.repo.entity_type,
+                    entity_id=entry.id or 0,
+                    data_snapshot=data_snapshot,
+                    change_type=AuditChangeTypeEnum.UPDATE,
+                    changed_by=user.id,
+                    change_reason="Data entry updated",
+                    handler_id=user.institutional_id,
+                    handled_ids=handled_ids,
+                    ip_address=request_context.get("ip_address"),
+                    route_path=request_context.get("route_path"),
+                    route_payload=request_context.get("route_payload"),
+                    background_tasks=background_tasks,
+                )
         except Exception as e:
             logger.error(f"Error updating data entry id={id}: {str(e)}")
             raise e
@@ -533,14 +713,16 @@ class DataEntryService:
         self,
         id: int,
         current_user: UserRead,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
+        request_context: dict | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> bool:
         """Delete a record."""
         # Fetch entry before deletion to capture snapshot
         entry = await self.repo.get(id)
         if entry is None:
             raise ValueError(f"Data entry with id={id} not found")
+
+        audited = not await self.is_simulator_module(entry.carbon_report_module_id)
 
         # Capture snapshot and handled_ids before deletion
         # Serialize data_snapshot to handle datetime objects
@@ -560,20 +742,21 @@ class DataEntryService:
         request_context = request_context or {}
 
         # Create version record for deletion
-        await self.versioning.create_version(
-            entity_type=self.repo.entity_type,
-            entity_id=id,
-            data_snapshot=snapshot,
-            change_type=AuditChangeTypeEnum.DELETE,
-            changed_by=current_user.id,
-            change_reason="Data entry deleted",
-            handler_id=current_user.institutional_id,
-            handled_ids=handled_ids,
-            ip_address=request_context.get("ip_address"),
-            route_path=request_context.get("route_path"),
-            route_payload=request_context.get("route_payload"),
-            background_tasks=background_tasks,
-        )
+        if audited:
+            await self.versioning.create_version(
+                entity_type=self.repo.entity_type,
+                entity_id=id,
+                data_snapshot=snapshot,
+                change_type=AuditChangeTypeEnum.DELETE,
+                changed_by=current_user.id,
+                change_reason="Data entry deleted",
+                handler_id=current_user.institutional_id,
+                handled_ids=handled_ids,
+                ip_address=request_context.get("ip_address"),
+                route_path=request_context.get("route_path"),
+                route_payload=request_context.get("route_payload"),
+                background_tasks=background_tasks,
+            )
 
         return True
 
@@ -591,7 +774,7 @@ class DataEntryService:
         offset: int = 0,
         sort_by: str = "id",
         sort_order: str = "asc",
-        filter: Optional[str] = None,
+        filter: str | None = None,
     ) -> list[DataEntryResponse]:
         """Get  record by carbon_report_module_id."""
         entries = await self.repo.get_list(
@@ -602,11 +785,17 @@ class DataEntryService:
     async def get_module_data(
         self,
         carbon_report_module_id: int,
-        travel_institutional_id_filter: Optional[str] = None,
+        travel_institutional_id_filter: str | None = None,
+        exclude_planner_snapshots: bool = False,
     ) -> ModuleResponse:
         data_entry_types_total_items = await self.repo.get_total_count_by_submodule(
             carbon_report_module_id=carbon_report_module_id,
             travel_institutional_id_filter=travel_institutional_id_filter,
+            exclude_planner_snapshots=exclude_planner_snapshots,
+        )
+
+        incomplete_new_equipment_count = await self.repo.count_incomplete_new_equipment(
+            carbon_report_module_id
         )
         # more info in routes carbon_report_module (cf DataEntryEmissionService)
         # we just return empty stats and totals, it's computed in routes
@@ -620,10 +809,11 @@ class DataEntryService:
         # Create module response
         module_response = ModuleResponse(
             carbon_report_module_id=carbon_report_module_id,
-            retrieved_at=datetime.now(timezone.utc),
+            retrieved_at=datetime.now(UTC),
             data_entry_types_total_items=data_entry_types_total_items,
             stats=None,
             totals=totals,
+            incomplete_new_equipment_count=incomplete_new_equipment_count,
         )
         return module_response
 
@@ -635,13 +825,25 @@ class DataEntryService:
         offset: int = 0,
         sort_by: str = "date",
         sort_order: str = "asc",
-        filter: Optional[str] = None,
-        institutional_id_filter: Optional[str] = None,
-        current_user: Optional[UserRead] = None,
-        request_context: Optional[dict] = None,
-        background_tasks: Optional[BackgroundTasks] = None,
+        filter: str | None = None,
+        institutional_id_filter: str | None = None,
+        exclude_planner_snapshots: bool = False,
+        factor_year: int | None = None,
     ) -> SubmoduleResponse:
-        """Get module data for a unit and year."""
+        """Get module data for a unit and year.
+
+        Reads write nothing. The READ record this used to keep for
+        travel/headcount duplicated the mutation audit, as a version chain
+        over an empty snapshot keyed on the *module* — so the two submodule
+        fetches a Travel page issues in parallel raced each other's head swap
+        and 500ed (#1958). It also committed mid-read from a service.
+
+        ``factor_year`` is the year whose factors apply to this report
+        (``resolve_factor_year``, resolved by the caller) — for Simulator
+        Plan reports it can differ from the report's own year, so it must
+        drive the display-side factor join rather than the entries' own
+        denormalized ``year``.
+        """
         response = await self.repo.get_submodule_data(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
@@ -651,55 +853,20 @@ class DataEntryService:
             sort_order=sort_order,
             filter=filter,
             institutional_id_filter=institutional_id_filter,
+            exclude_planner_snapshots=exclude_planner_snapshots,
+            factor_year=factor_year,
         )
-
-        if (
-            (current_user is not None and current_user.id is not None)
-            and (request_context is not None)
-            and (response is not None)
-            and (
-                data_entry_type_id == DataEntryTypeEnum.plane.value
-                or data_entry_type_id == DataEntryTypeEnum.train.value
-                or data_entry_type_id == DataEntryTypeEnum.member.value
+        if response is not None:
+            response.data_entry_policies = submodule_policies(
+                DataEntryTypeEnum(data_entry_type_id)
             )
-        ):
-            # for headcount and travel (plane/train), keep a READ audit record
-            # Create version record for read
-            extracted_handled_ids = extract_handled_ids_from_list(
-                list(response.items), DataEntryTypeEnum(data_entry_type_id)
-            )
-            # Note: To query all READ data_entries for a carbon_report_module_id,
-            # use entity_type='CarbonReportModule'.
-            # This is a temporary special case;
-            # future implementation will use a generic entity type
-            # (e.g., via AuditEntityTypeEnum).
-            await self.versioning.create_version(
-                entity_type="CarbonReportModule",
-                entity_id=carbon_report_module_id,
-                data_snapshot={},  # No snapshot for read operations
-                change_type=AuditChangeTypeEnum.READ,
-                changed_by=current_user.id,
-                change_reason=(
-                    f"Data entry read for "
-                    f"carbon_report_module_id {carbon_report_module_id} "
-                    f"and data_entry_type_id {data_entry_type_id}"
-                ),
-                handler_id=current_user.institutional_id,
-                handled_ids=extracted_handled_ids,
-                ip_address=request_context.get("ip_address"),
-                route_path=request_context.get("route_path"),
-                route_payload=request_context.get("route_payload"),
-                background_tasks=background_tasks,
-            )
-            # special case, we want to commit here, cause we don't commit in READ routes
-            await self.session.commit()
 
         return response
 
     async def get_professional_travel_trips_map(
         self,
         carbon_report_module_id: int,
-        institutional_id_filter: Optional[str] = None,
+        institutional_id_filter: str | None = None,
     ) -> TripsMapResponse:
         """Return a flat list of plane + train trip legs with coordinates.
 
@@ -724,17 +891,12 @@ class DataEntryService:
             dropped_count=dropped,
         )
 
-    async def get_total_per_field(
-        self,
-        field_name: str,
-        carbon_report_module_id: int,
-        data_entry_type_id: Optional[int],
-    ) -> Optional[float]:
-        """Get total sum of a specific field for a given module and data entry type."""
-        return await self.repo.get_total_per_field(
-            field_name=field_name,
+    async def get_headcount_fte_breakdown(
+        self, carbon_report_module_id: int
+    ) -> HeadcountFteBreakdown:
+        """Total, student and per-sius_code member FTE in one round trip."""
+        return await self.repo.get_headcount_fte_breakdown(
             carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=data_entry_type_id,
         )
 
     async def get_headcount_members(
@@ -758,7 +920,7 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
         institutional_id: str,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Look up a headcount member by their institutional ID.
 
         Args:

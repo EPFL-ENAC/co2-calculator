@@ -73,8 +73,7 @@ ROLE_CATEGORY_MAPPING = {
 
 
 def get_function_role(function: str) -> str:
-    """
-    Get the English category for a French HR role.
+    """Get the English category for a French HR role.
 
     Args:
         french_role: The French HR role name

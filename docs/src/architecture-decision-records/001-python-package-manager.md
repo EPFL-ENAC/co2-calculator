@@ -23,7 +23,7 @@ Docker optimization, and PEP 621 compliance. Evaluated pip + venv, Poetry, and u
 - 10-100x faster than pip (Rust-based)
 - Produces `uv.lock` for reproducible builds
 - Native PEP 621 support (standard `pyproject.toml`)
-- Official Docker images (`ghcr.io/astral-sh/uv:python3.12-alpine`)
+- Official Docker images (`ghcr.io/astral-sh/uv:python3.14-alpine`)
 - Unified tool (handles venv + packages)
 - Maintained by Astral (same team as ruff)
 

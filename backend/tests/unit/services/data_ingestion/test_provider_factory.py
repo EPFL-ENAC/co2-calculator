@@ -103,9 +103,10 @@ async def test_create_provider_invalid_entity_type():
 
 @pytest.mark.asyncio
 async def test_create_provider_no_matching_provider():
+    # buildings has no API provider registered (headcount gained one in #1552)
     config = {
         "entity_type": EntityType.MODULE_PER_YEAR.value,
-        "module_type_id": ModuleTypeEnum.headcount,
+        "module_type_id": ModuleTypeEnum.buildings,
     }
     provider = await ProviderFactory.create_provider(
         ingestion_method=IngestionMethod.api,
@@ -120,13 +121,13 @@ async def test_create_provider_no_matching_provider():
 
 
 def test_get_provider_by_keys_animal_computed_5tuple():
-    """5-tuple lookup for mice_and_fish → AnimalFactorUpdateProvider."""
+    """5-tuple lookup for animal_facilities → AnimalFactorUpdateProvider."""
     provider_class = ProviderFactory.get_provider_by_keys(
         ModuleTypeEnum.research_facilities,
         IngestionMethod.computed,
         TargetType.FACTORS,
         EntityType.MODULE_PER_YEAR,
-        data_entry_type_id=DataEntryTypeEnum.mice_and_fish_animal_facilities,
+        data_entry_type_id=DataEntryTypeEnum.animal_facilities,
     )
     assert provider_class is ResearchFacilitiesAnimalFactorUpdateProvider
 
@@ -164,7 +165,7 @@ def test_get_provider_by_keys_data_entry_type_without_module_type():
             ingestion_method=IngestionMethod.computed,
             target_type=TargetType.FACTORS,
             entity_type=EntityType.MODULE_PER_YEAR,
-            data_entry_type_id=DataEntryTypeEnum.mice_and_fish_animal_facilities,
+            data_entry_type_id=DataEntryTypeEnum.animal_facilities,
         )
 
 

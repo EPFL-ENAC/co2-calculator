@@ -1,9 +1,10 @@
 """Security utilities for JWT authentication and authorization."""
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
-from typing import Callable, Final, Optional
+from typing import Final
 
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
@@ -11,6 +12,7 @@ from joserfc import jwt
 from joserfc.errors import BadSignatureError, ExpiredTokenError, InvalidClaimError
 from joserfc.jwk import OctKey
 from joserfc.jwt import JWTClaimsRegistry
+from opentelemetry import trace
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
@@ -49,29 +51,29 @@ async def get_jwt_from_cookie(auth_token: str = Cookie(None)):
     return auth_token
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """Create JWT access token."""
     if expires_delta is None:
         raise ValueError("expires_delta must be provided for access tokens")
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + expires_delta
+    expire = datetime.now(UTC) + expires_delta
     to_encode.update({"exp": expire})
 
-    key = OctKey.import_key(settings.SECRET_KEY.encode())
+    key = OctKey.import_key(settings.JWT_HMAC_KEY.encode())
     encoded_jwt = jwt.encode({"alg": settings.ALGORITHM}, to_encode, key)
     return encoded_jwt
 
 
-def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_refresh_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """Create JWT refresh token."""
     if expires_delta is None:
         raise ValueError("expires_delta must be provided for access tokens")
     to_encode = data.copy()
     to_encode["type"] = TOKEN_TYPE_REFRESH
-    expire = datetime.now(timezone.utc) + expires_delta
+    expire = datetime.now(UTC) + expires_delta
     to_encode.update({"exp": expire})
 
-    key = OctKey.import_key(settings.SECRET_KEY.encode())
+    key = OctKey.import_key(settings.JWT_HMAC_KEY.encode())
     encoded_jwt = jwt.encode({"alg": settings.ALGORITHM}, to_encode, key)
     return encoded_jwt
 
@@ -82,7 +84,7 @@ def decode_jwt(token: str) -> dict:
     `jwt.decode` validates signature and algorithm but does NOT validate
     payload claims. The explicit `_CLAIMS_REGISTRY.validate` call below
     is what enforces `exp` (expiry) — without it expired tokens remain
-    valid until SECRET_KEY rotates.
+    valid until JWT_HMAC_KEY rotates.
 
     The 401 detail is intentionally opaque: callers don't need to know
     whether the failure was a bad signature, expired token, or invalid
@@ -91,7 +93,7 @@ def decode_jwt(token: str) -> dict:
     at INFO so it remains diagnosable server-side.
     """
     try:
-        key = OctKey.import_key(settings.SECRET_KEY.encode())
+        key = OctKey.import_key(settings.JWT_HMAC_KEY.encode())
         payload = jwt.decode(token, key, algorithms=[settings.ALGORITHM])
         _CLAIMS_REGISTRY.validate(payload.claims)
         return payload.claims
@@ -107,11 +109,34 @@ def decode_jwt(token: str) -> dict:
         )
 
 
+def tag_span_with_user(user: User) -> None:
+    """Name who is behind the request on the current server span.
+
+    Chasing one tester's traces by IP is unreliable — NAT, VPN and a router
+    rescheduled onto an untrusted address all break it — and BETA_COHORTS
+    turns a whole test group into a single TraceQL filter
+    (``{ span.beta_cohort = "team-a" }``).
+
+    Deliberately our own ``User.id``, never the institutional id: a sciper
+    identifies a person across every EPFL system, while this id means nothing
+    without our database. Traces leave the namespace for a shared collector,
+    so the pseudonymous key is the one that belongs there — worth the extra
+    lookup it costs us. A no-op without a tracer configured, which is every
+    local run.
+    """
+    span = trace.get_current_span()
+    user_id = str(user.id)
+    span.set_attribute("user.id", user_id)
+    cohort = settings.beta_cohort_by_user.get(user_id)
+    if cohort:
+        span.set_attribute("beta_cohort", cohort)
+
+
 async def resolve_user_by_jwt_payload(
     payload: dict,
     db: AsyncSession,
     *,
-    expected_token_type: Optional[str] = None,
+    expected_token_type: str | None = None,
 ) -> User:
     """Centralized JWT-payload → User resolution.
 
@@ -170,6 +195,7 @@ async def resolve_user_by_jwt_payload(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
+    tag_span_with_user(user)
     return user
 
 
@@ -179,7 +205,8 @@ async def get_current_user(
 ) -> User:
     """Get current user from JWT token. Thin wrapper over
     :func:`resolve_user_by_jwt_payload` that enforces the access-token
-    contract — refresh tokens must not be accepted for protected routes."""
+    contract — refresh tokens must not be accepted for protected routes.
+    """
     payload = decode_jwt(token)
     return await resolve_user_by_jwt_payload(
         payload, db, expected_token_type=TOKEN_TYPE_ACCESS
@@ -196,8 +223,7 @@ async def get_current_active_user(
 
 
 def _build_permission_input(user: User, path: str, action: str) -> dict:
-    """
-    Build OPA input data for permission checks.
+    """Build OPA input data for permission checks.
 
     Similar to _build_opa_input() in resource_service.py, but focused on permissions.
 
@@ -250,8 +276,7 @@ async def get_permission_decision(user: User, path: str, action: str = "view") -
 
 
 async def is_permitted(user: User, path: str, action: str = "view") -> bool:
-    """
-    Check if the user has the specified permission.
+    """Check if the user has the specified permission.
     Supports glob patterns, e.g. path="modules.*" to check all module permissions.
 
     Args:
@@ -278,14 +303,14 @@ async def is_permitted(user: User, path: str, action: str = "view") -> bool:
 
 
 async def check_permission(user: User, path: str, action: str = "view") -> None:
-    """
-    Check if the user has the specified permission and raise HTTPException if not.
+    """Check if the user has the specified permission and raise HTTPException if not.
     Supports glob patterns, e.g. path="modules.*".
 
     Args:
         user: Current user
         path: Permission path or glob (e.g., "modules.headcount", "modules.*")
         action: Permission action (e.g., "view", "edit", "export", default: "view")
+
     Raises:
         HTTPException with status 403 if user does not have permission
         for ANY matching path
@@ -298,8 +323,7 @@ async def check_permission(user: User, path: str, action: str = "view") -> None:
 
 
 def require_permission(path: str, action: str = "view") -> Callable:
-    """
-    Create a FastAPI dependency that checks permissions using OPA pattern.
+    """Create a FastAPI dependency that checks permissions using OPA pattern.
 
     This follows the same pattern as resource_service.py:
     1. Build OPA input with user context

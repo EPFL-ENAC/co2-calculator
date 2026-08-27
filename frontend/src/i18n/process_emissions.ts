@@ -1,4 +1,4 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES } from '@/constant/modules';
 
 export default {
   documentation_editing_rows_process_emissions_topic: {
@@ -14,12 +14,16 @@ export default {
     fr: 'Emissions de procédés',
   },
   [`${MODULES.ProcessEmissions}-description`]: {
-    en: 'Enter the sources of process gas emissions used in or resulting from chemical or physical reactions in the laboratory.',
-    fr: 'Entrez les sources d’émissions de procédé de gaz utilisés dans ou issues de réactions chimiques ou physiques dans le laboratoire.',
+    en: `Enter your unit's process and fugitive emissions.`,
+    fr: 'Saisissez les émissions de procédé et fugitives dans votre unité.',
   },
   [`${MODULES.ProcessEmissions}-title-subtext`]: {
-    en: 'This module allows to estimate the carbon footprint of greenhouse gases generated during your lab processes (e.g. CO₂ emissions in some lab activities, SF₆ emissions when it is used as refrigerant). Emissions generated in the research facilities that you use are excluded, as they are already accounted in the relavant module. For more information: [processes](https://epfl-enac.github.io/co2-calculator-user-doc/processes/)',
-    fr: "Ce module permet d’estimer l’empreinte carbone des gaz à effet de serre générés lors de vos activités de laboratoire (e.g. émissions de CO₂ dans certaines activités de laboratoire, émissions de SF₆ quand celui-ci est utilisé en tant que fluide frigorigène). Les émissions générées dans les infrastructures de recherche que vous utilisez sont exclues, car elles sont déjà prises en compte dans le module relatif. Pour plus d'information : [procédés](https://epfl-enac.github.io/co2-calculator-user-doc/fr/processes/)",
+    en: 'This module helps you estimate greenhouse gas emissions from experimental procedures and equipment leaks, such as CO₂ used in lab protocols, SF₆ leaks during etching, fluorinated gas leaks from refrigeration systems, or fluorinated ether evaporation during sample handling.',
+    fr: `Ce module vous aide à estimer les émissions de gaz à effet de serre liées à vos procédures expérimentales et aux fuites d’équipements, par exemple : l'utilisation de CO₂ dans les protocoles de laboratoire, les fuites de SF₆ lors de la gravure, les fuites de gaz fluorés des systèmes de réfrigération, ou l’évaporation d’éthers fluorés pendant la manipulation des échantillons. `,
+  },
+  [`${MODULES.ProcessEmissions}-documentation-link`]: {
+    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/processes/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/processes/',
   },
   [`${MODULES.ProcessEmissions}-process_emissions-form-title`]: {
     en: 'Add an emitted gas',
@@ -66,11 +70,37 @@ export default {
     en: 'Refrigerant',
     fr: 'Fluide frigorigène',
   },
+  // #2091: each fluorinated-gas family is its own leaf; they used to
+  // share process_emissions__refrigerants.
+  [`${MODULES.ProcessEmissions}.category.sf6`]: {
+    en: 'SF₆',
+    fr: 'SF₆',
+  },
+  [`${MODULES.ProcessEmissions}.category.nf3`]: {
+    en: 'NF₃',
+    fr: 'NF₃',
+  },
+  [`${MODULES.ProcessEmissions}.category.hfcs`]: {
+    en: 'HFCs',
+    fr: 'HFC',
+  },
+  [`${MODULES.ProcessEmissions}.category.perfluorinated_compounds`]: {
+    en: 'Perfluorinated compounds',
+    fr: 'Composés perfluorés',
+  },
+  [`${MODULES.ProcessEmissions}.category.fluorinated_ethers`]: {
+    en: 'Fluorinated ethers',
+    fr: 'Éthers fluorés',
+  },
+  [`${MODULES.ProcessEmissions}.category.perfluoropolyethers`]: {
+    en: 'Perfluoropolyethers',
+    fr: 'Perfluoropolyéthers',
+  },
   [`${MODULES.ProcessEmissions}.inputs.subcategory`]: {
     en: 'Sub-category',
     fr: 'Sous-catégorie',
   },
-  [`${MODULES.ProcessEmissions}.inputs.quantity`]: {
+  [`${MODULES.ProcessEmissions}.inputs.quantity_kg`]: {
     en: 'Quantity (kg)',
     fr: 'Quantité (kg)',
   },

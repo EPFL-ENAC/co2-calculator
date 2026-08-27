@@ -2,7 +2,7 @@
 // member filter. Kept free of i18n / maplibre / DOM imports so they can be
 // unit-tested in a plain Node runner (the display helpers live in
 // ./trips-map, which pulls in formatKgCo2eq → i18n).
-import type { TripLeg } from 'src/stores/modules';
+import type { TripLeg } from '@/stores/modules';
 
 export interface AggregatedLeg {
   mode: 'plane' | 'train';

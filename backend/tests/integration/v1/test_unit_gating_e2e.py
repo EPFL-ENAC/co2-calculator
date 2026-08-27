@@ -38,6 +38,8 @@ from app.models.user import (
     User,
     calculate_user_permissions,
 )
+from tests.browser import SAME_ORIGIN_HEADERS
+from tests.unit.v1.test_temp_upload_auth_ordering import valid_access_token
 
 USER_IID = "1111"
 
@@ -50,7 +52,13 @@ AFFILIATION_WITH_NO_UNITS = "ALLALONE"  # this one should not be linked to any u
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies
+    # run, so the get_current_user override alone no longer gets past it.
+    with TestClient(
+        app,
+        cookies={"auth_token": valid_access_token()},
+        headers=SAME_ORIGIN_HEADERS,
+    ) as c:
         yield c
 
 
@@ -156,7 +164,7 @@ class TestListCarbonReportModules:
     """``GET /carbon-reports/{id}/modules/`` — gated by ``require_unit_access``."""
 
     def test_cross_unit_principal_denied(self, client, monkeypatch):
-        """principal scoped to UNIT_IID hits a report on OTHER_IID → 403."""
+        """Principal scoped to UNIT_IID hits a report on OTHER_IID → 403."""
         _wire_user(_user(USER_IID, [_principal(UNIT_IID)]))
         _wire_db_unit(OTHER_IID)
         _mock_carbon_report_with_unit(monkeypatch)
@@ -333,7 +341,8 @@ class TestUnitResults:
 
 def _scoped_principal_user() -> MagicMock:
     """Real role list — let ``calculate_user_permissions`` run for the
-    ``is_permitted("modules.*", ...)`` admit-set comparison."""
+    ``is_permitted("modules.*", ...)`` admit-set comparison.
+    """
     user = MagicMock(spec=User)
     user.id = 1
     user.email = "principal@test.local"
@@ -355,7 +364,8 @@ def _scoped_standard_user() -> MagicMock:
 
 class TestFilesPermissionFallbackRemoved:
     """Regression: principal with only ``modules.*/0184`` perms must be
-    denied on /files/* now that the fallback is removed."""
+    denied on /files/* now that the fallback is removed.
+    """
 
     def test_list_files_rejects_scoped_principal_without_backoffice(self, client):
         _wire_user(_scoped_principal_user())
@@ -400,7 +410,8 @@ class TestFilesPermissionFallbackRemoved:
 
 class TestDataSyncPermissionFallbackRemoved:
     """Regression: principal with only ``modules.*/0184`` perms must be
-    denied on /sync/dispatch and /sync/jobs/{id}/stream now."""
+    denied on /sync/dispatch and /sync/jobs/{id}/stream now.
+    """
 
     def test_dispatch_rejects_scoped_principal_without_backoffice(self, client):
         _wire_user(_scoped_principal_user())

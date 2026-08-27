@@ -13,12 +13,12 @@ import {
   GraphicComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
-import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
-import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
+import TooltipEcharts from '@/components/charts/results/TooltipEcharts.vue';
+import { useEchartsTooltip } from '@/components/charts/results/useEchartsTooltip';
 
-import { colors } from 'src/constant/charts';
-import { MODULES } from 'src/constant/modules';
-import { getHeadcountChartKeys } from 'src/utils/headcountChart';
+import { colors } from '@/constant/charts';
+import { MODULES } from '@/constant/modules';
+import { getHeadcountChartKeys } from '@/utils/headcountChart';
 
 use([
   CanvasRenderer,
@@ -120,10 +120,11 @@ const chartOptions = computed<EChartsOption>(() => {
       type: 'category',
       axisLabel: {
         interval: 0,
-        rotate: 35,
         fontSize: 11,
-        overflow: 'truncate',
         width: 90,
+        overflow: 'break',
+        lineHeight: 14,
+        hideOverlap: false,
       },
     },
     yAxis: { type: 'value', boundaryGap: [0, 0.01] },

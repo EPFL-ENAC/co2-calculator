@@ -5,7 +5,6 @@ Used by TestRoleProvider, TestUnitProvider, and seed_fake_user_unit.
 """
 
 import hashlib
-from typing import Dict, List
 
 from app.models.unit import Unit
 from app.models.user import (
@@ -39,7 +38,7 @@ def make_test_user_id(user_id: str) -> str:
 # institutional_id is computed via make_test_user_id for consistency
 # with the login-test flow.
 
-TEST_USERS: Dict[RoleName, Dict[str, str]] = {
+TEST_USERS: dict[RoleName, dict[str, str]] = {
     RoleName.CO2_USER_STD: {
         "institutional_id": make_test_user_id("testuser_calco2.user.standard"),
         "email": "testuser_calco2.user.standard@example.org",
@@ -67,7 +66,7 @@ TEST_USERS: Dict[RoleName, Dict[str, str]] = {
 }
 
 # Reverse lookup: institutional_id → RoleName
-_USER_ID_TO_ROLE: Dict[str, RoleName] = {
+_USER_ID_TO_ROLE: dict[str, RoleName] = {
     u["institutional_id"]: role for role, u in TEST_USERS.items()
 }
 
@@ -82,12 +81,35 @@ def get_test_role_by_user_id(user_id: str) -> RoleName | None:
 
 _PRINCIPAL_ID = TEST_USERS[RoleName.CO2_USER_PRINCIPAL]["institutional_id"]
 
-# A coherent ENAC subtree: lvl2 anchor -> lvl3 -> lvl4. Each unit's own
-# institutional_code is the last token of its (self-inclusive) root->leaf
-# path_institutional_code, mirroring real ACCRED data
+# A coherent ENAC subtree: lvl2 anchor -> lvl3 -> four sibling lvl4 labs. Each
+# unit's own institutional_code is the last token of its (self-inclusive)
+# root->leaf path_institutional_code, mirroring real ACCRED data
 # (" ".join(ancestors + [self])). EPFL root (code 10582 / cf 13029) is an
 # ancestor token only; it is not a stored unit.
-TEST_UNITS: List[Unit] = [
+#
+# Only level-4 units surface as workspaces (see UnitService.get_user_units),
+# so the four leaves below are what a login-test user picks between.
+_LVL4_PATH_CODE = "10582 12635 11435"
+_LVL4_PATH_IID = "13029 13030 13031"
+_LVL4_PATH_NAME = "EPFL ENAC-TEST ENAC-SG-TEST"
+
+
+def _test_leaf(institutional_code: str, institutional_id: str, name: str) -> Unit:
+    """Build a level-4 TEST lab hanging off ENAC-SG-TEST."""
+    return Unit(
+        provider=UserProvider.TEST,
+        institutional_code=institutional_code,
+        institutional_id=institutional_id,
+        name=name,
+        level=4,
+        principal_user_institutional_id=_PRINCIPAL_ID,
+        path_institutional_code=f"{_LVL4_PATH_CODE} {institutional_code}",
+        path_institutional_id=f"{_LVL4_PATH_IID} {institutional_id}",
+        path_name=f"{_LVL4_PATH_NAME} {name}",
+    )
+
+
+TEST_UNITS: list[Unit] = [
     Unit(
         provider=UserProvider.TEST,
         institutional_code="12635",
@@ -110,40 +132,38 @@ TEST_UNITS: List[Unit] = [
         path_institutional_id="13029 13030 13031",
         path_name="EPFL ENAC-TEST ENAC-SG-TEST",
     ),
-    Unit(
-        provider=UserProvider.TEST,
-        institutional_code="14270",
-        institutional_id="13032",
-        name="ENAC-IT4R-TEST",
-        level=4,
-        principal_user_institutional_id=_PRINCIPAL_ID,
-        path_institutional_code="10582 12635 11435 14270",
-        path_institutional_id="13029 13030 13031 13032",
-        path_name="EPFL ENAC-TEST ENAC-SG-TEST ENAC-IT4R-TEST",
-    ),
+    _test_leaf("14270", "13032", "ENAC-IT4R-TEST"),
+    _test_leaf("14271", "13033", "ENAC-LAB1-TEST"),
+    _test_leaf("14272", "13034", "ENAC-LAB2-TEST"),
+    _test_leaf("14273", "13035", "ENAC-LAB3-TEST"),
 ]
 
 # Quick lookup helpers
 TEST_UNIT_IDS = [u.institutional_id for u in TEST_UNITS if u.institutional_id]
-# Primary (leaf) test unit id as a non-optional str for unit/own scope construction.
-_TEST_UNIT_IID: str = TEST_UNITS[-1].institutional_id or ""
+# Leaf (level-4) test unit ids — the selectable workspaces. Unit/own scopes are
+# built over all of them so a login-test user lands with four units to pick from.
+TEST_LEAF_UNIT_IIDS: list[str] = [
+    u.institutional_id for u in TEST_UNITS if u.level == 4 and u.institutional_id
+]
 
 
 # -- Test Roles ---------------------------------------------------------------
 # Maps each RoleName to the list of Role objects assigned during test login.
 
-TEST_ROLES: Dict[RoleName, List[Role]] = {
+TEST_ROLES: dict[RoleName, list[Role]] = {
     RoleName.CO2_USER_STD: [
         Role(
             role=RoleName.CO2_USER_STD,
-            on=OwnScope(institutional_id=_TEST_UNIT_IID),
-        ),
+            on=OwnScope(institutional_id=unit_iid),
+        )
+        for unit_iid in TEST_LEAF_UNIT_IIDS
     ],
     RoleName.CO2_USER_PRINCIPAL: [
         Role(
             role=RoleName.CO2_USER_PRINCIPAL,
-            on=UnitScope(institutional_id=_TEST_UNIT_IID),
-        ),
+            on=UnitScope(institutional_id=unit_iid),
+        )
+        for unit_iid in TEST_LEAF_UNIT_IIDS
     ],
     RoleName.CO2_BACKOFFICE_METIER: [
         Role(

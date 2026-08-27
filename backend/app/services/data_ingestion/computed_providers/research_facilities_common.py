@@ -5,13 +5,13 @@ totals from the corresponding facility's CarbonReport regardless of module
 type or emission type.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
+from app.modules.emissions import EmissionType, get_subtree_leaves
 from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.repositories.unit_repo import UnitRepository
 from app.services.data_ingestion.factor_update_provider import BaseFactorUpdateProvider
@@ -35,7 +35,7 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
         factor: Factor,
         year: int,
         session: AsyncSession,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Compute updated kg_co2eq_sum from actual emission data.
 
         Args:
@@ -47,10 +47,14 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
         Returns:
             ``{"kg_co2eq_sum": <total float>}``, or ``None`` if
             ``researchfacility_id`` is absent (factor is skipped, not errored).
+            A closed unit (``is_active=False``) with no CarbonReport for the
+            year gets an explicit ``0.0`` — it has stopped reporting, so it
+            has nothing left to sum, not an unknown value.
 
         Raises:
-            ValueError: When the Unit or CarbonReport cannot be found — these
-                        are surfaced as errors, not silent skips.
+            ValueError: When the Unit cannot be found, or an active unit has
+                        no CarbonReport for the year — these are surfaced as
+                        errors, not silent skips.
         """
         # Skip if kg_co2eq_sum is not missing (already computed)
         if factor.values.get("kg_co2eq_sum") is not None:
@@ -59,7 +63,7 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
             )
             return None
 
-        researchfacility_id: Optional[str] = factor.classification.get(
+        researchfacility_id: str | None = factor.classification.get(
             "researchfacility_id"
         )
         if not researchfacility_id:
@@ -88,6 +92,11 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
             unit.id, year
         )
         if carbon_report is None:
+            if not unit.is_active:
+                # A closed unit not having a report for this year is the
+                # expected case, not a gap: it stopped reporting, so its
+                # research facility has no more emissions to sum.
+                return {"kg_co2eq_sum": 0.0}
             raise ValueError(
                 f"CarbonReport not found for unit_id={unit.id}, year={year} "
                 f"(researchfacility_id={researchfacility_id!r})"
@@ -97,29 +106,25 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
                 f"CarbonReport has no database id for unit_id={unit.id}, year={year}"
             )
 
-        # 3. Aggregate some emissions across the entire CarbonReport into one total
+        # 3. Aggregate some emissions across the entire CarbonReport into one
+        #    total. Leaves only: non-leaf entries in by_emission_type are
+        #    subtree rollups and would double-count.
         stats = carbon_report.stats or {}
         by_emission_type = stats.get("by_emission_type", {})
-        breakdown = [
-            (int(emission_type_id), float(kg_co2eq_sum))
-            for emission_type_id, kg_co2eq_sum in by_emission_type.items()
-        ]
-        # Filter per emission type: process_emissions, buildings, equipment, purchases
-        included_emission_type_ids = [
-            # All process emissions types
-            EmissionType.process_emissions.value,
-            # All building emissions types
-            EmissionType.buildings.value,
-            # All equipment emissions types
-            EmissionType.equipment.value,
-            # All purchases emissions types
-            EmissionType.purchases.value,
-        ]
-        # breakdown: list of (emission_type_id, kg_co2eq_sum)
+        included_leaf_ids = {
+            leaf_id
+            for root in (
+                EmissionType.process_emissions,
+                EmissionType.buildings,
+                EmissionType.equipment,
+                EmissionType.purchases,
+            )
+            for leaf_id in get_subtree_leaves(root)
+        }
         total: float = sum(
-            kg
-            for emission_type_id, kg in breakdown
-            if emission_type_id in included_emission_type_ids
+            float(kg_co2eq_sum)
+            for emission_type_id, kg_co2eq_sum in by_emission_type.items()
+            if int(emission_type_id) in included_leaf_ids
         )
 
         return {"kg_co2eq_sum": total}

@@ -1,22 +1,22 @@
 import asyncio
-import csv
-import io
 import time
 import urllib.parse
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, TypedDict
 
+from pydantic import ValidationError
 from sqlmodel import col, select
 
 from app.api.v1.files import make_files_store
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import (
+    BULK_PER_YEAR_SOURCES,
     DataEntry,
     DataEntrySourceEnum,
-    DataEntryStatusEnum,
     DataEntryTypeEnum,
 )
 from app.models.data_ingestion import (
@@ -26,7 +26,11 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
-from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.models.module_type import (
+    DERIVED_DATA_ENTRY_TYPES,
+    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+    ModuleTypeEnum,
+)
 from app.models.unit import Unit
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
@@ -45,9 +49,10 @@ from app.services.data_entry_emission_service import (
 )
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
-from app.services.module_handler_service import ModuleHandlerService
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
+from app.utils.csv_dialect import csv_dict_reader
+from app.utils.progress import format_progress
 
 logger = get_logger(__name__)
 
@@ -57,8 +62,18 @@ logger = get_logger(__name__)
 # hammering the session.
 PROGRESS_REPORT_INTERVAL_S = 2.0
 
+# Issue #1398 — appended to a job's terminal ``status_message`` whenever it
+# finishes without every CSV row landing (WARNING, or an ERROR/mid-stream
+# crash before ``_finalize_and_commit`` runs). Recalculation only
+# recomputes emissions for rows already committed to the DB — it cannot add
+# rows that were never ingested, so the message has to say so explicitly.
+REUPLOAD_HINT = (
+    "Re-upload the file to import the missing rows — recalculation alone "
+    "will not add them."
+)
 
-def _is_blank_data_row(row: Dict[str, str], required_columns: set[str]) -> bool:
+
+def _is_blank_data_row(row: dict[str, str], required_columns: set[str]) -> bool:
     """Return True when every required column is empty or absent in the raw row."""
     if not required_columns:
         return False
@@ -66,8 +81,7 @@ def _is_blank_data_row(row: Dict[str, str], required_columns: set[str]) -> bool:
 
 
 def _validate_file_path(file_path: str) -> None:
-    """
-    Validate file_path to prevent directory traversal attacks.
+    """Validate file_path to prevent directory traversal attacks.
     File should come from files_store and start with expected prefixes.
     """
     if not file_path:
@@ -101,6 +115,26 @@ class StatsDict(TypedDict):
     row_errors_count: int
 
 
+def _format_pydantic_validation_error(validation_error: ValidationError) -> str:
+    """Turn a ``handler.validate_create()`` ``ValidationError`` into a short,
+    readable message.
+
+    Pydantic's own ``str(validation_error)`` is a multi-line technical dump
+    (one paragraph per failing field, plus ``type=...``/``input_type=...``
+    noise) — unreadable to an operator uploading a CSV. Walk
+    ``.errors()`` instead and build one line per field, e.g.
+    ``co2_factor: Input should be a valid number, unable to parse string as
+    a number (got 'abc')``, joined with ``; `` for rows with more than one
+    bad field. Still pydantic's own wording (no new i18n/custom-copy layer
+    — deliberately out of scope), just on one line and free of the
+    ``type=...`` noise.
+    """
+    return "; ".join(
+        f"{err['loc'][-1]}: {err['msg']} (got {err['input']!r})"
+        for err in validation_error.errors()
+    )
+
+
 def _get_expected_columns_from_handlers(handlers: list[Any]) -> set[str]:
     expected_columns: set[str] = set()
     for handler in handlers:
@@ -119,7 +153,7 @@ def _get_required_columns_from_handler(handler: Any) -> set[str]:
 
 def _guard_factors_required(
     *,
-    factors_map: Dict[str, Any],
+    factors_map: dict[str, Any],
     handlers: list[Any],
     module_label: str,
     year: int | None,
@@ -127,9 +161,9 @@ def _guard_factors_required(
     """Fail-fast when an ingest needs factors but the map is empty.
 
     For modules whose handler declares ``require_factor_to_match=True``
-    (e.g. equipment), every row's emission record needs a matched
-    ``Factor`` to populate ``primary_factor_id``.  When the factors
-    table has nothing for this (module, year) tuple the row-level loop
+    (e.g. equipment), every row needs a matched ``Factor`` to compute
+    its emission.  When the factors table has nothing for this
+    (module, year) tuple the row-level loop
     would record one "no matching factor" error per row — a 50 000-row
     CSV produces 50 000 identical messages and the operator has to
     scroll past them to find out the real issue is that they forgot to
@@ -150,7 +184,7 @@ def _guard_factors_required(
     raise ValueError(
         f"No factors available for module={module_label} {year_str}. "
         "Upload factors for this module/year before ingesting data — "
-        "every row needs a matched Factor for primary_factor_id."
+        "every row needs a matched Factor to compute its emission."
     )
 
 
@@ -159,7 +193,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         user: User | None = None,
         job_session: Any = None,
         *,
@@ -188,18 +222,15 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self._missing_unit_codes: set[str] = set()
         # Track which missing units we've already warned about (deduplication)
         self._missing_units_logged: set[str] = set()
-        # module_id → unit_id, filled by _resolve_carbon_report_modules;
-        # used to stamp the denormalized DataEntry.unit_id at row build.
-        self._module_to_unit_id: Dict[int, int] = {}
         # Cache for carbon_report_module_id -> year mapping (avoid per-row DB queries)
-        self._year_cache: Dict[int, int] = {}
+        self._year_cache: dict[int, int] = {}
         # Progress reporting: current phase label + throttle/rate bookkeeping.
         self._phase = ""
         self._phase_started_at = 0.0
         self._last_report_at = 0.0
         # Per-segment wall-time accumulator for the row-loop profile (diagnostic;
         # answers "where do the N seconds go" — DB-heavy segments stand out).
-        self._seg: Dict[str, float] = {}
+        self._seg: dict[str, float] = {}
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -243,7 +274,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
     @property
     def user_service(self) -> Any:
         """Lazy initialization of user service"""
-
         if self._user_service is None:
             self._user_service = UserService(self.data_session)
         return self._user_service
@@ -268,17 +298,17 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             logger.error(f"Failed to validate CSV file: {str(e)}")
             return False
 
-    async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         """Not used - processing is done in process_csv_in_batches"""
         return []
 
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Not used - transformation is done in process_csv_in_batches"""
         return raw_data
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         """Not used - loading is done in process_csv_in_batches"""
         return {"inserted": 0, "skipped": 0, "errors": 0}
 
@@ -288,8 +318,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         expected_columns: set[str],
         required_columns: set[str],
     ) -> None:
-        """
-        Validate CSV headers by checking first 5 rows.
+        """Validate CSV headers by checking first 5 rows.
         Fails if ALL first rows are missing required columns.
         In strict mode, also fails if expected columns are missing.
 
@@ -299,7 +328,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         rows_to_check = 5
 
         # Validate using a separate reader
-        validation_reader = csv.DictReader(io.StringIO(csv_text, newline=""))
+        validation_reader = csv_dict_reader(csv_text)
         first_rows = []
 
         try:
@@ -340,9 +369,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 )
 
     @abstractmethod
-    async def _setup_handlers_and_factors(self) -> Dict[str, Any]:
-        """
-        Setup handlers and factors for this entity type.
+    async def _setup_handlers_and_factors(self) -> dict[str, Any]:
+        """Setup handlers and factors for this entity type.
 
         Subclasses should determine which handlers to load and which factors
         to retrieve, based on entity-specific configuration.
@@ -356,16 +384,15 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         pass
 
     async def _load_handlers_and_factors(
-        self, entry_types: List[DataEntryTypeEnum]
-    ) -> tuple[List[Any], Dict[str, Any]]:
-        """
-        Load deduplicated handlers and the merged factors map for the
+        self, entry_types: list[DataEntryTypeEnum]
+    ) -> tuple[list[Any], dict[str, Any]]:
+        """Load deduplicated handlers and the merged factors map for the
         given data entry types.
 
         Year is required: factor lookups during row processing key on
         ``{type}:{year}:{kind}:{subkind}``, so a missing year would
-        silently miss every factor and import rows with
-        primary_factor_id=None.
+        silently miss every factor and import rows with no matched
+        factor.
         """
         if not self.year:
             raise ValueError(
@@ -375,7 +402,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Deduplicate handlers by class to avoid multiple identical
         # instances (e.g., EquipmentModuleHandler registered for
         # it/scientific/other)
-        handlers: List[Any] = []
+        handlers: list[Any] = []
         seen_handler_classes: set[type[Any]] = set()
         for entry_type in entry_types:
             handler = BaseModuleHandler.get_by_type(entry_type)
@@ -384,7 +411,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 handlers.append(handler)
                 seen_handler_classes.add(handler_class)
 
-        factors_map: Dict[str, Any] = {}
+        factors_map: dict[str, Any] = {}
         for entry_type in entry_types:
             type_factors = await load_factors_map(
                 self.data_session, entry_type, self.year
@@ -400,13 +427,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
     def _assemble_setup_result(
         self,
         *,
-        handlers: List[Any],
-        factors_map: Dict[str, Any],
+        handlers: list[Any],
+        factors_map: dict[str, Any],
         module_label: str,
         required_columns: set[str],
-    ) -> Dict[str, Any]:
-        """
-        Build the setup dict returned by ``_setup_handlers_and_factors``.
+    ) -> dict[str, Any]:
+        """Build the setup dict returned by ``_setup_handlers_and_factors``.
 
         Runs the require-factor guard, derives expected columns, and
         builds the factor_id -> factor map for O(1) lookup during row
@@ -421,17 +447,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         expected_columns = _get_expected_columns_from_handlers(handlers)
 
-        factor_id_to_factor: Dict[int, Any] = {}
-        for factor in factors_map.values():
-            factor_id = getattr(factor, "id", None)
-            if factor_id is not None:
-                factor_id_to_factor[factor_id] = factor
-
         logger.info(
             f"Setup complete for {self.entity_type.name}: "
             f"handlers={len(handlers)}, "
             f"factors={len(factors_map)}, "
-            f"factor_id_to_factor={len(factor_id_to_factor)}, "
             f"expected_columns={len(expected_columns)}, "
             f"required_columns={len(required_columns)}"
         )
@@ -439,21 +458,19 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         return {
             "handlers": handlers,
             "factors_map": factors_map,
-            "factor_id_to_factor": factor_id_to_factor,
             "expected_columns": expected_columns,
             "required_columns": required_columns,
         }
 
     def _resolve_type_from_config_or_category(
         self,
-        filtered_row: Dict[str, str],
-        handlers: List[Any],
+        filtered_row: dict[str, str],
+        handlers: list[Any],
         row_idx: int,
         stats: StatsDict,
         max_row_errors: int,
-    ) -> tuple[DataEntryTypeEnum | None, "ModuleHandler | None"]:
-        """
-        Shared Priority 1/2 of data_entry_type resolution.
+    ) -> tuple[DataEntryTypeEnum | None, ModuleHandler | None]:
+        """Shared Priority 1/2 of data_entry_type resolution.
 
         Priority 1: configured ``data_entry_type_id`` from job config
         (cast through int so string ids from JSON config work).
@@ -484,11 +501,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     def _extract_kind_subkind_values(
         self,
-        filtered_row: Dict[str, str],
-        handlers: List[Any],
+        filtered_row: dict[str, str],
+        handlers: list[Any],
     ) -> tuple[str, str | None]:
-        """
-        Extract kind and subkind values from filtered row.
+        """Extract kind and subkind values from filtered row.
 
         Tries each handler's kind_field/subkind_field first, then falls
         back to common field names. Works for single- and multi-handler
@@ -524,15 +540,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
     @abstractmethod
     async def _resolve_handler_and_validate(
         self,
-        filtered_row: Dict[str, str],
+        filtered_row: dict[str, str],
         factor: Any | None,
         stats: StatsDict,
         row_idx: int,
         max_row_errors: int,
-        setup_result: Dict[str, Any],
-    ) -> tuple[DataEntryTypeEnum | None, "ModuleHandler | None", str | None]:
-        """
-        Resolve the handler and validate the row.
+        setup_result: dict[str, Any],
+    ) -> tuple[DataEntryTypeEnum | None, ModuleHandler | None, str | None]:
+        """Resolve the handler and validate the row.
 
         Subclasses implement entity-specific validation and handler resolution.
 
@@ -541,9 +556,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         pass
 
-    async def _resolve_carbon_report_modules(self, csv_text: str) -> Dict[str, int]:
-        """
-        Pre-scan CSV to extract unique unit_ids (institutional_ids)
+    async def _resolve_carbon_report_modules(self, csv_text: str) -> dict[str, int]:
+        """Pre-scan CSV to extract unique unit_ids (institutional_ids)
         and resolve carbon_report_module_id.
 
         Note: CSV column is named 'unit_institutional_id'
@@ -555,7 +569,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         Returns: {institutional_id: carbon_report_module_id} mapping
         """
-
         # Validate year is present
         if not self.year:
             raise ValueError("year is required for MODULE_PER_YEAR entity type")
@@ -572,26 +585,33 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # instead of 2 queries per unit.  ~2.5k units → one round-trip;
         # the per-unit path below only runs for units that still need a
         # carbon_report created for this year.
+        # A unit holds one report per carbon project per year, so without the
+        # Calculator predicate the join returns several candidates per unit and
+        # the ingest writes into whichever simulator project came back last.
         map_stmt = (
             select(Unit.institutional_id, CarbonReportModule.id, Unit.id)
             .join(CarbonReport, col(CarbonReport.unit_id) == col(Unit.id))
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
             .join(
                 CarbonReportModule,
                 col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
             )
             .where(
+                col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR,
                 col(CarbonReport.year) == self.year,
                 col(CarbonReportModule.module_type_id) == module_type_id,
             )
         )
-        full_map: Dict[str, int] = {}
+        full_map: dict[str, int] = {}
         for institutional_id, module_id, unit_db_id in (
             await self.data_session.execute(map_stmt)
         ).all():
             if institutional_id is None:
                 continue
             full_map[institutional_id] = module_id
-            self._module_to_unit_id[module_id] = unit_db_id
         logger.info(
             f"Bulk-resolved {len(full_map)} existing "
             f"carbon_report_modules for year={self.year}, "
@@ -600,7 +620,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Extract unique unit institutional_ids from CSV
         # (column is named 'unit_institutional_id' to be explicit)
-        csv_reader = csv.DictReader(io.StringIO(csv_text, newline=""))
+        csv_reader = csv_dict_reader(csv_text)
         unit_codes = set()
         for row in csv_reader:
             unit_code = row.get("unit_institutional_id")
@@ -623,7 +643,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # which would then wipe CSV-uploaded entries of units this file
         # doesn't even mention (and drag the DELETE across the whole
         # year's modules).
-        code_to_module_map: Dict[str, int] = {
+        code_to_module_map: dict[str, int] = {
             code: full_map[code] for code in unit_codes if code in full_map
         }
 
@@ -687,7 +707,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         f"module_type_id={module_type_id}"
                     )
                 code_to_module_map[unit_institutional_id] = carbon_report_module.id
-                self._module_to_unit_id[carbon_report_module.id] = unit_id
 
         logger.info(
             f"Resolved carbon_report_module_ids: "
@@ -699,8 +718,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def ingest(
         self,
-        filters: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Override ingest to use custom process_csv_in_batches"""
         try:
             await self._update_job(
@@ -716,8 +735,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 "data": result,
             }
         except Exception as e:
+            # Job died before _finalize_and_commit ran (mid-stream crash,
+            # timeout, setup/header validation failure...) — whatever rows
+            # made it in are all that exist; re-upload is the only way to
+            # get the rest (issue #1398).
             await self._update_job(
-                status_message=f"failed: {str(e)}",
+                status_message=f"failed: {str(e)} {REUPLOAD_HINT}",
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
@@ -727,16 +750,18 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _delete_existing_entries_for_module_per_year(
         self,
-        unit_to_module_map: Dict[str, int],
+        unit_to_module_map: dict[str, int],
         stats: StatsDict,
         data_entry_service: DataEntryService,
     ) -> None:
-        """
-        Delete existing entries from previous CSV_MODULE_PER_YEAR uploads.
+        """Delete existing entries from previous bulk per-year ingests.
 
-        This ensures that MODULE_PER_YEAR uploads replace only the data
-        that was uploaded through the same mechanism, preserving manual
-        entries and unit-specific uploads.
+        A per-year upload is a complete yearly export, so it replaces every
+        machine-owned bulk source (prior CSV uploads AND API syncs — see
+        ``BULK_PER_YEAR_SOURCES``), preserving manual entries and
+        unit-specific uploads. Without the cross-source delete, uploading a
+        CSV after an API sync mass-skips rows as DUPLICATE_INSTITUTIONAL_ID
+        against the surviving API copies.
 
         Note: MODULE_UNIT_SPECIFIC uses append-only strategy (no deletion).
 
@@ -745,7 +770,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             stats: Statistics dict to update
             data_entry_service: DataEntryService instance to use
         """
-
         if not (self.job and self.job.module_type_id):
             logger.info("No job module_type_id — skipping pre-import deletion")
             return
@@ -754,9 +778,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # If the job targets a specific data_entry_type_id, only delete
         # entries for that type. Deleting all types for the module would
         # wipe sibling submodules (e.g. uploading research_facilities
-        # data would erase mice_and_fish_animal_facilities entries).
+        # data would erase animal_facilities entries). Derived types ride
+        # along so their stale rows are replaced with the parent.
         if self.job.data_entry_type_id is not None:
-            valid_entry_types = [DataEntryTypeEnum(self.job.data_entry_type_id)]
+            pinned_type = DataEntryTypeEnum(self.job.data_entry_type_id)
+            valid_entry_types = [
+                pinned_type,
+                *DERIVED_DATA_ENTRY_TYPES.get(pinned_type, []),
+            ]
         else:
             valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
@@ -765,17 +794,17 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Full-year replace: per-year CSVs are complete exports, so ONE
         # indexed DELETE on the denormalized ``data_entries.year`` column
-        # replaces every prior row of (year, types, source) — no module
+        # replaces every prior row of (year, types, bulk sources) — no module
         # resolution, no audit trail (the bulk path skips audit on insert
         # too; the job row is the operator-facing record).
         deleted_rows = await data_entry_service.repo.bulk_delete_by_source_year(
             year=self.year,
             data_entry_type_ids=[t.value for t in valid_entry_types],
-            source=DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value,
+            sources=[s.value for s in BULK_PER_YEAR_SOURCES],
         )
 
         logger.info(
-            f"Deleted {deleted_rows} data entries from previous CSV uploads "
+            f"Deleted {deleted_rows} data entries from previous bulk ingests "
             f"(year={self.year}, {len(valid_entry_types)} types, full replace)"
         )
 
@@ -806,11 +835,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         seg = self._seg
         row_t = seg.get("row", 0.0)
-        inner = ("resolve", "validate", "enrich", "populate")
+        inner = ("resolve", "validate", "enrich")
         per_row_ms = (parse_elapsed / rows * 1000) if rows else 0.0
         logger.info(
             "Row-loop profile: %d rows in %.1fs (%.2f ms/row) | row=%.1fs "
-            "[resolve=%.1f validate=%.1f enrich=%.1f populate=%.1f row_other=%.1f] "
+            "[resolve=%.1f validate=%.1f enrich=%.1f row_other=%.1f] "
             "loop_overhead=%.1fs",
             rows,
             parse_elapsed,
@@ -819,21 +848,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             seg.get("resolve", 0.0),
             seg.get("validate", 0.0),
             seg.get("enrich", 0.0),
-            seg.get("populate", 0.0),
             row_t - sum(seg.get(k, 0.0) for k in inner),
             parse_elapsed - row_t,
         )
-
-    @staticmethod
-    def _format_progress(
-        phase: str, processed: int | None, total: int | None, elapsed: float
-    ) -> str:
-        """Human-readable progress line with throughput + rough ETA."""
-        if not processed or not total:
-            return phase
-        rate = processed / max(elapsed, 1e-3)
-        eta = (total - processed) / rate if rate > 0 else 0.0
-        return f"{phase}: {processed}/{total} rows ({rate:.0f}/s, ~{eta:.0f}s left)"
 
     async def _report(
         self,
@@ -841,7 +858,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         *,
         processed: int | None = None,
         total: int | None = None,
-        stats: "StatsDict | None" = None,
+        stats: StatsDict | None = None,
         force: bool = False,
     ) -> None:
         """Throttled progress write to the job row + an INFO log line.
@@ -854,10 +871,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             return
         self._last_report_at = now
 
-        msg = self._format_progress(
-            phase, processed, total, now - self._phase_started_at
-        )
-        meta: Dict[str, Any] = dict(stats) if stats else {}
+        msg = format_progress(phase, processed, total, now - self._phase_started_at)
+        meta: dict[str, Any] = dict(stats) if stats else {}
         meta["progress"] = {"phase": phase, "processed": processed, "total": total}
         logger.info(msg)
         await self._update_job(
@@ -867,14 +882,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             extra_metadata=meta,
         )
 
-    async def process_csv_in_batches(self) -> Dict[str, Any]:
+    async def process_csv_in_batches(self) -> dict[str, Any]:
         """Orchestrate CSV processing: setup → process rows → finalize"""
         try:
             # Setup: validate, load factors, move file
             setup_result = await self._setup_and_validate()
 
             # Resolve carbon_report_module_ids if needed (MODULE_PER_YEAR only)
-            unit_to_module_map: Dict[str, int] | None = None
+            unit_to_module_map: dict[str, int] | None = None
 
             # Initialize statistics early for deletion tracking
             max_row_errors = int(self.config.get("max_row_errors", 100))
@@ -925,25 +940,45 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             self._seg = {}
             parse_start = time.perf_counter()
             row_idx = 0
-            batch: List[DataEntry] = []
+            batch: list[DataEntry] = []
             # Parallel list of kg_co2eq overrides aligned with `batch` by index.
             # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
-            batch_kg_co2eq_overrides: List[float | None] = []
-            # Track seen user_institutional_ids per module to catch intra-CSV duplicates
-            seen_institutional_ids: Dict[int, set] = {}
-            csv_reader = csv.DictReader(
-                io.StringIO(setup_result["csv_text"], newline="")
+            batch_kg_co2eq_overrides: list[float | None] = []
+            # Track seen (user_institutional_id, sius_code) pairs per module to
+            # catch duplicates. A person can legitimately hold two roles
+            # (different sius_code) in the same unit. Seeded with the DB's
+            # surviving member rows (post-delete: manual/unit-specific ones)
+            # in ONE bulk query — a per-row uniqueness SELECT at stage
+            # latencies turned an 8.5k-row parse into ~10 min (2026-07-17).
+            seen_institutional_ids: dict[int, set[tuple[str, str]]] = {}
+            # Unconditional on purpose: the query is one indexed round trip
+            # that returns nothing for non-member modules, and gating it on
+            # a resolvable module_type_id would silently skip DB-level
+            # dedup for member uploads that omit it (raw-API dispatch).
+            member_module_ids: list[int] = []
+            if unit_to_module_map:
+                member_module_ids = list(unit_to_module_map.values())
+            elif self.carbon_report_module_id:
+                member_module_ids = [self.carbon_report_module_id]
+            existing_keys = await data_entry_service.repo.get_member_role_keys(
+                member_module_ids
             )
+            for mod_id, uid, sius in existing_keys:
+                seen_institutional_ids.setdefault(mod_id, set()).add((uid, sius))
+            csv_reader = csv_dict_reader(setup_result["csv_text"])
 
+            last_yield = time.perf_counter()
             for row_idx, row in enumerate(csv_reader, start=1):
                 # Row processing is mostly CPU (parse/validate, cached
                 # lookups) — with 50k-row COPY batches nothing else
                 # would run on the event loop for the whole file.
-                # Yield every 100 rows so /healthz & /ready stay under the
-                # liveness/readiness probe timeout even on a CPU-tight pod;
-                # a 1000-row stretch could exceed 2s and trigger a restart.
-                if row_idx % 100 == 0:
+                # Yield on wall time so /healthz & /ready stay under the
+                # k8s probe timeout (2s on stage) regardless of per-row
+                # cost — a fixed row count stretches with a slow DB.
+                if time.perf_counter() - last_yield > 0.05:
                     await asyncio.sleep(0)
+                    last_yield = time.perf_counter()
+                if row_idx % 100 == 0:
                     # Throttled internally to PROGRESS_REPORT_INTERVAL_S, so the
                     # long parse/validate phase shows live throughput + ETA
                     # instead of going silent for tens of seconds.
@@ -989,34 +1024,26 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 if data_entry is None:
                     raise ValueError("Data entry is None without error message")
 
-                # Check institutional ID uniqueness for member entries
-                # TODO: refactor, should not be done in base_csv_provider but elsewhere
-                # process or task or sql
+                # Check (user_institutional_id, sius_code) role uniqueness for
+                # member entries — pure set lookup: intra-CSV dupes and
+                # pre-existing DB rows are both in the seeded set above.
                 if (
                     data_entry.data_entry_type_id == DataEntryTypeEnum.member
                     and data_entry.data
                     and data_entry.data.get("user_institutional_id")
                 ):
                     uid = str(data_entry.data["user_institutional_id"])
+                    sius_code = str(data_entry.data["sius_code"])
                     module_id = data_entry.carbon_report_module_id
                     module_seen = seen_institutional_ids.setdefault(module_id, set())
-                    if uid in module_seen:
+                    role_key = (uid, sius_code)
+                    if role_key in module_seen:
                         error_msg = "DUPLICATE_INSTITUTIONAL_ID"
                         self._record_row_error(
                             stats, row_idx, error_msg, max_row_errors
                         )
                         continue
-                    is_unique = await data_entry_service.check_institutional_id_unique(
-                        carbon_report_module_id=module_id,
-                        uid=uid,
-                    )
-                    if not is_unique:
-                        error_msg = "DUPLICATE_INSTITUTIONAL_ID"
-                        self._record_row_error(
-                            stats, row_idx, error_msg, max_row_errors
-                        )
-                        continue
-                    module_seen.add(uid)
+                    module_seen.add(role_key)
 
                 # Row processed successfully
                 batch.append(data_entry)
@@ -1071,10 +1098,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
         except Exception as e:
+            # Mid-stream crash/timeout before _finalize_and_commit — same
+            # re-upload wording as the ingest()-level handler below, in
+            # case a caller drives process_csv_in_batches() directly
+            # (issue #1398).
             logger.error(f"CSV processing failed: {str(e)}", exc_info=True)
             await self.data_session.rollback()
             await self._update_job(
-                status_message=f"Processing failed: {str(e)}",
+                status_message=f"Processing failed: {str(e)} {REUPLOAD_HINT}",
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
@@ -1083,9 +1114,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _setup_and_validate(
         self,
-    ) -> Dict[str, Any]:
-        """
-        Setup phase: move file, download CSV, load factors, validate headers.
+    ) -> dict[str, Any]:
+        """Setup phase: move file, download CSV, load factors, validate headers.
         Returns context dict with all data needed for row processing.
         """
         # Load job from database if not already loaded (needed for module_type_id, etc.)
@@ -1107,13 +1137,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if not tmp_path:
             raise ValueError("Missing file_path in config")
         _validate_file_path(tmp_path)  # Extra safety check
-        filename = tmp_path.split("/")[-1]
-        processing_path = f"processing/{self.job_id}/{filename}"
-
-        logger.info(f"Moving file from {tmp_path} to {processing_path}")
-        move_result = await self.files_store.move_file(tmp_path, processing_path)
-        if not move_result:
-            raise Exception(f"Failed to move file from {tmp_path} to {processing_path}")
+        processing_path = await self._move_to_processing(tmp_path)
+        filename = processing_path.split("/")[-1]
 
         # Download and decode CSV content
         logger.info(f"Downloading CSV from {processing_path}")
@@ -1125,7 +1150,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         entity_setup = await self._setup_handlers_and_factors()
         handlers = entity_setup["handlers"]
         factors_map = entity_setup["factors_map"]
-        factor_id_to_factor = entity_setup["factor_id_to_factor"]
         expected_columns = entity_setup["expected_columns"]
         required_columns = entity_setup["required_columns"]
 
@@ -1152,7 +1176,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             "entity_type": self.entity_type,
             "handlers": handlers,
             "factors_map": factors_map,
-            "factor_id_to_factor": factor_id_to_factor,
             "expected_columns": expected_columns,
             "required_columns": required_columns,
             "processing_path": processing_path,
@@ -1161,15 +1184,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _process_row(
         self,
-        row: Dict[str, str],
+        row: dict[str, str],
         row_idx: int,
-        setup_result: Dict[str, Any],
+        setup_result: dict[str, Any],
         stats: StatsDict,
         max_row_errors: int,
-        unit_to_module_map: Dict[str, int] | None = None,
+        unit_to_module_map: dict[str, int] | None = None,
     ) -> tuple[DataEntry | None, str | None, Any | None, float | None]:
-        """
-        Process a single CSV row.
+        """Process a single CSV row.
         Returns (DataEntry, error_msg, factor, kg_co2eq_override) tuple.
         If error_msg is not None, row processing failed and error was recorded.
 
@@ -1183,7 +1205,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                                for MODULE_PER_YEAR imports
         """
         try:
-            handlers = setup_result["handlers"]
             expected_columns = setup_result["expected_columns"]
             required_columns = setup_result.get("required_columns", set())
 
@@ -1201,7 +1222,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if raw_kg is not None and raw_kg.strip() != "":
                 try:
                     kg_co2eq_override = float(raw_kg)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     # Surface unparseable overrides at WARNING so operators see
                     # the silent fallback to formula-based emissions in the log.
                     logger.warning(
@@ -1215,11 +1236,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 for k, v in row.items()
                 if k in expected_columns and v is not None and v.strip() != ""
             }
-
-            # Extract kind/subkind values (entity-specific extraction)
-            kind_value, subkind_value = self._extract_kind_subkind_values(
-                filtered_row, handlers
-            )
 
             # Resolve handler and data_entry_type first (needed for factor lookup)
             with self._timed("resolve"):
@@ -1238,46 +1254,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 error_msg = "Failed to resolve handler and data_entry_type"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None, None
-
-            # Resolve primary_factor_id from in-memory factors_map (NOT DB query!)
-            # This avoids 100k+ DB queries - factors already loaded in setup phase
-            primary_factor_id: int | None = None
-            if "factors_map" in setup_result and handler.kind_field:
-                kind_value, subkind_value = self._extract_kind_subkind_values(
-                    filtered_row, handlers
-                )
-                # Defense in depth: the setup-time guard in
-                # _load_handlers_and_factors raises before any row
-                # reaches this method,
-                # so reaching this branch with a falsy year would mean a
-                # future caller bypassed setup. Use the same `not self.year`
-                # check the setup-time guard uses so both layers reject the
-                # same set of values (None and 0); a stricter `is None` check
-                # would let `year=0` rebuild the `:0:` silent-miss key.
-                if not self.year:
-                    raise ValueError(
-                        "year must be set (and non-zero) before processing "
-                        "rows; setup-time guard was bypassed"
-                    )
-                year_value = self.year
-                # Build lookup key same way as load_factors_map does
-                key_full = (
-                    f"{data_entry_type.value}:"
-                    f"{year_value}:"
-                    f"{(kind_value or '').lower()}:"
-                    f"{(subkind_value or '').lower()}"
-                )
-                factor = setup_result["factors_map"].get(key_full)
-                # Fallback: try without subkind
-                if not factor and subkind_value:
-                    key_kind = (
-                        f"{data_entry_type.value}:"
-                        f"{year_value}:"
-                        f"{(kind_value or '').lower()}"
-                    )
-                    factor = setup_result["factors_map"].get(key_kind)
-                if factor:
-                    primary_factor_id = factor.id
 
             # Resolve carbon_report_module_id
             carbon_report_module_id = None
@@ -1325,17 +1301,18 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None, None
 
-            # Validate payload with handler (primary_factor_id already
-            # set by ModuleHandlerService)
-            payload: Dict[str, str | int | None] = dict(filtered_row)
+            # Validate payload with handler
+            payload: dict[str, str | int | None] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
             payload["carbon_report_module_id"] = carbon_report_module_id
-            payload["status"] = DataEntryStatusEnum.VALIDATED.value
-            payload["primary_factor_id"] = primary_factor_id
 
             try:
                 with self._timed("validate"):
                     validated = handler.validate_create(payload)
+            except ValidationError as validation_error:
+                error_msg = _format_pydantic_validation_error(validation_error)
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg, None, None
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
@@ -1356,15 +1333,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
                 return None, enrich_error, None, None
 
-            with self._timed("populate"):
-                handler_service = ModuleHandlerService(self.data_session)
-                if primary_factor_id and "factor_id_to_factor" in setup_result:
-                    factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
-                    if factor is not None:
-                        data = await handler_service.populate_defaults(
-                            handler, data, factor
-                        )
-
             # Persist the override on the data
             # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so
             # the async recalc path (``upsert_by_data_entry`` →
@@ -1373,14 +1341,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if kg_co2eq_override is not None:
                 data[KG_CO2EQ_OVERRIDE_KEY] = kg_co2eq_override
 
+            # Denormalized scope columns (year/unit_id) are stamped
+            # centrally by DataEntryService.fill_denormalized_scope on
+            # every write path — no per-provider stamping to forget.
             data_entry = DataEntry(
                 data_entry_type_id=data_entry_type,
                 carbon_report_module_id=carbon_report_module_id,
                 data=data,
-                # Denormalized scope columns — back the per-year
-                # full-replace delete without module resolution.
-                year=self.year,
-                unit_id=self._module_to_unit_id.get(carbon_report_module_id),
             )
 
             return data_entry, None, None, kg_co2eq_override
@@ -1392,8 +1359,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             return None, error_msg, None, None
 
     def _compute_ingestion_result(self, stats: StatsDict) -> IngestionResult:
-        """
-        Compute ingestion result based on success rate.
+        """Compute ingestion result based on success rate.
 
         Rules:
         - SUCCESS: rows_skipped == 0 (100% processed)
@@ -1419,16 +1385,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _finalize_and_commit(
         self,
-        batch: List[DataEntry],
+        batch: list[DataEntry],
         data_entry_service: DataEntryService,
         emission_service: DataEntryEmissionService,
         stats: StatsDict,
-        setup_result: Dict[str, Any],
-        batch_kg_co2eq_overrides: List[float | None],
-    ) -> Dict[str, Any]:
-        """
-        Finalize: process remaining batch, move file to processed/, update job.
-        """
+        setup_result: dict[str, Any],
+        batch_kg_co2eq_overrides: list[float | None],
+    ) -> dict[str, Any]:
+        """Finalize: process remaining batch, move file to processed/, update job."""
         # Process final batch (remaining rows below the COPY batch size)
         if batch:
             await self._process_batch(
@@ -1446,18 +1410,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Move file from processing/ to processed/
         processing_path = setup_result["processing_path"]
-        filename = setup_result["filename"]
-        processed_path = f"processed/{self.job_id}/{filename}"
-        logger.info(f"Moving file from {processing_path} to {processed_path}")
-        move_result = await self.files_store.move_file(processing_path, processed_path)
-        metadata_update = {}
-        if not move_result:
-            logger.warning(
-                f"Failed to move file from {processing_path} to {processed_path}"
-            )
-            metadata_update["processed_file_path"] = processing_path
-        else:
-            metadata_update = {"processed_file_path": processed_path}
+        metadata_update = {
+            "processed_file_path": await self._move_to_processed(processing_path)
+        }
 
         # Flush all changes
         await self.data_session.flush()
@@ -1469,15 +1424,21 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Recompute stats for affected carbon report modules
         await self._recompute_module_stats()
 
-        # Update job status to COMPLETED with summary
+        # Compute result dynamically based on success rate
+        result = self._compute_ingestion_result(stats)
+
+        # Update job status to COMPLETED with summary. Only SUCCESS (every
+        # row processed) stays silent on re-upload — WARNING/ERROR here
+        # both mean at least one row was skipped, and recalculating alone
+        # can't bring those rows back (issue #1398).
         status_message = (
             f"Processed {stats['rows_processed']} rows: "
             f"{stats['rows_with_factors']} with factors, "
             f"{stats['rows_without_factors']} without factors, "
             f"{stats['rows_skipped']} skipped"
         )
-        # Compute result dynamically based on success rate
-        result = self._compute_ingestion_result(stats)
+        if result != IngestionResult.SUCCESS:
+            status_message = f"{status_message}. {REUPLOAD_HINT}"
 
         # Prepare metadata: exclude row_errors from root level to avoid duplication
         # (row_errors remain in stats for detailed error reporting)
@@ -1500,13 +1461,43 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             "stats": stats,
         }
 
+    async def _create_derived_entries(self, batch: list[DataEntry]) -> None:
+        """Create derived rows for a just-inserted batch.
+
+        Driven by ``DERIVED_DATA_ENTRY_TYPES`` so the base class stays
+        module-agnostic: the registry only decides whether the job's pinned
+        type derives anything; each workflow picks its own source rows out
+        of the batch.
+        """
+        if self.job is None or self.job.data_entry_type_id is None:
+            return
+        pinned_type = DataEntryTypeEnum(self.job.data_entry_type_id)
+        derived_types = DERIVED_DATA_ENTRY_TYPES.get(pinned_type, [])
+        if not derived_types or self.job_id is None:
+            return
+
+        # Late import: workflows import the service layer this module
+        # belongs to.
+        from app.workflows.derived_entry_registry import DERIVED_ENTRY_WORKFLOWS
+
+        for derived_type in derived_types:
+            workflow_cls = DERIVED_ENTRY_WORKFLOWS[derived_type]
+            created = await workflow_cls(self.data_session).create_derived_entries_for(
+                batch
+            )
+            logger.info(
+                f"Created {created} {derived_type.name} entries "
+                f"from a batch of {len(batch)} rows"
+            )
+        await self.data_session.commit()
+
     async def _process_batch(
         self,
-        batch: List[DataEntry],
+        batch: list[DataEntry],
         data_entry_service: DataEntryService,
         emission_service: DataEntryEmissionService,
-        user: Optional[User],
-        batch_kg_co2eq_overrides: List[float | None],
+        user: User | None,
+        batch_kg_co2eq_overrides: list[float | None],
     ) -> None:
         """Process a batch of data entries: bulk insert entries and emissions.
 
@@ -1532,7 +1523,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 select(CarbonReportModule, CarbonReport)
                 .join(
                     CarbonReport,
-                    CarbonReport.id == CarbonReportModule.carbon_report_id,  # type: ignore[arg-type]
+                    col(CarbonReport.id) == CarbonReportModule.carbon_report_id,
                 )
                 .where(col(CarbonReportModule.id).in_(list(module_ids)))
             )
@@ -1555,11 +1546,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         )
         logger.debug(f"COPY-inserted {inserted} data entries")
         await self.data_session.commit()
+
+        # Derived rows for this batch (the chained emission_recalc sibling
+        # prices them after the job).
+        await self._create_derived_entries(batch)
         return None
 
     async def _recompute_module_stats(self) -> None:
-        """
-        Plan 310-D —  the runner-driven
+        """Plan 310-D —  the runner-driven
         ``aggregation`` handler (chained by ``emission_recalc`` after the
         data ingest's recalc finishes) owns ``carbon_reports.stats`` writes
         for the bulk path.
@@ -1567,8 +1561,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         return
 
     def _get_source_from_entity_type(self) -> DataEntrySourceEnum | None:
-        """
-        Determine source enum value based on entity_type.
+        """Determine source enum value based on entity_type.
 
         Returns:
             DataEntrySourceEnum value or None if not determinable
@@ -1581,14 +1574,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     @staticmethod
     def _resolve_data_entry_type_from_category(
-        row: Dict[str, str],
+        row: dict[str, str],
         handler: Any,
         row_idx: int,
         stats: StatsDict,
         max_row_errors: int,
     ) -> DataEntryTypeEnum | None:
-        """
-        Resolve data_entry_type from module-specific category column.
+        """Resolve data_entry_type from module-specific category column.
 
         Args:
             row: CSV row data

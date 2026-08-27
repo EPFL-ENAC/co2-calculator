@@ -21,11 +21,19 @@ from fastapi.testclient import TestClient
 from app.api.v1 import files as files_module
 from app.main import app
 from app.models.user import User
+from tests.browser import SAME_ORIGIN_HEADERS
+from tests.unit.v1.test_temp_upload_auth_ordering import valid_access_token
 
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies
+    # run, so the get_current_user override alone no longer gets past it.
+    with TestClient(
+        app,
+        cookies={"auth_token": valid_access_token()},
+        headers=SAME_ORIGIN_HEADERS,
+    ) as c:
         yield c
     app.dependency_overrides.clear()
 
@@ -33,7 +41,8 @@ def client():
 @pytest.fixture(autouse=True)
 def _allow_permissions():
     """Bypass auth + permission gates; these tests exercise upload
-    validation and download MIME handling, not the perm path."""
+    validation and download MIME handling, not the perm path.
+    """
     from app.api.deps import get_current_user
 
     fake = MagicMock(spec=User)
@@ -67,7 +76,8 @@ def _patch_get_file(content: bytes, content_type: str | None):
 
 def test_upload_rejects_non_csv_extension(client):
     """An executable/script disguised by extension is rejected with 415
-    before it ever reaches storage."""
+    before it ever reaches storage.
+    """
     with patch.object(files_module.files_store, "write_file", new=AsyncMock()) as write:
         resp = client.post(
             "/api/v1/files/temp-upload",
@@ -81,7 +91,8 @@ def test_upload_rejects_non_csv_extension(client):
 
 def test_upload_rejects_csv_extension_with_dangerous_content_type(client):
     """Extension passes but a script content type does not — both must be
-    acceptable."""
+    acceptable.
+    """
     with patch.object(files_module.files_store, "write_file", new=AsyncMock()) as write:
         resp = client.post(
             "/api/v1/files/temp-upload",
@@ -109,7 +120,8 @@ def test_upload_accepts_csv(client):
 
 def test_upload_accepts_csv_with_generic_octet_stream(client):
     """Browsers sometimes send application/octet-stream for CSV; the
-    extension is authoritative so this is accepted."""
+    extension is authoritative so this is accepted.
+    """
     with patch.object(
         files_module.files_store,
         "write_file",
@@ -146,7 +158,8 @@ def test_download_sets_nosniff_on_attachment_branch(client):
 
 def test_html_file_is_forced_to_attachment_even_inline(client):
     """A stored HTML file requested for inline display is forced to
-    download — never rendered — so it cannot run as stored XSS."""
+    download — never rendered — so it cannot run as stored XSS.
+    """
     with _patch_get_file(b"<script>alert(1)</script>", "text/html"):
         resp = client.get("/api/v1/files/processed/152/evil.html")
     assert resp.status_code == 200, resp.text

@@ -83,7 +83,8 @@ async def test_csv_ingest_handler_resolves_provider_and_returns_meta():
     ``provider.ingest`` called once, handler returns the meta dict
     with status_message + result + ingest summary.  Plan 310-D adds
     a single ``emission_recalc`` chain on the success arm — patched
-    out here since the assertions focus on the run_ingest contract."""
+    out here since the assertions focus on the run_ingest contract.
+    """
     job = _make_job(meta={"provider_name": "FakeCSV", "config": {"foo": "bar"}})
     job_session = MagicMock()
     data_session = MagicMock()
@@ -170,7 +171,8 @@ async def test_csv_ingest_error_result_does_not_report_success():
 def test_finalize_ingest_meta_enriches_with_first_row_error_reason():
     """Every row failed with the same reason → status_message carries
     a sample of that reason so the operator doesn't have to expand the
-    timeline to find the cause."""
+    timeline to find the cause.
+    """
     result = {
         "status_message": "Success",  # the ingest() lie
         "data": {
@@ -200,7 +202,8 @@ def test_finalize_ingest_meta_enriches_with_first_row_error_reason():
 
 def test_finalize_ingest_meta_caps_long_reason():
     """A 600-char reason (e.g. a Postgres traceback) must not bloat the
-    status_message column — capped at ~200 chars with an ellipsis."""
+    status_message column — capped at ~200 chars with an ellipsis.
+    """
     long_reason = "x" * 600
     result = {
         "status_message": "Success",
@@ -224,7 +227,8 @@ def test_finalize_ingest_meta_caps_long_reason():
 def test_finalize_ingest_meta_no_row_errors_keeps_short_summary():
     """When row_errors is absent (e.g. setup-time fail-fast guard fired
     before the row loop), the message keeps the count-only summary —
-    no spurious 'first error: None' appended."""
+    no spurious 'first error: None' appended.
+    """
     result = {
         "status_message": "Success",
         "data": {
@@ -242,7 +246,8 @@ def test_finalize_ingest_meta_success_path_preserved():
     """A genuine SUCCESS keeps its original status_message regardless
     of row_errors content (defensive: row_errors should be empty on
     SUCCESS, but if a provider still recorded warnings we don't lie
-    about a failure)."""
+    about a failure).
+    """
     result = {
         "status_message": "Success",
         "data": {
@@ -254,6 +259,35 @@ def test_finalize_ingest_meta_success_path_preserved():
     }
     meta = ingest_mod.finalize_ingest_meta(result)
     assert meta["status_message"] == "Success"
+
+
+def test_finalize_ingest_meta_accepts_unwrapped_tableau_result():
+    """Tableau providers return their summary directly instead of under
+    ``data``. The runner must not silently downgrade their WARNING to SUCCESS
+    or discard nested row errors.
+    """
+    result = {
+        "state": 3,
+        "result": IngestionResult.WARNING,
+        "status_message": "Processed 8468 member records, 56 skipped",
+        "inserted": 8468,
+        "skipped": 56,
+        "stats": {
+            "row_errors_count": 56,
+            "row_errors": [
+                {
+                    "row": 409,
+                    "reason": "No carbon_report_module_id for unit 1005",
+                }
+            ],
+        },
+    }
+
+    meta = ingest_mod.finalize_ingest_meta(result)
+
+    assert meta["result"] == IngestionResult.WARNING
+    assert meta["status_message"] == "Processed 8468 member records, 56 skipped"
+    assert meta["stats"]["row_errors_count"] == 56
 
 
 @pytest.mark.asyncio
@@ -289,7 +323,8 @@ async def test_api_ingest_handler_uses_same_path():
 @pytest.mark.asyncio
 async def test_csv_ingest_handler_raises_when_provider_name_missing():
     """No ``meta.provider_name`` → ValueError so the runner stamps
-    FINISHED+ERROR with a clear message."""
+    FINISHED+ERROR with a clear message.
+    """
     job = _make_job(meta={})
     with pytest.raises(ValueError, match="missing meta.provider_name"):
         await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
@@ -315,7 +350,8 @@ async def test_csv_ingest_handler_raises_when_provider_class_unknown():
 async def test_factor_ingest_handler_chains_recalc_for_single_type():
     """Parent has both module + det set → exactly one chain_job for
     that pair (single-type factor upload — bypasses
-    ``get_recalculation_status_by_year``)."""
+    ``get_recalculation_status_by_year``).
+    """
     job = _make_job(
         module_type_id=5,
         data_entry_type_id=11,
@@ -361,7 +397,8 @@ async def test_factor_ingest_handler_chains_per_det_for_multitype_upload():
     """Parent has module set, det=NULL → expand via
     MODULE_TYPE_TO_DATA_ENTRY_TYPES (multi-type factor file).  The repo's
     recalc-status query MUST NOT be consulted here (it filters on
-    state=FINISHED, would silently drop a still-RUNNING parent)."""
+    state=FINISHED, would silently drop a still-RUNNING parent).
+    """
     from app.models.module_type import (
         MODULE_TYPE_TO_DATA_ENTRY_TYPES,
         ModuleTypeEnum,
@@ -411,7 +448,8 @@ async def test_factor_ingest_handler_chains_per_det_for_multitype_upload():
 async def test_factor_ingest_handler_skips_fan_out_on_error():
     """If the ingest itself errored, no recalc fan-out — there's
     nothing to recompute against, and the parent will be marked
-    FINISHED+ERROR by the runner."""
+    FINISHED+ERROR by the runner.
+    """
     job = _make_job(
         module_type_id=5,
         data_entry_type_id=11,
@@ -450,7 +488,8 @@ async def test_factor_ingest_handler_skips_fan_out_on_error():
 @pytest.mark.asyncio
 async def test_factor_ingest_handler_skips_fan_out_when_year_missing():
     """A factor job with no year can't choose a recalc scope; log and
-    skip rather than raise (the parent ingest itself succeeded)."""
+    skip rather than raise (the parent ingest itself succeeded).
+    """
     job = _make_job(
         module_type_id=5,
         data_entry_type_id=11,
@@ -490,7 +529,8 @@ async def test_factor_ingest_handler_skips_fan_out_when_year_missing():
 async def test_factor_ingest_handler_consults_repo_when_module_and_det_both_null():
     """Both NULL — admin-style "anything stale" trigger.  Reads from
     ``get_recalculation_status_by_year`` (filters to needs_recalculation
-    only)."""
+    only).
+    """
     job = _make_job(
         module_type_id=None,
         data_entry_type_id=None,
@@ -553,7 +593,8 @@ async def test_factor_ingest_handler_skips_unknown_module_type_in_multitype():
     """Multi-type fan-out with an unknown ``module_type_id`` (e.g. an
     enum value that no longer exists after a deletion) MUST skip rather
     than raise — the parent factor job already finished; we don't want
-    to take the calling code down with a ValueError."""
+    to take the calling code down with a ValueError.
+    """
     job = _make_job(
         module_type_id=99999,  # not a valid ModuleTypeEnum value
         data_entry_type_id=None,
@@ -617,7 +658,8 @@ def _patch_provider(success: bool = True, *, extra_data: dict | None = None):
 async def test_csv_ingest_handler_chains_recalc_for_single_det():
     """CSV ingest with both module + det pinned → exactly one
     ``emission_recalc`` chain for that pair, mirroring
-    ``factor_ingest_handler``'s single-det shape."""
+    ``factor_ingest_handler``'s single-det shape.
+    """
     job = _make_job(
         module_type_id=5,
         data_entry_type_id=11,
@@ -647,7 +689,8 @@ async def test_csv_ingest_handler_chains_recalc_for_single_det():
 async def test_csv_ingest_handler_chains_per_det_for_multitype_upload():
     """CSV upload that mixes dets within one module (det NULL) → one
     ``emission_recalc`` chain per det in
-    ``MODULE_TYPE_TO_DATA_ENTRY_TYPES`` for the parent's module."""
+    ``MODULE_TYPE_TO_DATA_ENTRY_TYPES`` for the parent's module.
+    """
     from app.models.module_type import (
         MODULE_TYPE_TO_DATA_ENTRY_TYPES,
         ModuleTypeEnum,
@@ -751,7 +794,8 @@ async def test_api_ingest_handler_skips_fan_out_on_error():
 async def test_csv_ingest_handler_raises_when_year_missing():
     """``emission_recalc`` is keyed on ``(data_entry_type_id, year)``
     — a job without ``year`` can't choose a recalc scope.  The
-    misconfiguration must surface so the runner records FINISHED+ERROR."""
+    misconfiguration must surface so the runner records FINISHED+ERROR.
+    """
     job = _make_job(
         module_type_id=5,
         data_entry_type_id=11,
@@ -774,7 +818,8 @@ async def test_csv_ingest_handler_raises_when_year_missing():
 async def test_csv_ingest_handler_skips_fan_out_when_module_type_id_missing():
     """A data ingest without module_type_id is unexpected (every
     endpoint pins it); log + skip rather than crash the parent's
-    FINISHED write.  Parent still finishes SUCCESS."""
+    FINISHED write.  Parent still finishes SUCCESS.
+    """
     job = _make_job(
         module_type_id=None,
         data_entry_type_id=None,
@@ -806,7 +851,8 @@ async def test_csv_ingest_fan_out_passes_dedup_config():
     """Issue #1219 Fix 2: the csv/api recalc fan-out must pass
     ``dedup_config=EMISSION_RECALC_DEDUP`` (it previously did not, so a
     pre-existing active recalc raised an uncaught IntegrityError that
-    poisoned the job_session and stranded the parent)."""
+    poisoned the job_session and stranded the parent).
+    """
     from app.tasks._chain import EMISSION_RECALC_DEDUP
 
     job = _make_job(

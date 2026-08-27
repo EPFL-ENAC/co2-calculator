@@ -9,9 +9,22 @@ import {
   buildChartDecal,
   colors,
   getChartSubcategoryColor,
+  getModuleForCategoryKey,
   RESULTS_CATEGORY_LABEL_KEYS,
-} from 'src/constant/charts';
-import { useColorblindStore } from 'src/stores/colorblind';
+  ADDITIONAL_DATA_ICON,
+} from '@/constant/charts';
+import { buildCarbonFootprintCsvRows } from '@/utils/results-csv';
+import { type Module } from '@/constant/modules';
+import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
+import { CATEGORY_TO_SUBMODULE } from '@/composables/useModuleIconColors';
+import { CATEGORY_CHART_KEYS } from '@/composables/useEmissionTreemap';
+import { useColorblindStore } from '@/stores/colorblind';
+import { isModuleFullyAvailable } from '@/composables/useModuleAvailability';
+import {
+  useModuleCategoriesAvailability,
+  ADDITIONAL_HEADCOUNT_CATEGORY_KEYS as ADDITIONAL_HEADCOUNT_CATEGORIES,
+  ADDITIONAL_BUILDINGS_CATEGORY_KEYS as ADDITIONAL_BUILDINGS_CATEGORIES,
+} from '@/composables/results/useModuleCategoriesAvailability';
 import {
   TooltipComponent,
   LegendComponent,
@@ -35,11 +48,13 @@ use([
   AriaComponent,
 ]);
 
-import type { EmissionBreakdownResponse } from 'src/stores/modules';
-import type { TooltipRow } from 'src/types/chartTooltip';
-import { formatTonnesForChart } from 'src/utils/number';
-import { usePrintMode } from 'src/composables/print/usePrintMode';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
+import type { EmissionBreakdownResponse } from '@/stores/modules';
+import type { TooltipRow } from '@/types/chartTooltip';
+import { formatTonnesForChart } from '@/utils/number';
+import { stackShade } from '@/utils/chart-shades';
+import { usePrintMode } from '@/composables/print/usePrintMode';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
+import { downloadCsv, escapeCsvValue } from '@/utils/csvDownload';
 
 const props = defineProps({
   breakdownData: {
@@ -55,11 +70,57 @@ const props = defineProps({
     type: Boolean as PropType<boolean | undefined>,
     default: undefined,
   },
+  bordered: {
+    type: Boolean,
+    default: true,
+  },
+  /** Hide the internal title bar (title + info tooltip + additional-data toggle). */
+  hideHeader: {
+    type: Boolean,
+    default: false,
+  },
+  /** Hide the download PNG/CSV action footer. */
+  hideActions: {
+    type: Boolean,
+    default: false,
+  },
+  /**
+   * Replace the rotated text x-axis labels with clickable module icon buttons
+   * (one per category, linking to its module page). Home page only.
+   */
+  moduleIconAxis: {
+    type: Boolean,
+    default: false,
+  },
+  enableCompareYears: {
+    type: Boolean,
+    default: false,
+  },
+  /**
+   * Hide categories whose module/submodule is deactivated in the current
+   * year's back-office config. Defaults on for single-year workspace
+   * contexts; callers that aggregate data across multiple years/units with
+   * no single "current year" config loaded (e.g. the back-office Reporting
+   * page) must opt out — yearConfigStore only ever holds one year's config,
+   * so applying it there would silently hide every category or apply an
+   * arbitrary year's rules to the aggregate.
+   */
+  enforceModuleActivation: {
+    type: Boolean,
+    default: true,
+  },
+  activeCategoriesOnly: {
+    type: Boolean,
+    default: false,
+  },
 });
+
+const emit = defineEmits<{ (e: 'compareYears'): void }>();
 
 const { t, locale } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
+const { isCategoryModuleActive } = useModuleCategoriesAvailability();
 
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
@@ -74,23 +135,6 @@ function getSubcategoryColor(
   return getChartSubcategoryColor(category, key, fallback);
 }
 
-// Static map: raw category key → GHG scope
-const CATEGORY_SCOPE: Record<string, 1 | 2 | 3 | 'additional'> = {
-  process_emissions: 1,
-  buildings_energy_combustion: 1,
-  buildings_room: 2,
-
-  equipment: 2,
-  external_cloud_and_ai: 3,
-  purchases: 3,
-  professional_travel: 3,
-  research_facilities: 3,
-  commuting: 'additional',
-  food: 'additional',
-  waste: 'additional',
-  embodied_energy: 'additional',
-};
-
 // Reverse map: translated label → raw category key (rebuilt when locale changes)
 const labelToKey = computed<Record<string, string>>(() => {
   const map: Record<string, string> = {};
@@ -99,6 +143,53 @@ const labelToKey = computed<Record<string, string>>(() => {
   }
   return map;
 });
+
+type IconAxisItem = {
+  label: string;
+  module: Module | null;
+  submoduleType?: string;
+  x: number;
+  // Whether the icon links to its module page — false (greyed-out,
+  // non-clickable) when the module is disabled in the back-office, the
+  // user lacks edit access, or the module has no computed stats yet (never
+  // touched). See isModuleFullyAvailable — same decision every page uses.
+  enabled: boolean;
+};
+
+// Pixel-positioned module icon buttons under each bar (moduleIconAxis mode).
+const iconAxisItems = ref<IconAxisItem[]>([]);
+// Vertical offset (px from chart top) where the icon row begins — the chart baseline.
+const iconAxisTop = ref(0);
+
+function updateIconAxis(chart: NonNullable<typeof chartRef.value>['chart']) {
+  if (!props.moduleIconAxis) {
+    if (iconAxisItems.value.length) iconAxisItems.value = [];
+    return;
+  }
+  const items = datasetSource.value;
+  if (!items.length) {
+    iconAxisItems.value = [];
+    return;
+  }
+
+  const yZero = chart.convertToPixel({ yAxisIndex: 0 }, 0) as number;
+  if (!Number.isFinite(yZero)) return;
+
+  iconAxisItems.value = items.map((item) => {
+    const label = String(item.category);
+    const categoryKey =
+      labelToKey.value[label] ?? String(item.category_key ?? '');
+    const module = getModuleForCategoryKey(categoryKey);
+    return {
+      label,
+      module,
+      submoduleType: CATEGORY_TO_SUBMODULE[categoryKey],
+      x: chart.convertToPixel({ xAxisIndex: 0 }, label) as number,
+      enabled: isModuleFullyAvailable(module, Boolean(item.__hasStats)),
+    };
+  });
+  iconAxisTop.value = yZero;
+}
 
 // Memoize the last scope rects to avoid redundant updates
 let lastScopeState: {
@@ -122,6 +213,7 @@ function recalculateScopeRects() {
 
   requestAnimationFrame(() => {
     updateScopeGraphics(chart);
+    updateIconAxis(chart);
   });
 }
 
@@ -147,8 +239,11 @@ function updateScopeGraphics(
   };
   for (const item of items) {
     const label = String(item.category);
-    const key = labelToKey.value[label] ?? '';
-    const scope = String(CATEGORY_SCOPE[key] ?? 'additional');
+    // Scope bands come from the stat bucket itself; additional buckets sit
+    // in their own band regardless of GHG scope.
+    const scope = item.additional
+      ? 'additional'
+      : String(item.scope ?? 'additional');
     groups[scope].push(label);
   }
 
@@ -429,12 +524,19 @@ function normalizeCategoryRowKeys(
   return entry;
 }
 
+// Metadata fields that happen to be numbers but aren't emission values —
+// zeroing them (or, in collapseByCategory, summing them across merged rows)
+// corrupts the field instead of just hiding an unvalidated category's stats.
+// `scope` in particular feeds updateScopeGraphics's `groups[String(scope)]`
+// lookup, so a zeroed/summed value (e.g. 0 or 6) crashes it outright.
+const NON_EMISSION_NUMERIC_KEYS = new Set(['category', 'scope']);
+
 function zeroNumericValues(
   entry: Record<string, unknown>,
 ): Record<string, unknown> {
   const next: Record<string, unknown> = { ...entry };
   Object.entries(next).forEach(([key, value]) => {
-    if (key === 'category') return;
+    if (NON_EMISSION_NUMERIC_KEYS.has(key)) return;
     if (typeof value === 'number' && Number.isFinite(value)) {
       next[key] = 0;
     }
@@ -461,7 +563,7 @@ function collapseByCategory(
     }
 
     Object.entries(row).forEach(([key, value]) => {
-      if (key === 'category' || key.startsWith('__')) return;
+      if (key.startsWith('__') || NON_EMISSION_NUMERIC_KEYS.has(key)) return;
       if (typeof value === 'object' && value !== null) return;
       const n = Number(value);
       if (!Number.isNaN(n)) {
@@ -543,15 +645,76 @@ const additionalCategoryOrderMap = computed(() => {
   return map;
 });
 
+// Every main-category bar/icon must always render, even for a module that
+// has never been touched (no bucket in module_breakdown at all) — a
+// "not started" module should show up greyed out, not silently vanish
+// from the chart. `scope` mirrors each module's StatBucket declaration
+// (backend app/modules/*/emissions.py) since a placeholder row has no
+// backend response to read it from.
+const MAIN_RESULT_CATEGORIES: { key: string; scope: 1 | 2 | 3 }[] = [
+  { key: 'process_emissions', scope: 1 },
+  { key: 'buildings_energy_combustion', scope: 1 },
+  { key: 'buildings_room', scope: 2 },
+  { key: 'equipment', scope: 2 },
+  { key: 'external_cloud_and_ai', scope: 3 },
+  { key: 'professional_travel', scope: 3 },
+  { key: 'purchases', scope: 3 },
+  { key: 'research_facilities', scope: 3 },
+];
+
 const datasetSource = computed(() => {
   if (!props.breakdownData) return [];
 
+  const presentCategoryKeys = new Set(
+    props.breakdownData.module_breakdown.map((entry) =>
+      String(entry.category_key ?? entry.category ?? ''),
+    ),
+  );
+  const missingPlaceholders = MAIN_RESULT_CATEGORIES.filter(
+    ({ key }) => !presentCategoryKeys.has(key),
+  ).map(({ key, scope }) => ({
+    category: key,
+    category_key: key,
+    scope,
+    additional: false,
+    __hasStats: false,
+  }));
+  // Add placeholders for additional categories that are missing from the backend response,
+  // but only if the toggle is on. These categories are always considered "not validated"
+  // (no stats) when missing.
+  if (effectiveToggle.value) {
+    const additionalPresentKeys = new Set(
+      props.breakdownData.additional_breakdown.map((entry) =>
+        String(entry.category_key ?? entry.category ?? ''),
+      ),
+    );
+    const additionalMissingPlaceholders = [
+      ...ADDITIONAL_HEADCOUNT_CATEGORIES,
+      ...ADDITIONAL_BUILDINGS_CATEGORIES,
+    ]
+      .filter((key) => !additionalPresentKeys.has(key))
+      .map((key) => ({
+        category: key,
+        category_key: key,
+        scope: 3 as const,
+        additional: true,
+        __validated: false,
+        __hasStats: false,
+      }));
+    missingPlaceholders.push(...additionalMissingPlaceholders);
+  }
+
   const baseData = collapseByCategory(
-    props.breakdownData.module_breakdown
-      .map((entry) => {
+    [
+      ...props.breakdownData.module_breakdown.map((entry) => {
         const category = String(entry.category ?? '');
-        return isCategoryValidated(category) ? entry : zeroNumericValues(entry);
-      })
+        const row = isCategoryValidated(category)
+          ? entry
+          : zeroNumericValues(entry);
+        return { ...row, __hasStats: true };
+      }),
+      ...missingPlaceholders,
+    ]
       .map(normalizeCategoryRowKeys)
       .map(translateCategory),
   );
@@ -577,6 +740,34 @@ const datasetSource = computed(() => {
         .map(translateCategory),
     );
     allData = [...baseData, ...additionalData];
+  }
+
+  // Drop categories whose module is deactivated in the backoffice config —
+  // they shouldn't render at all (not even greyed out). Skipped when the
+  // caller has no single-year config loaded (see enforceModuleActivation).
+  if (props.enforceModuleActivation) {
+    allData = allData.filter((item) => {
+      const rawKey = String(
+        item.category_key ??
+          labelToKey.value[String(item.category ?? '')] ??
+          item.category ??
+          '',
+      );
+      return isCategoryModuleActive(rawKey);
+    });
+  }
+
+  if (props.activeCategoriesOnly) {
+    allData = allData.filter((item) =>
+      isCategoryValidated(
+        String(
+          item.category_key ??
+            labelToKey.value[String(item.category ?? '')] ??
+            item.category ??
+            '',
+        ),
+      ),
+    );
   }
 
   // Partition into additional and main categories
@@ -617,7 +808,10 @@ const PURCHASES_SUBKEYS = [
   'services',
   'vehicles',
   'other_purchases',
-  'additional',
+  'centralized',
+  // A planner global budget prices all purchases as one figure, so it lands
+  // on the parent node rather than any of the categories above it.
+  'goods_and_services',
 ] as const;
 
 const equipPurchRankings = computed(() => {
@@ -742,8 +936,6 @@ const additionalSeriesData = computed(() => {
   ];
 });
 
-const ADDITIONAL_HEADCOUNT_CATEGORIES = ['commuting', 'food', 'waste'];
-
 const additionalHeadcountLabels = computed(
   () =>
     new Set(
@@ -753,8 +945,6 @@ const additionalHeadcountLabels = computed(
       }),
     ),
 );
-
-const ADDITIONAL_BUILDINGS_CATEGORIES = ['embodied_energy'];
 
 const additionalBuildingsLabels = computed(
   () =>
@@ -780,66 +970,21 @@ const chartOption = computed((): EChartsOption => {
   // Build series array first (will be used to extract mapping)
   const seriesArray = [
     // Process Emissions — YY subcategories
-    {
-      name: t('process-emissions.category.co2'),
+    ...(CATEGORY_CHART_KEYS['process_emissions'] ?? []).map((key) => ({
+      name: t(`process-emissions.category.${key}`),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'co2' },
+      encode: { x: 'category', y: key },
       itemStyle: {
         color: getSubcategoryColor(
           'process_emissions',
-          'co2',
+          key,
           colors.value.apricot.darker,
         ),
       },
       label: { show: false },
-    },
-    {
-      name: t('process-emissions.category.ch4'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'ch4' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'ch4',
-          colors.value.apricot.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('process-emissions.category.n2o'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'n2o' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'n2o',
-          colors.value.apricot.default,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('process-emissions.category.refrigerants'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'refrigerants' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'refrigerants',
-          colors.value.apricot.light,
-        ),
-      },
-      label: { show: false },
-    },
+    })),
 
     {
       name: t('charts-energy-combustion-subcategory'),
@@ -876,11 +1021,11 @@ const chartOption = computed((): EChartsOption => {
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'heating_elec' },
+      encode: { x: 'category', y: 'heating_electric' },
       itemStyle: {
         color: getSubcategoryColor(
           'buildings_room',
-          'heating_elec',
+          'heating_electric',
           colors.value.lilac.light,
         ),
       },
@@ -944,13 +1089,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         animation: true,
         encode: { x: 'category', y: `equip_rank${i + 1}` },
-        itemStyle: {
-          color: getSubcategoryColor(
-            'equipment',
-            item.key,
-            colors.value.plum.default,
-          ),
-        },
+        itemStyle: { color: stackShade(colors.value.plum, i) },
         label: { show: false },
       }));
     })(),
@@ -964,7 +1103,8 @@ const chartOption = computed((): EChartsOption => {
         services: t('charts-services-subcategory'),
         vehicles: t('charts-vehicles-subcategory'),
         other_purchases: t('charts-other-purchases-subcategory'),
-        additional: t('charts-additional-purchases-subcategory'),
+        centralized: t('charts-purchases-centralized-subcategory'),
+        goods_and_services: t('charts-global-budget-subcategory'),
       };
       const top3Series = equipPurchRankings.value.purchTop3.map((item, i) => ({
         name: purchSubcatLabels[item.key] ?? item.key,
@@ -972,13 +1112,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         animation: true,
         encode: { x: 'category', y: `purch_rank${i + 1}` },
-        itemStyle: {
-          color: getSubcategoryColor(
-            'purchases',
-            item.key,
-            colors.value.lightGreen.default,
-          ),
-        },
+        itemStyle: { color: stackShade(colors.value.lightGreen, i) },
         label: { show: false },
       }));
       const restSeries = {
@@ -987,7 +1121,11 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         animation: true,
         encode: { x: 'category', y: 'purch_rest' },
-        itemStyle: { color: colors.value.lightGreen.lighter },
+        // Sits directly above the ranked segments, so it continues their ramp
+        // instead of jumping a shade.
+        itemStyle: {
+          color: stackShade(colors.value.lightGreen, top3Series.length),
+        },
         label: { show: false },
       };
       return [...top3Series, restSeries];
@@ -1196,12 +1334,14 @@ const chartOption = computed((): EChartsOption => {
       left: '5%',
       right: '4%',
       top: 80,
-      bottom: '0%',
+      // Reserve room for the icon button row when it replaces the text labels.
+      bottom: props.moduleIconAxis ? 96 : '0%',
       containLabel: true,
     },
     xAxis: {
       type: 'category',
       axisLabel: {
+        show: !props.moduleIconAxis,
         interval: 0,
         rotate: 45,
         fontSize: 9,
@@ -1246,15 +1386,12 @@ const chartOption = computed((): EChartsOption => {
     dataset: {
       dimensions: [
         'category',
-        'co2',
-        'ch4',
-        'n2o',
-        'refrigerants',
+        ...(CATEGORY_CHART_KEYS['process_emissions'] ?? []),
         'process_emissions',
         'lighting',
         'cooling',
         'ventilation',
-        'heating_elec',
+        'heating_electric',
         'heating_thermal',
         'combustion',
         'scientific',
@@ -1267,7 +1404,8 @@ const chartOption = computed((): EChartsOption => {
         'services',
         'vehicles',
         'other_purchases',
-        'additional',
+        'centralized',
+        'goods_and_services',
         'equip_rank1',
         'equip_rank2',
         'equip_rank3',
@@ -1293,7 +1431,10 @@ const chartOption = computed((): EChartsOption => {
       ],
       source: enrichedDatasetSource.value as Array<Record<string, unknown>>,
     },
-    series: seriesArray as SeriesOption[],
+    series: (props.moduleIconAxis
+      ? // Match the bar width to the icon box (sm = 40px) beneath it.
+        seriesArray.map((s) => ({ ...s, barWidth: 40 }))
+      : seriesArray) as SeriesOption[],
   };
 });
 
@@ -1312,60 +1453,49 @@ const downloadPNG = () =>
   downloadEchartAsPng(chartRef.value?.chart, 'module-carbon-footprint');
 
 const downloadCSV = () => {
-  const escape = (v: unknown) => {
-    const s = String(v ?? '');
-    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const escape = escapeCsvValue;
 
-  // Pivot: one row per category × subcategory pair where the value is non-zero.
-  // This avoids the sparse wide-table format where each category gets all
-  // possible subcategory columns, 90% of which are empty.
-  const SKIP_KEYS = new Set(['category', 'category_key']);
-
-  const rows: Array<[string, string, number]> = datasetSource.value.flatMap(
-    (item) => {
-      const category = String(item.category ?? '');
-      return Object.entries(item)
-        .filter(([key, value]) => {
-          if (SKIP_KEYS.has(key) || key.startsWith('__')) return false;
-          if (typeof value === 'object' && value !== null) return false;
-          const n = Number(value);
-          // Only emit rows where the subcategory actually has a value
-          return Number.isFinite(n) && n !== 0;
-        })
-        .map(
-          ([key, value]) =>
-            [category, key, Number(value)] as [string, string, number],
-        );
-    },
+  const rows = buildCarbonFootprintCsvRows(
+    datasetSource.value,
+    isCategoryValidated,
   );
 
   const headers = [
     t('csv_header_category'),
     t('csv_header_subcategory'),
+    t('csv_header_subcategory_2'),
     t('csv_header_co2'),
   ];
   const csv = [
     headers.map(escape).join(','),
-    ...rows.map(([category, subcategory, co2]) =>
-      [escape(category), escape(subcategory), escape(co2)].join(','),
+    ...rows.map(({ category, subcategory, subcategory2, co2 }) =>
+      [category, subcategory, subcategory2, co2].map(escape).join(','),
     ),
   ].join('\n');
 
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = `module-carbon-footprint-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadCsv(
+    csv,
+    `module-carbon-footprint-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`,
+  );
 };
 </script>
 
 <template>
   <q-card
     flat
-    class="container container--pa-none full-width module-carbon-chart"
+    :bordered="props.bordered"
+    :class="[
+      'container',
+      'container--pa-none',
+      'full-width',
+      'module-carbon-chart',
+      { 'module-carbon-chart--borderless': !props.bordered },
+    ]"
   >
-    <q-card-section class="flex justify-between items-center q-pr-lg">
+    <q-card-section
+      v-if="!props.hideHeader"
+      class="flex justify-between items-center q-pr-lg"
+    >
       <div class="flex items-center no-wrap">
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
           {{ props.title ?? $t('unit_carbon_footprint_title') }}
@@ -1418,7 +1548,7 @@ const downloadCSV = () => {
         </q-icon>
       </div>
 
-      <div v-if="!isPrintMode">
+      <div v-if="!isPrintMode" class="flex items-center q-gutter-sm">
         <q-checkbox
           v-if="props.viewAdditionalData === undefined"
           v-model="toggleAdditionalData"
@@ -1426,22 +1556,66 @@ const downloadCSV = () => {
           size="xs"
           color="accent"
         />
+        <q-btn
+          v-if="props.enableCompareYears"
+          color="black"
+          icon="o_bar_chart"
+          :label="$t('results_compare_years')"
+          outline
+          no-caps
+          size="sm"
+          class="text-weight-medium"
+          @click="emit('compareYears')"
+        />
       </div>
     </q-card-section>
 
     <q-card-section
       class="chart-container flex justify-center items-center module-carbon-chart__body"
     >
-      <v-chart
-        ref="chartRef"
-        :key="colorblindStore.enabled ? 'cb' : 'default'"
-        :class="['chart', { 'chart--print': isPrintMode }]"
-        autoresize
-        :option="chartOption"
-        :update-options="{ replaceMerge: ['dataset'] }"
-        @rendered="recalculateScopeRects"
-        @vue:mounted="onChartReady"
-      />
+      <div class="module-carbon-chart__plot">
+        <v-chart
+          ref="chartRef"
+          :key="colorblindStore.enabled ? 'cb' : 'default'"
+          :class="['chart', { 'chart--print': isPrintMode }]"
+          autoresize
+          :option="chartOption"
+          :update-options="{ replaceMerge: ['dataset', 'series'] }"
+          @rendered="recalculateScopeRects"
+          @vue:mounted="onChartReady"
+        />
+        <!-- Clickable module icon buttons aligned under each bar (home page). -->
+        <div
+          v-if="props.moduleIconAxis"
+          class="module-icon-axis"
+          :style="{ '--icon-axis-top': `${iconAxisTop + 22}px` }"
+          aria-hidden="false"
+        >
+          <component
+            :is="item.enabled ? 'router-link' : 'div'"
+            v-for="item in iconAxisItems"
+            :key="item.label"
+            class="module-icon-axis__item"
+            :class="{
+              'module-icon-axis__item--link': item.enabled,
+              'module-icon-axis__item--disabled': !item.enabled,
+            }"
+            :to="
+              item.enabled
+                ? { name: 'module', params: { module: item.module } }
+                : undefined
+            "
+            :style="{ '--icon-x': `${item.x}px` }"
+          >
+            <ModuleIconBox
+              :name="item.module ?? ADDITIONAL_DATA_ICON"
+              :submodule-type="item.submoduleType"
+              size="sm"
+            />
+            <span class="module-icon-axis__label">{{ item.label }}</span>
+          </component>
+        </div>
+      </div>
       <Teleport to="body">
         <tooltip-echarts
           v-if="tooltip.visible"
@@ -1450,8 +1624,11 @@ const downloadCSV = () => {
         />
       </Teleport>
     </q-card-section>
-    <q-separator v-if="!isPrintMode" />
-    <q-card-section v-if="!isPrintMode" class="flex justify-start q-gutter-sm">
+    <q-separator v-if="!isPrintMode && !props.hideActions" />
+    <q-card-section
+      v-if="!isPrintMode && !props.hideActions"
+      class="module-carbon-chart__actions flex justify-start q-gutter-x-sm"
+    >
       <q-btn
         unelevated
         no-caps
@@ -1485,17 +1662,89 @@ const downloadCSV = () => {
   height: 100%;
 }
 
+.module-carbon-chart--borderless {
+  border: none !important;
+}
+
 .module-carbon-chart__body {
   flex: 1;
 }
 
+/* Positioning context for the icon-axis overlay; matches the chart canvas box
+   so convertToPixel coordinates align with the absolutely-positioned icons. */
+.module-carbon-chart__plot {
+  position: relative;
+  width: 100%;
+}
+
+/* #2027: a definite height, not min-height. vue-echarts 8.1.0 renders an
+   <x-vue-echarts> custom element carrying its own `height: 100%`, and its
+   resize observer skips any resize where a dimension is 0 — so a chart that
+   measures zero once at init stays a zero-height canvas forever: fully
+   populated, no error, nothing drawn. Every chart that kept working through
+   the 8.0.1 -> 8.1.0 bump sets a definite height; the two that broke were the
+   two using min-height. Keep it definite. */
 .chart {
   width: 100%;
-  min-height: 420px;
+  height: 420px;
+}
+
+/* Overlay layer: transparent to pointer events except on the icon buttons,
+   so chart tooltips keep working everywhere else. */
+.module-icon-axis {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.module-icon-axis__item {
+  position: absolute;
+  /* Coordinates are computed from the chart pixel geometry: --icon-x is the
+     per-item bar centre, --icon-axis-top is shared (inherited from the axis
+     container). */
+  left: var(--icon-x);
+  top: var(--icon-axis-top);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 84px;
+  /* Anchor each icon to the bar centre (x is the bar centre pixel). */
+  transform: translateX(-50%);
+  text-align: center;
+  text-decoration: none;
+  color: inherit;
+  pointer-events: auto;
+}
+
+.module-icon-axis__item--link {
+  cursor: pointer;
+}
+
+/* Non-editable / back-office-disabled module: greyed out and non-clickable. */
+.module-icon-axis__item--disabled {
+  cursor: default;
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+.module-icon-axis__item--link:hover .module-icon-axis__label {
+  text-decoration: underline;
+}
+
+.module-icon-axis__item--link:hover :deep(.module-icon-box) {
+  filter: brightness(0.96);
+}
+
+.module-icon-axis__label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #000;
 }
 
 .chart--print {
-  min-height: 320px;
+  height: 320px;
 }
 
 @media (max-width: 1320px) {

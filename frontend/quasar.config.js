@@ -6,7 +6,7 @@
 // Configuration for your app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js
 
-import { defineConfig } from '#q-app/wrappers';
+import { defineConfig } from '#q-app';
 // import { fileURLToPath } from 'node:url'
 
 import path from 'path';
@@ -110,9 +110,8 @@ export default defineConfig(function () {
       // rebuildCache: true, // rebuilds Vite/linter/etc cache on startup
 
       publicPath: '/',
-      // analyze: true,
-      env: {
-        // Bundle identity (baked into runtime as process.env.APP_VERSION /
+      defineEnv: {
+        // Bundle identity (baked into runtime as import.meta.env.APP_VERSION /
         // APP_BUILD_TIME). Sentry release tag keys off APP_VERSION.
         APP_VERSION,
         APP_BUILD_TIME,
@@ -127,8 +126,27 @@ export default defineConfig(function () {
         // Default to OSM tile.openstreetmap.org; override per-pod via
         // /injectEnv.js if a paid/internal tile source is provisioned.
         APP_MAP_TILE_STYLE_URL: process.env.APP_MAP_TILE_STYLE_URL || '',
+        // Access-management provider (label + portal URL) shown in the
+        // calculator's access popover (see src/config/runtime.ts). No code
+        // default; set per-pod via /injectEnv.js to rebrand for an institution.
+        APP_ACCESS_MANAGEMENT_PROVIDER_NAME:
+          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_NAME || '',
+        APP_ACCESS_MANAGEMENT_PROVIDER_URL:
+          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_URL || '',
+        APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL:
+          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL || '',
+        APP_ROLES_DOC_URL: process.env.APP_ROLES_DOC_URL || '',
+        // Recipient for the Equipment power-feedback mailto (see
+        // src/config/runtime.ts). Empty string in dev falls back to the default
+        // in runtimeConfig; in production it comes from /injectEnv.js.
+        APP_EQUIPMENT_POWER_FEEDBACK_EMAIL:
+          process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL || '',
+        // Project-planner year horizon (see src/config/runtime.ts). Empty in
+        // dev falls back to the defaults in runtimeConfig; in production it
+        // comes from /injectEnv.js.
+        APP_PLANNER_MIN_YEAR: process.env.APP_PLANNER_MIN_YEAR || '',
+        APP_PLANNER_MAX_YEAR: process.env.APP_PLANNER_MAX_YEAR || '',
       },
-      // rawDefine: {}
       // ignorePublicFolder: true,
       minify: true,
       // Source maps disabled in production. Empirically, `sourcemap: true`
@@ -139,7 +157,6 @@ export default defineConfig(function () {
       // the bloat, switch to `'hidden'` (external .map next to .js, no
       // sourceMappingURL comment in the JS) and reinstate the upload step.
       sourcemap: false,
-      // polyfillModulePreload: true,
       // distDir
       sassVariables: 'src/css/quasar.variables.scss',
       // viteVuePluginOptions: {},

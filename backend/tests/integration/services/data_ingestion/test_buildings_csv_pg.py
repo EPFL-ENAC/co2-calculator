@@ -13,13 +13,16 @@ Buildings has three data-entry types (``MODULE_TYPE_TO_DATA_ENTRY_TYPES``):
 * ``building`` — rooms.  Handler reads ``BuildingRoom`` via
   ``BuildingRoomService.get_room`` and computes
   ``kg_co2eq = surface × kwh_per_m² × ef × conversion`` per energy leaf
-  (lighting, cooling, ventilation, heating_elec, heating_thermal).
+  (lighting, cooling, ventilation, and one heating leaf — electric or
+  thermal — selected by the factor's energy_type; #1575).
 * ``energy_combustion`` — straight ``quantity × ef`` formula keyed by
   ``(unit, name)`` factor classification.
-* ``building_embodied_energy`` — *derived*: rows are created post-hoc
-  by ``EmbodiedEnergyWorkflow.post_create`` from the corresponding
-  ``building`` entry.  No CSV ingest path; covered for Strategy-B
-  recalc propagation only.
+* ``building_embodied_energy`` — *derived*: the ``EmbodiedEnergyWorkflow``
+  reconcile (interactive) and bulk derivation (ingest) keep one companion
+  per parent ``building`` entry.  The persisted payload is only
+  ``{"room_name"}``; ``pre_compute`` resolves ``building_name`` and
+  ``room_surface_square_meter`` from ``BuildingRoom``.  Covered here for
+  Strategy-B recalc propagation only.
 
 What this file pins
 ===================
@@ -92,7 +95,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.building_room import BuildingRoom
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionMethod,
@@ -103,6 +106,7 @@ from app.models.data_ingestion import (
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
@@ -179,7 +183,8 @@ async def _seed_unit_module(
 
 async def _initial_compute(session: AsyncSession, entry_id: int) -> list[Any]:
     """Run ``DataEntryEmissionService.upsert_by_data_entry`` for an
-    entry and return the persisted emission rows."""
+    entry and return the persisted emission rows.
+    """
     entry = (
         await session.execute(select(DataEntry).where(col(DataEntry.id) == entry_id))
     ).scalar_one()
@@ -202,7 +207,8 @@ async def _initial_compute(session: AsyncSession, entry_id: int) -> list[Any]:
 
 async def _read_emissions(pg_dsn: str, entry_id: int) -> list[DataEntryEmission]:
     """Read emissions for an entry on a fresh engine — proves cross-
-    connection commit visibility, same shape as the Strategy-B file."""
+    connection commit visibility, same shape as the Strategy-B file.
+    """
     verify_engine = create_async_engine(pg_dsn, future=True)
     Vf = async_sessionmaker(verify_engine, class_=AsyncSession, expire_on_commit=False)
     try:
@@ -243,25 +249,15 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
       lighting_kwh_per_m²=5     → 5.0
       cooling_kwh_per_m²=20     → 20.0
       ventilation_kwh_per_m²=10 → 10.0
-      heating_kwh_per_m²=30     → 30.0 (electric → heating_elec leaf)
+      heating_kwh_per_m²=30     → 30.0 (electric → heating_electric leaf only)
 
-    Discovery — buildings__rooms rollup is 95.0 (NOT 65.0)
-    ------------------------------------------------------
-    The rollup assertion at the end of this test sums the four leaves
-    above PLUS an extra 30.0 (heating_thermal), totalling 95.0.  We
-    only seed an electric heating factor; the +30 thermal contribution
-    appears regardless.  Reading the handler reveals
-    ``heating_kwh_per_square_meter`` is fanned out to BOTH the
-    ``heating_elec`` and ``heating_thermal`` leaves with the same
-    ef/ratio, so the rooms rollup double-counts heating energy when
-    only one heating mode actually applies to the room.
-
-    This test PINS the observed contract (rollup = 95.0) — a
-    regression-gate against silent changes to the handler's fan-out
-    logic — but the contract itself looks like a bug worth tracking.
-    Surfaced here so a future reader doesn't conflate "test passes" with
-    "math is correct".  See the rollup assertion comment further down
-    for the per-line breakdown.
+    Regression #1575 — heating is NOT double-counted
+    ------------------------------------------------
+    The factor's ``energy_type`` is "electric", so heating resolves to a
+    single ``heating_electric`` leaf. The ``heating_thermal`` leaf must be
+    absent, and the rooms rollup is 65.0 (5+20+10+30) — not 95.0, which is
+    what the old both-leaves fan-out produced by counting the same 30.0
+    kwh/m² of heating twice.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -301,7 +297,6 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
         s.add(factor)
         await s.commit()
         assert factor.id is not None
-        factor_id = factor.id
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.building.value,
@@ -311,7 +306,6 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
                 "room_name": "BC-150",
                 "room_type": "office",
                 "room_allocation_ratio": 1.0,
-                "primary_factor_id": factor_id,
             },
         )
         s.add(entry)
@@ -332,7 +326,7 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
         EmissionType.buildings__rooms__lighting__office.value: 5.0,
         EmissionType.buildings__rooms__cooling__office.value: 20.0,
         EmissionType.buildings__rooms__ventilation__office.value: 10.0,
-        EmissionType.buildings__rooms__heating_elec__office.value: 30.0,
+        EmissionType.buildings__rooms__heating_electric__office.value: 30.0,
     }
     for et_id, expected_kg in expected.items():
         assert et_id in by_leaf, f"missing leaf {et_id}: rows={by_leaf}"
@@ -340,16 +334,16 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
             f"leaf {et_id}: got {by_leaf[et_id]}, expected {expected_kg}"
         )
 
-    # The rollup row sums the four leaves (lighting+cooling+vent+heat = 65)
-    # — but the persisted rollup carries 95 because ``heating_elec`` and
-    # ``heating_thermal`` both map to ``heating_kwh_per_square_meter``,
-    # so the office "heating" energy contributes twice (electric + thermal
-    # = 30+30) when only the electric factor exists.  Pin the rollup
-    # value (95) exactly so a regression in the heating-leaf emission
-    # (e.g. consolidation into one row) gets caught.
+    # Regression #1575: the electric factor must NOT also produce a thermal
+    # heating leaf — heating is attributed to a single energy source.
+    assert (
+        EmissionType.buildings__rooms__heating_thermal__office.value not in by_leaf
+    ), f"heating_thermal leaf must be absent for an electric factor: {by_leaf}"
+
+    # The rollup sums the four leaves once each: 5+20+10+30 = 65.
     rollup = by_leaf.get(EmissionType.buildings__rooms.value)
-    assert rollup == pytest.approx(95.0, rel=1e-6), (
-        f"rollup buildings__rooms expected 95.0 (5+20+10+30+30), got {rollup}"
+    assert rollup == pytest.approx(65.0, rel=1e-6), (
+        f"rollup buildings__rooms expected 65.0 (5+20+10+30), got {rollup}"
     )
 
     await engine.dispose()
@@ -359,15 +353,23 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
 
 
 @pytest.mark.asyncio
-async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
+async def test_building_room_without_ref_data_fails_loudly(pg_dsn):
     """When no ``BuildingRoom`` matches the ``room_name`` on the entry,
-    ``BuildingRoomService.get_room`` returns ``None`` and the
-    formula's surface input is ``None`` — every leaf computes to
-    ``None`` and is dropped before persistence.
+    ``BuildingRoomService.get_room`` returns ``None``, so the formula's
+    surface input is ``None`` and no leaf can be computed.
 
-    Discovery contract: the entry itself stays in place (the CSV path
-    didn't fail), but no leaf emission rows appear and the rollup row
-    is absent / zero.  That's "skip", not "default".
+    #2050 Track J changed what happens next. This used to drop every
+    leaf silently ("skip, not default"), which left the building
+    contributing **zero** to its unit's total — a wrong total that looks
+    complete, which the guardrails rank as the worst failure this project
+    can have, and which no log line reading "skipped" would surface to
+    the person publishing the number.
+
+    Now it raises, naming the null input. The data outcome is unchanged
+    (the entry survives, no leaf rows are written, because recalc records
+    a per-entry error and moves on — ``emission_recalculation.py:173``);
+    what changed is that the gap is now visible in the job's
+    ``error_details`` instead of only in a log nobody reads.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -397,7 +399,6 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
         s.add(factor)
         await s.commit()
         assert factor.id is not None
-        factor_id = factor.id
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.building.value,
@@ -407,7 +408,6 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
                 "room_name": "BC-150",
                 "room_type": "office",
                 "room_allocation_ratio": 1.0,
-                "primary_factor_id": factor_id,
             },
         )
         s.add(entry)
@@ -415,8 +415,12 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
         assert entry.id is not None
         entry_id = entry.id
 
-    async with Sf() as s:
-        await _initial_compute(s, entry_id)
+    # The failure names the missing input, not just "could not compute":
+    # an unknown room shows up as a null room_surface_square_meter, and
+    # that string is what the person reading error_details has to act on.
+    with pytest.raises(ValueError, match="room_surface_square_meter"):
+        async with Sf() as s:
+            await _initial_compute(s, entry_id)
 
     rows = await _read_emissions(pg_dsn, entry_id)
     leaf_rows = [
@@ -427,7 +431,8 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
         f"got {[(r.emission_type_id, r.kg_co2eq) for r in leaf_rows]}"
     )
 
-    # The DataEntry itself must still exist — ref-data miss is non-fatal.
+    # The DataEntry itself must still exist — the raise is per entry, and
+    # the ingestion that created the row is not rolled back by it.
     async with Sf() as s:
         entry = await s.get(DataEntry, entry_id)
         assert entry is not None, "DataEntry must survive a ref-data miss"
@@ -441,8 +446,9 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
 @pytest.mark.asyncio
 async def test_energy_combustion_with_factor_computes_quantity_times_ef(pg_dsn):
     """Energy-combustion handler resolves emission via Strategy-A
-    JSON-link path: ``primary_factor_id`` lives on entry.data, the
-    formula is the canonical ``quantity × ef``.
+    JSON-link path: the factor is resolved on demand from entry.data's
+    classification fields (``FactorResolver``, #1661); the formula is
+    the canonical ``quantity × ef``.
 
     Pinned: name='Natural gas', unit='kWh', quantity=1000, ef=0.24
     →  kg_co2eq = 240.0.
@@ -463,7 +469,6 @@ async def test_energy_combustion_with_factor_computes_quantity_times_ef(pg_dsn):
         s.add(factor)
         await s.commit()
         assert factor.id is not None
-        factor_id = factor.id
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.energy_combustion.value,
@@ -472,7 +477,6 @@ async def test_energy_combustion_with_factor_computes_quantity_times_ef(pg_dsn):
                 "name": "Natural gas",
                 "unit": "kWh",
                 "quantity": 1000.0,
-                "primary_factor_id": factor_id,
             },
         )
         s.add(entry)
@@ -551,6 +555,10 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
     ``primary_factor_id`` and the handler walks the live B-classification
     query in ``_fetch_factors`` for every entry.
 
+    Entries persist only ``{"room_name"}``; the surface and building name
+    resolve from the seeded ``BuildingRoom`` rows via the handler's
+    batched ``prefetch_slice``/``pre_compute`` pair.
+
     Distinct from the Strategy-B test's single-entry case.  The "exception"
     in the Unit-3 spec is that ALL embodied-energy DataEntry rows must
     propagate a factor change, including those that share a factor:
@@ -577,6 +585,26 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
     async with Sf() as s:
         module_id = await _seed_unit_module(s)
 
+        s.add_all(
+            [
+                BuildingRoom(
+                    building_location="EPFL",
+                    building_name="BC",
+                    room_name="BC-150",
+                    room_type="office",
+                    room_surface_square_meter=50.0,
+                ),
+                BuildingRoom(
+                    building_location="EPFL",
+                    building_name="AAB",
+                    room_name="AAB-010",
+                    room_type="office",
+                    room_surface_square_meter=80.0,
+                ),
+            ]
+        )
+        await s.commit()
+
         # The factor's ``classification`` carries ``building_name=default`` so
         # the handler's fallback (B-classification fallback chain) catches
         # both BC and AAB entries via the ``fallbacks={'building_name':
@@ -597,12 +625,12 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
         entry_a = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.building_embodied_energy.value,
             carbon_report_module_id=module_id,
-            data={"building_name": "BC", "room_surface_square_meter": 50.0},
+            data={"room_name": "BC-150"},
         )
         entry_b = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.building_embodied_energy.value,
             carbon_report_module_id=module_id,
-            data={"building_name": "AAB", "room_surface_square_meter": 80.0},
+            data={"room_name": "AAB-010"},
         )
         s.add_all([entry_a, entry_b])
         await s.commit()

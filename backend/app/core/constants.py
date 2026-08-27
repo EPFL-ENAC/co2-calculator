@@ -2,15 +2,12 @@
 
 from enum import IntEnum
 
-from app.models.module_type import ModuleTypeEnum
-
 
 # =============================================================================
 # Module Status
 # =============================================================================
 class ModuleStatus(IntEnum):
-    """
-    Status values for inventory modules.
+    """Status values for inventory modules.
 
     These map to the frontend MODULE_STATES constant:
     - NOT_STARTED (0) = Default
@@ -40,9 +37,6 @@ DEFAULT_PAGE = 1
 DEFAULT_PAGE_SIZE_UNITS = 50
 DEFAULT_PAGE_SIZE_EXPORT = 100
 MIN_PAGE_SIZE = 1
-DEFAULT_PAGE = 1
-DEFAULT_PAGE_SIZE_UNITS = 50
-DEFAULT_PAGE_SIZE_EXPORT = 100
 MAX_PAGE_SIZE_UNITS = 5000
 MAX_PAGE_SIZE_EXPORT = 100
 
@@ -95,10 +89,3 @@ DEFAULT_CARBON_FOOTPRINT = 0.0
 # Year Validation
 # =============================================================================
 YEAR_LENGTH = 4
-
-
-# =============================================================================
-# Module Completion
-# =============================================================================
-TOTAL_MODULE_TYPES = len(ModuleTypeEnum)
-DEFAULT_COMPLETION_PROGRESS = f"0/{TOTAL_MODULE_TYPES}"

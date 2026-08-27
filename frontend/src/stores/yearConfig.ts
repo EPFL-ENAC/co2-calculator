@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 import {
   MODULE_SUBMODULES,
   type SubmoduleConfig as ModuleUploadConfig,
   type SubmoduleConfig as StaticSubmoduleConfig,
-} from 'src/constant/backoffice-module-config';
-import { type Module } from 'src/constant/modules';
+} from '@/constant/backoffice-module-config';
+import { type Module } from '@/constant/modules';
 
 export interface FileMetadata {
   path: string;
@@ -37,6 +37,7 @@ export interface SubmoduleConfig {
   enabled: boolean;
   threshold: number | null;
   inputs_deactivated?: boolean;
+  csv_deactivated?: boolean;
   latest_data_job?: SyncJobSummary | null;
   latest_api_data_job?: SyncJobSummary | null;
   latest_factor_job?: SyncJobSummary | null;
@@ -97,6 +98,11 @@ export interface RecalculationStatusEntry {
   needs_recalculation: boolean;
   last_factor_job_id?: number | null;
   last_factor_job_result?: number | null;
+  // Issue #1591 — count of per-factor failures on the last factor job
+  // (backend ``stats.errors``). Count only — never the per-row detail,
+  // which can name another unit's Unit/CarbonReport for shared
+  // "common" research-facilities factors.
+  last_factor_job_error_count?: number | null;
   last_recalculation_job_id?: number | null;
   last_recalculation_job_result?: number | null;
 }
@@ -136,6 +142,19 @@ export interface YearConfigurationResponse {
    * ``GET /v1/sync/active-pipelines``).
    */
   pipeline_id?: string | null;
+  /**
+   * Issue #1204 follow-up — earliest year backoffice can create a
+   * configuration for (``settings.MIN_CONFIGURABLE_YEAR``). Drives the
+   * year-selector's lower bound so the frontend no longer hardcodes its
+   * own copy of the floor.
+   */
+  min_configurable_year: number;
+  /**
+   * Bounds a reduction objective's reference year must fall within, so the
+   * backoffice goal form derives its range from the backend.
+   */
+  min_reduction_year: number;
+  max_reduction_year: number;
 }
 
 /** Lightweight row from `GET /year-configuration/` (workspace year selector). */
@@ -177,25 +196,38 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
   const configuredYears = ref<YearConfigurationListItem[]>([]);
 
   /**
+   * Issue #1204 follow-up — the year-selector's lower bound comes from
+   * the backend (``min_configurable_year`` on every year-configuration
+   * response) instead of a hardcoded frontend constant that had to be
+   * kept in sync by hand. ``null`` means "not yet fetched" — callers
+   * (DataManagementPage.vue) render a loading skeleton instead of
+   * guessing a range.
+   */
+  const minConfigurableYear = ref<number | null>(null);
+  /**
+   * Set when a year-configuration response is missing (or has a
+   * malformed) ``min_configurable_year`` — surfaced as an error state
+   * rather than silently falling back to a guessed year.
+   */
+  const minConfigurableYearError = ref<string | null>(null);
+
+  /**
    * Backoffice data-management year selection — the single source of truth
    * that the year dropdown writes and every config composable reads, so a
    * year change trickles down to sub-components without prop drilling.
    */
-  // TODO: fix the available years dynamically (drive from configuredYears
-  // rather than a hardcoded 2023..now range).
-  const MIN_YEAR = 2023;
-  const availableYears = ref<number[]>([]);
   const thisYear = new Date().getFullYear();
-  for (let y = MIN_YEAR; y <= thisYear; y++) availableYears.value.push(y);
-  const selectedYear = ref<number>(
-    availableYears.value[availableYears.value.length - 1] ?? thisYear,
-  );
+  const availableYears = computed<number[]>(() => {
+    if (minConfigurableYear.value === null) return [];
+    const years: number[] = [];
+    for (let y = minConfigurableYear.value; y <= thisYear; y++) {
+      years.push(y);
+    }
+    return years;
+  });
+  const selectedYear = ref<number>(thisYear);
 
-  /**
-   * Set of years that are globally open (`is_started`). The list endpoint
-   * already filters these for regular users; admins receive every row, so we
-   * re-filter client-side to keep the meaning identical for both.
-   */
+  /** Set of years that are globally open (`is_started`) — the list endpoint only ever returns these. */
   const startedYears = computed(
     () =>
       new Set(
@@ -205,11 +237,66 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
 
   /** Fetch the list of year-configuration rows (global, not unit-scoped). */
   async function fetchConfiguredYears(): Promise<YearConfigurationListItem[]> {
-    const rows = (await api
-      .get('year-configuration/')
-      .json()) as YearConfigurationListItem[];
+    try {
+      const rows = (await api
+        .get('year-configuration/')
+        .json()) as YearConfigurationListItem[];
+      configuredYears.value = rows;
+      return rows;
+    } catch (error) {
+      // Match the other store loaders (getUnits, fetchCarbonReportsForUnit):
+      // the global http hook already toasts the user, so we degrade to an empty
+      // list (startedYears resolves to nothing) instead of rejecting into
+      // callers' Promise.all.
+      console.error('Error fetching configured years:', error);
+      configuredYears.value = [];
+      return [];
+    }
+  }
+
+  /**
+   * Apply an already-fetched year configuration (e.g. from the workspace-home
+   * aggregate). `null` mirrors a 404 — no config exists yet for the year, so
+   * callers render the "create year" empty-state.
+   */
+  function setConfig(response: YearConfigurationResponse | null) {
+    config.value = response;
+    notFound.value = response === null;
+    if (!response) return;
+
+    // Issue #1204 follow-up — read the year-selector's lower bound off
+    // the response instead of silently keeping the previous (or no)
+    // bound if it's missing/malformed.
+    const value = response.min_configurable_year;
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      minConfigurableYearError.value =
+        'year-configuration response is missing min_configurable_year';
+      return;
+    }
+    minConfigurableYear.value = value;
+    minConfigurableYearError.value = null;
+  }
+
+  /** Apply an already-fetched list of configured years (bootstrap / session). */
+  function setConfiguredYears(rows: YearConfigurationListItem[]) {
     configuredYears.value = rows;
-    return rows;
+  }
+
+  /**
+   * Seed the year-selector's lower bound from ``GET /session`` at app-init.
+   *
+   * Unlike ``setConfig``, this doesn't depend on any particular year's
+   * ``YearConfiguration`` row existing — ``fetchConfig(year)`` only sets
+   * ``minConfigurableYear`` on a 200, so if the caller's current real-world
+   * year has no row yet (e.g. only last year was ever created), a 404 left
+   * ``minConfigurableYear`` permanently ``null`` and the backoffice year
+   * dropdown (``availableYears``) stayed empty forever with no way to
+   * recover. Session hydration always has a value, regardless of which
+   * years exist.
+   */
+  function setMinConfigurableYear(value: number) {
+    minConfigurableYear.value = value;
+    minConfigurableYearError.value = null;
   }
 
   // Methods
@@ -226,14 +313,13 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
       const response = (await api
         .get(`year-configuration/${year}`, { skipErrorCodes: [404] })
         .json()) as YearConfigurationResponse;
-      config.value = response;
+      setConfig(response);
       return response;
     } catch (err: unknown) {
       if (err instanceof Error && 'response' in err) {
         const httpErr = err as Error & { response: { status: number } };
         if (httpErr.response?.status === 404) {
-          notFound.value = true;
-          config.value = null;
+          setConfig(null);
           return null;
         }
       }
@@ -259,8 +345,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
           json: payload ?? {},
         })
         .json()) as YearConfigurationResponse;
-      config.value = response;
-      notFound.value = false;
+      setConfig(response);
       return response;
     } finally {
       loading.value = false;
@@ -279,7 +364,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
           json: payload,
         })
         .json()) as YearConfigurationResponse;
-      config.value = response;
+      setConfig(response);
       return response;
     } finally {
       loading.value = false;
@@ -482,6 +567,16 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     return mod?.submodules?.[subKey]?.inputs_deactivated ?? false;
   }
 
+  function isSubmoduleCsvDeactivated(sub: ModuleUploadConfig): boolean {
+    const subKey =
+      sub.dataEntryTypeId !== undefined
+        ? String(sub.dataEntryTypeId)
+        : undefined;
+    if (!subKey) return false;
+    const mod = config.value?.config?.modules?.[String(sub.moduleTypeId)];
+    return mod?.submodules?.[subKey]?.csv_deactivated ?? false;
+  }
+
   /** True when reduction objectives goals or CSV files are not fully configured. */
   const isReductionObjectiveIncomplete = computed(() => {
     if (!config.value) return false;
@@ -547,6 +642,8 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     configuredYears,
     availableYears,
     selectedYear,
+    minConfigurableYear,
+    minConfigurableYearError,
     // Computed
     startedYears,
     anyModuleIncomplete,
@@ -565,10 +662,14 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     isModuleEnabled,
     isSubmoduleEnabled,
     isSubmoduleInputsDeactivated,
+    isSubmoduleCsvDeactivated,
     getModuleUncertaintyTag,
     // Methods
     fetchConfig,
+    setConfig,
     fetchConfiguredYears,
+    setConfiguredYears,
+    setMinConfigurableYear,
     createConfig,
     updateConfig,
     openForUsers,

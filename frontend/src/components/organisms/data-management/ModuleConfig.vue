@@ -1,22 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, provide, watch } from 'vue';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
-import { useModuleConfig } from 'src/composables/useModuleConfig';
-import { useRecalculation } from 'src/composables/useRecalculation';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { usePipelineStateStore } from 'src/stores/pipelineState';
-import { usePipelineStream } from 'src/composables/usePipelineStream';
-import type { PipelineJob, PipelineProgress } from 'src/stores/pipelineStream';
-import {
-  TargetType,
-  type ImportRow,
-} from 'src/stores/backofficeDataManagement';
-import DataEntryDialog from 'src/components/organisms/data-management/DataEntryDialog.vue';
-import ModuleRecalculationDialog from 'src/components/molecules/data-management/ModuleRecalculationDialog.vue';
-import ModuleConfigSection from 'src/components/molecules/data-management/ModuleConfigSection.vue';
-import ModuleUploadsSection from 'src/components/molecules/data-management/ModuleUploadsSection.vue';
-import PipelineDiagnosticTooltip from 'src/components/molecules/data-management/PipelineDiagnosticTooltip.vue';
-import SubmoduleConfig from 'src/components/organisms/data-management/SubmoduleConfig.vue';
+import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
+import { useModuleConfig } from '@/composables/useModuleConfig';
+import { useRecalculation } from '@/composables/useRecalculation';
+import { resolvePipelinePhaseLabelKey } from '@/composables/pipelinePhaseLabel';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { usePipelineStateStore } from '@/stores/pipelineState';
+import { usePipelineStream } from '@/composables/usePipelineStream';
+import type { PipelineJob, PipelineProgress } from '@/stores/pipelineStream';
+import { TargetType, type ImportRow } from '@/stores/backofficeDataManagement';
+import DataEntryDialog from '@/components/organisms/data-management/DataEntryDialog.vue';
+import ModuleRecalculationDialog from '@/components/molecules/data-management/ModuleRecalculationDialog.vue';
+import ModuleConfigSection from '@/components/molecules/data-management/ModuleConfigSection.vue';
+import ModuleUploadsSection from '@/components/molecules/data-management/ModuleUploadsSection.vue';
+import PipelineDiagnosticTooltip from '@/components/molecules/data-management/PipelineDiagnosticTooltip.vue';
+import SubmoduleConfig from '@/components/organisms/data-management/SubmoduleConfig.vue';
 
 interface Props {
   module: string;
@@ -93,13 +91,10 @@ const hasRecalcFailure = computed<boolean>(() => {
 
 // Issue #1219 — the badge now shows which of the 3 pipeline phases is
 // running (Data → Emissions → Aggregation) instead of a bare
-// "Recalculating…".  Falls back to the generic label in the brief
-// window before the first authoritative ``progress`` payload lands.
-const PHASE_LABEL_KEYS: Record<string, string> = {
-  data: 'data_management_pipeline_phase_data',
-  emissions: 'data_management_pipeline_phase_emissions',
-  aggregation: 'data_management_pipeline_phase_aggregation',
-};
+// "Recalculating…", or a single collapsed label for recalc-kind
+// pipelines (Issue #1523 — see ``resolvePipelinePhaseLabelKey``).
+// Falls back to the generic label in the brief window before the first
+// authoritative ``progress`` payload lands.
 
 // Issue #1219 — the module owns the single pipeline SSE subscription;
 // expose its authoritative progress to the per-upload cards (provided
@@ -113,7 +108,10 @@ const pipelineProgress = computed<PipelineProgress | null>(() => {
 const recalcBadgeLabelKey = computed<string>(
   () =>
     (pipelineProgress.value &&
-      PHASE_LABEL_KEYS[pipelineProgress.value.phase_label]) ??
+      resolvePipelinePhaseLabelKey(
+        pipelineProgress.value.phase_label,
+        pipelineProgress.value.kind,
+      )) ??
     'data_management_pipeline_recalculating',
 );
 

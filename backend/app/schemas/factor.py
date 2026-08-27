@@ -1,12 +1,12 @@
 """Factor schemas for API requests, responses, and CSV validation."""
 
-from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_origin
+from typing import Any, Protocol, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
+from app.modules.emissions import EmissionType
 
 FACTOR_META_FIELDS = {
     "id",
@@ -66,9 +66,9 @@ class FactorBase(BaseModel):
 
     emission_type_id: int
     data_entry_type_id: int
-    classification: Dict[str, Any] = Field(default_factory=dict)
-    values: Dict[str, Any] = Field(default_factory=dict)
-    year: Optional[int] = Field(
+    classification: dict[str, Any] = Field(default_factory=dict)
+    values: dict[str, Any] = Field(default_factory=dict)
+    year: int | None = Field(
         default=None,
         description=(
             "Year for which this factor applies (enables annual factor updates)"
@@ -85,9 +85,9 @@ class FactorCreate(FactorPayloadMixin, FactorBase):
 class FactorUpdate(FactorPayloadMixin, BaseModel):
     """Schema for updating a factor."""
 
-    classification: Optional[Dict[str, Any]] = None
-    values: Optional[Dict[str, Any]] = None
-    year: Optional[int] = Field(
+    classification: dict[str, Any] | None = None
+    values: dict[str, Any] | None = None
+    year: int | None = Field(
         default=None,
         description="Year for which this factor applies",
     )
@@ -117,12 +117,12 @@ T = TypeVar("T", bound=BaseModel, contravariant=True)
 
 
 class FactorHandler(Protocol[T]):
-    data_entry_type: Optional[DataEntryTypeEnum] = None
-    emission_type: Optional[EmissionType] = None
+    data_entry_type: DataEntryTypeEnum | None = None
+    emission_type: EmissionType | None = None
 
-    create_dto: Type[FactorCreate]
-    update_dto: Type[FactorUpdate]
-    response_dto: Type[FactorResponseGen]
+    create_dto: type[FactorCreate]
+    update_dto: type[FactorUpdate]
+    response_dto: type[FactorResponseGen]
 
     classification_fields: list[str]
     value_fields: list[str]
@@ -172,21 +172,21 @@ class FactorHandlerMeta(type):
 class BaseFactorHandler(metaclass=FactorHandlerMeta):
     """Base factor handler with common logic."""
 
-    data_entry_type: Optional[DataEntryTypeEnum] = None
-    emission_type: Optional[EmissionType] = None
+    data_entry_type: DataEntryTypeEnum | None = None
+    emission_type: EmissionType | None = None
 
     # These must be overridden in subclasses
-    create_dto: Type[FactorCreate]
-    update_dto: Type[FactorUpdate]
-    response_dto: Type[FactorResponseGen]
+    create_dto: type[FactorCreate]
+    update_dto: type[FactorUpdate]
+    response_dto: type[FactorResponseGen]
 
     # These must be set for each handler, if not set, nothing will be registered
-    registration_keys: Optional[list[DataEntryTypeEnum]] = None
+    registration_keys: list[DataEntryTypeEnum] | None = None
     classification_fields: list[str] = []
     value_fields: list[str] = []
 
     @classmethod
-    def get_by_type(cls, data_entry_type: DataEntryTypeEnum) -> "FactorHandler":
+    def get_by_type(cls, data_entry_type: DataEntryTypeEnum) -> FactorHandler:
         handler = FACTOR_HANDLERS.get(data_entry_type)
         if handler is None:
             raise ValueError(

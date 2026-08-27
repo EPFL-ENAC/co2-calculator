@@ -57,7 +57,9 @@ npm run lint               # ESLint
 
 CI runs `test-ct` and `test:e2e` (see `.github/workflows/test.yml`). The
 Storybook test-runner is not yet wired into CI; run `npm run storybook:test`
-locally to exercise it.
+locally to exercise it. The deployed Storybook — components, states and the
+design-token reference — is at
+[co2-calculator-storybook.epfl.ch](https://co2-calculator-storybook.epfl.ch/).
 
 ## Authorization
 

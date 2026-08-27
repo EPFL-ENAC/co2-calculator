@@ -1,9 +1,9 @@
-import csv
-import io
 from datetime import date
 from typing import TypedDict
 
 import httpx
+
+from app.utils.csv_dialect import csv_dict_reader
 
 ECB_TIMEOUT_SECONDS = 10
 ECB_EXR_URL = "https://data-api.ecb.europa.eu/service/data/EXR/"
@@ -18,7 +18,8 @@ class ExchangeRateRow(TypedDict):
 
 class ExchangeRatesService:
     """Service for fetching and caching exchange rates from the ECB API,
-    with support for inverting rates and filtering by currency."""
+    with support for inverting rates and filtering by currency.
+    """
 
     _cache: dict[int, list[ExchangeRateRow]] = {}
     _cache_date: date | None = None
@@ -84,9 +85,11 @@ class ExchangeRatesService:
 
         Args:
             year (int): The year for which to fetch exchange rates.
+
         Returns:
             list[ExchangeRateRow]: A list containing the exchange rates with keys
             "TIME_PERIOD", "CURRENCY", and "OBS_VALUE".
+
         Raises:
             ValueError: If no exchange rate data is found for the specified year
               and currency or if there is an error fetching the data.
@@ -119,9 +122,11 @@ class ExchangeRatesService:
               If '', fetches all currencies. Defaults to ''.
             invert (bool, optional): Whether to invert the exchange rates.
               Defaults to False.
+
         Returns:
             list[ExchangeRateRow]: A list containing the exchange rates with keys
             "TIME_PERIOD", "CURRENCY", and "OBS_VALUE".
+
         Raises:
             ValueError: If no exchange rate data is found for the specified year
               and currency or if there is an error fetching the data.
@@ -163,7 +168,7 @@ class ExchangeRatesService:
             )
 
         # Parse CSV into list of dicts (typed)
-        reader = csv.DictReader(io.StringIO(response.text))
+        reader = csv_dict_reader(response.text)
 
         data: list[ExchangeRateRow] = []
         for row in reader:

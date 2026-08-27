@@ -3,13 +3,11 @@
 from enum import IntEnum
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 
 
 # enum - used in other files
 class ModuleTypeEnum(IntEnum):
-    """
-    How the data entered the system.
+    """How the data entered the system.
 
     Current:
     - api: direct API call
@@ -34,6 +32,39 @@ class ModuleTypeEnum(IntEnum):
 
 ALL_MODULE_TYPE_IDS = [mt for mt in ModuleTypeEnum]
 
+TOTAL_MODULE_TYPES = len(ModuleTypeEnum)
+DEFAULT_COMPLETION_PROGRESS = f"0/{TOTAL_MODULE_TYPES}"
+
+# Simulator Plan "prefilled" (type-2) modules: snapshot-copied from the
+# reference year. Mirrors the frontend planner-module-config
+# ``behavior === 'prefilled'`` set. Headcount is prefilled too, but its
+# Calculator rows are aggregated per SIUS category instead of copied one to
+# one — see ``SimulatorPlanService.prefill_headcount_from_reference``.
+PLANNER_PREFILLED_MODULE_TYPES: set[ModuleTypeEnum] = {
+    ModuleTypeEnum.headcount,
+    ModuleTypeEnum.process_emissions,
+    ModuleTypeEnum.buildings,
+    ModuleTypeEnum.equipment,
+    ModuleTypeEnum.research_facilities,
+    ModuleTypeEnum.external_cloud_and_ai,
+}
+
+# Simulator Plan plain-copy modules: reference-year rows are copied as normal
+# editable planner entries, without the ``percentage_of_reference_year`` /
+# ``source_data_entry_id`` reference mechanism (#2018). The frontend keeps
+# ``behavior === 'empty'`` for them, so no reference columns render.
+PLANNER_PLAIN_COPY_MODULE_TYPES: set[ModuleTypeEnum] = {
+    ModuleTypeEnum.professional_travel,
+}
+
+# Simulator Plan modules emptied when a plan-year's reference year changes.
+# The prefilled ones are rebuilt from the new baseline; purchase is manual
+# input whose classes and factors are resolved against the reference year, so
+PLANNER_REFERENCE_SCOPED_MODULE_TYPES: set[ModuleTypeEnum] = (
+    PLANNER_PREFILLED_MODULE_TYPES
+    | PLANNER_PLAIN_COPY_MODULE_TYPES
+    | {ModuleTypeEnum.purchase}
+)
 
 # corresponding data_entry_type enum for each module type
 
@@ -41,6 +72,7 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
     ModuleTypeEnum.headcount: [
         DataEntryTypeEnum.member,
         DataEntryTypeEnum.student,
+        DataEntryTypeEnum.planner_headcount,
     ],
     ModuleTypeEnum.equipment: [
         DataEntryTypeEnum.scientific,
@@ -71,43 +103,24 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.services,
         DataEntryTypeEnum.vehicles,
         DataEntryTypeEnum.other_purchases,
-        DataEntryTypeEnum.additional_purchases,
+        DataEntryTypeEnum.purchases_centralized,
+        # Planner kinds last so Calculator submodule ordering is untouched.
+        DataEntryTypeEnum.planner_purchase,
+        DataEntryTypeEnum.planner_purchase_budget,
     ],
     ModuleTypeEnum.research_facilities: [
         DataEntryTypeEnum.research_facilities,
-        DataEntryTypeEnum.mice_and_fish_animal_facilities,
+        DataEntryTypeEnum.animal_facilities,
     ],
     # Add more if needed for other modules
 }
 
 
-# Maps each ModuleTypeEnum to the EmissionType root(s) whose subtree
-# covers all emission_type_ids that can appear under that module.
-# headcount is special: its 4 emission types are independent flat leaves.
-MODULE_TYPE_TO_EMISSION_ROOTS: dict[ModuleTypeEnum, list[EmissionType]] = {
-    ModuleTypeEnum.headcount: [
-        EmissionType.food,
-        EmissionType.waste,
-        EmissionType.commuting,
-    ],
-    ModuleTypeEnum.professional_travel: [EmissionType.professional_travel],
-    ModuleTypeEnum.buildings: [
-        EmissionType.buildings,
-        EmissionType.buildings__construction_and_renovation,
-    ],
-    ModuleTypeEnum.equipment: [EmissionType.equipment],
-    ModuleTypeEnum.purchase: [EmissionType.purchases],
-    ModuleTypeEnum.process_emissions: [EmissionType.process_emissions],
-    ModuleTypeEnum.external_cloud_and_ai: [EmissionType.external],
-    # Both research_facilities leaves
-    # (``research_facilities__facilities`` + ``research_facilities__animal``)
-    # roll up to ``EmissionType.research_facilities`` per the
-    # ``EMISSION_TYPE_PARENT_MAP`` declaration above.  Without this
-    # entry ``CarbonReportModuleService.recompute_stats`` early-returns
-    # for the module — stats stayed None on every research_facilities
-    # module, breaking the dashboard's per-module totals.  Reported by
-    # the past LLM-session review as item #1.
-    ModuleTypeEnum.research_facilities: [EmissionType.research_facilities],
+# Data-entry types derived from a parent type's rows instead of being
+# ingested directly. Bulk ingestion deletes and recreates them together
+# with the parent rows and fans out a sibling emission_recalc job per entry.
+DERIVED_DATA_ENTRY_TYPES: dict[DataEntryTypeEnum, list[DataEntryTypeEnum]] = {
+    DataEntryTypeEnum.building: [DataEntryTypeEnum.building_embodied_energy],
 }
 
 
@@ -118,6 +131,7 @@ def get_data_entry_types_for_module_type(
 
     Args:
         module_type: The module type to get data entry types for.
+
     Returns:
         List of data entry types associated with the given module type.
     """
@@ -131,6 +145,7 @@ def get_module_type_for_data_entry_type(
 
     Args:
         data_entry_type: The data entry type to get the module type for.
+
     Returns:
         The module type associated with the given data entry type, or None if not found.
     """

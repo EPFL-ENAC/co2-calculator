@@ -1,13 +1,16 @@
 """Policy evaluation module for authorization decisions."""
 
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.core.plan_policy import PlanPolicy
 from app.core.role_priority import pick_role_for_institutional_id
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReportType
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import (
@@ -24,8 +27,7 @@ logger = get_logger(__name__)
 
 
 async def _evaluate_permission_policy(input_data: dict) -> dict:
-    """
-    Evaluate permission check policy.
+    """Evaluate permission check policy.
 
     Args:
         input_data: Dictionary containing:
@@ -120,23 +122,18 @@ async def _evaluate_permission_policy(input_data: dict) -> dict:
 
 
 async def _evaluate_resource_access_policy(input_data: dict) -> dict:
-    """
-    Evaluate resource-level access policy for specific resources.
+    """Evaluate resource-level access policy for specific resources.
 
-    Checks if a user can access/edit a specific resource based on:
-    - Resource type and properties (e.g., provider, created_by)
-    - User roles and scope
-    - Business logic rules
+    No resource_type currently has a specific rule — every resource_type
+    denies by default (see the retirement note below for why
+    professional_travel's rule moved elsewhere). New resource types stay
+    secure until an explicit rule is added here.
 
     Args:
         input_data: Dictionary containing:
-            - "user": User object or dict with user info (must have roles)
+            - "user": User object or dict with user info
             - "resource_type": Resource type (e.g., "professional_travel")
-            - "resource": Resource dict with properties like:
-                - "id": Resource ID
-                - "created_by": User ID who created the resource
-                - "unit_id": Unit ID the resource belongs to
-                - "provider": Provider source (for professional_travel)
+            - "resource": Resource dict with properties like "id"
 
     Returns:
         Policy decision dict: {"allow": bool, "reason": str}
@@ -151,78 +148,16 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
     if not resource:
         return {"allow": False, "reason": "Missing resource"}
 
-    # Extract roles and user_id
-    user_id: int | None = None
-    if isinstance(user_data, User):
-        roles = user_data.roles or []
-        user_id = user_data.id
-    elif isinstance(user_data, dict):
-        roles_data = user_data.get("roles", [])
-        roles = [
-            Role(**r) if isinstance(r, dict) else r for r in roles_data if r is not None
-        ]
-        id_value = user_data.get("id")
-        user_id = id_value if isinstance(id_value, int) else None
-    else:
+    if not isinstance(user_data, (User, dict)):
         return {"allow": False, "reason": "Invalid user data format"}
 
-    # Professional Travel resource access rules
-    if resource_type == "professional_travel":
-        provider = resource.get("provider", "")
-        created_by = resource.get("created_by", "")
-        resource_unit_id = resource.get("unit_id", "")
-
-        # Rule 1: API trips are read-only (cannot be edited by anyone)
-        if provider == "api":
-            return {
-                "allow": False,
-                "reason": "API trips are read-only and cannot be edited",
-            }
-
-        # Rule 2: Check if user has global scope (backoffice admin)
-        has_global_scope = any(
-            isinstance(role.on, GlobalScope)
-            or (isinstance(role.on, dict) and role.on.get("scope") == "global")
-            for role in roles
-        )
-        if has_global_scope:
-            return {"allow": True, "reason": "Global scope access (backoffice admin)"}
-
-        # Rule 3: Check if user has unit scope for this resource's unit
-        user_unit_ids = set()
-        principal_or_secondary = False
-        for role in roles:
-            role_name = role.role if isinstance(role.role, str) else role.role.value
-            role_scope = role.on
-
-            # Check if principal role
-            if role_name == RoleName.CO2_USER_PRINCIPAL.value:
-                principal_or_secondary = True
-                # Extract unit from scope (principal is always unit-scoped).
-                if isinstance(role_scope, UnitScope) and role_scope.institutional_id:
-                    user_unit_ids.add(role_scope.institutional_id)
-
-        # Principals can edit manual/CSV trips in their units
-        if principal_or_secondary and resource_unit_id in user_unit_ids:
-            return {
-                "allow": True,
-                "reason": (
-                    "Unit scope access (principal can edit trips in their units)"
-                ),
-            }
-
-        # Rule 4: Standard users can only edit their own manual trips
-        if user_id and created_by == user_id:
-            return {
-                "allow": True,
-                "reason": "Owner access (user can edit their own trips)",
-            }
-
-        # Default: deny access
-        return {
-            "allow": False,
-            "reason": "Insufficient permissions to access this resource",
-        }
+    # Professional Travel used to have a bespoke resource_type branch here
+    # (role/scope extraction, API trips read-only, unit/owner rules).
+    # Retired (#951): the imported-branch lock in
+    # app.core.data_entry_permissions supersedes it — provenance-keyed,
+    # enforced in CarbonReportModuleWorkflow, and no longer specific to this
+    # one module. Every resource_type, including professional_travel, now
+    # falls through to the generic deny-by-default below.
 
     # Default for other/unhandled resource types: deny by default
     # This ensures new resource types are secure until explicit policy rules are added
@@ -237,8 +172,7 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
 
 
 async def _evaluate_data_filter_policy(input_data: dict) -> dict:
-    """
-    Evaluate data filtering policy based on user's role scope.
+    """Evaluate data filtering policy based on user's role scope.
 
     Determines filter criteria based on user's roles:
     - Global scope (backoffice admin): No filters (can see all)
@@ -364,8 +298,7 @@ async def _evaluate_data_filter_policy(input_data: dict) -> dict:
 
 
 async def query_policy(policy_name: str, input_data: dict) -> dict:
-    """
-    Query policy engine for authorization decisions.
+    """Query policy engine for authorization decisions.
 
     Supports multiple policy types:
     - "authz/permission/check": Permission-based authorization
@@ -408,9 +341,8 @@ async def query_policy(policy_name: str, input_data: dict) -> dict:
     }
 
 
-def _get_module_permission_path(module_name: str | None) -> Optional[str]:
-    """
-    Map module name to permission path.
+def _get_module_permission_path(module_name: str | None) -> str | None:
+    """Map module name to permission path.
 
     Args:
         module_name: Module name (e.g., "professional-travel")
@@ -436,11 +368,10 @@ async def get_module_permission_decision(
     module_id: str | int,
     action: str = "view",
     *,
-    institutional_id: Optional[str] = None,
+    institutional_id: str | None = None,
     any_scope: bool = False,
 ) -> dict:
-    """
-    Get permission decision for a specific module and action.
+    """Get permission decision for a specific module and action.
 
     Args:
         user: Current user
@@ -483,11 +414,10 @@ async def is_module_permitted(
     module_id: str | int,
     action: str = "view",
     *,
-    institutional_id: Optional[str] = None,
+    institutional_id: str | None = None,
     any_scope: bool = False,
 ) -> bool:
-    """
-    Check if user has permission for a specific module and action.
+    """Check if user has permission for a specific module and action.
 
     Args:
         user: Current user
@@ -516,11 +446,10 @@ async def check_module_permission(
     module_id: str | int,
     action: str,
     *,
-    institutional_id: Optional[str] = None,
+    institutional_id: str | None = None,
     any_scope: bool = False,
 ) -> None:
-    """
-    Check if user has permission for the module.
+    """Check if user has permission for the module.
 
     Args:
         user: Current user.
@@ -612,6 +541,51 @@ def require_unit_access(current_user: User, unit: Unit | None) -> None:
         )
 
 
+def has_global_or_principal_access_for_unit(
+    current_user: User,
+    unit: Unit | None,
+) -> bool:
+    """Return whether the user has global or principal access for the unit.
+
+    ``RoleScope.institutional_id`` always stores ``Unit.institutional_id``.
+    """
+    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
+        return True
+    if unit is None:
+        return False
+    return (
+        unit.institutional_id is not None
+        and pick_role_for_institutional_id(current_user.roles, unit.institutional_id)
+        == RoleName.CO2_USER_PRINCIPAL
+    )
+
+
+async def require_plan_scope_for_report(
+    db: AsyncSession, current_user: User, report: Any, action: str
+) -> CarbonProject | None:
+    """Enforce Simulator Plan scoping when ``report`` belongs to a plan.
+
+    No-op for Calculator/Explore reports (and reports with no project). The
+    single place every report-addressed write consults so plan visibility
+    rules can't be forgotten on a new route.
+
+    Returns the report's ``CarbonProject`` when it has one, so a caller that
+    needs the project type does not pay a second lookup for a row this
+    function already loaded (#2050 J4). ``None`` when the report has no
+    project.
+    """
+    if report.carbon_project_id is None:
+        return None
+    project = await db.get(CarbonProject, report.carbon_project_id)
+    if (
+        project is not None
+        and project.carbon_report_type == CarbonReportType.SIMULATOR_PLAN
+    ):
+        policy = await PlanPolicy.for_unit(db, current_user, report.unit_id)
+        policy.require(project, action)
+    return project
+
+
 def require_module_unit_scope(
     current_user: User,
     module_id: str | int,
@@ -672,3 +646,47 @@ async def check_module_permission_for_unit(
         institutional_id=unit.institutional_id,
     )
     return unit
+
+
+async def check_module_permission_for_report(
+    *,
+    current_user: User,
+    module_id: str,
+    action: str,
+    db: AsyncSession,
+    report: Any,
+) -> Unit:
+    """Module gate for report-addressed routes.
+
+    Calculator reports keep the full per-module permission gate
+    (``check_module_permission_for_unit``). Explore and plan reports (grant
+    and plan years alike) drop to unit membership: any unit member gets
+    every module's input form there. Plan creator/share rules are enforced
+    separately by
+    ``require_plan_scope_for_report``, and the professional-travel own-rows
+    filter stays keyed on the caller's role at the data layer.
+
+    Returns the loaded ``Unit`` so callers can reuse it (e.g. for travel
+    filters or principal/global checks) without re-fetching.
+    """
+    if report.carbon_project_id is not None:
+        project = await db.get(CarbonProject, report.carbon_project_id)
+        if project is not None and project.carbon_report_type in (
+            CarbonReportType.SIMULATOR_EXPLORE,
+            CarbonReportType.SIMULATOR_PLAN,
+        ):
+            unit = await db.get(Unit, report.unit_id)
+            if unit is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Unit {report.unit_id} not found",
+                )
+            require_unit_access(current_user, unit)
+            return unit
+    return await check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action=action,
+        db=db,
+        unit_id=report.unit_id,
+    )

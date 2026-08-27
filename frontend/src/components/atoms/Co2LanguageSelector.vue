@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
-import { LANGUAGES } from 'src/constant/languages';
+import { LANGUAGES } from '@/constant/languages';
 
 const route = useRoute();
 </script>

@@ -16,7 +16,12 @@ import gc
 
 import pytest
 
-from app.tasks._background import _BACKGROUND_TASKS, fire_and_forget
+from app.core.config import get_settings
+from app.tasks._background import (
+    _BACKGROUND_TASKS,
+    fire_and_forget,
+    fire_and_forget_or_defer_to_poller,
+)
 
 
 @pytest.mark.asyncio
@@ -51,7 +56,8 @@ async def test_fire_and_forget_runs_to_completion_after_caller_returns():
 @pytest.mark.asyncio
 async def test_fire_and_forget_removes_from_set_when_done():
     """Once the task completes, the strong reference is released so the
-    set doesn't grow unboundedly across calls."""
+    set doesn't grow unboundedly across calls.
+    """
     started_size = len(_BACKGROUND_TASKS)
 
     async def _work():
@@ -73,7 +79,8 @@ async def test_fire_and_forget_removes_from_set_when_done():
 @pytest.mark.asyncio
 async def test_fire_and_forget_logs_unhandled_exception(caplog):
     """When the coroutine raises, the done-callback logs the error so it
-    doesn't disappear silently."""
+    doesn't disappear silently.
+    """
 
     async def _boom():
         raise RuntimeError("intentional test failure")
@@ -87,6 +94,7 @@ async def test_fire_and_forget_logs_unhandled_exception(caplog):
     try:
         await task
     except RuntimeError:
+        # The raise is the point — we assert on the logged error below
         pass
     await asyncio.sleep(0)
 
@@ -94,6 +102,45 @@ async def test_fire_and_forget_logs_unhandled_exception(caplog):
         "boom-test" in record.message and "intentional test failure" in record.message
         for record in caplog.records
     ), f"expected error log; got {[r.message for r in caplog.records]!r}"
+
+
+@pytest.mark.asyncio
+async def test_defer_to_poller_when_dispatch_inline_disabled(monkeypatch):
+    """#2050 Track B: an API pod (DISPATCH_JOBS_INLINE=False) must not run
+    the coroutine at all — it defers to the worker pod's poller, which
+    picks up the NOT_STARTED job row the caller already committed.
+    """
+    monkeypatch.setattr(get_settings(), "DISPATCH_JOBS_INLINE", False)
+    ran = False
+
+    async def _work():
+        nonlocal ran
+        ran = True
+
+    started_size = len(_BACKGROUND_TASKS)
+    result = fire_and_forget_or_defer_to_poller(_work(), name="deferred-test")
+    # Let any (incorrectly) scheduled task get a turn before asserting.
+    await asyncio.sleep(0)
+
+    assert result is None
+    assert ran is False, "coroutine must not run when dispatch is deferred"
+    assert len(_BACKGROUND_TASKS) == started_size
+
+
+@pytest.mark.asyncio
+async def test_dispatch_inline_when_enabled(monkeypatch):
+    """The default (DISPATCH_JOBS_INLINE=True, e.g. today's single-pod
+    deployment and the future worker pod) still fires immediately.
+    """
+    monkeypatch.setattr(get_settings(), "DISPATCH_JOBS_INLINE", True)
+    finished = asyncio.Event()
+
+    async def _work():
+        finished.set()
+
+    task = fire_and_forget_or_defer_to_poller(_work(), name="inline-test")
+    assert task is not None
+    await asyncio.wait_for(finished.wait(), timeout=1.0)
 
 
 def test_fire_and_forget_inside_asyncio_run_is_cancelled(caplog):

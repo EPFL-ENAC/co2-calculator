@@ -1,11 +1,11 @@
 import {
   CHART_CATEGORY_COLOR_SCHEMES,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
-} from 'src/constant/charts';
+} from '@/constant/charts';
 import type {
   EmissionBreakdownCategoryRow,
   EmissionBreakdownValue,
-} from 'src/stores/modules';
+} from '@/stores/modules';
 
 export interface EmissionTreemapChild {
   name: string;
@@ -32,7 +32,9 @@ export interface EmissionTreemapCategory {
 const PURCHASES_PREFIX_MAP: Array<[string, string]> = [
   ['other_purchase', 'other_purchases'],
   ['other', 'other_purchases'],
-  ['additional', 'additional'],
+  ['centralized', 'centralized'],
+  ['purchases_centralized', 'centralized'],
+  ['additional', 'centralized'],
   ['scientific_equipment', 'scientific_equipment'],
   ['it_equipment', 'it_equipment'],
   ['consumable', 'consumable_accessories'],
@@ -57,11 +59,23 @@ export function normalizeParentKey(
   return baseKey;
 }
 
-// Mirrors backend CATEGORY_CHART_KEYS in emission_breakdown.py
+// Category → YY keys rendered by the Results charts, in display order.
+// Keys not listed here are silently dropped from every non-additional chart.
 export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
-  process_emissions: ['co2', 'ch4', 'n2o', 'refrigerants'],
+  process_emissions: [
+    'co2',
+    'ch4',
+    'n2o',
+    'refrigerants',
+    'hfcs',
+    'perfluorinated_compounds',
+    'fluorinated_ethers',
+    'perfluoropolyethers',
+    'sf6',
+    'nf3',
+  ],
   buildings_energy_combustion: ['combustion', 'heating_thermal'],
-  buildings_room: ['heating_elec', 'cooling', 'ventilation', 'lighting'],
+  buildings_room: ['heating_electric', 'cooling', 'ventilation', 'lighting'],
   equipment: ['scientific', 'it', 'other'],
   external_cloud_and_ai: ['clouds', 'ai'],
   purchases: [
@@ -72,7 +86,8 @@ export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
     'services',
     'vehicles',
     'other_purchases',
-    'additional',
+    'centralized',
+    'goods_and_services',
   ],
   research_facilities: ['facilities', 'it_facilities', 'animal'],
   professional_travel: ['plane', 'train'],
@@ -90,7 +105,7 @@ const YY_LEVEL_CATEGORIES = new Set([
   // on the flat row; AI providers aggregate under the `ai` parent sum.
   // Both are read via flat key lookup rather than the emissions list.
   'external_cloud_and_ai',
-  // Mice/fish ZZ leaves aggregate under the `animal` parent sum; the treemap
+  // Rodent/fish ZZ leaves aggregate under the `animal` parent sum; the treemap
   // shows facilities / it_facilities / animal tiles.
   'research_facilities',
 ]);

@@ -4,8 +4,8 @@ This repository handles internal user database operations.
 Users are managed through OAuth authentication only.
 """
 
-from datetime import datetime, timezone
-from typing import List, Optional
+import builtins
+from datetime import UTC, datetime
 
 from attr import dataclass
 from fastapi import HTTPException
@@ -20,7 +20,7 @@ class UpsertUserResult:
     created: int
     updated: int
     total: int
-    data: List[User]
+    data: list[User]
 
     def __str__(self) -> str:
         return (
@@ -34,13 +34,13 @@ class UserRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_id(self, id: int) -> Optional[User]:
+    async def get_by_id(self, id: int) -> User | None:
         """Get user by ID (integer)."""
         result = await self.session.exec(select(User).where(User.id == id))
         entity = result.one_or_none()
         return entity
 
-    async def get_by_code(self, institutional_id: str) -> Optional[User]:
+    async def get_by_code(self, institutional_id: str) -> User | None:
         """Get user by institutional_id.
 
         Deprecated: use get_by_institutional_id_and_provider instead.
@@ -55,7 +55,7 @@ class UserRepository:
         self,
         institutional_id: str,
         provider: UserProvider,
-    ) -> Optional[User]:
+    ) -> User | None:
         """Get user by institutional_id scoped to provider.
 
         This is the primary lookup method to prevent cross-provider collisions.
@@ -69,7 +69,7 @@ class UserRepository:
         entity = result.one_or_none()
         return entity
 
-    async def get_by_email(self, email: str) -> Optional[User]:
+    async def get_by_email(self, email: str) -> User | None:
         """Get user by email."""
         result = await self.session.exec(select(User).where(User.email == email))
         entity = result.one_or_none()
@@ -79,13 +79,13 @@ class UserRepository:
         self,
         institutional_id: str,
         email: str = "",
-        display_name: Optional[str] = None,
-        roles: Optional[List[Role]] = None,
-        provider: Optional[UserProvider] = None,
-        function: Optional[str] = None,
+        display_name: str | None = None,
+        roles: builtins.list[Role] | None = None,
+        provider: UserProvider | None = None,
+        function: str | None = None,
     ) -> User:
         """Create a new user."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entity = User(
             institutional_id=institutional_id,
             email=email,
@@ -105,10 +105,10 @@ class UserRepository:
     async def update(
         self,
         id: int,
-        display_name: Optional[str] = None,
-        roles: Optional[List[Role]] = None,
-        provider: Optional[UserProvider] = None,
-        function: Optional[str] = None,
+        display_name: str | None = None,
+        roles: builtins.list[Role] | None = None,
+        provider: UserProvider | None = None,
+        function: str | None = None,
     ) -> User:
         """Update an existing user by ID."""
         result = await self.session.exec(select(User).where(User.id == id))
@@ -116,7 +116,7 @@ class UserRepository:
         if not entity:
             raise HTTPException(status_code=404, detail="User not found")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if roles is not None:
             entity.roles = roles
@@ -130,14 +130,14 @@ class UserRepository:
         await self.session.refresh(entity)
         return entity
 
-    async def bulk_create(self, users: List[User]) -> List[User]:
+    async def bulk_create(self, users: builtins.list[User]) -> builtins.list[User]:
         """Bulk create users."""
         # db_objs = [User.model_validate(user) for user in users]
         self.session.add_all(users)
         await self.session.flush()
         return users
 
-    async def bulk_upsert(self, users: List[User]) -> UpsertUserResult:
+    async def bulk_upsert(self, users: builtins.list[User]) -> UpsertUserResult:
         if not users:
             return UpsertUserResult(created=0, updated=0, total=0, data=[])
         rows = (await self.session.exec(select(User.institutional_id, User.id))).all()
@@ -158,8 +158,8 @@ class UserRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        filters: Optional[dict] = None,
-    ) -> List[User]:
+        filters: dict | None = None,
+    ) -> builtins.list[User]:
         """List users with optional filters."""
         query = select(User)
 
@@ -175,7 +175,7 @@ class UserRepository:
         result = await self.session.exec(query)
         return list(result.all())
 
-    async def count(self, filters: Optional[dict] = None) -> int:
+    async def count(self, filters: dict | None = None) -> int:
         """Count users with optional filters."""
         query = select(func.count()).select_from(User)
 

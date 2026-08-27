@@ -1,10 +1,7 @@
 import asyncio
 import enum
-import io
 import json
-import time
-from datetime import datetime, timedelta, timezone
-from typing import Optional, TypeVar
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi import (
@@ -14,7 +11,6 @@ from fastapi import (
     HTTPException,
     Query,
     Request,
-    UploadFile,
     status,
 )
 from fastapi.responses import StreamingResponse
@@ -25,9 +21,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import db as db_module
 from app.api.deps import get_current_user, get_db
-from app.api.v1.files import make_files_store
 from app.core.config import get_settings
-from app.core.policy import check_module_permission
+from app.core.policy import (
+    check_module_permission,
+    check_module_permission_for_report,
+    require_plan_scope_for_report,
+)
 from app.core.security import is_permitted, require_permission
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntryTypeEnum
@@ -42,16 +41,23 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
-from app.models.pod import Pod
+from app.models.pod import Pod, is_live, live_cutoff
 from app.models.unit import Unit
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
-from app.repositories.data_ingestion import DataIngestionRepository, WhyStaleLiteral
+from app.repositories.data_ingestion import (
+    DataIngestionRepository,
+    WhyStaleLiteral,
+    is_job_stale,
+    stale_job_cutoff,
+)
+from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.services.pipeline_progress import PhaseLabel, compute_pipeline_progress
-from app.tasks._background import fire_and_forget
+from app.tasks._background import fire_and_forget_or_defer_to_poller
 from app.tasks.runner import run_job
 from app.tasks.unit_sync_tasks import SyncUnitRequest
+from app.utils.datetime_utc import as_utc
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.utils.scoping import (
     can_view_module_flow,
@@ -91,9 +97,9 @@ async def _stamp_job_type_and_meta(
     job_id: int,
     *,
     job_type: str,
-    provider_name: Optional[str] = None,
-    extra_meta: Optional[dict] = None,
-    pipeline_id: Optional[UUID] = None,
+    provider_name: str | None = None,
+    extra_meta: dict | None = None,
+    pipeline_id: UUID | None = None,
 ) -> None:
     """After ``provider.create_job`` returns, stamp ``job_type`` and
     extend ``meta`` so the runner's registry lookup hits the right
@@ -146,136 +152,40 @@ async def _stamp_job_type_and_meta(
     db.add(row)
 
 
-async def _resolve_source_job_to_file_path(
-    db: AsyncSession,
-    source_job_id: int,
-    *,
-    requested_target_type: TargetType,
-    requested_module_type_id: Optional[ModuleTypeEnum],
-) -> str:
-    """Resolve a ``source_job_id`` (copy-from-previous-year flow) to a
-    fresh ``tmp/copy-*`` ``file_path`` the CSV provider can consume.
-
-    The frontend's ``copyFromPreviousYear`` flow sends ``config.source_job_id``
-    instead of ``file_path`` so the operator doesn't have to re-upload an
-    identical CSV.  This helper looks up the source job, validates that
-    copying it makes sense, and stages a fresh copy of the source's
-    ``meta.processed_file_path`` under ``tmp/`` so the existing CSV
-    provider path-validation
-    (``base_csv_provider._validate_file_path``) accepts it as a normal
-    upload.
-
-    Validation:
-
-    - Source job exists (else 404).
-    - Source job is ``FINISHED + SUCCESS`` — failed/in-flight jobs may
-      not have run far enough to stamp ``processed_file_path``; API
-      providers never do.  Surface 422 with a clear message rather than
-      a confusing 503 down the line.
-    - ``target_type`` matches — copying a factors CSV into a
-      data-entries dispatch (or vice-versa) would silently
-      mis-process every row.
-    - ``module_type_id`` matches when both sides set one — defense in
-      depth against the operator picking a job from the wrong module
-      in the dropdown.
-    - ``meta.processed_file_path`` is set (else 422).
-
-    The fresh path is ``tmp/copy-{source_job_id}-{ms_epoch}/{filename}``.
-    The source file is read via ``files_store.get_file`` and written
-    via ``files_store.write_file`` so the operation works against both
-    ``LocalFilesStore`` and ``S3FilesStore`` (no backend-specific copy
-    API).  The original processed file is left in place — subsequent
-    copies must still be able to read it.
+async def _validate_provider_connection_or_503(
+    provider: DataIngestionProvider, ingestion_method: IngestionMethod
+) -> None:
+    """Call ``provider.validate_connection()``, mapping both a config-gap
+    ``ValueError`` and a plain "not connected" result to a clean 503 instead
+    of letting either escape as (or resemble) a bare 500.
     """
-    src = await DataIngestionRepository(db).get_job_by_id(source_job_id)
-    if src is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Source job {source_job_id} not found",
-        )
-    if src.state != IngestionState.FINISHED or src.result != IngestionResult.SUCCESS:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                f"Source job {source_job_id} is not in a copyable state "
-                f"(state={src.state}, result={src.result}); only "
-                "FINISHED+SUCCESS jobs can be copied."
-            ),
-        )
-    if src.target_type != requested_target_type:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"Source job {source_job_id} target_type={src.target_type} "
-                f"does not match request target_type={requested_target_type}"
-            ),
-        )
-    # ``module_type_id`` on the request comes from ``SyncRequestConfig``
-    # as ``ModuleTypeEnum``; on the job as a raw ``int``.  Normalise
-    # before comparing to avoid a false mismatch from enum vs int.
-    if (
-        requested_module_type_id is not None
-        and src.module_type_id is not None
-        and int(src.module_type_id) != int(requested_module_type_id)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"Source job {source_job_id} module_type_id={src.module_type_id} "
-                f"does not match request module_type_id={int(requested_module_type_id)}"
-            ),
-        )
-    src_meta = src.meta or {}
-    src_path = src_meta.get("processed_file_path")
-    if not src_path:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                f"Source job {source_job_id} has no processed file to "
-                "copy (failed before the processed/ move, or used an "
-                "API provider that doesn't stage a CSV)."
-            ),
-        )
-    files_store = make_files_store()
     try:
-        content, _mime = await files_store.get_file(src_path)
-    except Exception as exc:  # noqa: BLE001 — surface storage failures as 422
+        connected = await provider.validate_connection()
+    except ValueError as exc:
+        # Provider config gaps — no connection / no datasource configured —
+        # are the normal post-deploy state and raise a ValueError with an
+        # operator-actionable message. Surface it as a clean 503 instead of
+        # letting it escape as a bare 500 (no traceback in the response).
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                f"Source job {source_job_id} processed file is no longer "
-                f"available at {src_path!r}: {exc}"
-            ),
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
-    # ``processed_file_path`` is ``processed/{src_job_id}/{filename}`` —
-    # keep the leaf so the new tmp upload reads naturally in logs and
-    # in the new job's own ``processed_file_path`` after fan-out.
-    filename = src_path.rsplit("/", 1)[-1] or "copied.csv"
-    folder = f"tmp/copy-{source_job_id}-{int(time.time() * 1000)}"
-    # ``LocalFilesStore.write_file`` only reads ``.filename`` and
-    # ``await .read()`` — it derives mime_type via
-    # ``mimetypes.guess_type`` itself, so we don't need to construct
-    # ``Headers`` on the upload.  Keep it minimal.
-    upload = UploadFile(
-        file=io.BytesIO(content),
-        size=len(content),
-        filename=filename,
-    )
-    await files_store.write_file(upload, folder=folder)
-    return f"{folder}/{filename}"
+    if not connected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Cannot connect to {ingestion_method}",
+        )
 
 
-async def _institutional_id_for_crm(
+async def _report_for_crm(
     db: AsyncSession,
     carbon_report_module_id: int,
-) -> Optional[str]:
-    """Resolve carbon_report_module_id → unit.institutional_id."""
+) -> CarbonReport | None:
+    """Resolve carbon_report_module_id → its CarbonReport row."""
     stmt = (
-        select(Unit.institutional_id)
-        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
+        select(CarbonReport)
         .join(
             CarbonReportModule,
-            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
+            col(CarbonReportModule.carbon_report_id) == CarbonReport.id,
         )
         .where(CarbonReportModule.id == carbon_report_module_id)
     )
@@ -290,15 +200,16 @@ async def _institutional_ids_for_crms(
     """Batch resolve carbon_report_module_id → unit.institutional_id.
 
     One IN-query for the whole page so the pipelines list shows the unit
-    code for unit-specific runs without an N+1 per row."""
+    code for unit-specific runs without an N+1 per row.
+    """
     if not carbon_report_module_ids:
         return {}
     stmt = (
         select(CarbonReportModule.id, Unit.institutional_id)
-        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
+        .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
         .join(
             CarbonReportModule,
-            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
+            col(CarbonReportModule.carbon_report_id) == CarbonReport.id,
         )
         .where(col(CarbonReportModule.id).in_(carbon_report_module_ids))
     )
@@ -308,7 +219,7 @@ async def _institutional_ids_for_crms(
 
 async def _institutional_id_for_job(
     job: DataIngestionJob, db: AsyncSession
-) -> Optional[str]:
+) -> str | None:
     """Resolve a job's institutional scope for permission gating.
 
     ``MODULE_UNIT_SPECIFIC`` jobs carry ``entity_id`` (FK to
@@ -324,10 +235,10 @@ async def _institutional_id_for_job(
         # mypy: SQLAlchemy ``==`` between Column attrs returns a
         # ``BinaryExpression`` at runtime, but mypy without the SQLAlchemy
         # plugin sees ``bool``.  Standard project workaround.
-        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
+        .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
         .join(
             CarbonReportModule,
-            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
+            col(CarbonReportModule.carbon_report_id) == CarbonReport.id,
         )
         .where(CarbonReportModule.id == job.entity_id)
     )
@@ -423,33 +334,26 @@ router = APIRouter()
 
 
 class SyncRequestConfig(BaseModel):
-    carbon_report_module_id: Optional[int] = None
-    data_entry_type_id: Optional[int] = None
-    reduction_objective_type_id: Optional[int] = None
-    module_type_id: Optional[ModuleTypeEnum] = None
-    # "Copy from previous year" flow: when set, the dispatch endpoint
-    # looks up the source job's ``meta.processed_file_path``, copies
-    # that file into a fresh ``tmp/copy-*`` location, and injects the
-    # new path as ``file_path`` so the CSV provider re-processes the
-    # same payload under the requested year.  No source_job_id ⇒
-    # normal upload path.  See ``_resolve_source_job_to_file_path``.
-    source_job_id: Optional[int] = None
+    carbon_report_module_id: int | None = None
+    data_entry_type_id: int | None = None
+    reduction_objective_type_id: int | None = None
+    module_type_id: ModuleTypeEnum | None = None
 
 
 class SyncRequest(BaseModel):
     ingestion_method: IngestionMethod
     target_type: TargetType
-    year: Optional[int] = None
-    filters: Optional[dict] = {}
-    config: Optional[SyncRequestConfig] = None
-    file_path: Optional[str] = None
+    year: int | None = None
+    filters: dict | None = {}
+    config: SyncRequestConfig | None = None
+    file_path: str | None = None
 
 
 class SyncStatusResponse(BaseModel):
     job_id: int
     state: IngestionState
     message: str
-    progress: Optional[dict] = None
+    progress: dict | None = None
     # Issue #1219 — the parent's pipeline_id, assigned eagerly at
     # creation (not lazily at first fan-out) so the frontend can seed
     # its pipeline-state store and subscribe to the SSE stream from
@@ -457,22 +361,22 @@ class SyncStatusResponse(BaseModel):
     # discovers the pipeline after the upload job already FINISHED,
     # so phase 1 ("Inserting data…") is never visible and fast
     # chains complete inside the discovery gap, showing nothing.
-    pipeline_id: Optional[str] = None
+    pipeline_id: str | None = None
 
 
 class SyncJobResponse(BaseModel):
     job_id: int
-    module_type_id: Optional[int] = None
-    data_entry_type_id: Optional[int] = None
-    year: Optional[int] = None
+    module_type_id: int | None = None
+    data_entry_type_id: int | None = None
+    year: int | None = None
     ingestion_method: IngestionMethod
-    target_type: Optional[TargetType] = None
-    status_message: Optional[str] = None
-    meta: Optional[dict] = None
-    state: Optional[IngestionState] = None
-    result: Optional[IngestionResult] = None
-    locked_by: Optional[str] = None
-    is_current: Optional[bool] = None
+    target_type: TargetType | None = None
+    status_message: str | None = None
+    meta: dict | None = None
+    state: IngestionState | None = None
+    result: IngestionResult | None = None
+    locked_by: str | None = None
+    is_current: bool | None = None
 
 
 class RecalculationStatus(BaseModel):
@@ -482,10 +386,10 @@ class RecalculationStatus(BaseModel):
     data_entry_type_id: int
     year: int
     needs_recalculation: bool
-    last_factor_job_id: Optional[int] = None
-    last_factor_job_result: Optional[IngestionResult] = None
-    last_recalculation_job_id: Optional[int] = None
-    last_recalculation_job_result: Optional[IngestionResult] = None
+    last_factor_job_id: int | None = None
+    last_factor_job_result: IngestionResult | None = None
+    last_recalculation_job_id: int | None = None
+    last_recalculation_job_result: IngestionResult | None = None
 
 
 class ModuleRecalculationStatus(BaseModel):
@@ -510,24 +414,24 @@ class PipelineJobResponse(BaseModel):
     """
 
     job_id: int
-    job_type: Optional[str] = None
-    state: Optional[IngestionState] = None
-    result: Optional[IngestionResult] = None
-    target_type: Optional[TargetType] = None
-    status_message: Optional[str] = None
-    module_type_id: Optional[int] = None
-    data_entry_type_id: Optional[int] = None
-    year: Optional[int] = None
+    job_type: str | None = None
+    state: IngestionState | None = None
+    result: IngestionResult | None = None
+    target_type: TargetType | None = None
+    status_message: str | None = None
+    module_type_id: int | None = None
+    data_entry_type_id: int | None = None
+    year: int | None = None
 
     # See ``PipelineJobListEntry`` for the rationale — serialize
     # ``state`` and ``result`` as the enum NAME so the frontend's
     # string comparisons (``j.state === 'FINISHED'``) work.
     @field_serializer("state")
-    def _state_name(self, v: Optional[IngestionState]) -> Optional[str]:
+    def _state_name(self, v: IngestionState | None) -> str | None:
         return v.name if v is not None else None
 
     @field_serializer("result")
-    def _result_name(self, v: Optional[IngestionResult]) -> Optional[str]:
+    def _result_name(self, v: IngestionResult | None) -> str | None:
         return v.name if v is not None else None
 
 
@@ -536,7 +440,8 @@ class PipelineProgressResponse(BaseModel):
 
     Mirrors ``app.services.pipeline_progress.PipelineProgress``; the
     frontend trusts this instead of inferring "done" from a
-    possibly-incomplete job snapshot."""
+    possibly-incomplete job snapshot.
+    """
 
     phase: int
     phases_total: int
@@ -545,17 +450,18 @@ class PipelineProgressResponse(BaseModel):
     has_error: bool
     # PARTIAL tier (#1236) — the authoritative ``pipelines.status``
     # name so the console can render PARTIAL (amber) vs FAILED (red).
-    status: Optional[str] = None
+    status: str | None = None
     # Parent ``job_type`` so frontend cards (UploadCardData /
     # UploadCardFactors / UploadCardReferences) can decide whether
     # the phase indicator applies to *their* target — a factor
     # ingest's progress shouldn't surface on the data card.
-    kind: Optional[str] = None
+    kind: str | None = None
 
 
 class PipelineResponse(BaseModel):
     """Wrapper for ``GET /sync/pipelines/{pipeline_id}`` — pipeline UUID
-    plus the ordered job list (parent first, then fan-out children)."""
+    plus the ordered job list (parent first, then fan-out children).
+    """
 
     pipeline_id: UUID
     jobs: list[PipelineJobResponse]
@@ -564,8 +470,8 @@ class PipelineResponse(BaseModel):
 
 # Issue #1234 — meta keys the pipeline-ops console is allowed to ship.
 # Everything else (esp. ``error_details`` / ``affected_module_ids``,
-# which are KB-scale per row) is stripped server-side so the list
-# payload stays small.
+# which are KB-scale per row for a bulk data-entry recalc) is stripped
+# server-side so the list payload stays small.
 #
 # Phase 5B (#1236) retired three keys from this list:
 # ``parent_job_id``, ``recalc_jobs_chained``, ``aggregation_job_id``.
@@ -586,30 +492,51 @@ _PIPELINE_META_ALLOW = (
 )
 
 
-def _project_pipeline_meta(meta: Optional[dict]) -> dict:
+def _project_pipeline_meta(
+    meta: dict | None, *, include_factor_errors: bool = False
+) -> dict:
+    """Allow-list a job's ``meta`` for the ops-console list payload.
+
+    Issue #1591 — ``include_factor_errors`` opts a FACTORS-target job
+    into shipping ``stats.error_details`` (factor_id + raw exception,
+    which may name a Unit/CarbonReport belonging to a different unit —
+    fine here since this list is gated by ``backoffice.pipeline_operations``,
+    unlike the unit-facing recalc status).  Bounded by the factor table
+    size (curated reference data), unlike the blanket-excluded
+    ``error_details``/``affected_module_ids`` a bulk data-entry recalc
+    can produce, which is why this stays opt-in per call site rather
+    than joining ``_PIPELINE_META_ALLOW``.
+    """
     m = meta or {}
-    return {k: m[k] for k in _PIPELINE_META_ALLOW if k in m}
+    projected = {k: m[k] for k in _PIPELINE_META_ALLOW if k in m}
+    if include_factor_errors:
+        error_details = (m.get("stats") or {}).get("error_details")
+        if error_details:
+            projected["error_details"] = error_details
+    return projected
 
 
-def _pipeline_author(meta: Optional[dict]) -> Optional[str]:
+def _pipeline_author(meta: dict | None) -> str | None:
     """Human author for the ops-console "author" column.
 
     Reads the creator stamped into the root job's ``meta.created_by`` at
     creation time (``base_provider.create_job``). Prefers the display
     name, falls back to email. ``None`` for runner-triggered pipelines
-    (recalc/aggregation) and pre-existing jobs created before this field."""
+    (recalc/aggregation) and pre-existing jobs created before this field.
+    """
     created = (meta or {}).get("created_by")
     if not isinstance(created, dict):
         return None
     return created.get("name") or created.get("email")
 
 
-def _crm_id_from_meta(meta: Optional[dict]) -> Optional[int]:
+def _crm_id_from_meta(meta: dict | None) -> int | None:
     """Read the unit's ``carbon_report_module_id`` from a job's meta.
 
     Unit-specific jobs store it in ``meta.config`` (``entity_id`` on the
     row is left NULL), so the list endpoint resolves the unit code from
-    here rather than the FK column."""
+    here rather than the FK column.
+    """
     cfg = (meta or {}).get("config")
     if not isinstance(cfg, dict):
         return None
@@ -617,10 +544,11 @@ def _crm_id_from_meta(meta: Optional[dict]) -> Optional[int]:
     return crm if isinstance(crm, int) else None
 
 
-def _module_label(value: Optional[int]) -> Optional[str]:
+def _module_label(value: int | None) -> str | None:
     """Resolve a module_type_id int to its enum name (#1234) — done
     server-side so the table shows names with no frontend int→label
-    map to drift. Unknown/legacy ints degrade to ``None``."""
+    map to drift. Unknown/legacy ints degrade to ``None``.
+    """
     if value is None:
         return None
     try:
@@ -629,7 +557,7 @@ def _module_label(value: Optional[int]) -> Optional[str]:
         return None
 
 
-def _det_label(value: Optional[int]) -> Optional[str]:
+def _det_label(value: int | None) -> str | None:
     """Resolve a data_entry_type_id int to its enum name (#1234)."""
     if value is None:
         return None
@@ -639,12 +567,9 @@ def _det_label(value: Optional[int]) -> Optional[str]:
         return None
 
 
-_EnumT = TypeVar("_EnumT", bound=enum.Enum)
-
-
-def _resolve_enum_name(
-    enum_cls: type[_EnumT], value: Optional[str], field: str
-) -> Optional[_EnumT]:
+def _resolve_enum_name[EnumT: enum.Enum](
+    enum_cls: type[EnumT], value: str | None, field: str
+) -> EnumT | None:
     """Resolve a query param to an enum member by *name* (#1234).
 
     ``IngestionState`` / ``IngestionResult`` are int enums, so FastAPI's
@@ -677,37 +602,55 @@ class PipelineJobListEntry(BaseModel):
 
     Slimmer than the pipeline read endpoint's ``PipelineJobResponse``:
     carries timing for per-step duration and an **allow-listed** ``meta``
-    (never the big ``error_details`` / ``affected_module_ids`` arrays).
+    (never the big ``affected_module_ids`` array; ``error_details`` only
+    for FACTORS-target jobs — see ``_project_pipeline_meta``, #1591).
 
     ``state`` and ``result`` serialize as the enum NAME (string), not
     the int value — Pydantic's int-enum default would ship ``3`` for
     ``FINISHED`` which mismatches every frontend consumer (the TS
     interface declares ``string | null`` and renders comparisons like
     ``j.state === 'FINISHED'``).  The field_serializers below pin the
-    contract."""
+    contract.
+    """
 
     job_id: int
-    job_type: Optional[str] = None
-    state: Optional[IngestionState] = None
-    result: Optional[IngestionResult] = None
-    status_message: Optional[str] = None
-    module_type_id: Optional[int] = None
-    data_entry_type_id: Optional[int] = None
+    job_type: str | None = None
+    state: IngestionState | None = None
+    result: IngestionResult | None = None
+    status_message: str | None = None
+    module_type_id: int | None = None
+    data_entry_type_id: int | None = None
     # #1234 — human label (resolved from the int enum server-side so
     # the table shows names, not integers, with no frontend drift).
-    data_entry_type_label: Optional[str] = None
-    year: Optional[int] = None
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
-    attempts: Optional[int] = None
+    data_entry_type_label: str | None = None
+    year: int | None = None
+    # created_at → started_at is queue wait (chain/lock/poller latency);
+    # started_at → finished_at is execution. The console shows both so a
+    # sub-second aggregation that waited 20s behind its recalc sibling
+    # doesn't read as "<1s total".
+    created_at: datetime | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    attempts: int | None = None
+    # Pod that claimed this job (``locked_by``). With a shared DB, a local
+    # dev process and cluster pods compete for the same NOT_STARTED rows —
+    # showing the owner makes mixed-ownership chains diagnosable at a
+    # glance (the local+dev-DB scenario, 2026-07-17).
+    worker: str | None = None
+    # Derived server-side (backend owns the staleness rule): RUNNING with a
+    # lock heartbeat older than STALE_JOB_TIMEOUT_MINUTES — the owning pod
+    # died mid-job. The console renders a badge + the manual Recover button
+    # (POST /jobs/{id}/recover only accepts stale rows, so gating the button
+    # on this flag mirrors the endpoint's own 409 rule).
+    is_stale: bool = False
     meta: dict = {}
 
     @field_serializer("state")
-    def _state_name(self, v: Optional[IngestionState]) -> Optional[str]:
+    def _state_name(self, v: IngestionState | None) -> str | None:
         return v.name if v is not None else None
 
     @field_serializer("result")
-    def _result_name(self, v: Optional[IngestionResult]) -> Optional[str]:
+    def _result_name(self, v: IngestionResult | None) -> str | None:
         return v.name if v is not None else None
 
 
@@ -718,30 +661,31 @@ class PipelineListItem(BaseModel):
     before fan-out so it never minted a pipeline (``is_orphan=True``);
     it still appears as a pipeline-of-one.  Rollups (job_type, module,
     year, status_message) come from the root/parent job; timing spans
-    the whole chain."""
+    the whole chain.
+    """
 
-    pipeline_id: Optional[UUID] = None
+    pipeline_id: UUID | None = None
     is_orphan: bool
     progress: PipelineProgressResponse
-    job_type: Optional[str] = None
+    job_type: str | None = None
     # Scope of the run, from the root job's ``entity_type`` (enum NAME):
     # MODULE_PER_YEAR (backoffice per-year), MODULE_UNIT_SPECIFIC (per-unit
     # module page), or GLOBAL_PER_YEAR (unit/role sync, recalc).
-    entity_type: Optional[str] = None
+    entity_type: str | None = None
     # Human unit code (``unit.institutional_id``) for MODULE_UNIT_SPECIFIC
     # runs; ``None`` otherwise. Resolved server-side from the unit's
     # carbon_report_module_id.
-    unit_institutional_id: Optional[str] = None
-    module_type_id: Optional[int] = None
+    unit_institutional_id: str | None = None
+    module_type_id: int | None = None
     # #1234 — human label for the related module (server-resolved).
-    module_label: Optional[str] = None
-    year: Optional[int] = None
-    status_message: Optional[str] = None
+    module_label: str | None = None
+    year: int | None = None
+    status_message: str | None = None
     # #1234 — who triggered the pipeline (root job's creator), resolved
     # server-side from the job meta. ``None`` for runner-triggered runs.
-    author: Optional[str] = None
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
+    author: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
     latest_job_id: int
     job_count: int
     error_count: int
@@ -753,7 +697,8 @@ class PipelineListResponse(BaseModel):
 
     ``total`` is the full match count *before* the per-module
     permission drop (see endpoint docstring), so a page may contain
-    fewer than ``limit`` items for a scope-limited operator."""
+    fewer than ``limit`` items for a scope-limited operator.
+    """
 
     items: list[PipelineListItem]
     total: int
@@ -764,13 +709,14 @@ class PipelineListResponse(BaseModel):
 class StaleStatsEntry(BaseModel):
     """One ``(module_type_id, year)`` scope whose aggregation is missing,
     failed, stuck, or too old.  Returned by ``GET /sync/health/stale-stats``
-    for Datadog/Prometheus scrape — Plan 310-D Follow-up 1 (#1063)."""
+    for Datadog/Prometheus scrape — Plan 310-D Follow-up 1 (#1063).
+    """
 
     module_type_id: int
     year: int
-    last_finished_aggregation_at: Optional[datetime] = None
+    last_finished_aggregation_at: datetime | None = None
     why_stale: WhyStaleLiteral
-    last_aggregation_job_id: Optional[int] = None
+    last_aggregation_job_id: int | None = None
 
 
 @router.post("/dispatch", response_model=SyncStatusResponse)
@@ -781,13 +727,14 @@ async def sync_module_data_entries(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Sync data entries for a specific module.
+    """Sync data entries for a specific module.
 
     **Required Permission**: `backoffice.configuration.edit` (global data-sync)
     OR `modules.{name}.sync` for the unit (principal users uploading from the
     module page). The module-owner path requires `target_type=DATA_ENTRIES`
     with both `carbon_report_module_id` and `module_type_id` in config.
+    Simulator reports (Explore/Plan) relax to unit membership plus plan
+    scoping, matching the report-addressed module routes (#1988, #2366).
 
     Example of request body for module_type_year:
     {
@@ -825,22 +772,31 @@ async def sync_module_data_entries(
             and crm_id is not None
             and mod_type_id is not None
         ):
-            institutional_id = await _institutional_id_for_crm(db, crm_id)
-            if institutional_id is None:
+            report = await _report_for_crm(db, crm_id)
+            if report is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Unit for carbon_report_module_id {crm_id} not found",
+                    detail=(
+                        f"Carbon report for carbon_report_module_id {crm_id} not found"
+                    ),
                 )
-            await check_module_permission(
-                current_user,
-                mod_type_id,
-                "sync",
-                institutional_id=institutional_id,
+            await require_plan_scope_for_report(db, current_user, report, "edit")
+            await check_module_permission_for_report(
+                current_user=current_user,
+                module_id=ModuleTypeEnum(mod_type_id).name,
+                action="sync",
+                db=db,
+                report=report,
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Permission denied: requires backoffice.configuration.edit",
+                detail=(
+                    "Permission denied: data-entry dispatch requires "
+                    "carbon_report_module_id and module_type_id in config "
+                    "(module-scoped upload), or backoffice.configuration.edit "
+                    "(global dispatch)."
+                ),
             )
 
     if syncRequest.target_type == TargetType.FACTORS and syncRequest.year is None:
@@ -881,34 +837,6 @@ async def sync_module_data_entries(
     if syncRequest.file_path:
         config["file_path"] = syncRequest.file_path
 
-    # Copy-from-previous-year resolution.  ``copyFromPreviousYear`` in
-    # the frontend sends ``config.source_job_id`` (not ``file_path``);
-    # without this step the CSV provider sees no source file and
-    # ``validate_connection`` returns False, producing a misleading 503
-    # ("Cannot connect to IngestionMethod.csv").  Resolve the source
-    # job's processed file into a fresh ``tmp/copy-*`` upload so the
-    # rest of the dispatch path is identical to a normal re-upload.
-    # Gated to CSV ingestion because only CSV providers consume
-    # ``file_path``; API/computed providers don't.
-    source_job_id = config.get("source_job_id")
-    if (
-        source_job_id is not None
-        and not config.get("file_path")
-        and syncRequest.ingestion_method == IngestionMethod.csv
-    ):
-        resolved_path = await _resolve_source_job_to_file_path(
-            db,
-            source_job_id,
-            requested_target_type=syncRequest.target_type,
-            requested_module_type_id=(
-                syncRequest.config.module_type_id if syncRequest.config else None
-            ),
-        )
-        config["file_path"] = resolved_path
-        # Provenance trail — surfaces in the new job's meta so support
-        # can answer "where did this row of numbers come from?".
-        config["copied_from_job_id"] = source_job_id
-
     # Determine entity_type early based on carbon_report_module_id presence
     entity_type = (
         EntityType.MODULE_UNIT_SPECIFIC
@@ -934,11 +862,7 @@ async def sync_module_data_entries(
                 not supported""",
         )
 
-    if not await provider.validate_connection():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Cannot connect to {syncRequest.ingestion_method}",
-        )
+    await _validate_provider_connection_or_503(provider, syncRequest.ingestion_method)
 
     factor_type_id = getattr(syncRequest, "factor_type_id", None)
     if factor_type_id is not None:
@@ -981,7 +905,7 @@ async def sync_module_data_entries(
     )
     await db.commit()
 
-    fire_and_forget(run_job(job_id), name=f"run_job-{job_id}")
+    fire_and_forget_or_defer_to_poller(run_job(job_id), name=f"run_job-{job_id}")
 
     return {
         "job_id": job_id,
@@ -1006,9 +930,7 @@ async def sync_module_factors(
         require_permission("backoffice.configuration", "edit")
     ),
 ):
-    """
-    Sync (recompute) factors for a specific module and data-entry type.
-
+    """Sync (recompute) factors for a specific module and data-entry type.
 
     ``year`` is **mandatory** for this endpoint — factor updates are always
     year-scoped.
@@ -1051,11 +973,7 @@ async def sync_module_factors(
             ),
         )
 
-    if not await provider.validate_connection():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Cannot connect to {syncRequest.ingestion_method}",
-        )
+    await _validate_provider_connection_or_503(provider, syncRequest.ingestion_method)
 
     job_id = await provider.create_job(
         module_type_id=ModuleTypeEnum(module_type_id),
@@ -1083,7 +1001,7 @@ async def sync_module_factors(
     )
     await db.commit()
 
-    fire_and_forget(run_job(job_id), name=f"run_job-{job_id}")
+    fire_and_forget_or_defer_to_poller(run_job(job_id), name=f"run_job-{job_id}")
 
     return {
         "job_id": job_id,
@@ -1102,8 +1020,7 @@ async def get_jobs_by_status(
         require_any_scope("view", "backoffice.pipeline_operations")
     ),
 ) -> list:
-    """
-    Get jobs filtered by status.
+    """Get jobs filtered by status.
 
     Args:
         filter_type: "active" for in-progress jobs, "completed" for finished jobs
@@ -1121,8 +1038,7 @@ async def get_jobs_by_year(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_module_or_config_view()),
 ) -> list:
-    """
-    Get all sync jobs for a specific year.
+    """Get all sync jobs for a specific year.
 
     Args:
         year: The year to filter jobs by
@@ -1156,8 +1072,7 @@ async def get_latest_jobs_by_year(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_module_or_config_view()),
 ) -> list:
-    """
-    Get the current job for each (module_type_id, target_type) combination.
+    """Get the current job for each (module_type_id, target_type) combination.
 
     Args:
         year: The year to filter jobs by
@@ -1270,8 +1185,8 @@ class WorkerResponse(BaseModel):
     """
 
     pod_id: str
-    git_sha: Optional[str] = None
-    app_version: Optional[str] = None
+    git_sha: str | None = None
+    app_version: str | None = None
     started_at: datetime
     last_heartbeat_at: datetime
     heartbeat_age_seconds: int
@@ -1302,10 +1217,8 @@ async def list_workers(
     visible in one screen.
 
     """
-    settings = get_settings()
-    live_window = 2 * settings.POD_HEARTBEAT_INTERVAL_SECONDS
-    now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(seconds=live_window)
+    now = datetime.now(UTC)
+    cutoff = live_cutoff()
 
     # Live pods only — pods whose process crashed leave a row behind
     # until the next deploy, and we don't want them showing as
@@ -1313,7 +1226,7 @@ async def list_workers(
     # of an in-Python filter so a schema-drift dev DB (``pods``
     # column still ``TIMESTAMP`` without TZ from before the model
     # moved to ``DateTime(timezone=True)``) doesn't explode the
-    # comparison — see ``_as_utc`` below.  Production never serves
+    # comparison — see ``as_utc``.  Production never serves
     # naive rows; this is purely defensive for long-lived dev DBs.
     pods_all = (
         (await db.execute(select(Pod).order_by(col(Pod.last_heartbeat_at).desc())))
@@ -1321,21 +1234,7 @@ async def list_workers(
         .all()
     )
 
-    def _as_utc(dt: datetime) -> datetime:
-        """Coerce tz-naive datetimes to UTC.
-
-        Defends against the schema-drift case where ``pods`` was
-        created with plain ``TIMESTAMP`` (no TZ) before the model
-        moved to ``DateTime(timezone=True)`` — ``SQLModel.metadata.
-        create_all`` doesn't ALTER existing tables, so a long-lived
-        dev DB still serves naive values.  Treating naive rows as
-        UTC matches what the heartbeat writer was always producing
-        (``datetime.now(timezone.utc)``) and keeps the subtraction
-        below from blowing up.
-        """
-        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
-
-    pods = [p for p in pods_all if _as_utc(p.last_heartbeat_at) >= cutoff]
+    pods = [p for p in pods_all if is_live(p, cutoff)]
     if not pods:
         return []
 
@@ -1363,10 +1262,10 @@ async def list_workers(
             pod_id=p.pod_id,
             git_sha=p.git_sha,
             app_version=p.app_version,
-            started_at=_as_utc(p.started_at),
-            last_heartbeat_at=_as_utc(p.last_heartbeat_at),
+            started_at=as_utc(p.started_at),
+            last_heartbeat_at=as_utc(p.last_heartbeat_at),
             heartbeat_age_seconds=int(
-                (now - _as_utc(p.last_heartbeat_at)).total_seconds()
+                (now - as_utc(p.last_heartbeat_at)).total_seconds()
             ),
             claimed_job_count=claimed_by_pod.get(p.pod_id, 0),
         )
@@ -1381,8 +1280,7 @@ async def job_stream_by_id(
     request: Request,
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Server-Sent Events endpoint to stream a single job update in real-time.
+    """Server-Sent Events endpoint to stream a single job update in real-time.
 
     Polls the database for status changes and sends updates to the client.
     Stream ends when the job is completed, failed, or the client disconnects.
@@ -1413,6 +1311,18 @@ async def job_stream_by_id(
         last_status = None
         last_message = None
         polls_after_completion = 0
+        # #2049 T7: the trace investigation found 16s gaps with zero bytes
+        # sent between polls with no state change -- long enough for a
+        # proxy idle-timeout to cut the connection silently. Mirrors
+        # pipeline_stream_by_id's existing "event: ping" heartbeat, which
+        # this endpoint never had.
+        seconds_since_heartbeat = 0
+        # #2049 T7-followup: this only advances in 2s (poll interval)
+        # increments, so a >=15 threshold's first reachable value is 16 --
+        # silently reproducing the exact 16s gap the trace flagged. 14 is
+        # the largest multiple-of-2-safe threshold that still guarantees
+        # a ping within <15s of quiet.
+        heartbeat_interval_seconds = 14
 
         while True:
             if await request.is_disconnected():
@@ -1446,6 +1356,8 @@ async def job_stream_by_id(
                 yield f"data: {json.dumps(current_status)}\n\n"
                 last_status = current_status
                 last_message = job.status_message
+                # A real event counts as keep-alive too — don't double-emit.
+                seconds_since_heartbeat = 0
 
             # If job is finished...
             if job.state == IngestionState.FINISHED:
@@ -1457,8 +1369,20 @@ async def job_stream_by_id(
                     break
 
             await asyncio.sleep(2)
+            seconds_since_heartbeat += 2
+            if seconds_since_heartbeat >= heartbeat_interval_seconds:
+                yield "event: ping\ndata: {}\n\n"
+                seconds_since_heartbeat = 0
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        # #2049 T7: no-cache so an intermediary never serves a stale poll
+        # from cache; X-Accel-Buffering:no so a buffering reverse proxy
+        # doesn't hold the whole stream before forwarding it, which would
+        # defeat SSE's point entirely.
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/active-pipelines", response_model=dict[int, str])
@@ -1605,14 +1529,14 @@ async def get_recalculation_status(
 
 @router.get("/pipelines", response_model=PipelineListResponse)
 async def list_pipelines(
-    state: Optional[str] = None,
-    job_type: Optional[str] = None,
-    module_type_id: Optional[int] = None,
-    year: Optional[int] = None,
-    has_errors: Optional[bool] = None,
-    since: Optional[datetime] = None,
-    until: Optional[datetime] = None,
-    q: Optional[str] = None,
+    state: str | None = None,
+    job_type: str | None = None,
+    module_type_id: int | None = None,
+    year: int | None = None,
+    has_errors: bool | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    q: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -1681,6 +1605,7 @@ async def list_pipelines(
                 crm_ids.add(crm)
     inst_by_crm = await _institutional_ids_for_crms(db, list(crm_ids))
 
+    stale_cutoff = stale_job_cutoff(get_settings().STALE_JOB_TIMEOUT_MINUTES)
     items: list[PipelineListItem] = []
     for group in groups:
         jobs = group["jobs"]
@@ -1741,10 +1666,16 @@ async def list_pipelines(
                         data_entry_type_id=j.data_entry_type_id,
                         data_entry_type_label=_det_label(j.data_entry_type_id),
                         year=j.year,
+                        created_at=j.created_at,
                         started_at=j.started_at,
                         finished_at=j.finished_at,
                         attempts=j.attempts,
-                        meta=_project_pipeline_meta(j.meta),
+                        worker=j.locked_by,
+                        is_stale=is_job_stale(j, stale_cutoff),
+                        meta=_project_pipeline_meta(
+                            j.meta,
+                            include_factor_errors=j.target_type == TargetType.FACTORS,
+                        ),
                     )
                     for j in jobs
                     if j.id is not None
@@ -1861,10 +1792,13 @@ async def pipeline_stream_by_id(
     # feel real-time, but spread the heartbeat across many polls so the
     # ping packet is rare.  Defaults match the existing job-stream poll.
     poll_interval_seconds = 2
-    heartbeat_interval_seconds = 15
+    # #2049 T7-followup: see job_stream_by_id's identical comment -- a
+    # >=15 threshold advancing in 2s steps only ever fires at 16s,
+    # reproducing the exact gap width #2049's trace flagged as the risk.
+    heartbeat_interval_seconds = 14
 
     async def event_generator():
-        last_snapshot: Optional[list[dict]] = None
+        last_snapshot: list[dict] | None = None
         polls_after_completion = 0
         seconds_since_heartbeat = 0
 
@@ -1958,7 +1892,12 @@ async def pipeline_stream_by_id(
                 yield "event: ping\ndata: {}\n\n"
                 seconds_since_heartbeat = 0
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        # #2049 T7: see job_stream_by_id's identical headers for why.
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post(
@@ -2019,7 +1958,9 @@ async def recalculate_emissions_for_type(
             detail="Failed to create recalculation job",
         )
 
-    fire_and_forget(run_job(created_job.id), name=f"run_job-{created_job.id}")
+    fire_and_forget_or_defer_to_poller(
+        run_job(created_job.id), name=f"run_job-{created_job.id}"
+    )
     return SyncStatusResponse(
         job_id=created_job.id,
         state=IngestionState.NOT_STARTED,
@@ -2118,7 +2059,9 @@ async def recalculate_emissions_for_module(
             detail="Failed to create recalculation job",
         )
 
-    fire_and_forget(run_job(created_job.id), name=f"run_job-{created_job.id}")
+    fire_and_forget_or_defer_to_poller(
+        run_job(created_job.id), name=f"run_job-{created_job.id}"
+    )
     n = len(det_ids)
     return SyncStatusResponse(
         job_id=created_job.id,
@@ -2138,8 +2081,7 @@ async def sync_units_from_accred(
     ),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Sync units from the caller's provider (Accred for ACCRED users,
+    """Sync units from the caller's provider (Accred for ACCRED users,
     fixture-backed for TEST users).
 
     Plan 310B Part 5 — creates a tracked DataIngestionJob (job_type=
@@ -2176,7 +2118,7 @@ async def sync_units_from_accred(
     # cutover: dispatch goes through the unified ``run_job`` runner —
     # the registered ``unit_sync_handler`` reads ``meta.config.target_year``
     # (set above) so the legacy ``SyncUnitRequest``-passing call is gone.
-    fire_and_forget(
+    fire_and_forget_or_defer_to_poller(
         run_job(created.id),
         name=f"run_job-{created.id}",
     )
@@ -2196,12 +2138,12 @@ async def recover_job(
         require_permission("backoffice.pipeline_operations", "edit")
     ),
 ):
-    """
-    Recover a job stuck in RUNNING after a pod crash.
+    """Recover a job stuck in RUNNING after a pod crash.
 
     Resets the job to NOT_STARTED and clears the lock. Only allowed
-    when ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` (default 30 min).
-
+    when ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` —
+    the same window the auto-recovery sweep and the console's stale
+    badge use, so the button only appears when this call will succeed.
     """
     settings = get_settings()
     repo = DataIngestionRepository(db)
@@ -2288,3 +2230,96 @@ async def get_stale_stats(
     """
     rows = await DataIngestionRepository(db).find_stale_aggregations(older_than_minutes)
     return [StaleStatsEntry(**row) for row in rows]
+
+
+class RecomputeStatsResponse(BaseModel):
+    """Result of the admin bulk stats-recompute trigger."""
+
+    dispatched: int
+    skipped: int
+    skipped_no_factors: int = 0
+    job_ids: list[int]
+
+
+async def _run_jobs_sequentially(job_ids: list[int]) -> None:
+    """Run a batch of aggregation jobs one at a time.
+
+    Jobs for the same year serialize on ``aggregation_handler``'s
+    ``pg_advisory_xact_lock(1236, year)`` regardless of dispatch order, so
+    firing them all concurrently only means every job but one sits blocked
+    on that lock while still holding its DB connections. Awaiting them in
+    sequence means only the currently-running job ever holds one.
+    """
+    for job_id in job_ids:
+        await run_job(job_id)
+
+
+@router.post("/admin/recompute-stats", response_model=RecomputeStatsResponse)
+async def recompute_stats(
+    year: int | None = Query(
+        None, description="Limit to a single year; omit to recompute every year."
+    ),
+    module_type_id: int | None = Query(
+        None, description="Limit to a single module type; omit for every module type."
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.pipeline_operations", "edit")
+    ),
+) -> RecomputeStatsResponse:
+    """Force a full stats recompute for every ``(module_type_id, year)`` scope.
+
+    Dispatches one root ``aggregation`` job per scope — the same handler the
+    recalc chain uses to write ``carbon_report_module.stats`` /
+    ``carbon_report.stats``, but with no ``affected_module_ids`` scoping, so
+    every module in the scope is recomputed rather than just the ones a
+    recalc flagged as touched.
+
+    Scopes with no current, successful FACTORS job are skipped outright
+    (counted in ``skipped_no_factors``): recomputing stats against missing
+    reference data just writes zeros, so there's nothing worth spending a
+    job — or a pooled DB connection — on.
+
+    Jobs for the same year are chained to run one at a time rather than
+    fired concurrently, since they'd only queue up behind each other's
+    Postgres advisory lock anyway; different years still dispatch in
+    parallel.
+
+    Needed after any change to what recompute_stats persists (e.g. a stats
+    JSON shape change): existing rows keep whatever an older deploy wrote
+    until something re-triggers their aggregation, and most reports won't
+    naturally get one soon.  The dedup index makes re-triggering a safe
+    no-op for scopes still in flight.
+    """
+    repo = DataIngestionRepository(db)
+    scopes = await repo.list_module_type_year_scopes(year, module_type_id)
+    scopes_with_factors = await repo.filter_scopes_with_current_factors(scopes)
+    skipped_no_factors = len(scopes) - len(scopes_with_factors)
+
+    jobs_by_year: dict[int, list[int]] = {}
+    job_ids: list[int] = []
+    for scope_module_type_id, scope_year in scopes_with_factors:
+        job_id = await repo.create_root_aggregation_job(
+            scope_module_type_id, scope_year, current_user.provider
+        )
+        if job_id is not None:
+            job_ids.append(job_id)
+            jobs_by_year.setdefault(scope_year, []).append(job_id)
+
+    # On an API pod this defers to the poller, which dispatches each job
+    # independently rather than sequentially — still safe: per the
+    # docstring above, same-year jobs already serialize behind each
+    # other's advisory lock, so independent dispatch only trades an
+    # explicit await chain for lock-wait time, not a correctness change.
+    for scope_year, year_job_ids in jobs_by_year.items():
+        fire_and_forget_or_defer_to_poller(
+            _run_jobs_sequentially(year_job_ids),
+            name=f"recompute-stats-{scope_year}",
+        )
+
+    return RecomputeStatsResponse(
+        dispatched=len(job_ids),
+        skipped=len(scopes_with_factors) - len(job_ids),
+        skipped_no_factors=skipped_no_factors,
+        job_ids=job_ids,
+    )

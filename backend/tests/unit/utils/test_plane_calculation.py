@@ -9,8 +9,9 @@ No DB or async fixture is needed — ``_apply_formula`` is pure arithmetic.
 
 import pytest
 
-from app.models.data_entry_emission import EmissionComputation, EmissionType
-from app.modules.professional_travel.schemas import ProfessionalTravelPlaneModuleHandler
+from app.models.data_entry_emission import EmissionComputation
+from app.modules.emissions import EmissionType
+from app.modules.professional_travel import ProfessionalTravelPlaneModuleHandler
 from app.services.data_entry_emission_service import DataEntryEmissionService
 
 # ---------------------------------------------------------------------------
@@ -19,10 +20,8 @@ from app.services.data_entry_emission_service import DataEntryEmissionService
 _EF = {
     ("short_to_medium_haul", "economy"): 0.2906,
     ("short_to_medium_haul", "business"): 0.4471,
-    ("short_to_medium_haul", "first"): 0.2906,
     ("medium_to_long_haul", "economy"): 0.1902,
     ("medium_to_long_haul", "business"): 0.3930,
-    ("medium_to_long_haul", "first"): 0.6056,
 }
 _RFI = 1.35
 
@@ -44,7 +43,7 @@ def _comp() -> EmissionComputation:
 
 
 # ---------------------------------------------------------------------------
-# 1. Formula correctness for all 6 factor combinations
+# 1. Formula correctness for all 4 factor combinations
 # ---------------------------------------------------------------------------
 
 
@@ -53,10 +52,8 @@ def _comp() -> EmissionComputation:
     [
         ("short_to_medium_haul", "economy", 506.0),  # GVA → CDG (haversine+95)
         ("short_to_medium_haul", "business", 506.0),
-        ("short_to_medium_haul", "first", 506.0),
         ("medium_to_long_haul", "economy", 5926.0),  # CDG → JFK
         ("medium_to_long_haul", "business", 5926.0),
-        ("medium_to_long_haul", "first", 5926.0),
     ],
 )
 def test_apply_formula_matches_spec(
@@ -77,31 +74,22 @@ def test_apply_formula_matches_spec(
 
 
 # ---------------------------------------------------------------------------
-# 2. Short-haul first == short-haul economy (same EF per spec)
+# 2. Short-haul economy formula at the reference distance
 # ---------------------------------------------------------------------------
 
 
-def test_short_haul_first_equals_short_haul_economy() -> None:
+def test_short_haul_economy_formula() -> None:
     distance_km = 500.0
+    ef = _EF[("short_to_medium_haul", "economy")]
     eco = _svc()._apply_formula(
         ctx={"distance_km": distance_km},
         factor_values={
-            "ef_kg_co2eq_per_km": _EF[("short_to_medium_haul", "economy")],
+            "ef_kg_co2eq_per_km": ef,
             "rfi_adjustment": _RFI,
         },
         comp=_comp(),
     )
-    first = _svc()._apply_formula(
-        ctx={"distance_km": distance_km},
-        factor_values={
-            "ef_kg_co2eq_per_km": _EF[("short_to_medium_haul", "first")],
-            "rfi_adjustment": _RFI,
-        },
-        comp=_comp(),
-    )
-    assert eco == pytest.approx(first, rel=1e-9), (
-        "Short-haul first class must use the same EF as economy per issue #863 spec"
-    )
+    assert eco == pytest.approx(distance_km * ef * _RFI, rel=1e-9)
 
 
 # ---------------------------------------------------------------------------
@@ -134,11 +122,11 @@ def test_business_emits_more_than_economy(category: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. Long-haul first is the highest emitter per km
+# 4. Long-haul business is the highest emitter per km
 # ---------------------------------------------------------------------------
 
 
-def test_long_haul_first_highest_emitter() -> None:
+def test_long_haul_business_highest_emitter() -> None:
     distance_km = 6000.0
     results = {
         cls: _svc()._apply_formula(
@@ -149,9 +137,9 @@ def test_long_haul_first_highest_emitter() -> None:
             },
             comp=_comp(),
         )
-        for cls in ("economy", "business", "first")
+        for cls in ("economy", "business")
     }
-    assert results["first"] > results["business"] > results["economy"], (
+    assert results["business"] > results["economy"], (
         f"Long-haul ranking wrong: {results}"
     )
 
@@ -185,7 +173,8 @@ def test_two_trips_doubles_emission() -> None:
 
 def test_resolve_computations_passes_cabin_class_as_subkind() -> None:
     """The handler must forward cabin_class as subkind so the factor repo
-    can match the right EF row (category × cabin_class)."""
+    can match the right EF row (category × cabin_class).
+    """
     handler = ProfessionalTravelPlaneModuleHandler()
 
     class _FakeEntry:
@@ -208,7 +197,7 @@ def test_resolve_computations_passes_cabin_class_as_subkind() -> None:
     )
 
 
-@pytest.mark.parametrize("cabin_class", ["economy", "business", "first"])
+@pytest.mark.parametrize("cabin_class", ["economy", "business"])
 def test_resolve_computations_all_classes(cabin_class: str) -> None:
     handler = ProfessionalTravelPlaneModuleHandler()
 
@@ -218,6 +207,6 @@ def test_resolve_computations_all_classes(cabin_class: str) -> None:
 
     ctx = {"haul_category": "medium_to_long_haul", "distance_km": 5926.0}
     computations = handler.resolve_computations(
-        _FakeEntry(), EmissionType.professional_travel__plane__first, ctx
+        _FakeEntry(), EmissionType.professional_travel__plane__business, ctx
     )
     assert computations[0].factor_query.subkind == cabin_class

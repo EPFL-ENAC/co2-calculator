@@ -1,7 +1,8 @@
 # ADR-014: Security Checklist
 
 **Status**: Accepted  
-**Date**: 2026-02-16 \n**Deciders**: Development Team
+**Date**: 2026-02-16<br/>
+**Deciders**: Development Team
 
 ---
 
@@ -19,9 +20,9 @@
 
 #### Development Phase
 
-- [ ] Add or update `.github/dependabot.yml` with appropriate ecosystems and update schedule (e.g., `weekly`).
-- [x] Configure Dependabot settings in repository.
-- [ ] Assign a maintainer to be responsible for managing dependabot alerts and PRs.
+- [x] Add or update `.github/dependabot.yml` with appropriate ecosystems and update schedule (e.g., `weekly`). — [`.github/dependabot.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/dependabot.yml)
+- [x] Configure Dependabot settings in repository. — repository Security settings — Dependabot alerts and security updates enabled
+- [x] Assign a maintainer to be responsible for managing dependabot alerts and PRs. — [`.github/CODEOWNERS`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/CODEOWNERS)
 
 #### Exploitation Phase
 
@@ -80,10 +81,10 @@
 
 #### Development Phase
 
-- [x] Add a `codeql-analysis.yml` workflow under `.github/workflows`.
-- [x] Configure security scanning tools and integration.
-- [ ] Set up scheduled periodic scans.
-- [ ] Ensure secret scanning is enabled in the repository's Security tab.
+- [x] Add a `codeql-analysis.yml` workflow under `.github/workflows`. — [`security.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/security.yml)
+- [x] Configure security scanning tools and integration. — [`security.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/security.yml)
+- [x] Set up scheduled periodic scans. — [`security.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/security.yml) weekly, [`image-vulnerability-scan.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/image-vulnerability-scan.yml) weekly
+- [x] Ensure secret scanning is enabled in the repository's Security tab. — repository Security settings — secret scanning and push protection both enabled
 
 #### Exploitation Phase
 
@@ -134,11 +135,11 @@
 
 #### Development Phase
 
-- [ ] Enable branch protection in repo settings:
-  - [ ] Require pull request reviews
-  - [ ] Require passing status checks before merge
-- [ ] Add security guidance to the pull request template.
-- [ ] Define code review guidelines with security focus.
+- [x] Enable branch protection in repo settings — `dev` and `release-line` rulesets, both active:
+  - [x] Require pull request reviews — `dev` and `release-line` rulesets, 1 approval plus code-owner review
+  - [x] Require passing status checks before merge — `Backend Lint/Type Check`, `Frontent Lint/Type Check`, `Backend Tests`, `Frontend Tests`, `Backend Migration Smoke`
+- [x] Add security guidance to the pull request template. — [`PULL_REQUEST_TEMPLATE.md`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/PULL_REQUEST_TEMPLATE.md)
+- [x] Define code review guidelines with security focus. — [Code standards § Security](../architecture/code-standards.md), [Guardrails](../contributing/guardrails.md)
 
 #### Exploitation Phase
 
@@ -187,12 +188,12 @@
 
 #### Development Phase
 
-- [ ] Design and implement centralized authentication logic.
-- [ ] Add tests for:
-  - [ ] Missing or invalid authentication tokens
-  - [ ] Incorrect role/claim combinations
-  - [ ] Unauthorized access attempts
-- [ ] Document authentication assumptions and architecture.
+- [x] Design and implement centralized authentication logic. — [`app/core/security.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/app/core/security.py) — `is_permitted`, `check_permission`, `require_permission`
+- [x] Add tests for:
+  - [x] Missing or invalid authentication tokens — [`test_auth_security.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/tests/integration/v1/test_auth_security.py) — `test_jwt_alg_none_rejected`, `test_jwt_tampered_signature_rejected`, `test_jwt_expired_rejected`
+  - [x] Incorrect role/claim combinations — [`test_auth_security.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/tests/integration/v1/test_auth_security.py) — `test_jwt_with_swapped_institutional_id_rejected`, `test_me_rejects_unknown_provider_int`
+  - [x] Unauthorized access attempts — [`test_permission_scope_e2e.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/tests/integration/v1/test_permission_scope_e2e.py), [`test_security_gates.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/tests/unit/core/test_security_gates.py) — `test_principal_on_other_unit_denied`, `test_no_roles_denied`, `test_check_permission_raises_403_when_denied`
+- [x] Document authentication assumptions and architecture. — [Auth flow § Trust boundaries](../architecture/04-auth-flow.md)
 
 #### Exploitation Phase
 
@@ -299,10 +300,10 @@ Reduce the risk of vulnerabilities and misconfigurations in container images dep
 
 #### Development Phase
 
-- [ ] Review and document the base images used for backend and frontend containers.
-- [ ] Enforce non-root execution in Dockerfiles (e.g. avoid `USER root`).
-- [ ] Integrate automated container image vulnerability scanning in CI (e.g. Trivy or equivalent).
-- [ ] Configure CI to fail builds when critical container vulnerabilities are detected.
+- [x] Review and document the base images used for backend and frontend containers. — [`backend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/Dockerfile), [`frontend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/Dockerfile)
+- [x] Enforce non-root execution in Dockerfiles (e.g. avoid `USER root`). — [`backend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/Dockerfile) runs `USER appuser`; [`frontend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/Dockerfile) uses `nginx-unprivileged`
+- [x] Integrate automated container image vulnerability scanning in CI (e.g. Trivy or equivalent). — [`deploy.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/deploy.yml), [`image-vulnerability-scan.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/image-vulnerability-scan.yml)
+- [x] Configure CI to fail builds when critical container vulnerabilities are detected. — [`deploy.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/deploy.yml) sets `skip_vulnerability_scan: false` — HIGH/CRITICAL block the push
 - [ ] Test containers under OpenShift Security Context Constraints.
 
 #### Exploitation Phase
@@ -361,8 +362,12 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 
 ### Required Documentation
 
+All ten are indexed, with their current state, in
+[Security Documentation Index](../architecture/security-documentation.md).
+
 1. **Encryption Keys Management**
    - Technical and organizational measures to guarantee availability, confidentiality, and integrity of encryption keys used in the codebase (if applicable)
+   - Delivered: [Encryption and Key Management](../architecture/encryption.md) — also answers the transfer-encryption requirement and records the known gaps
 
 2. **Operating Procedures**
    - Document security procedures, keep them updated, and make them available to team members
@@ -399,13 +404,14 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 
 #### Development Phase
 
-- [x] Create documentation structure and templates.
-- [x] Document current authentication/authorization architecture.
-- [ ] Create incident response procedure document.
-- [ ] Document change management process.
-- [ ] Create security requirements compliance checklist.
-- [ ] Document all third-party dependencies.
-- [ ] Establish documentation ownership and review schedule.
+- [x] Create documentation structure and templates. — [Documentation standards](../architecture/documentation-standards.md)
+- [x] Document current authentication/authorization architecture. — [Auth flow](../architecture/04-auth-flow.md), [ADR-012](012-jwt-authentication-strategy.md)
+- [x] Document encryption in transfer and encryption key management. — [Encryption and Key Management](../architecture/encryption.md)
+- [x] Create incident response procedure document. — [Incident Response](../architecture/incident-response.md)
+- [x] Document change management process. — [Guardrails § Workflow](../contributing/guardrails.md), [Release management](../architecture/release-management.md)
+- [x] Create security requirements compliance checklist. — [EPFL compliance mapping](../architecture/epfl-compliance-mapping.md), this ADR
+- [x] Document all third-party dependencies. — [Security documentation index § Third parties](../architecture/security-documentation.md#third-parties)
+- [x] Establish documentation ownership and review schedule. — [Security documentation index § Ownership](../architecture/security-documentation.md#ownership-and-review-cadence)
 
 #### Exploitation Phase
 
@@ -460,7 +466,37 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 
 ---
 
-## 8. Links
+## 8. Verification log
+
+Every ticked box above carries its own evidence inline — a file, a
+workflow, or a named test. A box with no reference next to it has not
+been verified, and should not be ticked.
+
+Last full pass: **2026-08-24**.
+
+Still open, with the reason:
+
+- **Recovery objectives are best-effort, not agreed** — see
+  [Security documentation index § Recovery objectives](../architecture/security-documentation.md#recovery-objectives).
+  Detection is measured; database restore depends on EPFL DSI, and
+  deleted objects are not recoverable.
+
+### Accepted risks
+
+- **`dev` ruleset bypass (accepted 2026-08-24, revisit at delivery).**
+  Two repository roles bypass the `dev` ruleset unconditionally, so
+  required status checks and review do not gate those users on `dev`.
+  Accepted deliberately for the current fast-delivery phase; `stage`
+  and `main` are not affected. Revisit when the project is delivered.
+  The fix is to switch those bypass actors from `always` to
+  `pull_request` mode.
+
+Every remaining Exploitation Phase box is a recurring process, not a
+one-time task. They are tracked by the cadence table in the
+[Security Documentation Index](../architecture/security-documentation.md#ownership-and-review-cadence),
+not by ticking them here.
+
+## 9. Links
 
 - [Security documentation repo](https://github.com/EPFL-ENAC/co2-calculator-security-doc)
 - [Workflow schedule](https://github.com/marketplace/actions/schedule-workflow)

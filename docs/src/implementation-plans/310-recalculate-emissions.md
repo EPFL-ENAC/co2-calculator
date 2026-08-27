@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 310
 last_updated: 2026-04-10
 title: 'Plan: Manual emission recalculation endpoint with "needs recalculation" status'

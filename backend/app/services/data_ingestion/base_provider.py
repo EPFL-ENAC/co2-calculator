@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 class DataIngestionProvider(ABC):
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         user: User | None = None,
         job_session: AsyncSession | None = None,
         *,
@@ -34,8 +34,8 @@ class DataIngestionProvider(ABC):
         self.user = user
         self.job_session = job_session  # For job status updates (frequent commits)
         self.data_session = data_session  # For data operations (atomic commit)
-        self.job_id: Optional[int] = None
-        self.job: Optional[DataIngestionJob] = None
+        self.job_id: int | None = None
+        self.job: DataIngestionJob | None = None
         # Plan 310-C: when the runner drives dispatch, it owns the
         # FINISHED transition (so finished_at, the preempt-check, and
         # factor_ingest's chain-job fan-out all happen in the right
@@ -48,22 +48,108 @@ class DataIngestionProvider(ABC):
     async def set_job_id(self, job_id: int):
         self.job_id = job_id
 
+    @property
+    def files_store(self) -> Any:
+        """File storage backend for the move helpers below.
+
+        Not abstract: only the CSV-provider subclasses that call
+        ``_move_to_processing``/``_move_to_processed`` override this (each
+        lazily constructs its own); API-based providers never touch file
+        storage and have no reason to implement it.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not provide a files_store"
+        )
+
+    async def _move_to_processing(self, tmp_path: str) -> str:
+        """Move an uploaded file from ``tmp/`` to ``processing/<job_id>/``.
+
+        Idempotent: if a prior attempt already produced the destination
+        (job crashed/restarted after the move but before FINISHED, then
+        ``sweep_stuck_running_jobs`` reset it to NOT_STARTED for retry),
+        skip the move instead of failing on a tmp source the first
+        attempt already consumed (#1559). A destination that's still
+        missing means the move genuinely needs to happen; any failure
+        there still raises.
+        """
+        filename = tmp_path.split("/")[-1]
+        processing_path = f"processing/{self.job_id}/{filename}"
+        if await self.files_store.file_exists(processing_path):
+            logger.info(
+                f"File already at {processing_path} (prior attempt); skipping move"
+            )
+            return processing_path
+        logger.info(f"Moving file from {tmp_path} to {processing_path}")
+        if not await self.files_store.move_file(tmp_path, processing_path):
+            raise Exception(
+                f"Failed to move file from {tmp_path} to {processing_path}: "
+                f"{await self._diagnose_move_failure(tmp_path)}"
+            )
+        return processing_path
+
+    async def _diagnose_move_failure(self, source_path: str) -> str:
+        """Best-effort detail for a failed move, since ``FilesStore.move_file``
+        (vendored ``enacit4r-files``) swallows the real storage exception and
+        returns a bare ``False`` (#2220). Distinguishing "source already gone"
+        from "source still present, storage error" is the most we can add
+        without patching that dependency.
+
+        Note: this check is itself another existence probe on ``source_path``
+        — on an S3 backend, a "source already gone" case surfaces as one more
+        ``HeadObject`` 404, same as the routine idempotency check above. That
+        is expected here (failure path only) and shouldn't be alerted on any
+        more than the routine check should.
+        """
+        if not await self.files_store.file_exists(source_path):
+            return (
+                f"source {source_path} no longer exists (likely already "
+                "consumed by a concurrent or prior attempt)"
+            )
+        return (
+            f"source {source_path} is still present; the storage backend's "
+            "move_file failed for an unreported reason — see its logs"
+        )
+
+    async def _move_to_processed(self, processing_path: str) -> str:
+        """Move an ingested file from ``processing/`` to ``processed/<job_id>/``.
+
+        Idempotent like ``_move_to_processing``. Unlike that move, a
+        failure here is non-fatal — the data is already committed, only
+        archival bookkeeping is at stake — so it logs and returns the
+        un-moved ``processing_path`` instead of raising.
+        """
+        filename = processing_path.split("/")[-1]
+        processed_path = f"processed/{self.job_id}/{filename}"
+        if await self.files_store.file_exists(processed_path):
+            logger.info(
+                f"File already at {processed_path} (prior attempt); skipping move"
+            )
+            return processed_path
+        logger.info(f"Moving file from {processing_path} to {processed_path}")
+        if not await self.files_store.move_file(processing_path, processed_path):
+            logger.warning(
+                f"Failed to move file from {processing_path} to {processed_path}: "
+                f"{await self._diagnose_move_failure(processing_path)}"
+            )
+            return processing_path
+        return processed_path
+
     @abstractmethod
     async def validate_connection(self) -> bool:
         pass
 
     @abstractmethod
-    async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         pass
 
     async def create_job(
@@ -71,11 +157,11 @@ class DataIngestionProvider(ABC):
         ingestion_method: IngestionMethod,
         entity_type: EntityType,
         target_type: TargetType,
-        module_type_id: Optional[ModuleTypeEnum] = None,
-        data_entry_type_id: Optional[int] = None,
-        year: Optional[int] = None,
+        module_type_id: ModuleTypeEnum | None = None,
+        data_entry_type_id: int | None = None,
+        year: int | None = None,
         factor_type_id: FactorType | None = None,
-        config: Dict[str, Any] | None = None,
+        config: dict[str, Any] | None = None,
         db: AsyncSession | None = None,
         request_context: dict | None = None,
     ) -> int:
@@ -140,7 +226,10 @@ class DataIngestionProvider(ABC):
         await audit_service.create_version(
             entity_type="DataIngestionJob",
             entity_id=self.job_id,
-            data_snapshot=job.model_dump(),
+            # mode="json" so datetime columns (created_at is stamped at
+            # insert) serialize to ISO strings — the audit row stores the
+            # snapshot in a JSON column with the stdlib encoder.
+            data_snapshot=job.model_dump(mode="json"),
             change_type=AuditChangeTypeEnum.CREATE,
             changed_by=changed_by,
             change_reason=f"Data ingestion job created via {ingestion_method.value}",
@@ -151,14 +240,15 @@ class DataIngestionProvider(ABC):
             route_payload=request_context.get("route_payload")
             if request_context
             else None,
+            entity_is_new=True,
         )
 
         return self.job_id
 
     async def ingest(
         self,
-        filters: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         try:
             await self._update_job(
                 status_message="processing",
@@ -208,8 +298,8 @@ class DataIngestionProvider(ABC):
         self,
         status_message: str,
         extra_metadata: dict | None = None,
-        state: Optional[IngestionState] = None,
-        result: Optional[IngestionResult] = None,
+        state: IngestionState | None = None,
+        result: IngestionResult | None = None,
     ):
         # Only store essential config fields to avoid recursive nesting
         # (self.config may contain snapshots of previous meta, causing
@@ -247,7 +337,7 @@ class DataIngestionProvider(ABC):
         write_state = state
         write_result = result
         write_completed_at: datetime | None = (
-            datetime.now(timezone.utc) if state in (IngestionState.FINISHED,) else None
+            datetime.now(UTC) if state in (IngestionState.FINISHED,) else None
         )
         if self.defer_finalize and state == IngestionState.FINISHED:
             write_state = None
@@ -284,11 +374,10 @@ class DataIngestionProvider(ABC):
         status_message: str,
         metadata: dict | None = None,
         completed_at: datetime | None = None,
-        state: Optional[IngestionState] = None,
-        result: Optional[IngestionResult] = None,
-    ) -> Optional[DataIngestionJob]:
-        """
-        Update ingestion job and keep self.job in sync.
+        state: IngestionState | None = None,
+        result: IngestionResult | None = None,
+    ) -> DataIngestionJob | None:
+        """Update ingestion job and keep self.job in sync.
         Use when working with an existing repository/session
         (e.g., in self.data_session).
         Returns the updated job object.

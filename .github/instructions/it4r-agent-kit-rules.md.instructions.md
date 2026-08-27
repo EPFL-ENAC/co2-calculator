@@ -1,0 +1,1 @@
+../../docs/src/contributing/it4r-rules.md

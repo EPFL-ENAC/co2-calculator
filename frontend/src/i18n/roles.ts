@@ -1,15 +1,15 @@
-import { ROLES } from 'src/constant/roles';
+import { ROLES } from '@/constant/roles';
 
 // Single source of truth for role display names and descriptions.
 // Names are keyed by the role string so `$t(role)` resolves directly.
 export default {
   [ROLES.StandardUser]: {
     en: 'Standard User',
-    fr: 'Utilisateur Standard',
+    fr: 'Utilisateur·rice Standard',
   },
   [ROLES.PrincipalUser]: {
     en: 'Principal User',
-    fr: 'Utilisateur Principal',
+    fr: 'Utilisateur·rice Principal·e',
   },
   [ROLES.BackOfficeMetier]: {
     en: 'Back-Office Standard',
@@ -25,11 +25,11 @@ export default {
   },
   role_principal_description: {
     en: 'Unit manager with full access to all modules for their unit, and can assign Standard User roles',
-    fr: 'Responsable d’unité avec accès complet à tous les modules de son unité, et pouvant attribuer le rôle Utilisateur Standard',
+    fr: 'Responsable d’unité avec accès complet à tous les modules de son unité, et pouvant attribuer le rôle Utilisateur·rice Standard',
   },
   role_backoffice_description: {
     en: 'Day-to-day back-office operations: reporting, user management, documentation',
-    fr: 'Opérations courantes du back-office : reporting, gestion des utilisateurs, documentation',
+    fr: 'Opérations courantes du back-office : reporting, gestion des utilisateur·rices, documentation',
   },
   role_superadmin_description: {
     en: 'Full back-office access including sensitive configuration and pipeline controls',

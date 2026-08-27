@@ -15,11 +15,12 @@ from app.core.constants import ModuleStatus
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.unit import Unit
 from app.models.unit_user import UnitUser
 from app.models.user import RoleName, User, UserProvider
+from app.modules.emissions import EmissionType
 
 # Test database URL (use in-memory SQLite for tests)
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
@@ -36,11 +37,29 @@ def pytest_configure():
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
+    # Settings.settings_customise_sources makes a local .env file win over
+    # process env vars (dev convenience, #1153). Tests must not depend on
+    # whatever happens to be in a developer's .env, and must be able to
+    # reliably blank a setting via monkeypatch.setenv to exercise
+    # fail-closed paths (e.g. test_fails_closed_without_key). Disabling
+    # dotenv loading for the whole session makes pytest-env's `env = [...]`
+    # values (pyproject.toml) and monkeypatch the only sources, in every
+    # environment, with or without a local .env.
+    from app.core.config import Settings
+
+    Settings.model_config["env_file"] = None
+
 
 @pytest.fixture(autouse=True)
 def disable_poller(monkeypatch):
-    """Disable the background poller for all tests."""
+    """Disable the background pollers for all tests.
+
+    No current test drives app.main's lifespan (TestClient calls hit
+    route functions directly), so this is belt-and-suspenders rather
+    than load-bearing today — kept for the day a test does.
+    """
     monkeypatch.setattr("app.main.settings.RUN_BACKGROUND_POLLER", False)
+    monkeypatch.setattr("app.main.settings.RUN_DB_HEALTH_POLLER", False)
 
 
 # ---------------------------------------------------------------------------

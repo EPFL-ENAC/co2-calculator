@@ -1,4 +1,9 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES } from '@/constant/modules';
+
+// Toggled independently from the rest of Buildings — see
+// MODULE_SUBMODULES[MODULES.Buildings] below.
+export const BUILDING_EMBODIED_ENERGY_SUBMODULE_KEY =
+  'building_embodied_energy';
 
 export type SubmoduleConfig = {
   key: string;
@@ -12,11 +17,9 @@ export type SubmoduleConfig = {
   isDisabled?: true;
   headerIcon?: string;
   descriptionKey?: string;
-  factorsOnly?: true;
   mandatoryData?: boolean;
   mandatoryReference?: boolean;
   noThreshold?: true;
-  forceInputsDeactivated?: true;
 };
 
 export const MODULE_SUBMODULES: Partial<
@@ -28,6 +31,7 @@ export const MODULE_SUBMODULES: Partial<
       labelKey: `${MODULES.Headcount}-member`,
       moduleTypeId: 1,
       dataEntryTypeId: 1,
+      hasApi: true,
       noThreshold: true,
     },
     {
@@ -77,12 +81,11 @@ export const MODULE_SUBMODULES: Partial<
       dataEntryTypeId: 31,
     },
     {
-      key: 'building_embodied_energy',
+      key: BUILDING_EMBODIED_ENERGY_SUBMODULE_KEY,
       labelKey: 'data_management_submodule_buildings_construction_renovation',
       moduleTypeId: 3,
       dataEntryTypeId: 32,
       noData: true,
-      factorsOnly: true,
     },
   ],
   [MODULES.ProcessEmissions]: [
@@ -177,8 +180,8 @@ export const MODULE_SUBMODULES: Partial<
       noFactors: true,
     },
     {
-      key: 'additional_purchases',
-      labelKey: 'data_management_submodule_additional_purchases',
+      key: 'purchases_centralized',
+      labelKey: 'data_management_submodule_purchases_centralized',
       moduleTypeId: 5,
       dataEntryTypeId: 67,
     },
@@ -189,14 +192,13 @@ export const MODULE_SUBMODULES: Partial<
       labelKey: 'data_management_submodule_research_facilities',
       moduleTypeId: 6,
       dataEntryTypeId: 70,
-      forceInputsDeactivated: true,
+      hasApi: true,
     },
     {
-      key: 'mice_and_fish_animal_facilities',
+      key: 'animal_facilities',
       labelKey: 'data_management_submodule_animal_facilities',
       moduleTypeId: 6,
       dataEntryTypeId: 71,
-      forceInputsDeactivated: true,
     },
   ],
   [MODULES.ExternalCloudAndAI]: [

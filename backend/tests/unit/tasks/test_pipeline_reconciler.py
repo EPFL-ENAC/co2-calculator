@@ -35,10 +35,15 @@ async def test_loop_calls_reconcile_and_sleeps():
         sleep_called.set()
         raise asyncio.CancelledError()  # break out after one tick
 
+    orphan_backfill = AsyncMock(return_value=1)
     with (
         patch("app.tasks._pipeline_reconciler.DataIngestionRepository") as repo_cls,
         patch("app.tasks._pipeline_reconciler.SessionLocal") as session_cls,
         patch("app.tasks._pipeline_reconciler.asyncio.sleep", side_effect=fake_sleep),
+        patch(
+            "app.tasks._pipeline_reconciler._recover_orphan_aggregations",
+            orphan_backfill,
+        ),
     ):
         repo_cls.return_value.reconcile_pipeline_statuses = AsyncMock(
             return_value={"checked": 3, "corrected": 1}
@@ -52,12 +57,15 @@ async def test_loop_calls_reconcile_and_sleeps():
 
     assert sleep_called.is_set()
     repo_cls.return_value.reconcile_pipeline_statuses.assert_awaited_once()
+    # fired=1 → the backfill INFO branch runs inside the sweep span.
+    orphan_backfill.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_loop_survives_sweep_exception():
     """A raised exception from ``reconcile_pipeline_statuses`` does NOT
-    kill the loop — the next iteration runs as usual."""
+    kill the loop — the next iteration runs as usual.
+    """
     from app.tasks._pipeline_reconciler import reconcile_pipeline_statuses_loop
 
     call_count = {"n": 0}
@@ -94,7 +102,8 @@ async def test_loop_survives_sweep_exception():
 @pytest.mark.asyncio
 async def test_loop_skips_info_log_on_quiet_sweep(caplog):
     """corrected=0 → no INFO log (otherwise the cron would spam at 60s
-    cadence in steady state)."""
+    cadence in steady state).
+    """
     from app.tasks._pipeline_reconciler import reconcile_pipeline_statuses_loop
 
     async def fake_sleep(*_a, **_kw):

@@ -8,13 +8,16 @@ and identify areas needing approval or exceptions.
 
 ## TL;DR
 
-We meet **all mandatory (P0) requirements** except one: we
-use PostgreSQL instead of MariaDB/SQL Server. An exception
-request is needed. Most recommended (P1) features are
-implemented.
+We meet **all mandatory (P0) requirements** except two: we
+use PostgreSQL instead of MariaDB/SQL Server (an exception
+request is needed), and transfer encryption is not enforced
+end to end. Most recommended (P1) features are implemented.
 
-**Status**: ✅ P0: 8/9 (89%) | ✅ P1: 4/5 (80%) |
+**Status**: ⚠️ P0: 8/10 (80%) | ✅ P1: 4/5 (80%) |
 ⚠️ P2: 1/3 (33%)
+
+> **⚠️ This page has further stale claims** (Azure references,
+> unverified retention figures) that need a separate pass.
 
 ## Authentication and Authorization (SVC0018)
 
@@ -60,7 +63,7 @@ Container Registry (ghcr.io).
 
 **Base Images**:
 
-- Backend: Python 3.12 on Debian Bookworm (slim)
+- Backend: Python 3.14 on Alpine Linux
 - Frontend: Nginx on Alpine Linux
 - Database: PostgreSQL 16 official image
 
@@ -103,20 +106,36 @@ meets all security and backup requirements.
 **Container Scanning**: Trivy scans in CI/CD pipeline plus
 GitHub Security Scanning for dependencies.
 
-**File Uploads**: Stored in Azure Blob Storage. Processed
-in isolated worker containers. No executable files allowed.
+**File Uploads**: Stored in EPFL-hosted S3-compatible object
+storage, encrypted by the application before upload. Processed
+in isolated worker containers. CSV only.
+
+## Encryption (transfer and keys)
+
+**Status**: ⚠️ **PARTIAL** (P0)
+
+Encryption is active on every external hop — TLS 1.3
+throughout, verified against each database — and keys are held
+in ENAC-IT's Infisical vault. Two gaps remain: the database
+connection negotiates TLS without pinning it via `sslmode`, and
+intra-cluster traffic is segmented by NetworkPolicy rather than
+encrypted.
+
+**Reference**: [Encryption and Key Management](encryption.md)
 
 ## Backup (SVC0003)
 
 **Status**: ✅ **COMPLIANT** (P0)
 
-| Type           | Method                            | Retention             | Testing         |
-| -------------- | --------------------------------- | --------------------- | --------------- |
-| Database       | PostgreSQL WAL + daily full       | 30d daily, 1y monthly | Monthly restore |
-| Object Storage | Azure geo-redundant + soft delete | 30d soft delete       | Version history |
+| Type           | Method                                             | Retention                                | Testing         |
+| -------------- | -------------------------------------------------- | ---------------------------------------- | --------------- |
+| Database       | PostgreSQL WAL + daily full                        | 30d daily, 1y monthly                    | Monthly restore |
+| Object Storage | EPFL-hosted S3, encryption enabled at provisioning | Not versioned by decision — staging only | n/a             |
 
-**Recovery**: Point-in-time recovery capability with
-documented procedures in Helm charts.
+**Recovery**: Database restore is requested from EPFL DSI;
+procedures are in the Disaster Recovery Plan in the private ops
+repository. Its restore template still carries `SLA: ?`, `RPO: ?`,
+`RTO: ?` — no recovery timeframe is agreed yet.
 
 ## Logging and Monitoring
 

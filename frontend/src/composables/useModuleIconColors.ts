@@ -2,7 +2,7 @@ import {
   CHART_CATEGORY_COLOR_SCALES,
   MODULE_TO_CATEGORIES,
   colors,
-} from 'src/constant/charts';
+} from '@/constant/charts';
 
 function lerpHex(a: string, b: string, t: number): string {
   const mix = (i: number) => {
@@ -17,10 +17,23 @@ function lerpHex(a: string, b: string, t: number): string {
 
 // Maps submodule type identifiers to their specific chart category.
 // Only needed where a module has multiple submodules with different color scales.
-const SUBMODULE_TO_CATEGORY: Record<string, string> = {
+// Exported so callers needing the inverse (category → submodule, e.g. the
+// icon-axis on ModuleCarbonFootprintChart) derive it instead of hand-maintaining
+// a second map that can silently drift out of sync.
+export const SUBMODULE_TO_CATEGORY: Record<string, string> = {
   building: 'buildings_room',
   energy_combustion: 'buildings_energy_combustion',
 };
+
+// Inverse of SUBMODULE_TO_CATEGORY — lets a category key be traced back to
+// the submodule key that must also be active (e.g. results charts hiding a
+// category when its submodule is deactivated in the back-office).
+export const CATEGORY_TO_SUBMODULE: Record<string, string> = Object.fromEntries(
+  Object.entries(SUBMODULE_TO_CATEGORY).map(([submodule, category]) => [
+    category,
+    submodule,
+  ]),
+);
 
 export interface ModuleIconColors {
   iconColor: string;

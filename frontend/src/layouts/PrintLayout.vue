@@ -7,7 +7,7 @@
 </template>
 
 <script setup lang="ts">
-import { providePrintMode } from 'src/composables/print/usePrintMode';
+import { providePrintMode } from '@/composables/print/usePrintMode';
 
 providePrintMode(true);
 </script>
@@ -25,6 +25,18 @@ body {
 @media print {
   body {
     background: white !important;
+  }
+
+  /* Quasar sizes QLayout to 100vh and adds inline offset padding to
+     QPageContainer for the (now hidden) header/footer. Left as-is, that
+     overflows the content onto a trailing blank sheet. */
+  .q-layout,
+  .q-page-container {
+    min-height: 0 !important;
+  }
+
+  .q-page-container {
+    padding: 0 !important;
   }
 }
 </style>

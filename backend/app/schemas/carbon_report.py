@@ -1,7 +1,5 @@
 """Carbon report schemas for API request/response validation."""
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 from app.core.constants import ModuleStatus
@@ -11,9 +9,12 @@ class CarbonReportBase(BaseModel):
     """Base carbon report schema."""
 
     year: int
-    reference_year: Optional[int] = None
+    reference_year: int | None = None
     unit_id: int
-    carbon_project_id: Optional[int] = None
+    carbon_project_id: int | None = None
+    is_grant: bool = False
+    budget: float | None = None
+    budget_currency: str | None = None
 
 
 class CarbonReportCreate(CarbonReportBase):
@@ -26,9 +27,9 @@ class CarbonReportRead(CarbonReportBase):
     """Schema for reading a carbon report."""
 
     id: int
-    stats: Optional[dict] = None
-    last_updated: Optional[int] = None
-    completion_progress: Optional[str] = None
+    stats: dict | None = None
+    last_updated: int | None = None
+    completion_progress: str | None = None
     overall_status: int = ModuleStatus.NOT_STARTED
 
     class Config:
@@ -38,10 +39,10 @@ class CarbonReportRead(CarbonReportBase):
 class CarbonReportUpdate(BaseModel):
     """Schema for updating a carbon report."""
 
-    year: Optional[int] = None
-    reference_year: Optional[int] = None
-    unit_id: Optional[int] = None
-    carbon_project_id: Optional[int] = None
+    year: int | None = None
+    reference_year: int | None = None
+    unit_id: int | None = None
+    carbon_project_id: int | None = None
 
 
 # CarbonReportModule schemas
@@ -66,7 +67,9 @@ class CarbonReportModuleRead(BaseModel):
     carbon_report_id: int
     module_type_id: int
     status: int
-    stats: Optional[dict] = None
+    is_active: bool = True
+    budgets: dict[str, float] | None = None
+    stats: dict | None = None
 
     class Config:
         from_attributes = True
@@ -81,3 +84,36 @@ class CarbonReportModuleUpdate(BaseModel):
         le=ModuleStatus.VALIDATED,
         description="Module status: 0=not_started, 1=in_progress, 2=validated",
     )
+
+
+class CarbonReportModuleActiveUpdate(BaseModel):
+    """Schema for toggling a module's Active flag (Simulator Plan)."""
+
+    is_active: bool
+
+
+class CarbonReportBudgetUpdate(BaseModel):
+    """Schema for setting a Project Grant report's total budget (#1978).
+
+    ``budget_currency`` is a lowercase code from the purchase module's
+    currency set; like purchase entries it is not validated server-side.
+    """
+
+    budget: float | None = Field(default=None, ge=0)
+    budget_currency: str | None = Field(default=None, min_length=3, max_length=8)
+
+
+class CarbonReportReferencePercentageUpdate(BaseModel):
+    """Schema for the grant equipment global percentage (#1981)."""
+
+    percentage: float = Field(ge=0, le=100)
+
+
+class CarbonReportSubmoduleBudgetUpdate(BaseModel):
+    """Schema for setting a grant submodule's share of the budget (#1978).
+
+    A null ``budget`` clears the submodule's entry.
+    """
+
+    submodule: str = Field(min_length=1, max_length=100)
+    budget: float | None = Field(default=None, ge=0)

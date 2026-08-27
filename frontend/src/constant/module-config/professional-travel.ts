@@ -1,7 +1,40 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { MODULES, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
-import { formatTonnesCO2 } from 'src/utils/number';
-import type { ProfessionalTravelSubType } from 'src/constant/modules';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { MODULES, MODULES_THRESHOLD_TYPES } from '@/constant/modules';
+import { formatTonnesCO2 } from '@/utils/number';
+import type { ProfessionalTravelSubType } from '@/constant/modules';
+import {
+  PLANE_CABIN_CLASSES,
+  TRAIN_CABIN_CLASSES,
+} from '@/types/module-lookups.gen';
+
+// Generated values, hand-kept labels — a backend cabin-class addition/removal
+// fails typecheck here rather than drifting silently.
+const PLANE_CABIN_CLASS_LABELS: Record<
+  (typeof PLANE_CABIN_CLASSES)[number],
+  string
+> = {
+  business: 'charts-business-class-subcategory',
+  economy: 'charts-eco-class-subcategory',
+};
+
+const TRAIN_CABIN_CLASS_LABELS: Record<
+  (typeof TRAIN_CABIN_CLASSES)[number],
+  string
+> = {
+  first: 'class_1',
+  second: 'class_2',
+};
+
+// "Other traveler" sentinels + resolver live in a standalone light module so
+// they stay unit-testable (issue #1153); re-exported here for convenience.
+import { TRAVELER_OTHER_INTERNAL } from '@/constant/module-config/traveler-options';
+export {
+  TRAVELER_OTHER_INTERNAL,
+  TRAVELER_OTHER_EXTERNAL,
+  TRAVELER_OTHER_INTERNAL_LABEL_KEY,
+  TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
+  resolveTravelerName,
+} from '@/constant/module-config/traveler-options';
 
 const commonTravelFields: ModuleField[] = [
   {
@@ -62,7 +95,7 @@ const commonTravelFields: ModuleField[] = [
     required: false,
     sortable: true,
     ratio: '1/1',
-    editableInline: false,
+    editableInline: true,
   },
   {
     id: 'number_of_trips',
@@ -79,10 +112,13 @@ const commonTravelFields: ModuleField[] = [
     id: 'user_institutional_id',
     labelKey: `${MODULES.ProfessionalTravel}-field-traveler`,
     type: 'headcount-member-select',
-    required: true,
+    required: false,
     sortable: false,
     ratio: '1/1',
     editableInline: false,
+    // Explorer has no headcount roster of its own to pick a traveler from,
+    // so default to the "Other traveler (internal)" sentinel.
+    explorerDefault: TRAVELER_OTHER_INTERNAL,
     hideIn: {
       table: true,
     },
@@ -106,86 +142,91 @@ const commonTravelFields: ModuleField[] = [
     unit: 'km',
     sortable: true,
     ratio: '1/1',
+
     editableInline: false,
     readOnly: true,
     disable: true,
   },
-  {
-    id: 'kg_co2eq',
-    labelKey: `${MODULES.ProfessionalTravel}-field-emissions`,
-    type: 'number',
-    unit: 'kg CO₂-eq',
-    sortable: true,
-    ratio: '1/1',
-    editableInline: false,
-    readOnly: true,
-    hideIn: {
-      form: true,
-    },
-  },
 ];
 
-const planeFields: ModuleField[] = [
-  ...buildTravelFields(
-    { id: 'origin_name', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
-    {
-      id: 'destination_name',
-      labelKey: `${MODULES.ProfessionalTravel}-field-to`,
-    },
-  ),
-  {
-    id: 'cabin_class',
-    labelKey: `${MODULES.ProfessionalTravel}-field-class`,
-    type: 'select',
-    required: true,
-    sortable: true,
-    ratio: '1/1',
-    editableInline: false,
-    hideIn: {
-      table: true,
-    },
-    options: [
-      { value: 'first', label: 'First' },
-      { value: 'business', label: 'Business' },
-      { value: 'economy', label: 'Economy' },
-    ],
+// Emissions column, kept separate so the class column can be placed just before it.
+const emissionsField: ModuleField = {
+  id: 'kg_co2eq',
+  align: 'right',
+  labelKey: `${MODULES.ProfessionalTravel}-field-emissions`,
+  type: 'number',
+  unit: 'kg CO₂-eq',
+  sortable: true,
+  ratio: '1/1',
+  editableInline: false,
+  readOnly: true,
+  hideIn: {
+    form: true,
   },
-];
+};
+
+const planeCabinClassField: ModuleField = {
+  id: 'cabin_class',
+  labelKey: `${MODULES.ProfessionalTravel}-field-class`,
+  type: 'select',
+  required: true,
+  sortable: true,
+  ratio: '1/1',
+  editableInline: true,
+  optionLabelsAreKeys: true,
+  options: PLANE_CABIN_CLASSES.map((value) => ({
+    value,
+    label: PLANE_CABIN_CLASS_LABELS[value],
+  })),
+};
+
+const planeFields: ModuleField[] = buildTravelFields(
+  {
+    id: 'origin_name',
+    labelKey: `${MODULES.ProfessionalTravel}-field-from`,
+    columnSize: 'lg',
+  },
+  {
+    id: 'destination_name',
+    labelKey: `${MODULES.ProfessionalTravel}-field-to`,
+    columnSize: 'lg',
+  },
+  planeCabinClassField,
+);
 
 const trainLocationTooltip = `${MODULES.ProfessionalTravel}-train-location-local-language-tooltip`;
 
-const trainFields: ModuleField[] = [
-  ...buildTravelFields(
-    {
-      id: 'origin_name',
-      labelKey: `${MODULES.ProfessionalTravel}-field-from`,
-      tooltip: trainLocationTooltip,
-    },
-    {
-      id: 'destination_name',
-      labelKey: `${MODULES.ProfessionalTravel}-field-to`,
-      tooltip: trainLocationTooltip,
-    },
-    { directionInputTooltip: trainLocationTooltip },
-  ),
+const trainCabinClassField: ModuleField = {
+  id: 'cabin_class',
+  labelKey: `${MODULES.ProfessionalTravel}-field-class`,
+  type: 'select',
+  required: true,
+  sortable: true,
+  ratio: '1/1',
+  editableInline: true,
+  optionLabelsAreKeys: true,
+  options: TRAIN_CABIN_CLASSES.map((value) => ({
+    value,
+    label: TRAIN_CABIN_CLASS_LABELS[value],
+  })),
+};
+
+const trainFields: ModuleField[] = buildTravelFields(
   {
-    id: 'cabin_class',
-    labelKey: `${MODULES.ProfessionalTravel}-field-class`,
-    type: 'select',
-    required: true,
-    sortable: true,
-    ratio: '1/1',
-    editableInline: false,
-    hideIn: {
-      table: true,
-    },
-    optionLabelsAreKeys: true,
-    options: [
-      { value: 'first', label: 'class_1' },
-      { value: 'second', label: 'class_2' },
-    ],
+    id: 'origin_name',
+    labelKey: `${MODULES.ProfessionalTravel}-field-from`,
+    tooltip: trainLocationTooltip,
+    columnSize: 'lg',
   },
-];
+  {
+    id: 'destination_name',
+    labelKey: `${MODULES.ProfessionalTravel}-field-to`,
+    tooltip: trainLocationTooltip,
+    columnSize: 'lg',
+  },
+  trainCabinClassField,
+  { directionInputTooltip: trainLocationTooltip },
+);
 
 export const professionalTravel: ModuleConfig = {
   id: 'module_travel_001',
@@ -263,12 +304,15 @@ function buildTravelFields(
     id: string;
     labelKey: string;
     tooltip?: string;
+    columnSize?: ModuleField['columnSize'];
   },
   destination: {
     id: string;
     labelKey: string;
     tooltip?: string;
+    columnSize?: ModuleField['columnSize'];
   },
+  classField: ModuleField,
   options?: { directionInputTooltip?: string },
 ): ModuleField[] {
   return [
@@ -296,6 +340,7 @@ function buildTravelFields(
       editableInline: false,
       hideIn: { form: true },
       tooltip: origin.tooltip,
+      columnSize: origin.columnSize,
     },
     {
       id: destination.id,
@@ -307,7 +352,10 @@ function buildTravelFields(
       editableInline: false,
       hideIn: { form: true },
       tooltip: destination.tooltip,
+      columnSize: destination.columnSize,
     },
     ...commonTravelFields.slice(3),
+    classField,
+    emissionsField,
   ];
 }

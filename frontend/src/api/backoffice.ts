@@ -1,6 +1,6 @@
-import { api } from 'src/api/http';
-import { MODULE_STATES } from 'src/constant/moduleStates';
-import { type UnitFilters } from 'src/stores/backoffice';
+import { api } from '@/api/http';
+import { MODULE_STATES } from '@/constant/moduleStates';
+import { type UnitFilters } from '@/stores/backoffice';
 
 export type ReportFormat = 'csv' | 'pdf' | 'json';
 export type ReportType = 'usage' | 'results' | 'combined' | 'detailed';

@@ -2,21 +2,19 @@
 import { computed, ref, watch, provide } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
-import { MODULES_LIST } from 'src/constant/modules';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
+import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
+import { MODULES_LIST } from '@/constant/modules';
 
-import ModuleConfig from 'src/components/organisms/data-management/ModuleConfig.vue';
-import ReductionObjectivesSection from 'src/components/organisms/data-management/ReductionObjectivesSection.vue';
-import DataEntryDialog from 'src/components/organisms/data-management/DataEntryDialog.vue';
+import ModuleConfig from '@/components/organisms/data-management/ModuleConfig.vue';
+import ReductionObjectivesSection from '@/components/organisms/data-management/ReductionObjectivesSection.vue';
+import DataEntryDialog from '@/components/organisms/data-management/DataEntryDialog.vue';
+import ConnectorsCard from '@/components/molecules/backoffice/ConnectorsCard.vue';
 
-import {
-  TargetType,
-  type ImportRow,
-} from 'src/stores/backofficeDataManagement';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { usePipelineStateStore } from 'src/stores/pipelineState';
-import { usePipelineStream } from 'src/composables/usePipelineStream';
+import { TargetType, type ImportRow } from '@/stores/backofficeDataManagement';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { usePipelineStateStore } from '@/stores/pipelineState';
+import { usePipelineStream } from '@/composables/usePipelineStream';
 import { Notify, Loading } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
@@ -28,12 +26,15 @@ const yearConfigStore = useYearConfigStore();
 // change trickles down to every config composable without prop drilling.
 const { availableYears, selectedYear } = storeToRefs(yearConfigStore);
 
-// Honour a ?year= deep link on entry; the store already defaults to the
-// latest available year otherwise.
+// Honour a ?year= deep link on entry. The valid range isn't known yet at
+// this point (it comes from the year-configuration response — see
+// yearConfig.ts), so trust the link as-is; an out-of-range year just
+// 404s into the "Create year" empty-state like any other unconfigured
+// year, same as it always has.
 const queryYear = route.query.year
   ? parseInt(route.query.year as string, 10)
   : null;
-if (queryYear && availableYears.value.includes(queryYear)) {
+if (queryYear) {
   selectedYear.value = queryYear;
 }
 const pipelineStateStore = usePipelineStateStore();
@@ -282,7 +283,30 @@ async function handleDialogCompleted() {
             -->
           </q-card-section>
 
+          <!--
+            Issue #1204 follow-up — the selectable year range comes from
+            the backend (``min_configurable_year``), not a hardcoded
+            frontend guess. Render a loading skeleton until it's known,
+            and a hard error banner if the response is missing/malformed
+            rather than silently falling back to a guessed range.
+          -->
+          <q-banner
+            v-if="yearConfigStore.minConfigurableYearError"
+            data-testid="year-selector-error"
+            class="bg-negative text-white full-width q-my-md"
+            dense
+          >
+            {{ yearConfigStore.minConfigurableYearError }}
+          </q-banner>
+          <q-skeleton
+            v-else-if="availableYears.length === 0"
+            data-testid="year-selector-loading"
+            type="rect"
+            height="40px"
+            class="full-width q-my-md"
+          />
           <q-select
+            v-else
             v-model="selectedYear"
             :options="availableYears"
             outlined
@@ -318,6 +342,10 @@ async function handleDialogCompleted() {
           </div>
         </div>
       </q-card>
+
+      <!-- Connection credentials are per-connector, not per-year — shown
+           unconditionally rather than gated behind yearConfigStore.config. -->
+      <ConnectorsCard />
 
       <!-- Startup: no configuration exists yet -->
       <q-card
@@ -356,7 +384,6 @@ async function handleDialogCompleted() {
       </template>
 
       <template v-if="yearConfigStore.config">
-        <temp-files-banner class="q-mb-xl" />
         <!--
           Issue #867 — gate module config + CSV uploads on the
           unit_sync pipeline.  ``q-inner-loading`` keeps the rendered
@@ -371,7 +398,10 @@ async function handleDialogCompleted() {
           <template v-for="module in MODULES_LIST" :key="module">
             <ModuleConfig :module="module" />
           </template>
-          <ReductionObjectivesSection />
+          <ReductionObjectivesSection
+            :min-reduction-year="yearConfigStore.config.min_reduction_year"
+            :max-reduction-year="yearConfigStore.config.max_reduction_year"
+          />
           <q-inner-loading :showing="yearSyncInFlight" color="primary">
             <div class="text-center q-pa-md">
               <q-spinner-dots size="48px" color="primary" class="q-mb-md" />

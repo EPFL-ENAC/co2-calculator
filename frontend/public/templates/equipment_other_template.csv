@@ -1,2 +1,8 @@
-equipment_id,name,equipment_class,sub_class,active_usage_hours_per_week,standby_usage_hours_per_week,note,kg_co2eq,equipment_category
-B020384,FREEZER LIEBHEER PREMIUM,Lab Freezer / Frigde,,,,,,other
+﻿equipment_class,sub_class,equipment_id,name,active_usage_hours_per_week,standby_usage_hours_per_week,note,kg_co2eq
+Lab Freezer / Frigde,Old -80°C freezers (>12yo),"","","","","",""
+Lab Freezer / Frigde,Recent -80°C freezers (<12yo),"","","","","",""
+Lab Freezer / Frigde,Small +4°C or -20°C freezers (< 150L),"","","","","",""
+Lab Freezer / Frigde,Big +4°C or -20°C freezers (> 150L),"","","","","",""
+Lab Freezer / Frigde,"Refrigerated display cabinets (fixed or mobile, 1-2m3)","","","","","",""
+Lab Freezer / Frigde,Cold rooms (20m2),"","","","","",""
+Lab Freezer / Frigde,Ice machines,"","","","","",""

@@ -1,7 +1,5 @@
 """Generate Mermaid ER diagram from SQLModel metadata."""
 
-from typing import Optional
-
 from sqlalchemy.orm import DeclarativeMeta
 from sqlmodel import SQLModel
 
@@ -9,7 +7,7 @@ from sqlmodel import SQLModel
 import app.models  # noqa: F401
 
 
-def generate_mermaid(base: Optional[DeclarativeMeta] = None) -> str:
+def generate_mermaid(base: DeclarativeMeta | None = None) -> str:
     metadata = base.metadata if base is not None else SQLModel.metadata
     mapper_registry = getattr(base, "registry", None)
     lines = ["```mermaid", "erDiagram"]

@@ -1,12 +1,13 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { formatTonnesCO2 } from 'src/utils/number';
+import { CURRENCY_OPTIONS } from '@/constant/currencies';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { formatTonnesCO2 } from '@/utils/number';
 import {
   SUBMODULE_PURCHASE_TYPES,
   MODULES,
   MODULES_THRESHOLD_TYPES,
-} from 'src/constant/modules';
-import type { PurchaseSubType } from 'src/constant/modules';
-import type { Module } from 'src/constant/modules';
+} from '@/constant/modules';
+import type { PurchaseSubType } from '@/constant/modules';
+import type { Module } from '@/constant/modules';
 
 const purchaseFields: ModuleField[] = [
   {
@@ -18,6 +19,7 @@ const purchaseFields: ModuleField[] = [
     sortable: true,
     align: 'left',
     ratio: '1/2',
+    editableInline: true,
   },
   {
     id: 'supplier',
@@ -28,6 +30,7 @@ const purchaseFields: ModuleField[] = [
     sortable: true,
     align: 'left',
     ratio: '1/2',
+    editableInline: true,
   },
   {
     id: 'purchase_institutional_code',
@@ -40,10 +43,11 @@ const purchaseFields: ModuleField[] = [
     hint: `${MODULES.Purchase}.inputs.purchase_institutional_code-hint`,
     inputTypeName: 'QSelect',
     readOnly: false,
-    editableInline: true,
+    editableInline: false,
     ratio: '1/4',
     icon: 'o_category',
     columnSize: 'md',
+    maxColumnWidth: 260,
   },
   {
     id: 'quantity',
@@ -81,47 +85,11 @@ const purchaseFields: ModuleField[] = [
     ratio: '1/4',
     columnSize: 'xs',
 
-    options: [
-      {
-        value: 'aud',
-        label: 'AUD',
-      },
-      {
-        value: 'cad',
-        label: 'CAD',
-      },
-      {
-        value: 'chf',
-        label: 'CHF',
-      },
-      {
-        value: 'cny',
-        label: 'CNY',
-      },
-      {
-        value: 'eur',
-        label: 'EUR',
-      },
-      {
-        value: 'gbp',
-        label: 'GBP',
-      },
-      {
-        value: 'jpy',
-        label: 'JPY',
-      },
-      {
-        value: 'sek',
-        label: 'SEK',
-      },
-      {
-        value: 'usd',
-        label: 'USD',
-      },
-    ],
+    options: CURRENCY_OPTIONS,
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
@@ -132,39 +100,53 @@ const purchaseFields: ModuleField[] = [
 const additionalPurchaseFields: ModuleField[] = [
   {
     id: 'name',
+    optionsId: 'kind',
     labelKey: `${MODULES.Purchase}.inputs.name`,
-    type: 'text',
-    editableInline: false,
+    type: 'select',
     required: true,
-    placeholder: 'Enter value',
     sortable: true,
-    align: 'left',
-    ratio: '1/4',
-    hideIn: { form: true },
-  },
-  {
-    id: 'annual_consumption',
-    labelKey: `${MODULES.Purchase}.inputs.annual_consumption`,
-    type: 'number',
     editableInline: true,
-    min: 0,
-    step: 1,
-    ratio: '1/4',
-    hideIn: { form: true },
-    sortable: true,
+    inputTypeName: 'QSelect',
+    align: 'left',
+    ratio: '1/3',
+    icon: 'o_category',
+    columnSize: 'lg',
   },
   {
     id: 'unit',
     labelKey: `${MODULES.Purchase}.inputs.unit`,
     type: 'text',
-    editableInline: false,
-    ratio: '1/4',
+    default: 'kg',
+    required: true,
+    readOnlyWhenFilled: true,
+    sortable: true,
+    align: 'left',
+    ratio: '1/3',
+  },
+  {
+    id: 'annual_consumption',
+    labelKey: `${MODULES.Purchase}.inputs.annual_consumption`,
+    type: 'number',
+    required: true,
+    editableInline: true,
+    min: 0,
+    step: 1,
+    ratio: '1/3',
+    sortable: true,
+  },
+  {
+    id: 'coef_to_kg',
+    labelKey: `${MODULES.Purchase}.inputs.coef_to_kg`,
+    type: 'number',
+    required: true,
+    min: 0,
+    default: 1,
     hideIn: { form: true },
-    placeholder: 'Enter value',
     sortable: true,
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
@@ -234,9 +216,9 @@ export const purchase: ModuleConfig = {
       moduleFields: purchaseFields,
     },
     {
-      id: SUBMODULE_PURCHASE_TYPES.AdditionalPurchases,
-      type: SUBMODULE_PURCHASE_TYPES.AdditionalPurchases as PurchaseSubType,
-      tableNameKey: `${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title`,
+      id: SUBMODULE_PURCHASE_TYPES.PurchasesCentralized,
+      type: SUBMODULE_PURCHASE_TYPES.PurchasesCentralized as PurchaseSubType,
+      tableNameKey: `${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.PurchasesCentralized}-table-title`,
       moduleFields: additionalPurchaseFields,
     },
   ],

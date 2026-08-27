@@ -1,20 +1,24 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
 import {
   getModuleIconColors,
   makeBoxBackground,
-} from 'src/composables/useModuleIconColors';
+} from '@/composables/useModuleIconColors';
 
 const props = withDefaults(
   defineProps<{
     name: string;
     size?: 'sm' | 'md' | 'lg';
+    /** Disambiguates modules whose submodules use different color scales (e.g. buildings). */
+    submoduleType?: string;
   }>(),
-  { size: 'md' },
+  { size: 'md', submoduleType: undefined },
 );
 
-const colors = computed(() => getModuleIconColors(props.name));
+const colors = computed(() =>
+  getModuleIconColors(props.name, props.submoduleType),
+);
 </script>
 
 <template>
@@ -31,7 +35,7 @@ const colors = computed(() => getModuleIconColors(props.name));
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .module-icon-box {
   display: inline-flex;

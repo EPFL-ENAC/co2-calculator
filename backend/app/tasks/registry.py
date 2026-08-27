@@ -18,7 +18,8 @@ registry has no callers until Tier 2 wires up the runner and existing tasks.
 """
 
 import inspect
-from typing import Awaitable, Callable
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -26,9 +27,13 @@ from app.models.data_ingestion import DataIngestionJob
 
 # Handler signature:
 #   handler(job, job_session, data_session) -> dict (becomes job.meta on success)
+# ``register()`` enforces ``inspect.iscoroutinefunction`` at registration
+# time, so every stored handler genuinely returns a ``Coroutine`` (not just
+# some other ``Awaitable`` like a ``Task``/``Future``) — typed accordingly
+# so ``asyncio.create_task(handler(...))`` needs no cast at the call site.
 HandlerFn = Callable[
     [DataIngestionJob, AsyncSession, AsyncSession],
-    Awaitable[dict],
+    Coroutine[Any, Any, dict],
 ]
 
 _REGISTRY: dict[str, HandlerFn] = {}

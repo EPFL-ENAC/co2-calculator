@@ -14,7 +14,7 @@ contract.  These tests pin it at the resolver level:
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 from sqlmodel import col, select
@@ -37,7 +37,7 @@ class _ResolverProvider(BaseCSVProvider):
     def entity_type(self) -> EntityType:
         return EntityType.MODULE_PER_YEAR
 
-    async def _setup_handlers_and_factors(self) -> Dict[str, Any]:
+    async def _setup_handlers_and_factors(self) -> dict[str, Any]:
         return {}
 
     def _extract_kind_subkind_values(self, filtered_row, handlers):
@@ -65,7 +65,7 @@ async def test_existing_tree_resolves_via_bulk_join(
     pg_session, make_unit, make_carbon_report, make_carbon_report_module
 ):
     units = [await make_unit(pg_session) for _ in range(3)]
-    expected: Dict[str, int] = {}
+    expected: dict[str, int] = {}
     for unit in units:
         report = await make_carbon_report(pg_session, unit_id=unit.id, year=YEAR)
         module = await make_carbon_report_module(
@@ -83,7 +83,8 @@ async def test_existing_tree_resolves_via_bulk_join(
 
 async def test_missing_report_is_created_and_mapped(pg_session, make_unit):
     """The production-failure shape: unit exists, no carbon_report yet.
-    Every CSV unit must still end up in the map (rows must NOT skip)."""
+    Every CSV unit must still end up in the map (rows must NOT skip).
+    """
     unit = await make_unit(pg_session)
     await pg_session.commit()
 
@@ -128,7 +129,8 @@ async def test_map_scoped_to_csv_units_only(
     report for the (year, module_type) — but the returned map must only
     contain the CSV's units, because the pre-import deletion runs over
     the whole map.  An unfiltered map made a 137-unit CSV wipe
-    CSV-uploaded entries of all ~1.8k units for the year."""
+    CSV-uploaded entries of all ~1.8k units for the year.
+    """
     units = [await make_unit(pg_session) for _ in range(3)]
     modules = {}
     for unit in units:

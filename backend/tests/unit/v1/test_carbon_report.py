@@ -1,6 +1,6 @@
 """Unit tests for carbon_report API endpoints."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -314,7 +314,7 @@ async def test_update_status_value_error_raises_400():
 async def test_get_simulator_explore_found_fresh_no_refresh():
     """Found, within TTL → return report, no background refresh scheduled."""
     db = _db()
-    fresh_ts = int(datetime.now(timezone.utc).timestamp())
+    fresh_ts = int(datetime.now(UTC).timestamp())
     report = MagicMock()
     report.id = 42
     report.last_updated = fresh_ts
@@ -367,7 +367,7 @@ async def test_get_simulator_explore_not_found_raises_404():
 async def test_get_simulator_explore_expired_schedules_background_refresh():
     """Stale report (>24 h) → returned immediately, background refresh queued."""
     db = _db()
-    stale_ts = int(datetime.now(timezone.utc).timestamp()) - (25 * 60 * 60)
+    stale_ts = int(datetime.now(UTC).timestamp()) - (25 * 60 * 60)
     report = MagicMock()
     report.id = 99
     report.last_updated = stale_ts
@@ -379,13 +379,14 @@ async def test_get_simulator_explore_expired_schedules_background_refresh():
 
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
+    user = _user()
     try:
         with (
             patch.object(module, "require_unit_access"),
             patch.object(module, "require_module_unit_scope"),
         ):
             result = await module.get_simulator_explore_carbon_report(
-                1, 2024, background_tasks, db, _user()
+                1, 2024, background_tasks, db, user
             )
         assert result == report  # stale report returned immediately
         background_tasks.add_task.assert_called_once_with(
@@ -393,6 +394,7 @@ async def test_get_simulator_explore_expired_schedules_background_refresh():
             unit_id=1,
             old_report_id=99,
             reference_year=2024,
+            created_by=user.id,
         )
     finally:
         module.CarbonReportService = original

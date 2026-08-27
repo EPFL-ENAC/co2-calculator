@@ -4,12 +4,11 @@ import pytest
 from fastapi import Response, status
 from fastapi.testclient import TestClient
 from starlette.datastructures import URL, Headers
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 import app.api.v1.auth as auth_module
 import app.core.config as config
 from app.main import app
-from app.models.user import UserProvider
+from app.models.user import User, UserProvider
 
 API_PREFIX = config.get_settings().API_VERSION
 
@@ -33,6 +32,19 @@ def _login_request(callback_url: str) -> MagicMock:
     return request
 
 
+def _session_request(host: str | None = "128.178.1.2") -> MagicMock:
+    """A fake Request carrying the one thing ``get_session`` reads from it.
+
+    ``scope["client"]`` is what uvicorn's ProxyHeadersMiddleware rewrites from
+    X-Forwarded-For once FORWARDED_ALLOW_IPS trusts the proxy, so this is the
+    address the endpoint must echo back to the browser — never the raw header,
+    which a client can forge.
+    """
+    request = MagicMock()
+    request.client = MagicMock(host=host) if host else None
+    return request
+
+
 @pytest.mark.asyncio
 async def test_login_redirect(monkeypatch):
     mock_authorize_redirect = AsyncMock(return_value="redirected")
@@ -51,7 +63,8 @@ async def test_login_redirect_forces_https_behind_tls_terminator(monkeypatch):
     """Regression: behind a TLS-terminating LB the proxy may leave the
     pod-visible scheme as http (e.g. duplicate X-Forwarded-Proto that uvicorn's
     ProxyHeadersMiddleware drops). With COOKIE_SECURE set, oauth_login must
-    still hand Entra an https redirect_uri."""
+    still hand Entra an https redirect_uri.
+    """
     monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", True)
     captured = {}
 
@@ -69,7 +82,8 @@ async def test_login_redirect_forces_https_behind_tls_terminator(monkeypatch):
 @pytest.mark.asyncio
 async def test_login_redirect_keeps_http_for_local_dev(monkeypatch):
     """Local http dev keeps COOKIE_SECURE=false, so http://localhost is left
-    intact — Entra exempts localhost from the https redirect_uri requirement."""
+    intact — Entra exempts localhost from the https redirect_uri requirement.
+    """
     monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", False)
     captured = {}
 
@@ -82,37 +96,6 @@ async def test_login_redirect_keeps_http_for_local_dev(monkeypatch):
     )
     await auth_module.oauth_login(_login_request("http://localhost:8000/callback"))
     assert str(captured["redirect_uri"]) == "http://localhost:8000/callback"
-
-
-@pytest.mark.asyncio
-async def test_proxy_headers_drops_duplicate_forwarded_proto():
-    """Pin the uvicorn behaviour we work around: ProxyHeadersMiddleware ignores
-    X-Forwarded-Proto when more than one copy is present (anti-spoofing guard),
-    so a two-hop LB+ingress chain leaves the scheme as the inner http."""
-    captured = {}
-
-    async def downstream(scope, receive, send):
-        captured["scheme"] = scope["scheme"]
-
-    mw = ProxyHeadersMiddleware(downstream, trusted_hosts="*")
-    scope = {
-        "type": "http",
-        "scheme": "http",
-        "client": ("10.0.0.1", 1234),
-        "headers": [
-            (b"x-forwarded-proto", b"https"),
-            (b"x-forwarded-proto", b"http"),
-        ],
-    }
-
-    async def receive():  # pragma: no cover - unused by the middleware
-        return {"type": "http.request"}
-
-    async def send(message):  # pragma: no cover - unused by the middleware
-        return None
-
-    await mw(scope, receive, send)
-    assert captured["scheme"] == "http"
 
 
 @pytest.mark.asyncio
@@ -171,7 +154,7 @@ async def test_get_session_invalid_token(monkeypatch, payload):
     monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value=payload))
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(auth_token="token", db=db)
+        await auth_module.get_session(_session_request(), auth_token="token", db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -191,7 +174,7 @@ async def test_get_session_user_missing(monkeypatch, user_attr):
     monkeypatch.setattr(auth_module.UserService, "get_by_id", mock_get_user_by_user_id)
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(auth_token="token", db=db)
+        await auth_module.get_session(_session_request(), auth_token="token", db=db)
     assert exc.value.status_code in [
         status.HTTP_401_UNAUTHORIZED,
         status.HTTP_403_FORBIDDEN,
@@ -202,7 +185,7 @@ async def test_get_session_user_missing(monkeypatch, user_attr):
 async def test_get_session_no_token():
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(auth_token=None, db=db)
+        await auth_module.get_session(_session_request(), auth_token=None, db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -213,8 +196,40 @@ async def test_get_session_exception(monkeypatch):
     )
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(auth_token="token", db=db)
+        await auth_module.get_session(_session_request(), auth_token="token", db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("host", "expected"), [("128.178.1.2", "128.178.1.2"), (None, None)]
+)
+async def test_get_session_echoes_the_address_the_server_saw(
+    monkeypatch, host, expected
+):
+    """The browser cannot discover its own IP, and GlitchTip stores Sentry's
+    ``{{auto}}`` sentinel verbatim instead of resolving it (seen on a real dev
+    event), so the session payload has to carry a real value for error reports
+    to be attributable. It comes from ``scope["client"]`` — which uvicorn
+    resolves against FORWARDED_ALLOW_IPS — never from the forgeable header.
+    """
+    user = User(id=2, institutional_id="123456", email="tester@epfl.ch")
+    monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value={"sub": "2"}))
+    monkeypatch.setattr(
+        auth_module, "resolve_user_by_jwt_payload", AsyncMock(return_value=user)
+    )
+    monkeypatch.setattr(
+        auth_module.UnitService, "get_user_units", AsyncMock(return_value=[])
+    )
+    monkeypatch.setattr(
+        auth_module, "list_configured_years", AsyncMock(return_value=[])
+    )
+
+    session = await auth_module.get_session(
+        _session_request(host), auth_token="token", db=MagicMock()
+    )
+
+    assert session.client_ip == expected
 
 
 @pytest.mark.asyncio

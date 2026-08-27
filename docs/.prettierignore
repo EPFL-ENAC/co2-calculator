@@ -64,3 +64,6 @@ requirements.txt
 Thumbs.db
 venv/
 yarn.lock
+
+# mkdocs build output (gitignored, but prettier scans it otherwise)
+site/

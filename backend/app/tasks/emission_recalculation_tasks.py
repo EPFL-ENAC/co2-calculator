@@ -12,7 +12,7 @@ preemption check, and the FINISHED-state write — these handlers
 only contain the work itself.
 """
 
-from typing import Optional
+import time
 from uuid import UUID
 
 from sqlmodel import select
@@ -34,6 +34,7 @@ from app.repositories.data_ingestion import DataIngestionRepository
 from app.tasks._chain import AGGREGATION_DEDUP, chain_job
 from app.tasks._locks import acquire_factor_recalc_lock
 from app.tasks.registry import register
+from app.utils.progress import format_progress
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
 logger = get_logger(__name__)
@@ -206,7 +207,7 @@ async def _build_aggregation_scope_config(
     my_affected_module_ids: list[int],
     *,
     helper_session: AsyncSession | None = None,
-) -> Optional[dict]:
+) -> dict | None:
     """4A.4 — build the chain config for the trailing aggregation job.
 
     The last recalc sibling chains the aggregation BEFORE the runner
@@ -241,7 +242,8 @@ async def _build_aggregation_scope_config(
 
     async def _gather(helper: AsyncSession) -> bool:
         """Returns True if at least one FINISHED sibling was seen
-        (so we know an empty union means 'truly nothing to do')."""
+        (so we know an empty union means 'truly nothing to do').
+        """
         siblings = (
             (
                 await helper.execute(
@@ -340,13 +342,21 @@ async def emission_recalc_handler(
 
     job_id = job.id
 
+    progress_started = time.monotonic()
+
     async def _progress(done: int, total: int) -> None:
         # Committed on job_session immediately so SSE subscribers see
         # live progress while the workflow keeps computing on
         # data_session (the two sessions are independent by design).
         await job_repo.update_ingestion_job(
             job_id=job_id,
-            status_message=f"Recalculating emissions... {done}/{total}",
+            status_message=format_progress(
+                "Recalculating emissions",
+                done,
+                total,
+                time.monotonic() - progress_started,
+                unit="entries",
+            ),
             metadata={},
         )
         await job_session.commit()
@@ -355,7 +365,7 @@ async def emission_recalc_handler(
     # 20-row upload doesn't recompute the whole (det, year) slice.
     config = (job.meta or {}).get("config") or {}
     raw_scope = config.get("carbon_report_module_ids")
-    module_scope: Optional[list[int]] = None
+    module_scope: list[int] | None = None
     if isinstance(raw_scope, list):
         module_scope = [int(i) for i in raw_scope if isinstance(i, int)]
 

@@ -1,5 +1,5 @@
-import { Threshold } from 'src/constant/modules';
-import type { AllSubmoduleTypes } from 'src/constant/modules';
+import { Threshold } from '@/constant/modules';
+import type { AllSubmoduleTypes } from '@/constant/modules';
 export type FormStructure = 'single' | 'perSubmodule' | 'grouped';
 
 export const COLUMN_SIZES = {
@@ -51,8 +51,13 @@ export interface ConditionalOptions {
 
 // Support multiple conditional options - first matching condition wins
 export type ConditionalOptionsConfig =
-  | ConditionalOptions
-  | ConditionalOptions[];
+  ConditionalOptions | ConditionalOptions[];
+
+export interface ConditionalBounds {
+  /** Field whose value selects the bounds (e.g. the mirrored `use_unit`). */
+  fieldId: string;
+  byValue: Record<string, { max?: number; integer?: boolean }>;
+}
 
 export interface ModuleField {
   id: string;
@@ -66,10 +71,20 @@ export interface ModuleField {
   min?: number;
   max?: number;
   step?: number;
+  // Reject typed values with more than N decimal places (form + inline edit).
+  maxDecimals?: number;
   default?: string | number | boolean;
   defaultFrom?: 'total_fte';
+  /** Pre-filled only in the Planner (i.e. when the form's report has a `carbonReportId`). */
+  plannerDefault?: string;
+  /** Pre-filled only in the Explorer — overrides `defaultFrom` there. */
+  explorerDefault?: string | number | null;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
+  // Factor field to label a `kind` select with, when the stored value is an
+  // opaque code (research facility ids). Options then come from the factor
+  // catalog instead of the class/subclass map, which carries values only.
+  optionsLabelField?: string;
   optionOrder?: string[]; // Explicit ordering of options by value
   optionLabelKey?: string; // i18n key template; use {value} as placeholder, e.g. 'process-emissions.category.{value}', where {value} matches the normalized option value used by the translation keys
   appendFromFieldId?: string;
@@ -82,6 +97,9 @@ export interface ModuleField {
   editableInline?: boolean;
   readOnly?: boolean;
   readOnlyWhenFilled?: boolean;
+  // Display-only: round read-only number inputs to at most N decimals in the form.
+  // The underlying form value (and the submitted payload) keeps full precision.
+  displayPrecision?: number;
   align?: 'left' | 'right' | 'center';
   ratio?: string;
   icon?: string;
@@ -98,6 +116,10 @@ export interface ModuleField {
   conditionalVisibility?: ConditionalVisibility;
   // Dynamic ratio based on another field's value
   conditionalRatio?: ConditionalRatio;
+  // Numeric bounds selected by another field's value — for a quantity whose
+  // meaning changes with its unit (#2007). Mirrors the backend's own table;
+  // a value absent from `byValue` keeps the field's static min/max.
+  conditionalBounds?: ConditionalBounds;
   // Conditional options filtering based on another field's value
   // Can be a single condition or array of conditions (first match wins)
   conditionalOptions?: ConditionalOptionsConfig;

@@ -1,5 +1,5 @@
 import { computed } from 'vue';
-import { useColorblindStore } from 'src/stores/colorblind';
+import { useColorblindStore } from '@/stores/colorblind';
 import { MODULES, type Module } from './modules';
 
 /** Interpolate between two `#RRGGBB` colours. */
@@ -364,6 +364,9 @@ export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
 }));
 
 /** Category ordering shared across Results charts (Reduction objectives, tooltips, sliders). */
+/** Module-icon name used for the "additional data" category (no real module). */
+export const ADDITIONAL_DATA_ICON = 'addition-datas';
+
 export const RESULTS_CATEGORY_ORDER = [
   'process_emissions',
   'buildings_energy_combustion',
@@ -398,6 +401,86 @@ export const RESULTS_CATEGORY_LABEL_KEYS: Record<
   embodied_energy: 'charts-embodied-energy-category',
 };
 
+/** Subcategory key → i18n key, shared by the Results charts and the print report. */
+export const RESULTS_SUBCATEGORY_LABEL_KEYS: Record<string, string> = {
+  co2: 'process-emissions.category.co2',
+  ch4: 'process-emissions.category.ch4',
+  n2o: 'process-emissions.category.n2o',
+  refrigerants: 'process-emissions.category.refrigerants',
+  refrigerant: 'process-emissions.category.refrigerants',
+  sf6: 'process-emissions.category.sf6',
+  nf3: 'process-emissions.category.nf3',
+  hfcs: 'process-emissions.category.hfcs',
+  perfluorinated_compounds:
+    'process-emissions.category.perfluorinated_compounds',
+  fluorinated_ethers: 'process-emissions.category.fluorinated_ethers',
+  perfluoropolyethers: 'process-emissions.category.perfluoropolyethers',
+  lighting: 'charts-lighting-subcategory',
+  cooling: 'charts-cooling-subcategory',
+  ventilation: 'charts-ventilation-subcategory',
+  heating_electric: 'charts-heating-elec-subcategory',
+  heating_thermal: 'charts-heating-thermal-subcategory',
+  laboratories: 'charts-laboratories-subcategory',
+  office: 'charts-office-subcategory',
+  archives: 'charts-archives-subcategory',
+  libraries: 'charts-libraries-subcategory',
+  auditoriums: 'charts-auditoriums-subcategory',
+  miscellaneous: 'charts-miscellaneous-subcategory',
+  combustion: 'charts-energy-combustion-subcategory',
+  natural_gas: 'charts-natural-gas-subcategory',
+  propane: 'charts-propane-subcategory',
+  heating_oil: 'charts-heating-oil-subcategory',
+  biomethane: 'charts-biomethane-subcategory',
+  pellets: 'charts-pellets-subcategory',
+  forest_chips: 'charts-forest-chips-subcategory',
+  wood_logs: 'charts-wood-logs-subcategory',
+  scientific: 'charts-scientific-subcategory',
+  it: 'charts-equipment-it',
+  other: 'charts-other-equipment-subcategory',
+  scientific_equipment: 'charts-scientific-subcategory',
+  it_equipment: 'charts-equipment-it',
+  consumable_accessories: 'charts-consumables-subcategory',
+  biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
+  services: 'charts-services-subcategory',
+  vehicles: 'charts-vehicles-subcategory',
+  centralized: 'charts-purchases-centralized-subcategory',
+  ln2: 'charts-ln2-subcategory',
+  other_purchases: 'charts-other-purchases-subcategory',
+  goods_and_services: 'charts-global-budget-subcategory',
+  plane: 'charts-plane-subcategory',
+  train: 'charts-train-subcategory',
+  business: 'charts-business-class-subcategory',
+  eco: 'charts-eco-class-subcategory',
+  class_1: 'charts-class-1-subcategory',
+  class_2: 'charts-class-2-subcategory',
+  clouds: 'charts-clouds-subcategory',
+  ai: 'charts-ai-subcategory',
+  provider: 'charts-ai-provider-subcategory',
+  ai_provider: 'charts-ai-provider-subcategory',
+  provider_google: 'charts-ai-provider-google-subcategory',
+  provider_openai: 'charts-ai-provider-openai-subcategory',
+  provider_anthropic: 'charts-ai-provider-anthropic-subcategory',
+  provider_mistral_ai: 'charts-ai-provider-mistral-ai-subcategory',
+  provider_github: 'charts-ai-provider-github-subcategory',
+  provider_microsoft: 'charts-ai-provider-microsoft-subcategory',
+  provider_others: 'charts-ai-provider-others-subcategory',
+  stockage: 'charts-stockage-subcategory',
+  virtualisation: 'charts-virtualisation-subcategory',
+  calcul: 'charts-calcul-subcategory',
+  facilities: 'charts-research-facilities-subcategory',
+  it_facilities: 'charts-research-it-facilities-subcategory',
+  animal: 'charts-research-animal-subcategory',
+  animal_facilities: 'charts-research-animal-subcategory',
+  rodent: 'charts-animal-rodent-subcategory',
+  fish: 'charts-animal-fish-subcategory',
+  rest: 'charts-rest-subcategory',
+  'new-env': 'charts-new-env-subcategory',
+  'new-tech': 'charts-new-tech-subcategory',
+  'ren-env': 'charts-ren-env-subcategory',
+  'ren-tech': 'charts-ren-tech-subcategory',
+  demolition: 'charts-demolition-subcategory',
+};
+
 // Maps chart category name -> full color scale (shared across charts)
 export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
   headcount: colors.value.yellow,
@@ -419,7 +502,7 @@ export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
 export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
   (): Record<string, Record<string, string>> => ({
     buildings_room: {
-      heating_elec: colors.value.lilac.dark,
+      heating_electric: colors.value.lilac.dark,
       cooling: colors.value.lilac.default,
       ventilation: colors.value.lilac.light,
       lighting: colors.value.lilac.lighter,
@@ -435,18 +518,31 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       combustion: colors.value.apricot.darker,
       heating_thermal: colors.value.apricot.dark,
       natural_gas: colors.value.apricot.default,
+      propane: colors.value.apricot.dark,
       heating_oil: colors.value.apricot.light,
       biomethane: colors.value.apricot.default,
       pellets: colors.value.apricot.light,
       forest_chips: colors.value.apricot.lighter,
       wood_logs: colors.value.yellow.darker,
     },
-    process_emissions: {
-      co2: colors.value.peach.darker,
-      ch4: colors.value.peach.dark,
-      n2o: colors.value.peach.default,
-      refrigerants: colors.value.peach.light,
-    },
+    process_emissions: (() => {
+      const keys = [
+        'co2',
+        'ch4',
+        'n2o',
+        'refrigerants',
+        'hfcs',
+        'perfluorinated_compounds',
+        'fluorinated_ethers',
+        'perfluoropolyethers',
+        'sf6',
+        'nf3',
+      ];
+      const { darker, lighter } = colors.value.peach;
+      const shade = (i: number) =>
+        lerpHex(darker, lighter, i / (keys.length - 1));
+      return Object.fromEntries(keys.map((k, i) => [k, shade(i)]));
+    })(),
     equipment: {
       scientific: colors.value.plum.darker,
       it: colors.value.plum.dark,
@@ -469,8 +565,8 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
     },
     research_facilities: {
       facilities: colors.value.paleYellowGreen.darker,
-      it_facilities: colors.value.paleYellowGreen.default,
-      animal: colors.value.paleYellowGreen.dark,
+      it_facilities: colors.value.paleYellowGreen.dark,
+      animal: colors.value.paleYellowGreen.default,
     },
     purchases: (() => {
       const keys = [
@@ -481,7 +577,7 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
         'services',
         'vehicles',
         'other_purchases',
-        'additional',
+        'centralized',
       ];
       const { darker, lighter } = colors.value.lightGreen;
       const shade = (i: number) =>
@@ -513,7 +609,9 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
     },
     waste: {
       incineration: colors.value.periwinkle.darker,
+      domestic_waste: colors.value.periwinkle.darker,
       composting: colors.value.periwinkle.dark,
+      organic_waste_lawn: colors.value.periwinkle.dark,
       biogas: colors.value.periwinkle.default,
       recycling: colors.value.periwinkle.light,
       cardboard: colors.value.skyBlue.dark,
@@ -527,6 +625,10 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       inert_waste: colors.value.aqua.light,
       organic_waste_food_leftovers: colors.value.mint.darker,
       cooking_vegetable_oil: colors.value.mint.dark,
+      incineration_waste_bio_chem_ani: colors.value.skyBlue.darker,
+      batteries: colors.value.mint.default,
+      neon_tubes: colors.value.mint.light,
+      chemical_waste: colors.value.mint.lighter,
       // Display category keys — 9 shades: periwinkle steps interleaved with cobalt midpoints
       domestic: colors.value.periwinkle.darker, // #A5ADD8 — step 1
       organic: colors.value.cobalt.darker, // #B0B7DE — step 2
@@ -552,18 +654,16 @@ export function getChartSubcategoryColor(
 }
 
 // Maps Module enum value → category names present in module_breakdown
-export const MODULE_TO_CATEGORIES = computed(
-  (): Record<string, string[]> => ({
-    [MODULES.Headcount]: ['headcount'],
-    [MODULES.ProcessEmissions]: ['process_emissions'],
-    [MODULES.Buildings]: ['buildings_room', 'buildings_energy_combustion'],
-    [MODULES.Equipment]: ['equipment'],
-    [MODULES.ExternalCloudAndAI]: ['external_cloud_and_ai'],
-    [MODULES.Purchase]: ['purchases'],
-    [MODULES.ProfessionalTravel]: ['professional_travel'],
-    [MODULES.ResearchFacilities]: ['research_facilities'],
-  }),
-);
+export const MODULE_TO_CATEGORIES = computed((): Record<string, string[]> => ({
+  [MODULES.Headcount]: ['headcount'],
+  [MODULES.ProcessEmissions]: ['process_emissions'],
+  [MODULES.Buildings]: ['buildings_room', 'buildings_energy_combustion'],
+  [MODULES.Equipment]: ['equipment'],
+  [MODULES.ExternalCloudAndAI]: ['external_cloud_and_ai'],
+  [MODULES.Purchase]: ['purchases'],
+  [MODULES.ProfessionalTravel]: ['professional_travel'],
+  [MODULES.ResearchFacilities]: ['research_facilities'],
+}));
 
 export function getModuleForCategoryKey(categoryKey: string): Module | null {
   for (const [mod, categories] of Object.entries(MODULE_TO_CATEGORIES.value)) {

@@ -1,14 +1,13 @@
 """Role synchronization service for background role updates."""
 
-from datetime import datetime, timedelta, timezone
-from typing import List
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.core.role_priority import pick_role_for_institutional_id
-from app.models.user import Role
+from app.models.user import OwnScope, Role, UnitScope
 from app.providers.role_provider import RoleProvider
 from app.repositories.user_repo import UserRepository
 from app.services.unit_service import UnitService
@@ -25,8 +24,8 @@ class RoleSyncResult(BaseModel):
     roles_changed: bool = False
     units_changed: bool = False
     skipped_due_to_ttl: bool = False
-    old_roles: List[Role] = []
-    new_roles: List[Role] = []
+    old_roles: list[Role] = []
+    new_roles: list[Role] = []
 
 
 class RoleSyncService:
@@ -49,8 +48,7 @@ class RoleSyncService:
         role_provider: RoleProvider,
         force: bool = False,
     ) -> RoleSyncResult:
-        """
-        Sync user roles from provider.
+        """Sync user roles from provider.
 
         Fetches fresh user data from the provider only after the TTL gate
         has been passed, so the external service is never hit for syncs
@@ -71,7 +69,7 @@ class RoleSyncService:
 
         # Check TTL before hitting the external provider
         if not force and user.last_roles_sync_at:
-            time_since_sync = datetime.now(timezone.utc) - user.last_roles_sync_at
+            time_since_sync = datetime.now(UTC) - user.last_roles_sync_at
             if time_since_sync < self.sync_ttl:
                 logger.debug(
                     "Skipping role sync - recently synced",
@@ -138,7 +136,7 @@ class RoleSyncService:
                 extra={"user_id": user_id},
             )
             # Still update timestamp
-            user.last_roles_sync_at = datetime.now(timezone.utc)
+            user.last_roles_sync_at = datetime.now(UTC)
             await self.session.commit()
             return RoleSyncResult(
                 user_id=user_id,
@@ -149,7 +147,7 @@ class RoleSyncService:
 
         # Update user roles
         user.roles = new_roles
-        user.last_roles_sync_at = datetime.now(timezone.utc)
+        user.last_roles_sync_at = datetime.now(UTC)
         await self.session.commit()
         await self.session.refresh(user)
 
@@ -173,10 +171,9 @@ class RoleSyncService:
     async def sync_user_units(
         self,
         user_id: int,
-        roles: List[Role],
+        roles: list[Role],
     ) -> bool:
-        """
-        Sync user unit associations based on roles.
+        """Sync user unit associations based on roles.
 
         Args:
             user_id: User ID to sync
@@ -190,11 +187,10 @@ class RoleSyncService:
             return False
 
         # Extract unit IDs from roles
-        unit_institutional_ids = set()
+        unit_institutional_ids: set[str] = set()
         for role in roles:
-            if hasattr(role, "on") and hasattr(role.on, "institutional_id"):
-                if role.on.institutional_id:
-                    unit_institutional_ids.add(role.on.institutional_id)
+            if isinstance(role.on, (UnitScope, OwnScope)) and role.on.institutional_id:
+                unit_institutional_ids.add(role.on.institutional_id)
 
         if not unit_institutional_ids:
             # No unit roles - delete all associations

@@ -14,79 +14,23 @@ import {
 import VChart from 'vue-echarts';
 import TooltipEcharts from './results/TooltipEcharts.vue';
 import { useEchartsTooltip } from './results/useEchartsTooltip';
-import { usePrintMode } from 'src/composables/print/usePrintMode';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
-import { useColorblindStore } from 'src/stores/colorblind';
+import { usePrintMode } from '@/composables/print/usePrintMode';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
+import { useColorblindStore } from '@/stores/colorblind';
 
-import { buildChartDecal } from 'src/constant/charts';
-import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap';
-import { formatTonnesForChart } from 'src/utils/number';
+import {
+  buildChartDecal,
+  RESULTS_SUBCATEGORY_LABEL_KEYS,
+} from '@/constant/charts';
+import type { EmissionTreemapCategory } from '@/composables/useEmissionTreemap';
+import { formatTonnesForChart } from '@/utils/number';
 
 const { t } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
 
-const LABEL_KEY_MAP: Record<string, string> = {
-  // process_emissions
-  co2: 'process-emissions.category.co2',
-  ch4: 'process-emissions.category.ch4',
-  n2o: 'process-emissions.category.n2o',
-  refrigerants: 'process-emissions.category.refrigerants',
-  refrigerant: 'process-emissions.category.refrigerants',
-  // buildings
-  combustion: 'charts-energy-combustion-subcategory',
-  heating_thermal: 'charts-heating-thermal-subcategory',
-  heating_elec: 'charts-heating-elec-subcategory',
-  lighting: 'charts-lighting-subcategory',
-  cooling: 'charts-cooling-subcategory',
-  ventilation: 'charts-ventilation-subcategory',
-  laboratories: 'charts-laboratories-subcategory',
-  office: 'charts-office-subcategory',
-  archives: 'charts-archives-subcategory',
-  libraries: 'charts-libraries-subcategory',
-  auditoriums: 'charts-auditoriums-subcategory',
-  miscellaneous: 'charts-miscellaneous-subcategory',
-  // equipment
-  scientific: 'charts-scientific-subcategory',
-  it: 'charts-equipment-it',
-  other: 'charts-other-equipment-subcategory',
-  // external cloud & AI
-  stockage: 'charts-stockage-subcategory',
-  virtualisation: 'charts-virtualisation-subcategory',
-  calcul: 'charts-calcul-subcategory',
-  provider: 'charts-ai-provider-subcategory',
-  ai_provider: 'charts-ai-provider-subcategory',
-  ai: 'charts-ai-provider-subcategory',
-  clouds: 'charts-clouds-subcategory',
-  // purchases
-  scientific_equipment: 'charts-scientific-subcategory',
-  it_equipment: 'charts-equipment-it',
-  consumable_accessories: 'charts-consumables-subcategory',
-  biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
-  services: 'charts-services-subcategory',
-  vehicles: 'charts-vehicles-subcategory',
-  other_purchases: 'charts-other-purchases-subcategory',
-  additional: 'charts-additional-purchases-subcategory',
-  // research facilities
-  facilities: 'charts-research-facilities-subcategory',
-  it_facilities: 'charts-research-it-facilities-subcategory',
-  animal: 'charts-research-animal-subcategory',
-  mice_and_fish_animal_facilities: 'charts-research-animal-subcategory',
-  mice: 'charts-animal-mice-subcategory',
-  fish: 'charts-animal-fish-subcategory',
-  // professional travel
-  plane: 'charts-plane-subcategory',
-  train: 'charts-train-subcategory',
-  // professional travel ZZ items
-  class_1: 'charts-class-1-subcategory',
-  class_2: 'charts-class-2-subcategory',
-  first: 'charts-first-class-subcategory',
-  business: 'charts-business-class-subcategory',
-  eco: 'charts-eco-class-subcategory',
-};
-
 function resolveLabel(raw: string): string {
-  const key = LABEL_KEY_MAP[raw];
+  const key = RESULTS_SUBCATEGORY_LABEL_KEYS[raw];
   return key ? t(key) : raw.replace(/_/g, ' ');
 }
 

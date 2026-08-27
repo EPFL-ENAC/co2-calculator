@@ -74,7 +74,8 @@ async def test_skips_lock_on_non_postgres():
 @pytest.mark.asyncio
 async def test_skips_lock_when_module_type_id_missing():
     """Defensive: job without scope shouldn't crash the handler at the
-    lock step — skip and let the handler's own scope validation raise."""
+    lock step — skip and let the handler's own scope validation raise.
+    """
     data_session = MagicMock()
     data_session.get_bind.return_value.dialect.name = "postgresql"
     data_session.execute = AsyncMock()
@@ -109,7 +110,8 @@ async def test_skips_lock_when_year_missing():
 async def test_lock_category_distinct_from_aggregation_lock():
     """4B's category must not collide with 4A.2's aggregation lock —
     they're in the same advisory-lock namespace and accidental
-    collisions would cross-serialise unrelated work."""
+    collisions would cross-serialise unrelated work.
+    """
     from app.tasks.aggregation_tasks import _AGGREGATION_LOCK_CATEGORY
 
     assert _FACTOR_RECALC_LOCK_CATEGORY != _AGGREGATION_LOCK_CATEGORY

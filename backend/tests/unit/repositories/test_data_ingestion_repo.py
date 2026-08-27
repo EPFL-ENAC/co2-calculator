@@ -651,7 +651,8 @@ async def test_get_current_pipeline_id_skips_finished_jobs(
 ):
     """A FINISHED job with a pipeline_id → does NOT match (terminal state).
     Without this filter, the badge would never clear after a chain
-    completes."""
+    completes.
+    """
     pipeline_id = uuid4()
     job = _make_job(
         module_type_id=5,
@@ -703,7 +704,8 @@ async def test_get_current_pipeline_id_picks_most_recent_when_multiple_active(
 ):
     """When multiple active pipelines match, pick the most recent by id.
     Frontend subscribes to a single pipeline so we must pick deterministically;
-    most-recent-first matches what the operator just triggered."""
+    most-recent-first matches what the operator just triggered.
+    """
     older_pipeline = uuid4()
     newer_pipeline = uuid4()
 
@@ -812,7 +814,8 @@ async def test_get_current_pipeline_ids_for_modules_returns_empty_for_empty_inpu
     The carbon-report endpoint can hit this when a report has no
     modules (rare but possible during onboarding); the helper should
     return an empty dict cheaply rather than executing a useless
-    ``WHERE module_type_id IN ()`` query."""
+    ``WHERE module_type_id IN ()`` query.
+    """
     repo = DataIngestionRepository(db_session)
     result = await repo.get_current_pipeline_ids_for_modules([], year=2025)
     assert result == {}
@@ -823,7 +826,8 @@ async def test_get_current_pipeline_ids_for_modules_one_per_module(
     db_session: AsyncSession,
 ):
     """Two modules, each with one active pipeline → returns both
-    keyed by module_type_id."""
+    keyed by module_type_id.
+    """
     pipeline_a = uuid4()
     pipeline_b = uuid4()
 
@@ -865,7 +869,8 @@ async def test_get_current_pipeline_ids_for_modules_picks_most_recent_per_module
     recent (highest id) only.  Mirrors the per-module helper's
     ``ORDER BY id DESC`` semantics folded into a single
     ``DISTINCT ON (module_type_id) ... ORDER BY module_type_id, id DESC``
-    scan."""
+    scan.
+    """
     older_pipeline = uuid4()
     newer_pipeline = uuid4()
 
@@ -907,7 +912,8 @@ async def test_get_current_pipeline_ids_for_modules_omits_modules_with_no_active
     db_session: AsyncSession,
 ):
     """Module without an active pipeline is absent from the dict —
-    callers use ``.get(...)`` and treat missing as "no badge"."""
+    callers use ``.get(...)`` and treat missing as "no badge".
+    """
     pipeline_a = uuid4()
     finished_pipeline = uuid4()
 
@@ -948,7 +954,8 @@ async def test_get_current_pipeline_ids_for_modules_filters_by_year(
 ):
     """Active pipeline for a different year must not appear — the
     bulk query is keyed by ``(module_type_id, year)`` and a 2024
-    pipeline must not bleed into the 2025 dashboard."""
+    pipeline must not bleed into the 2025 dashboard.
+    """
     pipeline_2024 = uuid4()
     job = _make_job(
         module_type_id=5,
@@ -1132,7 +1139,8 @@ async def test_list_pipelines_status_filter(db_session: AsyncSession):
 async def test_list_pipelines_returns_pipeline_row(db_session: AsyncSession):
     """Groups carry the ``Pipeline`` row (#1236 Phase 3) so the endpoint
     can pass it into ``compute_pipeline_progress``.  Orphans have no
-    Pipeline row, so ``pipeline`` is None."""
+    Pipeline row, so ``pipeline`` is None.
+    """
     repo = DataIngestionRepository(db_session)
     pid = uuid4()
     db_session.add(_pipeline_job(pipeline_id=pid, job_type="csv_ingest"))
@@ -1227,7 +1235,8 @@ async def test_ensure_pipeline_exists_is_idempotent(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_recompute_status_success_on_done(db_session: AsyncSession):
     """Parent FINISHED+SUCCESS, no expected recalc → progress.done →
-    status SUCCESS, counts set (recompute-and-store, last-child)."""
+    status SUCCESS, counts set (recompute-and-store, last-child).
+    """
     repo = DataIngestionRepository(db_session)
     pid = uuid4()
     await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
@@ -1336,7 +1345,8 @@ async def test_recompute_status_partial_when_root_warning_child_errored(
     """Root with ``result=WARNING`` (data landed with caveats — e.g.
     99/100 rows succeeded) + downstream ERROR → PARTIAL.  WARNING at
     root counts as 'data landed' for the FAILED vs PARTIAL boundary —
-    only an ERROR root flips to FAILED."""
+    only an ERROR root flips to FAILED.
+    """
     repo = DataIngestionRepository(db_session)
     pid = uuid4()
     await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
@@ -1369,7 +1379,8 @@ async def test_recompute_status_failed_when_root_errored_regardless_of_descendan
     """When the root itself errored, the pipeline is FAILED — even if a
     descendant (created speculatively before root's ERROR was committed)
     happens to be SUCCESS.  Defensive: ``data didn't land'' is the
-    invariant the FAILED badge promises."""
+    invariant the FAILED badge promises.
+    """
     repo = DataIngestionRepository(db_session)
     pid = uuid4()
     await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
@@ -1401,7 +1412,8 @@ async def test_recompute_status_failed_when_root_errored_regardless_of_descendan
 @pytest.mark.asyncio
 async def test_recompute_status_skips_when_not_done(db_session: AsyncSession):
     """Last-child oracle: a non-terminal call must NOT write
-    (compute_pipeline_progress.done is False) — status stays default."""
+    (compute_pipeline_progress.done is False) — status stays default.
+    """
     repo = DataIngestionRepository(db_session)
     pid = uuid4()
     await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
@@ -1427,7 +1439,8 @@ async def test_recompute_status_skips_when_not_done(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_reconcile_heals_drift(db_session: AsyncSession):
     """A done pipeline whose stored status was never advanced (runner
-    skipped) is corrected by the sweep; afterwards zero drift."""
+    skipped) is corrected by the sweep; afterwards zero drift.
+    """
     repo = DataIngestionRepository(db_session)
     pid = uuid4()
     await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
@@ -1517,7 +1530,8 @@ async def test_recompute_last_error_skips_success_message(
     """#1236 / advisor blocker: a csv_ingest that succeeded then
     poisoned downstream has result=ERROR but status_message='Success'.
     last_error must carry the informative sibling error, not 'Success'
-    (this logic is reused by Phase-2 backfill across all history)."""
+    (this logic is reused by Phase-2 backfill across all history).
+    """
     repo = DataIngestionRepository(db_session)
     pid = uuid4()
     await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
@@ -1564,7 +1578,8 @@ async def test_update_ingestion_job_appends_status_history(
 ):
     """Each update_ingestion_job call appends {message, ts} to
     meta.status_history. The latest status_message column reflects the
-    final value (overwrite); the history preserves every step."""
+    final value (overwrite); the history preserves every step.
+    """
     repo = DataIngestionRepository(db_session)
     job = _make_job(
         module_type_id=1,
@@ -1603,7 +1618,8 @@ async def test_update_ingestion_job_status_history_capped(
     db_session: AsyncSession,
 ):
     """status_history is bounded to the last 50 entries — a flood of
-    progress updates on a long retry chain doesn't grow meta unbounded."""
+    progress updates on a long retry chain doesn't grow meta unbounded.
+    """
     repo = DataIngestionRepository(db_session)
     job = _make_job(
         module_type_id=1,
@@ -1739,3 +1755,184 @@ async def test_claim_unit_specific_does_not_demote_or_claim_current(
     unit_specific = await _reload_job(db_session, unit_specific_id)
     assert unit_specific.is_current is False  # RUNNING but never current
     assert unit_specific.state == IngestionState.RUNNING
+
+
+# ======================================================================
+# Issue #1578 — a failed re-upload must not blank the prior successful
+# job's is_current slot (backoffice config UI reads latest_data_job /
+# latest_common_data_job from it).
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_mark_current_finished_error_does_not_demote_success(
+    db_session: AsyncSession,
+):
+    """Regression: a FINISHED+ERROR job (failed CSV re-upload) must not
+    demote a prior FINISHED+SUCCESS job's ``is_current`` flag, and must
+    not become current itself — its ``meta`` never carries
+    ``processed_file_path``/``rows_processed``, so promoting it blanks
+    the upload card even though the successful job's DataEntry rows are
+    untouched.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    success_job = _make_job(
+        module_type_id=3,  # buildings
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    error_job = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.ERROR,
+        is_current=False,
+    )
+    db_session.add(success_job)
+    db_session.add(error_job)
+    await db_session.flush()
+    success_id, error_id = success_job.id, error_job.id
+
+    await repo.mark_job_as_current(error_job)
+
+    assert (await _reload_job(db_session, success_id)).is_current is True
+    assert (await _reload_job(db_session, error_id)).is_current is False
+
+
+@pytest.mark.asyncio
+async def test_mark_current_finished_warning_still_promotes(
+    db_session: AsyncSession,
+):
+    """A FINISHED+WARNING job (partial success) still promotes and
+    demotes the prior current job — only ERROR is excluded, since
+    WARNING/SUCCESS both carry usable meta and are the latest attempt
+    worth showing.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    prior = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    warning_job = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.WARNING,
+        is_current=False,
+    )
+    db_session.add(prior)
+    db_session.add(warning_job)
+    await db_session.flush()
+    prior_id, warning_id = prior.id, warning_job.id
+
+    await repo.mark_job_as_current(warning_job)
+
+    assert (await _reload_job(db_session, prior_id)).is_current is False
+    assert (await _reload_job(db_session, warning_id)).is_current is True
+
+
+@pytest.mark.asyncio
+async def test_get_latest_jobs_by_year_keeps_success_after_failed_reupload(
+    db_session: AsyncSession,
+):
+    """End-to-end (within the repository layer): after a failed
+    re-upload, ``get_latest_jobs_by_year`` still returns the prior
+    successful job — not the failed one, and not neither.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    success_job = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    db_session.add(success_job)
+    await db_session.flush()
+
+    error_job = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.ERROR,
+        is_current=False,
+    )
+    db_session.add(error_job)
+    await db_session.flush()
+
+    await repo.mark_job_as_current(error_job)
+
+    current_jobs = await repo.get_latest_jobs_by_year(2025)
+    current_ids = {j.id for j in current_jobs}
+    assert success_job.id in current_ids
+    assert error_job.id not in current_ids
+
+
+@pytest.mark.asyncio
+async def test_mark_current_finished_error_does_not_demote_success_non_buildings(
+    db_session: AsyncSession,
+):
+    """Same contract as ``test_mark_current_finished_error_does_not_demote_success``
+    but for a different module (professional_travel=2) — ``mark_job_as_current``
+    is keyed purely on ``(module_type_id, target_type, year, ingestion_method,
+    data_entry_type_id)`` with no module-specific branching, so the fix must
+    hold for every module, not just Buildings (the module the bug was
+    reported against).
+    """
+    repo = DataIngestionRepository(db_session)
+
+    success_job = _make_job(
+        module_type_id=2,  # professional_travel
+        data_entry_type_id=40,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    error_job = _make_job(
+        module_type_id=2,
+        data_entry_type_id=40,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.ERROR,
+        is_current=False,
+    )
+    db_session.add(success_job)
+    db_session.add(error_job)
+    await db_session.flush()
+    success_id, error_id = success_job.id, error_job.id
+
+    await repo.mark_job_as_current(error_job)
+
+    assert (await _reload_job(db_session, success_id)).is_current is True
+    assert (await _reload_job(db_session, error_id)).is_current is False

@@ -4,7 +4,6 @@ import base64
 import datetime
 import os
 import urllib.parse
-from typing import List
 
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from enacit4r_files.services import (
@@ -26,6 +25,7 @@ from fastapi import (
     status,
 )
 
+from app.api.auth_first_route import AuthFirstRoute
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -34,7 +34,10 @@ from app.models.user import User
 from app.utils.permissions import has_permission
 
 logger = get_logger(__name__)
-router = APIRouter()
+# Every route here already requires get_current_user, and upload_temp_files
+# declares a File(...) body — so the whole router authenticates before the
+# body is read (#2261). See AuthFirstRoute for why signature order can't.
+router = APIRouter(route_class=AuthFirstRoute)
 settings = get_settings()
 
 
@@ -71,9 +74,14 @@ def make_files_store() -> FilesStore:
             bucket=settings.S3_BUCKET,
             path_prefix=settings.S3_PATH_PREFIX,
         )
-        return S3FilesStore(s3_service, key=encryption_key)
+        # enacit4r_files declares `key: bytes = None` (should be `bytes | None`);
+        # the stub is wrong, not this call.
+        return S3FilesStore(s3_service, key=encryption_key)  # ty: ignore[invalid-argument-type]
     # Default to local file storage
-    return LocalFilesStore(settings.FILES_STORAGE_PATH, key=encryption_key)
+    return LocalFilesStore(
+        settings.FILES_STORAGE_PATH,
+        key=encryption_key,  # ty: ignore[invalid-argument-type]
+    )
 
 
 files_store = make_files_store()
@@ -148,7 +156,7 @@ def build_attachment_disposition(file_path: str) -> str:
 
 @router.get(
     "/",
-    response_model=List[FileNode],
+    response_model=list[FileNode],
     response_model_exclude_none=True,
     responses={
         403: {
@@ -174,8 +182,7 @@ async def list_files(
     recursive: bool = Query(False, description="List files recursively"),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    List files in the specified directory.
+    """List files in the specified directory.
 
     **Required Permission**: `backoffice.configuration.view`
 
@@ -244,8 +251,7 @@ async def get_file(
     ),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Retrieve a file from file storage.
+    """Retrieve a file from file storage.
 
     **Required Permission**: `backoffice.configuration.view`
 
@@ -309,7 +315,7 @@ async def get_file(
 @router.post(
     "/temp-upload",
     status_code=200,
-    response_model=List[FileNode],
+    response_model=list[FileNode],
     response_model_exclude_none=True,
     description="Upload any assets to file storage in the /tmp folder",
     dependencies=[Depends(file_checker.check_size)],
@@ -318,8 +324,7 @@ async def upload_temp_files(
     files: list[UploadFile] = File(description="Multiple file upload"),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Upload files to the /tmp folder in the file storage.
+    """Upload files to the /tmp folder in the file storage.
 
     **Required Permission**: `backoffice.configuration.edit`
 
@@ -350,7 +355,7 @@ async def upload_temp_files(
         )
     for file in files:
         validate_upload_mimetype(file)
-    current_time = datetime.datetime.now(datetime.timezone.utc)
+    current_time = datetime.datetime.now(datetime.UTC)
     # generate unique name for the files' base folder in S3
     folder_name = str(current_time.timestamp()).replace(".", "")
     folder_path = f"tmp/{folder_name}"
@@ -369,8 +374,7 @@ async def delete_temp_files(
     file_path: str,
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Delete files from the /tmp folder.
+    """Delete files from the /tmp folder.
 
     **Required Permission**: `backoffice.configuration.edit`
 

@@ -3,23 +3,23 @@
 Manages factor lifecycle with full audit trail.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
+from app.modules.emissions import EmissionType
 from app.repositories.factor_repo import FactorRepository
 
 logger = get_logger(__name__)
 
 
 class FactorService:
-    """
-    Service for managing factors
+    """Service for managing factors
 
     Features:
     - CRUD operations on factors
@@ -34,7 +34,7 @@ class FactorService:
         self.session = session
         self.repo = FactorRepository(session)
 
-    async def get(self, id: int) -> Optional[Factor]:
+    async def get(self, id: int) -> Factor | None:
         """Get factor by ID."""
         return await self.repo.get(id)
 
@@ -42,9 +42,9 @@ class FactorService:
         self,
         data_entry_type: DataEntryTypeEnum,
         kind: str,
-        subkind: Optional[str] = None,
-        year: Optional[int] = None,
-    ) -> Optional[Factor]:
+        subkind: str | None = None,
+        year: int | None = None,
+    ) -> Factor | None:
         """Get power factor for given equipment class and optional subclass.
 
         Args:
@@ -63,10 +63,10 @@ class FactorService:
     async def get_factors(
         self,
         data_entry_type: DataEntryTypeEnum,
-        fallbacks: Optional[Dict[str, Any]] = None,
-        year: Optional[int] = None,
+        fallbacks: dict[str, Any] | None = None,
+        year: int | None = None,
         **classification: Any,
-    ) -> List[Factor]:
+    ) -> list[Factor]:
         """Flexible factor lookup with dynamic classification filters and fallbacks.
 
         Forwards to ``FactorRepository.get_factors``.
@@ -92,8 +92,8 @@ class FactorService:
     async def list_id_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,
-        year: Optional[int] = None,
-    ) -> List[int]:
+        year: int | None = None,
+    ) -> list[int]:
         """List all factors for a data entry type and emission type.
 
         Args:
@@ -118,24 +118,24 @@ class FactorService:
             year=year,
         )
 
-    async def list_by_emission_type(
+    async def list_by_emission_types(
         self,
-        emission_type: EmissionType,
-        year: Optional[int] = None,
-    ) -> List[Factor]:
-        """List all factors for a given emission type.
+        emission_types: list[EmissionType],
+        year: int | None = None,
+    ) -> list[Factor]:
+        """List all factors for a set of emission types, in one query (#2050 J4).
 
         Args:
-            emission_type: Emission type filter
+            emission_types: Emission types to match
             year: Optional year filter for year-scoped factors
         """
-        return await self.repo.list_by_emission_type(emission_type, year)
+        return await self.repo.list_by_emission_types(emission_types, year)
 
     async def list_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,
-        year: Optional[int] = None,
-    ) -> List[Factor]:
+        year: int | None = None,
+    ) -> list[Factor]:
         """List all factors for a data entry type and emission type.
 
         Args:
@@ -144,28 +144,13 @@ class FactorService:
         """
         return await self.repo.list_by_data_entry_type(data_entry_type_id, year)
 
-    async def get_class_subclass_map(
-        self,
-        data_entry_type: DataEntryTypeEnum,
-        kind_field: str,
-        subkind_field: str,
-        year: int,
-    ) -> Dict[str, List[str]]:
-        """Get class/subclass mapping for power factors, scoped to ``year``."""
-        return await self.repo.get_class_subclass_map(
-            data_entry_type=data_entry_type,
-            kind_field=kind_field,
-            subkind_field=subkind_field,
-            year=year,
-        )
-
     async def prepare_create(
         self,
         emission_type_id: int,  # DataEntryTypeEnum, #
         data_entry_type_id: int,  # DataEntryTypeEnum,
-        classification: Dict[str, Any],
-        values: Dict[str, float | int | str | None],
-        year: Optional[int] = None,
+        classification: dict[str, Any],
+        values: dict[str, float | int | str | None],
+        year: int | None = None,
     ) -> Factor:
         """Prepare a factor for creation.
 
@@ -176,7 +161,6 @@ class FactorService:
             values: Factor values dictionary
             year: Year for which this factor applies
         """
-
         factor = Factor(
             emission_type_id=emission_type_id,
             data_entry_type_id=data_entry_type_id,
@@ -208,11 +192,11 @@ class FactorService:
         session: AsyncSession,
         factor_id: int,
         new_factor: Factor,
-    ) -> Optional[Factor]:
+    ) -> Factor | None:
         """Update an existing factor."""
         raise NotImplementedError
 
-    async def bulk_create(self, factors: List[Factor]) -> List[Factor]:
+    async def bulk_create(self, factors: list[Factor]) -> list[Factor]:
         """Bulk create factors."""
         return await self.repo.bulk_create(factors)
 
@@ -223,7 +207,7 @@ class FactorService:
     async def bulk_delete_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,
-        year: Optional[int] = None,
+        year: int | None = None,
     ) -> None:
         """Bulk delete factors by data entry type and optional year.
 
@@ -252,7 +236,7 @@ class FactorService:
 
         await self.repo.bulk_delete(factor_ids)
 
-    async def find_modules_for_recalculation(self, factor_id: int) -> List[int]:
+    async def find_modules_for_recalculation(self, factor_id: int) -> list[int]:
         """Find CarbonReportModule IDs that used the given factor.
 
         Queries DataEntryEmission rows where primary_factor_id matches, then

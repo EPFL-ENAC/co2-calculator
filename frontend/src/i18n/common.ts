@@ -1,4 +1,4 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES } from '@/constant/modules';
 
 export default {
   validation_must_be_at_least: {
@@ -8,6 +8,14 @@ export default {
   validation_must_be_at_most: {
     en: 'Must be at most {max}',
     fr: 'Doit être au plus {max}',
+  },
+  validation_must_be_whole_number: {
+    en: 'Must be a whole number',
+    fr: 'Doit être un nombre entier',
+  },
+  validation_max_decimals: {
+    en: 'Must have at most {max} decimal place',
+    fr: 'Doit avoir maximum {max} décimale',
   },
   logo_alt: {
     en: 'Logo EPFL',
@@ -37,9 +45,13 @@ export default {
     en: 'Simulations',
     fr: 'Simulations',
   },
-  'simulation-add': {
-    en: 'Add Simulation',
-    fr: 'Ajouter une Simulation',
+  'project-planner': {
+    en: 'Project Planner',
+    fr: 'Planificateur de projet',
+  },
+  'simulation-explore': {
+    en: 'CO₂ Explorer',
+    fr: 'CO₂ Explorer',
   },
   'simulation-edit': {
     en: 'Edit Simulation',
@@ -48,6 +60,10 @@ export default {
   documentation: {
     en: 'Documentation',
     fr: 'Documentation',
+  },
+  module_documentation_title: {
+    en: 'For more information',
+    fr: "Pour plus d'information",
   },
   logout: {
     en: 'Logout',
@@ -211,6 +227,10 @@ export default {
     en: 'subcategory',
     fr: 'sous-catégorie',
   },
+  csv_header_subcategory_2: {
+    en: 'subcategory 2',
+    fr: 'sous-catégorie 2',
+  },
   csv_header_co2: {
     en: 'co2 (t CO₂-eq)',
     fr: 'co2 (t CO₂-eq)',
@@ -230,6 +250,10 @@ export default {
   common_export_as_csv: {
     en: 'Export as CSV',
     fr: 'Exporter en CSV',
+  },
+  home_btn: {
+    en: 'Home',
+    fr: 'Accueil',
   },
   documentation_button_label: {
     en: 'Documentation',
@@ -274,6 +298,10 @@ export default {
   common_save_error: {
     en: 'Failed to save. Please try again.',
     fr: 'Échec de la sauvegarde. Veuillez réessayer.',
+  },
+  common_post_create_refresh_error: {
+    en: 'Item added, but some data may be out of date. Please refresh the page.',
+    fr: 'Élément ajouté, mais certaines données peuvent être obsolètes. Veuillez rafraîchir la page.',
   },
   common_actions: {
     en: 'Actions',
@@ -334,6 +362,14 @@ export default {
   common_edit: {
     en: 'Edit',
     fr: 'Modifier',
+  },
+  common_comment: {
+    en: 'Comment',
+    fr: 'Commenter',
+  },
+  common_duplicate: {
+    en: 'Duplicate',
+    fr: 'Dupliquer',
   },
   common_view_only: {
     en: 'View Only',
@@ -443,6 +479,10 @@ export default {
     en: 'Required',
     fr: 'Obligatoire',
   },
+  date_format_placeholder: {
+    en: 'YYYY/MM/DD',
+    fr: 'AAAA/MM/JJ',
+  },
   validation_invalid_date_format: {
     en: 'Invalid date format, expected YYYY/MM/DD',
     fr: 'Format de date invalide, attendu AAAA/MM/JJ',
@@ -494,10 +534,6 @@ export default {
   carbon_footprint_title_equipment: {
     en: 'Equipment usage carbon footprint',
     fr: "Empreinte carbone liée à l'utilisation des équipements",
-  },
-  carbon_footprint_tooltip_equipment: {
-    en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
-    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
   },
   carbon_footprint_title_purchase: {
     en: 'Purchases carbon footprint',

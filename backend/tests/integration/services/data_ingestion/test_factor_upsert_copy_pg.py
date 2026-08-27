@@ -99,7 +99,8 @@ async def test_copy_upsert_inserts_and_stamps_job(psycopg_session):
 
 async def test_copy_upsert_updates_in_place_preserving_id(psycopg_session):
     """Reupload contract: same identity key updates values, keeps id —
-    DataEntry.primary_factor_id references stay valid."""
+    dependent DataEntryEmission.primary_factor_id references stay valid.
+    """
     repo = FactorRepository(psycopg_session)
 
     job_a = await _make_job(psycopg_session)
@@ -125,7 +126,8 @@ async def test_copy_upsert_updates_in_place_preserving_id(psycopg_session):
 
 async def test_copy_upsert_multiple_batches_same_transaction(psycopg_session):
     """One job upserts several batches before committing — the staging
-    table is created once and truncated between batches."""
+    table is created once and truncated between batches.
+    """
     repo = FactorRepository(psycopg_session)
 
     job_id = await _make_job(psycopg_session)

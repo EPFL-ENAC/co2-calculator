@@ -138,11 +138,11 @@ Before deploying to production:
 ```yaml
 # Frontend (Nginx + Vue SPA)
 frontend:
-  replicas: 2          # HPA 2–10
+  replicas: 2 # HPA 2–10
 
 # Backend (FastAPI + Uvicorn, in-process jobs)
 backend:
-  replicas: 2          # HPA 2–10
+  replicas: 2 # HPA 2–10
 
 # Docs (MkDocs static, Nginx)
 docs:
@@ -162,9 +162,9 @@ written by the `db-dump` backup CronJob.
 
 ```yaml
 # Service definitions (all ClusterIP)
-frontend-service:  { port: 80,   targetPort: 8080 }
-backend-service:   { port: 8000, targetPort: 8000 }
-docs-service:      { port: 80,   targetPort: 8080 }
+frontend-service: { port: 80, targetPort: 8080 }
+backend-service: { port: 8000, targetPort: 8000 }
+docs-service: { port: 80, targetPort: 8080 }
 ```
 
 ### Routing (OpenShift Routes)
@@ -214,9 +214,19 @@ metadata:
 type: Opaque
 data:
   DB_URL: <base64-encoded>
-  SECRET_KEY: <base64-encoded>
+  JWT_HMAC_KEY: <base64-encoded>
+  SESSION_HMAC_KEY: <base64-encoded>
   OAUTH_CLIENT_SECRET: <base64-encoded>
 ```
+
+> `SECRET_KEY` was split into `JWT_HMAC_KEY` (JWT signing) and
+> `SESSION_HMAC_KEY` (OAuth-flow session cookie signing) — see
+> [issue #1704](https://github.com/EPFL-ENAC/co2-calculator/issues/1704).
+> Existing manually-created Secrets on stage/prod only have the old
+> `SECRET_KEY` entry: add both new keys before rolling out the upgrade, or
+> the backend/migration pods fail closed with `CreateContainerConfigError`.
+> Reusing the old `SECRET_KEY` value for `JWT_HMAC_KEY` keeps existing
+> sessions valid; `SESSION_HMAC_KEY` is brand new and needs a fresh value.
 
 **Management**:
 
@@ -537,6 +547,13 @@ spec:
 - **TLS termination**: At ingress controller
 - **Internal communication**: Unencrypted (within cluster network)
 
+Because TLS terminates at the ingress, the app only learns the public
+scheme from `X-Forwarded-Proto`. Two proxy hops each stamp that header,
+and uvicorn drops it when duplicated — which once broke OAuth login on
+`dev`. Read
+[the post-mortem](02-postmortem-oauth-http-redirect.md) before changing
+anything that builds an absolute URL.
+
 ---
 
 ## Additional Resources
@@ -546,6 +563,8 @@ spec:
 - [Deployment Topology](../architecture/11-deployment-topology.md) - Full deployment architecture
 - [Scalability Strategy](../architecture/12-scalability.md) - Scaling patterns
 - [CI/CD Pipeline](../architecture/06-cicd-pipeline.md) - Deployment automation
+- [OAuth http-callback post-mortem](02-postmortem-oauth-http-redirect.md) - Proxy headers and absolute URLs
+- [Observability and SLOs](03-observability-slo.md) - Alerting thresholds and burn rates
 
 ### EPFL Resources
 

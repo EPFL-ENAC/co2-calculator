@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
-import { getBuildingRooms, type BuildingRoom } from 'src/api/building_rooms';
+import { getBuildingRooms, type BuildingRoom } from '@/api/building_rooms';
 
 export const useBuildingRoomStore = defineStore('building_rooms', () => {
   const ONE_MINUTE_MS = 60_000;

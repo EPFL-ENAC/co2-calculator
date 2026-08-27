@@ -743,4 +743,912 @@ export default {
     en: 'Ice machines',
     fr: 'Machines à glace',
   },
+  // Keys below are the literal equipment_class / sub_class values from the
+  // factor catalog (2026 CSV). Dropdown and cell labels resolve via
+  // $te(<raw value>), so the key must match the stored name exactly.
+  '3D printer': {
+    en: '3D printer',
+    fr: 'Imprimante 3D',
+  },
+  'AFM microscopes': {
+    en: 'AFM microscopes',
+    fr: 'Microscopes AFM',
+  },
+  Acoustics: {
+    en: 'Acoustics',
+    fr: 'Acoustique',
+  },
+  Actuators: {
+    en: 'Actuators',
+    fr: 'Actionneurs',
+  },
+  'Agitator / Incubator': {
+    en: 'Agitator / Incubator',
+    fr: 'Agitateur / Incubateur',
+  },
+  Aligner: {
+    en: 'Aligner',
+    fr: 'Aligneur',
+  },
+  Amplifiers: {
+    en: 'Amplifiers',
+    fr: 'Amplificateurs',
+  },
+  Audio: {
+    en: 'Audio',
+    fr: 'Audio',
+  },
+  Autoclaves: {
+    en: 'Autoclaves',
+    fr: 'Autoclaves',
+  },
+  Beamer: {
+    en: 'Beamer',
+    fr: 'Vidéoprojecteur',
+  },
+  'CPG fixed equipment': {
+    en: 'CPG fixed equipment',
+    fr: 'Équipements fixes CPG',
+  },
+  'CPG mobile equipment': {
+    en: 'CPG mobile equipment',
+    fr: 'Équipements mobiles CPG',
+  },
+  Calorimeters: {
+    en: 'Calorimeters',
+    fr: 'Calorimètres',
+  },
+  Cameras: {
+    en: 'Cameras',
+    fr: 'Caméras',
+  },
+  Camipro: {
+    en: 'Camipro',
+    fr: 'Camipro',
+  },
+  'Cell counter (FACS)': {
+    en: 'Cell counter (FACS)',
+    fr: 'Compteur cellulaire (FACS)',
+  },
+  'Cellule axiale (biaxiale, triaxiale, etc.': {
+    en: 'Cellule axiale (biaxiale, triaxiale, etc.',
+    fr: 'Cellule axiale (biaxiale, triaxiale, etc.',
+  },
+  Centrifugation: {
+    en: 'Centrifugation',
+    fr: 'Centrifugation',
+  },
+  Chairs: {
+    en: 'Chairs',
+    fr: 'Chaises',
+  },
+  'Chemical reactors': {
+    en: 'Chemical reactors',
+    fr: 'Réacteurs chimiques',
+  },
+  'Chromatographs (HPLC, etc.)': {
+    en: 'Chromatographs (HPLC, etc.)',
+    fr: 'Chromatographes (HPLC, etc.)',
+  },
+  'Cleaning equipment': {
+    en: 'Cleaning equipment',
+    fr: 'Équipements de nettoyage',
+  },
+  Coaters: {
+    en: 'Coaters',
+    fr: 'Enducteurs',
+  },
+  Components: {
+    en: 'Components',
+    fr: 'Composants',
+  },
+  'Compression & traction machines': {
+    en: 'Compression & traction machines',
+    fr: 'Machines de compression et traction',
+  },
+  Cryogenics: {
+    en: 'Cryogenics',
+    fr: 'Cryogénie',
+  },
+  Cryostats: {
+    en: 'Cryostats',
+    fr: 'Cryostats',
+  },
+  Cytometer: {
+    en: 'Cytometer',
+    fr: 'Cytomètre',
+  },
+  'Deposition and engraving systems': {
+    en: 'Deposition and engraving systems',
+    fr: 'Systèmes de dépôt et gravure',
+  },
+  Desktop: {
+    en: 'Desktop',
+    fr: 'Ordinateur de bureau',
+  },
+  Detectors: {
+    en: 'Detectors',
+    fr: 'Détecteurs',
+  },
+  Diffractometers: {
+    en: 'Diffractometers',
+    fr: 'Diffractomètres',
+  },
+  Driller: {
+    en: 'Driller',
+    fr: 'Perceuse',
+  },
+  'Drying ovens': {
+    en: 'Drying ovens',
+    fr: 'Étuves de séchage',
+  },
+  'EEG /ECG / EMG': {
+    en: 'EEG /ECG / EMG',
+    fr: 'EEG / ECG / EMG',
+  },
+  'Electrochemical analyser': {
+    en: 'Electrochemical analyser',
+    fr: 'Analyseur électrochimique',
+  },
+  'Electronic microscopes': {
+    en: 'Electronic microscopes',
+    fr: 'Microscopes électroniques',
+  },
+  Evaporator: {
+    en: 'Evaporator',
+    fr: 'Évaporateur',
+  },
+  'Gas analyser': {
+    en: 'Gas analyser',
+    fr: 'Analyseur de gaz',
+  },
+  'HF Microphones': {
+    en: 'HF Microphones',
+    fr: 'Microphones HF',
+  },
+  Hoods: {
+    en: 'Hoods',
+    fr: 'Hottes',
+  },
+  Kitchen: {
+    en: 'Kitchen',
+    fr: 'Cuisine',
+  },
+  'Kitchen freezer': {
+    en: 'Kitchen freezer',
+    fr: 'Congélateur de cuisine',
+  },
+  'Kitchen oven': {
+    en: 'Kitchen oven',
+    fr: 'Four de cuisine',
+  },
+  'Lab Freezer / Frigde': {
+    en: 'Lab Freezer / Fridge',
+    fr: 'Congélateur / Réfrigérateur de labo',
+  },
+  'Lab cameras': {
+    en: 'Lab cameras',
+    fr: 'Caméras de laboratoire',
+  },
+  'Lab ovens': {
+    en: 'Lab ovens',
+    fr: 'Fours de laboratoire',
+  },
+  'Laminar flow hood': {
+    en: 'Laminar flow hood',
+    fr: 'Hotte à flux laminaire',
+  },
+  Laptop: {
+    en: 'Laptop',
+    fr: 'Ordinateur portable',
+  },
+  'Laser-scanning microscope': {
+    en: 'Laser-scanning microscope',
+    fr: 'Microscope à balayage laser',
+  },
+  Lasers: {
+    en: 'Lasers',
+    fr: 'Lasers',
+  },
+  'Light sources': {
+    en: 'Light sources',
+    fr: 'Sources lumineuses',
+  },
+  Lyophilisator: {
+    en: 'Lyophilisator',
+    fr: 'Lyophilisateur',
+  },
+  Micromanipulator: {
+    en: 'Micromanipulator',
+    fr: 'Micromanipulateur',
+  },
+  Microtomes: {
+    en: 'Microtomes',
+    fr: 'Microtomes',
+  },
+  'Milling machine': {
+    en: 'Milling machine',
+    fr: 'Fraiseuse',
+  },
+  Monitors: {
+    en: 'Monitors',
+    fr: 'Moniteurs',
+  },
+  Monochromateurs: {
+    en: 'Monochromateurs',
+    fr: 'Monochromateurs',
+  },
+  Moteurs: {
+    en: 'Moteurs',
+    fr: 'Moteurs',
+  },
+  Multimeters: {
+    en: 'Multimeters',
+    fr: 'Multimètres',
+  },
+  Network: {
+    en: 'Network',
+    fr: 'Réseau',
+  },
+  'Optical microscopes': {
+    en: 'Optical microscopes',
+    fr: 'Microscopes optiques',
+  },
+  Oscilloscopes: {
+    en: 'Oscilloscopes',
+    fr: 'Oscilloscopes',
+  },
+  'Other IT / telecom equipment': {
+    en: 'Other IT / telecom equipment',
+    fr: 'Autres équipements IT / télécom',
+  },
+  'Other audiovisual equipment': {
+    en: 'Other audiovisual equipment',
+    fr: 'Autres équipements audiovisuels',
+  },
+  'Other biological, chem. and phys. equip.': {
+    en: 'Other biological, chem. and phys. equip.',
+    fr: 'Autres équip. biol., chim. et phys.',
+  },
+  'Other electrophysiolog. & medical equip.': {
+    en: 'Other electrophysiolog. & medical equip.',
+    fr: 'Autres équip. électrophysiol. et médicaux',
+  },
+  'Other electrotechnical equip.': {
+    en: 'Other electrotechnical equip.',
+    fr: 'Autres équip. électrotechniques',
+  },
+  'Other furniture equipment': {
+    en: 'Other furniture equipment',
+    fr: 'Autres équipements de mobilier',
+  },
+  'Other infrastructure equipment': {
+    en: 'Other infrastructure equipment',
+    fr: "Autres équipements d'infrastructure",
+  },
+  'Other machine tools': {
+    en: 'Other machine tools',
+    fr: 'Autres machines-outils',
+  },
+  'Other measuring equipment': {
+    en: 'Other measuring equipment',
+    fr: 'Autres équipements de mesure',
+  },
+  'Other mechanical equipment': {
+    en: 'Other mechanical equipment',
+    fr: 'Autres équipements mécaniques',
+  },
+  'Other microscopy equipment': {
+    en: 'Other microscopy equipment',
+    fr: 'Autres équipements de microscopie',
+  },
+  'Other optical equipment': {
+    en: 'Other optical equipment',
+    fr: 'Autres équipements optiques',
+  },
+  'Other reprography equipment': {
+    en: 'Other reprography equipment',
+    fr: 'Autres équipements de reprographie',
+  },
+  'Other scientific equipment': {
+    en: 'Other scientific equipment',
+    fr: 'Autres équipements scientifiques',
+  },
+  'Other stewardship equipment': {
+    en: 'Other stewardship equipment',
+    fr: 'Autres équipements de gestion',
+  },
+  'Overhead projectors': {
+    en: 'Overhead projectors',
+    fr: 'Rétroprojecteurs',
+  },
+  'PCR / QPCR': {
+    en: 'PCR / QPCR',
+    fr: 'PCR / QPCR',
+  },
+  'Photo camera': {
+    en: 'Photo camera',
+    fr: 'Appareil photo',
+  },
+  'Photocopy machines': {
+    en: 'Photocopy machines',
+    fr: 'Photocopieurs',
+  },
+  'Pneumatic tables': {
+    en: 'Pneumatic tables',
+    fr: 'Tables pneumatiques',
+  },
+  Potentiostat: {
+    en: 'Potentiostat',
+    fr: 'Potentiostat',
+  },
+  'Power supplies': {
+    en: 'Power supplies',
+    fr: 'Alimentations électriques',
+  },
+  Press: {
+    en: 'Press',
+    fr: 'Presse',
+  },
+  Printers: {
+    en: 'Printers',
+    fr: 'Imprimantes',
+  },
+  Probes: {
+    en: 'Probes',
+    fr: 'Sondes',
+  },
+  Pumps: {
+    en: 'Pumps',
+    fr: 'Pompes',
+  },
+  RMN: {
+    en: 'RMN',
+    fr: 'RMN',
+  },
+  'Reprography equipment': {
+    en: 'Reprography equipment',
+    fr: 'Équipements de reprographie',
+  },
+  Robots: {
+    en: 'Robots',
+    fr: 'Robots',
+  },
+  Saw: {
+    en: 'Saw',
+    fr: 'Scie',
+  },
+  Scales: {
+    en: 'Scales',
+    fr: 'Balances',
+  },
+  Scanners: {
+    en: 'Scanners',
+    fr: 'Scanners',
+  },
+  Screens: {
+    en: 'Screens',
+    fr: 'Écrans',
+  },
+  Sequencers: {
+    en: 'Sequencers',
+    fr: 'Séquenceurs',
+  },
+  Servers: {
+    en: 'Servers',
+    fr: 'Serveurs',
+  },
+  'Signal analysis': {
+    en: 'Signal analysis',
+    fr: 'Analyse de signal',
+  },
+  'Signal generator': {
+    en: 'Signal generator',
+    fr: 'Générateur de signal',
+  },
+  Software: {
+    en: 'Software',
+    fr: 'Logiciels',
+  },
+  'Special furniture': {
+    en: 'Special furniture',
+    fr: 'Mobilier spécial',
+  },
+  Spectrometers: {
+    en: 'Spectrometers',
+    fr: 'Spectromètres',
+  },
+  'Stereo microscopes': {
+    en: 'Stereo microscopes',
+    fr: 'Microscopes stéréo',
+  },
+  Tables: {
+    en: 'Tables',
+    fr: 'Tables',
+  },
+  Tablet: {
+    en: 'Tablet',
+    fr: 'Tablette',
+  },
+  Telecom: {
+    en: 'Telecom',
+    fr: 'Télécom',
+  },
+  'Vacuum chamber': {
+    en: 'Vacuum chamber',
+    fr: 'Chambre à vide',
+  },
+  Vehicles: {
+    en: 'Vehicles',
+    fr: 'Véhicules',
+  },
+  Video: {
+    en: 'Video',
+    fr: 'Vidéo',
+  },
+  Videoconferencing: {
+    en: 'Videoconferencing',
+    fr: 'Visioconférence',
+  },
+  Voltmeter: {
+    en: 'Voltmeter',
+    fr: 'Voltmètre',
+  },
+  Wattmeter: {
+    en: 'Wattmeter',
+    fr: 'Wattmètre',
+  },
+  'Works of art': {
+    en: 'Works of art',
+    fr: "Œuvres d'art",
+  },
+  '1.5mL bench top centrifuges': {
+    en: '1.5mL bench top centrifuges',
+    fr: 'Centrifugeuses de paillasse 1,5 mL',
+  },
+  '1.5mL refrigerated bench top centrifuges': {
+    en: '1.5mL refrigerated bench top centrifuges',
+    fr: 'Centrifugeuses de paillasse 1,5 mL réfrigérées',
+  },
+  '30 to 37°C incubators': {
+    en: '30 to 37°C incubators',
+    fr: 'Incubateurs 30 à 37°C',
+  },
+  'Agitation heating plates': {
+    en: 'Agitation heating plates',
+    fr: 'Plaques chauffantes avec agitation',
+  },
+  'Arc Welding Power Sources': {
+    en: 'Arc Welding Power Sources',
+    fr: "Sources de courant de soudage à l'arc",
+  },
+  'Autoclaves (150 L)': {
+    en: 'Autoclaves (150 L)',
+    fr: 'Autoclaves (150 L)',
+  },
+  'Average confocal microscopes': {
+    en: 'Average confocal microscopes',
+    fr: 'Microscopes confocaux standards',
+  },
+  'Bench agitators (vortex, rockers, platforms, magnetic agitators, thermomixers…)':
+    {
+      en: 'Bench agitators (vortex, rockers, platforms, magnetic agitators, thermomixers…)',
+      fr: 'Agitateurs de paillasse (vortex, bascules, plateformes, agitateurs magnétiques, thermomixers…)',
+    },
+  'Bench top autoclaves': {
+    en: 'Bench top autoclaves',
+    fr: 'Autoclaves de paillasse',
+  },
+  'Big +4°C or -20°C freezers (> 150L)': {
+    en: 'Big +4°C or -20°C freezers (> 150L)',
+    fr: 'Grands congélateurs +4°C ou -20°C (> 150 L)',
+  },
+  Bioruptors: {
+    en: 'Bioruptors',
+    fr: 'Biorupteurs',
+  },
+  'CO2 incubators': {
+    en: 'CO2 incubators',
+    fr: 'Incubateurs CO2',
+  },
+  'CPG ventilation motors': {
+    en: 'CPG ventilation motors',
+    fr: 'Moteurs de ventilation CPG',
+  },
+  'Climate chambers': {
+    en: 'Climate chambers',
+    fr: 'Chambres climatiques',
+  },
+  'Cold rooms (20m2)': {
+    en: 'Cold rooms (20m²)',
+    fr: 'Chambres froides (20 m²)',
+  },
+  'Compact Utility Equipment': {
+    en: 'Compact Utility Equipment',
+    fr: 'Équipements utilitaires compacts',
+  },
+  Crushers: {
+    en: 'Crushers',
+    fr: 'Broyeurs',
+  },
+  'Distillation equipment': {
+    en: 'Distillation equipment',
+    fr: 'Équipements de distillation',
+  },
+  'Electric Robots & Multi-Axis Actuators': {
+    en: 'Electric Robots & Multi-Axis Actuators',
+    fr: 'Robots électriques et actionneurs multi-axes',
+  },
+  'Electromechanical Press/Test': {
+    en: 'Electromechanical Press/Test',
+    fr: 'Presse/essai électromécanique',
+  },
+  'Electromechanical Test Machines': {
+    en: 'Electromechanical Test Machines',
+    fr: "Machines d'essai électromécaniques",
+  },
+  Emulsiflexes: {
+    en: 'Emulsiflexes',
+    fr: 'Emulsiflexes',
+  },
+  'Euthanasia boxes': {
+    en: 'Euthanasia boxes',
+    fr: "Boîtes d'euthanasie",
+  },
+  'FL microscopes': {
+    en: 'FL microscopes',
+    fr: 'Microscopes à fluorescence',
+  },
+  FPLC: {
+    en: 'FPLC',
+    fr: 'FPLC',
+  },
+  'Gel dryers': {
+    en: 'Gel dryers',
+    fr: 'Sécheurs de gels',
+  },
+  HPLC: {
+    en: 'HPLC',
+    fr: 'HPLC',
+  },
+  'High-Force Hydraulic Machines': {
+    en: 'High-Force Hydraulic Machines',
+    fr: 'Machines hydrauliques à haute force',
+  },
+  'High-Intensity Lamps/UV': {
+    en: 'High-Intensity Lamps/UV',
+    fr: 'Lampes haute intensité/UV',
+  },
+  'High-speed floor-standing centrifuges': {
+    en: 'High-speed floor-standing centrifuges',
+    fr: 'Centrifugeuses haute vitesse sur pied',
+  },
+  'Hydraulic Actuators & Cylinders': {
+    en: 'Hydraulic Actuators & Cylinders',
+    fr: 'Actionneurs et vérins hydrauliques',
+  },
+  'Hydraulic Presses & Molding': {
+    en: 'Hydraulic Presses & Molding',
+    fr: 'Presses hydrauliques et moulage',
+  },
+  'Ice machines': {
+    en: 'Ice machines',
+    fr: 'Machines à glace',
+  },
+  'Imaging systems, geldocs': {
+    en: 'Imaging systems, geldocs',
+    fr: "Systèmes d'imagerie, geldocs",
+  },
+  'Industrial/High-Power System': {
+    en: 'Industrial/High-Power System',
+    fr: 'Système industriel/haute puissance',
+  },
+  'Insect UV lights': {
+    en: 'Insect UV lights',
+    fr: 'Lampes UV pour insectes',
+  },
+  'Laboratory Automation Devices': {
+    en: 'Laboratory Automation Devices',
+    fr: "Dispositifs d'automatisation de laboratoire",
+  },
+  'Laboratory Mixers/Mills': {
+    en: 'Laboratory Mixers/Mills',
+    fr: 'Mélangeurs/broyeurs de laboratoire',
+  },
+  'Laboratory Presses & Molding': {
+    en: 'Laboratory Presses & Molding',
+    fr: 'Presses de laboratoire et moulage',
+  },
+  'Laboratory suction pumps (< 100W)': {
+    en: 'Laboratory suction pumps (< 100W)',
+    fr: "Pompes d'aspiration de laboratoire (< 100 W)",
+  },
+  'Large Motor/Generator': {
+    en: 'Large Motor/Generator',
+    fr: 'Grand moteur/générateur',
+  },
+  'Large bench top centrifuges': {
+    en: 'Large bench top centrifuges',
+    fr: 'Grandes centrifugeuses de paillasse',
+  },
+  'Large refrigerated bench top centrifuges': {
+    en: 'Large refrigerated bench top centrifuges',
+    fr: 'Grandes centrifugeuses de paillasse réfrigérées',
+  },
+  'Light Instruments': {
+    en: 'Light Instruments',
+    fr: 'Instruments légers',
+  },
+  'Light sources for microscope': {
+    en: 'Light sources for microscope',
+    fr: 'Sources lumineuses pour microscope',
+  },
+  Low: {
+    en: 'Low',
+    fr: 'Faible',
+  },
+  'Lyophilisator (> 1kW)': {
+    en: 'Lyophilisator (> 1kW)',
+    fr: 'Lyophilisateur (> 1 kW)',
+  },
+  'Machine Tools': {
+    en: 'Machine Tools',
+    fr: 'Machines-outils',
+  },
+  'Manual/Non-Powered Devices': {
+    en: 'Manual/Non-Powered Devices',
+    fr: 'Dispositifs manuels/non motorisés',
+  },
+  'Microscope Support Equipment': {
+    en: 'Microscope Support Equipment',
+    fr: 'Équipements de support de microscope',
+  },
+  'Microscopes with incubation chamber': {
+    en: 'Microscopes with incubation chamber',
+    fr: "Microscopes avec chambre d'incubation",
+  },
+  Microwaves: {
+    en: 'Microwaves',
+    fr: 'Micro-ondes',
+  },
+  'Mid-Power Systems': {
+    en: 'Mid-Power Systems',
+    fr: 'Systèmes de puissance moyenne',
+  },
+  'Mini centrifuges': {
+    en: 'Mini centrifuges',
+    fr: 'Mini centrifugeuses',
+  },
+  'Mobile & Field Robots (Battery)': {
+    en: 'Mobile & Field Robots (Battery)',
+    fr: 'Robots mobiles et de terrain (batterie)',
+  },
+  'Motion Platforms & Wearables': {
+    en: 'Motion Platforms & Wearables',
+    fr: 'Plateformes de mouvement et dispositifs portables',
+  },
+  'Non-Arc Welding Systems': {
+    en: 'Non-Arc Welding Systems',
+    fr: 'Systèmes de soudage sans arc',
+  },
+  'O2 concentrator generators': {
+    en: 'O2 concentrator generators',
+    fr: "Générateurs concentrateurs d'O2",
+  },
+  'Old -80°C freezers (>12yo)': {
+    en: 'Old -80°C freezers (>12yo)',
+    fr: 'Anciens congélateurs -80°C (>12 ans)',
+  },
+  'Old 120cm laminar flow hoods (>15yo)': {
+    en: 'Old 120cm laminar flow hoods (>15yo)',
+    fr: 'Anciennes hottes à flux laminaire 120 cm (>15 ans)',
+  },
+  'Old 180cm laminar flow hoods (>15yo)': {
+    en: 'Old 180cm laminar flow hoods (>15yo)',
+    fr: 'Anciennes hottes à flux laminaire 180 cm (>15 ans)',
+  },
+  'Optical Microscope (Widefield)': {
+    en: 'Optical Microscope (Widefield)',
+    fr: 'Microscope optique (plein champ)',
+  },
+  'Other CPG mobile equipment': {
+    en: 'Other CPG mobile equipment',
+    fr: 'Autres équipements mobiles CPG',
+  },
+  'Other Motorized Equipment': {
+    en: 'Other Motorized Equipment',
+    fr: 'Autres équipements motorisés',
+  },
+  'Other devices': {
+    en: 'Other devices',
+    fr: 'Autres dispositifs',
+  },
+  PCR: {
+    en: 'PCR',
+    fr: 'PCR',
+  },
+  'Passive/Non-Powered': {
+    en: 'Passive/Non-Powered',
+    fr: 'Passif/non motorisé',
+  },
+  'Performance & Rack Equipment': {
+    en: 'Performance & Rack Equipment',
+    fr: 'Équipements de performance et en rack',
+  },
+  'Peristaltic pumps': {
+    en: 'Peristaltic pumps',
+    fr: 'Pompes péristaltiques',
+  },
+  'Pipette pullers': {
+    en: 'Pipette pullers',
+    fr: 'Étireurs de pipettes',
+  },
+  'Pipetting robots': {
+    en: 'Pipetting robots',
+    fr: 'Robots de pipetage',
+  },
+  'Plate readers': {
+    en: 'Plate readers',
+    fr: 'Lecteurs de plaques',
+  },
+  'Plate washers': {
+    en: 'Plate washers',
+    fr: 'Laveurs de plaques',
+  },
+  'Precision Micro-Joining Systems': {
+    en: 'Precision Micro-Joining Systems',
+    fr: 'Systèmes de micro-assemblage de précision',
+  },
+  'Precision Micro/Nano Positioners': {
+    en: 'Precision Micro/Nano Positioners',
+    fr: 'Positionneurs micro/nano de précision',
+  },
+  'Precision Welding/Bonding': {
+    en: 'Precision Welding/Bonding',
+    fr: 'Soudage/collage de précision',
+  },
+  'Precision/Low-Power Instruments': {
+    en: 'Precision/Low-Power Instruments',
+    fr: 'Instruments de précision/faible puissance',
+  },
+  QPCR: {
+    en: 'QPCR',
+    fr: 'QPCR',
+  },
+  'Recent -80°C freezers (<12yo)': {
+    en: 'Recent -80°C freezers (<12yo)',
+    fr: 'Congélateurs -80°C récents (<12 ans)',
+  },
+  'Recent 150cm laminar flow hoods (<15yo)': {
+    en: 'Recent 150cm laminar flow hoods (<15yo)',
+    fr: 'Hottes à flux laminaire 150 cm récentes (<15 ans)',
+  },
+  'Recent 180cm laminar flow hoods (<15yo)': {
+    en: 'Recent 180cm laminar flow hoods (<15yo)',
+    fr: 'Hottes à flux laminaire 180 cm récentes (<15 ans)',
+  },
+  'Refrigerated baths, chillers': {
+    en: 'Refrigerated baths, chillers',
+    fr: 'Bains réfrigérés, refroidisseurs',
+  },
+  'Refrigerated display cabinets (fixed or mobile, 1-2m3)': {
+    en: 'Refrigerated display cabinets (fixed or mobile, 1-2m³)',
+    fr: 'Vitrines réfrigérées (fixes ou mobiles, 1-2 m³)',
+  },
+  'Refrigerated incubators': {
+    en: 'Refrigerated incubators',
+    fr: 'Incubateurs réfrigérés',
+  },
+  'Rotary vacuum evaporators': {
+    en: 'Rotary vacuum evaporators',
+    fr: 'Évaporateurs rotatifs sous vide',
+  },
+  'Scanning Electron Microscope': {
+    en: 'Scanning Electron Microscope',
+    fr: 'Microscope électronique à balayage',
+  },
+  'Scanning Probe Microscope': {
+    en: 'Scanning Probe Microscope',
+    fr: 'Microscope à sonde locale',
+  },
+  'Simple agitators/incubators': {
+    en: 'Simple agitators/incubators',
+    fr: 'Agitateurs/incubateurs simples',
+  },
+  'Simple microscopes, reversed microscopes, and binocular lenses,…': {
+    en: 'Simple microscopes, reversed microscopes, and binocular lenses',
+    fr: 'Microscopes simples, inversés et loupes binoculaires',
+  },
+  'Small +4°C or -20°C freezers (< 150L)': {
+    en: 'Small +4°C or -20°C freezers (< 150L)',
+    fr: 'Petits congélateurs +4°C ou -20°C (< 150 L)',
+  },
+  'Small Motor/Actuator': {
+    en: 'Small Motor/Actuator',
+    fr: 'Petit moteur/actionneur',
+  },
+  'Sonicators, homogenizers': {
+    en: 'Sonicators, homogenizers',
+    fr: 'Sonicateurs, homogénéiseurs',
+  },
+  'Spectrophotometers, fluorimeters, luminometers': {
+    en: 'Spectrophotometers, fluorimeters, luminometers',
+    fr: 'Spectrophotomètres, fluorimètres, luminomètres',
+  },
+  'Speed vacuum concentrators': {
+    en: 'Speed vacuum concentrators',
+    fr: 'Concentrateurs sous vide centrifuge',
+  },
+  'Standard Powered Saws': {
+    en: 'Standard Powered Saws',
+    fr: 'Scies électriques standards',
+  },
+  Stimulators: {
+    en: 'Stimulators',
+    fr: 'Stimulateurs',
+  },
+  'Syringe pumps and injectors': {
+    en: 'Syringe pumps and injectors',
+    fr: 'Pompes à seringue et injecteurs',
+  },
+  'Transfection systems, electroporators, gene pulsers': {
+    en: 'Transfection systems, electroporators, gene pulsers',
+    fr: 'Systèmes de transfection, électroporateurs, pulseurs à gènes',
+  },
+  'Transmission Electron Microscope': {
+    en: 'Transmission Electron Microscope',
+    fr: 'Microscope électronique en transmission',
+  },
+  'Typical Lab Instruments': {
+    en: 'Typical Lab Instruments',
+    fr: 'Instruments de laboratoire typiques',
+  },
+  'UV irradiators': {
+    en: 'UV irradiators',
+    fr: 'Irradiateurs UV',
+  },
+  'Ultra centrifuges': {
+    en: 'Ultra centrifuges',
+    fr: 'Ultracentrifugeuses',
+  },
+  'Ultra-Low': {
+    en: 'Ultra-Low',
+    fr: 'Ultra-faible',
+  },
+  'Ultrasound baths': {
+    en: 'Ultrasound baths',
+    fr: 'Bains à ultrasons',
+  },
+  'Vaccum diaphragm pumps (< 500W)': {
+    en: 'Vacuum diaphragm pumps (< 500W)',
+    fr: 'Pompes à membrane sous vide (< 500 W)',
+  },
+  'Vaccum mechanical pumps (> 500W)': {
+    en: 'Vacuum mechanical pumps (> 500W)',
+    fr: 'Pompes mécaniques à vide (> 500 W)',
+  },
+  'Vacuum evaporators': {
+    en: 'Vacuum evaporators',
+    fr: 'Évaporateurs sous vide',
+  },
+  'Vacuum/Extraction Unit': {
+    en: 'Vacuum/Extraction Unit',
+    fr: 'Unité de vide/extraction',
+  },
+  Washers: {
+    en: 'Washers',
+    fr: 'Laveurs',
+  },
+  'Water purifiers': {
+    en: 'Water purifiers',
+    fr: "Purificateurs d'eau",
+  },
+  'Water-baths, bead-baths, dry-baths': {
+    en: 'Water-baths, bead-baths, dry-baths',
+    fr: 'Bains-marie, bains de billes, bains secs',
+  },
+  'Welding Positioners & Rotators': {
+    en: 'Welding Positioners & Rotators',
+    fr: 'Positionneurs et rotateurs de soudage',
+  },
 } as const;

@@ -19,25 +19,26 @@ import {
   AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
-import { downloadCompositeChartAsPng } from 'src/utils/chartDownload';
-import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
-import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
-import { useColorblindStore } from 'src/stores/colorblind';
+import { downloadCompositeChartAsPng } from '@/utils/chartDownload';
+import TooltipEcharts from '@/components/charts/results/TooltipEcharts.vue';
+import { useEchartsTooltip } from '@/components/charts/results/useEchartsTooltip';
+import { useColorblindStore } from '@/stores/colorblind';
 import {
   CHART_CATEGORY_COLOR_SCHEMES,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
-} from 'src/constant/charts';
+} from '@/constant/charts';
 import {
   buildDoughnutOption,
   legendItems,
   type DisplayEntry,
   WASTE_DISPLAY_CATEGORY,
   WASTE_DISPLAY_ORDER,
-} from 'src/composables/results/useAdditionalCategoryCharts';
+} from '@/composables/results/useAdditionalCategoryCharts';
+import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
 import type {
   EmissionBreakdownCategoryRow,
   EmbodiedEnergyCategoryEntry,
-} from 'src/stores/modules';
+} from '@/stores/modules';
 
 use([
   CanvasRenderer,
@@ -60,6 +61,8 @@ const props = defineProps<{
 
 const { t, te } = useI18n();
 const colorblindStore = useColorblindStore();
+const { headcountActive, buildingEmbodiedEnergyActive } =
+  useModuleCategoriesAvailability();
 
 const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
 
@@ -449,48 +452,345 @@ const downloadPNG = () => {
           :class="{ 'additional-grid--print': printMode }"
         >
           <!-- ═══ HEADCOUNT SECTION ═══ -->
-          <!-- Headcount not validated: full-width placeholder -->
-          <div
-            v-if="!headcountValidated && !printMode"
-            class="additional-col additional-placeholder additional-placeholder--wide"
-          >
-            <div class="placeholder-content">
-              <q-icon name="o_info" size="md" color="negative" />
-              <div class="text-subtitle1 text-weight-medium q-mt-sm">
-                {{ $t('results_additional_validate_headcount_title') }}
-              </div>
-              <div class="text-body2 text-secondary q-mt-xs">
-                {{ $t('results_additional_validate_headcount_message') }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Headcount validated but no data: placeholder -->
-          <div
-            v-else-if="headcountHasNoData && !printMode"
-            class="additional-col additional-placeholder additional-placeholder--wide"
-          >
-            <div class="placeholder-content">
-              <q-icon name="o_info" size="md" color="negative" />
-              <div class="text-subtitle1 text-weight-medium q-mt-sm">
-                {{ $t('results_additional_headcount_no_data_title') }}
-              </div>
-              <div class="text-body2 text-secondary q-mt-xs">
-                {{ $t('results_additional_headcount_no_data_message') }}
+          <!-- Hidden entirely (not just greyed out) when Headcount is deactivated in the back-office. -->
+          <template v-if="headcountActive">
+            <!-- Headcount not validated: full-width placeholder -->
+            <div
+              v-if="!headcountValidated && !printMode"
+              class="additional-col additional-placeholder additional-placeholder--wide"
+            >
+              <div class="placeholder-content">
+                <q-icon name="o_info" size="md" color="negative" />
+                <div class="text-subtitle1 text-weight-medium q-mt-sm">
+                  {{ $t('results_additional_validate_headcount_title') }}
+                </div>
+                <div class="text-body2 text-secondary q-mt-xs">
+                  {{ $t('results_additional_validate_headcount_message') }}
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Headcount validated with data: 3 category columns -->
-          <template v-else>
-            <!-- Column 1: commuting -->
-            <div class="additional-col">
+            <!-- Headcount validated but no data: placeholder -->
+            <div
+              v-else-if="headcountHasNoData && !printMode"
+              class="additional-col additional-placeholder additional-placeholder--wide"
+            >
+              <div class="placeholder-content">
+                <q-icon name="o_info" size="md" color="negative" />
+                <div class="text-subtitle1 text-weight-medium q-mt-sm">
+                  {{ $t('results_additional_headcount_no_data_title') }}
+                </div>
+                <div class="text-body2 text-secondary q-mt-xs">
+                  {{ $t('results_additional_headcount_no_data_message') }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Headcount validated with data: 3 category columns -->
+            <template v-else>
+              <!-- Column 1: commuting -->
+              <div class="additional-col">
+                <div class="q-pt-xl q-px-lg additional-header">
+                  <div class="text-h5 text-weight-medium text-center">
+                    {{ $t('charts-commuting-category') }}
+                  </div>
+                  <div class="text-caption text-secondary q-mt-xs text-center">
+                    {{ $t('results_additional_commuting_breakdown_title') }}
+                  </div>
+                </div>
+                <q-separator class="q-my-lg" />
+                <div class="total-cell">
+                  <div class="total-value items-center">
+                    <div
+                      class="text-h1 text-weight-medium"
+                      :style="{ color: getCategoryAccent('commuting') }"
+                    >
+                      {{ $formatTonnesCO2(commutingTotal) }}
+                    </div>
+                    <div class="total-unit text-secondary text-body2">
+                      {{ $t('results_units_tonnes') }}
+                    </div>
+                  </div>
+                </div>
+                <q-separator class="q-my-lg" />
+                <div
+                  v-if="commutingEntries.length"
+                  class="q-pt-md q-pb-xl q-px-md"
+                >
+                  <div class="text-overline text-secondary text-center q-mb-xs">
+                    {{ $t('results_additional_co2_chart_title_percent') }}
+                  </div>
+                  <VChart
+                    v-if="chartsInView"
+                    ref="commutingCO2Ref"
+                    :key="`commuting-co2-${commutingEntries.length}-${colorblindStore.enabled}`"
+                    :option="commutingCO2Option"
+                    :autoresize="chartsInView"
+                    class="chart"
+                  />
+                  <q-skeleton v-else type="rect" class="chart" />
+                  <div
+                    class="text-overline text-secondary text-center q-mt-md q-mb-xs"
+                  >
+                    {{
+                      $t(
+                        'results_additional_commuting_physical_chart_title_percent',
+                      )
+                    }}
+                  </div>
+                  <VChart
+                    v-if="chartsInView"
+                    ref="commutingPhysicalRef"
+                    :key="`commuting-qty-${commutingEntries.length}-${colorblindStore.enabled}`"
+                    :option="commutingPhysicalOption"
+                    :autoresize="chartsInView"
+                    class="chart"
+                  />
+                  <q-skeleton v-else type="rect" class="chart" />
+                  <div
+                    class="q-mt-md flex flex-wrap justify-center q-gutter-x-md q-gutter-y-xs"
+                  >
+                    <div
+                      v-for="item in commutingLegend"
+                      :key="item.key"
+                      class="flex items-center"
+                    >
+                      <div
+                        class="legend-dot q-mr-xs"
+                        :style="{ backgroundColor: item.color }"
+                      />
+                      <span class="text-caption">{{ item.label }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="q-pt-md q-pb-md q-px-md">
+                  <div class="text-body2 text-secondary">
+                    {{ $t('no-chart-data') }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Column 2: food -->
+              <div class="additional-col">
+                <div class="q-pt-xl q-px-lg additional-header">
+                  <div class="text-h5 text-weight-medium text-center">
+                    {{ $t('charts-food-category') }}
+                  </div>
+                  <div class="text-caption text-secondary q-mt-xs text-center">
+                    {{ $t('results_additional_food_breakdown_title') }}
+                  </div>
+                </div>
+                <q-separator class="q-my-lg" />
+                <div class="total-cell">
+                  <div class="total-value items-center">
+                    <div
+                      class="text-h1 text-weight-medium"
+                      :style="{ color: getCategoryAccent('food') }"
+                    >
+                      {{ $formatTonnesCO2(foodTotal) }}
+                    </div>
+                    <div class="total-unit text-secondary text-body2">
+                      {{ $t('results_units_tonnes') }}
+                    </div>
+                  </div>
+                </div>
+                <q-separator class="q-my-lg" />
+                <div v-if="foodEntries.length" class="q-pt-md q-pb-xl q-px-md">
+                  <div class="text-overline text-secondary text-center q-mb-xs">
+                    {{ $t('results_additional_co2_chart_title_percent') }}
+                  </div>
+                  <VChart
+                    v-if="chartsInView"
+                    ref="foodCO2Ref"
+                    :key="`food-co2-${colorblindStore.enabled}`"
+                    :option="foodCO2Option"
+                    :autoresize="chartsInView"
+                    class="chart"
+                  />
+                  <q-skeleton v-else type="rect" class="chart" />
+                  <div
+                    class="text-overline text-secondary text-center q-mt-md q-mb-xs"
+                  >
+                    {{
+                      $t('results_additional_food_physical_chart_title_percent')
+                    }}
+                  </div>
+                  <VChart
+                    v-if="chartsInView"
+                    ref="foodPhysicalRef"
+                    :key="`food-qty-${colorblindStore.enabled}`"
+                    :option="foodPhysicalOption"
+                    :autoresize="chartsInView"
+                    class="chart"
+                  />
+                  <q-skeleton v-else type="rect" class="chart" />
+                  <div
+                    class="q-mt-md flex flex-wrap justify-center q-gutter-x-md q-gutter-y-xs"
+                  >
+                    <div
+                      v-for="item in foodLegend"
+                      :key="item.key"
+                      class="flex items-center"
+                    >
+                      <div
+                        class="legend-dot q-mr-xs"
+                        :style="{ backgroundColor: item.color }"
+                      />
+                      <span class="text-caption">{{ item.label }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="q-pt-md q-pb-md q-px-md">
+                  <div class="text-body2 text-secondary">
+                    {{ $t('no-chart-data') }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Column 3: waste -->
+              <div class="additional-col">
+                <div class="q-pt-xl q-px-lg additional-header">
+                  <div class="text-h5 text-weight-medium text-center">
+                    {{ $t('charts-waste-category') }}
+                    <q-icon
+                      v-if="!printMode"
+                      name="o_info"
+                      size="xs"
+                      class="q-ml-xs text-primary"
+                    >
+                      <q-tooltip class="text-body2 text-black">
+                        {{ $t('results-stats-waste-title') }}
+                      </q-tooltip>
+                    </q-icon>
+                  </div>
+                  <div class="text-caption text-secondary q-mt-xs text-center">
+                    {{ $t('results_additional_waste_breakdown_title') }}
+                  </div>
+                </div>
+                <q-separator class="q-my-lg" />
+                <div class="total-cell">
+                  <div class="total-value items-center">
+                    <div
+                      class="text-h1 text-weight-medium"
+                      :style="{ color: getCategoryAccent('waste') }"
+                    >
+                      {{ $formatTonnesCO2(wasteTotal) }}
+                    </div>
+                    <div class="total-unit text-secondary text-body2">
+                      {{ $t('results_units_tonnes') }}
+                    </div>
+                  </div>
+                </div>
+                <q-separator class="q-my-lg" />
+                <div v-if="wasteGrouped.length" class="q-pt-md q-pb-xl q-px-md">
+                  <div class="text-overline text-secondary text-center q-mb-xs">
+                    {{ $t('results_additional_co2_chart_title_percent') }}
+                  </div>
+                  <VChart
+                    v-if="chartsInView"
+                    ref="wasteCO2Ref"
+                    :key="`waste-co2-${colorblindStore.enabled}`"
+                    :option="wasteCO2Option"
+                    :autoresize="chartsInView"
+                    class="chart"
+                  />
+                  <q-skeleton v-else type="rect" class="chart" />
+                  <div
+                    class="text-overline text-secondary text-center q-mt-md q-mb-xs"
+                  >
+                    {{
+                      $t(
+                        'results_additional_waste_physical_chart_title_percent',
+                      )
+                    }}
+                  </div>
+                  <VChart
+                    v-if="chartsInView"
+                    ref="wastePhysicalRef"
+                    :key="`waste-qty-${colorblindStore.enabled}`"
+                    :option="wastePhysicalOption"
+                    :autoresize="chartsInView"
+                    class="chart"
+                  />
+                  <q-skeleton v-else type="rect" class="chart" />
+                  <div
+                    class="q-mt-md flex flex-wrap justify-center q-gutter-x-md q-gutter-y-xs"
+                  >
+                    <div
+                      v-for="item in wasteLegend"
+                      :key="item.key"
+                      class="flex items-center"
+                    >
+                      <div
+                        class="legend-dot q-mr-xs"
+                        :style="{ backgroundColor: item.color }"
+                      />
+                      <span class="text-caption">{{ item.label }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="q-pt-md q-pb-md q-px-md">
+                  <div class="text-body2 text-secondary">
+                    {{ $t('no-chart-data') }}
+                  </div>
+                </div>
+              </div>
+            </template>
+          </template>
+
+          <!-- BUILDINGS SECTION  -->
+          <!-- Hidden entirely when Buildings, or its construction/renovation submodule, is deactivated. -->
+          <template v-if="buildingEmbodiedEnergyActive">
+            <!-- Buildings not validated: placeholder -->
+            <div
+              v-if="!buildingsValidated && !printMode"
+              class="additional-col additional-placeholder"
+            >
+              <div class="placeholder-content">
+                <q-icon name="o_info" size="md" color="negative" />
+                <div class="text-subtitle1 text-weight-medium q-mt-sm">
+                  {{ $t('results_additional_validate_buildings_title') }}
+                </div>
+                <div class="text-body2 text-secondary q-mt-xs">
+                  {{ $t('results_additional_validate_buildings_message') }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Buildings validated but no data: placeholder -->
+            <div
+              v-else-if="embodiedEnergyTotal <= 0 && !printMode"
+              class="additional-col additional-placeholder"
+            >
+              <div class="placeholder-content">
+                <q-icon name="o_info" size="md" color="negative" />
+                <div class="text-subtitle1 text-weight-medium q-mt-sm">
+                  {{ $t('results_additional_buildings_no_data_title') }}
+                </div>
+                <div class="text-body2 text-secondary q-mt-xs">
+                  {{ $t('results_additional_buildings_no_data_message') }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Buildings validated with data -->
+            <div v-else class="additional-col">
               <div class="q-pt-xl q-px-lg additional-header">
                 <div class="text-h5 text-weight-medium text-center">
-                  {{ $t('charts-commuting-category') }}
+                  {{ $t('charts-embodied-energy-category') }}
+                  <q-icon
+                    v-if="!printMode"
+                    name="o_info"
+                    size="xs"
+                    class="q-ml-xs text-primary"
+                  >
+                    <q-tooltip class="text-body2 text-black">
+                      {{ $t('results-stats-embodied-energy-title') }}
+                    </q-tooltip>
+                  </q-icon>
                 </div>
                 <div class="text-caption text-secondary q-mt-xs text-center">
-                  {{ $t('results_additional_commuting_breakdown_title') }}
+                  {{ $t('results_additional_embodied_energy_breakdown_title') }}
                 </div>
               </div>
               <q-separator class="q-my-lg" />
@@ -498,9 +798,9 @@ const downloadPNG = () => {
                 <div class="total-value items-center">
                   <div
                     class="text-h1 text-weight-medium"
-                    :style="{ color: getCategoryAccent('commuting') }"
+                    :style="{ color: getCategoryAccent('embodied_energy') }"
                   >
-                    {{ $formatTonnesCO2(commutingTotal) }}
+                    {{ $formatTonnesCO2(embodiedEnergyTotal) }}
                   </div>
                   <div class="total-unit text-secondary text-body2">
                     {{ $t('results_units_tonnes') }}
@@ -509,7 +809,7 @@ const downloadPNG = () => {
               </div>
               <q-separator class="q-my-lg" />
               <div
-                v-if="commutingEntries.length"
+                v-if="embodiedEnergyByCategoryData.length"
                 class="q-pt-md q-pb-xl q-px-md"
               >
                 <div class="text-overline text-secondary text-center q-mb-xs">
@@ -517,27 +817,9 @@ const downloadPNG = () => {
                 </div>
                 <VChart
                   v-if="chartsInView"
-                  ref="commutingCO2Ref"
-                  :key="`commuting-co2-${commutingEntries.length}-${colorblindStore.enabled}`"
-                  :option="commutingCO2Option"
-                  :autoresize="chartsInView"
-                  class="chart"
-                />
-                <q-skeleton v-else type="rect" class="chart" />
-                <div
-                  class="text-overline text-secondary text-center q-mt-md q-mb-xs"
-                >
-                  {{
-                    $t(
-                      'results_additional_commuting_physical_chart_title_percent',
-                    )
-                  }}
-                </div>
-                <VChart
-                  v-if="chartsInView"
-                  ref="commutingPhysicalRef"
-                  :key="`commuting-qty-${commutingEntries.length}-${colorblindStore.enabled}`"
-                  :option="commutingPhysicalOption"
+                  ref="embodiedEnergyCO2Ref"
+                  :key="`embodied-co2-${colorblindStore.enabled}`"
+                  :option="embodiedEnergyCO2Option"
                   :autoresize="chartsInView"
                   class="chart"
                 />
@@ -546,7 +828,7 @@ const downloadPNG = () => {
                   class="q-mt-md flex flex-wrap justify-center q-gutter-x-md q-gutter-y-xs"
                 >
                   <div
-                    v-for="item in commutingLegend"
+                    v-for="item in embodiedEnergyLegend"
                     :key="item.key"
                     class="flex items-center"
                   >
@@ -557,169 +839,10 @@ const downloadPNG = () => {
                     <span class="text-caption">{{ item.label }}</span>
                   </div>
                 </div>
-              </div>
-              <div v-else class="q-pt-md q-pb-md q-px-md">
-                <div class="text-body2 text-secondary">
-                  {{ $t('no-chart-data') }}
-                </div>
-              </div>
-            </div>
-
-            <!-- Column 2: food -->
-            <div class="additional-col">
-              <div class="q-pt-xl q-px-lg additional-header">
-                <div class="text-h5 text-weight-medium text-center">
-                  {{ $t('charts-food-category') }}
-                </div>
-                <div class="text-caption text-secondary q-mt-xs text-center">
-                  {{ $t('results_additional_food_breakdown_title') }}
-                </div>
-              </div>
-              <q-separator class="q-my-lg" />
-              <div class="total-cell">
-                <div class="total-value items-center">
-                  <div
-                    class="text-h1 text-weight-medium"
-                    :style="{ color: getCategoryAccent('food') }"
-                  >
-                    {{ $formatTonnesCO2(foodTotal) }}
-                  </div>
-                  <div class="total-unit text-secondary text-body2">
-                    {{ $t('results_units_tonnes') }}
-                  </div>
-                </div>
-              </div>
-              <q-separator class="q-my-lg" />
-              <div v-if="foodEntries.length" class="q-pt-md q-pb-xl q-px-md">
-                <div class="text-overline text-secondary text-center q-mb-xs">
-                  {{ $t('results_additional_co2_chart_title_percent') }}
-                </div>
-                <VChart
-                  v-if="chartsInView"
-                  ref="foodCO2Ref"
-                  :key="`food-co2-${colorblindStore.enabled}`"
-                  :option="foodCO2Option"
-                  :autoresize="chartsInView"
-                  class="chart"
-                />
-                <q-skeleton v-else type="rect" class="chart" />
                 <div
-                  class="text-overline text-secondary text-center q-mt-md q-mb-xs"
+                  class="text-caption text-secondary q-mt-md text-center text-italic"
                 >
-                  {{
-                    $t('results_additional_food_physical_chart_title_percent')
-                  }}
-                </div>
-                <VChart
-                  v-if="chartsInView"
-                  ref="foodPhysicalRef"
-                  :key="`food-qty-${colorblindStore.enabled}`"
-                  :option="foodPhysicalOption"
-                  :autoresize="chartsInView"
-                  class="chart"
-                />
-                <q-skeleton v-else type="rect" class="chart" />
-                <div
-                  class="q-mt-md flex flex-wrap justify-center q-gutter-x-md q-gutter-y-xs"
-                >
-                  <div
-                    v-for="item in foodLegend"
-                    :key="item.key"
-                    class="flex items-center"
-                  >
-                    <div
-                      class="legend-dot q-mr-xs"
-                      :style="{ backgroundColor: item.color }"
-                    />
-                    <span class="text-caption">{{ item.label }}</span>
-                  </div>
-                </div>
-              </div>
-              <div v-else class="q-pt-md q-pb-md q-px-md">
-                <div class="text-body2 text-secondary">
-                  {{ $t('no-chart-data') }}
-                </div>
-              </div>
-            </div>
-
-            <!-- Column 3: waste -->
-            <div class="additional-col">
-              <div class="q-pt-xl q-px-lg additional-header">
-                <div class="text-h5 text-weight-medium text-center">
-                  {{ $t('charts-waste-category') }}
-                  <q-icon
-                    v-if="!printMode"
-                    name="o_info"
-                    size="xs"
-                    class="q-ml-xs text-primary"
-                  >
-                    <q-tooltip class="text-body2 text-black">
-                      {{ $t('results-stats-waste-title') }}
-                    </q-tooltip>
-                  </q-icon>
-                </div>
-                <div class="text-caption text-secondary q-mt-xs text-center">
-                  {{ $t('results_additional_waste_breakdown_title') }}
-                </div>
-              </div>
-              <q-separator class="q-my-lg" />
-              <div class="total-cell">
-                <div class="total-value items-center">
-                  <div
-                    class="text-h1 text-weight-medium"
-                    :style="{ color: getCategoryAccent('waste') }"
-                  >
-                    {{ $formatTonnesCO2(wasteTotal) }}
-                  </div>
-                  <div class="total-unit text-secondary text-body2">
-                    {{ $t('results_units_tonnes') }}
-                  </div>
-                </div>
-              </div>
-              <q-separator class="q-my-lg" />
-              <div v-if="wasteGrouped.length" class="q-pt-md q-pb-xl q-px-md">
-                <div class="text-overline text-secondary text-center q-mb-xs">
-                  {{ $t('results_additional_co2_chart_title_percent') }}
-                </div>
-                <VChart
-                  v-if="chartsInView"
-                  ref="wasteCO2Ref"
-                  :key="`waste-co2-${colorblindStore.enabled}`"
-                  :option="wasteCO2Option"
-                  :autoresize="chartsInView"
-                  class="chart"
-                />
-                <q-skeleton v-else type="rect" class="chart" />
-                <div
-                  class="text-overline text-secondary text-center q-mt-md q-mb-xs"
-                >
-                  {{
-                    $t('results_additional_waste_physical_chart_title_percent')
-                  }}
-                </div>
-                <VChart
-                  v-if="chartsInView"
-                  ref="wastePhysicalRef"
-                  :key="`waste-qty-${colorblindStore.enabled}`"
-                  :option="wastePhysicalOption"
-                  :autoresize="chartsInView"
-                  class="chart"
-                />
-                <q-skeleton v-else type="rect" class="chart" />
-                <div
-                  class="q-mt-md flex flex-wrap justify-center q-gutter-x-md q-gutter-y-xs"
-                >
-                  <div
-                    v-for="item in wasteLegend"
-                    :key="item.key"
-                    class="flex items-center"
-                  >
-                    <div
-                      class="legend-dot q-mr-xs"
-                      :style="{ backgroundColor: item.color }"
-                    />
-                    <span class="text-caption">{{ item.label }}</span>
-                  </div>
+                  {{ $t('results-charts-embodied-energy-title') }}
                 </div>
               </div>
               <div v-else class="q-pt-md q-pb-md q-px-md">
@@ -729,118 +852,6 @@ const downloadPNG = () => {
               </div>
             </div>
           </template>
-
-          <!-- BUILDINGS SECTION  -->
-          <!-- Buildings not validated: placeholder -->
-          <div
-            v-if="!buildingsValidated && !printMode"
-            class="additional-col additional-placeholder"
-          >
-            <div class="placeholder-content">
-              <q-icon name="o_info" size="md" color="negative" />
-              <div class="text-subtitle1 text-weight-medium q-mt-sm">
-                {{ $t('results_additional_validate_buildings_title') }}
-              </div>
-              <div class="text-body2 text-secondary q-mt-xs">
-                {{ $t('results_additional_validate_buildings_message') }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Buildings validated but no data: placeholder -->
-          <div
-            v-else-if="embodiedEnergyTotal <= 0 && !printMode"
-            class="additional-col additional-placeholder"
-          >
-            <div class="placeholder-content">
-              <q-icon name="o_info" size="md" color="negative" />
-              <div class="text-subtitle1 text-weight-medium q-mt-sm">
-                {{ $t('results_additional_buildings_no_data_title') }}
-              </div>
-              <div class="text-body2 text-secondary q-mt-xs">
-                {{ $t('results_additional_buildings_no_data_message') }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Buildings validated with data -->
-          <div v-else class="additional-col">
-            <div class="q-pt-xl q-px-lg additional-header">
-              <div class="text-h5 text-weight-medium text-center">
-                {{ $t('charts-embodied-energy-category') }}
-                <q-icon
-                  v-if="!printMode"
-                  name="o_info"
-                  size="xs"
-                  class="q-ml-xs text-primary"
-                >
-                  <q-tooltip class="text-body2 text-black">
-                    {{ $t('results-stats-embodied-energy-title') }}
-                  </q-tooltip>
-                </q-icon>
-              </div>
-              <div class="text-caption text-secondary q-mt-xs text-center">
-                {{ $t('results_additional_embodied_energy_breakdown_title') }}
-              </div>
-            </div>
-            <q-separator class="q-my-lg" />
-            <div class="total-cell">
-              <div class="total-value items-center">
-                <div
-                  class="text-h1 text-weight-medium"
-                  :style="{ color: getCategoryAccent('embodied_energy') }"
-                >
-                  {{ $formatTonnesCO2(embodiedEnergyTotal) }}
-                </div>
-                <div class="total-unit text-secondary text-body2">
-                  {{ $t('results_units_tonnes') }}
-                </div>
-              </div>
-            </div>
-            <q-separator class="q-my-lg" />
-            <div
-              v-if="embodiedEnergyByCategoryData.length"
-              class="q-pt-md q-pb-xl q-px-md"
-            >
-              <div class="text-overline text-secondary text-center q-mb-xs">
-                {{ $t('results_additional_co2_chart_title_percent') }}
-              </div>
-              <VChart
-                v-if="chartsInView"
-                ref="embodiedEnergyCO2Ref"
-                :key="`embodied-co2-${colorblindStore.enabled}`"
-                :option="embodiedEnergyCO2Option"
-                :autoresize="chartsInView"
-                class="chart"
-              />
-              <q-skeleton v-else type="rect" class="chart" />
-              <div
-                class="q-mt-md flex flex-wrap justify-center q-gutter-x-md q-gutter-y-xs"
-              >
-                <div
-                  v-for="item in embodiedEnergyLegend"
-                  :key="item.key"
-                  class="flex items-center"
-                >
-                  <div
-                    class="legend-dot q-mr-xs"
-                    :style="{ backgroundColor: item.color }"
-                  />
-                  <span class="text-caption">{{ item.label }}</span>
-                </div>
-              </div>
-              <div
-                class="text-caption text-secondary q-mt-md text-center text-italic"
-              >
-                {{ $t('results-charts-embodied-energy-title') }}
-              </div>
-            </div>
-            <div v-else class="q-pt-md q-pb-md q-px-md">
-              <div class="text-body2 text-secondary">
-                {{ $t('no-chart-data') }}
-              </div>
-            </div>
-          </div>
         </div>
       </q-card>
       <template v-if="!printMode">

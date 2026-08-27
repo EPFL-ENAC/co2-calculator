@@ -3,14 +3,11 @@ import {
   buildChartDecal,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
   getChartSubcategoryColor,
-} from 'src/constant/charts';
-import type { TooltipState } from 'src/types/chartTooltip';
+} from '@/constant/charts';
+import type { TooltipState } from '@/types/chartTooltip';
 
 export type AdditionalCategoryKey =
-  | 'commuting'
-  | 'food'
-  | 'waste'
-  | 'embodied_energy';
+  'commuting' | 'food' | 'waste' | 'embodied_energy';
 
 export type DisplayEntry = {
   key: string;
@@ -142,8 +139,12 @@ export function legendItems(
 }
 
 export const WASTE_DISPLAY_CATEGORY: Record<string, string> = {
+  // `incineration`/`composting` are the pre-taxonomy leaf keys: reports computed
+  // before their subclasses existed still report at the class level.
   incineration: 'domestic',
+  domestic_waste: 'domestic',
   composting: 'organic',
+  organic_waste_lawn: 'organic',
   organic_waste_food_leftovers: 'organic',
   cooking_vegetable_oil: 'organic',
   paper: 'paper',

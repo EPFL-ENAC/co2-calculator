@@ -1,10 +1,32 @@
 """Generic factor model for storing calculation coefficients across module types."""
 
-from typing import Optional
-
 from sqlalchemy import ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import JSON, Column, Field, Integer, SQLModel
+
+from app.models._field_defaults import default_dict
+
+# #2404: the distinct ``kind_field`` JSON keys across all module handlers —
+# the keys ``_resolved_factor_id`` matches ``classification->>key`` against
+# per row. Each gets a partial expression index below. Kept as a module
+# constant (not derived from the handler registry) to avoid a models →
+# schemas import cycle; ``test_factor_resolution_indexes`` asserts this set
+# still covers every registered handler, so adding a handler with a new
+# ``kind_field`` fails a test instead of silently reintroducing the
+# per-row seq scan this fixes.
+FACTOR_RESOLUTION_INDEX_KEYS = (
+    "building_name",
+    "category",
+    "equipment_class",
+    "name",
+    "provider",
+    # declared assignment-style (no type annotation) in
+    # modules_planner/purchase/handlers.py -- the census grep that built this
+    # list missed it; the registry test now guards against exactly that.
+    "purchase_category",
+    "purchase_institutional_code",
+    "researchfacility_id",
+)
 
 
 class FactorBase(SQLModel):
@@ -23,7 +45,7 @@ class FactorBase(SQLModel):
         description="""Scope to specific data entry type (e.g., scientific, student)""",
     )
     classification: dict = Field(
-        default_factory=dict,
+        default_factory=default_dict,
         sa_column=Column(
             JSON().with_variant(JSONB(astext_type=Text()), "postgresql"),
         ),
@@ -34,12 +56,12 @@ class FactorBase(SQLModel):
             regardless of Python dict insertion order.""",
     )
     values: dict = Field(
-        default_factory=dict,
+        default_factory=default_dict,
         sa_column=Column(JSON),
         description="""Factor values as JSON
             (e.g., {active_power_w: 100, standby_power_w: 10})""",
     )
-    year: Optional[int] = Field(
+    year: int | None = Field(
         default=None,
         nullable=True,  # Initially nullable for migration, will enforce NOT NULL later
         index=True,
@@ -50,8 +72,7 @@ class FactorBase(SQLModel):
 
 
 class Factor(FactorBase, table=True):
-    """
-    Generic factor table for storing calculation coefficients.
+    """Generic factor table for storing calculation coefficients.
 
     Each emission_type has its own calculation strategy:
     - equipment (id=2): Equipment power calculation
@@ -102,6 +123,24 @@ class Factor(FactorBase, table=True):
             "data_entry_type_id",
             "year",
         ),
+        # #2404: one partial expression index per distinct handler
+        # ``kind_field``, serving ``_resolved_factor_id``'s correlated
+        # per-row lookup — measured 10× per evaluation (2.08 ms → 0.19 ms)
+        # and a 3× buffer cut on that branch. Partial (`IS NOT NULL`)
+        # so each index stores only the factor rows carrying its key;
+        # Postgres proves the query's strict `->> =` equality implies the
+        # predicate. Keys enumerated in FACTOR_RESOLUTION_INDEX_KEYS above;
+        # a unit test pins the set against the live handler registry.
+        *(
+            Index(
+                f"ix_factors_res_{key}",
+                "data_entry_type_id",
+                "year",
+                text(f"(classification->>'{key}')"),
+                postgresql_where=text(f"(classification->>'{key}') IS NOT NULL"),
+            ).ddl_if(dialect="postgresql")
+            for key in FACTOR_RESOLUTION_INDEX_KEYS
+        ),
         # Partial unique identity guards (created in migration
         # b1f0a2c3d4e5). Mirrored here so Alembic autogenerate sees them
         # on the model side and stops proposing spurious drop_index calls.
@@ -126,9 +165,9 @@ class Factor(FactorBase, table=True):
         ).ddl_if(dialect="postgresql"),
     )
 
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: int | None = Field(default=None, primary_key=True, index=True)
 
-    last_seen_job_id: Optional[int] = Field(
+    last_seen_job_id: int | None = Field(
         default=None,
         sa_column=Column(
             Integer,

@@ -1,4 +1,6 @@
-import { MODULES_ORDER } from 'src/constant/timelineItems';
+import { MODULES_ORDER } from '@/constant/timelineItems';
+import type { DataEntryPolicies } from '@/utils/dataEntryPolicy';
+import { DATA_ENTRY_TYPE_IDS } from '@/types/module-lookups.gen';
 
 export const MODULES = {
   Headcount: 'headcount',
@@ -48,7 +50,7 @@ export const SUBMODULE_PURCHASE_TYPES = {
   ServicePurchases: 'services',
   VehiclePurchases: 'vehicles',
   OtherPurchases: 'other_purchases',
-  AdditionalPurchases: 'additional_purchases',
+  PurchasesCentralized: 'purchases_centralized',
 } as const;
 
 export type PurchaseSubType =
@@ -61,7 +63,7 @@ type PurchaseProps = {
 
 export const SUBMODULE_RESEARCH_FACILITIES_TYPES = {
   ResearchFacilities: 'research-facilities',
-  AnimalFacilities: 'mice_and_fish_animal_facilities',
+  AnimalFacilities: 'animal_facilities',
 } as const;
 
 export type ResearchFacilitiesSubType =
@@ -84,40 +86,15 @@ type ProcessesProps = {
   submoduleType?: AllSubmoduleTypes; // ProcessesSubType;
 };
 
-// beware came straight from backend enum, make sure to keep in sync if backend changes
-// backend/app/models/data_entry.py
+// Generated from backend/app/models/data_entry.py (DataEntryTypeEnum) — see
+// frontend/src/types/module-lookups.gen.ts. Two keys are added on top: the
+// hyphenated research-facilities alias, and energy_mix (frontend-only, not a
+// submodule). Extra keys are safe — nothing iterates this object, every
+// consumer does a keyed lookup.
 export const enumSubmodule = {
-  member: 1,
-  student: 2,
-  // todo replace with equipment types
-  [SUBMODULE_EQUIPMENT_TYPES.Scientific]: 10,
-  [SUBMODULE_EQUIPMENT_TYPES.IT]: 11,
-  [SUBMODULE_EQUIPMENT_TYPES.Other]: 12,
-  // travel
-  plane: 20,
-  train: 21,
-  // building room
-  building: 30,
-  energy_combustion: 31,
-  // external cloud and ai
-  [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
-  [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
-  // process emissions
-  process_emissions: 50,
-  // purchase submodules
-  [SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases]: 60,
-  [SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases]: 61,
-  [SUBMODULE_PURCHASE_TYPES.ConsumablePurchases]: 62,
-  [SUBMODULE_PURCHASE_TYPES.BioProductPurchases]: 63,
-  [SUBMODULE_PURCHASE_TYPES.ServicePurchases]: 64,
-  [SUBMODULE_PURCHASE_TYPES.VehiclePurchases]: 65,
-  [SUBMODULE_PURCHASE_TYPES.OtherPurchases]: 66,
-  [SUBMODULE_PURCHASE_TYPES.AdditionalPurchases]: 67,
-
-  // research facilities
-  [SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities]: 70,
-  [SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities]: 71,
-  // not a module per se
+  ...DATA_ENTRY_TYPE_IDS,
+  [SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities]:
+    DATA_ENTRY_TYPE_IDS.research_facilities,
   energy_mix: 100,
 } as const;
 
@@ -229,6 +206,8 @@ export interface ModuleItem {
   status?: string;
   is_new?: boolean;
   id?: number;
+  /** #951: row provenance — see utils/dataEntryPolicy branchOf/isFieldEditable. */
+  source?: number | null;
 }
 
 export interface Submodule {
@@ -241,6 +220,10 @@ export interface Submodule {
     annual_consumption_kwh: number;
     total_kg_co2eq: number;
   };
+  /** #951: edit rights per row provenance. Null for submodules the policy
+   * layer doesn't cover (planner, embodied energy) — see
+   * utils/dataEntryPolicy. */
+  data_entry_policies?: DataEntryPolicies | null;
 }
 
 export interface Totals {
@@ -262,6 +245,7 @@ export interface ModuleResponse {
   retrieved_at: string;
   submodules: Record<string, Submodule>;
   totals: Totals;
+  incomplete_new_equipment_count?: number;
 }
 
 // TODO refactor: delete this vibe coded code and use your brain
@@ -287,5 +271,12 @@ export interface TaxonomyNode {
   name: string;
   label: string;
   translation_key?: string;
+  /**
+   * Display metadata whitelisted by the node's backend handler
+   * (`taxonomy_meta_fields`, #2391) — e.g. `use_unit` for a research
+   * facility. Absent for handlers declaring none; never an emission
+   * coefficient.
+   */
+  meta?: Record<string, string | number | null>;
   children?: TaxonomyNode[];
 }

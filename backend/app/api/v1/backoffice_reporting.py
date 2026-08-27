@@ -1,4 +1,4 @@
-from typing import Annotated, List, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import aliased
@@ -18,19 +18,16 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/affiliations", response_model=List[UnitRead])
+@router.get("/affiliations", response_model=list[UnitRead])
 async def list_affiliations(
     unit_type_labels: Annotated[list[str] | None, Query()] = None,
-    name: Optional[str] = Query(
-        None, description="Filter by unit name (partial match)"
-    ),
+    name: str | None = Query(None, description="Filter by unit name (partial match)"),
     page: int = 1,
     page_size: Annotated[int, Query(le=100)] = 100,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    List affiliation units (Level 2 and Level 3).
+    """List affiliation units (Level 2 and Level 3).
 
     Returns merged list of:
     - Level 2: Service central, Faculté
@@ -73,15 +70,13 @@ async def list_affiliations(
     return result.all()
 
 
-@router.get("/units", response_model=List[UnitRead])
+@router.get("/units", response_model=list[UnitRead])
 async def list_units(
     level: int | None = None,
     parent_id: str | None = None,
     unit_type_labels: Annotated[list[str] | None, Query()] = None,
-    parent_unit_type_label: str | None = None,
-    name: Optional[str] = Query(
-        None, description="Filter by unit name (partial match)"
-    ),
+    parent_unit_type_label: Annotated[list[str] | None, Query()] = None,
+    name: str | None = Query(None, description="Filter by unit name (partial match)"),
     page: int = 1,
     page_size: Annotated[int, Query(le=100)] = 100,
     db: AsyncSession = Depends(get_db),
@@ -117,7 +112,7 @@ async def list_units(
         query = query.join(
             parent_alias,
             col(Unit.parent_institutional_code) == parent_alias.institutional_code,
-        ).where(parent_alias.unit_type_label == parent_unit_type_label)
+        ).where(col(parent_alias.unit_type_label).in_(parent_unit_type_label))
 
     # 4. Affiliation scoping (#459)
     if not is_global:

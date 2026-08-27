@@ -14,6 +14,7 @@ Known limitations requiring future work:
 - Some tests may need database seeding with production-like data
 """
 
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,8 @@ from app.main import app
 from app.models.data_ingestion import IngestionMethod
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import GlobalScope, Role, RoleName, User
+from tests.browser import SAME_ORIGIN_HEADERS
+from tests.unit.v1.test_temp_upload_auth_ordering import valid_access_token
 
 # Test fixtures directory
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -71,7 +74,14 @@ def get_test_client(test_user, db_session, monkeypatch):
         monkeypatch.setattr(files, "is_permitted", mock_is_permitted)
         monkeypatch.setattr(data_sync, "is_permitted", mock_is_permitted)
 
-        client = TestClient(app, raise_server_exceptions=False)
+        # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies
+        # run, so the get_current_user override alone no longer gets past it.
+        client = TestClient(
+            app,
+            raise_server_exceptions=False,
+            cookies={"auth_token": valid_access_token()},
+            headers=SAME_ORIGIN_HEADERS,
+        )
         return client
 
     yield _get_client
@@ -111,7 +121,11 @@ class TestCSVUploadBasic:
         test_user: User,
         get_test_client,
     ):
-        """Test that non-CSV files can still be uploaded (validation happens later)."""
+        """Non-import extensions are rejected at upload (415).
+
+        ``validate_upload_mimetype`` allowlists import extensions; a ``.txt``
+        never reaches the file store.
+        """
         client = get_test_client()
 
         txt_path = FIXTURES_DIR / "not_a_csv.txt"
@@ -123,8 +137,7 @@ class TestCSVUploadBasic:
                 headers={"Authorization": f"Bearer {test_user.email}"},
             )
 
-        # File upload succeeds - validation happens during ingestion
-        assert response.status_code == 200
+        assert response.status_code == 415
 
     @pytest.mark.asyncio
     async def test_csv_ingestion_endpoint_exists(
@@ -139,7 +152,7 @@ class TestCSVUploadBasic:
         # #1234-followup: dispatch now gates on year_configuration
         # .configuration_completed; seed a ready year so the endpoint
         # passes the precondition.
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from app.models.year_configuration import YearConfiguration
 
@@ -147,7 +160,7 @@ class TestCSVUploadBasic:
             YearConfiguration(
                 year=2025,
                 is_started=True,
-                configuration_completed=datetime.now(timezone.utc),
+                configuration_completed=datetime.now(UTC),
             )
         )
         await db_session.flush()

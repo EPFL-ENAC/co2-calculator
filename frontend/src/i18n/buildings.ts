@@ -1,4 +1,4 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES } from '@/constant/modules';
 
 export default {
   [MODULES.Buildings]: {
@@ -10,12 +10,16 @@ export default {
     fr: 'Local | Locaux',
   },
   [`${MODULES.Buildings}-description`]: {
-    en: 'This module estimates the buildings-related carbon footprint (heating, air conditioning, ventilation, and lighting). An additional table is available to include other energy combustion sources if your unit uses a non-centralized energy source.',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée au bâtiment (chauffage, climatisation, ventilation et éclairage). Un tableau supplémentaire est disponible pour compléter avec d'autres émissions de combustion d'énergie au cas où votre unité utilise une source d'énergie non-centralisée.",
+    en: `Review your unit's space usage.`,
+    fr: 'Vérifiez les données d’utilisation de vos locaux.',
+  },
+  [`${MODULES.Buildings}-documentation-link`]: {
+    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/building/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/building/',
   },
   [`${MODULES.Buildings}-title-subtext`]: {
-    en: ' ',
-    fr: ' ',
+    en: 'This module helps you estimate carbon emissions from energy combustion (if your unit uses a non-centralized energy source) as well as building operations (heating, cooling, ventilation, and lighting). Based on overall building energy data, these operational emissions are allocated to each space according to its surface area and usage type.',
+    fr: "Ce module vous aide à estimer l'empreinte carbone liée aux émissions de combustion d'énergie (au cas où votre unité utilise une source d'énergie non-centralisée) ainsi que celles liées au bâtiment (chauffage, climatisation, ventilation et éclairage). À partir des données d'énergie globales du bâtiment, les émissions de carbone liées au chauffage, au refroidissement, à la ventilation et à l'éclairage sont attribuées à chaque local selon sa surface et son type d'usage.",
   },
   // Rooms submodule
   [`${MODULES.Buildings}.rooms_table_title`]: {
@@ -124,7 +128,7 @@ export default {
 
   // Energy combustion submodule
   [`${MODULES.Buildings}-combustion`]: {
-    en: 'Energy Combustion Emissions | Energy Combustions Emissions',
+    en: 'Energy combustion emissions | Energy combustions emissions',
     fr: "Émissions de combustion d'énergie | Émissions de combustion d'énergie ",
   },
   [`${MODULES.Buildings}.combustion_table_title`]: {
@@ -134,10 +138,6 @@ export default {
   [`${MODULES.Buildings}.add_combustion_button`]: {
     en: 'Add',
     fr: 'Ajouter ',
-  },
-  [`${MODULES.Buildings}.combustion-form-title`]: {
-    en: 'Add a heating type',
-    fr: 'Ajouter un type de chauffage',
   },
 
   // Combustion fields
@@ -186,7 +186,7 @@ export default {
 
   // Charts
   [`${MODULES.Buildings}-charts-title`]: {
-    en: 'Buildings Charts',
+    en: 'Buildings charts',
     fr: 'Graphiques des bâtiments',
   },
   [`${MODULES.Buildings}-charts-no-data-message`]: {

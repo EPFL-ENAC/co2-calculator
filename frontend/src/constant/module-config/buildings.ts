@@ -1,8 +1,9 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { SUBMODULE_BUILDINGS_TYPES, MODULES } from 'src/constant/modules';
-import type { BuildingsSubType, Module } from 'src/constant/modules';
-import { formatTonnesCO2 } from 'src/utils/number';
-import type { AllSubmoduleTypes } from 'src/constant/modules';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { SUBMODULE_BUILDINGS_TYPES, MODULES } from '@/constant/modules';
+import type { BuildingsSubType, Module } from '@/constant/modules';
+import { formatTonnesCO2 } from '@/utils/number';
+import type { AllSubmoduleTypes } from '@/constant/modules';
+import { ROOM_TYPES } from '@/types/module-lookups.gen';
 
 const roomFields: ModuleField[] = [
   {
@@ -12,7 +13,7 @@ const roomFields: ModuleField[] = [
     type: 'select',
     required: true,
     sortable: true,
-    editableInline: false,
+    editableInline: true,
     inputTypeName: 'QSelect',
     align: 'left',
     ratio: '1/3',
@@ -27,7 +28,7 @@ const roomFields: ModuleField[] = [
     type: 'select',
     required: true,
     sortable: true,
-    editableInline: false,
+    editableInline: true,
     inputTypeName: 'QSelect',
     align: 'left',
     ratio: '1/3',
@@ -39,6 +40,7 @@ const roomFields: ModuleField[] = [
     id: 'room_type',
     labelKey: `${MODULES.Buildings}.inputs.room_type`,
     type: 'select',
+    required: true,
     sortable: true,
     editableInline: true,
     inputTypeName: 'QSelect',
@@ -52,14 +54,10 @@ const roomFields: ModuleField[] = [
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
     optionLabelsAreKeys: true,
     tooltip: 'module-buildings-submodule-building-table-room_type',
-    options: [
-      { value: 'laboratories', label: 'buildings-room-type-laboratories' },
-      { value: 'office', label: 'buildings-room-type-office' },
-      { value: 'archives', label: 'buildings-room-type-archives' },
-      { value: 'libraries', label: 'buildings-room-type-libraries' },
-      { value: 'auditoriums', label: 'buildings-room-type-auditoriums' },
-      { value: 'miscellaneous', label: 'buildings-room-type-miscellaneous' },
-    ],
+    options: ROOM_TYPES.map((value) => ({
+      value,
+      label: `buildings-room-type-${value}`,
+    })),
   },
   {
     id: 'room_surface_square_meter',
@@ -79,21 +77,25 @@ const roomFields: ModuleField[] = [
     id: 'room_allocation_ratio',
     labelKey: `${MODULES.Buildings}.inputs.room_allocation_ratio`,
     type: 'number',
+    min: 0,
+    max: 1,
     sortable: true,
-    editableInline: false,
+    editableInline: true,
     readOnlyWhenFilled: true,
     default: 1,
     ratio: '1/6',
     disableUntilField: 'room_name',
     icon: 'o_image_aspect_ratio',
     tooltip: 'module-buildings-submodule-building-table-room_allocation_ratio',
-    columnSize: 'md',
+    columnSize: 'xs',
+    maxColumnWidth: 100,
   },
   {
     id: 'heating_kwh_per_square_meter',
     labelKey: `${MODULES.Buildings}.inputs.heating_kwh_per_square_meter`,
     type: 'number',
     readOnlyWhenFilled: true,
+    displayPrecision: 2,
     sortable: false,
     unit: 'kWh/m²',
     ratio: '1/6',
@@ -108,6 +110,7 @@ const roomFields: ModuleField[] = [
     labelKey: `${MODULES.Buildings}.inputs.cooling_kwh_per_square_meter`,
     type: 'number',
     readOnlyWhenFilled: true,
+    displayPrecision: 2,
     sortable: false,
     unit: 'kWh/m²',
     ratio: '1/6',
@@ -122,6 +125,7 @@ const roomFields: ModuleField[] = [
     labelKey: `${MODULES.Buildings}.inputs.ventilation_kwh_per_square_meter`,
     type: 'number',
     readOnlyWhenFilled: true,
+    displayPrecision: 2,
     sortable: false,
     unit: 'kWh/m²',
     ratio: '1/6',
@@ -136,6 +140,7 @@ const roomFields: ModuleField[] = [
     labelKey: `${MODULES.Buildings}.inputs.lighting_kwh_per_square_meter`,
     type: 'number',
     readOnlyWhenFilled: true,
+    displayPrecision: 2,
     sortable: false,
     unit: 'kWh/m²',
     ratio: '1/6',
@@ -147,6 +152,7 @@ const roomFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     readOnly: true,
@@ -208,6 +214,7 @@ const energyCombustionFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     readOnly: true,

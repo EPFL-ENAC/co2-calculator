@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { useDataEntryDialog } from 'src/composables/useDataEntryDialog';
+import { useDataEntryDialog } from '@/composables/useDataEntryDialog';
 import type {
   SyncJobResponse,
   ImportRow,
-} from 'src/stores/backofficeDataManagement';
-import { TargetType } from 'src/stores/backofficeDataManagement';
-import { watch, toRef } from 'vue';
+} from '@/stores/backofficeDataManagement';
+import { TargetType } from '@/stores/backofficeDataManagement';
+import { computed, watch, toRef } from 'vue';
 
 interface Props {
   modelValue: boolean;
@@ -26,22 +26,18 @@ const {
   selectedFiles,
   isUploading,
   isConnecting,
-  isCopying,
-  apiServerUrl,
-  apiClientId,
-  apiSecretId,
-  apiSecretValue,
-  previousYearJobs,
-  selectedPreviousJob,
+  connectorsList,
+  selectedConnector,
+  apiConnectorLuid,
+  connectionConfigured,
   allApiFieldsFilled,
   showOverwriteWarning,
   showOverwriteWarningAPI,
   handleEnterKey,
   resetDialog,
-  loadPreviousYearJobs,
+  loadConnectorOptions,
   uploadFiles,
   connectAndSync,
-  copyFromPreviousYear,
 } = useDataEntryDialog({
   row: toRef(props, 'row'),
   year: toRef(props, 'year'),
@@ -50,13 +46,17 @@ const {
   onProgressing: (job: SyncJobResponse) => emit('progressing', job),
 });
 
+const connectorOptions = computed(() =>
+  connectorsList.value.map((c) => ({ label: c.label, value: c.connector })),
+);
+
 watch(
   () => props.modelValue,
   (newVal) => {
     showDialog.value = newVal;
     if (newVal) {
       resetDialog();
-      loadPreviousYearJobs();
+      loadConnectorOptions();
     }
   },
 );
@@ -74,7 +74,7 @@ watch(showDialog, (newVal) => {
     @keyup.escape="showDialog = false"
     @keyup.enter="handleEnterKey"
   >
-    <q-card class="column" style="width: 800px; max-width: 80vw">
+    <q-card class="column no-wrap" style="width: 800px; max-width: 80vw">
       <q-card-section class="flex justify-between items-center flex-shrink">
         <div class="text-h4 text-weight-medium">
           <!--
@@ -171,89 +171,31 @@ watch(showDialog, (newVal) => {
               {{ $t('data_management_last_upload_overwrite') }}
             </q-banner>
             <div class="q-gutter-sm q-mt-sm">
-              <q-input
-                v-model="apiServerUrl"
+              <q-select
+                v-model="selectedConnector"
+                :options="connectorOptions"
+                emit-value
+                map-options
                 dense
                 outlined
-                :placeholder="$t('data_management_api_server_url')"
+                :label="$t('data_management_api_connector')"
               />
+              <q-banner
+                v-if="selectedConnector && !connectionConfigured"
+                dense
+                class="bg-grey-3"
+              >
+                {{ $t('data_management_connection_not_configured_hint') }}
+              </q-banner>
               <q-input
-                v-model="apiClientId"
+                v-model="apiConnectorLuid"
                 dense
                 outlined
-                :placeholder="$t('data_management_api_client_id')"
-              />
-              <q-input
-                v-model="apiSecretId"
-                dense
-                outlined
-                :placeholder="$t('data_management_api_secret_id')"
-              />
-              <q-input
-                v-model="apiSecretValue"
-                dense
-                outlined
-                type="password"
-                auto-complete="current-password"
-                :placeholder="$t('data_management_api_secret_value')"
+                :placeholder="$t('data_management_api_luid')"
               />
             </div>
           </div>
         </template>
-
-        <div class="row items-center q-my-sm">
-          <q-separator class="col" />
-          <span class="q-px-md text-grey-6 text-caption">{{
-            $t('common_or')
-          }}</span>
-          <q-separator class="col" />
-        </div>
-
-        <div class="text-subtitle1 text-weight-medium">
-          {{ $t('data_management_tab_copy_previous') }}
-        </div>
-        <div v-if="previousYearJobs.length === 0">
-          <q-btn
-            :label="$t('data_management_copy_start')"
-            unelevated
-            dense
-            outline
-            color="black"
-            icon="calendar_today"
-            class="full-width text-weight-medium text-capitalize"
-            disabled
-          />
-          <div class="text-caption text-grey-6 q-mt-xs">
-            {{ $t('data_management_no_previous_jobs') }}
-          </div>
-        </div>
-        <div v-else class="q-gutter-sm">
-          <q-select
-            v-model="selectedPreviousJob"
-            :options="
-              previousYearJobs.map((job) => ({
-                value: job.job_id,
-                label: `${$t('data_management_copy_from_year', { year: job.year })} - ${job.status_message || ''}`,
-              }))
-            "
-            emit-value
-            map-options
-            dense
-            outlined
-            :label="$t('data_management_select_import')"
-          />
-          <q-btn
-            :label="$t('data_management_copy_start')"
-            unelevated
-            color="grey-3"
-            text-color="dark"
-            icon="calendar_today"
-            class="full-width"
-            :loading="isCopying"
-            :disable="!selectedPreviousJob || isCopying"
-            @click="copyFromPreviousYear"
-          />
-        </div>
 
         <div class="text-caption text-grey-7 q-mt-sm">
           {{ $t('data_management_overwrite_warning') }}
@@ -276,7 +218,7 @@ watch(showDialog, (newVal) => {
           unelevated
           class="q-px-xl text-weight-medium"
           :loading="isUploading || isConnecting"
-          :disable="isUploading || isConnecting || isCopying"
+          :disable="isUploading || isConnecting"
           @click="
             selectedFiles && selectedFiles.length > 0
               ? uploadFiles()

@@ -27,7 +27,7 @@ import json
 import warnings
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -76,7 +76,7 @@ logger = get_logger(__name__)
 # we still fire_and_forget immediately and log a warning — that path
 # preserves the legacy behavior for one-off callers / tests that
 # haven't migrated.
-_PENDING_DISPATCHES: ContextVar[Optional[list[int]]] = ContextVar(
+_PENDING_DISPATCHES: ContextVar[list[int] | None] = ContextVar(
     "_pending_dispatches_after_commit", default=None
 )
 
@@ -155,16 +155,16 @@ async def chain_job(
     *,
     job_type: str,
     session: AsyncSession,
-    module_type_id: Optional[int] = None,
-    data_entry_type_id: Optional[int] = None,
-    year: Optional[int] = None,
-    config: Optional[dict] = None,
+    module_type_id: int | None = None,
+    data_entry_type_id: int | None = None,
+    year: int | None = None,
+    config: dict | None = None,
     target_type: TargetType = TargetType.DATA_ENTRIES,
     ingestion_method: IngestionMethod = IngestionMethod.computed,
     entity_type: EntityType = EntityType.MODULE_PER_YEAR,
-    dedup_config: Optional[DedupConfig] = None,
-    dedup_active: Optional[bool] = None,
-) -> Optional[int]:
+    dedup_config: DedupConfig | None = None,
+    dedup_active: bool | None = None,
+) -> int | None:
     """Create a child job and fire it through ``run_job``.
 
     Inherits the parent's ``pipeline_id`` (or generates a fresh UUID
@@ -396,15 +396,15 @@ async def _insert_child_with_dedup(
     parent: DataIngestionJob,
     pipeline_id,
     job_type: str,
-    module_type_id: Optional[int],
-    data_entry_type_id: Optional[int],
-    year: Optional[int],
+    module_type_id: int | None,
+    data_entry_type_id: int | None,
+    year: int | None,
     target_type: TargetType,
     ingestion_method: IngestionMethod,
     entity_type: EntityType,
-    config: Optional[dict],
+    config: dict | None,
     dedup_config: DedupConfig,
-) -> Optional[int]:
+) -> int | None:
     """Pre-check + INSERT, falling back to IntegrityError on race.
 
     Returns the new child id on success, or ``None`` when the partial
@@ -431,7 +431,6 @@ async def _insert_child_with_dedup(
     requires for a NOT_STARTED row (state has a server default but
     we always pass it explicitly to keep the SQL self-documenting).
     """
-
     # asyncpg accepts UUID objects directly via type adapters, but
     # raw text SQL coerces best when stringified.
     pipeline_id_str = str(pipeline_id) if pipeline_id is not None else None

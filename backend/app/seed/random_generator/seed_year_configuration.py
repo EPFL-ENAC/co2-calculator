@@ -1,5 +1,4 @@
-"""
-Seed `year_configuration` rows so the seeded years are open for data entry.
+"""Seed `year_configuration` rows so the seeded years are open for data entry.
 
 Without this, `configuration_completed` is NULL on every (year, provider)
 pair and the app blocks uploads / hides the year picker, which prevents
@@ -9,7 +8,7 @@ Pure asyncpg. Idempotent via ON CONFLICT (year, provider).
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import asyncpg
 
@@ -20,12 +19,14 @@ from app.seed.random_generator.seed_carbon_reports import YEARS
 
 async def get_connection():
     settings = get_settings()
+    if settings.DB_URL is None:
+        raise ValueError("DB_URL must be set to run this seed script")
     db_url = settings.DB_URL.replace("postgresql+psycopg", "postgresql")
     return await asyncpg.connect(db_url)
 
 
 async def insert_year_configurations(conn):
-    now_tz = datetime.now(timezone.utc)
+    now_tz = datetime.now(UTC)
     # `updated_at` is TIMESTAMP (no tz) per the SQLModel column default;
     # `configuration_completed` is TIMESTAMPTZ. Pass them as distinct
     # parameters so asyncpg can deduce each type unambiguously.

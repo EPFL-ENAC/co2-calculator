@@ -1,5 +1,3 @@
-from typing import Optional
-
 from sqlalchemy import func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -11,23 +9,30 @@ from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonRep
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
+    DataEntryEmissionRow,
     EmissionComputation,
-    EmissionType,
     FactorQuery,
-    get_subtree_leaves,
 )
 from app.models.factor import Factor
+from app.modules.emissions import (
+    EmissionType,
+    additional_value_unit,
+    get_subtree_leaves,
+)
+from app.modules.emissions.registry import (
+    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
+    emission_type_scope,
+    resolve_emission_types,
+)
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
+from app.schemas.carbon_report import CarbonReportRead
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
+from app.schemas.write_scope import WriteScope
+from app.services.factor_resolver import FactorResolver
 from app.services.factor_service import FactorService
-from app.utils.data_entry_emission_type_map import (
-    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
-    resolve_emission_types,
-)
-from app.utils.emission_category import additional_value_unit
-from app.utils.it_breakdown import ITSqlTotals
+from app.utils.factor_year import resolve_factor_year
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -84,10 +89,19 @@ class DataEntryEmissionService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = DataEntryEmissionRepository(session)
+        # Memoizes _get_report_for_data_entry by carbon_report_module_id for
+        # this instance's lifetime. The module→report relationship is
+        # immutable within a request, so this is always safe, and it turns
+        # repeated lookups (e.g. many entries of the same module, as in a
+        # Simulator Plan prefill or a recalc slice with percentage-of-
+        # reference-year entries) from one query each into a single query.
+        self._report_by_module_id: dict[
+            int, CarbonReport | CarbonReportRead | None
+        ] = {}
 
     async def _get_report_for_data_entry(
         self, data_entry: DataEntry | DataEntryResponse
-    ) -> CarbonReport | None:
+    ) -> CarbonReport | CarbonReportRead | None:
         """Fetch the CarbonReport for a DataEntry via CarbonReportModule."""
         if (
             not hasattr(data_entry, "carbon_report_module_id")
@@ -96,17 +110,17 @@ class DataEntryEmissionService:
             logger.warning("DataEntry missing carbon_report_module_id")
             return None
 
-        stmt = select(CarbonReportModule).where(
-            col(CarbonReportModule.id) == data_entry.carbon_report_module_id
-        )
+        module_id = data_entry.carbon_report_module_id
+        if module_id in self._report_by_module_id:
+            return self._report_by_module_id[module_id]
+
+        stmt = select(CarbonReportModule).where(col(CarbonReportModule.id) == module_id)
         result = await self.session.exec(stmt)
         module = result.one_or_none()
 
         if not module:
-            logger.warning(
-                f"CarbonReportModule not found for id "
-                f"{data_entry.carbon_report_module_id}"
-            )
+            logger.warning(f"CarbonReportModule not found for id {module_id}")
+            self._report_by_module_id[module_id] = None
             return None
 
         stmt_cr = select(CarbonReport).where(
@@ -116,35 +130,51 @@ class DataEntryEmissionService:
         report = result_cr.one_or_none()
         if report is None:
             logger.warning(f"CarbonReport not found for id {module.carbon_report_id}")
+        self._report_by_module_id[module_id] = report
         return report
 
     async def _get_year_from_data_entry(
         self, data_entry: DataEntry | DataEntryResponse
-    ) -> Optional[int]:
+    ) -> int | None:
         report = await self._get_report_for_data_entry(data_entry)
         if report is None:
             return None
-        return report.year if report.year is not None else report.reference_year
+        return await resolve_factor_year(self.session, report)
 
     async def _get_percentage_override_kg(
         self,
         data_entry: DataEntry | DataEntryResponse,
         emission_type: EmissionType,
-        report: CarbonReport,
-    ) -> float | None:
-        """If percentage_of_last_year is present, compute kg_co2eq from base year.
+        # #2050 J4: an interactive write hands over the read model the route
+        # already resolved. Only reference_year/year/unit_id are read here, and
+        # CarbonReportRead carries all three.
+        report: CarbonReport | CarbonReportRead,
+        *,
+        override_cache: dict[int, dict[int, tuple[float, int | None]]] | None = None,
+    ) -> tuple[float, int | None] | None:
+        """If percentage_of_reference_year is present, compute kg_co2eq from base year.
+
+        Returns ``(kg, primary_factor_id)`` — the factor id is the source
+        leaf's, carried through so a copied planner row keeps its provenance
+        (plan #2050 F3).
 
         The override matches the previous-year DataEntry within the same module type
         and data_entry_type, using stable identifiers when available.
+
+        ``override_cache`` (see ``prefetch_percentage_override_cache``) maps
+        ``source_data_entry_id`` to its prefetched per-leaf kg sums, letting a
+        batch caller short-circuit the fast path below — one PK fetch + one
+        sum query per entry otherwise, the shape every Simulator Plan prefill
+        copy carries.
         """
-        raw = data_entry.data.get("percentage_of_last_year")
+        raw = data_entry.data.get("percentage_of_reference_year")
         if raw is None:
             return None
         try:
             percentage = float(raw)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             logger.warning(
-                "Invalid percentage_of_last_year=%r for data_entry_id=%r",
+                "Invalid percentage_of_reference_year=%r for data_entry_id=%r",
                 raw,
                 data_entry.id,
             )
@@ -158,6 +188,46 @@ class DataEntryEmissionService:
 
         if report.unit_id is None:
             return None
+
+        # Planner snapshot entries carry the exact source entry id — match it
+        # directly instead of walking the prior-year report tree. A deleted
+        # source falls back to the normal compute path (snapshot data at its
+        # stored quantities), as documented in the #1556 plan.
+        source_entry_id = data_entry.data.get("source_data_entry_id")
+        if source_entry_id is not None:
+            leaf_sums = (
+                override_cache.get(int(source_entry_id)) if override_cache else None
+            )
+            if leaf_sums is not None:
+                leaf_ids = get_subtree_leaves(emission_type)
+                prev_kg = sum(leaf_sums.get(lid, (0.0, None))[0] for lid in leaf_ids)
+                factor_id = min(
+                    (
+                        fid
+                        for lid in leaf_ids
+                        if (fid := leaf_sums.get(lid, (0.0, None))[1]) is not None
+                    ),
+                    default=None,
+                )
+                return prev_kg * (percentage / 100.0), factor_id
+            source_entry = await self.session.get(DataEntry, int(source_entry_id))
+            if source_entry is None:
+                return None
+            # Ownership gate: the source must belong to the same unit as this
+            # report. Without it, a crafted source_data_entry_id could scale
+            # another unit's emissions into this report (cross-tenant read).
+            source_report = await self._get_report_for_data_entry(source_entry)
+            if source_report is None or source_report.unit_id != report.unit_id:
+                logger.warning(
+                    "Ignoring cross-unit source_data_entry_id=%r on data_entry_id=%r",
+                    source_entry_id,
+                    data_entry.id,
+                )
+                return None
+            prev_kg, factor_id = await self._sum_entry_emissions(
+                source_entry, emission_type
+            )
+            return prev_kg * (percentage / 100.0), factor_id
 
         # Resolve current module_type_id so we can match the prior-year module.
         stmt_mod = select(CarbonReportModule).where(
@@ -215,16 +285,105 @@ class DataEntryEmissionService:
         if prev_entry is None:
             return None
 
+        prev_kg, factor_id = await self._sum_entry_emissions(prev_entry, emission_type)
+        return prev_kg * (percentage / 100.0), factor_id
+
+    async def _sum_entry_emissions(
+        self, entry: DataEntry, emission_type: EmissionType
+    ) -> tuple[float, int | None]:
+        """Sum an entry's persisted kg_co2eq over the emission type's leaves.
+
+        Returns ``(kg, primary_factor_id)``. The factor id must travel with
+        the sum here exactly as it does in ``_sum_leaves_by_source``: if only
+        the cached path carried it, the same planner row would render
+        differently depending on whether the cache hit (plan #2050 F3).
+        """
         leaf_ids = get_subtree_leaves(emission_type)
-        stmt_prev_em = select(
-            func.coalesce(func.sum(DataEntryEmission.kg_co2eq), 0.0)
+        stmt = select(
+            func.coalesce(func.sum(DataEntryEmission.kg_co2eq), 0.0),
+            func.min(DataEntryEmission.primary_factor_id),
         ).where(
-            col(DataEntryEmission.data_entry_id) == prev_entry.id,
+            col(DataEntryEmission.data_entry_id) == entry.id,
             col(DataEntryEmission.emission_type_id).in_(leaf_ids),
         )
-        prev_kg = float((await self.session.exec(stmt_prev_em)).one())
+        kg, factor_id = (await self.session.exec(stmt)).one()
+        return float(kg), factor_id
 
-        return prev_kg * (percentage / 100.0)
+    async def prefetch_percentage_override_cache(
+        self, entries: list[DataEntry] | list[DataEntryResponse], *, unit_id: int | None
+    ) -> dict[int, dict[int, tuple[float, int | None]]]:
+        """Bulk-preload ``source_data_entry_id`` sums for a batch of entries.
+
+        Maps ``source_data_entry_id`` -> {leaf emission_type_id:
+        (summed kg, primary_factor_id)}
+        for ``_get_percentage_override_kg``'s ``override_cache`` param. Skips
+        (and leaves to the per-entry fallback, which re-checks and rejects)
+        any source belonging to another unit — same ownership gate as the
+        single-entry path, just applied once per source instead of per call.
+        """
+        if unit_id is None:
+            return {}
+        source_ids = {
+            int(sid)
+            for entry in entries
+            if (sid := entry.data.get("source_data_entry_id")) is not None
+        }
+        if not source_ids:
+            return {}
+
+        sources = (
+            await self.session.exec(
+                select(DataEntry).where(col(DataEntry.id).in_(source_ids))
+            )
+        ).all()
+
+        same_unit_ids: set[int] = set()
+        for source in sources:
+            if source.id is None:
+                continue
+            source_report = await self._get_report_for_data_entry(source)
+            if source_report is not None and source_report.unit_id == unit_id:
+                same_unit_ids.add(source.id)
+
+        return await self._sum_leaves_by_source(same_unit_ids)
+
+    async def _sum_leaves_by_source(
+        self, source_ids: set[int]
+    ) -> dict[int, dict[int, tuple[float, int | None]]]:
+        """GROUP BY sum of persisted kg_co2eq per (source entry, leaf type).
+
+        Also carries the source leaf's ``primary_factor_id`` so a copied
+        planner row keeps its factor provenance — without it the row renders
+        with no ``active_power_w``/``standby_power_w`` and the table marks it
+        incomplete (plan #2050 F3). ``min`` picks one deterministic id when a
+        leaf resolved through several factors, matching what
+        ``prepare_create``'s rollup row and ``DataEntryRepository``'s
+        aggregate already do.
+        """
+        if not source_ids:
+            return {}
+        stmt = (
+            select(
+                DataEntryEmission.data_entry_id,
+                DataEntryEmission.emission_type_id,
+                func.sum(DataEntryEmission.kg_co2eq),
+                func.min(DataEntryEmission.primary_factor_id),
+            )
+            .where(col(DataEntryEmission.data_entry_id).in_(source_ids))
+            .group_by(
+                col(DataEntryEmission.data_entry_id),
+                col(DataEntryEmission.emission_type_id),
+            )
+        )
+        # Seed every requested id so a source with no persisted emissions yet
+        # (e.g. not yet recalculated) still hits the cache with an empty sum
+        # instead of falling back to the per-entry path.
+        sums: dict[int, dict[int, tuple[float, int | None]]] = {
+            sid: {} for sid in source_ids
+        }
+        for data_entry_id, leaf_type_id, kg, factor_id in await self.session.exec(stmt):
+            sums.setdefault(data_entry_id, {})[leaf_type_id] = (float(kg), factor_id)
+        return sums
 
     async def prepare_create(
         self,
@@ -232,19 +391,26 @@ class DataEntryEmissionService:
         kg_co2eq_override: float | None = None,
         *,
         year: int | None = None,
-        factor_cache: dict[int, Factor] | None = None,
         factor_query_cache: dict | None = None,
         slice_cache: dict | None = None,
-    ) -> list[DataEntryEmission]:
+        factor_resolver: FactorResolver | None = None,
+        override_cache: dict[int, dict[int, tuple[float, int | None]]] | None = None,
+        scope: WriteScope | None = None,
+    ) -> list[DataEntryEmissionRow]:
         """Prepare emission records for any data entry type.
+        TODO: Make this function readable!
+        Orchestrates the pipeline below. The resolver-derived primary factor
+        is handed to ``resolve_emission_types`` so a module can pick its
+        leaves from the matched factor (buildings: the factor's energy_type
+        selects the single heating leaf, #1575); other types ignore it:
 
-        Pure orchestrator — zero branching on DataEntryType:
-
-        1. ``resolve_emission_types`` → which EmissionType leaves to produce
-        2. ``handler.pre_compute``    → enrich ctx (DB calls, arithmetic)
-        3. ``handler.resolve_computations`` → one EmissionComputation per factor
-        4. ``_fetch_factors``          → look up Factor (Strategy A or B)
-        5. ``_apply_formula``         → kg_co2eq = f(ctx, factor.values)
+        1. ``FactorResolver.resolve`` → the primary factor from classification
+        2. ``resolve_emission_types`` → which EmissionType leaves to produce
+           (reads the factor: buildings' energy_type picks the heating leaf)
+        3. ``handler.pre_compute``    → enrich ctx (DB calls, arithmetic)
+        4. ``handler.resolve_computations`` → one EmissionComputation per factor
+        5. ``_fetch_factors``          → look up Factor (Strategy A or B)
+        6. ``_apply_formula``         → kg_co2eq = f(ctx, factor.values)
 
         Args:
             data_entry: Fully hydrated data entry with ``data_entry_type``.
@@ -261,66 +427,55 @@ class DataEntryEmissionService:
                 recalc workflow's ``upsert_by_data_entry`` therefore
                 preserves Tableau's ``OUT_CO2_CORRECTED`` (and CSV-side
                 overrides) across the async path instead of formula-recomputing.
+            factor_resolver: Memoized per-instance resolver (plan 1661) that
+                derives the primary factor from ``data_entry.data``'s
+                classification fields instead of a stored id. Recalc slices
+                pass one shared instance across entries; single-entry callers
+                get a fresh one built here.
 
         Returns:
-            Ready-to-insert ``DataEntryEmission`` rows; empty on any failure.
+            Ready-to-insert emission rows (lightweight, not the real ORM
+            model — see ``DataEntryEmissionRow``).
+
+        Raises:
+            ValueError: whenever emissions cannot be computed correctly —
+                unresolvable year, unmapped type, missing factor key. #2050
+                Track I: every one of these used to log and return partial
+                or empty results, publishing a number that looked complete.
+                Recalc records the failure per entry and carries on
+                (``emission_recalculation.py:173``), so raising surfaces
+                the bad data without stalling the batch.
         """
-        if not data_entry or data_entry.data_entry_type is None:
-            logger.error("DataEntry must have a data_entry_type.")
-            return []
-
-        emission_types = resolve_emission_types(
-            data_entry.data_entry_type, data_entry.data
-        )
-        if emission_types is None:
-            logger.warning(f"Unhandled type: {data_entry.data_entry_type}")
-            return []
-        if not emission_types:
-            return []
-
+        # ``data_entry_type`` is a property over a non-nullable int and
+        # ``DataEntryResponse.id`` is ``int``, so only the ORM model's
+        # pre-flush ``id`` is genuinely reachable here.
         if data_entry.id is None:
-            logger.error("DataEntry must have an ID before creating emissions.")
-            return []
+            raise ValueError(
+                "DataEntry must be flushed (id assigned) before computing emissions"
+            )
 
+        # #2050 J4: the route already resolved this module's report. Seeding
+        # the memo this service already keeps means _get_report_for_data_entry
+        # and the year resolution below cost nothing, instead of re-reading the
+        # module, report and project.
+        if scope is not None and scope.module.id is not None:
+            self._report_by_module_id.setdefault(scope.module.id, scope.report)
+
+        # A memo scoped to one invocation cannot go stale — factors do not
+        # change mid-call — so interactive callers get one too (#2050 J4).
+        if factor_query_cache is None:
+            factor_query_cache = {}
+
+        resolver = factor_resolver or FactorResolver(self.session)
         handler = BaseModuleHandler.get_by_type(
             DataEntryTypeEnum(data_entry.data_entry_type)
         )
 
-        # B-H1 — fallback to the persisted ``KG_CO2EQ_OVERRIDE_KEY`` carrier
-        # (set by the bulk-path providers) when the caller did not pass an
-        # explicit ``kg_co2eq_override``.  The function arg wins so the
-        # legacy inline path (which already routes via the arg) keeps its
-        # existing semantics.
-        effective_override: float | None = kg_co2eq_override
-        if effective_override is None:
-            persisted_override = data_entry.data.get(KG_CO2EQ_OVERRIDE_KEY)
-            if persisted_override is not None:
-                try:
-                    effective_override = float(persisted_override)
-                except (ValueError, TypeError):
-                    logger.warning(
-                        f"Invalid {KG_CO2EQ_OVERRIDE_KEY} value "
-                        f"{persisted_override!r} on data_entry_id="
-                        f"{data_entry.id!r}, ignoring override"
-                    )
-
-        # Build context: data_entry.data enriched with pre-computed values.
-        # Strip the reserved override carrier so it never leaks into the
-        # ``meta`` blobs spread from ``ctx`` below; the source dict on the
-        # data entry is left intact so re-runs remain idempotent.
-        ctx: dict = {**data_entry.data}
-        ctx.pop(KG_CO2EQ_OVERRIDE_KEY, None)
-        # Forward the slice prefetch only when a caller (the recalc workflow)
-        # actually preloaded one — keeps handlers whose pre_compute takes no
-        # slice_cache (the base + non-plane modules) callable as-is.
-        pre_compute_kwargs = {"slice_cache": slice_cache} if slice_cache else {}
-        ctx.update(
-            await handler.pre_compute(data_entry, self.session, **pre_compute_kwargs)
-        )
-
         # Prefer using the lightweight hook that tests commonly patch.
         # This avoids unnecessary DB calls to fetch the report when tests
-        # replace `_get_year_from_data_entry` with an AsyncMock.
+        # replace `_get_year_from_data_entry` with an AsyncMock. Year is
+        # needed below to resolve the primary factor, so this must run
+        # before factor/emission-type resolution.
         report = None
         # Bulk callers (the recalc workflow) pass ``year`` directly —
         # they already know the slice's year, so the per-entry
@@ -333,52 +488,148 @@ class DataEntryEmissionService:
             # production while making unit tests easier to mock.
             report = await self._get_report_for_data_entry(data_entry)
             if report is not None:
-                year = report.year if report.year is not None else report.reference_year
+                # Same precedence as _get_year_from_data_entry: the plan's
+                # reference year drives factor lookup.
+                year = await resolve_factor_year(self.session, report)
         if year is None:
-            logger.warning(
-                "Could not determine year for data entry, factors may not match"
+            # #2050 Track J: this used to warn "factors may not match" and
+            # then use them anyway — naming its own defect in a log line.
+            # Year selects the factor, so an unresolvable year means every
+            # number below is priced off an arbitrary year's factor.
+            raise ValueError(
+                f"Cannot determine the factor year for data_entry_id="
+                f"{data_entry.id!r} (carbon_report_module_id="
+                f"{data_entry.carbon_report_module_id!r}); refusing to "
+                f"compute emissions against an unknown year"
             )
         # Also load the report when the percentage override is requested, since
         # _get_percentage_override_kg needs reference_year and unit_id.
         if (
             report is None
-            and data_entry.data.get("percentage_of_last_year") is not None
+            and data_entry.data.get("percentage_of_reference_year") is not None
         ):
             report = await self._get_report_for_data_entry(data_entry)
+
+        # The primary factor is derived state: resolved from the entry's
+        # classification fields, never read from a stored id. The resolver
+        # itself short-circuits when the handler has no kind field or the
+        # entry carries no kind value (Strategy-B handlers like plane).
+        primary_factor: Factor | None = None
+        if year is not None:
+            primary_factor = await resolver.resolve(
+                handler,
+                data_entry.data,
+                DataEntryTypeEnum(data_entry.data_entry_type),
+                year,
+            )
+
+        emission_types = resolve_emission_types(
+            data_entry.data_entry_type,
+            data_entry.data,
+            factor=primary_factor,
+        )
+        if emission_types is None:
+            # #2050 Track J: an unmapped type returned [], which is
+            # indistinguishable downstream from "this entry emits nothing".
+            raise ValueError(
+                f"No emission types are mapped for "
+                f"{data_entry.data_entry_type!r} (data_entry_id="
+                f"{data_entry.id!r}); it cannot contribute a total"
+            )
+        # Genuinely empty is a real answer, unlike None above: the registry
+        # resolved this entry's classification to no leaves.
+        if not emission_types:
+            return []
+
+        # B-H1 — fallback to the persisted ``KG_CO2EQ_OVERRIDE_KEY`` carrier
+        # (set by the bulk-path providers) when the caller did not pass an
+        # explicit ``kg_co2eq_override``.  The function arg wins so the
+        # legacy inline path (which already routes via the arg) keeps its
+        # existing semantics.
+        effective_override: float | None = kg_co2eq_override
+        if effective_override is None:
+            persisted_override = data_entry.data.get(KG_CO2EQ_OVERRIDE_KEY)
+            if persisted_override is not None:
+                try:
+                    effective_override = float(persisted_override)
+                except ValueError, TypeError:
+                    logger.warning(
+                        f"Invalid {KG_CO2EQ_OVERRIDE_KEY} value "
+                        f"{persisted_override!r} on data_entry_id="
+                        f"{data_entry.id!r}, ignoring override"
+                    )
+
+        # Build context: data_entry.data enriched with pre-computed values.
+        # Strip the reserved override carrier so it never leaks into the
+        # ``meta`` blobs spread from ``ctx`` below; the source dict on the
+        # data entry is left intact so re-runs remain idempotent.
+        ctx: dict = {**data_entry.data}
+        ctx.pop(KG_CO2EQ_OVERRIDE_KEY, None)
+        # Legacy rows may still carry a stored primary_factor_id — the
+        # resolver result always wins; the stored value is dead weight.
+        ctx["primary_factor_id"] = primary_factor.id if primary_factor else None
+        # Forward the slice prefetch only when a caller (the recalc workflow)
+        # actually preloaded one — keeps handlers whose pre_compute takes no
+        # slice_cache (the base + non-plane modules) callable as-is.
+        pre_compute_kwargs = {"slice_cache": slice_cache} if slice_cache else {}
+        ctx.update(
+            await handler.pre_compute(data_entry, self.session, **pre_compute_kwargs)
+        )
         # Add factor year to context for year-specific formulas
         ctx["_year"] = year
 
-        results: list[DataEntryEmission] = []
+        results: list[DataEntryEmissionRow] = []
 
-        for emission_type in emission_types:
-            computations = handler.resolve_computations(data_entry, emission_type, ctx)
-
+        # Resolve every computation up front so the prefetch below sees all of
+        # them, then prime the Strategy-B memo in one query (#2050 J4).
+        # resolve_computations is pure, so hoisting it also stops it running
+        # twice.
+        computations_by_type = [
+            (
+                emission_type,
+                handler.resolve_computations(data_entry, emission_type, ctx),
+            )
+            for emission_type in emission_types
+        ]
+        await self._prime_factor_query_cache(
+            [comp for _, comps in computations_by_type for comp in comps],
+            year=year,
+            factor_query_cache=factor_query_cache,
+        )
+        for emission_type, computations in computations_by_type:
             for comp in computations:
                 factors = await self._fetch_factors(
                     comp,
                     year,
-                    factor_cache=factor_cache,
+                    data_entry_type=DataEntryTypeEnum(data_entry.data_entry_type),
+                    factor_resolver=resolver,
                     factor_query_cache=factor_query_cache,
                 )
 
                 if report is not None:
-                    override_kg = await self._get_percentage_override_kg(
+                    override = await self._get_percentage_override_kg(
                         data_entry=data_entry,
                         emission_type=emission_type,
                         report=report,
+                        override_cache=override_cache,
                     )
-                    if override_kg is not None:
+                    if override is not None:
+                        override_kg, override_factor_id = override
                         results.append(
-                            DataEntryEmission(
+                            DataEntryEmissionRow(
                                 data_entry_id=data_entry.id,
                                 emission_type_id=emission_type.value,
-                                primary_factor_id=None,
-                                scope=emission_type.scope,
+                                # The source leaf's factor, so a copied
+                                # planner row keeps its provenance and still
+                                # renders its factor-derived columns
+                                # (plan #2050 F3).
+                                primary_factor_id=override_factor_id,
+                                scope=emission_type_scope(emission_type),
                                 kg_co2eq=float(override_kg),
                                 meta={
                                     "factors_used": [],
-                                    "percentage_of_last_year": data_entry.data.get(
-                                        "percentage_of_last_year"
+                                    "percentage_of_reference_year": data_entry.data.get(
+                                        "percentage_of_reference_year"
                                     ),
                                     "reference_year": report.reference_year,
                                     **ctx,
@@ -395,12 +646,12 @@ class DataEntryEmissionService:
                         f"data_entry_id={data_entry.id!r}"
                     )
                     results.append(
-                        DataEntryEmission(
+                        DataEntryEmissionRow(
                             data_entry_id=data_entry.id,
                             emission_type_id=comp.emission_type.value,
                             primary_factor_id=None,
                             kg_co2eq=float(effective_override),
-                            scope=comp.emission_type.scope,
+                            scope=emission_type_scope(comp.emission_type),
                             meta={
                                 "factors_used": [
                                     {"id": factor.id, "values": factor.values}
@@ -413,26 +664,22 @@ class DataEntryEmissionService:
                     continue
 
                 for factor in factors:
-                    per_factor_kg = self._apply_formula(ctx, factor.values or {}, comp)
-                    if per_factor_kg is None:
-                        missing_ctx_keys = [
-                            key
-                            for key in [comp.quantity_key, comp.multiplier_key]
-                            if key and ctx.get(key) is None
-                        ]
-                        missing_factor_keys = [
-                            key
-                            for key in [comp.formula_key, comp.multiplier_key]
-                            if key and (factor.values or {}).get(key) is None
-                        ]
-                        logger.warning(
-                            f"Formula returned None for "
-                            f"emission_type={emission_type.name!r} "
-                            f"data_entry_id={data_entry.id!r} - "
-                            f"Missing context keys: {missing_ctx_keys}, "
-                            f"Missing factor keys: {missing_factor_keys}"
+                    # #2050 Track J: _apply_formula raises with the specific
+                    # reason rather than returning None for the caller to
+                    # drop. Dropping the leaf produced a total that looked
+                    # complete but was missing a term; for rollup types the
+                    # rollup row is only written when more than one leaf
+                    # survives, so it rendered as a blank cell instead.
+                    try:
+                        per_factor_kg = self._apply_formula(
+                            ctx, factor.values or {}, comp
                         )
-                        continue
+                    except ValueError as exc:
+                        raise ValueError(
+                            f"data_entry_id={data_entry.id!r}, "
+                            f"emission_type={emission_type.name!r}, "
+                            f"factor_id={factor.id!r}: {exc}"
+                        ) from exc
                     quantity: float | None = None
                     if comp.quantity_key and ctx.get(comp.quantity_key) is not None:
                         base_qty = float(ctx[comp.quantity_key])
@@ -457,13 +704,13 @@ class DataEntryEmissionService:
                         else None
                     )
                     results.append(
-                        DataEntryEmission(
+                        DataEntryEmissionRow(
                             data_entry_id=data_entry.id,
                             emission_type_id=_et_id,
                             primary_factor_id=factor.id,
                             kg_co2eq=per_factor_kg,
                             additional_value=additional_value,
-                            scope=EmissionType(_et_id).scope,
+                            scope=emission_type_scope(EmissionType(_et_id)),
                             meta={
                                 "factors_used": [
                                     {"id": factor.id, "values": factor.values}
@@ -489,7 +736,7 @@ class DataEntryEmissionService:
                 default=None,
             )
             results.append(
-                DataEntryEmission(
+                DataEntryEmissionRow(
                     data_entry_id=data_entry.id,
                     emission_type_id=rollup_type.value,
                     primary_factor_id=primary_factor_id,
@@ -501,12 +748,95 @@ class DataEntryEmissionService:
 
         return results
 
+    @staticmethod
+    def _factor_query_cache_key(q: FactorQuery, year: int | None) -> tuple:
+        """The one place the Strategy-B memo key is built.
+
+        Shared by ``_fetch_factors`` and ``_prime_factor_query_cache`` so the
+        two cannot drift: a second spelling of this tuple would silently turn
+        the prime into a no-op (#2050 J4).
+        """
+        return (
+            q.data_entry_type,
+            q.kind,
+            q.subkind,
+            q.emission_type,
+            tuple(sorted(q.context.items())),
+            tuple(sorted(q.fallbacks.items())),
+            year,
+        )
+
+    async def _prime_factor_query_cache(
+        self,
+        computations: list[EmissionComputation],
+        year: int | None,
+        factor_query_cache: dict,
+    ) -> None:
+        """Resolve every Strategy-B3 criteria in these computations at once.
+
+        #2050 J4: ``_fetch_factors`` queried one subtree per emission root —
+        three for a headcount member. Every subtree is known before the first
+        query, so one ``IN`` covers them all, and the per-criteria results are
+        seeded into the memo ``_fetch_factors`` already consults.
+
+        Only the pure-B3 shape is primed (an ``emission_type`` with no
+        kind/subkind/context/fallbacks). Anything else falls through to
+        ``_fetch_factors``' own resolution, so a shape this misses costs a
+        statement, never a wrong factor.
+        """
+        b3 = [
+            comp
+            for comp in computations
+            if comp.factor_id is None
+            and comp.factor_query is not None
+            and comp.factor_query.emission_type is not None
+            and comp.factor_query.kind is None
+            and comp.factor_query.subkind is None
+            and not comp.factor_query.context
+            and not comp.factor_query.fallbacks
+        ]
+        if not b3:
+            return
+
+        leaves_by_comp: dict[int, list[EmissionType]] = {}
+        for comp in b3:
+            query = comp.factor_query
+            if query is None or query.emission_type is None:
+                continue
+            leaves_by_comp[id(comp)] = [
+                EmissionType(node) for node in get_subtree_leaves(query.emission_type)
+            ]
+        wanted = sorted(
+            {leaf for leaves in leaves_by_comp.values() for leaf in leaves},
+            key=lambda leaf: leaf.value,
+        )
+        found = await FactorService(self.session).list_by_emission_types(
+            wanted, year=year
+        )
+        by_emission_type: dict[int, list[Factor]] = {}
+        for factor in found:
+            by_emission_type.setdefault(factor.emission_type_id, []).append(factor)
+
+        for comp in b3:
+            query = comp.factor_query
+            if query is None:
+                continue
+            factors: list[Factor] = []
+            for leaf in leaves_by_comp.get(id(comp), []):
+                factors.extend(by_emission_type.get(leaf.value, []))
+            if query.data_entry_type is not None:
+                factors = [
+                    f for f in factors if f.data_entry_type_id == query.data_entry_type
+                ]
+            factor_query_cache[self._factor_query_cache_key(query, year)] = factors
+
     async def _fetch_factors(
         self,
         comp: EmissionComputation,
-        year: Optional[int] = None,
+        year: int | None = None,
         *,
-        factor_cache: dict[int, Factor] | None = None,
+        data_entry_type: DataEntryTypeEnum | None = None,
+        factor_resolver: FactorResolver | None = None,
         factor_query_cache: dict | None = None,
     ) -> list[Factor]:
         """Fetch factor(s) for an EmissionComputation.
@@ -539,22 +869,38 @@ class DataEntryEmissionService:
 
         # ── Strategy A: direct look-up ──────────────────────────────────
         if comp.factor_id is not None:
-            # Bulk callers prefetch the slice's factors once; a cache
-            # miss still falls back to the DB so semantics (including
-            # the year-mismatch warning below) are unchanged.
+            # The resolver's memoized (det, year) map is already primed by
+            # the resolve() call that produced comp.factor_id, so this is a
+            # dict hit, not a query. A miss still falls back to the DB so
+            # semantics (including the year-mismatch warning) are unchanged.
             factor = None
-            if factor_cache is not None:
-                factor = factor_cache.get(comp.factor_id)
+            if (
+                factor_resolver is not None
+                and data_entry_type is not None
+                and year is not None
+            ):
+                by_id = await factor_resolver.factors_by_id(data_entry_type, year)
+                factor = by_id.get(comp.factor_id)
             if factor is None:
                 factor = await factor_service.get(comp.factor_id)
-            # Filter by year if factor exists and year is specified
-            if factor and year is not None and factor.year != year:
-                logger.warning(
-                    f"Factor {comp.factor_id} year ({factor.year}) "
-                    f"doesn't match data entry year ({year})"
+            # #2050 Track J: both of these returned [] — the year mismatch
+            # with a warning, the missing factor with nothing at all. An
+            # empty factor list means the leaf loop in prepare_create never
+            # runs, so the entry contributes zero and the missing-key raise
+            # there never fires. Silent zeros are the failure mode this
+            # whole track exists to remove.
+            if factor is None:
+                raise ValueError(
+                    f"Factor {comp.factor_id!r} referenced by emission_type="
+                    f"{comp.emission_type.name!r} does not exist"
                 )
-                return []
-            result.append(factor) if factor else None
+            if year is not None and factor.year != year:
+                raise ValueError(
+                    f"Factor {comp.factor_id!r} is for year {factor.year!r} "
+                    f"but this entry is priced for year {year!r}; refusing "
+                    f"to compute emissions from a mismatched factor"
+                )
+            result.append(factor)
             return result
 
         # ── Strategy B: classification query ────────────────────────────
@@ -569,15 +915,7 @@ class DataEntryEmissionService:
             # no cache (single-entry paths) are unchanged.
             cache_key = None
             if factor_query_cache is not None:
-                cache_key = (
-                    q.data_entry_type,
-                    q.kind,
-                    q.subkind,
-                    q.emission_type,
-                    tuple(sorted(q.context.items())),
-                    tuple(sorted(q.fallbacks.items())),
-                    year,
-                )
+                cache_key = self._factor_query_cache_key(q, year)
                 if cache_key in factor_query_cache:
                     return factor_query_cache[cache_key]
 
@@ -618,13 +956,19 @@ class DataEntryEmissionService:
             #     e.g. all sub-factors for "food" (vegetarian, non-vegetarian)
             #     Used when handler doesn't specify kind/subkind
             elif q.emission_type is not None:
-                all_nodes = get_subtree_leaves(q.emission_type)
-                emission_factors = []
-                for node in all_nodes:
-                    node_factors = await factor_service.list_by_emission_type(
-                        EmissionType(node), year=year
-                    )
-                    emission_factors.extend(node_factors)
+                # #2050 J4: one query for the whole subtree. This looped the
+                # leaves and queried per node — 24 factor SELECTs for one
+                # headcount member POST (3 roots whose subtrees hold 24
+                # leaves), measured in
+                # test_headcount_post_statement_budget_pg.py. The subtree is
+                # known before the first query, so it belongs in one IN.
+                emission_factors = await factor_service.list_by_emission_types(
+                    [
+                        EmissionType(node)
+                        for node in get_subtree_leaves(q.emission_type)
+                    ],
+                    year=year,
+                )
                 # we should also filter by data_entry_type in case we have factors
                 # for other types with the same emission_type in the subtree,
                 # but for now we don't have this case in our seed data
@@ -635,9 +979,6 @@ class DataEntryEmissionService:
                         for f in emission_factors
                         if f.data_entry_type_id == q.data_entry_type
                     ]
-                # should get all factors children of the emission type,
-                # not just those with matching kind
-                # factors = await factor_service.list_by_emission_type(q.emission_type)
                 result.extend(emission_factors)
 
             # B4: Broadest — by data_entry_type only
@@ -659,7 +1000,7 @@ class DataEntryEmissionService:
         ctx: dict,
         factor_values: dict,
         comp: EmissionComputation,
-    ) -> Optional[float]:
+    ) -> float:
         """Compute kg_co2eq from context and factor values.
 
         If ``comp.formula_func`` is set it takes precedence (complex formulas).
@@ -672,21 +1013,51 @@ class DataEntryEmissionService:
         after a transition period
 
         # right now only Headcount use default
+
+        Raises:
+            ValueError: when the inputs cannot produce a value. #2050 Track
+                I: this used to return None and the caller dropped the leaf.
+                The reason lives here — the caller cannot tell a
+                ``formula_func`` that declined from a missing key, and its
+                old diagnostic printed two empty lists for the
+                ``formula_func`` case, which is the common one.
         """
         if comp.formula_func is not None:
-            return comp.formula_func(ctx, factor_values)
+            computed = comp.formula_func(ctx, factor_values)
+            if computed is None:
+                null_inputs = sorted(k for k, v in ctx.items() if v is None)
+                raise ValueError(
+                    f"The formula for {comp.emission_type.name!r} could not "
+                    f"produce a value. Null inputs on the entry: "
+                    f"{null_inputs or 'none'}. Factor keys available: "
+                    f"{sorted(factor_values)}. A reference-data lookup that "
+                    f"found no match (an unknown building room, say) shows "
+                    f"up here as a null input"
+                )
+            return computed
 
         if not comp.quantity_key or not comp.formula_key:
-            return None
+            raise ValueError(
+                f"{comp.emission_type.name!r} has neither a formula_func nor "
+                f"both of quantity_key/formula_key (quantity_key="
+                f"{comp.quantity_key!r}, formula_key={comp.formula_key!r}); "
+                f"it cannot be computed as configured"
+            )
 
         quantity = ctx.get(comp.quantity_key)
         ef = factor_values.get(comp.formula_key)
         if quantity is None or ef is None:
-            logger.info(
-                f"Missing required values for emission calculation "
-                f"for key: {comp.quantity_key} or {comp.formula_key}"
+            missing = [
+                name
+                for name, value in (
+                    (f"entry.{comp.quantity_key}", quantity),
+                    (f"factor.{comp.formula_key}", ef),
+                )
+                if value is None
+            ]
+            raise ValueError(
+                f"Cannot compute {comp.emission_type.name!r}: {missing} is missing"
             )
-            return None
 
         result = float(quantity) * float(ef)
         if comp.multiplier_key:
@@ -696,16 +1067,23 @@ class DataEntryEmissionService:
             result *= float(mult)
         return result
 
-    async def create(self, data_entry: DataEntryResponse) -> list[DataEntryEmission]:
+    async def create(
+        self, data_entry: DataEntryResponse, *, scope: WriteScope | None = None
+    ) -> list[DataEntryEmission]:
         """Create emissions for a data entry, if applicable.
 
-        Returns a list of created emission records.
+        Returns a list of created emission records. Single-entry path — the
+        one place besides ``upsert_by_data_entry`` that genuinely needs real
+        ``session.add()``ed rows, so ``prepare_create``'s lightweight rows
+        are materialized here, not left lightweight like the bulk paths.
         """
-        emission_records = await self.prepare_create(data_entry)
+        emission_records = await self.prepare_create(data_entry, scope=scope)
         if not emission_records:
             return []
 
-        created_emissions = await self.repo.bulk_create(emission_records)
+        created_emissions = await self.repo.bulk_create(
+            [row.to_orm() for row in emission_records]
+        )
         return created_emissions
 
     async def bulk_create(
@@ -715,10 +1093,18 @@ class DataEntryEmissionService:
         created_emissions = await self.repo.bulk_create(emission_records)
         return created_emissions
 
+    async def bulk_copy(self, emissions: list[DataEntryEmissionRow]) -> int:
+        """Bulk-insert freshly computed rows with nothing to replace first.
+
+        For prefill-style callers writing brand-new entries — mirrors
+        ``bulk_replace_for_entries`` minus the delete half.
+        """
+        return await self.repo.bulk_copy(emissions)
+
     async def bulk_replace_for_entries(
         self,
         data_entry_ids: list[int],
-        emissions: list[DataEntryEmission],
+        emissions: list[DataEntryEmissionRow],
     ) -> int:
         """Replace the emissions of a whole recalc slice in two set
         operations: one chunked DELETE over ``data_entry_ids``, one COPY
@@ -751,8 +1137,11 @@ class DataEntryEmissionService:
         # Delete existing emissions
         await self.repo.delete_by_data_entry_id(data_entry_response.id)
 
-        # Create new emissions
-        created_emissions = await self.repo.bulk_create(prepared_emissions)
+        # Create new emissions — single-entry path, materialize real rows
+        # (see create()'s docstring for why the bulk paths don't).
+        created_emissions = await self.repo.bulk_create(
+            [row.to_orm() for row in prepared_emissions]
+        )
         return created_emissions
 
     async def get_stats(
@@ -760,64 +1149,16 @@ class DataEntryEmissionService:
         carbon_report_module_id: int,
         aggregate_by: str = "emission_type_id",
         aggregate_field: str = "kg_co2eq",
+        exclude_planner_snapshots: bool = False,
     ) -> dict[str, float | None]:
         """Get aggregated emission statistics for a carbon report module."""
         stats = await self.repo.get_stats(
             carbon_report_module_id,
             aggregate_by,
             aggregate_field,
+            exclude_planner_snapshots=exclude_planner_snapshots,
         )
         return stats
-
-    async def get_stats_by_carbon_report_id(
-        self,
-        carbon_report_id: int,
-        *,
-        validated_only: bool = True,
-    ) -> dict[str, float]:
-        """Get emission totals per module for a carbon report."""
-        return await self.repo.get_stats_by_carbon_report_id(
-            carbon_report_id=carbon_report_id,
-            validated_only=validated_only,
-        )
-
-    async def get_emission_breakdown(
-        self,
-        carbon_report_id: int,
-    ) -> list[tuple[int, int, float, float | None]]:
-        """Get emission breakdown by module and emission type.
-
-        Returns list of
-        (
-            module_type_id,
-            emission_type_id,
-            sum_kg_co2eq,
-            sum_additional_value,
-        ).
-        """
-        return await self.repo.get_emission_breakdown_with_quantity(
-            carbon_report_id=carbon_report_id,
-        )
-
-    async def get_it_emission_sql_totals(
-        self,
-        carbon_report_id: int,
-        it_emission_type_ids: list[int],
-        validated_source_module_type_ids: list[int],
-        exclude_module_type_ids: set[int] | frozenset[int] = frozenset(),
-    ) -> ITSqlTotals:
-        """Compute IT emission totals in SQL.
-
-        Delegates to the repository. Returns a dict with
-        ``it_total_kg``, ``overall_total_kg``, ``validated_source_total_kg``,
-        and ``validated_it_kg``.
-        """
-        return await self.repo.get_it_emission_sql_totals(
-            carbon_report_id=carbon_report_id,
-            it_emission_type_ids=it_emission_type_ids,
-            validated_source_module_type_ids=validated_source_module_type_ids,
-            exclude_module_type_ids=exclude_module_type_ids,
-        )
 
     async def get_embodied_energy_by_building(
         self,
@@ -848,7 +1189,7 @@ class DataEntryEmissionService:
 
     async def get_top_class_breakdown(
         self,
-        carbon_report_module_id: int,
+        carbon_report_module_ids: list[int],
         data_entry_types: list[DataEntryTypeEnum],
         group_by_field: str,
         top_n: int = 3,
@@ -859,9 +1200,10 @@ class DataEntryEmissionService:
         """Get emissions aggregated by subcategory and a grouping field.
 
         Generic method that returns top N items per subcategory plus a "rest" bucket.
+        Several module ids are ranked together as one cross-unit aggregate.
         """
         return await self.repo.get_top_class_breakdown(
-            carbon_report_module_id=carbon_report_module_id,
+            carbon_report_module_ids=carbon_report_module_ids,
             data_entry_types=data_entry_types,
             group_by_field=group_by_field,
             top_n=top_n,

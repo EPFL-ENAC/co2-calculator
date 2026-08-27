@@ -23,6 +23,10 @@ export default {
     en: 'Loading…',
     fr: 'Chargement…',
   },
+  print_report_loading: {
+    en: 'Building the report…',
+    fr: 'Construction du rapport…',
+  },
   results_module_chart_emission_types: {
     en: '{module} — Emission types',
     fr: "{module} — Types d'émissions",
@@ -54,6 +58,62 @@ export default {
   results_compare_years: {
     en: 'Compare years',
     fr: 'Comparer les années',
+  },
+  results_compare_years_title: {
+    en: 'Compare years',
+    fr: 'Comparer les années',
+  },
+  results_compare_years_no_data: {
+    en: 'No emission data available to compare.',
+    fr: 'Aucune donnée d’émission disponible pour la comparaison.',
+  },
+  results_compare_years_filter_years: {
+    en: 'Years',
+    fr: 'Années',
+  },
+  results_compare_years_filter_modules: {
+    en: 'Categories',
+    fr: 'Catégories',
+  },
+  results_compare_years_filter_scopes: {
+    en: 'Scopes',
+    fr: 'Scopes',
+  },
+  results_compare_years_selected_count: {
+    en: '{count} selected',
+    fr: '{count} sélectionné(s)',
+  },
+  results_compare_years_total: {
+    en: 'Total',
+    fr: 'Total',
+  },
+  results_compare_years_objective_option: {
+    en: 'Objective',
+    fr: 'Objectif',
+  },
+  results_compare_years_gap_label: {
+    en: 'Reduction needed to reach {year} target',
+    fr: 'Réduction nécessaire pour atteindre l’objectif {year}',
+  },
+  results_compare_years_gap_beaten_label: {
+    en: 'Below {year} target',
+    fr: 'Sous l’objectif {year}',
+  },
+  results_compare_years_gap_target: {
+    en: '{year} target: {value}',
+    fr: 'Objectif pour {year} : {value}',
+  },
+  results_compare_years_by_module: {
+    en: 'Emissions by category',
+    fr: 'Émissions par catégorie',
+  },
+  results_compare_years_by_scope: {
+    en: 'Emissions by scope',
+    fr: 'Émissions par scope',
+  },
+  results_compare_years_objective_tick: {
+    en: 'objective ({year})',
+    fr: 'objectif ({year})',
   },
   results_units_kg: {
     en: 'kg CO₂-eq',
@@ -88,16 +148,30 @@ export default {
     fr: 'kg CO₂-eq',
   },
   results_title: {
-    en: 'Results',
-    fr: 'Résultats',
+    en: 'Annual carbon footprint',
+    fr: 'Empreinte carbone annuelle',
+  },
+  // Subtitle under the Results heading: which units are summed, and for which year.
+  results_perimeter_subtitle: {
+    en: '{unit} · {year}',
+    fr: '{unit} · {year}',
   },
   results_print_title: {
     en: 'Total results',
     fr: 'Résultats totaux',
   },
+  // Still the subtitle of the printed report, which keeps its own header.
   results_subtitle: {
     en: 'Annual carbon footprint {year}',
     fr: 'Empreinte carbone annuelle {year}',
+  },
+  results_combine_units_label: {
+    en: 'Add a Unit',
+    fr: 'Ajouter une unité',
+  },
+  results_combine_units_counter: {
+    en: '{unit} + {count} units',
+    fr: '{unit} + {count} unités',
   },
   results_total_unit_carbon_footprint: {
     en: 'Unit carbon footprint',
@@ -178,10 +252,6 @@ export default {
   results_module_carbon_toggle_additional_data: {
     en: 'Show additional estimated categories',
     fr: 'Afficher les catégories supplémentaires',
-  },
-  unit_carbon_footprint_scope_tooltip_aria: {
-    en: 'Definitions of GHG scopes 1, 2 and 3 in this chart',
-    fr: 'Définitions des scopes 1, 2 et 3 des GES dans ce graphique',
   },
   unit_carbon_footprint_scope_prefix: {
     en: '{scope} {n}:',
@@ -311,6 +381,46 @@ export default {
     en: 'Validate at least one module/category to unlock the unit simulation sliders.',
     fr: 'Validez au moins un module/catégorie pour déverrouiller les curseurs de simulation.',
   },
+  results_objectives_scenario_label: {
+    en: 'Scenario',
+    fr: 'Scénario',
+  },
+  results_objectives_scenario_reset: {
+    en: 'Reset',
+    fr: 'Réinitialiser',
+  },
+  results_objectives_scenario_bau: {
+    en: 'BAU',
+    fr: 'BAU',
+  },
+  results_objectives_scenario_low_effort: {
+    en: 'Low effort',
+    fr: 'Effort faible',
+  },
+  results_objectives_scenario_middle: {
+    en: 'Middle of the road',
+    fr: 'Voie intermédiaire',
+  },
+  results_objectives_scenario_high_effort: {
+    en: 'High effort',
+    fr: 'Effort élevé',
+  },
+  results_objectives_scenario_ambitious: {
+    en: 'Ambitious',
+    fr: 'Ambitieux',
+  },
+  results_objectives_scenario_bau_description: {
+    en: 'In the Business As Usual scenario, emissions continue to grow at the current rate, in line with population growth.',
+    fr: 'Dans le scénario « Business As Usual », les émissions continuent d’augmenter au rythme actuel, parallèlement à la croissance de la population.',
+  },
+  results_objectives_scenario_middle_description: {
+    en: 'This is an intermediate scenario between BAU and fulfilling the reduction goals set by the Climate Act.',
+    fr: 'Il s’agit d’un scénario intermédiaire entre le scénario BAU et la réalisation des objectifs de réduction fixés par la loi sur le climat.',
+  },
+  results_objectives_scenario_ambitious_description: {
+    en: 'This scenario represents the fulfilment of the Climate Act’s reduction goals, ultimately achieving a 90% reduction by 2040 and carbon neutrality.',
+    fr: 'Ce scénario correspond à la réalisation des objectifs de réduction fixés par la Loi Climat, à savoir une réduction de 90 % d’ici 2040 et la neutralité carbone.',
+  },
   results_additional_data: {
     en: 'Additional data',
     fr: 'Données additionnelles',
@@ -404,6 +514,10 @@ export default {
   'charts-natural-gas-subcategory': {
     en: 'Natural Gas',
     fr: 'Gaz naturel',
+  },
+  'charts-propane-subcategory': {
+    en: 'Propane',
+    fr: 'Propane',
   },
   'charts-heating-oil-subcategory': {
     en: 'Heating Oil',
@@ -501,9 +615,13 @@ export default {
     en: 'Vehicles',
     fr: 'Véhicules',
   },
-  'charts-additional-purchases-subcategory': {
+  'charts-purchases-centralized-subcategory': {
     en: 'Centralized purchases',
     fr: 'Achats centralisés',
+  },
+  'charts-global-budget-subcategory': {
+    en: 'Global budget',
+    fr: 'Budget global',
   },
   'charts-other-equipment-subcategory': {
     en: 'Other equipment',
@@ -537,17 +655,13 @@ export default {
     en: '2nd class',
     fr: '2ème classe',
   },
-  'charts-first-class-subcategory': {
-    en: 'First',
-    fr: 'Première',
-  },
   'charts-business-class-subcategory': {
     en: 'Business',
     fr: 'Affaires',
   },
   'charts-eco-class-subcategory': {
-    en: 'Eco',
-    fr: 'Éco',
+    en: 'Economy',
+    fr: 'Économique',
   },
   'charts-clouds-subcategory': {
     en: 'External clouds',
@@ -582,28 +696,32 @@ export default {
     fr: 'IA',
   },
   'charts-ai-provider-google-subcategory': {
-    en: 'Google',
-    fr: 'Google',
+    en: 'Gemini (Google)',
+    fr: 'Gemini (Google)',
   },
   'charts-ai-provider-openai-subcategory': {
-    en: 'OpenAI',
-    fr: 'OpenAI',
+    en: 'ChatGPT (OpenAI)',
+    fr: 'ChatGPT (OpenAI)',
   },
   'charts-ai-provider-anthropic-subcategory': {
-    en: 'Anthropic',
-    fr: 'Anthropic',
+    en: 'Claude (Anthropic)',
+    fr: 'Claude (Anthropic)',
   },
   'charts-ai-provider-mistral-ai-subcategory': {
     en: 'Mistral AI',
     fr: 'Mistral AI',
   },
-  'charts-ai-provider-cohere-subcategory': {
-    en: 'Cohere',
-    fr: 'Cohere',
+  'charts-ai-provider-github-subcategory': {
+    en: 'Copilot (GitHub)',
+    fr: 'Copilot (GitHub)',
+  },
+  'charts-ai-provider-microsoft-subcategory': {
+    en: 'Copilot (Microsoft)',
+    fr: 'Copilot (Microsoft)',
   },
   'charts-ai-provider-others-subcategory': {
-    en: 'Others',
-    fr: 'Autres',
+    en: 'Other',
+    fr: 'Autre',
   },
   'charts-research-facilities-subcategory': {
     en: 'Research facilities',
@@ -617,9 +735,9 @@ export default {
     en: 'IT facilities',
     fr: 'Infrastructures IT',
   },
-  'charts-animal-mice-subcategory': {
-    en: 'Mice',
-    fr: 'Souris',
+  'charts-animal-rodent-subcategory': {
+    en: 'Rodents',
+    fr: 'Rongeurs',
   },
   'charts-animal-fish-subcategory': {
     en: 'Fish',
@@ -769,6 +887,26 @@ export default {
     en: 'Breakdown of construction and renovation carbon footprint by category',
     fr: "Répartition de l'empreinte carbone des constructions et rénovations par catégorie",
   },
+  'charts-incineration-waste-bio-chem-ani-subcategory': {
+    en: 'Incineration waste (bio/chem/animal)',
+    fr: 'Déchets incinérés (bio/chim/animal)',
+  },
+  'charts-batteries-subcategory': {
+    en: 'Batteries',
+    fr: 'Piles',
+  },
+  'charts-neon-tubes-subcategory': {
+    en: 'Neon tubes',
+    fr: 'Tubes néon',
+  },
+  'charts-chemical-waste-subcategory': {
+    en: 'Chemical waste',
+    fr: 'Déchets chimiques',
+  },
+  'charts-construction-and-renovation-subcategory': {
+    en: 'Construction & renovation',
+    fr: 'Construction et rénovation',
+  },
   'charts-embodied-energy-subcategory': {
     en: 'Embodied energy',
     fr: 'Énergie grise',
@@ -839,6 +977,14 @@ export default {
   'charts-recycling-subcategory': {
     en: 'Recycling',
     fr: 'Recyclage',
+  },
+  'charts-domestic-waste-subcategory': {
+    en: 'Domestic waste',
+    fr: 'Déchets ménagers',
+  },
+  'charts-organic-waste-lawn-subcategory': {
+    en: 'Organic waste / lawn',
+    fr: 'Déchets organiques / gazon',
   },
   'charts-organic-waste-food-leftovers-subcategory': {
     en: 'Organic waste / food leftovers',
@@ -950,6 +1096,10 @@ export default {
     en: 'IT share',
     fr: 'Part IT',
   },
+  'it-focus-not-validated': {
+    en: 'not validated',
+    fr: 'non validé',
+  },
   'it-focus-equipment-it': {
     en: 'IT equipment',
     fr: 'Équipements IT',
@@ -1018,14 +1168,6 @@ export default {
   'it-focus-waffle-caption': {
     en: 'Each square = 0.1% of the total carbon footprint of the unit',
     fr: "Chaque carré = 0.1% de l'empreinte carbone totale de l'unité",
-  },
-  results_filter_pill_research_facilities_tooltip: {
-    en: 'These emissions are calculated based on research facilities data.',
-    fr: 'Ces émissions sont calculées à partir des données propres aux infrastructure de recherche.',
-  },
-  results_filter_pill_additional_data_tooltip: {
-    en: "These emissions are calculated based on EPFL's general assumptions.",
-    fr: "Ces émissions sont calculées à partir des hypothèses générales de l'EPFL.",
   },
   results_filter_panel_title: {
     en: 'Display filters',

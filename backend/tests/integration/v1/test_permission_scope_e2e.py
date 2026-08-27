@@ -43,8 +43,11 @@ from app.models.user import (
     Role,
     RoleName,
     UnitScope,
+    UserProvider,
     calculate_user_permissions,
 )
+from tests.browser import SAME_ORIGIN_HEADERS
+from tests.unit.v1.test_temp_upload_auth_ordering import valid_access_token
 
 UNIT_IID = "0184"
 OTHER_IID = "9999"
@@ -57,7 +60,13 @@ _ALL_MEMBERS = [
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies
+    # run, so the get_current_user override alone no longer gets past it.
+    with TestClient(
+        app,
+        cookies={"auth_token": valid_access_token()},
+        headers=SAME_ORIGIN_HEADERS,
+    ) as c:
         yield c
 
 
@@ -104,21 +113,38 @@ def _superadmin() -> Role:
     return Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
 
-def _wire(monkeypatch, user, unit_iid: str = UNIT_IID) -> None:
+def _wire(
+    monkeypatch,
+    user,
+    unit_iid: str = UNIT_IID,
+    carbon_report_type: CarbonReportType | None = None,
+) -> None:
     """Wire dependency overrides + service stubs.
 
     Crucially, ``get_module_permission_decision`` is NOT patched — the real
     policy chain runs. Only the data layer (Unit fetch, DataEntryService,
     carbon-report id lookup) is stubbed so the test stays in-process.
+
+    ``carbon_report_type`` selects the resolved report's project type:
+    ``None`` pins a Calculator report with no project at all; an enum value
+    attaches a project of that type (the simulator gate branches on it).
     """
     app.dependency_overrides[deps_module.get_current_user] = lambda: user
 
     mock_unit = MagicMock()
     mock_unit.institutional_id = unit_iid
 
+    mock_project = MagicMock()
+    mock_project.carbon_report_type = carbon_report_type
+
+    async def mock_db_get(model, key):
+        if model is CarbonProject:
+            return mock_project
+        return mock_unit
+
     async def mock_get_db():
         db = MagicMock()
-        db.get = AsyncMock(return_value=mock_unit)
+        db.get = AsyncMock(side_effect=mock_db_get)
         yield db
 
     app.dependency_overrides[deps_module.get_db] = mock_get_db
@@ -136,22 +162,30 @@ def _wire(monkeypatch, user, unit_iid: str = UNIT_IID) -> None:
 
     mock_service.get_headcount_members = mock_get_members
     mock_service.get_member_by_institutional_id = mock_get_member_by_iid
+    mock_service.check_json_field_unique = AsyncMock(return_value=True)
     monkeypatch.setattr(
         "app.api.v1.carbon_report_module.DataEntryService", lambda db: mock_service
     )
+    _resolved_report = MagicMock()
+    _resolved_report.unit_id = 1
+    _resolved_report.year = 2024
+    _resolved_report.carbon_project_id = None if carbon_report_type is None else 5
+    _resolved_module = MagicMock()
+    _resolved_module.id = 1
     monkeypatch.setattr(
-        "app.api.v1.carbon_report_module.get_carbon_report_id",
-        AsyncMock(return_value=1),
+        "app.api.v1.carbon_report_module.resolve_report_module",
+        AsyncMock(return_value=(_resolved_report, _resolved_module)),
     )
 
 
-URL = "/api/v1/modules/1/2024/headcount/members"
+URL = "/api/v1/carbon-reports/1/modules/headcount/members"
 
 
 class TestPermissionScopeEndToEnd:
     def test_principal_on_target_unit_passes(self, client, monkeypatch):
         """principal/0184 hitting unit-with-iid-0184 → 200 (full list).
-        Pins the bug fix: bare-path lookup would have returned 403."""
+        Pins the bug fix: bare-path lookup would have returned 403.
+        """
         user = _user("11111", [_principal(UNIT_IID)])
         _wire(monkeypatch, user, unit_iid=UNIT_IID)
         r = client.get(URL)
@@ -160,7 +194,8 @@ class TestPermissionScopeEndToEnd:
 
     def test_principal_on_other_unit_denied(self, client, monkeypatch):
         """principal/0184 hitting unit-with-iid-9999 → 403. Pins scope
-        enforcement: PR #974 explicitly tightened this."""
+        enforcement: PR #974 explicitly tightened this.
+        """
         user = _user("11111", [_principal(UNIT_IID)])
         _wire(monkeypatch, user, unit_iid=OTHER_IID)
         r = client.get(URL)
@@ -169,7 +204,8 @@ class TestPermissionScopeEndToEnd:
     def test_std_passes_via_travel_view_on_their_unit(self, client, monkeypatch):
         """Std user has only travel + cloud_and_ai, no headcount. The
         list_headcount_members gate accepts when travel.view passes; data
-        layer narrows the result to the user's own record."""
+        layer narrows the result to the user's own record.
+        """
         user = _user("11111", [_std(UNIT_IID)])
         _wire(monkeypatch, user, unit_iid=UNIT_IID)
         r = client.get(URL)
@@ -192,7 +228,8 @@ class TestPermissionScopeEndToEnd:
 
     def test_backoffice_metier_passes_via_global_bypass(self, client, monkeypatch):
         """Backoffice metier has ``GlobalScope`` and no ``modules.*`` perms.
-        The route's ``is_global`` escape hatch lets them through."""
+        The route's ``is_global`` escape hatch lets them through.
+        """
         user = _user("11111", [_backoffice()])
         _wire(monkeypatch, user, unit_iid=UNIT_IID)
         r = client.get(URL)
@@ -213,7 +250,8 @@ class TestPermissionScopeEndToEnd:
             so only the user's own record is returned.
         Verifies that scope-blind acceptance does NOT happen — without
         the iid forwarding, the principal/9999 role would have falsely
-        granted full headcount access on unit 0184."""
+        granted full headcount access on unit 0184.
+        """
         user = _user("11111", [_principal(OTHER_IID), _std(UNIT_IID)])
         _wire(monkeypatch, user, unit_iid=UNIT_IID)
         r = client.get(URL)
@@ -221,6 +259,82 @@ class TestPermissionScopeEndToEnd:
         data = r.json()
         assert len(data) == 1
         assert data[0]["institutional_id"] == "11111"
+
+
+CHECK_UNIQUE_URL = (
+    "/api/v1/carbon-reports/1/modules/headcount/member/check-unique"
+    "?field=user_institutional_id&value=x"
+)
+
+
+class TestSimulatorReportGate:
+    """#1988: reports of a simulator project (Explore/Plan) drop the module
+    gate to unit membership; Calculator reports keep the strict per-module
+    gate. Exercised through the real policy chain on the check-unique route,
+    which a std user's form calls for modules they hold no permission on.
+    """
+
+    def test_std_on_calculator_report_denied(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire(
+            monkeypatch,
+            user,
+            unit_iid=UNIT_IID,
+            carbon_report_type=CarbonReportType.CALCULATOR,
+        )
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_std_on_projectless_report_denied(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire(monkeypatch, user, unit_iid=UNIT_IID, carbon_report_type=None)
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_std_on_explore_report_passes(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire(
+            monkeypatch,
+            user,
+            unit_iid=UNIT_IID,
+            carbon_report_type=CarbonReportType.SIMULATOR_EXPLORE,
+        )
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 200, r.text
+        assert r.json() == {"unique": True}
+
+    def test_std_on_plan_report_passes(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire(
+            monkeypatch,
+            user,
+            unit_iid=UNIT_IID,
+            carbon_report_type=CarbonReportType.SIMULATOR_PLAN,
+        )
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 200, r.text
+
+    def test_std_of_other_unit_denied_on_explore_report(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire(
+            monkeypatch,
+            user,
+            unit_iid=OTHER_IID,
+            carbon_report_type=CarbonReportType.SIMULATOR_EXPLORE,
+        )
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_principal_on_calculator_report_passes(self, client, monkeypatch):
+        user = _user("11111", [_principal(UNIT_IID)])
+        _wire(
+            monkeypatch,
+            user,
+            unit_iid=UNIT_IID,
+            carbon_report_type=CarbonReportType.CALCULATOR,
+        )
+        r = client.get(CHECK_UNIQUE_URL)
+        assert r.status_code == 200, r.text
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -348,7 +462,8 @@ def _wire_db(user, factory) -> None:
 
 class TestBackofficeAffiliationScopeEndToEnd:
     """Affiliation-scoped backoffice users only see units inside their scope
-    subtree; GlobalScope keeps full reach (#862)."""
+    subtree; GlobalScope keeps full reach (#862).
+    """
 
     def test_global_backoffice_sees_all_units(self, client, backoffice_db):
         _wire_db(_user("11111", [_superadmin()]), backoffice_db)
@@ -516,18 +631,20 @@ class TestActivePipelinesPerYearGate:
         r = client.get(ACTIVE_PIPELINES_URL)
         assert r.status_code == 200, r.text
 
-    # skip until permission change TODO: add back when permission change is implemented
-    # def test_scoped_backoffice_metier_denied(self, client, monkeypatch):
-    #     """Metier holds reporting/users/documentation/ui_texts only — no
-    #     configuration and no module sync — so it cannot read pipeline status."""
-    #     user = _user("11111", [_backoffice_scoped("ENAC-SG")])
-    #     _wire_active_pipelines(monkeypatch, user)
-    #     r = client.get(ACTIVE_PIPELINES_URL)
-    #     assert r.status_code == 403, r.text
+    @pytest.mark.skip(reason="re-enable when the backoffice permission change ships")
+    def test_scoped_backoffice_metier_denied(self, client, monkeypatch):
+        """Metier holds reporting/users/documentation/ui_texts only — no
+        configuration and no module sync — so it cannot read pipeline status.
+        """
+        user = _user("11111", [_backoffice_scoped("ENAC-SG")])
+        _wire_active_pipelines(monkeypatch, user)
+        r = client.get(ACTIVE_PIPELINES_URL)
+        assert r.status_code == 403, r.text
 
     def test_principal_passes(self, client, monkeypatch):
         """A principal can sync modules (modules.<name>.sync) and therefore may
-        poll their own job/pipeline progress."""
+        poll their own job/pipeline progress.
+        """
         user = _user("11111", [_principal(UNIT_IID)])
         _wire_active_pipelines(monkeypatch, user)
         r = client.get(ACTIVE_PIPELINES_URL)
@@ -538,4 +655,98 @@ class TestActivePipelinesPerYearGate:
         user = _user("11111", [_std(UNIT_IID)])
         _wire_active_pipelines(monkeypatch, user)
         r = client.get(ACTIVE_PIPELINES_URL)
+        assert r.status_code == 403, r.text
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /api/v1/year-configuration/{year} (#1403 slice a) — the
+# ``Calco2.backoffice.admin`` gate for the BackOffice Configuration tab.
+#
+# ``create_year_configuration`` guards on ``backoffice.configuration.edit``,
+# which ``calculate_user_permissions`` grants ONLY to CO2_SUPERADMIN
+# ("calco2.backoffice.admin"). CO2_BACKOFFICE_METIER (even affiliation-
+# scoped, which unlocks reporting/users/documentation/ui_texts) never gets
+# it — configuration is Super Admin only (#862). No mocking of
+# ``is_permitted`` here: the real role → permission → OPA-style policy
+# chain runs, same as the rest of this file.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+YEAR_CONFIG_CREATE_URL = "/api/v1/year-configuration/2025"
+
+
+@pytest_asyncio.fixture
+async def empty_db():
+    """In-memory SQLite with all tables created, no seeded rows."""
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:", echo=False, future=True
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    yield factory
+    await engine.dispose()
+
+
+def _wire_year_config(monkeypatch, user, factory) -> None:
+    """Wire the real user + a real DB; stub only the background dispatch.
+
+    ``fire_and_forget`` would otherwise spawn the actual unit-sync job
+    runner — irrelevant to an access-control test and slow/flaky in-process.
+    """
+    user.provider = UserProvider.DEFAULT
+    app.dependency_overrides[deps_module.get_current_user] = lambda: user
+
+    async def override_get_db():
+        async with factory() as session:
+            yield session
+
+    app.dependency_overrides[deps_module.get_db] = override_get_db
+
+    def fake_fire_and_forget(coro, *, name=None):
+        coro.close()
+        return None
+
+    monkeypatch.setattr(
+        "app.api.v1.year_configuration.fire_and_forget", fake_fire_and_forget
+    )
+
+
+class TestYearConfigurationAdminOnlyGate:
+    """Only Calco2.backoffice.admin (CO2_SUPERADMIN) may create a year
+    configuration; every other role is denied via the same
+    ``backoffice.configuration.edit`` gate.
+    """
+
+    def test_superadmin_creates_year_configuration(self, client, monkeypatch, empty_db):
+        user = _user("11111", [_superadmin()])
+        _wire_year_config(monkeypatch, user, empty_db)
+        r = client.post(YEAR_CONFIG_CREATE_URL)
+        assert r.status_code == 201, r.text
+
+    def test_backoffice_metier_denied(self, client, monkeypatch, empty_db):
+        """Affiliation-scoped metier holds reporting/users/documentation/
+        ui_texts but NOT configuration — Super Admin only (#862).
+        """
+        user = _user("11111", [_backoffice_scoped(ENAC_CF)])
+        _wire_year_config(monkeypatch, user, empty_db)
+        r = client.post(YEAR_CONFIG_CREATE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_principal_denied(self, client, monkeypatch, empty_db):
+        user = _user("11111", [_principal(UNIT_IID)])
+        _wire_year_config(monkeypatch, user, empty_db)
+        r = client.post(YEAR_CONFIG_CREATE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_std_denied(self, client, monkeypatch, empty_db):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire_year_config(monkeypatch, user, empty_db)
+        r = client.post(YEAR_CONFIG_CREATE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_no_roles_denied(self, client, monkeypatch, empty_db):
+        user = _user("11111", roles=[])
+        _wire_year_config(monkeypatch, user, empty_db)
+        r = client.post(YEAR_CONFIG_CREATE_URL)
         assert r.status_code == 403, r.text

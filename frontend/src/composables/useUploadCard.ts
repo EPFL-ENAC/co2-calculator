@@ -1,12 +1,17 @@
 import { useI18n } from 'vue-i18n';
-import {
-  TargetType,
-  IngestionResult,
-} from 'src/stores/backofficeDataManagement';
+import { TargetType, IngestionResult } from '@/stores/backofficeDataManagement';
 import type {
   ImportRow,
+  JobRowError,
   SyncJobResponse,
-} from 'src/stores/backofficeDataManagement';
+} from '@/stores/backofficeDataManagement';
+import {
+  formatRowErrorLines,
+  groupMissingSyncedUnitErrors,
+  type MissingSyncedUnitErrorGroup,
+} from '@/utils/rowErrors';
+
+import { resolveDataButtonColor } from '@/composables/uploadCardColor';
 
 export function useUploadCard() {
   const { t } = useI18n();
@@ -28,19 +33,11 @@ export function useUploadCard() {
   }
 
   function dataButtonColor(row: ImportRow): string {
-    // Issue #1216 — a successful API ingestion (no CSV upload) must
-    // turn the data card green just like a successful CSV does. CSV
-    // result still takes precedence (an errored CSV after a prior
-    // API success stays red), and only an explicit SUCCESS counts —
-    // an API job with an unrecognised result falls through to
-    // ``accent`` rather than silently going green.
     if (row.isDisabled) return 'grey-4';
-    if (row.lastDataJob?.result === IngestionResult.ERROR) return 'negative';
-    if (row.lastDataJob?.result === IngestionResult.WARNING) return 'warning';
-    if (row.lastDataJob?.result === IngestionResult.SUCCESS) return 'positive';
-    if (row.lastApiDataJob?.result === IngestionResult.SUCCESS)
-      return 'positive';
-    return 'accent';
+    return resolveDataButtonColor(
+      row.lastDataJob?.result,
+      row.lastApiDataJob?.result,
+    );
   }
 
   function factorButtonColor(row: ImportRow): string {
@@ -53,7 +50,9 @@ export function useUploadCard() {
 
   function dataButtonLabel(row: ImportRow): string {
     if (row.isDisabled) return '';
-    return row.lastDataJob
+    // An API sync counts as existing data too — without it the card
+    // read "Add Data" after a successful sync of thousands of rows.
+    return row.lastDataJob || row.lastApiDataJob
       ? t('data_management_reupload_data')
       : t('data_management_add_data');
   }
@@ -67,8 +66,7 @@ export function useUploadCard() {
 
   function safeFileName(meta: unknown): string | undefined {
     const fp = (meta as Record<string, unknown>)?.file_path as
-      | string
-      | undefined;
+      string | undefined;
     if (!fp) return undefined;
     const parts = fp.split('/');
     return parts.length ? parts[parts.length - 1] : fp;
@@ -114,8 +112,7 @@ export function useUploadCard() {
     const rowsProcessed = (job.meta as Record<string, unknown>)
       ?.rows_processed as number | undefined;
     const timestampStr = (job.meta as Record<string, unknown>)?.timestamp as
-      | string
-      | undefined;
+      string | undefined;
     const timestamp = timestampStr ? new Date(timestampStr) : undefined;
 
     return { fileName, rowsProcessed, timestamp };
@@ -123,9 +120,19 @@ export function useUploadCard() {
 
   function hasErrorOrWarning(job?: SyncJobResponse): boolean {
     if (!job) return false;
+    const meta = job.meta as Record<string, unknown> | undefined;
+    const stats = meta?.stats as
+      { row_errors?: JobRowError[]; row_errors_count?: number } | undefined;
+    const rowErrorCount =
+      stats?.row_errors_count ??
+      (meta?.row_errors_count as number | undefined) ??
+      stats?.row_errors?.length ??
+      0;
     return (
       job.result === IngestionResult.WARNING ||
-      job.result === IngestionResult.ERROR
+      job.result === IngestionResult.ERROR ||
+      Boolean(meta?.error) ||
+      rowErrorCount > 0
     );
   }
 
@@ -133,14 +140,52 @@ export function useUploadCard() {
     message: string;
     error?: string;
     stats?: Record<string, unknown>;
+    rowErrors: string[];
+    missingSyncedUnitErrors?: MissingSyncedUnitErrorGroup;
   } {
-    if (!job) return { message: '' };
+    if (!job) return { message: '', rowErrors: [] };
 
     const meta = job.meta as Record<string, unknown> | undefined;
+    const stats = meta?.stats as
+      { row_errors?: JobRowError[]; row_errors_count?: number } | undefined;
+    const statusHistory = meta?.status_history as
+      Array<{ message?: string }> | undefined;
+    const latestHistoryMessage = statusHistory
+      ?.toReversed()
+      .find(
+        (entry) =>
+          entry.message && entry.message.trim().toLowerCase() !== 'processing',
+      )?.message;
+    const statusMessage = job.status_message || '';
+    const isGenericStatus = ['success', 'processing'].includes(
+      statusMessage.trim().toLowerCase(),
+    );
+    const rawRowErrors =
+      stats?.row_errors ?? (meta?.row_errors as JobRowError[] | undefined);
+    const rowErrorsCount =
+      stats?.row_errors_count ?? (meta?.row_errors_count as number | undefined);
+    const missingSyncedUnitErrors = groupMissingSyncedUnitErrors(
+      rawRowErrors,
+      rowErrorsCount,
+    );
+    const otherRowErrors = rawRowErrors?.filter(
+      (error) => error.type !== 'missing_synced_unit',
+    );
+
     return {
-      message: job.status_message || '',
+      message: isGenericStatus
+        ? latestHistoryMessage ||
+          (meta?.message as string | undefined) ||
+          statusMessage
+        : statusMessage,
       error: meta?.error as string | undefined,
       stats: meta?.stats as Record<string, unknown> | undefined,
+      rowErrors: formatRowErrorLines(
+        otherRowErrors,
+        missingSyncedUnitErrors ? otherRowErrors?.length : rowErrorsCount,
+        t,
+      ),
+      missingSyncedUnitErrors,
     };
   }
 

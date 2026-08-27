@@ -19,8 +19,7 @@ async def permission_denied_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
-    """
-    Handle PermissionDeniedError and its subclasses.
+    """Handle PermissionDeniedError and its subclasses.
 
     Returns HTTP 403 with a clear, structured error message that includes:
     - The required permission path and action

@@ -1,5 +1,4 @@
-"""
-Ultra-fast PostgreSQL COPY seeder
+"""Ultra-fast PostgreSQL COPY seeder
 
 Sized for scale testing. NUM_UNITS × YEARS (3) × ALL_MODULE_TYPE_IDS (8) ×
 entries_per_module drives the data_entries row count; tune ENTRIES_PER_MODULE
@@ -48,6 +47,8 @@ fake = Faker()
 
 async def get_asyncpg_connection():
     settings = get_settings()
+    if settings.DB_URL is None:
+        raise ValueError("DB_URL must be set to run this seed script")
     db_url = settings.DB_URL.replace("postgresql+psycopg", "postgresql")
     return await asyncpg.connect(db_url)
 

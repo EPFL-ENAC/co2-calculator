@@ -11,14 +11,18 @@ from app.api.v1 import (
     carbon_report,
     carbon_report_module,
     carbon_report_module_stats,
+    connectors,
     data_sync,
+    exchange_rates,
     factors,
     files,
     locations,
+    simulator_plan,
     taxonomies,
     unit_results,
     units,
     users,
+    workspace_home,
     year_configuration,
 )
 
@@ -35,9 +39,11 @@ api_router.include_router(
     prefix="/backoffice-reporting",
     tags=["backoffice-reporting"],
 )
-# TODO: rename /modules in the frontend!
+# Module/data-entry operations are identity-addressed under /carbon-reports
+# ("lookup once, then identity" — see docs/src/implementation-plans/
+# 1556-simulation-plan-backend.md).
 api_router.include_router(
-    carbon_report_module.router, prefix="/modules", tags=["modules"]
+    carbon_report_module.router, prefix="/carbon-reports", tags=["modules"]
 )
 api_router.include_router(building_rooms.router, prefix="/modules", tags=["modules"])
 # TODO: rename /modules-stats in the frontend!
@@ -45,17 +51,27 @@ api_router.include_router(
     carbon_report_module_stats.router, prefix="/modules-stats", tags=["modules-stats"]
 )
 api_router.include_router(units.router, prefix="/units", tags=["units"])
+api_router.include_router(
+    exchange_rates.router, prefix="/exchange-rates", tags=["exchange-rates"]
+)
 api_router.include_router(factors.router, prefix="/factors", tags=["factors"])
 api_router.include_router(taxonomies.router, prefix="/taxonomies", tags=["taxonomies"])
 api_router.include_router(
     carbon_report.router, prefix="/carbon-reports", tags=["carbon-reports"]
 )
+api_router.include_router(
+    simulator_plan.router, prefix="/project-plans", tags=["project-plans"]
+)
 api_router.include_router(locations.router, prefix="/locations", tags=["locations"])
 api_router.include_router(files.router, prefix="/files", tags=["files"])
 api_router.include_router(data_sync.router, prefix="/sync", tags=["data-sync"])
+api_router.include_router(connectors.router, prefix="/connectors", tags=["connectors"])
 api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_router.include_router(
     year_configuration.router,
     prefix="/year-configuration",
     tags=["year-configuration"],
+)
+api_router.include_router(
+    workspace_home.router, prefix="/workspace", tags=["workspace"]
 )

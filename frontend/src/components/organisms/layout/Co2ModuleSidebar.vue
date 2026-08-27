@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useAuthStore } from 'src/stores/auth';
-import { useTimelineStore, useModuleStore } from 'src/stores/modules';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { PermissionAction } from 'src/stores/auth';
-import { MODULE_STATUS_DISPLAY } from 'src/constant/moduleStates';
-import { timelineItems } from 'src/constant/timelineItems';
-import { MODULES, type Module } from 'src/constant/modules';
-import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
-import ModuleTotalResult from 'src/components/organisms/module/ModuleTotalResult.vue';
-import ResultsFilterPanel from 'src/components/layout/ResultsFilterPanel.vue';
-import { MODULES_CONFIG } from 'src/constant/module-config';
-import type { ModuleConfig } from 'src/constant/moduleConfig';
+import { useAuthStore } from '@/stores/auth';
+import { useTimelineStore, useModuleStore } from '@/stores/modules';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { PermissionAction } from '@/stores/auth';
+import { MODULE_STATUS_DISPLAY } from '@/constant/moduleStates';
+import { timelineItems } from '@/constant/timelineItems';
+import { MODULES, type Module } from '@/constant/modules';
+import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
+import ModuleTotalResult from '@/components/organisms/module/ModuleTotalResult.vue';
+import ResultsFilterPanel from '@/components/layout/ResultsFilterPanel.vue';
+import { MODULES_CONFIG } from '@/constant/module-config';
+import type { ModuleConfig } from '@/constant/moduleConfig';
+import { HOME_ROUTE_NAME } from '@/router/routeNames';
 
 const route = useRoute();
 const router = useRouter();
@@ -74,6 +75,8 @@ function isModuleSelected(moduleLink: string): boolean {
 
 const isResultsSelected = computed(() => route.name === 'results');
 
+const isHomeSelected = computed(() => route.name === HOME_ROUTE_NAME);
+
 const collapseToggleIcon = computed(() =>
   collapsed.value ? 'chevron_right' : 'chevron_left',
 );
@@ -88,6 +91,10 @@ function navigateToModule(moduleLink: string) {
 
 function navigateToResults() {
   router.push({ name: 'results', params: route.params });
+}
+
+function navigateToHome() {
+  router.push({ name: HOME_ROUTE_NAME, params: route.params });
 }
 </script>
 
@@ -104,6 +111,37 @@ function navigateToResults() {
       sidebar
     />
     <q-list class="sidebar-items">
+      <q-item
+        class="sidebar-item sidebar-home"
+        :class="{ 'sidebar-home--selected': isHomeSelected }"
+        clickable
+        @click="navigateToHome"
+      >
+        <span class="sidebar-home__icon-box">
+          <q-icon name="o_home" size="sm" class="sidebar-home__icon" />
+        </span>
+        <q-item-label
+          class="sidebar-label text-body2"
+          :class="{ 'sidebar-label--hidden': collapsed }"
+          >{{ $t('home_btn') }}</q-item-label
+        >
+        <q-icon
+          v-if="!collapsed"
+          name="chevron_right"
+          size="xs"
+          class="status-icon"
+        />
+        <q-tooltip
+          v-if="collapsed"
+          anchor="center right"
+          self="center left"
+          :offset="[6, 0]"
+          class="sidebar-tooltip"
+        >
+          {{ $t('home_btn') }}
+        </q-tooltip>
+      </q-item>
+      <q-separator />
       <q-item
         v-for="item in sidebarItems"
         :key="item.link"
@@ -212,7 +250,7 @@ function navigateToResults() {
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .sidebar {
   height: 100%;
@@ -346,7 +384,31 @@ function navigateToResults() {
     width: 3rem;
     height: 3rem;
     border-radius: 8px;
-    border: 1.5px solid tokens.$sidebar-border-color;
+    border: 1.5px solid tokens.$color-text-muted;
+    background-color: tokens.$module-result-bg;
+    flex-shrink: 0;
+  }
+
+  &__icon {
+    color: tokens.$color-text-muted;
+  }
+}
+
+// Home button: same neutral grey treatment as the documentation button.
+.sidebar-home {
+  &:hover,
+  &--selected {
+    background-color: tokens.$module-result-bg !important;
+  }
+
+  &__icon-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 8px;
+    border: 1.5px solid tokens.$color-text-muted;
     background-color: tokens.$module-result-bg;
     flex-shrink: 0;
   }

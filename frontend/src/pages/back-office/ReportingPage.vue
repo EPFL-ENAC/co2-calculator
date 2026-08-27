@@ -1,28 +1,28 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import { MODULE_CARDS } from 'src/constant/moduleCards';
-import type { Module } from 'src/constant/modules';
-import { MODULE_STATES, type ModuleState } from 'src/constant/moduleStates';
-import type { UnitFilters } from 'src/stores/backoffice';
-import { useBackofficeStore } from 'src/stores/backoffice';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
-import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
+import { MODULE_CARDS } from '@/constant/moduleCards';
+import type { Module } from '@/constant/modules';
+import { MODULE_STATES, type ModuleState } from '@/constant/moduleStates';
+import type { UnitFilters } from '@/stores/backoffice';
+import { useBackofficeStore } from '@/stores/backoffice';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
+import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
 import ModuleSelector, {
   type ModuleStateData,
-} from 'src/components/organisms/backoffice/reporting/ModuleSelector.vue';
-import ReportingStatCards from 'src/components/organisms/backoffice/reporting/ReportingStatCards.vue';
-import ReportingStatCardUnit from 'src/components/organisms/backoffice/reporting/ReportingStatCardUnit.vue';
-import { type ReportingStats } from 'src/api/backoffice';
-import ReportingYear from 'src/components/organisms/backoffice/reporting/ReportingYear.vue';
-import ReportingFilters from 'src/components/organisms/backoffice/reporting/ReportingFilters.vue';
-import UnitsTable from 'src/components/organisms/backoffice/reporting/UnitsTable.vue';
-import ReportExport from 'src/components/organisms/backoffice/reporting/ReportExport.vue';
-import UnitDialogue from 'src/components/organisms/backoffice/reporting/UnitDialogue.vue';
-import CompletionRateBar from 'src/components/organisms/backoffice/reporting/CompletionRateBar.vue';
-import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
-import EmissionBreakdownChart from 'src/components/charts/EmissionBreakdownChart.vue';
-import ItFocusSection from 'src/components/organisms/ItFocusSection.vue';
+} from '@/components/organisms/backoffice/reporting/ModuleSelector.vue';
+import ReportingStatCards from '@/components/organisms/backoffice/reporting/ReportingStatCards.vue';
+import ReportingStatCardUnit from '@/components/organisms/backoffice/reporting/ReportingStatCardUnit.vue';
+import { type ReportingStats } from '@/api/backoffice';
+import ReportingYear from '@/components/organisms/backoffice/reporting/ReportingYear.vue';
+import ReportingFilters from '@/components/organisms/backoffice/reporting/ReportingFilters.vue';
+import UnitsTable from '@/components/organisms/backoffice/reporting/UnitsTable.vue';
+import ReportExport from '@/components/organisms/backoffice/reporting/ReportExport.vue';
+import UnitDialogue from '@/components/organisms/backoffice/reporting/UnitDialogue.vue';
+import CompletionRateBar from '@/components/organisms/backoffice/reporting/CompletionRateBar.vue';
+import CarbonFootPrintPerPersonChart from '@/components/charts/results/CarbonFootPrintPerPersonChart.vue';
+import EmissionBreakdownChart from '@/components/charts/EmissionBreakdownChart.vue';
+import ItFocusSection from '@/components/organisms/ItFocusSection.vue';
 import { useRouter } from 'vue-router';
 const backofficeStore = useBackofficeStore();
 const router = useRouter();
@@ -55,7 +55,8 @@ async function toggleSelectAll(shouldSelectAll: boolean) {
   await fetchUnits();
 }
 
-const selectedYears = ref<string[]>(['2026']); // Default to latest year
+// Populated by ReportingYear, which defaults to the latest configured year.
+const selectedYears = ref<string[]>([]);
 
 // Track selected hierarchy filters from ReportingFilters
 const selectedPathAffiliation = ref<number[]>([]);
@@ -277,9 +278,14 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
         class="q-mt-xl"
         style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px"
       >
+        <!-- This page aggregates data across an admin-chosen set of years/units
+             with no single "current year" loaded into yearConfigStore, so the
+             charts' default module/submodule-activation filtering (which reads
+             that single-year config) must be disabled here. -->
         <ModuleCarbonFootprintChart
           :breakdown-data="reportingEmissionBreakdown"
           :title="$t('backoffice_reporting_aggregated_results_title')"
+          :enforce-module-activation="false"
         />
         <CarbonFootPrintPerPersonChart
           :per-person-breakdown="
@@ -293,6 +299,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
           "
           :show-validation-placeholder="false"
           :title="$t('backoffice_reporting_aggregated_results_per_fte_title')"
+          :enforce-module-activation="false"
         />
       </q-card>
       <EmissionBreakdownChart

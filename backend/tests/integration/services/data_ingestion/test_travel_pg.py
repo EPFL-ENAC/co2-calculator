@@ -46,7 +46,6 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -66,7 +65,7 @@ from app.models.data_entry import (
     DataEntrySourceEnum,
     DataEntryTypeEnum,
 )
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionMethod,
@@ -80,6 +79,7 @@ from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import UserProvider
 from app.models.year_configuration import YearConfiguration
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import (
     KG_CO2EQ_OVERRIDE_KEY,
@@ -742,17 +742,24 @@ async def test_plane_unknown_iata_persists_entry_without_emission(
     pg_dsn, monkeypatch, tmp_path
 ) -> None:
     """Discovery: an unknown destination IATA causes
-    ``LocationService.get_location_by_iata`` to return ``None``,
-    ``pre_compute`` returns ``{}``, and ``resolve_computations`` is
-    never asked for an EmissionComputation against an empty haul
-    category.
+    ``LocationService.get_location_by_iata`` to return ``None``.
 
-    Observed behaviour as of 310-D: the data entry persists with a
-    ``CSV_MODULE_PER_YEAR`` source but no emission row is computed.
-    The 1-1 invariant is intentionally NOT asserted here — the contract
-    we pin instead is "missing location → entry without emission",
-    which is the legitimate semantics for unresolvable trips and the
-    motivation for the discovery test in the spec.
+    CSV ingestion itself doesn't resolve IATA codes — that only happens
+    later, in ``pre_compute``, during the chained ``emission_recalc`` job.
+    So the entry still persists here regardless of the #1186-follow-up fix
+    below (unlike train's ingest-time ``enrich_csv_row`` guard, plane has
+    no CSV-time station lookup to reject at). The 1-1 invariant is
+    intentionally NOT asserted — the contract pinned is "missing location →
+    entry without emission".
+
+    #1186 follow-up: ``pre_compute`` now *raises* on an unresolved IATA
+    instead of silently returning ``{}``. That raise is caught per-entry by
+    ``EmissionRecalculationWorkflow`` (doesn't abort the recalc job for
+    other entries) and turns the chained ``emission_recalc`` job's result
+    into ``IngestionResult.WARNING`` instead of a silent ``SUCCESS`` with a
+    log line nobody reads — but this test only inspects the CSV parent job
+    and the final entry/emission counts, both unaffected by that change, so
+    it doesn't assert on the child job's result directly.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -827,12 +834,13 @@ async def test_plane_unknown_iata_persists_entry_without_emission(
 
 
 @pytest.mark.asyncio
-async def test_train_unknown_station_persists_entry_without_emission(
+async def test_train_unknown_station_is_rejected_as_row_error(
     pg_dsn, monkeypatch, tmp_path
 ) -> None:
-    """Train mirror of the unknown-IATA discovery test: unknown station
-    name → no Location → ``pre_compute`` returns ``{}`` → entry without
-    emission.
+    """#1186: unlike plane's unknown-IATA path (persist, 0 emissions), an
+    unresolvable train station name is now a hard row error — the row never
+    gets a chance to persist with a silently-missing natural_key. Supersedes
+    the "mirror plane" behavior this test used to pin (#1183 discovery test).
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -874,17 +882,18 @@ async def test_train_unknown_station_persists_entry_without_emission(
         provider_class=ModulePerYearCSVProvider,
     )
     assert parent.state == IngestionState.FINISHED
+    assert parent.result == IngestionResult.ERROR, (
+        f"the only row is unresolvable — nothing processed; got {parent.result}"
+    )
 
     async with Sf() as s:
         n_entries, n_emissions = await _count_entries_and_emissions_for_module(
             s, module_id=module_id
         )
-        assert n_entries == 1, (
-            f"unknown-station entry should still persist; got {n_entries}"
+        assert n_entries == 0, (
+            f"unknown-station row must be rejected, not persisted; got {n_entries}"
         )
-        assert n_emissions == 0, (
-            f"unknown-station entry should yield 0 emissions; got {n_emissions}"
-        )
+        assert n_emissions == 0
 
     await engine.dispose()
 
@@ -911,36 +920,15 @@ def _make_api_provider(
         "module_type_id": int(ModuleTypeEnum.professional_travel),
         "year": YEAR,
     }
-    # Stub the Tableau settings only during __init__.  ``_load_data``
-    # later calls ``get_settings().BULK_PATH_PURE_ASYNC`` against the
-    # real settings — that's intentional, since the production default
-    # (True) IS the path under test.  If the default ever flips this
-    # test will silently change branches; the assertions still pin the
-    # source enum and override carrier on whichever path runs.
-    with patch(
-        "app.services.data_ingestion.api_providers.professional_travel_api_provider"
-        ".get_settings"
-    ) as mock_settings:
-        mock_settings.return_value = MagicMock(
-            TABLEAU_SERVER_URL="https://stub",
-            TABLEAU_SITE_CONTENT_URL="stub",
-            TABLEAU_DS_FLIGHTS_LUID="stub",
-            TABLEAU_CONNECTED_APP_CLIENT_ID="stub",
-            TABLEAU_CONNECTED_APP_SECRET_ID="stub",
-            TABLEAU_CONNECTED_APP_SECRET_VALUE="stub",
-            TABLEAU_REQUEST_TIMEOUT_SECONDS=10,
-            TABLEAU_VERIFY_SSL="false",
-            TABLEAU_REST_MIN_API_VERSION="3.20",
-            TABLEAU_MAX_FIELDS=200,
-            TABLEAU_USERNAME="stub",
-            BULK_PATH_PURE_ASYNC=True,
-        )
-        provider = ProfessionalTravelApiProvider(
-            config=config,
-            user=user,
-            job_session=job_session,
-            data_session=data_session,
-        )
+    # Credentials now load from the DB via ``_ensure_credentials``; this test
+    # drives ``_load_data`` directly (no fetch/sign-in), so no connection
+    # seeding or Tableau settings stub is needed.
+    provider = ProfessionalTravelApiProvider(
+        config=config,
+        user=user,
+        job_session=job_session,
+        data_session=data_session,
+    )
     # Job id is set by ``set_job_id`` in production; stash a sentinel so
     # ``bulk_create`` has something for ``created_by_id`` / ``job_id``.
     provider.job_id = 1
@@ -1084,13 +1072,12 @@ async def test_kg_co2eq_zero_int_override_survives_async_recalc_path(
             institutional_id=f"OVR-INT-{uuid4().hex[:6]}",
         )
         await _seed_plane_locations(s)
-        factor_id = await _seed_plane_factor(s)
+        await _seed_plane_factor(s)
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.plane.value,
             carbon_report_module_id=module_id,
             data={
-                "primary_factor_id": factor_id,
                 "user_institutional_id": "U-API-0",
                 "origin_iata": "GVA",
                 "destination_iata": "CDG",
@@ -1167,13 +1154,12 @@ async def test_kg_co2eq_zero_float_override_survives_async_recalc_path(
             institutional_id=f"OVR-FLOAT-{uuid4().hex[:6]}",
         )
         await _seed_plane_locations(s)
-        factor_id = await _seed_plane_factor(s)
+        await _seed_plane_factor(s)
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.plane.value,
             carbon_report_module_id=module_id,
             data={
-                "primary_factor_id": factor_id,
                 "user_institutional_id": "U-API-1",
                 "origin_iata": "GVA",
                 "destination_iata": "CDG",

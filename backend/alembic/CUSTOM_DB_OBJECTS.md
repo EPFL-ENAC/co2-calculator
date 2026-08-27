@@ -17,7 +17,8 @@ dropped if you collapse migrations. This file is the source of truth for those o
   autogenerate emits the `CREATE INDEX`, but **not** the extension it depends on.
 - **Where:** added at the top of `upgrade()` in the collapsed migration; dropped at the
   end of `downgrade()`.
-- **Origin:** `versions copy/2026_05_04_0952-..._search_locations.py`
+- **Origin:** `versions/2026_08_20_1628-ad1593afc72f_initial_migration.py` (previously
+  `versions copy/2026_05_04_0952-..._search_locations.py`, before the 2211 collapse)
 
 ## Captured in models — verify, don't hand-write
 
@@ -27,7 +28,12 @@ emits them. Listed here only so a future collapse can confirm they survived.
 - Partial / expression unique indexes:
   `uq_factor_identity`, `uq_factor_identity_no_year`, `uq_emission_recalc_active`,
   `uq_aggregation_active`, `ix_data_ingestion_jobs_is_current_unique`,
-  `ix_data_ingestion_jobs_pending`, `audit_document_one_current_idx`.
+  `ix_data_ingestion_jobs_pending`, `audit_document_one_current_idx`,
+  `uq_member_role_per_module` (`data_entry.py`), `uq_active_datasource_per_module`
+  (`connector.py`), `uq_carbon_projects_unit_type_nonplan` /
+  `uq_carbon_projects_unit_plan_name` (`carbon_project.py`). The last two were found
+  live only in migration history during the 2211 collapse — moved into
+  `__table_args__` in the same PR instead of hand-writing them into the new migration.
 - Enum values added over time via `ALTER TYPE ... ADD VALUE`
   (`sync_status_enum`: `SKIPPED`, `RETRY_QUEUED`; `ingestion_method_enum`: `computed`;
   `target_type_enum`: `REFERENCE_DATA`, reduction-objective values). These come from the
@@ -51,4 +57,8 @@ Do not re-add these; the final schema no longer uses them.
 
 Ignored on collapse (pre-v1.x drops the DB between deploys, so no backfill is needed):
 `backfill_carbon_project_id`, `DELETE FROM year_configuration WHERE provider <> 'DEFAULT'`,
-`migrate_data_ingestion`.
+`migrate_data_ingestion` (2026-06-15 collapse); `strip_legacy_primary_factor_id_and_null_`,
+`strip_legacy_status_from_entry_json`, `backfill_data_entries_year_and_unit_id_`,
+`migrate_mice_research_facility_type_to_`, `migrate_legacy_traveler_sentinels_to_1_`,
+`rename_process_emissions_quantity_to_quantity_kg` (#2025) (2211 collapse — the last one's
+round-trip test, `test_quantity_kg_migration_pg.py`, was deleted with it).

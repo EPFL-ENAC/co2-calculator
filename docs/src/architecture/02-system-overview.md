@@ -113,6 +113,11 @@ dotted arrows are integrations enabled per-environment through injected
 secrets. The app is **not** publicly reachable — access is over the EPFL
 network/VPN.
 
+Tableau is the exception: its connection (server, site, credentials) is
+entered per module via the backoffice API-connect form and stored
+encrypted in the database, not injected as environment secrets — see
+[API-Connect Tableau Credentials](../implementation-plans/1552-api-connect-tableau-credentials-prd.md).
+
 **Boundaries.** The system owns its data in a managed PostgreSQL (EPFL
 DBaaS), which also holds the background-job queue table; a `db-dump`
 CronJob backs it up to a PVC. Identity is delegated to Entra ID (OIDC).
@@ -182,12 +187,12 @@ flowchart TB
 
 ### Container responsibilities
 
-| Container        | Role                                                                                                              |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Frontend**     | Static Quasar SPA, calls Backend over REST with HTTP-only auth cookies.                                           |
-| **Backend API**  | Auth, business logic, persistence, file uploads, data ingestion, background jobs.                                |
-| **Docs**         | This MkDocs site, served as static files.                                                                        |
-| **PostgreSQL**   | System of record (also holds the background-job queue table); managed EPFL DBaaS, reached directly via SQLAlchemy async — **no PgBouncer**. |
+| Container       | Role                                                                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**    | Static Quasar SPA, calls Backend over REST with HTTP-only auth cookies.                                                                     |
+| **Backend API** | Auth, business logic, persistence, file uploads, data ingestion, background jobs.                                                           |
+| **Docs**        | This MkDocs site, served as static files.                                                                                                   |
+| **PostgreSQL**  | System of record (also holds the background-job queue table); managed EPFL DBaaS, reached directly via SQLAlchemy async — **no PgBouncer**. |
 
 Stack and versions live in [Tech Stack](./08-tech-stack.md). The backend's
 internal subsystems are in the [Subsystem Map](./03-subsystem-map.md).

@@ -7,10 +7,20 @@ site
 *.csv
 storybook-static
 .serena
-AGENTS.md
 .worktrees
 .claude/scheduled_tasks.lock
 
 # Local DB dumps + secrets (never commit)
 *.pgdump
 app_dump*
+.agents
+.codex
+
+# Playwright MCP scratch artifacts
+.playwright-mcp/
+planner-*.png
+
+# Secrets: any .env at any depth (the .env.example templates stay tracked)
+.env
+.env.*
+!.env.example

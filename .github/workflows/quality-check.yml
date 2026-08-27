@@ -15,17 +15,14 @@ jobs:
       run:
         working-directory: ./frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4.4.0
+        uses: actions/setup-node@v5
         with:
           node-version-file: '.nvmrc'
           cache: "npm"
           cache-dependency-path: "./frontend/package-lock.json"
-
-      - name: Enable Corepack
-        run: corepack enable
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -48,7 +45,7 @@ jobs:
         working-directory: ./backend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -56,7 +53,7 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.14
 
       - name: Install dependencies
         run: uv sync
@@ -66,3 +63,84 @@ jobs:
 
       - name: Type Check
         run: make type-check
+
+
+  gen-constants-check:
+    name: Generated Frontend Constants Up To Date
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: uv sync
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: "npm"
+          cache-dependency-path: "./frontend/package-lock.json"
+
+      # gen-module-constants' recipe formats its output with prettier —
+      # needs frontend's node_modules, not just Node itself.
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci --ignore-scripts
+
+      - name: Regenerate frontend constants from backend enums
+        working-directory: ./backend
+        # Importing the app constructs Settings; CI has no backend/.env, so
+        # seed it from the example the way the Makefile's test targets do.
+        run: |
+          cp .env.example .env
+          make gen-emission-taxonomy
+          make gen-module-constants
+
+      - name: Fail if generated constants are stale
+        run: |
+          git diff --exit-code \
+            frontend/src/types/emission-taxonomy.gen.ts \
+            frontend/src/types/module-lookups.gen.ts
+
+
+  docs-quality:
+    name: Docs Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./docs
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # mkdocs-git-authors-plugin reads history; a shallow clone breaks it.
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Check Markdown formatting
+        run: make lint
+
+      # --strict turns a broken link, unparseable frontmatter or an unknown
+      # plan status into a failure here, rather than at deploy time on main.
+      - name: Build docs
+        run: uv run mkdocs build --strict --site-dir /tmp/docs-site

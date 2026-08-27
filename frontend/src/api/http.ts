@@ -1,7 +1,7 @@
 import ky, { type Options } from 'ky';
 import { Notify } from 'quasar';
-import { i18n } from 'src/boot/i18n';
-import { captureError } from 'src/utils/glitchtip';
+import { i18n } from '@/boot/i18n';
+import { captureError, traceparent } from '@/utils/glitchtip';
 
 declare module 'ky' {
   interface Options {
@@ -19,29 +19,47 @@ export const API_LOGIN_TEST_URL = '/api/v1/auth/login-test';
 export const API_ME_URL = 'session';
 export const API_REFRESH_URL = 'session';
 export const API_LOGOUT_URL = 'session';
-export const API_EXCHANGE_URL = 'session/exchange';
 export const loginPageName = '/en/login';
 
 const endsWithSession = (u: string) => /\/session(?:\?.*)?$/.test(u);
-const endsWithSessionExchange = (u: string) =>
-  /\/session\/exchange(?:\?.*)?$/.test(u);
 const isRefresh = (u: string, m: string) =>
   endsWithSession(u) && m.toUpperCase() === 'POST';
 const isSessionCheck = (u: string, m: string) =>
   endsWithSession(u) && m.toUpperCase() === 'GET';
-// /session/exchange is the BFF cookie-exchange POST run by AuthCompletePage.
-// 401 from this endpoint means an expired/consumed/unknown exchange code —
-// an EXPECTED failure mode that the page renders as its own failure UI
-// (with a retry button). It MUST NOT trigger the global login redirect
-// (location.replace(loginPageName)), and it MUST NOT trigger the global
-// pre-retry refresh attempt (there's no refresh cookie yet during the BFF
-// handshake — the exchange IS what mints the cookies).
-const isExchange = (u: string, m: string) =>
-  endsWithSessionExchange(u) && m.toUpperCase() === 'POST';
+
+/**
+ * Request timeout for every call through this client.
+ *
+ * ky's own default is **10 s**, and nothing here used to set it — so it was
+ * easy to miss that a hard ceiling existed at all. It aborts in the browser
+ * regardless of the server still working, which is what #2360 was.
+ *
+ * **590 s = the OpenShift Route timeout (10 m) minus 10 s.** Deliberately
+ * just *under* the router, so on a genuinely stuck request the browser is
+ * always the one that gives up first and the failure is attributable: a
+ * client abort at ~590 s and a router 504 at 600 s are distinguishable by
+ * when they happen. Equal values would collapse them into one symptom.
+ *
+ * ⚠️ **Coupled to infrastructure.** `haproxy.router.openshift.io/timeout: 10m`
+ * is set on the backend Route in all three environments
+ * (`epfl/co2-calculator/overlays/{dev,stage,prod}/kustomization.yaml` in the
+ * ops repo). If that annotation changes, change this with it — nothing
+ * enforces the relationship at build or deploy time.
+ *
+ * **Applied globally on purpose, not per endpoint.** The first attempt raised
+ * it only on the three endpoints with measured cause; a fourth
+ * (`carbon-reports/{id}/modules/{m}/{sub}`, #2404) timed out within hours.
+ * A hand-maintained list of "known slow" calls is a list that is always out
+ * of date, and being wrong means a *user-visible failure on a working
+ * backend*. Slowness is a monitoring problem — the latency alerts exist to
+ * say "this is too slow"; the client's job is not to guess.
+ */
+export const REQUEST_TIMEOUT_MS = 590_000;
 
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
   credentials: 'include',
+  timeout: REQUEST_TIMEOUT_MS,
   // ky's default `methods` excludes POST/PATCH, so without overriding it the
   // beforeRetry hook below would never fire on form submits — users mid-edit
   // would get bounced to /login on a single 401 even though the refresh
@@ -52,15 +70,16 @@ export const api = ky.create({
     methods: ['get', 'put', 'post', 'patch', 'head', 'delete', 'options'],
   },
   hooks: {
+    beforeRequest: [
+      // Propagate the per-navigation trace id so backend OTel spans join the
+      // browser's trace — GlitchTip trace_ids become searchable in Tempo (#2372).
+      (request) => {
+        request.headers.set('traceparent', traceparent());
+      },
+    ],
     beforeRetry: [
-      // For any non-refresh call, try to refresh before retrying.
-      // Exception: /session/exchange — it predates the cookies, so a
-      // refresh attempt here would hit the same 401 wall and bounce.
       async ({ request }) => {
-        if (
-          !isRefresh(request.url, request.method) &&
-          !isExchange(request.url, request.method)
-        )
+        if (!isRefresh(request.url, request.method))
           await api.post(API_REFRESH_URL, { retry: { limit: 0 } });
       },
     ],
@@ -80,44 +99,26 @@ export const api = ky.create({
             // vue Router guard will handle the redirection
             return;
           }
-          if (isExchange(req.url, req.method)) {
-            // BFF cookie-exchange: 401 means expired/consumed/unknown
-            // code. Let the caller (authStore.exchange via
-            // AuthCompletePage) see the error so the page can render
-            // its "exchange failed, retry login" state — bypassing the
-            // global redirect would otherwise loop the user back through
-            // /login and hide the actual failure reason.
-            return;
-          } else {
-            // ⚠️ KNOWN ISSUE: On 401 (expired tokens), this hook used to
-            // redirects directly to
-            // API_LOGIN_URL (/api/v1/auth/login), which always initiates the Entra OAuth
-            // flow — even when the user was logged in as a test user.
-            //
-            // If the Entra SSO session is still active (e.g. only local cookies were
-            // cleared, not a real Entra logout), the user gets silently re-authenticated
-            // as their Entra identity, overwriting the test session.
-            //
-            // Redirect to the frontend /login page instead, so the user can
-            // explicitly choose test vs Entra login.
-            // may induced infinite redirect loops if the login page itself makes API calls
-            // that return 401, but in practice this should not happen since the login page
-            // should not make authenticated API calls.
-            //
-            // Surface a toast before navigating so the user understands why
-            // they're being kicked out (issue #949: previously a silent
-            // bounce to /login that looked like the form had submitted them
-            // back to the home page).
-            Notify.create({
-              color: 'warning',
-              message: i18n.global.t('session_expired_notice'),
-              position: 'top',
-              timeout: 5000,
-              actions: [{ icon: 'close', color: 'white' }],
-            });
-            location.replace(loginPageName);
-          }
+          // ⚠️ KNOWN ISSUE: On 401 (expired tokens), this hook used to
+          // redirect directly to API_LOGIN_URL (/api/v1/auth/login), which
+          // always initiates the Entra OAuth flow — even when the user was
+          // logged in as a test user. Redirect to the frontend /login page
+          // instead so the user can choose test vs Entra login (issue #949).
+          Notify.create({
+            color: 'warning',
+            message: i18n.global.t('session_expired_notice'),
+            position: 'top',
+            timeout: 5000,
+            actions: [{ icon: 'close', color: 'white' }],
+          });
+          location.replace(loginPageName);
         } else if (res.status === 403) {
+          // Caller declared 403 an expected outcome (skipErrorCodes): skip the
+          // toast + hard /unauthorized redirect and let it handle the
+          // HTTPError itself (e.g. the unit guard's soft redirect, #2369).
+          if (((options as ApiOptions).skipErrorCodes ?? []).includes(403)) {
+            return;
+          }
           // Parse permission error details from response body
           let permissionDetails: {
             path?: string;
@@ -128,12 +129,14 @@ export const api = ky.create({
           try {
             // Clone the response to read the body without consuming it
             const clonedResponse = res.clone();
-            let responseBody: { detail?: string } | null = null;
+            let responseBody: {
+              detail?: string | { code?: string };
+            } | null = null;
 
             if (!clonedResponse.bodyUsed) {
               try {
                 responseBody = (await clonedResponse.json()) as {
-                  detail?: string;
+                  detail?: string | { code?: string };
                 };
               } catch (jsonError) {
                 // Response might not be JSON
@@ -144,8 +147,19 @@ export const api = ky.create({
               }
             }
 
+            const detail = responseBody?.detail;
+            // An object detail (e.g. FIELD_NOT_EDITABLE) is a row-level
+            // business denial the caller surfaces itself — not a page-access
+            // denial, so no redirect: let ky throw to the caller's catch.
+            if (typeof detail === 'object' && detail !== null) {
+              return;
+            }
+
             // Extract detail from response body
-            const errorDetail = responseBody?.detail || 'Permission denied';
+            const errorDetail =
+              typeof detail === 'string' && detail
+                ? detail
+                : 'Permission denied';
 
             // Try to parse permission path and action from error message
             // Pattern: "Permission denied: {path}.{action} required"
@@ -265,6 +279,10 @@ export const api = ky.create({
   },
 });
 
-if (process.env.NODE_ENV === 'development') {
+// `typeof import.meta.env !== 'undefined' &&` guards this: this file can be
+// loaded by Playwright's component-test collection phase directly in Node,
+// without Vite's transform, where `import.meta.env` is plain `undefined` —
+// an unguarded `import.meta.env.DEV` throws there.
+if (typeof import.meta.env !== 'undefined' && import.meta.env.DEV) {
   window['api'] = api; // Expose for debugging
 }

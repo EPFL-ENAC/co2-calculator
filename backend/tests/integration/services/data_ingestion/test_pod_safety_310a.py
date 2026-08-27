@@ -14,7 +14,7 @@ covered separately in ``test_pod_safety_310a_pg.py`` against a real
 Postgres container — SQLite cannot reproduce that contention.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -156,10 +156,11 @@ async def test_claim_job_none_id(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_claim_job_respects_future_run_after(db_session: AsyncSession):
     """Jobs scheduled for the future (e.g. retry backoff) must not be
-    claimable until ``run_after`` has elapsed."""
+    claimable until ``run_after`` has elapsed.
+    """
     job = _make_job(
         state=IngestionState.NOT_STARTED,
-        run_after=datetime.now(timezone.utc) + timedelta(minutes=5),
+        run_after=datetime.now(UTC) + timedelta(minutes=5),
     )
     db_session.add(job)
     await db_session.flush()
@@ -183,7 +184,7 @@ async def test_claim_job_succeeds_when_run_after_has_elapsed(
     """Once ``run_after`` is in the past, the job becomes claimable."""
     job = _make_job(
         state=IngestionState.NOT_STARTED,
-        run_after=datetime.now(timezone.utc) - timedelta(minutes=1),
+        run_after=datetime.now(UTC) - timedelta(minutes=1),
     )
     db_session.add(job)
     await db_session.flush()
@@ -214,7 +215,7 @@ async def test_claim_job_succeeds_when_run_after_has_elapsed(
 
 @pytest.mark.asyncio
 async def test_recover_job_stale(db_session: AsyncSession):
-    stale_time = datetime.now(timezone.utc) - timedelta(minutes=60)
+    stale_time = datetime.now(UTC) - timedelta(minutes=60)
     job = _make_job(
         state=IngestionState.RUNNING,
         locked_by="pod-crashed",
@@ -241,7 +242,7 @@ async def test_recover_job_stale(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_recover_job_not_stale(db_session: AsyncSession):
-    recent_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+    recent_time = datetime.now(UTC) - timedelta(minutes=5)
     job = _make_job(
         state=IngestionState.RUNNING,
         locked_by="pod-alive",
@@ -288,13 +289,13 @@ async def test_recover_job_none_id(db_session: AsyncSession):
 async def test_sweep_recovers_stuck_running_with_retries_left(
     db_session: AsyncSession,
 ):
-    """attempts < max → reset to NOT_STARTED but PRESERVE attempts.
+    """Attempts < max → reset to NOT_STARTED but PRESERVE attempts.
 
     Locks are cleared so claim_job can pick it up next cycle, but
     attempts is intact so a job that crashes every time can't loop
     forever — claim_job's ``attempts < max_attempts`` guard caps it.
     """
-    stale_time = datetime.now(timezone.utc) - timedelta(minutes=60)
+    stale_time = datetime.now(UTC) - timedelta(minutes=60)
     job = _make_job(
         state=IngestionState.RUNNING,
         locked_by="pod-crashed-1",
@@ -326,7 +327,7 @@ async def test_sweep_recovers_stuck_running_with_retries_left(
 async def test_sweep_abandons_stuck_running_at_max_attempts(
     db_session: AsyncSession,
 ):
-    """attempts >= max → mark FINISHED+ERROR with diagnostic message.
+    """Attempts >= max → mark FINISHED+ERROR with diagnostic message.
 
     Without this branch, a job whose handler crashes every claim would
     sit RUNNING forever after attempts hits max — claim_job won't
@@ -334,7 +335,7 @@ async def test_sweep_abandons_stuck_running_at_max_attempts(
     recoverable branch above won't fire either (same gate).  So we
     mark it terminally failed; operators see it and can investigate.
     """
-    stale_time = datetime.now(timezone.utc) - timedelta(minutes=60)
+    stale_time = datetime.now(UTC) - timedelta(minutes=60)
     job = _make_job(
         state=IngestionState.RUNNING,
         locked_by="pod-crashed-final",
@@ -362,7 +363,7 @@ async def test_sweep_abandons_stuck_running_at_max_attempts(
 @pytest.mark.asyncio
 async def test_sweep_skips_running_within_stale_window(db_session: AsyncSession):
     """Jobs whose locked_at is within the stale window are presumed alive."""
-    recent_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+    recent_time = datetime.now(UTC) - timedelta(minutes=5)
     job = _make_job(
         state=IngestionState.RUNNING,
         locked_by="pod-alive",
@@ -384,7 +385,8 @@ async def test_sweep_skips_running_within_stale_window(db_session: AsyncSession)
 @pytest.mark.asyncio
 async def test_sweep_recovers_running_with_null_locked_at(db_session: AsyncSession):
     """RUNNING with NULL locked_at = a clearly-broken row (claim_job
-    always sets locked_at on success).  Treat as stale and recover."""
+    always sets locked_at on success).  Treat as stale and recover.
+    """
     job = _make_job(
         state=IngestionState.RUNNING,
         locked_by="pod-mystery",
@@ -403,7 +405,8 @@ async def test_sweep_recovers_running_with_null_locked_at(db_session: AsyncSessi
 @pytest.mark.asyncio
 async def test_sweep_does_not_touch_not_started(db_session: AsyncSession):
     """NOT_STARTED is the dispatch sweep's domain — auto-recovery only
-    cares about RUNNING."""
+    cares about RUNNING.
+    """
     job = _make_job(state=IngestionState.NOT_STARTED, attempts=0)
     db_session.add(job)
     await db_session.flush()
@@ -417,9 +420,10 @@ async def test_sweep_does_not_touch_not_started(db_session: AsyncSession):
 async def test_sweep_handles_mixed_population(db_session: AsyncSession):
     """One sweep call handles multiple rows in different buckets without
     interference — recoverable, abandoned, alive, and not-started all
-    coexist; only the first two are touched."""
-    stale = datetime.now(timezone.utc) - timedelta(minutes=60)
-    fresh = datetime.now(timezone.utc) - timedelta(minutes=5)
+    coexist; only the first two are touched.
+    """
+    stale = datetime.now(UTC) - timedelta(minutes=60)
+    fresh = datetime.now(UTC) - timedelta(minutes=5)
     db_session.add_all(
         [
             _make_job(
@@ -461,7 +465,7 @@ async def test_sweep_handles_mixed_population(db_session: AsyncSession):
 async def test_recover_endpoint_stale(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ):
-    stale_time = datetime.now(timezone.utc) - timedelta(minutes=60)
+    stale_time = datetime.now(UTC) - timedelta(minutes=60)
     job = _make_job(
         state=IngestionState.RUNNING,
         locked_by="pod-1",
@@ -514,7 +518,14 @@ async def test_recover_endpoint_stale(
 async def test_recover_endpoint_not_stale(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ):
-    recent_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+    # Derive from the setting rather than hardcoding: STALE_JOB_TIMEOUT_MINUTES
+    # defaults to 5, so a flat "5 minutes ago" sat exactly on the boundary and
+    # counted as stale — the endpoint recovered the job and returned 200.
+    # Half the window is unambiguously fresh whatever the value becomes.
+    from app.core.config import get_settings
+
+    stale_after = get_settings().STALE_JOB_TIMEOUT_MINUTES
+    recent_time = datetime.now(UTC) - timedelta(minutes=stale_after / 2)
     job = _make_job(
         state=IngestionState.RUNNING,
         locked_by="pod-1",
@@ -611,7 +622,8 @@ async def test_pending_jobs_query(db_session: AsyncSession):
 async def test_dispatch_job_routes_through_runner():
     """Plan 310-C cutover: ``dispatch_job`` is now a thin pass-through
     to ``run_job`` — the registry lookup happens INSIDE the runner.
-    Unit-level: assert the call delegates with the right id."""
+    Unit-level: assert the call delegates with the right id.
+    """
     from app.tasks._poller import dispatch_job
 
     job = MagicMock(spec=DataIngestionJob)
@@ -632,7 +644,8 @@ async def test_pending_runner_jobs_query_excludes_null_job_type(
     pre-Plan-C) don't get funneled through a runner that has no handler
     for them.  The runner itself defends in depth (refuses to dispatch
     a NULL row), but filtering at SELECT time avoids per-iteration
-    noise in the logs."""
+    noise in the logs.
+    """
     from app.tasks._poller import _pending_runner_jobs_query
 
     legacy = _make_job(
@@ -677,7 +690,8 @@ async def test_check_job_scope_skips_module_check_for_module_per_year_jobs(
     trigger the per-module ``check_module_permission`` call.  The job has
     no resolvable institutional_id, so the check would deny every
     unit-scoped backoffice user.  Regression gate for the 403 the user
-    hit on ``GET /api/v1/sync/jobs/{id}/stream`` post-#1078."""
+    hit on ``GET /api/v1/sync/jobs/{id}/stream`` post-#1078.
+    """
     from app.api.v1.data_sync import _check_job_scope
 
     job = _make_job(module_type_id=1)  # MODULE_PER_YEAR (the factory default)
@@ -699,7 +713,8 @@ async def test_check_job_scope_skips_when_module_type_id_is_none(
 ):
     """Jobs with no ``module_type_id`` (unit_sync, raw factor_ingest)
     have no module path to gate on — the global permission alone is
-    sufficient."""
+    sufficient.
+    """
     from app.api.v1.data_sync import _check_job_scope
 
     job = _make_job()
@@ -722,7 +737,8 @@ async def test_check_job_scope_enforces_module_check_for_unit_specific_jobs(
 ):
     """MODULE_UNIT_SPECIFIC jobs DO trigger the per-module check, with
     the resolved ``institutional_id`` passed through.  This confirms the
-    fix doesn't accidentally drop the unit-scoped guard."""
+    fix doesn't accidentally drop the unit-scoped guard.
+    """
     from app.api.v1.data_sync import _check_job_scope
 
     job = _make_job(module_type_id=1)

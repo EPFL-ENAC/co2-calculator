@@ -10,6 +10,11 @@ issue-#1215 regression invariant.
 """
 
 from app.api.v1.year_configuration import _enrich_config_with_incomplete_flags
+from app.core.submodule_mandatoriness import (
+    MODULES_REQUIRING_COMMON_FACTOR,
+    get_submodule_mandatoriness,
+)
+from app.services.year_config_service import generate_default_year_config
 
 
 def _sub(latest_factor_job=None, latest_reference_job=None, **extra) -> dict:
@@ -254,7 +259,7 @@ class TestCommonFactorModules:
         """When a module's common-factor exists, per-submodule mandatory
         factor is satisfied even without a per-submodule factor job.
         """
-        # purchase additional_purchases (5, 67) has mandatory_factor=True
+        # purchase purchases_centralized (5, 67) has mandatory_factor=True
         config = {
             "modules": {
                 "5": _module(
@@ -300,3 +305,61 @@ class TestEdgeCases:
         config: dict = {"modules": {}}
         _enrich_config_with_incomplete_flags(config)
         assert config == {"modules": {}}
+
+
+# ---------------------------------------------------------------------------
+# #1403 slice a — the real ``generate_default_year_config()`` shape (all 8
+# modules, no jobs), not the synthetic 2-submodule fixtures above.
+# ---------------------------------------------------------------------------
+
+
+def _satisfy_all_mandatory(config: dict) -> None:
+    """Mutate a freshly-generated config so every mandatory factor/
+    reference is 'present' — the shape ``_enrich_config_with_jobs`` would
+    produce once every required upload has landed.
+    """
+    for module_key, module_val in config["modules"].items():
+        module_id = int(module_key)
+        for sub_key, sub_val in module_val["submodules"].items():
+            rules = get_submodule_mandatoriness(module_id, int(sub_key))
+            if rules.mandatory_factor:
+                sub_val["latest_factor_job"] = {"result": 0}
+            if rules.mandatory_reference:
+                sub_val["latest_reference_job"] = {"result": 0}
+        if module_id in MODULES_REQUIRING_COMMON_FACTOR:
+            module_val["latest_common_factor_job"] = {"result": 0}
+
+
+class TestFreshDefaultYearConfiguration:
+    """Checklist: "All modules show Incomplete on the config homepage
+    with no data uploaded." A freshly generated config (no jobs at all)
+    must mark every real module ``incomplete=True`` — this is exactly the
+    shape ``create_year_configuration`` enriches before returning (#867).
+    """
+
+    def test_every_module_incomplete_with_no_jobs(self):
+        config = generate_default_year_config()
+        _enrich_config_with_incomplete_flags(config)
+        assert config["modules"]  # sanity: default config has real modules
+        for module_key, module_val in config["modules"].items():
+            assert module_val["incomplete"] is True, module_key
+
+
+class TestOpenYearForUsersGate:
+    """Backend half of the frontend's ``anyModuleIncomplete`` computed
+    (``yearConfig.ts``): ``any(module.incomplete for module in
+    config.modules)``. Blocks "Ouvrir l'année pour les utilisateurs" while
+    any module lacks its mandatory uploads; clears only once every module
+    has them.
+    """
+
+    def test_blocks_while_any_module_incomplete(self):
+        config = generate_default_year_config()
+        _enrich_config_with_incomplete_flags(config)
+        assert any(m["incomplete"] for m in config["modules"].values()) is True
+
+    def test_clears_once_every_module_satisfied(self):
+        config = generate_default_year_config()
+        _satisfy_all_mandatory(config)
+        _enrich_config_with_incomplete_flags(config)
+        assert any(m["incomplete"] for m in config["modules"].values()) is False

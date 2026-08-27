@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Optional, Tuple
+import builtins
+from typing import Any
 
 from sqlalchemy import String, cast, func, or_
 from sqlmodel import col, desc, select
@@ -27,8 +28,8 @@ class AuditDocumentRepository:
         self,
         entity_type: str,
         entity_id: int,
-        version: Optional[int] = None,
-    ) -> Optional[AuditDocument]:
+        version: int | None = None,
+    ) -> AuditDocument | None:
         stmt = select(AuditDocument).where(
             AuditDocument.entity_type == entity_type,
             AuditDocument.entity_id == entity_id,
@@ -44,9 +45,9 @@ class AuditDocumentRepository:
         self,
         entity_type: str,
         entity_id: int,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-    ) -> List[AuditDocument]:
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> builtins.list[AuditDocument]:
         stmt = (
             select(AuditDocument)
             .where(
@@ -63,8 +64,8 @@ class AuditDocumentRepository:
 
     async def bulk_create(
         self,
-        documents: List[AuditDocument],
-    ) -> List[AuditDocument]:
+        documents: builtins.list[AuditDocument],
+    ) -> builtins.list[AuditDocument]:
         """Bulk create multiple audit documents."""
         for doc in documents:
             self.session.add(doc)
@@ -74,7 +75,7 @@ class AuditDocumentRepository:
             await self.session.refresh(doc)
         return documents
 
-    def _apply_filters(self, stmt, filters: Dict[str, Any]):
+    def _apply_filters(self, stmt, filters: dict[str, Any]):
         """Apply common filters to a query statement.
 
         Args:
@@ -140,12 +141,12 @@ class AuditDocumentRepository:
 
     async def query(
         self,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         page: int = 1,
         page_size: int = 25,
         sort_by: str = "changed_at",
         sort_desc: bool = True,
-    ) -> Tuple[List[AuditDocument], int]:
+    ) -> tuple[builtins.list[AuditDocument], int]:
         """Paginated, filtered, sorted query.
 
         Returns:
@@ -178,8 +179,8 @@ class AuditDocumentRepository:
 
     async def count_by_change_type(
         self,
-        filters: Dict[str, Any],
-    ) -> Dict[str, int]:
+        filters: dict[str, Any],
+    ) -> dict[str, int]:
         """Count audit entries grouped by change_type, with same filters.
 
         Returns:
@@ -195,7 +196,7 @@ class AuditDocumentRepository:
         result = await self.session.exec(stmt)
         rows = result.all()
 
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for row in rows:
             # row is a tuple (change_type, count)
             change_type_value = (
@@ -204,7 +205,7 @@ class AuditDocumentRepository:
             counts[change_type_value] = row[1]
         return counts
 
-    async def get_by_id(self, doc_id: int) -> Optional[AuditDocument]:
+    async def get_by_id(self, doc_id: int) -> AuditDocument | None:
         """Get a single audit document by its primary key."""
         stmt = select(AuditDocument).where(col(AuditDocument.id) == doc_id)
         result = await self.session.exec(stmt)

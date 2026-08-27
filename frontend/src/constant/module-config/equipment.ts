@@ -1,12 +1,12 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { formatTonnesCO2 } from 'src/utils/number';
-import type { Module, EquipmentSubType } from 'src/constant/modules';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { formatTonnesCO2 } from '@/utils/number';
+import type { Module, EquipmentSubType } from '@/constant/modules';
 
 import {
   MODULES,
   MODULES_THRESHOLD_TYPES,
   SUBMODULE_EQUIPMENT_TYPES,
-} from 'src/constant/modules';
+} from '@/constant/modules';
 
 const nameField: ModuleField = {
   id: 'name',
@@ -18,6 +18,7 @@ const nameField: ModuleField = {
   align: 'left',
   readOnly: false,
   ratio: '1/1',
+  columnSize: 'xl',
 };
 
 const equipmentIdField: ModuleField = {
@@ -25,7 +26,7 @@ const equipmentIdField: ModuleField = {
   label: 'Equipment ID',
   labelKey: `${MODULES.Equipment}.inputs.equipment_id`,
   type: 'text',
-  required: false,
+  required: true,
   sortable: false,
   align: 'left',
   readOnly: false,
@@ -33,6 +34,10 @@ const equipmentIdField: ModuleField = {
     table: true,
   },
   ratio: '1/1',
+  // #1995: Planner doesn't always know the asset tag yet; Calculator keeps it
+  // free-entry since it ties usage-hours history across years (#2005).
+  plannerDefault: 'Unknown',
+  explorerDefault: 'Unknown',
 };
 
 const baseModuleFields: ModuleField[] = [
@@ -78,7 +83,8 @@ const baseModuleFields: ModuleField[] = [
     readOnly: false,
     ratio: '1/2',
     icon: 'o_category',
-    columnSize: 'lg',
+    columnSize: 'sm',
+    maxColumnWidth: 160,
   },
   {
     id: 'active_usage_hours_per_week',
@@ -159,17 +165,18 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: {
       form: true,
     },
     sortable: true,
-    align: 'left',
     tooltip: 'module-equipment-submodule-scientific-table-kg_co2eq',
   },
   {
     id: 't_co2eq',
+    align: 'right',
     label: 't CO₂-eq',
     type: 'number',
     hideIn: {
@@ -177,7 +184,6 @@ const baseModuleFields: ModuleField[] = [
       table: true,
     },
     sortable: true,
-    align: 'left',
     tooltip: 'module-equipment-submodule-scientific-table-t_co2eq',
   },
 ];

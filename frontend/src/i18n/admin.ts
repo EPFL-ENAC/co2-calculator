@@ -29,18 +29,18 @@ export default {
   },
   user_management_page_description_system: {
     en: 'User management at EPFL is handled via Accred.',
-    fr: "La gestion des utilisateurs à l'EPFL est gérée via Accred.",
+    fr: "La gestion des utilisateur·rices à l'EPFL est gérée via Accred.",
   },
   user_management_page_button_label_system: {
     en: 'Go to User management system (Accred)',
-    fr: 'Accéder au système de gestion des utilisateurs (Accred)',
+    fr: 'Accéder au système de gestion des utilisateur·rices (Accred)',
   },
   user_management_page_button_documentation_label_system: {
     en: 'Go to User management system documentation',
-    fr: 'Documentation de la gestion des utilisateurs',
+    fr: 'Documentation de la gestion des utilisateur·rices',
   },
   user_management_system_button_label: {
     en: 'Go to System User Management',
-    fr: 'Accéder à la gestion des utilisateurs du système',
+    fr: 'Accéder à la gestion des utilisateur·rices du système',
   },
 } as const;

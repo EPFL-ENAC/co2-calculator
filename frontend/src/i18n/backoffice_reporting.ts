@@ -1,4 +1,9 @@
 export default {
+  // Perimeter of a printed export that spans several affiliations.
+  print_scope_units_count: {
+    en: '{count} units',
+    fr: '{count} unités',
+  },
   backoffice_reporting_print_combined_title: {
     en: 'Combined Report',
     fr: 'Rapport combiné',
@@ -284,6 +289,6 @@ export default {
   },
   open_year_for_users: {
     en: 'Open year for users',
-    fr: 'Ouvrir l’année pour les utilisateurs',
+    fr: 'Ouvrir l’année pour les utilisateur·rices',
   },
 } as const;

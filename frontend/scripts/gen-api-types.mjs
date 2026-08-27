@@ -34,7 +34,9 @@ async function tryFetchLive() {
       );
       return null;
     }
-    return await res.text();
+    // Round-trip through JSON.parse so a non-schema response (proxy error
+    // page, wrong URL) falls back to the snapshot instead of being staged.
+    return JSON.stringify(await res.json());
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     console.warn(

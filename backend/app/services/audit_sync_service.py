@@ -5,15 +5,16 @@ with Elasticsearch:
     pending -> syncing -> synced/failed with retry capability.
 """
 
+import asyncio
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.elasticsearch.client import ElasticsearchClient
+from app.elasticsearch.client import AuditSyncStats, ElasticsearchClient
 from app.models.audit import AuditDocument, SyncStatusEnum
 from app.repositories.audit_repo import AuditDocumentRepository
 
@@ -27,11 +28,25 @@ class AuditSyncService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = AuditDocumentRepository(session)
-        self.es_client = ElasticsearchClient()
+        self._es_client: ElasticsearchClient | None = None
+
+    async def _get_es_client(self) -> ElasticsearchClient:
+        """Construct the sync Elasticsearch client off the event loop.
+
+        ``ElasticsearchClient.__init__`` does a blocking TCP+TLS handshake
+        plus a blocking ``.info()`` probe — expensive enough, and called
+        often enough (fresh per ``AuditSyncService`` instance, i.e. per
+        ``BackgroundTasks`` invocation), that constructing it inline was
+        blocking the event loop on every audit-trail write (#2050 Track
+        I3). Memoized per instance so repeat calls on the same service
+        (bulk sync, retry) don't re-probe.
+        """
+        if self._es_client is None:
+            self._es_client = await asyncio.to_thread(ElasticsearchClient)
+        return self._es_client
 
     async def sync_single_audit_record(self, audit_id: int) -> bool:
-        """
-        Sync a single audit record to Elasticsearch with status tracking.
+        """Sync a single audit record to Elasticsearch with status tracking.
 
         Uses the pattern: pending -> syncing -> synced/failed
 
@@ -91,7 +106,8 @@ class AuditSyncService:
                 "synced_at": audit_record.synced_at,
             }
 
-            success = self.es_client.sync_audit_record(audit_dict)
+            es_client = await self._get_es_client()
+            success = await asyncio.to_thread(es_client.sync_audit_record, audit_dict)
 
             if success:
                 # Update status to synced
@@ -131,9 +147,8 @@ class AuditSyncService:
 
             return False
 
-    async def sync_pending_audit_records(self, batch_size: int = 100) -> Dict[str, Any]:
-        """
-        Sync all pending audit records in batches.
+    async def sync_pending_audit_records(self, batch_size: int = 100) -> dict[str, Any]:
+        """Sync all pending audit records in batches.
 
         Args:
             batch_size: Number of records to process in each batch
@@ -224,8 +239,12 @@ class AuditSyncService:
             ]
 
             # Bulk sync with Elasticsearch (only non-skipped records)
+            sync_stats: AuditSyncStats
             if audit_dicts:
-                sync_stats = self.es_client.bulk_sync_audit_records(audit_dicts)
+                es_client = await self._get_es_client()
+                sync_stats = await asyncio.to_thread(
+                    es_client.bulk_sync_audit_records, audit_dicts
+                )
             else:
                 sync_stats = {"success": 0, "failed": 0, "errors": [], "conflicts": []}
 
@@ -235,8 +254,8 @@ class AuditSyncService:
             conflict_count = 0
 
             # Create sets for faster lookup
-            error_ids = {item["id"] for item in sync_stats.get("errors", [])}
-            conflict_ids = {item["id"] for item in sync_stats.get("conflicts", [])}
+            error_ids = {item["id"] for item in sync_stats["errors"]}
+            conflict_ids = {item["id"] for item in sync_stats["conflicts"]}
 
             # Update records based on their sync result
             for record in records_to_sync:
@@ -282,9 +301,8 @@ class AuditSyncService:
             logger.error(f"Error in bulk sync operation: {e}")
             return {"synced": 0, "failed": 0, "total": 0, "error": str(e)}
 
-    async def retry_failed_audit_records(self, max_retries: int = 3) -> Dict[str, Any]:
-        """
-        Retry syncing failed audit records.
+    async def retry_failed_audit_records(self, max_retries: int = 3) -> dict[str, Any]:
+        """Retry syncing failed audit records.
 
         Args:
             max_retries: Maximum number of times to retry each failed record

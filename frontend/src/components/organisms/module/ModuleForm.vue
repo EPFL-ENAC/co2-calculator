@@ -71,7 +71,7 @@
                   :key="`date-${inp.id}-${dateInputKey}`"
                   :model-value="String(form[inp.id] || '')"
                   bordered
-                  mask="####/##/##"
+                  :mask="DATE_INPUT_MASK"
                   :rules="getDateRules(inp.required)"
                   :label="
                     $t(`${inp.labelKey || inp.label}`, {
@@ -79,7 +79,7 @@
                     })
                   "
                   :error="!!errors[inp.id]"
-                  :error-message="errors[inp.id]"
+                  :error-message="errors[inp.id] ?? ''"
                   :required="inp.required"
                   :dense="true"
                   :outlined="true"
@@ -152,7 +152,7 @@
               </template>
               <template v-else-if="inp.type === 'headcount-member-select'">
                 <HeadcountMemberSelect
-                  :key="headcountMemberCount"
+                  :key="`${headcountMemberCount}-${headcountSelectKey}`"
                   :model-value="form[inp.id] ?? null"
                   :unit-id="props.unitId"
                   :year="props.year"
@@ -166,10 +166,15 @@
                   @update:model-value="(val) => (form[inp.id] = val)"
                 />
               </template>
+              <!-- Long option lists: purchases run to thousands of UNSPSC
+                   codes, research facilities to ~90 platforms and growing.
+                   Both need type-ahead and a loading state; a plain QSelect
+                   offers neither. -->
               <VirtualSelectField
                 v-else-if="
                   (inp.optionsId === 'kind' || inp.optionsId === 'subkind') &&
-                  moduleType === MODULES.Purchase
+                  (moduleType === MODULES.Purchase ||
+                    moduleType === MODULES.ResearchFacilities)
                 "
                 :model-value="form[inp.id]"
                 :options="getFilteredOptions(inp)"
@@ -193,7 +198,9 @@
               <component
                 :is="fieldComponent(inp.type)"
                 v-else
-                v-model="form[inp.id]"
+                :model-value="
+                  isReadOnly(inp) ? displayValue(inp) : form[inp.id]
+                "
                 :label="
                   $t(`${inp.labelKey || inp.label}`, {
                     submoduleTitle: $t(`${moduleType}-${submoduleType}`),
@@ -206,9 +213,9 @@
                 :loading="false"
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
-                :min="inp.min"
-                :max="inp.max"
-                :step="inp.step"
+                :min="getBounds(inp).min"
+                :max="getBounds(inp).max"
+                :step="getBounds(inp).step"
                 :dense="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :outlined="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :readonly="isReadOnly(inp)"
@@ -217,7 +224,9 @@
                 :size="inp.type === 'checkbox' ? 'xs' : undefined"
                 :emit-value="inp.type === 'select'"
                 :map-options="inp.type === 'select'"
-                @blur="validateField(inp)"
+                @update:model-value="(val: unknown) => (form[inp.id] = val)"
+                @focus="fieldInteraction.markInteracted(inp.id)"
+                @blur="normalizeField(inp)"
               >
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
                   <q-icon :name="inp.icon" color="grey-6" size="xs" />
@@ -311,8 +320,8 @@
 <script setup lang="ts">
 import { reactive, watch, computed, ref, toRef } from 'vue';
 
-import type { ModuleField } from 'src/constant/moduleConfig';
-import { useWorkspaceStore } from 'src/stores/workspace';
+import type { ModuleField } from '@/constant/moduleConfig';
+import { useWorkspaceStore } from '@/stores/workspace';
 import {
   QInput,
   QSelect,
@@ -325,20 +334,28 @@ import {
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
-import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
-import NoteDialog from 'src/components/molecules/NoteDialog.vue';
-import VirtualSelectField from 'src/components/molecules/VirtualSelectField.vue';
-import HeadcountMemberSelect from 'src/components/organisms/module/HeadcountMemberSelect.vue';
-import { calculateDistance } from 'src/api/locations';
-import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
-import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
-import { getModuleIconColors } from 'src/composables/useModuleIconColors';
+import DirectionInput from '@/components/atoms/CO2DestinationInput.vue';
+import NoteDialog from '@/components/molecules/NoteDialog.vue';
+import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
+import HeadcountMemberSelect from '@/components/organisms/module/HeadcountMemberSelect.vue';
+import { calculateDistance } from '@/api/locations';
+import { useEquipmentClassOptions } from '@/composables/useEquipmentClassOptions';
+import { useBuildingRoomDynamicOptions } from '@/composables/useBuildingRoomDynamicOptions';
+import { resolveFactorYear } from '@/utils/factor-year';
+import {
+  DATE_INPUT_MASK,
+  isValidCalendarDate,
+  matchesDateInputFormat,
+} from '@/utils/date';
+import { createFieldInteractionTracker } from '@/utils/fieldInteraction';
+import { isTravelLocationResolved } from '@/utils/directionLocationValidation';
+import { getModuleIconColors } from '@/composables/useModuleIconColors';
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
-} from 'src/constant/modules';
-import { useModuleStore } from 'src/stores/modules';
+} from '@/constant/modules';
+import { useModuleStore } from '@/stores/modules';
 
 const { t: $t, te: $te } = useI18n();
 const workspaceStore = useWorkspaceStore();
@@ -355,8 +372,9 @@ interface Option {
   value: string;
 }
 type FieldValue = string | number | boolean | null | Option;
-import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
-import { sortByOrder } from 'src/utils/options';
+import type { AllSubmoduleTypes, Module } from '@/constant/modules';
+import { sortByOrder } from '@/utils/options';
+import { nOrDash } from '@/utils/number';
 
 const props = withDefaults(
   defineProps<{
@@ -369,6 +387,15 @@ const props = withDefaults(
     addButtonLabelKey?: string;
     unitId?: number;
     year?: string | number;
+    /**
+     * Year whose factors this form resolves against. The Simulator Plan sets
+     * it to the plan year's reference year — the backend computes emissions
+     * from that year's factors, so the options and seeded values must come
+     * from it too. `null` means a plan year with no reference year picked
+     * yet: nothing is fetched. Omitted in the Calculator, where `year` is the
+     * factor year.
+     */
+    factorYear?: number | null;
     formDefaults?: Record<string, unknown>;
     moduleColor?: string;
   }>(),
@@ -380,9 +407,14 @@ const props = withDefaults(
     addButtonLabelKey: 'common_add_button',
     unitId: undefined,
     year: undefined,
+    factorYear: undefined,
     formDefaults: undefined,
     moduleColor: undefined,
   },
+);
+
+const factorYear = computed(() =>
+  resolveFactorYear(props.factorYear, props.year),
 );
 
 const formTooltipText = computed(() =>
@@ -437,6 +469,34 @@ const visibleFieldsWithConditional = computed(() => {
 });
 
 // Generic dynamic ratio handling
+// #2007 — a quantity whose unit decides its bounds (a research facility's
+// `use`: 0-100 as a %, whole numbers as animal housings). Mirrors the backend
+// USE_BOUNDS table; the static min/max stay the default.
+function getBounds(inp: ModuleField): {
+  min?: number;
+  max?: number;
+  step?: number;
+  integer: boolean;
+} {
+  const fallback = {
+    min: inp.min,
+    max: inp.max,
+    step: inp.step,
+    integer: false,
+  };
+  if (!inp.conditionalBounds) return fallback;
+  const selector = form[inp.conditionalBounds.fieldId];
+  if (typeof selector !== 'string') return fallback;
+  const bounds = inp.conditionalBounds.byValue[selector];
+  if (!bounds) return fallback;
+  return {
+    min: inp.min,
+    max: bounds.max ?? inp.max,
+    step: bounds.integer ? 1 : inp.step,
+    integer: bounds.integer === true,
+  };
+}
+
 function getDynamicRatio(inp: ModuleField): string | undefined {
   if (inp.conditionalRatio) {
     const { when, ratio } = inp.conditionalRatio;
@@ -457,6 +517,46 @@ function isReadOnly(inp: ModuleField): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') return value.trim() !== '';
   return true;
+}
+
+// Read-only rendering only — never bind this to an editable input, or the
+// formatted value fights the user's cursor while typing. Number fields with a
+// displayPrecision render rounded, while form[inp.id] keeps the full precision
+// that buildPayload() sends to the backend.
+function displayValue(inp: ModuleField): unknown {
+  const value = form[inp.id];
+  if (inp.type !== 'number' || inp.displayPrecision === undefined) return value;
+
+  return nOrDash(value as number | string | null | undefined, {
+    options: {
+      // No padding: 22 stays "22", 1.302… becomes "1.3".
+      minimumFractionDigits: 0,
+      maximumFractionDigits: inp.displayPrecision,
+    },
+  });
+}
+
+// On blur, round a user-typed value to the field's displayPrecision so the
+// stored value matches what is displayed. Read-only fields are skipped: their
+// auto-filled values must keep full precision for the submitted payload.
+function normalizeField(inp: ModuleField): void {
+  if (
+    inp.type === 'number' &&
+    inp.displayPrecision !== undefined &&
+    !isReadOnly(inp)
+  ) {
+    const value = form[inp.id];
+    if (value !== null && value !== undefined && value !== '') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        form[inp.id] = Number(parsed.toFixed(inp.displayPrecision));
+      }
+    }
+  }
+  // Quasar defers this blur past reset(), so a blur on a field the user never
+  // touched is the form clearing itself, not an empty answer (#2072).
+  if (!fieldInteraction.shouldValidateOnBlur(inp.id)) return;
+  validateField(inp);
 }
 
 // Generic conditional options filtering - made reactive with computed
@@ -563,24 +663,13 @@ function getFilteredOptions(
   return opts;
 }
 
-function isValidCalendarDate(val: string): boolean {
-  const parts = val.split(/[/.]/).map(Number);
-  if (parts.length !== 3) return false;
-  const [year, month, day] = parts;
-  const date = new Date(year, month - 1, day);
-  return (
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day
-  );
-}
-
 const dateInputKey = ref(0);
+const headcountSelectKey = ref(0);
 
 function getDateRules(required?: boolean) {
   const dateFormatRule = (val: string) => {
     if (!val || val === '') return required ? $t('validation_required') : true;
-    if (!/^\d{4}([/.])\d{2}\1\d{2}$/.test(val))
+    if (!matchesDateInputFormat(val))
       return $t('validation_invalid_date_format');
     if (!isValidCalendarDate(val)) return $t('validation_invalid_date');
     return true;
@@ -594,6 +683,7 @@ const emit = defineEmits<{
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
+const fieldInteraction = createFieldInteractionTracker();
 
 const kindFieldId = computed(() => {
   const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
@@ -605,6 +695,11 @@ const subkindFieldId = computed(() => {
     (f) => f.optionsId === 'subkind',
   );
   return subkindField ? subkindField.id : null;
+});
+
+const kindLabelField = computed(() => {
+  const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
+  return kindField?.optionsLabelField ?? null;
 });
 
 // Factor fields populated on class/subclass selection. Each id must match a
@@ -625,20 +720,27 @@ if (props.moduleType === MODULES.Equipment) {
   props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion
 ) {
   factorValueFieldIds.push('unit');
+} else if (props.moduleType === MODULES.ResearchFacilities) {
+  // #2007: the name is the factor's own classification label and the unit must
+  // string-equal the factor's or the emission formula raises — both are mirrored
+  // from the picked platform, never typed.
+  factorValueFieldIds.push('researchfacility_name', 'use_unit');
 }
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
   useEquipmentClassOptions(
     form,
+    toRef(props, 'moduleType'),
     toRef(props, 'submoduleType'),
     {
       classFieldId: kindFieldId.value ?? undefined,
       subClassFieldId: subkindFieldId.value ?? undefined,
+      classLabelField: kindLabelField.value ?? undefined,
       fetchFactorValuesOnChange: true,
       valueFieldIds: factorValueFieldIds,
       defaultValueFieldIds: factorDefaultFieldIds,
     },
-    toRef(props, 'year'),
+    factorYear,
   );
 
 const { dynamicOptions: buildingRoomDynamicOptions, loadingRooms } =
@@ -646,7 +748,7 @@ const { dynamicOptions: buildingRoomDynamicOptions, loadingRooms } =
     form,
     toRef(props, 'moduleType'),
     toRef(props, 'submoduleType'),
-    toRef(props, 'year'),
+    factorYear,
   );
 
 const isSubkindLoading = computed(() => {
@@ -763,6 +865,16 @@ function init() {
       }
     }
     errors[i.id] = null;
+  });
+  // Form-hidden fields are skipped by the visible-field loop above; their
+  // declared defaults must still land in `form` so buildPayload sends them.
+  (props.fields ?? []).forEach((i) => {
+    if (i.hideIn?.form && i.default !== undefined) form[i.id] = i.default;
+  });
+  // Mirrored factor fields without a rendered input must still exist in
+  // `form`, or the factor mirror skips them (`fieldId in entity` guard).
+  factorValueFieldIds.forEach((id) => {
+    if (!(id in form)) form[id] = null;
   });
 }
 
@@ -898,7 +1010,7 @@ function validateField(i: ModuleField) {
     }
     if (v && v !== '') {
       const dateStr = String(v);
-      if (!/^\d{4}([/.])\d{2}\1\d{2}$/.test(dateStr)) {
+      if (!matchesDateInputFormat(dateStr)) {
         errors[i.id] = $t('validation_invalid_date_format');
         return false;
       }
@@ -927,6 +1039,36 @@ function validateField(i: ModuleField) {
       if (!form.destination || form.destination === '') {
         errors.destination = requiredMsg;
         return false;
+      }
+
+      // #1186: typing a name without picking an autocomplete suggestion
+      // leaves the resolved identifier (origin_iata/origin_natural_key)
+      // unset even though the free-text field above looks filled in.
+      const travelMode = getTravelMode();
+      if (travelMode) {
+        const notSelectedMsg = $t(
+          `${MODULES.ProfessionalTravel}-error-location-not-selected`,
+        );
+        if (
+          !isTravelLocationResolved(
+            travelMode,
+            form.origin_iata,
+            form.origin_natural_key,
+          )
+        ) {
+          errors.origin = notSelectedMsg;
+          return false;
+        }
+        if (
+          !isTravelLocationResolved(
+            travelMode,
+            form.destination_iata,
+            form.destination_natural_key,
+          )
+        ) {
+          errors.destination = notSelectedMsg;
+          return false;
+        }
       }
     }
 
@@ -966,7 +1108,12 @@ function validateField(i: ModuleField) {
       : $t('validation_required');
     if (effectiveType === 'checkbox' || effectiveType === 'boolean') {
       if (!v) errors[i.id] = requiredMsg;
-    } else if (v === '' || v === null || v === undefined) {
+    } else if (
+      v === null ||
+      v === undefined ||
+      (typeof v === 'string' && v.trim() === '')
+    ) {
+      // Whitespace-only counts as empty — the backend rejects it (#1489).
       errors[i.id] = requiredMsg;
     }
   }
@@ -982,10 +1129,18 @@ function validateField(i: ModuleField) {
       errors[i.id] = $t('validation_number_format');
     } else {
       const n = Number(s);
-      if (i.min !== undefined && n < i.min)
-        errors[i.id] = $t('validation_must_be_at_least', { min: i.min });
-      else if (i.max !== undefined && n > i.max)
-        errors[i.id] = $t('validation_must_be_at_most', { max: i.max });
+      const bounds = getBounds(i);
+      if (bounds.min !== undefined && n < bounds.min)
+        errors[i.id] = $t('validation_must_be_at_least', { min: bounds.min });
+      else if (bounds.max !== undefined && n > bounds.max)
+        errors[i.id] = $t('validation_must_be_at_most', { max: bounds.max });
+      else if (bounds.integer && !Number.isInteger(n))
+        errors[i.id] = $t('validation_must_be_whole_number');
+      else if (
+        i.maxDecimals !== undefined &&
+        (s.split('.')[1]?.length ?? 0) > i.maxDecimals
+      )
+        errors[i.id] = $t('validation_max_decimals', { max: i.maxDecimals });
     }
   }
   return !errors[i.id];
@@ -1100,7 +1255,9 @@ function reset() {
     }
     errors[i.id] = null;
   });
+  fieldInteraction.clear();
   dateInputKey.value++;
+  headcountSelectKey.value++;
 }
 
 function getGridClass(ratio?: string): string {
@@ -1254,7 +1411,7 @@ function saveNote(note: string) {
 }
 </script>
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 .action-no-margin {
   padding: 0;
 }

@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 from ipaddress import ip_address
 from pathlib import Path
+from typing import TypedDict
 from zoneinfo import ZoneInfo
 
 from elasticsearch import Elasticsearch
@@ -18,6 +19,16 @@ from elasticsearch.exceptions import (
 )
 
 from app.core.config import get_settings
+
+
+class AuditSyncStats(TypedDict):
+    """Result of a bulk_sync_audit_records call."""
+
+    success: int
+    failed: int
+    errors: list[dict]
+    conflicts: list[dict]
+
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -43,8 +54,7 @@ CRUDT_MAP = {
 
 
 def format_timestamp(timestamp_input: str | datetime) -> str:
-    """
-    Format timestamp to ISO format with timezone.
+    """Format timestamp to ISO format with timezone.
 
     Args:
         timestamp_input: Timestamp string in format "YYYY-MM-DD HH:MM:SS.f"
@@ -85,8 +95,7 @@ def format_timestamp(timestamp_input: str | datetime) -> str:
 
 
 def validate_ip(ip: str) -> str:
-    """
-    Validate that the IP address is valid.
+    """Validate that the IP address is valid.
 
     Args:
         ip: IP address string
@@ -115,8 +124,7 @@ def validate_ip(ip: str) -> str:
 
 
 def resolve_handled_id(audit_record: dict) -> str:
-    """
-    Resolve handled_id from handled_ids or handler_id.
+    """Resolve handled_id from handled_ids or handler_id.
 
     Args:
         audit_record: Audit record dictionary
@@ -143,8 +151,7 @@ def resolve_handled_id(audit_record: dict) -> str:
 
 
 def stringify_payload(payload) -> str:
-    """
-    Convert payload to string representation.
+    """Convert payload to string representation.
 
     Args:
         payload: Payload data (can be string or dict)
@@ -159,8 +166,7 @@ def stringify_payload(payload) -> str:
 
 
 def map_to_opdo_schema(audit_record: dict) -> dict:
-    """
-    Map audit record to OPDo schema for compliance.
+    """Map audit record to OPDo schema for compliance.
 
     Args:
         audit_record: Audit record dictionary
@@ -251,8 +257,7 @@ class ElasticsearchClient:
             raise
 
     def sync_audit_record(self, audit_record: dict) -> bool:
-        """
-        Sync a single audit record to Elasticsearch following OPDo contract.
+        """Sync a single audit record to Elasticsearch following OPDo contract.
 
         Args:
             audit_record: Dictionary containing audit record data
@@ -313,9 +318,8 @@ class ElasticsearchClient:
             )
             return False
 
-    def bulk_sync_audit_records(self, audit_records: list[dict]) -> dict:
-        """
-        Bulk sync multiple audit records to Elasticsearch following OPDo contract.
+    def bulk_sync_audit_records(self, audit_records: list[dict]) -> AuditSyncStats:
+        """Bulk sync multiple audit records to Elasticsearch following OPDo contract.
 
         Args:
             audit_records: List of audit record dictionaries
@@ -447,6 +451,6 @@ class ElasticsearchClient:
             return {
                 "success": 0,
                 "failed": len(audit_records),
-                "errors": [str(e)],
+                "errors": [{"id": None, "error": str(e)}],
                 "conflicts": [],
             }

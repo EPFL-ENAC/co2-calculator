@@ -1,0 +1,47 @@
+# Optional overlay: local trace storage + UI, for inspecting a slow request
+# the same way GlitchTip/Tempo does in dev/stage. Off by default — the base
+# docker-compose.yml's `otel` service only logs traces to stdout.
+#
+# Usage: make run-observability / make stop-observability
+# (or: docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d)
+
+services:
+  # Re-point the existing otel collector at a config that also forwards
+  # traces to Tempo, instead of only the stdout `debug` exporter.
+  otel:
+    volumes:
+      - ./otel/otel-collector-config.observability.yaml:/etc/otel-collector-config.yaml:ro
+    depends_on:
+      - tempo
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: co2-calculator-tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    labels:
+      - "traefik.enable=false"
+    volumes:
+      - ./otel/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: co2-calculator-grafana
+    labels:
+      - "traefik.enable=false"
+    environment:
+      # Local dev only — skip login for a one-person trace viewer.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./otel/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/tempo.yaml:ro
+    ports:
+      # 3000 is taken by the frontend.
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - tempo
+
+volumes:
+  tempo-data:
+    driver: local

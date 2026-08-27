@@ -159,7 +159,7 @@ The CSV upload feature is implemented. Before shipping to modules (#368 #369 #37
 
 ## Acceptance criteria
 
-- [ ] Upload behavior matches spec for all scenarios (see [PRD section 2.1](./PRD_CSV_Upload.md#21-upload-csv--intended-behavior)).
+- [ ] Upload behavior matches spec for all scenarios (the PRD that section referenced is no longer in the repository; see [the implementation summary](220-csv-upload-implementation-summary.md) for what shipped).
 - [ ] `source = human` rows are never modified.
 - [ ] All error cases return `"Wrong CSV format or encoding"`.
 - [ ] Extra columns ignored without error.

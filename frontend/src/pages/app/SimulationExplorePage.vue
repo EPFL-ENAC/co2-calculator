@@ -3,7 +3,7 @@
     <q-card flat class="container">
       <q-icon
         name="o_display_settings"
-        color="accent"
+        color="info"
         size="32px"
         class="q-mb-md"
       />
@@ -20,89 +20,53 @@
         height="200px"
         class="full-width"
       />
-      <q-list v-else>
-        <div
-          v-for="(m, mIdx) in modules"
-          :key="m.type"
-          :class="{ 'q-mb-md': mIdx < modules.length - 1 }"
-        >
-          <q-expansion-item
-            v-model="expandedModules[m.type]"
-            flat
-            header-class="text-h4 text-weight-medium"
-            class="container container--pa-none"
-          >
-            <template #header>
-              <div class="row items-center full-width q-gutter-sm">
-                <ModuleIcon
-                  :name="m.type"
-                  color="accent"
-                  size="md"
-                  :aria-label="$t('module-info-label')"
-                />
-                <div class="col">
-                  {{ $t(m.type) }}
-                </div>
-              </div>
-            </template>
-
-            <q-separator />
-
-            <q-card-section class="q-pa-none q-mt-md">
-              <div class="q-px-lg q-py-sm">
-                <div
-                  v-for="(sub, subIdx) in m.submodules"
-                  :key="`${m.type}-${sub.id}`"
-                  :class="{ 'q-mb-md': subIdx < m.submodules.length - 1 }"
-                >
-                  <SubModuleSection
-                    :submodule="sub"
-                    :module-config="m.config"
-                    :module-type="m.type"
-                    :disable="false"
-                    :is-simulator="true"
-                    :submodule-type="sub.type"
-                    :data="null"
-                    :loading="false"
-                    :error="null"
-                    :unit-id="unitId"
-                    :year="year"
-                    :threshold="m.config.threshold || defaultThreshold"
-                  />
-                </div>
-              </div>
-            </q-card-section>
-          </q-expansion-item>
-        </div>
-      </q-list>
-      <q-card flat bordered>
+      <ExploreModuleExpansionList
+        v-else
+        :modules="modules"
+        :unit-id="unitId"
+        :year="year"
+        :carbon-report-id="carbonReportId"
+      />
+      <q-skeleton
+        v-if="!breakdownReady"
+        type="rect"
+        height="200px"
+        class="full-width"
+      />
+      <q-card v-else flat bordered>
         <div class="q-pt-lg q-px-lg">
           <h2 class="text-h3 text-weight-medium">
             {{ $t('simulation_explore_page_results_title') }}
           </h2>
         </div>
 
-        <q-separator class="q-mt-xl" />
+        <q-separator class="q-mt-lg" />
 
-        <!-- Summary numbers -->
-        <q-card flat class="grid-1-col q-mt-lg q-mb-lg q-px-lg">
+        <!-- Summary numbers. Gapless grid: each block's own padding is the
+             only spacing, so its top and bottom read alike (a gap would land
+             above every separator but never at the card edges). Still a grid,
+             because BigNumber sizes itself against its row. -->
+        <div class="results-blocks">
           <BigNumber
             :title="$t('simulation_explore_page_results_total_tonnes_co2eq')"
             :number="`${formatTonnesCO2(totalTonnesCo2eq)}`"
             comparison=""
-            color="accent"
+            color="info"
+            compact
+            :bordered="false"
           />
-          <template v-if="mountPrimaryCharts">
-            <div class="chart-wrapper">
-              <ModuleCarbonFootprintChart :breakdown-data="filteredBreakdown" />
-            </div>
-          </template>
-          <q-skeleton v-else type="rect" height="360px" class="full-width" />
 
-          <q-card
-            flat
-            class="container q-pa-xl column items-center justify-center q-gutter-lg"
-          >
+          <q-separator />
+
+          <ModuleCarbonFootprintChart
+            :breakdown-data="breakdown"
+            :bordered="false"
+            :enforce-module-activation="false"
+          />
+
+          <q-separator />
+
+          <div class="column items-center justify-center q-pa-xl q-gutter-md">
             <h3 class="text-h4 text-weight-medium">
               {{ $t('simulation_explore_page_results_download_title') }}
             </h3>
@@ -112,109 +76,71 @@
               icon="o_download"
               :label="$t('simulation_explore_page_results_download_button')"
               size="md"
-              color="accent"
-              class="text-weight-medium"
-            />
-          </q-card>
-        </q-card>
-
-        <q-separator />
-
-        <q-card flat class="q-ma-lg">
-          <div
-            class="row no-wrap items-center justify-center q-pa-xl"
-            style="gap: 24px"
-          >
-            <q-icon name="o_calendar_month" color="accent" size="md" />
-            <div class="col">
-              <div class="text-h5 text-weight-medium q-mb-xs">
-                {{ $t('simulation_explore_page_convert_to_plan_title') }}
-              </div>
-              <div class="text-body2 text-secondary">
-                {{ $t('simulation_explore_page_convert_to_plan_description') }}
-              </div>
-            </div>
-            <q-btn
-              unelevated
-              no-caps
-              :label="$t('simulation_explore_page_convert_to_plan_button')"
               color="info"
               class="text-weight-medium"
+              @click="downloadReport"
             />
           </div>
-        </q-card>
+        </div>
       </q-card>
     </template>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
-import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
-import { MODULES_CONFIG } from 'src/constant/module-config';
-import type { ModuleConfig } from 'src/constant/moduleConfig';
-import {
-  MODULES,
-  MODULES_THRESHOLD_TYPES,
-  type Threshold,
-} from 'src/constant/modules';
-import { MODULES_ORDER } from 'src/constant/timelineItems';
-import { useModuleStore } from 'src/stores/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { formatTonnesCO2 } from 'src/utils/number';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
+import ExploreModuleExpansionList from '@/components/organisms/module/ExploreModuleExpansionList.vue';
+import { useModuleStore } from '@/stores/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { getExploreModules } from '@/utils/exploreModules';
+import { formatTonnesCO2 } from '@/utils/number';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
+
+const router = useRouter();
+const route = useRoute();
+const { locale } = useI18n();
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
 const moduleStore = useModuleStore();
 
-// validateUnitGuard ensures selectedUnit and selectedYear are always set before
+function downloadReport() {
+  const url = router.resolve({
+    name: 'simulation-explore-print',
+    params: {
+      language: locale.value.split('-')[0],
+      unit: route.params.unit,
+      year: route.params.year,
+    },
+  }).href;
+  window.open(url, '_blank');
+}
+
+// workspaceGuard ensures selectedUnit and selectedYear are always set before
 // this route renders. The non-null assertions are safe here; the ready guard
 // below prevents the template from rendering if that invariant is ever broken.
 const unitId = computed(() => workspaceStore.selectedUnit!.id);
 const year = computed(() => workspaceStore.selectedYear!);
+const carbonReportId = computed(
+  () => workspaceStore.selectedCarbonReport?.id ?? null,
+);
 const ready = computed(
   () =>
     workspaceStore.selectedUnit != null && workspaceStore.selectedYear != null,
 );
 
-const defaultThreshold: Threshold = {
-  type: MODULES_THRESHOLD_TYPES[0],
-  value: 0,
-};
-
 const mountPrimaryCharts = ref(false);
 const simulatorReady = ref(false);
+// Gates the results card: until the Explorer's own breakdown is fetched, the
+// shared store still holds the Calculator's data from the workspace guard.
+const breakdownReady = ref(false);
 
-const modules = computed(() => {
-  return MODULES_ORDER.filter((type) => type !== MODULES.ResearchFacilities)
-    .map((type) => {
-      const config = MODULES_CONFIG[type] as ModuleConfig | undefined;
-      if (!config?.submodules?.length) return null;
-
-      const unifiedConfig = yearConfigStore.getModule(type);
-      const visibleSubmodules = unifiedConfig
-        ? config.submodules.filter(
-            (sub) => unifiedConfig.submodules[sub.id]?.enabled ?? true,
-          )
-        : config.submodules;
-
-      if (!visibleSubmodules.length) return null;
-
-      return {
-        type,
-        config,
-        submodules: visibleSubmodules,
-      };
-    })
-    .filter((m): m is NonNullable<typeof m> => m !== null);
-});
-
-const expandedModules = reactive<Record<string, boolean>>({});
+const modules = computed(() => getExploreModules(yearConfigStore.getModule));
 
 const totalTonnesCo2eq = computed(() => {
   const breakdown = moduleStore.state.emissionBreakdown;
@@ -231,33 +157,12 @@ const totalTonnesCo2eq = computed(() => {
   return moduleTotal || breakdown.total_tonnes_co2eq || 0;
 });
 
-const filteredBreakdown = computed(() => {
-  const bd = moduleStore.state.emissionBreakdown;
-  if (!bd) return bd;
-  return {
-    ...bd,
-    module_breakdown: bd.module_breakdown.filter(
-      (entry) => entry.category !== 'research_facilities',
-    ),
-  };
-});
+const breakdown = computed(() => moduleStore.state.emissionBreakdown);
 
 async function fetchEmissionBreakdown() {
   const carbonReportId = workspaceStore.selectedCarbonReport?.id;
   if (!carbonReportId) return;
   await moduleStore.getEmissionBreakdown(carbonReportId, []);
-}
-
-async function prefetchSubmoduleCounts() {
-  // One preview_limit=0 request per module instead of one per submodule.
-  // data_entry_types_total_items covers all submodule counts in a single response.
-  await moduleStore.prefetchAllModuleCounts(
-    modules.value.map((m) => ({
-      type: m.type,
-      unit: unitId.value,
-      year: String(year.value),
-    })),
-  );
 }
 
 onMounted(async () => {
@@ -271,13 +176,20 @@ onMounted(async () => {
     // so that module table requests don't 404 before the record is created.
     simulatorReady.value = true;
   }
-  await prefetchSubmoduleCounts();
+  // Submodule counts and per-module requests defer to a module's first
+  // expansion (ExploreModuleExpansionList) — nothing else needs them eagerly.
   await fetchEmissionBreakdown();
+  breakdownReady.value = true;
 });
 </script>
 
 <style scoped>
 .chart-wrapper {
   height: 600px;
+}
+
+.results-blocks {
+  display: grid;
+  grid-template-columns: 1fr;
 }
 </style>

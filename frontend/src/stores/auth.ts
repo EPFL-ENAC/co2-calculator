@@ -1,27 +1,33 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
+import { setGlitchTipUser } from '@/utils/glitchtip';
 import {
   api,
-  API_EXCHANGE_URL,
   API_LOGIN_URL,
   API_LOGOUT_URL,
   API_LOGIN_TEST_URL,
   API_ME_URL,
-} from 'src/api/http';
+} from '@/api/http';
 import { Router } from 'vue-router';
 import { computed } from 'vue';
 import {
   PermissionAction,
   MODULE_STATUS_PERMISSION,
+  canDeletePlan,
   hasPermission,
   hasAnyScopePermission,
   hasBackOfficeAreaPermission,
   getModulePermissionPath,
   type FlatUserPermissions,
-} from 'src/utils/permission';
-import { Module } from 'src/constant/modules';
-import type { components } from 'src/types/api/openapi';
-import { useWorkspaceStore } from './workspace';
+} from '@/utils/permission';
+import { Module } from '@/constant/modules';
+import type { components } from '@/types/api/openapi';
+import { currentLanguage } from '@/utils/language';
+import { useWorkspaceStore, type Unit } from './workspace';
+import {
+  useYearConfigStore,
+  type YearConfigurationListItem,
+} from './yearConfig';
 
 // Re-export the action enum so the auth store is the single entry point
 // callers import from (check functions AND the action enum).
@@ -37,7 +43,7 @@ type User = Omit<
   'permissions' | 'roles_raw' | 'institutional_id'
 > & {
   permissions?: FlatUserPermissions;
-  // `roles_raw` is normalized to `[]` at the API boundary in `getUser()`, so
+  // `roles_raw` is normalized to `[]` at the API boundary in `bootstrap()`, so
   // callers can safely `.map()` without an optional guard.
   roles_raw: Array<{
     role: string;
@@ -52,6 +58,22 @@ type User = Omit<
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
   const loading = ref(false);
+
+  // The address the backend saw for this session (`GET /v1/session`). The
+  // browser cannot discover its own, and GlitchTip stores Sentry's `{{auto}}`
+  // sentinel verbatim instead of resolving it, so it has to come from here.
+  const clientIp = ref<string | undefined>(undefined);
+
+  // Every GlitchTip event carries whoever is logged in, so a crash report
+  // and the backend spans of the same request share one identity. Watched
+  // rather than pushed from bootstrap(): login, logout and session expiry
+  // all assign `user`, and only one of them is bootstrap().
+  watch(
+    user,
+    (u) =>
+      setGlitchTipUser(u ? { id: String(u.id), ip: clientIp.value } : null),
+    { immediate: true },
+  );
 
   const workspaceStore = useWorkspaceStore();
 
@@ -68,18 +90,43 @@ export const useAuthStore = defineStore('auth', () => {
   const hasChecked = ref(false);
   let inflight: Promise<User | null> | null = null;
 
-  async function getUser(): Promise<User | null> {
+  /** Enriched `GET /session` payload — user + workspace bootstrap context. */
+  interface SessionPayload {
+    user: User;
+    units: Unit[];
+    configured_years: YearConfigurationListItem[];
+    min_configurable_year: number;
+    client_ip?: string;
+  }
+
+  /**
+   * Single app-init call: fetch the enriched session and hydrate the auth,
+   * workspace (units) and year-config (configured years) stores in one go.
+   * Deduped via `inflight` so concurrent guards share the same request.
+   */
+  async function bootstrap(): Promise<User | null> {
     if (inflight) return inflight;
 
     inflight = (async () => {
       try {
         loading.value = true;
-        const raw = await api.get(API_ME_URL).json<User>();
+        const raw = await api.get(API_ME_URL).json<SessionPayload>();
         // Backend serializes roles as `[]` or omits the field under
         // `response_model_exclude_none=True`. Normalize once here so
         // every call site can treat `roles_raw` as a non-optional array.
-        const u: User = { ...raw, roles_raw: raw.roles_raw ?? [] };
+        const u: User = { ...raw.user, roles_raw: raw.user.roles_raw ?? [] };
+        // Before `user`, so the watcher above reports the identity and the
+        // address together on the first event of the session.
+        clientIp.value = raw.client_ip;
         user.value = u;
+        // Hydrate the workspace context that used to come from separate
+        // `/users/units` and `/year-configuration/` calls.
+        workspaceStore.setUnits(raw.units ?? []);
+        const yearConfigStore = useYearConfigStore();
+        yearConfigStore.setConfiguredYears(raw.configured_years ?? []);
+        if (typeof raw.min_configurable_year === 'number') {
+          yearConfigStore.setMinConfigurableYear(raw.min_configurable_year);
+        }
         return u;
       } catch {
         user.value = null;
@@ -94,26 +141,20 @@ export const useAuthStore = defineStore('auth', () => {
     return inflight;
   }
 
+  // #2050: a second click (or a stray duplicate handler) before the browser
+  // has actually navigated away must not fire a second OAuth login for the
+  // same user — two concurrent /auth/callback hits race the backend's audit
+  // trail. loading never resets to false here: the page is about to unload.
   function login_test(role: string) {
+    if (loading.value) return;
+    loading.value = true;
     window.location.replace(`${API_LOGIN_TEST_URL}?role=${role}`);
   }
 
   function login() {
+    if (loading.value) return;
+    loading.value = true;
     window.location.replace(API_LOGIN_URL);
-  }
-
-  /**
-   * Trade the single-use OAuth-callback code for session cookies (BFF
-   * leg 2; ADR-019). Run from the /auth/complete landing page after the
-   * IdP redirect lands there with a `#code=<...>` fragment.
-   */
-  async function exchange(code: string): Promise<User | null> {
-    await api
-      .post(API_EXCHANGE_URL, { json: { code }, retry: { limit: 0 } })
-      .json<{ id: number; email: string }>();
-    // The backend already wrote the cookies; hydrate the full user
-    // profile (roles, permissions, display_name) via /session.
-    return await getUser();
   }
 
   async function logout(router: Router) {
@@ -123,16 +164,21 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       console.error('Error logging out:', error);
     } finally {
+      // The login routes live under the `:language` segment, so the redirect
+      // must carry a language param. Pass it explicitly rather than relying on
+      // the current route's params — logout can fire from /unauthorized, which
+      // sits outside `:language` and has none to inherit.
+      const language = currentLanguage();
       // Check server-issued is_user_test flag to determine routing.
       if (user.value?.is_user_test) {
         // For test users, just go to home login-test page
         user.value = null;
         loading.value = false;
-        router.replace({ name: 'login-test' });
+        router.replace({ name: 'login-test', params: { language } });
       } else {
         user.value = null;
         loading.value = false;
-        router.replace({ name: 'login' });
+        router.replace({ name: 'login', params: { language } });
       }
     }
   }
@@ -204,12 +250,25 @@ export const useAuthStore = defineStore('auth', () => {
     return hasUserPermission(MODULE_STATUS_PERMISSION, PermissionAction.EDIT);
   }
 
+  /**
+   * Whether the current user may delete `plan` — gates the planner table's
+   * delete button. UX only — the backend DELETE stays enforced by `PlanPolicy`.
+   */
+  function hasUserCanDeletePlan(plan: { created_by: number | null }): boolean {
+    return canDeletePlan(
+      user.value?.permissions,
+      workspaceStore.selectedUnit?.institutional_id,
+      user.value?.id,
+      plan.created_by,
+    );
+  }
+
   function canUserAccessModule(module: Module): boolean {
     const path = getModulePermissionPath(module);
     if (!path) return true; // Unprotected module, accessible to all users
     return (
-      hasUserAnyScopePermission(path, PermissionAction.VIEW) ||
-      hasUserAnyScopePermission(path, PermissionAction.EDIT)
+      hasUserPermission(path, PermissionAction.VIEW) ||
+      hasUserPermission(path, PermissionAction.EDIT)
     );
   }
 
@@ -245,15 +304,15 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     hasChecked,
     displayName,
-    getUser,
+    bootstrap,
     login,
     login_test,
     logout,
-    exchange,
     isAuthenticated,
     hasUserPermission,
     hasUserModulePermission,
     hasUserCanValidateModuleStatus,
+    hasUserCanDeletePlan,
     canUserAccessModule,
     hasUserBackOfficeAreaPermission,
     hasUserAnyScopePermission,

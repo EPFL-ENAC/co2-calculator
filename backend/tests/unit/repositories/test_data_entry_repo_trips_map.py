@@ -12,9 +12,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.location import Location, TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 from app.repositories.data_entry_repo import DataEntryRepository
 
 

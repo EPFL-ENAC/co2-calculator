@@ -29,7 +29,6 @@ clean: ## Clean up generated files
 	rm -rf .ruff_cache
 	rm -rf htmlcov
 	rm -rf .coverage
-	find . -type d -name '.mypy_cache' -exec rm -rf {} +
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
@@ -95,9 +94,9 @@ audit: ## Run security audits with uv-audit and bandit
 	uvx bandit -r ./app/ -x tests,.venv
 
 .PHONY: type-check
-type-check: ## Run type checking with mypy
+type-check: ## Run type checking with ty
 	@set -e; \
-	uv run mypy app/
+	uv run ty check
 
 .PHONY: test
 test: ## Run tests
@@ -122,13 +121,13 @@ test-cov-xml-integration: ## Run integration tests with coverage and output XML 
 .PHONY: seed-data
 seed-data: ## Seed the database with initial data
 # seeds fake user + unit associations (for testing)
-	$(UV) run -m app.seed.seed_fake_user_unit
+	# $(UV) run -m app.seed.seed_fake_user_unit
 	$(UV) run -m app.seed.seed_locations
 	$(UV) run -m app.seed.seed_building_rooms
 	$(UV) run -m app.seed.seed_generic_factors
 
 .PHONY: seed-data-random
-seed-data-random: ## Seed ~800 random data_entry rows via Faker (issue #222)
+seed-data-random: ## Seed ~800k random data_entry rows via Faker (issue #222)
 	$(UV) run -m app.seed.random_generator.seed_all
 
 .PHONY: seed-units
@@ -138,6 +137,13 @@ seed-units: ## Seed units from accred
 .PHONY: seed-generic-data
 seed-generic-data: ## Seed data entries from seed_data CSVs
 	$(UV) run -m app.seed.seed_generic_data_entries
+
+# Years provisioned by `bootstrap-years`; override on the command line.
+YEARS ?= 2025 2026
+
+.PHONY: bootstrap-years
+bootstrap-years: ## Provision years from INPUT_DATA: config + unit sync + factors + references + reduction objectives, no data entries (usage: make bootstrap-years YEARS="2025 2026")
+	$(UV) run -m app.seed.bootstrap_years --years $(YEARS)
 
 .PHONY: exchange-rates
 exchange-rates: ## Fetch exchange rates from ECB API and store in database
@@ -200,3 +206,12 @@ formula-version: ## Update formula version (SHA1) in .env and .env.example
 .PHONY: erd
 erd: ## Generate Mermaid ERD diagram from SQLAlchemy models
 	uv run -m  app.generate_mermaid_erd > ../docs/src/database/erd.md ## Generate Mermaid ERD diagram from SQLAlchemy models
+
+.PHONY: gen-emission-taxonomy
+gen-emission-taxonomy: ## Generate frontend emission-taxonomy constant from EmissionType
+	uv run -m app.generate_emission_taxonomy_ts > ../frontend/src/types/emission-taxonomy.gen.ts
+
+.PHONY: gen-module-constants
+gen-module-constants: ## Generate frontend module lookup constants (submodule ids, currencies, room types, cabin classes, SIUS codes)
+	uv run -m app.generate_module_constants_ts > ../frontend/src/types/module-lookups.gen.ts
+	cd ../frontend && npx prettier --write src/types/module-lookups.gen.ts

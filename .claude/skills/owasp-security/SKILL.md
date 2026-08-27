@@ -6,6 +6,14 @@ allowed-tools: Read Grep Glob
 
 # OWASP Security Best Practices Skill
 
+> **Provenance.** Vendored from
+> [`agamm/claude-code-owasp`](https://github.com/agamm/claude-code-owasp) (MIT),
+> not written here. It has since diverged in both directions: this copy adds the
+> `allowed-tools` frontmatter, the agent/LLM checklists and the LLM06/LLM10
+> examples; upstream has since added a "Before Reporting a Finding" section and a
+> full OWASP LLM Top 10 chapter in `reference/owasp-report.md` that this copy
+> lacks. Re-syncing is a merge, not a copy — diff before pulling.
+
 Apply these security standards when writing or reviewing code.
 
 **Reference files** (load on demand):

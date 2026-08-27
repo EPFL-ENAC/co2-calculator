@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { computed, inject, type ComputedRef } from 'vue';
-import { useUploadCard } from 'src/composables/useUploadCard';
-import { mergeLivePipelineJob } from 'src/composables/useModuleConfig';
+import { useUploadCard } from '@/composables/useUploadCard';
+import { mergeLivePipelineJob } from '@/composables/useModuleConfig';
 import { useI18n } from 'vue-i18n';
-import {
-  TargetType,
-  IngestionState,
-} from 'src/stores/backofficeDataManagement';
-import type { ImportRow } from 'src/stores/backofficeDataManagement';
-import type { PipelineJob, PipelineProgress } from 'src/stores/pipelineStream';
+import { TargetType, IngestionState } from '@/stores/backofficeDataManagement';
+import type { ImportRow } from '@/stores/backofficeDataManagement';
+import type { PipelineJob, PipelineProgress } from '@/stores/pipelineStream';
 import UploadCard from './UploadCard.vue';
+import { MODULE_SUBMODULES } from '@/constant/backoffice-module-config.js';
+import { MODULES } from '@/constant/modules';
 
 interface Props {
   row: ImportRow;
@@ -63,7 +62,10 @@ const description = computed(() => {
 });
 
 const hasComputedFactor = computed(() => {
-  return props.module === 'research-facilities';
+  const modules = MODULE_SUBMODULES[MODULES.ResearchFacilities];
+  return modules
+    ?.map((submodule) => submodule.key)
+    .includes(props.module ?? '');
 });
 
 function handleUpload() {

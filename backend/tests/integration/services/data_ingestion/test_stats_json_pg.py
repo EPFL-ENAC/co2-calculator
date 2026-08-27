@@ -52,8 +52,6 @@ Pragmatic coverage (per the unit's spec)
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
-from typing import Optional
-
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -63,13 +61,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.module_type import (
     ModuleTypeEnum,
 )
+from app.modules.emissions import EmissionType
+from app.modules.emissions.registry import emission_type_scope
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
-from app.utils.it_breakdown import IT_EMISSION_TYPES
 
 from .conftest import seeded_year_with_units
 
@@ -86,7 +85,7 @@ async def _seed_emission(
     data_entry_type: DataEntryTypeEnum,
     emission_type: EmissionType,
     kg_co2eq: float,
-    additional_value: Optional[float] = None,
+    additional_value: float | None = None,
 ) -> DataEntry:
     """Insert one ``DataEntry`` + one ``DataEntryEmission`` leaf row.
 
@@ -106,7 +105,7 @@ async def _seed_emission(
         emission_type_id=int(emission_type),
         kg_co2eq=kg_co2eq,
         additional_value=additional_value,
-        scope=int(emission_type.scope) if emission_type.scope is not None else None,
+        scope=emission_type_scope(emission_type),
         meta={},
     )
     session.add(em)
@@ -149,15 +148,16 @@ async def seeded(pg_dsn):
 # rather than silently breaking the frontend.  See
 # ``app/services/carbon_report_module_service.py::compute_module_stats``.
 EXPECTED_MODULE_STATS_KEYS: set[str] = {
-    "scope1",
-    "scope2",
-    "scope3",
+    "buckets",
     "total",
     "by_emission_type",
     "by_additional_value",
     "computed_at",
     "entry_count",
 }
+
+# Per-module extras persisted alongside the base keys.
+ALLOWED_MODULE_STATS_EXTRAS: set[str] = {"total_fte", "it_top_classes"}
 
 
 # (module_type, data_entry_type, emission_type) — one shape probe per
@@ -253,20 +253,24 @@ async def test_module_stats_shape_pins_top_level_keys(
         assert isinstance(stats, dict), (
             f"{module_type.name}: stats must be a dict, got {type(stats)!r}"
         )
-        assert set(stats.keys()) == EXPECTED_MODULE_STATS_KEYS, (
-            f"{module_type.name}: top-level keys mismatch.\n"
-            f"  expected: {sorted(EXPECTED_MODULE_STATS_KEYS)}\n"
-            f"  actual:   {sorted(stats.keys())}\n"
-            f"  missing:  {sorted(EXPECTED_MODULE_STATS_KEYS - set(stats.keys()))}\n"
-            f"  extra:    {sorted(set(stats.keys()) - EXPECTED_MODULE_STATS_KEYS)}"
+        keys = set(stats.keys())
+        assert EXPECTED_MODULE_STATS_KEYS <= keys, (
+            f"{module_type.name}: missing top-level keys "
+            f"{sorted(EXPECTED_MODULE_STATS_KEYS - keys)}"
+        )
+        assert keys - EXPECTED_MODULE_STATS_KEYS <= ALLOWED_MODULE_STATS_EXTRAS, (
+            f"{module_type.name}: unexpected extra keys "
+            f"{sorted(keys - EXPECTED_MODULE_STATS_KEYS - ALLOWED_MODULE_STATS_EXTRAS)}"
         )
 
         # Type pins — silent type drift (e.g. dict→str on
         # ``by_emission_type``) is exactly what the frontend can't
         # tolerate but nothing else would catch.
-        assert isinstance(stats["scope1"], (int, float))
-        assert isinstance(stats["scope2"], (int, float))
-        assert isinstance(stats["scope3"], (int, float))
+        assert isinstance(stats["buckets"], dict)
+        for bucket in stats["buckets"].values():
+            assert {"scope", "additional", "total_kg", "by_emission_type"} <= set(
+                bucket.keys()
+            )
         assert isinstance(stats["total"], (int, float))
         assert isinstance(stats["by_emission_type"], dict)
         assert isinstance(stats["by_additional_value"], dict)
@@ -281,7 +285,7 @@ async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
     """``research_facilities`` rolls two leaf-level emissions under one root.
 
     Seeds ``research_facilities__facilities`` (100.0) and the actual leaf
-    ``research_facilities__animal__mice`` (40.0) — the mice type was added as a
+    ``research_facilities__animal__rodent`` (40.0) — the rodent type was added as a
     child of ``research_facilities__animal`` in the subcategory correction commit,
     making the bare ``research_facilities__animal`` an intermediate rollup node.
     The leaf path is the production-correct flow from ``_resolve_animal_facilities``.
@@ -309,8 +313,8 @@ async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
         await _seed_emission(
             s,
             crm_id=crm.id,
-            data_entry_type=DataEntryTypeEnum.mice_and_fish_animal_facilities,
-            emission_type=EmissionType.research_facilities__animal__mice,
+            data_entry_type=DataEntryTypeEnum.animal_facilities,
+            emission_type=EmissionType.research_facilities__animal__rodent,
             kg_co2eq=40.0,
         )
         await s.commit()
@@ -329,20 +333,20 @@ async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
             "recompute_stats must produce stats. Got None."
         )
 
-        assert stats["scope1"] == 0.0
-        assert stats["scope2"] == 0.0
-        assert stats["scope3"] == 140.0, (
-            f"scope3 should be 100+40=140; got {stats['scope3']}"
+        bucket = stats["buckets"]["research_facilities"]
+        assert bucket["scope"] == 3
+        assert bucket["total_kg"] == 140.0, (
+            f"bucket total should be 100+40=140; got {bucket['total_kg']}"
         )
         assert stats["total"] == 140.0
         assert stats["entry_count"] == 2
 
         by_et = stats["by_emission_type"]
         assert by_et[str(int(EmissionType.research_facilities__facilities))] == 100.0
-        assert by_et[str(int(EmissionType.research_facilities__animal__mice))] == 40.0
-        # Intermediate rollup: mice leaf rolls up to animal (40.0)
+        assert by_et[str(int(EmissionType.research_facilities__animal__rodent))] == 40.0
+        # Intermediate rollup: rodent leaf rolls up to animal (40.0)
         assert by_et[str(int(EmissionType.research_facilities__animal))] == 40.0
-        # Root rollup: facilities (100) + mice via animal (40) = 140
+        # Root rollup: facilities (100) + rodent via animal (40) = 140
         assert by_et[str(int(EmissionType.research_facilities))] == 140.0
 
 
@@ -382,7 +386,10 @@ async def test_headcount_stats_math_cross_root_scope3(seeded) -> None:
             s,
             crm_id=crm.id,
             data_entry_type=DataEntryTypeEnum.member,
-            emission_type=EmissionType.waste__incineration,
+            # Not waste__incineration: it stopped being a leaf when
+            # waste__incineration__domestic_waste was added under it, and
+            # stats roll up from leaves only.
+            emission_type=EmissionType.waste__incineration__domestic_waste,
             kg_co2eq=60.0,
         )
         await _seed_emission(
@@ -405,18 +412,18 @@ async def test_headcount_stats_math_cross_root_scope3(seeded) -> None:
         stats = fresh.stats
         assert stats is not None
 
-        assert stats["scope1"] == 0.0, f"scope1 should be 0; got {stats['scope1']}"
-        assert stats["scope2"] == 0.0, f"scope2 should be 0; got {stats['scope2']}"
-        assert stats["scope3"] == 200.0, (
-            f"scope3 should be 100+60+40=200; got {stats['scope3']}"
-        )
+        buckets = stats["buckets"]
+        assert buckets["food"]["total_kg"] == 100.0
+        assert buckets["waste"]["total_kg"] == 60.0
+        assert buckets["commuting"]["total_kg"] == 40.0
+        assert all(buckets[key]["additional"] for key in ("food", "waste", "commuting"))
         assert stats["total"] == 200.0
         assert stats["entry_count"] == 3
 
         by_et = stats["by_emission_type"]
         # Leaves (keys are str(emission_type_id))
         assert by_et[str(int(EmissionType.food__non_vegetarian))] == 100.0
-        assert by_et[str(int(EmissionType.waste__incineration))] == 60.0
+        assert by_et[str(int(EmissionType.waste__incineration__domestic_waste))] == 60.0
         assert by_et[str(int(EmissionType.commuting__car))] == 40.0
         # Root-level rollups (each root's subtree includes only one
         # seeded leaf, so the rollup equals that leaf)
@@ -467,9 +474,9 @@ async def test_equipment_stats_math_single_root_scope2(seeded) -> None:
         stats = fresh.stats
         assert stats is not None
 
-        assert stats["scope1"] == 0.0
-        assert stats["scope2"] == 100.0, f"scope2 should be 60+40=100; got {stats}"
-        assert stats["scope3"] == 0.0
+        bucket = stats["buckets"]["equipment"]
+        assert bucket["scope"] == 2
+        assert bucket["total_kg"] == 100.0, f"bucket should be 60+40=100; got {stats}"
         assert stats["total"] == 100.0
         assert stats["entry_count"] == 2
 
@@ -530,7 +537,9 @@ async def test_professional_travel_stats_math_multi_level_rollup(seeded) -> None
         stats = fresh.stats
         assert stats is not None
 
-        assert stats["scope3"] == 100.0
+        bucket = stats["buckets"]["professional_travel"]
+        assert bucket["scope"] == 3
+        assert bucket["total_kg"] == 100.0
         assert stats["total"] == 100.0
         assert stats["entry_count"] == 2
 
@@ -566,9 +575,8 @@ async def test_report_stats_rollup_sums_modules_and_adds_it_total(seeded) -> Non
 
       - ``scope1/2/3`` sum across modules
       - ``total == sum(crm.stats.total)``
-      - ``it_total_kg`` equals the subset of ``by_emission_type``
-        whose keys are in ``IT_EMISSION_TYPES`` (verified via
-        ``app.utils.it_breakdown.IT_EMISSION_TYPES``)
+      - ``it.total_kg`` equals the leaf-level IT emissions
+        (equipment__it + purchases__it_equipment)
       - ``highest_category_module_id`` is None when no module is
         VALIDATED (default after seeding)
       - flipping one module to VALIDATED makes it the
@@ -654,18 +662,12 @@ async def test_report_stats_rollup_sums_modules_and_adds_it_total(seeded) -> Non
             f"sum(crm.stats.total) ({modules_total})"
         )
 
-        # it_total_kg: subset of by_emission_type whose keys are in
-        # IT_EMISSION_TYPES.  A future change to the IT set will trip
-        # both this independent recompute and the build math.
-        it_keys = {str(et.value) for et in IT_EMISSION_TYPES}
-        expected_it_total = sum(
-            v for k, v in stats["by_emission_type"].items() if k in it_keys
-        )
-        assert stats["it_total_kg"] == expected_it_total, (
-            f"it_total_kg mismatch: stats={stats['it_total_kg']}, "
-            f"recomputed={expected_it_total}"
-        )
-        assert stats["it_total_kg"] == 100.0
+        # IT rollup: equipment__it (60) + purchases__it_equipment (40),
+        # process_emissions excluded. Leaf-level sums only — the flat
+        # by_emission_type map also carries rollups.
+        assert stats["it"]["total_kg"] == 100.0
+        assert stats["it"]["categories"]["equipment_it"] == 60.0
+        assert stats["it"]["categories"]["purchases_it"] == 40.0
 
         assert stats["highest_category_module_id"] is None, (
             f"no validated modules → highest_category_module_id should be None; "

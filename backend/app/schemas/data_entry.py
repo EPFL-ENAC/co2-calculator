@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_origin
+from typing import Any, Protocol, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel, Field, model_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -91,13 +91,26 @@ class DataEntryResponse(DataEntryBase):
 
     id: int
     data: dict
+    # #951: provenance for the data-entry permission layer (see
+    # app.core.data_entry_permissions). Not module-specific, so it belongs on
+    # the generic response, unlike DataEntryResponseGen's own copy below.
+    source: int | None = None
 
 
 class DataEntryResponseGen(DataEntryBase):
     """Response schema for DataEntry items."""
 
     id: int
-    note: Optional[str] = None
+    source: int | None = None
+    note: str | None = None
+    # Planner snapshot rows only: the source (reference-year) entry's emissions,
+    # i.e. the 100% baseline the "% of reference year" slider scales from. Null
+    # for ordinary Calculator rows (no source entry).
+    reference_kg_co2eq: float | None = None
+    # The slider value itself, so the table reflects the stored percentage after
+    # a refetch (lives in ``data``; surfaced here for the planner UI). Null for
+    # Calculator rows.
+    percentage_of_reference_year: float | None = None
     data: dict = Field(default_factory=dict, exclude=True)
 
 
@@ -109,28 +122,28 @@ T = TypeVar("T", bound=BaseModel, contravariant=True)
 class ModuleHandler(Protocol[T]):
     # Type info
     module_type: ModuleTypeEnum
-    data_entry_type: Optional[DataEntryTypeEnum] = None
+    data_entry_type: DataEntryTypeEnum | None = None
     require_subkind_for_factor: bool = (
         True  # default to True, can be overridden by specific handlers
     )
     require_factor_to_match: bool = True
 
     # DTOs
-    create_dto: Type[DataEntryCreate]
-    update_dto: Type[DataEntryUpdate]
-    response_dto: Type[DataEntryResponseGen]
-    sort_map: Dict[str, Any]
+    create_dto: type[DataEntryCreate]
+    update_dto: type[DataEntryUpdate]
+    response_dto: type[DataEntryResponseGen]
+    sort_map: dict[str, Any]
 
     # kind/subkind fields
-    kind_field: Optional[str] = None
+    kind_field: str | None = None
     # Alternate kind key: when present on the entry it overrides kind_field
     # for factor lookup; factors carrying it are excluded from the
     # kind_field fallback match (those rows are implicit averages).
-    kind_field_override: Optional[str] = None
-    subkind_field: Optional[str] = None
-    kind_label_field: Optional[str] = None
-    subkind_label_field: Optional[str] = None
-    factor_value_fields: Optional[list[str]] = None
+    kind_field_override: str | None = None
+    subkind_field: str | None = None
+    kind_label_field: str | None = None
+    subkind_label_field: str | None = None
+    taxonomy_meta_fields: tuple[str, ...] = ()
 
     def to_response(
         self,
@@ -153,7 +166,7 @@ class ModuleHandler(Protocol[T]):
         self,
         data: dict,
         session: AsyncSession,
-    ) -> tuple[dict, Optional[str]]: ...
+    ) -> tuple[dict, str | None]: ...
     async def pre_compute(
         self,
         data_entry: Any,
@@ -164,7 +177,7 @@ class ModuleHandler(Protocol[T]):
         entries: list[Any],
         session: AsyncSession,
         *,
-        year: Optional[int] = None,
+        year: int | None = None,
     ) -> dict: ...
     def resolve_computations(
         self,
@@ -199,7 +212,7 @@ class ModuleHandlerMeta(type):
             # Register for all keys
             if keys:
                 for key in keys:
-                    MODULE_HANDLERS[key] = cls()
+                    MODULE_HANDLERS[DataEntryTypeEnum(key)] = cls()
 
         return cls
 
@@ -216,21 +229,26 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # -- Factor resolution fields --
     # Name of the data-dict key that holds the primary classification value
     # used to look up a matching Factor (e.g. "equipment_class", "category").
-    kind_field: Optional[str] = None
+    kind_field: str | None = None
     # Alternate kind key (e.g. "purchase_additional_code"): when the entry
     # carries a value for it, it overrides kind_field for factor lookup.
     # When absent, only factors WITHOUT this classification key are eligible
     # for the kind_field match (those rows are implicit averages).
-    kind_field_override: Optional[str] = None
+    kind_field_override: str | None = None
     # Name of the data-dict key for the secondary classification value
     # (e.g. "sub_class"). Used together with kind_field for a more precise
     # factor match. None means the module has no sub-classification.
-    subkind_field: Optional[str] = None
+    subkind_field: str | None = None
     # Display label override for kind_field shown in the UI/response
     # (e.g. "Equipment class"). Falls back to kind_field when None.
-    kind_label_field: Optional[str] = None
+    kind_label_field: str | None = None
     # Display label override for subkind_field shown in the UI/response.
-    subkind_label_field: Optional[str] = None
+    subkind_label_field: str | None = None
+    # Factor fields (classification or values) copied onto each taxonomy node's
+    # ``meta`` so a form can render the option — e.g. the per-facility metric
+    # unit the planner shows as an input suffix (#2391). Display metadata only:
+    # emission coefficients never travel on this payload (#2396).
+    taxonomy_meta_fields: tuple[str, ...] = ()
     # When True, factor lookup requires both kind and subkind to match.
     # Set to False for modules where subkind is optional (e.g. equipment).
     require_subkind_for_factor: bool = True
@@ -244,24 +262,21 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # Used during CSV seeding to populate mandatory fields with factor
     # defaults (e.g. ["active_usage_hours_per_week",
     # "standby_usage_hours_per_week"] for equipment).
-    factor_value_fields: Optional[list[str]] = None
 
     # -- Registration --
     # The DataEntryTypeEnum this handler serves. For handlers that cover
     # multiple types, set ``registration_keys`` instead.
-    data_entry_type: Optional[DataEntryTypeEnum] = None
+    data_entry_type: DataEntryTypeEnum | None = None
 
     # -- Category field for CSV ingestion --
     # Name of the CSV column that determines the data_entry_type for this module.
     # Examples: "equipment_category", "purchase_category", "headcount_category"
     # When set, this column's value is mapped to DataEntryTypeEnum during CSV ingestion.
-    category_field: Optional[str] = None
+    category_field: str | None = None
 
     @classmethod
-    def get_by_type(cls, data_entry_type: DataEntryTypeEnum) -> "ModuleHandler":
-        """
-        Returns the module handler instance for the given data_entry_type.
-        """
+    def get_by_type(cls, data_entry_type: DataEntryTypeEnum) -> ModuleHandler:
+        """Returns the module handler instance for the given data_entry_type."""
         handler = MODULE_HANDLERS.get(data_entry_type)
         if handler is None:
             raise ValueError(
@@ -297,7 +312,7 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         entries: list[Any],
         session: AsyncSession,
         *,
-        year: Optional[int] = None,
+        year: int | None = None,
     ) -> dict:
         """Per-slice prefetch hook called once before a recalc loops entries.
 
@@ -314,7 +329,7 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         self,
         data: dict,
         session: AsyncSession,
-    ) -> tuple[dict, Optional[str]]:
+    ) -> tuple[dict, str | None]:
         """CSV-time data enrichment hook.
 
         Called per-row after ``validate_create`` and before DataEntry
@@ -341,8 +356,10 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         that must be applied for this emission type.
 
         The default implementation looks for a ``primary_factor_id`` in *ctx*
-        (Strategy A).  Handlers that use classification queries (Strategy B)
-        must override this method.
+        (Strategy A).  This key is injected by
+        ``DataEntryEmissionService.prepare_create`` from ``FactorResolver``
+        results — it is never persisted on the data entry.  Handlers that use
+        classification queries (Strategy B) must override this method.
 
         Args:
             data_entry: The data entry being processed.
@@ -352,14 +369,13 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         Returns:
             List of ``EmissionComputation`` objects (may be empty).
         """
-
         factor_id = ctx.get("primary_factor_id")
         if factor_id is None:
             return []
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
             )
         ]
 

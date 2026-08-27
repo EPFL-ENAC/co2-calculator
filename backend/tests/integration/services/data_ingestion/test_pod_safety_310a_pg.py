@@ -49,7 +49,8 @@ def _make_pending_job() -> DataIngestionJob:
 async def test_concurrent_claim_same_combo_only_one_wins(pg_dsn):
     """Two pods racing to claim sibling jobs for the same combo —
     exactly one ``claim_job`` returns True; the other rolls back via
-    ``IntegrityError`` from the partial unique index."""
+    ``IntegrityError`` from the partial unique index.
+    """
     # Seed two pending jobs in the same combo.
     seed_engine = create_async_engine(pg_dsn, future=True)
     Sseed = async_sessionmaker(seed_engine, class_=AsyncSession, expire_on_commit=False)
@@ -116,7 +117,8 @@ async def test_claim_blocked_by_running_sibling(pg_dsn):
     same combo is RUNNING.  Without the ``state != RUNNING`` guard in
     step 1, claim_job would demote the running sibling's ``is_current``
     and slip past the unique index — producing two concurrent runs for
-    the same combo."""
+    the same combo.
+    """
     seed_engine = create_async_engine(pg_dsn, future=True)
     Sseed = async_sessionmaker(seed_engine, class_=AsyncSession, expire_on_commit=False)
     async with Sseed() as s:
@@ -232,7 +234,8 @@ async def test_claim_integrity_error_emits_warning(pg_dsn, caplog):
 async def test_claim_demotes_finished_sibling(pg_dsn):
     """``claim_job`` must still demote a FINISHED sibling so the new run
     becomes the current one — fixing the RUNNING-protection guard must
-    not break the normal previous-run-then-new-run path."""
+    not break the normal previous-run-then-new-run path.
+    """
     seed_engine = create_async_engine(pg_dsn, future=True)
     Sseed = async_sessionmaker(seed_engine, class_=AsyncSession, expire_on_commit=False)
     async with Sseed() as s:

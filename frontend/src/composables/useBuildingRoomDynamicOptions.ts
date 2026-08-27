@@ -4,9 +4,9 @@ import {
   SUBMODULE_BUILDINGS_TYPES,
   type AllSubmoduleTypes,
   type Module,
-} from 'src/constant/modules';
-import { getFactorValues } from 'src/api/factors';
-import { useBuildingRoomStore } from 'src/stores/building_rooms';
+} from '@/constant/modules';
+import { getFactorValues } from '@/api/factors';
+import { useBuildingRoomStore } from '@/stores/building_rooms';
 
 type FormLike = Record<string, unknown>;
 
@@ -14,7 +14,7 @@ export function useBuildingRoomDynamicOptions(
   form: FormLike,
   moduleType: Ref<Module | string>,
   submoduleType: Ref<AllSubmoduleTypes>,
-  year?: Ref<string | number | undefined>,
+  year?: Ref<string | number | null | undefined>,
 ) {
   const buildingRoomStore = useBuildingRoomStore();
 

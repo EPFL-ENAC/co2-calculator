@@ -5,11 +5,11 @@ user roles from different sources (JWT claims, EPFL Accred API, etc.).
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any
 
 import httpx
 
-from app.core.config import get_settings
+from app.core.config import RoleProviderType, get_settings
 from app.core.logging import get_logger
 from app.models.user import (
     AffiliationScope,
@@ -59,7 +59,7 @@ class RoleProvider(ABC):
         return User(provider=self.type, **user_raw)
 
     @abstractmethod
-    async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_by_user_id(self, user_id: str) -> dict[str, Any]:
         """Get user info from the role provider by user ID.
 
         Args:
@@ -68,7 +68,7 @@ class RoleProvider(ABC):
         pass
 
     @abstractmethod
-    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+    def get_user_id(self, userinfo: dict[str, Any]) -> str:
         """Get user ID for a user.
 
         Args:
@@ -79,7 +79,7 @@ class RoleProvider(ABC):
         pass
 
     @abstractmethod
-    async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
+    async def get_roles(self, userinfo: dict[str, Any]) -> list[Role]:
         """Get roles for a user.
 
         Args:
@@ -94,7 +94,7 @@ class RoleProvider(ABC):
         pass
 
     @abstractmethod
-    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
+    async def get_roles_by_user_id(self, user_id: str) -> list[Role]:
         """Get roles for a user by user ID.
 
         Args:
@@ -108,8 +108,8 @@ class RoleProvider(ABC):
         pass
 
 
-class DefaultRoleProvider(RoleProvider):
-    """Default role provider that extracts roles from JWT claims.
+class JwtClaimsRoleProvider(RoleProvider):
+    """Role provider that extracts roles from JWT claims.
 
     Expects roles in flat string format from JWT claims:
     - "calco2.user.standard@unit:12345" →
@@ -122,12 +122,12 @@ class DefaultRoleProvider(RoleProvider):
 
     type: UserProvider = UserProvider.DEFAULT
 
-    async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
-        """Not implemented for DefaultRoleProvider."""
+    async def get_user_by_user_id(self, user_id: str) -> dict[str, Any]:
+        """Not implemented for JwtClaimsRoleProvider."""
         # You can return an empty dict or raise an error
         return {}
 
-    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+    def get_user_id(self, userinfo: dict[str, Any]) -> str:
         """Get user ID for a user.
 
         Args:
@@ -144,7 +144,7 @@ class DefaultRoleProvider(RoleProvider):
             return ""
         return str(user_id)
 
-    async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
+    async def get_roles(self, userinfo: dict[str, Any]) -> list[Role]:
         """Extract and parse roles from JWT claims.
 
         Args:
@@ -163,7 +163,7 @@ class DefaultRoleProvider(RoleProvider):
             )
             return []
 
-        parsed_roles: List[Role] = []
+        parsed_roles: list[Role] = []
 
         for role_str in jwt_roles:
             if not isinstance(role_str, str):
@@ -244,8 +244,8 @@ class DefaultRoleProvider(RoleProvider):
 
         return parsed_roles
 
-    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
-        """Not implemented for DefaultRoleProvider.
+    async def get_roles_by_user_id(self, user_id: str) -> list[Role]:
+        """Not implemented for JwtClaimsRoleProvider.
 
         Args:
             user_id: User ID of the user
@@ -253,7 +253,7 @@ class DefaultRoleProvider(RoleProvider):
             Empty list as this provider does not support fetching by user ID
         """
         logger.warning(
-            "get_roles_by_user_id not implemented for DefaultRoleProvider",
+            "get_roles_by_user_id not implemented for JwtClaimsRoleProvider",
             extra={"user_id": user_id},
         )
         return []
@@ -264,7 +264,7 @@ class TestRoleProvider(RoleProvider):
 
     type: UserProvider = UserProvider.TEST
 
-    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+    def get_user_id(self, userinfo: dict[str, Any]) -> str:
         """Get user ID for a user.
 
         Args:
@@ -275,7 +275,7 @@ class TestRoleProvider(RoleProvider):
         user_id = userinfo.get("requested_role", RoleName.CO2_USER_STD.value)
         return make_test_user_id(f"testuser_{user_id}")
 
-    async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
+    async def get_roles(self, userinfo: dict[str, Any]) -> list[Role]:
         """Return test roles for a user.
 
         Args:
@@ -291,7 +291,7 @@ class TestRoleProvider(RoleProvider):
             return []
         return list(TEST_ROLES.get(role_name, []))
 
-    async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_by_user_id(self, user_id: str) -> dict[str, Any]:
         """Return test user info by user ID.
 
         Args:
@@ -320,7 +320,7 @@ class TestRoleProvider(RoleProvider):
             "roles": roles,
         }
 
-    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
+    async def get_roles_by_user_id(self, user_id: str) -> list[Role]:
         """Return test roles for a user by their user ID.
 
         Args:
@@ -349,18 +349,17 @@ class AccredRoleProvider(RoleProvider):
     type: UserProvider = UserProvider.ACCRED
 
     def __init__(self):
-        """Initialize the Accred provider with API credentials."""
-        self.api_url = settings.ACCRED_API_URL
+        """Initialize the Accred provider with API credentials.
+
+        Credential completeness is enforced at app boot by
+        assert_accred_settings (app/main.py) — this constructor does not
+        re-check it.
+        """
+        self.api_url = settings.ACCRED_API_BASE_URL
         self.api_username = settings.ACCRED_API_USERNAME
         self.api_key = settings.ACCRED_API_KEY
 
-        if not all([self.api_url, self.api_username, self.api_key]):
-            logger.warning(
-                "Accred API credentials not fully configured. "
-                "Set ACCRED_API_URL, ACCRED_API_USERNAME, and ACCRED_API_KEY."
-            )
-
-    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+    def get_user_id(self, userinfo: dict[str, Any]) -> str:
         """Get institutional ID for a user.
 
         Args:
@@ -377,7 +376,7 @@ class AccredRoleProvider(RoleProvider):
             raise ValueError("User ID is required for Accred role provider")
         return str(user_id)
 
-    async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
+    async def get_roles(self, userinfo: dict[str, Any]) -> list[Role]:
         """Fetch roles from EPFL Accred API.
 
         Args:
@@ -394,7 +393,7 @@ class AccredRoleProvider(RoleProvider):
             logger.error(f"Error getting roles: {e}", extra={"userinfo": userinfo})
             return []
 
-    async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_by_user_id(self, user_id: str) -> dict[str, Any]:
         """Fetch user info from EPFL Accred API.
 
         Args:
@@ -402,7 +401,7 @@ class AccredRoleProvider(RoleProvider):
         Returns:
             User info dict from Accred API
         """
-        if not all([self.api_url, self.api_username, self.api_key]):
+        if not self.api_url or not self.api_username or not self.api_key:
             logger.error(
                 "Cannot fetch user: Accred API not configured",
                 extra={"user_id": user_id},
@@ -491,7 +490,7 @@ class AccredRoleProvider(RoleProvider):
             roles=user_raw.get("roles", []),
         )
 
-    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
+    async def get_roles_by_user_id(self, user_id: str) -> list[Role]:
         """Fetch roles from EPFL Accred API.
 
         Args:
@@ -499,8 +498,7 @@ class AccredRoleProvider(RoleProvider):
         Returns:
             List of role dicts derived from authorizations
         """
-
-        if not all([self.api_url, self.api_username, self.api_key]):
+        if not self.api_url or not self.api_username or not self.api_key:
             logger.error(
                 "Cannot fetch roles: Accred API not configured",
                 extra={"user_id": user_id},
@@ -539,7 +537,7 @@ class AccredRoleProvider(RoleProvider):
                 return []
 
             # Map authorizations to roles
-            roles: List[Role] = []
+            roles: list[Role] = []
             # "calco2.user.standard"  # CO2 Calculator - User role.
             # # For EPFL staff. Standard users can fill in a yearly
             # # summary of their professional travel and view results.
@@ -568,8 +566,11 @@ class AccredRoleProvider(RoleProvider):
                     continue
 
                 accred_unit_institutional_code = auth.get("accredunitid")
-                accred_unit_institutional_id = (
-                    auth.get("reason").get("resource").get("cf")
+                # Prod Accred exposes the unit cf as resource.cf; api-test's
+                # newer schema renamed it to resource.altname.
+                resource = auth.get("reason").get("resource")
+                accred_unit_institutional_id = resource.get("cf") or resource.get(
+                    "altname"
                 )
                 if not accred_unit_institutional_code:
                     logger.warning(
@@ -644,14 +645,21 @@ class AccredRoleProvider(RoleProvider):
             raise
 
 
-def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider:
+def get_role_provider(
+    provider_type: RoleProviderType | UserProvider | None = None,
+) -> RoleProvider:
     """Factory function to get the configured role provider.
 
-    Returns the appropriate role provider based on the
-    PROVIDER_PLUGIN setting.
+    Returns the appropriate role provider based on the ROLE_PROVIDER_TYPE
+    setting, unless overridden by ``provider_type``. Callers that need to
+    re-resolve roles from an entity's original source (e.g. background sync
+    reading a persisted ``User.provider``/``DataIngestionJob.provider``)
+    pass that persisted ``UserProvider`` value directly as the override.
 
     Args:
-        provider_type: Optional provider type override
+        provider_type: Optional provider type override — either a
+            ``RoleProviderType`` (config selection) or a ``UserProvider``
+            (persisted source metadata).
 
     Returns:
         RoleProvider instance
@@ -660,18 +668,20 @@ def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider
         ValueError: If an unknown provider type is configured
     """
     if provider_type is None:
-        provider_type = settings.PROVIDER_PLUGIN
+        provider_type = settings.ROLE_PROVIDER_TYPE
 
-    if provider_type == UserProvider.DEFAULT:
-        logger.info("Using DefaultRoleProvider (JWT claims)")
-        return DefaultRoleProvider()
-    elif provider_type == UserProvider.ACCRED:
-        logger.info("Using AccredRoleProvider (EPFL Accred API)")
-        return AccredRoleProvider()
-    elif provider_type == UserProvider.TEST:
-        logger.info("Using TestRoleProvider (for testing)")
-        return TestRoleProvider()
-    raise ValueError(f"Unknown role provider type: {provider_type!r}")
+    match provider_type:
+        case RoleProviderType.JWT | UserProvider.DEFAULT:
+            logger.info("Using JwtClaimsRoleProvider (JWT claims)")
+            return JwtClaimsRoleProvider()
+        case RoleProviderType.ACCRED | UserProvider.ACCRED:
+            logger.info("Using AccredRoleProvider (EPFL Accred API)")
+            return AccredRoleProvider()
+        case RoleProviderType.TEST | UserProvider.TEST:
+            logger.info("Using TestRoleProvider (for testing)")
+            return TestRoleProvider()
+        case _:
+            raise ValueError(f"Unknown role provider type: {provider_type!r}")
 
 
 class RoleProviderNetworkError(Exception):

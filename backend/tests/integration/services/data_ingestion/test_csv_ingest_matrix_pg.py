@@ -29,7 +29,7 @@ Each test is one falsifiable hypothesis under the cartesian product
    short-circuit so the operator sees one explanation rather than
    50 000 row-level "no matching factor" errors).
 4. The targeted module's CRM has a dict-shaped ``stats`` payload
-   for module types that appear in ``MODULE_TYPE_TO_EMISSION_ROOTS``
+   for module types that appear in ``MODULE_STAT_BUCKETS``
    (proves the aggregation chain committed); for module types
    absent from that map (research_facilities today — its emission
    tree lives elsewhere) the chain still drives to FINISHED but
@@ -67,7 +67,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_ingestion import (
     IngestionMethod,
     IngestionResult,
@@ -75,7 +75,9 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.factor import Factor
-from app.models.module_type import MODULE_TYPE_TO_EMISSION_ROOTS, ModuleTypeEnum
+from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
+from app.modules.emissions.registry import MODULE_STAT_BUCKETS
 from app.services.data_ingestion.provider_factory import ProviderFactory
 
 from .conftest import (
@@ -494,23 +496,30 @@ async def test_csv_ingest_standard_module(
             f"{spec.expected_kg_first_row} (rel=1e-2); "
             f"persisted kg values: {kg_values}"
         )
-        # Pin: every entry has a primary_factor_id (factor was found).
+        # Pin: every entry has an emission row with a resolved factor.
+        # ``DataEntry.data`` no longer stores ``primary_factor_id`` (#1661) —
+        # the FK now lives exclusively on ``DataEntryEmission``.
+        emissions_by_entry: dict[int, list[DataEntryEmission]] = {}
+        for emission in emissions:
+            emissions_by_entry.setdefault(emission.data_entry_id, []).append(emission)
         for entry in target_entries:
-            assert entry.data.get("primary_factor_id") is not None, (
-                f"entry id={entry.id} missing primary_factor_id "
-                f"despite factors_state=pre_loaded"
+            entry_emissions = emissions_by_entry.get(entry.id, [])
+            assert entry_emissions, f"entry id={entry.id} has no emission rows"
+            assert any(em.primary_factor_id is not None for em in entry_emissions), (
+                f"entry id={entry.id} has no emission row with a resolved "
+                f"primary_factor_id despite factors_state=pre_loaded"
             )
 
         # ── 7. Assertion 4 — CRM stats committed (shape-only).
         # ``CarbonReportModuleService.recompute_stats`` early-returns
-        # for module types absent from ``MODULE_TYPE_TO_EMISSION_ROOTS``
+        # for module types absent from ``MODULE_STAT_BUCKETS``
         # (research_facilities lives there today — its emission tree is
         # tracked separately).  For those modules we can't assert a
         # dict-shaped payload; instead pin that the aggregation handler
         # *ran* (chain reported SUCCESS above) and that ``stats`` stays
         # at its pre-chain value (None).  Modules WITH a roots entry
         # MUST have a dict — that's the chain's commit gate.
-        has_emission_roots = spec.module_type in MODULE_TYPE_TO_EMISSION_ROOTS
+        has_emission_roots = spec.module_type in MODULE_STAT_BUCKETS
         if has_emission_roots:
             async with Sf() as s:
                 await assert_stats_match(s, target_crm.id, {})
@@ -520,7 +529,7 @@ async def test_csv_ingest_standard_module(
                 assert fresh is not None
                 assert fresh.stats is None, (
                     f"module_type={spec.module_type.name} has no entry in "
-                    f"MODULE_TYPE_TO_EMISSION_ROOTS — recompute_stats should "
+                    f"MODULE_STAT_BUCKETS — recompute_stats should "
                     f"early-return; got stats={fresh.stats!r}"
                 )
 
@@ -535,5 +544,66 @@ async def test_csv_ingest_standard_module(
             f"got {len(sibling_entries)} rows."
         )
 
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_process_emissions_legacy_quantity_header_fails_visibly(
+    pg_dsn,
+) -> None:
+    """#2025: a CSV still headed ``quantity`` must fail loudly, not silently.
+
+    The data manager renamed the column to ``quantity_kg``; the DTO
+    followed, and unknown columns are dropped by ``_process_row``'s
+    ``expected_columns`` filter.  Without a per-row error that would
+    mean a file whose numbers never land — the "looks complete, is
+    wrong" failure the guardrails rank worst.  Pin that the rows are
+    rejected with a message naming the field, and that nothing is
+    persisted.
+    """
+    spec = _SPECS["process_emissions"]
+    year = 2025
+
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    try:
+        async with Sf() as s:
+            seeded = await seeded_year_with_units(s, year=year, n_units=2)
+        target_unit = seeded.units[0]
+        target_crm = seeded.modules_by_unit_and_type[
+            (target_unit.id, int(spec.module_type))
+        ]
+
+        async with Sf() as s:
+            await _write_factor(s, spec=spec, year=year)
+
+        csv_bytes = _render_csv(
+            csv_fixture_path(spec.csv_module, "legacy_quantity"),
+            unit_institutional_id=target_unit.institutional_id,
+        )
+        parent, _children = await _drive_csv_ingest(
+            spec=spec,
+            session_factory=Sf,
+            csv_bytes=csv_bytes,
+            target_unit_id=target_unit.id,
+            year=year,
+        )
+
+        stats = (parent.meta or {}).get("stats", {})
+        assert stats.get("row_errors_count", 0) >= 1, (
+            f"legacy quantity header must produce row errors; got stats={stats!r} "
+            f"status_message={parent.status_message!r}"
+        )
+        row_errors = stats.get("row_errors", [])
+        assert any("quantity_kg" in e.get("reason", "") for e in row_errors), (
+            f"row error should name the missing quantity_kg field; got {row_errors!r}"
+        )
+
+        async with Sf() as s:
+            entries = await _read_data_entries(s, carbon_report_module_id=target_crm.id)
+        assert entries == [], (
+            f"no entry may persist from a legacy-header CSV; got {len(entries)} rows"
+        )
     finally:
         await engine.dispose()

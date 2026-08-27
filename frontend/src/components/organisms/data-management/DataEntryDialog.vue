@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import DataEntryDialogContent from 'src/components/molecules/data-management/DataEntryDialogContent.vue';
+import DataEntryDialogContent from '@/components/molecules/data-management/DataEntryDialogContent.vue';
 import type {
   SyncJobResponse,
   ImportRow,
-} from 'src/stores/backofficeDataManagement';
-import { TargetType } from 'src/stores/backofficeDataManagement';
+} from '@/stores/backofficeDataManagement';
+import { TargetType } from '@/stores/backofficeDataManagement';
 
 interface Props {
   modelValue: boolean;

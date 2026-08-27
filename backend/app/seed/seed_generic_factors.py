@@ -1,40 +1,28 @@
 import asyncio
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import app.modules  # noqa: F401  # registers all module + factor handlers
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import TargetType
 from app.models.module_type import get_module_type_for_data_entry_type
-from app.modules.external_cloud_and_ai import (
-    schemas as schemas,
-)  # This ensures the handlers are registered
-from app.modules.process_emissions import (
-    schemas as _pe_schemas,  # noqa: F401 — registers handlers
-)
-from app.modules.purchase import (
-    schemas as _purchase_schemas,  # noqa: F401 — registers handlers
-)
-from app.modules.research_facilities import (
-    animals_schemas as _rf_animals_schemas,  # noqa: F401 — registers handlers
-)
-from app.modules.research_facilities import (
-    common_schemas as _rf_common_schemas,  # noqa: F401 — registers handlers
-)
 from app.schemas.factor import BaseFactorHandler
 from app.seed._stub_jobs import create_seed_stub_job
 from app.services.data_ingestion.csv_providers.local_seed import LocalFactorCSVProvider
+from app.tasks._background import wait_for_background_tasks
 
 logger = get_logger(__name__)
 settings = get_settings()
 versionapi = settings.FORMULA_VERSION_SHA256_SHORT
 
-BACKEND_FOLDER = Path(__file__).parent.parent.parent / "seed_data"
-YEAR = 2025
+INPUT_DATA_FOLDER = Path(__file__).parent.parent.parent / "INPUT_DATA"
+DEFAULT_YEAR = 2025
 
 
 @dataclass
@@ -53,15 +41,16 @@ class FactorSeedConfig:
 
 # building_energycombustions_factors.csv
 # building_rooms_factors.csv
+# buildings_construction_renovation_factors.csv
 # commuting_factors.csv
-# equipments_factors.csv
+# equipment_factors.csv
 # external_ai_factors.csv
 # external_clouds_factors.csv
 # food_factors.csv
 # headcount_member_factors.csv
 # headcount_students_factors.csv
 # processemissions_factors.csv
-# purchases_additional_factors.csv
+# purchases_centralized_factors.csv
 # purchases_common_factors.csv
 # researchfacilities_animals_factors.csv
 # researchfacilities_common_factors.csv
@@ -70,29 +59,29 @@ class FactorSeedConfig:
 # waste_factors.csv
 FACTOR_SEEDS: list[FactorSeedConfig] = [
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "building_energycombustions_factors.csv",
+        path=INPUT_DATA_FOLDER / "building_energycombustions_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.energy_combustion,
         ],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "building_rooms_factors.csv",
+        path=INPUT_DATA_FOLDER / "building_rooms_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.building,
         ],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "buildings_greyenergy_factors.csv",
+        path=INPUT_DATA_FOLDER / "buildings_construction_renovation_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.building_embodied_energy,
         ],
     ),
     # FactorSeedConfig(
-    #     path=BACKEND_FOLDER / "commuting_factors.csv", data_entry_types=[]
+    #     path=INPUT_DATA_FOLDER / "commuting_factors.csv", data_entry_types=[]
     # ),
     # Multi data_entry_type CSV — column differentiates (other, it, scientific)
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "equipments_factors.csv",
+        path=INPUT_DATA_FOLDER / "equipment_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.scientific,
             DataEntryTypeEnum.it,
@@ -101,38 +90,40 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
         data_entry_type_column="equipment_category",
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "external_ai_factors.csv",
+        path=INPUT_DATA_FOLDER / "external_ai_factors.csv",
         data_entry_types=[DataEntryTypeEnum.external_ai],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "external_clouds_factors.csv",
+        path=INPUT_DATA_FOLDER / "external_clouds_factors.csv",
         data_entry_types=[DataEntryTypeEnum.external_clouds],
     ),
-    # FactorSeedConfig(path=BACKEND_FOLDER / "food_factors.csv", data_entry_types=[]),
+    # FactorSeedConfig(
+    #     path=INPUT_DATA_FOLDER / "food_factors.csv", data_entry_types=[]
+    # ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "headcount_member_factors.csv",
+        path=INPUT_DATA_FOLDER / "headcount_member_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.member,
         ],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "headcount_students_factors.csv",
+        path=INPUT_DATA_FOLDER / "headcount_students_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.student,
         ],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "processemissions_factors.csv",
+        path=INPUT_DATA_FOLDER / "processemissions_factors.csv",
         data_entry_types=[DataEntryTypeEnum.process_emissions],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "purchases_additional_factors.csv",
+        path=INPUT_DATA_FOLDER / "purchases_centralized_factors.csv",
         data_entry_types=[
-            DataEntryTypeEnum.additional_purchases,
+            DataEntryTypeEnum.purchases_centralized,
         ],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "purchases_common_factors.csv",
+        path=INPUT_DATA_FOLDER / "purchases_common_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.scientific_equipment,
             DataEntryTypeEnum.it_equipment,
@@ -145,34 +136,40 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
         data_entry_type_column="purchase_category",
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "researchfacilities_animals_factors.csv",
+        path=INPUT_DATA_FOLDER / "researchfacilities_animals_factors.csv",
         data_entry_types=[
-            DataEntryTypeEnum.mice_and_fish_animal_facilities,
+            DataEntryTypeEnum.animal_facilities,
         ],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "researchfacilities_common_factors.csv",
+        path=INPUT_DATA_FOLDER / "researchfacilities_common_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.research_facilities,
         ],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "travel_planes_factors.csv",
+        path=INPUT_DATA_FOLDER / "travel_planes_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.plane,
         ],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "travel_trains_factors.csv",
+        path=INPUT_DATA_FOLDER / "travel_trains_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.train,
         ],
     ),
-    # FactorSeedConfig(path=BACKEND_FOLDER / "waste_factors.csv", data_entry_types=[]),
+    # FactorSeedConfig(
+    #     path=INPUT_DATA_FOLDER / "waste_factors.csv", data_entry_types=[]
+    # ),
 ]
 
 
-async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
+async def seed_factors(
+    session: AsyncSession,
+    config: FactorSeedConfig,
+    year: int = DEFAULT_YEAR,
+) -> None:
     """Seed factors from a CSV using the ingestion pipeline."""
     if not config.data_entry_types:
         raise ValueError("At least one data_entry_type must be provided")
@@ -198,7 +195,7 @@ async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
     provider_config: dict = {
         "local_file_path": str(config.path),
         "module_type_id": module_type.value,
-        "year": YEAR,
+        "year": year,
         "data_entry_type_id": (
             config.data_entry_types[0].value
             if config.data_entry_type_column is None
@@ -213,7 +210,7 @@ async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
     label = ", ".join(det.name for det in config.data_entry_types)
     inserted = result.get("inserted", 0)
     skipped = result.get("skipped", 0)
-    print(f"Created {inserted} factors for [{label}] ({skipped} skipped)")
+    print(f"Created {inserted} factors for [{label}] in {year} ({skipped} skipped)")
 
     # Plant a stub ``factor_ingest`` job so the data-management
     # cards show the seed.  Mirror the real dispatch path's
@@ -231,7 +228,7 @@ async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
             if config.data_entry_type_column is None
             else None
         ),
-        year=YEAR,
+        year=year,
         target_type=TargetType.FACTORS,
         job_type="factor_ingest",
         file_path=config.path,
@@ -240,15 +237,26 @@ async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
     )
 
     await session.commit()
-    logger.info(f"Seeded factors for [{label}].")
+    logger.info(f"Seeded factors for [{label}] in {year}.")
 
 
-async def main() -> None:
+async def seed_all_factors(session: AsyncSession, year: int = DEFAULT_YEAR) -> None:
+    """Seed every CSV in ``FACTOR_SEEDS`` for one reference year."""
+    for config in FACTOR_SEEDS:
+        await seed_factors(session, config, year)
+
+
+async def main(years: Iterable[int] = (DEFAULT_YEAR,)) -> None:
     """Main seed function."""
-
     async with SessionLocal() as session:
-        for config in FACTOR_SEEDS:
-            await seed_factors(session, config)
+        for year in years:
+            await seed_all_factors(session, year)
+    # Each commit above schedules a fire-and-forget taxonomy-cache
+    # broadcast (#2258) once its transaction lands. asyncio.run() below
+    # cancels anything still pending the moment this coroutine returns —
+    # drain it here so seeding doesn't end in a spurious "task was
+    # cancelled" warning.
+    await wait_for_background_tasks()
 
 
 if __name__ == "__main__":

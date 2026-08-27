@@ -2,7 +2,6 @@
 
 import re
 from enum import Enum
-from typing import Optional
 
 from sqlalchemy import Index
 from sqlmodel import Field, SQLModel
@@ -14,8 +13,7 @@ from sqlmodel import Field, SQLModel
 
 # enum - used in other files
 class TransportModeEnum(str, Enum):
-    """
-    Location classification for transport networks.
+    """Location classification for transport networks.
     Used to distinguish airport locations from train station locations.
     """
 
@@ -24,8 +22,7 @@ class TransportModeEnum(str, Enum):
 
 
 class LocationBase(SQLModel):
-    """
-    Shared fields for location records.
+    """Shared fields for location records.
     Stores train stations and airports with their geographic coordinates.
     """
 
@@ -40,7 +37,7 @@ class LocationBase(SQLModel):
         index=True,
         description="Location name (e.g., 'Lyndhurst Halt', 'Utirik Airport')",
     )
-    airport_size: Optional[str] = Field(
+    airport_size: str | None = Field(
         default=None,
         description="Airport size: 'medium_airport' or 'large_airport'",
     )
@@ -52,31 +49,31 @@ class LocationBase(SQLModel):
         nullable=False,
         description="Longitude coordinate (decimal degrees)",
     )
-    continent: Optional[str] = Field(
+    continent: str | None = Field(
         default=None,
         max_length=2,
         index=True,
         description="Continent (e.g., 'EU', 'NA', 'SA')",
     )
-    country_code: Optional[str] = Field(
+    country_code: str | None = Field(
         default=None,
         max_length=2,
         index=True,
         description="ISO country code (e.g., 'AE', 'AL', 'AM')",
     )
-    iata_code: Optional[str] = Field(
+    iata_code: str | None = Field(
         default=None,
         max_length=3,
         index=True,
         description="IATA airport code (e.g., 'UTK', 'OCA') - only for planes",
     )
-    municipality: Optional[str] = Field(
+    municipality: str | None = Field(
         default=None,
         max_length=255,
         index=True,
         description="Municipality (e.g., 'Dubai', 'Berlin')",
     )
-    keywords: Optional[str] = Field(
+    keywords: str | None = Field(
         default=None,
         max_length=255,
         description=(
@@ -92,8 +89,7 @@ class LocationBase(SQLModel):
 
 
 class Location(LocationBase, table=True):
-    """
-    Database table for train stations and airports.
+    """Database table for train stations and airports.
     Inherits Base fields + Audit fields + Adds ID.
     """
 
@@ -116,7 +112,7 @@ class Location(LocationBase, table=True):
     )
 
     # ID: Integer, Primary Key, Auto-Increment
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
 
     natural_key: str = Field(
         max_length=500,
@@ -126,12 +122,12 @@ class Location(LocationBase, table=True):
 
     @staticmethod
     def compute_natural_key(
-        transport_mode: "TransportModeEnum",
-        name: Optional[str] = None,
-        latitude: Optional[float] = None,
-        longitude: Optional[float] = None,
-        country_code: Optional[str] = None,
-        iata_code: Optional[str] = None,
+        transport_mode: TransportModeEnum,
+        name: str | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        country_code: str | None = None,
+        iata_code: str | None = None,
     ) -> str:
         """Python mirror of ``app/seed/seed_locations.py::_NATURAL_KEY_EXPR``.
 
@@ -173,8 +169,7 @@ class Location(LocationBase, table=True):
 
 
 class LocationRead(LocationBase):
-    """
-    Response schema for GET requests.
+    """Response schema for GET requests.
     Returns Data + ID + Audit timestamps.
     """
 

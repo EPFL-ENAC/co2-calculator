@@ -9,13 +9,10 @@ fan-out chain is both unnecessary and incorrect.
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.logging import get_logger
 from app.models.data_ingestion import DataIngestionJob
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks.ingestion_tasks import finalize_ingest_meta
 from app.tasks.registry import register
-
-logger = get_logger(__name__)
 
 
 @register("reference_ingest")
@@ -44,9 +41,11 @@ async def reference_ingest_handler(
         )
 
     job_config = job_meta.get("config") or {}
+    # DataIngestionJob carries no user/created_by field — background jobs
+    # are never attributed to a user (audit falls back to job_id/handler_id).
     provider = provider_class(
         config={**job.__dict__, **job_config, "job_id": job.id},
-        user=job.user if hasattr(job, "user") else None,
+        user=None,
         job_session=job_session,
         data_session=data_session,
     )

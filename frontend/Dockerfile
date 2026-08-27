@@ -1,7 +1,7 @@
 # ==============================================================================
 # Build Stage: Compile and build the application
 # ==============================================================================
-FROM node:24.15.0-alpine AS base
+FROM node:26.5.0-alpine AS base
 
 # Git SHA passed by CI via --build-arg. .git is not in the build context, so
 # quasar.config.js can't run `git rev-parse` itself; it reads this env var
@@ -13,11 +13,6 @@ WORKDIR /app
 
 # Copy package files for dependency installation
 COPY package.json ./
-
-# Enable Corepack
-RUN corepack enable \
- && corepack prepare --activate \
- && npm --version
 
 # ---- Dependencies ----
 FROM base AS deps
@@ -45,7 +40,14 @@ RUN npm run build
 # ==============================================================================
 # Production Stage: Serve with unprivileged Nginx
 # ==============================================================================
-FROM nginxinc/nginx-unprivileged:stable
+FROM nginxinc/nginx-unprivileged:stable-alpine-slim
+
+# CVE-2026-14456: openssl < 3.5.8-r0 in the alpine base; drop once the base
+# image ships the fix (apk upgrade becomes a no-op then). Base runs as
+# uid 101 (nginx) — apk needs root.
+USER root
+RUN apk upgrade --no-cache libcrypto3 libssl3
+USER 101
 
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf

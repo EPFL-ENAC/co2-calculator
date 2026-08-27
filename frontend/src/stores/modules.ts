@@ -1,39 +1,55 @@
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref } from 'vue';
-import { MODULES, Module } from 'src/constant/modules';
-import { api } from 'src/api/http';
+import { MODULES, Module } from '@/constant/modules';
+import { api } from '@/api/http';
+import { getModuleDataEntriesTaxonomies } from '@/api/taxonomies';
 import {
   MODULE_STATES,
   ModuleState,
   ModuleStates,
   getModuleTypeId,
   getModuleFromTypeId,
-} from 'src/constant/moduleStates';
+} from '@/constant/moduleStates';
 
 import type {
   AllSubmoduleTypes,
   ModuleResponse,
   Submodule,
   TaxonomyNode,
-} from 'src/constant/modules';
+} from '@/constant/modules';
 import { useRoute } from 'vue-router';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { buildModulePath, hasValidModuleParams } from 'src/utils/modulePath';
-
-// Maps route names to their carbon_project_type integer (0 = Calculator, 1 = Simulator Explore)
-const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
-  'simulation-explore': 1,
-};
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useSimulatorPlansStore } from '@/stores/simulatorPlans';
+import { buildModulePath, hasValidModuleParams } from '@/utils/modulePath';
+import {
+  toEmissionBreakdown,
+  toItBreakdown,
+  type ReportStats,
+} from '@/utils/emissionStatsAdapter';
+import {
+  carbonReportLookupPath,
+  resolveCarbonProject,
+  type CarbonProject,
+} from '@/constant/carbon-project';
 
 /**
  * API response for validated totals endpoint.
  * `modules` maps module_type_id to its display value
  * (FTE for headcount, tonnes CO₂eq for others).
  */
-interface ValidatedTotalsResponse {
+export interface ValidatedTotalsResponse {
   modules: Record<number, number>;
   total_tonnes_co2eq: number;
   total_fte: number;
+}
+
+/**
+ * The units whose carbon reports are summed on the Results page, and the year
+ * they are summed for. `unitIds` includes the unit currently being viewed.
+ */
+export interface MergedUnitsContext {
+  unitIds: number[];
+  year: number;
 }
 
 export interface EmbodiedEnergyCategoryEntry {
@@ -69,12 +85,43 @@ export interface EmissionBreakdownResponse {
   headcount_validated: boolean;
   buildings_validated: boolean;
   total_tonnes_co2eq: number;
+  /**
+   * Validated-only total (headline figure), merged in by the workspace-home
+   * aggregate. Distinct from `total_tonnes_co2eq`, which covers all modules.
+   * Absent when the breakdown comes from the plain /emission-breakdown route.
+   */
+  total_tonnes_validated_co2eq?: number;
   total_fte: number;
   it_summary?: {
     total_tonnes_co2eq: number;
     percentage_of_total: number;
   };
   embodied_energy_by_category?: EmbodiedEnergyCategoryEntry[];
+  embodied_energy_by_building?: {
+    building_name: string;
+    kg_co2eq: number;
+    tonnes_co2eq: number;
+  }[];
+  /**
+   * Per-module status map, merged in by the workspace-home aggregate so the
+   * guard can hydrate the sidebar timeline without a separate module-states
+   * fetch. Absent on the plain /emission-breakdown route only when the report
+   * has no modules.
+   */
+  module_states?: { module_type_id: number; status: number }[];
+}
+
+export interface MultiYearReportStatsEntry {
+  year: number;
+  total_tonnes_co2eq: number;
+  /** Category key (RESULTS_CATEGORY_ORDER) → tonnes CO2eq. */
+  modules: Record<string, number>;
+  /** Scope number ("1" | "2" | "3") → tonnes CO2eq. */
+  scopes: Record<string, number>;
+}
+
+export interface MultiYearReportStatsResponse {
+  years: MultiYearReportStatsEntry[];
 }
 
 export interface ItBreakdownEmission {
@@ -122,6 +169,10 @@ export interface EmissionBreakdownValue {
 export interface EmissionBreakdownCategoryRow {
   category: string;
   category_key: string;
+  /** GHG scope band (1|2|3) of the stat bucket this row renders. */
+  scope?: number;
+  /** True for informative rows excluded from the organisational total. */
+  additional?: boolean;
   emissions: EmissionBreakdownValue[];
   parent_keys_order: string[];
   [key: string]: unknown;
@@ -135,7 +186,7 @@ export interface EmissionBreakdownCategoryRow {
  * ``GET /v1/sync/active-pipelines``) is the single source of truth
  * for "is there an active pipeline for this module/year?".
  */
-interface CarbonReportModuleResponse {
+export interface CarbonReportModuleResponse {
   id: number;
   inventory_id: number;
   module_type_id: number;
@@ -179,6 +230,24 @@ export const useTimelineStore = defineStore('timeline', () => {
    * Fetch module statuses from the API for a given carbon report.
    * This should be called when a carbon report is selected.
    */
+  /**
+   * Apply already-fetched module states (e.g. from the workspace-home
+   * aggregate) without hitting the API. Same effect as a successful
+   * `fetchModuleStates`, so callers that pre-loaded the data skip the round trip.
+   */
+  function setModuleStates(
+    carbonReportId: number,
+    response: CarbonReportModuleResponse[],
+  ) {
+    currentCarbonReportId.value = carbonReportId;
+    for (const mod of response) {
+      const moduleKey = getModuleFromTypeId(mod.module_type_id);
+      if (moduleKey) {
+        itemStates[moduleKey] = mod.status as ModuleState;
+      }
+    }
+  }
+
   async function fetchModuleStates(carbonReportId: number) {
     loading.value = true;
     error.value = null;
@@ -190,12 +259,7 @@ export const useTimelineStore = defineStore('timeline', () => {
         .json()) as CarbonReportModuleResponse[];
 
       // Update itemStates from API response.
-      for (const mod of response) {
-        const moduleKey = getModuleFromTypeId(mod.module_type_id);
-        if (moduleKey) {
-          itemStates[moduleKey] = mod.status as ModuleState;
-        }
-      }
+      setModuleStates(carbonReportId, response);
     } catch (err: unknown) {
       if (err instanceof Error) {
         error.value = err.message ?? 'Failed to fetch module states';
@@ -235,8 +299,16 @@ export const useTimelineStore = defineStore('timeline', () => {
         )
         .json();
       await fetchModuleStates(currentCarbonReportId.value);
-      useModuleStore().invalidateValidatedTotals();
-      useModuleStore().invalidateEmissionBreakdown();
+      const moduleStore = useModuleStore();
+      moduleStore.invalidateValidatedTotals();
+      moduleStore.invalidateEmissionBreakdown();
+      // Unlike postItem/patchItem/deleteItem, this used to only invalidate
+      // the cache key without refetching — nothing else refetches on a pure
+      // validate/unvalidate (no item CRUD, no carbon-report-id change), so
+      // moduleStore.state.emissionBreakdown (what Home reads for the chart
+      // and validated_categories) stayed stale until an unrelated refetch
+      // happened to fire, or the user hard-refreshed.
+      await moduleStore.refreshEmissionBreakdownIfNeeded();
     } catch (err: unknown) {
       // Revert on error
       itemStates[id] = previousState;
@@ -266,6 +338,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     error,
     currentCarbonReportId,
     fetchModuleStates,
+    setModuleStates,
     setState,
     reset,
     currentState: currentCarbonReportModuleState,
@@ -276,18 +349,13 @@ export const useTimelineStore = defineStore('timeline', () => {
 export const useModuleStore = defineStore('modules', () => {
   const workspaceStore = useWorkspaceStore();
   const $route = useRoute();
-  const carbonProjectType = computed(() => {
-    const name = $route.name;
-    return typeof name === 'string'
-      ? (SIMULATION_ROUTE_CARBON_PROJECT_TYPE[name] ?? 0)
-      : 0;
-  });
+  // Declared by the page's route; see `constant/carbon-project`.
+  const carbonProject = computed(() => resolveCarbonProject($route.meta));
 
   const state = reactive<{
     loading: boolean;
     error: string | null;
     data: ModuleResponse | null;
-    taxonomy: TaxonomyNode | null;
     expandedSubmodules: Record<string, boolean>; // key: submodule ID
     loadingSubmodule: Record<string, boolean>; // key: submodule ID
     errorSubmodule: Record<string, string | null>; // key: submodule ID
@@ -329,7 +397,6 @@ export const useModuleStore = defineStore('modules', () => {
     loading: false,
     error: null,
     data: null,
-    taxonomy: null,
     filterTermSubmodule: reactive({}),
     expandedSubmodules: reactive({}),
     loadingSubmodule: reactive({}),
@@ -361,9 +428,85 @@ export const useModuleStore = defineStore('modules', () => {
     // submodule title counts are available without fetching full submodule data.
     moduleTotalsMap: reactive({} as Record<string, Record<number, number>>),
   });
-  // Backend expects /{unit_id}/{year}/{module_id}; buildModulePath throws on
-  // unresolved unit/year so we never fire a `modules/undefined/null/...` 422.
-  const modulePath = buildModulePath;
+  // ── Identity addressing ("lookup once, then identity") ────────────────
+  // unit/year resolve to a carbon report id once per context; every module
+  // operation then addresses /carbon-reports/{id}/modules/... directly.
+  const reportIdCache = reactive<Record<string, number>>({});
+  // In-flight lookups for the same key share one request: every module
+  // table/chart/select mounting at once would otherwise each fire the same
+  // GET (7 identical lookups observed on explore-page mount, #2360).
+  // Rejections are never stored — a failed lookup retries on the next call.
+  const reportIdInFlight = new Map<string, Promise<number>>();
+
+  // The planner addresses reports by id directly (a unit can hold several
+  // plans with overlapping years, so unit/year cannot identify a report):
+  // planner callers pass `carbonReportId` to modulePath and never reach here.
+  // `project` overrides the route's context for cross-project lookups (the
+  // planner reading the reference year's Calculator roster).
+  async function resolveCarbonReportId(
+    unit: number | string,
+    year: number | string,
+    project: CarbonProject = carbonProject.value,
+  ): Promise<number> {
+    const key = `${unit}|${year}|${project}`;
+    const cached = reportIdCache[key];
+    if (cached) return cached;
+    const inFlight = reportIdInFlight.get(key);
+    if (inFlight) return inFlight;
+    const request = (async () => {
+      const path = carbonReportLookupPath(project, unit, year);
+      const report = await api.get(path).json<{ id: number }>();
+      reportIdCache[key] = report.id;
+      return report.id;
+    })();
+    reportIdInFlight.set(key, request);
+    try {
+      return await request;
+    } finally {
+      reportIdInFlight.delete(key);
+    }
+  }
+
+  // Lets a resolution done elsewhere (the explore page's workspace-home call)
+  // seed this cache, so the module components' later resolveCarbonReportId
+  // calls for the same key hit cache instead of re-resolving (#2360 follow-up).
+  function seedReportId(
+    unit: number | string,
+    year: number | string,
+    project: CarbonProject,
+    id: number,
+  ) {
+    reportIdCache[`${unit}|${year}|${project}`] = id;
+  }
+
+  async function modulePath(
+    moduleType: Module,
+    unit: number | string,
+    year: number | string,
+    carbonReportId?: number,
+  ): Promise<string> {
+    if (carbonReportId != null) {
+      return buildModulePath(moduleType, carbonReportId);
+    }
+    // A planner call that forgot its report id throws in carbonReportLookupPath
+    // rather than silently writing to the Calculator report.
+    return buildModulePath(moduleType, await resolveCarbonReportId(unit, year));
+  }
+
+  // Resolve the carbon_report_module_id for a table's own identity
+  // (moduleType + unit/year or explicit report id). CSV dispatch must never
+  // read it from the shared `state.data`, which another page may have filled
+  // with a different report's module.
+  async function resolveCarbonReportModuleId(
+    moduleType: Module,
+    unit: number | string,
+    year: number | string,
+    carbonReportId?: number,
+  ): Promise<number | undefined> {
+    const path = `${await modulePath(moduleType, unit, year, carbonReportId)}?preview_limit=0`;
+    const data = (await api.get(path).json()) as ModuleResponse;
+    return data?.carbon_report_module_id;
+  }
 
   function initializeSubmoduleState(submoduleId: string) {
     if (!(submoduleId in state.expandedSubmodules)) {
@@ -394,18 +537,20 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getModuleData(moduleType: Module, unit: number, year: string) {
+  async function getModuleData(
+    moduleType: Module,
+    unit: number,
+    year: string,
+    carbonReportId?: number,
+  ) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
     state.loading = true;
     state.error = null;
     state.data = null;
     try {
-      state.data = (await api
-        .get(modulePath(moduleType, unit, year), {
-          searchParams: { carbon_project_type: carbonProjectType.value },
-        })
-        .json()) as ModuleResponse;
+      const base = await modulePath(moduleType, unit, year, carbonReportId);
+      state.data = (await api.get(base).json()) as ModuleResponse;
     } catch (err: unknown) {
       if (err instanceof Error) {
         state.error = err.message ?? 'Unknown error';
@@ -423,6 +568,7 @@ export const useModuleStore = defineStore('modules', () => {
     moduleType: Module,
     unit: number,
     year: string,
+    carbonReportId?: number,
   ) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
@@ -431,12 +577,8 @@ export const useModuleStore = defineStore('modules', () => {
 
     state.data = null;
     try {
-      const path = `${modulePath(moduleType, unit, year)}?preview_limit=0`;
-      state.data = (await api
-        .get(path, {
-          searchParams: { carbon_project_type: carbonProjectType.value },
-        })
-        .json()) as ModuleResponse;
+      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}?preview_limit=0`;
+      state.data = (await api.get(path).json()) as ModuleResponse;
       if (state.data?.data_entry_types_total_items) {
         state.moduleTotalsMap[moduleType] =
           state.data.data_entry_types_total_items;
@@ -452,37 +594,18 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getModuleTaxonomy(moduleType: Module) {
-    state.loading = true;
-    state.error = null;
-    state.taxonomy = null;
-    try {
-      state.taxonomy = (await api
-        .get(`taxonomies/module_type/${encodeURIComponent(moduleType)}`)
-        .json()) as TaxonomyNode;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        state.error = err.message ?? 'Unknown error';
-        state.taxonomy = null;
-      } else {
-        state.error = 'Unknown error';
-        state.taxonomy = null;
-      }
-    } finally {
-      state.loading = false;
-    }
-  }
-
   async function getSubmoduleData({
     moduleType,
     submoduleType,
     unit,
     year,
+    carbonReportId,
   }: {
     moduleType: Module;
     submoduleType: string;
     unit: number;
     year: string;
+    carbonReportId?: number;
   }) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
@@ -508,11 +631,7 @@ export const useModuleStore = defineStore('modules', () => {
       if (filterTerm && filterTerm.trim().length > 0) {
         queryParams.append('filter', filterTerm.trim());
       }
-      queryParams.append(
-        'carbon_project_type',
-        String(carbonProjectType.value),
-      );
-      const url = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(
+      const url = `${await modulePath(moduleType, unit, year, carbonReportId)}/${encodeURIComponent(
         submoduleType,
       )}?${queryParams.toString()}`;
 
@@ -598,6 +717,54 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  /**
+   * Batch variant of getSubmoduleTaxonomy: one round trip for every
+   * submodule of a module instead of one call each (#2049 T6). Populates
+   * the same state.taxonomySubmodule keys, so existing readers (ModuleTable,
+   * ModuleForm, ...) don't need to know which path filled them in.
+   */
+  async function getSubmoduleTaxonomiesBatch(
+    moduleType: Module,
+    submoduleTypes: string[],
+    year: string,
+  ) {
+    if (submoduleTypes.length === 0) return;
+    state.loading = true;
+    state.error = null;
+    for (const submoduleType of submoduleTypes) {
+      state.taxonomySubmodule[submoduleType] = null;
+    }
+    try {
+      const taxonomies = await getModuleDataEntriesTaxonomies(
+        moduleType,
+        submoduleTypes,
+        year,
+      );
+      const missing: string[] = [];
+      for (const submoduleType of submoduleTypes) {
+        // A submodule the backend couldn't resolve (logged loud there,
+        // #2258 follow-up) is simply absent from the response — leave
+        // it null rather than throwing, so one bad entry doesn't blank
+        // every other, already-resolved submodule in the batch too.
+        const node = taxonomies[submoduleType];
+        state.taxonomySubmodule[submoduleType] = node ? markRaw(node) : null;
+        if (!node) missing.push(submoduleType);
+      }
+      // Surface the gap instead of a silently-empty submodule (no
+      // silent fallbacks) — the backend already logged the cause.
+      if (missing.length > 0) {
+        state.error = `Failed to load taxonomy for: ${missing.join(', ')}`;
+      }
+    } catch (err: unknown) {
+      state.error = err instanceof Error ? err.message : 'Unknown error';
+      for (const submoduleType of submoduleTypes) {
+        state.taxonomySubmodule[submoduleType] = null;
+      }
+    } finally {
+      state.loading = false;
+    }
+  }
+
   interface Option {
     label: string;
     value: string;
@@ -621,6 +788,8 @@ export const useModuleStore = defineStore('modules', () => {
     year: string | number,
     submoduleType: string,
     payload: Record<string, FieldValue>,
+    onCreated?: () => void,
+    carbonReportId?: number,
   ) {
     state.error = null;
     try {
@@ -628,7 +797,7 @@ export const useModuleStore = defineStore('modules', () => {
         year = year.toString();
       }
 
-      const path = `${modulePath(moduleType, unitId, year)}/${encodeURIComponent(submoduleType)}?carbon_project_type=${carbonProjectType.value}`;
+      const path = `${await modulePath(moduleType, unitId, year, carbonReportId)}/${encodeURIComponent(submoduleType)}`;
       const normalized: Record<string, string | number | boolean | null> = {};
 
       Object.entries(payload).forEach(([key, raw]) => {
@@ -705,8 +874,14 @@ export const useModuleStore = defineStore('modules', () => {
         }
       }
 
+      // The create POST(s) above succeeded — the item exists server-side.
+      // Notify the caller now, before the unrelated refresh chain below,
+      // so a failure there can't suppress feedback for a create that
+      // already succeeded (#1463).
+      onCreated?.();
+
       // Refresh module totals (used by module page)
-      await getModuleTotals(moduleType, unitId, year);
+      await getModuleTotals(moduleType, unitId, year, carbonReportId);
 
       // Refetch the affected submodule with current pagination/sort state
       await getSubmoduleData({
@@ -714,13 +889,19 @@ export const useModuleStore = defineStore('modules', () => {
         unit: unitId,
         year,
         submoduleType: submoduleType,
+        carbonReportId,
       });
 
       await refreshProfessionalTravelTripsMap(moduleType, unitId, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
-      await refreshTopClassBreakdownIfNeeded(moduleType, unitId, year);
+      await refreshTopClassBreakdownIfNeeded(
+        moduleType,
+        unitId,
+        year,
+        carbonReportId,
+      );
       await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
@@ -736,12 +917,13 @@ export const useModuleStore = defineStore('modules', () => {
     year: string,
     itemId: number,
     payload: Record<string, FieldValue>,
+    carbonReportId?: number,
   ) {
     state.error = null;
     try {
-      const path = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
+      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
         String(itemId),
-      )}?carbon_project_type=${carbonProjectType.value}`;
+      )}`;
 
       // Normalize payload similar to postItem
       const normalized: Record<string, string | number | boolean | null> = {};
@@ -765,20 +947,26 @@ export const useModuleStore = defineStore('modules', () => {
       await api.patch(path, { json: normalized }).json();
 
       // Refresh module totals (used by module page)
-      await getModuleTotals(moduleType, unit, year);
+      await getModuleTotals(moduleType, unit, year, carbonReportId);
 
       await getSubmoduleData({
         submoduleType,
         moduleType,
         unit,
         year,
+        carbonReportId,
       });
 
       await refreshProfessionalTravelTripsMap(moduleType, unit, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
-      await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
+      await refreshTopClassBreakdownIfNeeded(
+        moduleType,
+        unit,
+        year,
+        carbonReportId,
+      );
       await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
@@ -793,17 +981,18 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
     itemId: number,
+    carbonReportId?: number,
   ) {
     state.error = null;
     try {
       // Find affected submodule BEFORE deleting (item won't be in data after deletion)
-      const path = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
+      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
         String(itemId),
-      )}?carbon_project_type=${carbonProjectType.value}`;
+      )}`;
       await api.delete(path);
 
       // Refresh module totals
-      await getModuleTotals(moduleType, unit, year);
+      await getModuleTotals(moduleType, unit, year, carbonReportId);
 
       // Refetch the affected submodule with current pagination/sort state
       await getSubmoduleData({
@@ -811,13 +1000,19 @@ export const useModuleStore = defineStore('modules', () => {
         submoduleType,
         unit,
         year,
+        carbonReportId,
       });
 
       await refreshProfessionalTravelTripsMap(moduleType, unit, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
-      await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
+      await refreshTopClassBreakdownIfNeeded(
+        moduleType,
+        unit,
+        year,
+        carbonReportId,
+      );
       await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
@@ -830,7 +1025,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.loadingTravelStatsByClass = true;
     state.errorTravelStatsByClass = null;
     try {
-      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/professional-travel/stats-by-class`;
+      const path = `${await modulePath(MODULES.ProfessionalTravel, unit, year)}/stats-by-class`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.travelStatsByClass = data;
     } catch (err: unknown) {
@@ -855,7 +1050,7 @@ export const useModuleStore = defineStore('modules', () => {
     year: string,
     force = false,
   ) {
-    const cacheKey = `${unit}|${year}|${carbonProjectType.value}`;
+    const cacheKey = `${unit}|${year}|${carbonProject.value}`;
     if (
       !force &&
       tripsMapCacheKey.value === cacheKey &&
@@ -865,12 +1060,8 @@ export const useModuleStore = defineStore('modules', () => {
     state.loadingTripsMap = true;
     state.errorTripsMap = null;
     try {
-      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/professional-travel/trips-map`;
-      const data = await api
-        .get(path, {
-          searchParams: { carbon_project_type: carbonProjectType.value },
-        })
-        .json<TripsMapResponse>();
+      const path = `${await modulePath(MODULES.ProfessionalTravel, unit, year)}/trips-map`;
+      const data = await api.get(path).json<TripsMapResponse>();
       state.tripsMap = data;
       tripsMapCacheKey.value = cacheKey;
     } catch (err: unknown) {
@@ -899,12 +1090,19 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
     moduleId: string,
+    combineUnitIds: number[] = [],
   ) {
     state.loadingTopClassBreakdown = true;
     state.errorTopClassBreakdown = null;
     state.topClassBreakdown = [];
     try {
-      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleId)}/top-class-breakdown`;
+      const basePath = `${await modulePath(moduleId as Module, unit, year)}/top-class-breakdown`;
+      const searchParams = new URLSearchParams();
+      for (const id of combineUnitIds) {
+        searchParams.append('combine_unit_ids', String(id));
+      }
+      const query = searchParams.toString();
+      const path = query ? `${basePath}?${query}` : basePath;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.topClassBreakdown = data;
     } catch (err: unknown) {
@@ -924,6 +1122,7 @@ export const useModuleStore = defineStore('modules', () => {
     moduleType: Module,
     unit: number,
     year: string,
+    carbonReportId?: number,
   ) {
     const TOP_CLASS_MODULES = [
       MODULES.Equipment,
@@ -932,7 +1131,7 @@ export const useModuleStore = defineStore('modules', () => {
     ];
     if (!(TOP_CLASS_MODULES as Module[]).includes(moduleType)) return;
     try {
-      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleType)}/top-class-breakdown`;
+      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}/top-class-breakdown`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.topClassBreakdown = data;
     } catch {
@@ -946,24 +1145,69 @@ export const useModuleStore = defineStore('modules', () => {
   const emissionBreakdownInFlightToken = ref(0);
   let emissionBreakdownInFlight: Promise<void> | null = null;
 
+  /**
+   * In combined mode the same carbonReportId maps to different data depending
+   * on which units are summed, so the unit set has to be part of the key.
+   */
   function makeBreakdownCacheKey(
     carbonReportId: number,
     excludeModules: number[],
+    merged: MergedUnitsContext | null = null,
   ): string {
-    return `${carbonReportId}::${[...excludeModules].sort((a, b) => a - b).join(',')}`;
+    const base = `${carbonReportId}::${[...excludeModules].sort((a, b) => a - b).join(',')}`;
+    if (!merged) return base;
+    const units = [...merged.unitIds].sort((a, b) => a - b).join(',');
+    return `${base}::m=${units}@${merged.year}`;
+  }
+
+  function reportStatsPath(
+    carbonReportId: number,
+    merged: MergedUnitsContext | null,
+  ): string {
+    if (!merged) {
+      return `modules-stats/${encodeURIComponent(carbonReportId)}/report-stats`;
+    }
+    const searchParams = new URLSearchParams();
+    searchParams.append('year', String(merged.year));
+    for (const id of merged.unitIds) {
+      searchParams.append('unit_ids', String(id));
+    }
+    return `modules-stats/merged/report-stats?${searchParams.toString()}`;
   }
 
   function invalidateEmissionBreakdown() {
     emissionBreakdownCacheKey.value = null;
   }
 
+  /**
+   * Apply an already-fetched emission breakdown (e.g. from the workspace-home
+   * aggregate) and prime the cache key so a subsequent `getEmissionBreakdown`
+   * for the same report/exclude-set short-circuits instead of refetching.
+   */
+  function setEmissionBreakdown(
+    carbonReportId: number,
+    data: EmissionBreakdownResponse,
+    excludeModules: number[] = [],
+  ) {
+    state.emissionBreakdown = data;
+    emissionBreakdownCacheKey.value = makeBreakdownCacheKey(
+      carbonReportId,
+      excludeModules,
+    );
+  }
+
   async function refreshEmissionBreakdownIfNeeded(): Promise<void> {
+    // The planner edits plan-year reports, not the workspace report, so its
+    // whole-plan aggregate is refreshed before the early return below.
+    await useSimulatorPlansStore().refreshAggregateIfActive();
+
     const carbonReportId = workspaceStore.selectedCarbonReport?.id;
     if (!carbonReportId) return;
 
     // Always refetch after mutations so that ResultsPage, ModuleCharts, and
     // simulation pages all reflect the latest data without requiring a report
-    // or year change to bust the cache.
+    // or year change to bust the cache. The report-stats payload already
+    // carries `total_tonnes_validated_co2eq`.
     invalidateEmissionBreakdown();
     await getEmissionBreakdown(carbonReportId, []);
   }
@@ -971,8 +1215,13 @@ export const useModuleStore = defineStore('modules', () => {
   async function getEmissionBreakdown(
     carbonReportId: number,
     excludeModules: number[] = [],
+    merged: MergedUnitsContext | null = null,
   ) {
-    const cacheKey = makeBreakdownCacheKey(carbonReportId, excludeModules);
+    const cacheKey = makeBreakdownCacheKey(
+      carbonReportId,
+      excludeModules,
+      merged,
+    );
     if (emissionBreakdownCacheKey.value === cacheKey) return;
     if (
       emissionBreakdownInFlight &&
@@ -993,17 +1242,15 @@ export const useModuleStore = defineStore('modules', () => {
         emissionBreakdownInFlightCacheKey.value === cacheKey;
 
       try {
-        const params = new URLSearchParams();
-        excludeModules.forEach((id) =>
-          params.append('exclude_modules', String(id)),
-        );
-        const qs = params.toString() ? `?${params.toString()}` : '';
-        const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown${qs}`;
-        const data = await api.get(path).json<EmissionBreakdownResponse>();
+        const stats = await api
+          .get(reportStatsPath(carbonReportId, merged))
+          .json<ReportStats>();
         if (!isLatestRequest()) {
           return;
         }
-        state.emissionBreakdown = data;
+        // exclude_modules is a display filter: drop the excluded buckets
+        // client-side instead of re-aggregating server-side.
+        state.emissionBreakdown = toEmissionBreakdown(stats, excludeModules);
         emissionBreakdownCacheKey.value = cacheKey;
       } catch (err: unknown) {
         if (!isLatestRequest()) {
@@ -1030,6 +1277,20 @@ export const useModuleStore = defineStore('modules', () => {
         emissionBreakdownInFlightCacheKey.value = null;
       }
     }
+  }
+
+  async function getMultiYearReportStats(
+    unitIds: number[],
+  ): Promise<MultiYearReportStatsResponse> {
+    const searchParams = new URLSearchParams();
+    for (const id of unitIds) {
+      searchParams.append('unit_ids', String(id));
+    }
+    return api
+      .get(
+        `modules-stats/merged/multi-year-report-stats?${searchParams.toString()}`,
+      )
+      .json<MultiYearReportStatsResponse>();
   }
 
   // Track which carbon report the cached validated totals belong to
@@ -1064,18 +1325,15 @@ export const useModuleStore = defineStore('modules', () => {
   async function getItBreakdown(
     carbonReportId: number,
     excludeModules: number[] = [],
+    merged: MergedUnitsContext | null = null,
   ) {
     state.loadingItBreakdown = true;
     state.errorItBreakdown = null;
     try {
-      const params = new URLSearchParams();
-      excludeModules.forEach((id) =>
-        params.append('exclude_modules', String(id)),
-      );
-      const qs = params.toString() ? `?${params.toString()}` : '';
-      const path = `modules-stats/${encodeURIComponent(carbonReportId)}/it-breakdown${qs}`;
-      const data = await api.get(path).json<ItBreakdownResponse>();
-      state.itBreakdown = data;
+      const stats = await api
+        .get(reportStatsPath(carbonReportId, merged))
+        .json<ReportStats>();
+      state.itBreakdown = toItBreakdown(stats, excludeModules);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       state.errorItBreakdown = message;
@@ -1096,12 +1354,8 @@ export const useModuleStore = defineStore('modules', () => {
     await Promise.allSettled(
       modules.map(async ({ type, unit, year }) => {
         try {
-          const path = `${modulePath(type, unit, year)}?preview_limit=0`;
-          const response = (await api
-            .get(path, {
-              searchParams: { carbon_project_type: carbonProjectType.value },
-            })
-            .json()) as ModuleResponse;
+          const path = `${await modulePath(type, unit, year)}?preview_limit=0`;
+          const response = (await api.get(path).json()) as ModuleResponse;
           state.moduleTotalsMap[type] = response.data_entry_types_total_items;
         } catch {
           // Non-fatal: counts will fall back to 0 in submoduleCount.
@@ -1114,10 +1368,10 @@ export const useModuleStore = defineStore('modules', () => {
     initializeSubmoduleState,
     getModuleData,
     getModuleTotals,
-    getModuleTaxonomy,
     getSubmoduleData,
     refreshLoadedSubmodules,
     getSubmoduleTaxonomy,
+    getSubmoduleTaxonomiesBatch,
     postItem,
     patchItem,
     deleteItem,
@@ -1127,12 +1381,17 @@ export const useModuleStore = defineStore('modules', () => {
     getValidatedTotals,
     invalidateValidatedTotals,
     getEmissionBreakdown,
+    getMultiYearReportStats,
     invalidateEmissionBreakdown,
+    setEmissionBreakdown,
     refreshEmissionBreakdownIfNeeded,
     getItBreakdown,
     prefetchAllModuleCounts,
     validatedTotalsCarbonReportId,
-    carbonProjectType,
+    carbonProject,
+    resolveCarbonReportId,
+    resolveCarbonReportModuleId,
+    seedReportId,
     state,
   };
 });

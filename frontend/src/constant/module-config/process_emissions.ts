@@ -1,7 +1,7 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { SUBMODULE_PROCESSES_TYPES, MODULES } from 'src/constant/modules';
-import type { ProcessesSubType, Module } from 'src/constant/modules';
-import { formatTonnesCO2 } from 'src/utils/number';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { SUBMODULE_PROCESSES_TYPES, MODULES } from '@/constant/modules';
+import type { ProcessesSubType, Module } from '@/constant/modules';
+import { formatTonnesCO2 } from '@/utils/number';
 const processEmissionsFields: ModuleField[] = [
   {
     id: 'category',
@@ -26,7 +26,7 @@ const processEmissionsFields: ModuleField[] = [
     optionsId: 'subkind',
     labelKey: `${MODULES.ProcessEmissions}.inputs.subcategory`,
     type: 'select',
-    required: false,
+    required: true,
     sortable: true,
     editableInline: true,
     inputTypeName: 'QSelect',
@@ -34,19 +34,13 @@ const processEmissionsFields: ModuleField[] = [
     ratio: '1/3',
     hideIn: { form: false },
     columnSize: 'lg',
-    conditionalVisibility: {
-      showWhen: {
-        fieldId: 'category',
-        value: 'Refrigerant',
-      },
-    },
     icon: 'o_category',
     tooltip:
       'module-process-emissions-submodule-process_emissions-table-subcategory',
   },
   {
-    id: 'quantity',
-    labelKey: `${MODULES.ProcessEmissions}.inputs.quantity`,
+    id: 'quantity_kg',
+    labelKey: `${MODULES.ProcessEmissions}.inputs.quantity_kg`,
     type: 'number',
     required: true,
     editableInline: true,
@@ -60,6 +54,7 @@ const processEmissionsFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     readOnly: true,

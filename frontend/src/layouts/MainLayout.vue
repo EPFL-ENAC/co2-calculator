@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import Co2Header from 'src/components/layout/Co2Header.vue';
-import { useAuthStore } from 'src/stores/auth';
+import Co2Header from '@/components/layout/Co2Header.vue';
+import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
-import { isBackOfficeRoute } from 'src/router/routes';
-import Co2Sidebar from 'src/components/layout/Co2Sidebar.vue';
-import Co2ModuleSidebar from 'src/components/organisms/layout/Co2ModuleSidebar.vue';
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
+import { isBackOfficeRoute } from '@/router/routes';
+import Co2Sidebar from '@/components/layout/Co2Sidebar.vue';
+import Co2ModuleSidebar from '@/components/organisms/layout/Co2ModuleSidebar.vue';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);

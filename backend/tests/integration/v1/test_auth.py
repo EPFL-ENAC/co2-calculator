@@ -6,13 +6,14 @@ from fastapi.testclient import TestClient
 import app.core.config as config
 from app.main import app
 from app.models.user import UserProvider
+from tests.browser import SAME_ORIGIN_HEADERS
 
 API_PREFIX = config.get_settings().API_VERSION
 
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    with TestClient(app, headers=SAME_ORIGIN_HEADERS) as c:
         yield c
 
 
@@ -29,10 +30,12 @@ async def test_login_redirect_uri_https(client, monkeypatch):
         "authorize_redirect",
         fake_authorize_redirect,
     )
+    # Scheme is forced by COOKIE_SECURE, not by the (spoofable) X-Forwarded-Proto
+    # header — see 28c9b927 / c1b87078.
+    monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", True)
 
     response = client.get(
         f"{API_PREFIX}/auth/login",
-        headers={"X-Forwarded-Proto": "https"},
         follow_redirects=False,
     )
     assert response.status_code in (302, 307)

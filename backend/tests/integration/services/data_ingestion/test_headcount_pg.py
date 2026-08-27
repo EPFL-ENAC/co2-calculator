@@ -60,7 +60,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionMethod,
@@ -70,6 +70,7 @@ from app.models.data_ingestion import (
 )
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 
 from .conftest import (
     assert_stats_match,
@@ -144,7 +145,17 @@ def _make_writing_csv_provider(
 # distinct and FTE-weighted totals are easy to verify by inspection.
 _HEADCOUNT_LEAVES: list[tuple[str, str, EmissionType, float, float]] = [
     ("food", "vegetarian", EmissionType.food__vegetarian, 1.0, 100.0),
-    ("waste", "incineration", EmissionType.waste__incineration, 0.5, 50.0),
+    # waste__incineration stopped being a leaf when
+    # waste__incineration__domestic_waste was added under it. Emissions are
+    # only ever computed at leaves, so the factor has to be seeded — and the
+    # rows expected — one level down.
+    (
+        "waste",
+        "incineration",
+        EmissionType.waste__incineration__domestic_waste,
+        0.5,
+        50.0,
+    ),
     (
         "commuting",
         "public_transport",
@@ -158,7 +169,8 @@ _HEADCOUNT_LEAVES: list[tuple[str, str, EmissionType, float, float]] = [
 def _seeded_factors(data_entry_type: DataEntryTypeEnum, year: int) -> list[Factor]:
     """Build the 3 Strategy B headcount factors for ``data_entry_type``,
     covering food / waste / commuting (the three roots in
-    ``MODULE_TYPE_TO_EMISSION_ROOTS[headcount]``)."""
+    ``MODULE_TYPE_TO_EMISSION_ROOTS[headcount]``).
+    """
     return [
         Factor(
             emission_type_id=emission.value,
@@ -178,7 +190,8 @@ def _expected_kg_per_leaf(fte: float) -> dict[int, float]:
     """``{emission_type_id: fte × multiplier × ef}`` for every leaf in
     ``_HEADCOUNT_LEAVES`` — matches the headcount handler's
     ``EmissionComputation`` (formula_key=ef, quantity_key=fte,
-    multiplier_key=number_of_unit_per_fte)."""
+    multiplier_key=number_of_unit_per_fte).
+    """
     return {
         emission.value: fte * mult * ef
         for _, _, emission, ef, mult in _HEADCOUNT_LEAVES

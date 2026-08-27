@@ -1,12 +1,12 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { formatTonnesCO2 } from 'src/utils/number';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { formatTonnesCO2 } from '@/utils/number';
 import {
   SUBMODULE_EXTERNAL_CLOUD_TYPES,
   MODULES,
   MODULES_THRESHOLD_TYPES,
-} from 'src/constant/modules';
-import type { ExternalCloudSubType } from 'src/constant/modules';
-import type { Module } from 'src/constant/modules';
+} from '@/constant/modules';
+import type { ExternalCloudSubType } from '@/constant/modules';
+import type { Module } from '@/constant/modules';
 
 const cloudFields: ModuleField[] = [
   {
@@ -89,6 +89,7 @@ const cloudFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
@@ -141,6 +142,8 @@ const externalAIFields: ModuleField[] = [
     ratio: '4/12',
     sortable: true,
     hideIn: { table: false },
+    // #2000: Calculator defaults to Headcount's validated total; Explorer
+    // has no validated state of its own, so it starts empty instead.
     defaultFrom: 'total_fte',
     columnSize: 'sm',
     tooltip:
@@ -181,6 +184,7 @@ const externalAIFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },

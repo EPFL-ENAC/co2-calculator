@@ -8,16 +8,17 @@ on:
     branches: [main, dev, stage] # Scan PRs targeting these branches
   schedule:
     - cron: "0 0 * * 1" # Weekly scheduled scan
+  workflow_dispatch:
 
 jobs:
   npm-audit:
     name: NPM Security Audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4.4.0
+        uses: actions/setup-node@v5
         with:
           node-version-file: '.nvmrc'
 
@@ -38,7 +39,7 @@ jobs:
         working-directory: ./backend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -46,7 +47,7 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.14
 
       - name: Install dependencies
         run: uv sync
@@ -73,7 +74,7 @@ jobs:
         language: ["javascript", "python"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -94,7 +95,7 @@ jobs:
     name: Secrets Scanning
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

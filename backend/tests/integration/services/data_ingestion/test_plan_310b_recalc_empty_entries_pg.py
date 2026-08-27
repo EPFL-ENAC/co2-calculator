@@ -47,7 +47,8 @@ from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
 def _pending_recalc_job() -> DataIngestionJob:
     """Mirrors what _enqueue_stale_recalculations would create for an
-    external_clouds (det=40) factor reupload."""
+    external_clouds (det=40) factor reupload.
+    """
     return DataIngestionJob(
         entity_type=EntityType.MODULE_PER_YEAR,
         module_type_id=ModuleTypeEnum.external_cloud_and_ai.value,
@@ -73,7 +74,8 @@ def _pending_recalc_job() -> DataIngestionJob:
 @pytest.mark.asyncio
 async def test_workflow_returns_zeros_with_no_entries(pg_dsn):
     """The workflow itself must not raise when there are no DataEntry
-    rows for the (det, year) slice — it returns zeroed stats."""
+    rows for the (det, year) slice — it returns zeroed stats.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

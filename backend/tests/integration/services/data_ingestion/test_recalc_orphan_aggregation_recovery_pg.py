@@ -34,7 +34,7 @@ C. Same orphan: the reconciler loop, given that result, fires
 Requires Docker — see ``conftest.py``'s ``postgres_container``.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -110,7 +110,7 @@ async def _seed_pipeline_with_recalc_siblings(
             kind="csv_ingest",
             status=pipeline_status,
             expected_recalc=expected_recalc,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         s.add(pipeline)
         await s.flush()
@@ -295,11 +295,9 @@ async def test_reconciler_backfill_fires_one_aggregation_per_orphan(Sf, monkeypa
         sibling_states=[IngestionState.FINISHED, IngestionState.FINISHED],
     )
 
-    # Capture fire_and_forget calls (the dispatch side-effect) so the
+    # Swallow fire_and_forget calls (the dispatch side-effect) so the
     # test verifies the aggregation was queued without actually running
     # the handler (which would need its own fixture rig).
-    fired_ids: list[int] = []
-
     def _capture_fire(coro, *_args, **_kwargs):
         # ``chain_job`` calls ``fire_and_forget(run_job(child_id), ...)``;
         # the coroutine has the child_id in its locals.  Easier: capture
@@ -327,10 +325,6 @@ async def test_reconciler_backfill_fires_one_aggregation_per_orphan(Sf, monkeypa
             "orphan should disappear from the next sweep's selection now "
             "that an aggregation child exists"
         )
-        # Tracking aside — ``fired_ids`` would be populated if we
-        # parsed coro locals; the assertion on ``fired`` and the
-        # post-state row count is enough to pin the contract.
-        del fired_ids
 
 
 # ----------------------------------------------------------------------

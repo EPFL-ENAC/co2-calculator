@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { useModuleConfig } from 'src/composables/useModuleConfig';
+import { computed } from 'vue';
+import { useModuleConfig } from '@/composables/useModuleConfig';
+import { useYearConfigStore } from '@/stores/yearConfig';
 import { useI18n } from 'vue-i18n';
 
 interface Props {
@@ -8,6 +10,10 @@ interface Props {
 
 const props = defineProps<Props>();
 const { t: $t } = useI18n();
+
+const yearConfigStore = useYearConfigStore();
+
+const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
 
 const {
   isModuleEnabled,
@@ -36,15 +42,21 @@ const {
       <div class="text-body2 text-secondary q-mb-sm">
         {{ $t('data_management_module_activation_description') }}
       </div>
-      <q-toggle
-        :model-value="isModuleEnabled(props.module)"
-        color="accent"
-        keep-color
-        size="lg"
-        @update:model-value="
-          (val: boolean) => updateModuleEnabled(props.module, val)
-        "
-      />
+      <div class="inline-block">
+        <q-toggle
+          :model-value="isModuleEnabled(props.module)"
+          color="accent"
+          keep-color
+          size="lg"
+          :disable="activationLocked"
+          @update:model-value="
+            (val: boolean) => updateModuleEnabled(props.module, val)
+          "
+        />
+        <q-tooltip v-if="activationLocked">
+          {{ $t('data_management_activation_locked_year_open') }}
+        </q-tooltip>
+      </div>
     </q-card>
   </q-card>
 

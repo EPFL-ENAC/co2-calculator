@@ -16,21 +16,48 @@ for the dev / stage / pre-production URLs and deployment topology.
 
 - **Make** (build automation)
 - **Node.js** v24+ with npm
-- **Python** 3.12+ with **uv** (install: `brew install uv`)
+- **Python** 3.14+ with **uv** (install: `brew install uv`)
 - **Docker** (for database)
 
-### Installation
+### 1. Install dependencies
 
 ```bash
-# Install all dependencies and set up git hooks
+# Install all dependencies, set up git hooks, and create the
+# env files below from their .example templates if missing
 make install
 # List helpful targets
 make help
 ```
 
-### Development Workflow
+### 2. Configure environment files
 
-**Option 1: Run services separately (recommended)**
+The repo contains several `.env.example` files. For local development only one
+needs editing:
+
+| File                  | Created by `make install`         | What to do                                                                                            |
+| --------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `backend/.env`        | ✅ (from `backend/.env.example`)  | **Required:** uncomment the `localhost` `DB_URL` line (PostgreSQL — SQLite cannot run the migrations) |
+| `.database.env`       | ✅ (from `.database.env.example`) | Nothing — credentials for the Dockerized PostgreSQL, already matching the `DB_URL` above              |
+| `frontend/.env.local` | ❌ (copy `frontend/.env.example`) | Optional — only needed for Sentry/GlitchTip and other `APP_*` extras; the app runs fine without it    |
+
+Keep the defaults from `backend/.env.example` — in particular `DEBUG=True`,
+which enables the test login used below. No OAuth/OIDC or Accred credentials
+are needed for local development.
+
+### 3. Set up the database
+
+```bash
+# Start PostgreSQL (docker compose reads backend/.env and .database.env)
+docker compose up -d postgres
+
+# Create the database, run migrations, and seed development data
+cd backend
+make db-create
+make db-migrate
+make seed-data
+```
+
+### 4. Run the app
 
 ```bash
 # Terminal 1 - Start backend (http://localhost:8000)
@@ -40,15 +67,16 @@ cd backend && make dev
 cd frontend && make dev
 ```
 
-**Option 2: Database management (if needed)**
+### 5. Log in
 
-```bash
-# Start PostgreSQL
-docker compose up -d postgres
+Open **<http://localhost:9000/en/login-test>** (or `/fr/login-test`) and pick a
+test role.
 
-# Run migrations
-cd backend && make db-migrate
-```
+- The language prefix is required — a bare `/login-test` is a 404.
+- The default `/login` page goes through the real OAuth flow, which is not
+  configured locally (it fails with `Missing "authorize_url"`).
+- The test login page only exists when the backend runs with `DEBUG=True` and
+  is never available in production builds.
 
 ### CI Validation (before pushing to dev/stage/main)
 
@@ -70,6 +98,7 @@ make build         # Build projects
 ### Code Quality
 
 [![Codecov](https://codecov.io/gh/EPFL-ENAC/co2-calculator/branch/main/graph/badge.svg?flag=backend)](https://codecov.io/gh/EPFL-ENAC/co2-calculator)
+[![Claude Code carbon footprint](https://img.shields.io/badge/claude--carbon-19.8%20kg%20CO2e-2f6f4f)](https://github.com/gwittebolle/claude-carbon)
 
 ### Security & Status
 

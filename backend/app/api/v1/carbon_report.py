@@ -1,31 +1,37 @@
 """Carbon Report API endpoints."""
 
-from datetime import datetime, timezone
-from typing import List
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.core.policy import require_module_unit_scope, require_unit_access
+from app.core.policy import (
+    require_module_unit_scope,
+    require_plan_scope_for_report,
+    require_unit_access,
+)
 from app.db import SessionLocal
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import (
+    CarbonReportBudgetUpdate,
     CarbonReportCreate,
+    CarbonReportModuleActiveUpdate,
     CarbonReportModuleRead,
     CarbonReportModuleUpdate,
     CarbonReportRead,
+    CarbonReportReferencePercentageUpdate,
+    CarbonReportSubmoduleBudgetUpdate,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 
-_EXPLORE_TTL_SECONDS = 24 * 60 * 60  # 24 hours
-
 
 async def _refresh_explore_background(
-    unit_id: int, old_report_id: int, reference_year: int
+    unit_id: int, old_report_id: int, reference_year: int, created_by: int
 ) -> None:
     """Delete a stale Simulator Explore report and create a fresh one.
 
@@ -36,7 +42,9 @@ async def _refresh_explore_background(
     async with SessionLocal() as db:
         service = CarbonReportService(db)
         await service.delete(old_report_id)
-        await service.create_explore(unit_id=unit_id, reference_year=reference_year)
+        await service.create_explore(
+            unit_id=unit_id, reference_year=reference_year, created_by=created_by
+        )
         await db.commit()
 
 
@@ -44,7 +52,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/unit/{unit_id}/", response_model=List[CarbonReportRead])
+@router.get("/unit/{unit_id}/", response_model=list[CarbonReportRead])
 async def list_carbon_reports_by_unit(
     unit_id: int,
     db: AsyncSession = Depends(get_db),
@@ -102,27 +110,36 @@ async def get_simulator_explore_carbon_report(
 ):
     """Get an existing Simulator Explore carbon report.
 
-    If the report has exceeded its TTL (24 h) a background task is scheduled
+    If the report has exceeded its TTL (EXPLORE_TTL_SECONDS) a background task
+    is scheduled
     to delete the stale report and seed a fresh one — the current (stale)
     report is returned immediately so the user is not blocked.
     """
     unit = await db.get(Unit, unit_id)
     require_unit_access(current_user, unit)
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID missing",
+        )
     service = CarbonReportService(db)
-    result = await service.get_explore(unit_id=unit_id, reference_year=reference_year)
+    result = await service.get_explore(
+        unit_id=unit_id, reference_year=reference_year, created_by=current_user.id
+    )
     if result is None:
         raise HTTPException(
             status_code=404, detail="Simulator Explore report not found"
         )
 
-    now_ts = int(datetime.now(timezone.utc).timestamp())
+    now_ts = int(datetime.now(UTC).timestamp())
     age = now_ts - int(result.last_updated or 0)
-    if result.last_updated is None or age > _EXPLORE_TTL_SECONDS:
+    if result.last_updated is None or age > get_settings().EXPLORE_TTL_SECONDS:
         background_tasks.add_task(
             _refresh_explore_background,
             unit_id=unit_id,
             old_report_id=result.id,
             reference_year=reference_year,
+            created_by=current_user.id,
         )
 
     return result
@@ -139,16 +156,24 @@ async def create_simulator_explore_carbon_report(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new Simulator Explore carbon report seeded from the Calculator report.
+    """Create a new, empty Simulator Explore carbon report.
 
-    The explore report is seeded from the unit's Calculator report.
+    The report is created with its modules and no entries — Simulator Explore is
+    never seeded from the Calculator. Only the Simulator Plan prefills, and only
+    from the reference year its user picks.
     """
     unit = await db.get(Unit, unit_id)
     require_unit_access(current_user, unit)
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID missing",
+        )
     service = CarbonReportService(db)
     result = await service.create_explore(
         unit_id=unit_id,
         reference_year=reference_year,
+        created_by=current_user.id,
     )
     await db.commit()
     return result
@@ -173,7 +198,7 @@ async def get_carbon_report(
 # --- CarbonReportModule endpoints ---
 
 
-@router.get("/{carbon_report_id}/modules/", response_model=List[CarbonReportModuleRead])
+@router.get("/{carbon_report_id}/modules/", response_model=list[CarbonReportModuleRead])
 async def list_carbon_report_modules(
     carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
@@ -210,8 +235,7 @@ async def update_carbon_report_module_status(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Update the status of a carbon report module.
+    """Update the status of a carbon report module.
 
     Status values:
     - 0: not_started
@@ -254,5 +278,162 @@ async def update_carbon_report_module_status(
 
     await report_service.recompute_report_stats(carbon_report_id)
     await report_service.recompute_report_progress(carbon_report_id)
+    await db.commit()
+    return result
+
+
+@router.patch(
+    "/{carbon_report_id}/modules/{module_type_id}/active",
+    response_model=CarbonReportModuleRead,
+)
+async def update_carbon_report_module_active(
+    carbon_report_id: int,
+    module_type_id: int,
+    update: CarbonReportModuleActiveUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle a module's Active flag (Simulator Plan checkbox).
+
+    Inactive modules are excluded from the report's sums, stats and
+    completion progress; the report stats are recomputed immediately.
+    """
+    report_service = CarbonReportService(db)
+    report = await report_service.get(carbon_report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Carbon report not found")
+
+    unit = await db.get(Unit, report.unit_id)
+    require_unit_access(current_user, unit)
+    await require_plan_scope_for_report(db, current_user, report, "edit")
+
+    module_service = CarbonReportModuleService(db)
+    result = await module_service.update_is_active(
+        carbon_report_id, module_type_id, update.is_active
+    )
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Module type {module_type_id} not found for "
+                f"carbon report {carbon_report_id}"
+            ),
+        )
+
+    await report_service.recompute_report_stats(carbon_report_id)
+    await report_service.recompute_report_progress(carbon_report_id)
+    await db.commit()
+    return result
+
+
+async def _require_grant_report_edit(
+    db: AsyncSession, current_user: User, carbon_report_id: int
+) -> CarbonReportService:
+    """Load a Project Grant report and enforce plan-edit access on it.
+
+    404 when the report is missing, 409 when it is not a grant report —
+    budgets exist only on the Project Grant section (#1978).
+    """
+    report_service = CarbonReportService(db)
+    report = await report_service.get(carbon_report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Carbon report not found")
+    unit = await db.get(Unit, report.unit_id)
+    require_unit_access(current_user, unit)
+    await require_plan_scope_for_report(db, current_user, report, "edit")
+    if not report.is_grant:
+        raise HTTPException(
+            status_code=409,
+            detail="Budgets only apply to Project Grant reports",
+        )
+    return report_service
+
+
+@router.patch("/{carbon_report_id}/budget", response_model=CarbonReportRead)
+async def update_carbon_report_budget(
+    carbon_report_id: int,
+    update: CarbonReportBudgetUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set a Project Grant report's total budget (#1978)."""
+    report_service = await _require_grant_report_edit(
+        db, current_user, carbon_report_id
+    )
+    result = await report_service.set_budget(
+        carbon_report_id, update.budget, update.budget_currency
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Carbon report not found")
+    await db.commit()
+    return result
+
+
+@router.patch(
+    "/{carbon_report_id}/modules/{module_type_id}/reference-percentage",
+    response_model=dict,
+)
+async def update_carbon_report_module_reference_percentage(
+    carbon_report_id: int,
+    module_type_id: int,
+    update: CarbonReportReferencePercentageUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Apply one reference percentage to every snapshot entry of a module.
+
+    Backs the grant equipment "global percentage" mode (#1981): the
+    calculator's prefilled lines are kept and one percentage prices them
+    all. Only Project Grant reports carry this mode.
+    """
+    report_service = await _require_grant_report_edit(
+        db, current_user, carbon_report_id
+    )
+    module_service = CarbonReportModuleService(db)
+    updated = await module_service.set_reference_percentage_all(
+        carbon_report_id, module_type_id, update.percentage
+    )
+    if updated is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Module type {module_type_id} not found for "
+                f"carbon report {carbon_report_id}"
+            ),
+        )
+    await report_service.recompute_report_stats(carbon_report_id)
+    await db.commit()
+    return {"updated_entries": updated}
+
+
+@router.patch(
+    "/{carbon_report_id}/modules/{module_type_id}/budget",
+    response_model=CarbonReportModuleRead,
+)
+async def update_carbon_report_submodule_budget(
+    carbon_report_id: int,
+    module_type_id: int,
+    update: CarbonReportSubmoduleBudgetUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set a grant submodule's share of the budget (#1978).
+
+    The frontend checks the submodule budgets against the grant's total and
+    surfaces the non-distributed or over-distributed remainder.
+    """
+    await _require_grant_report_edit(db, current_user, carbon_report_id)
+    module_service = CarbonReportModuleService(db)
+    result = await module_service.update_submodule_budget(
+        carbon_report_id, module_type_id, update.submodule, update.budget
+    )
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Module type {module_type_id} not found for "
+                f"carbon report {carbon_report_id}"
+            ),
+        )
     await db.commit()
     return result

@@ -1,11 +1,12 @@
 """User schemas for API request/response validation."""
 
 from datetime import datetime
-from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, computed_field
 
 from app.models.user import Role, UserBase, UserProvider
+from app.schemas.unit import UnitWithUserRole
+from app.schemas.year_configuration import YearConfigurationListItem
 
 
 class UserRead(UserBase):
@@ -16,14 +17,14 @@ class UserRead(UserBase):
     """
 
     id: int
-    display_name: Optional[str] = None
+    display_name: str | None = None
     email: EmailStr
-    last_login: Optional[datetime] = None
+    last_login: datetime | None = None
     provider: UserProvider
     institutional_id: str
 
     @computed_field
-    def is_user_test(self) -> Optional[bool]:
+    def is_user_test(self) -> bool | None:
         """Indicates if user is a test user (from test login endpoint).
 
         Computed from the provider field - returns True if provider is TEST,
@@ -40,18 +41,48 @@ class UserRead(UserBase):
         return self.calculate_permissions()
 
 
+class SessionRead(BaseModel):
+    """Bootstrap payload for ``GET /v1/session``.
+
+    Bundles everything the frontend needs at app-init in a single call: the
+    current user (unchanged ``UserRead`` shape), the units the user can access,
+    and the globally-configured years for the workspace year selector. This
+    collapses what used to be three separate calls (``/session`` + ``/users/units``
+    + ``/year-configuration/``) into one.
+
+    ``min_configurable_year`` is also echoed on the single-year
+    ``YearConfigurationResponse``, but that one only exists once a row has
+    been created for the requested year. Bundling it here too gives the
+    frontend a source that doesn't depend on any particular year existing —
+    e.g. the backoffice year selector can seed its lower bound even when the
+    current real-world year has no ``YearConfiguration`` row yet.
+
+    ``client_ip`` is the caller's own address, which the browser cannot
+    discover on its own — it is echoed back so the frontend can put a real IP
+    on its GlitchTip error reports instead of a placeholder. Omitted when the
+    ASGI server reports no client (``response_model_exclude_none``), never
+    faked.
+    """
+
+    user: UserRead
+    units: list[UnitWithUserRole]
+    configured_years: list[YearConfigurationListItem]
+    min_configurable_year: int
+    client_ip: str | None = None
+
+
 class UserCreate(BaseModel):
     """Schema for creating a new user in backoffice."""
 
     id: str
     email: EmailStr
-    display_name: Optional[str] = None
-    roles: Optional[List[Role]] = None
+    display_name: str | None = None
+    roles: list[Role] | None = None
     provider: UserProvider = UserProvider.DEFAULT
 
 
 class UserUpdate(BaseModel):
     """Schema for updating a user in backoffice."""
 
-    display_name: Optional[str] = None
-    roles: Optional[List[Role]] = None
+    display_name: str | None = None
+    roles: list[Role] | None = None

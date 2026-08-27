@@ -1,21 +1,27 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { nOrDash } from 'src/utils/number';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ReportPage from 'src/components/organisms/ReportPage.vue';
-import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
-import AdditionalCategoriesSection from 'src/components/organisms/AdditionalCategoriesSection.vue';
-import ItFocusSection from 'src/components/organisms/ItFocusSection.vue';
-import ResultsPrintModulePage from 'src/components/organisms/print/ResultsPrintModulePage.vue';
-import { useResultsPrintData } from 'src/composables/print/useResultsPrintData';
-import { useModuleStore } from 'src/stores/modules';
+import { nOrDash } from '@/utils/number';
+import { toPrintDocumentTitle } from '@/utils/unitPerimeterLabel';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import ReportPage from '@/components/organisms/ReportPage.vue';
+import CarbonFootPrintPerPersonChart from '@/components/charts/results/CarbonFootPrintPerPersonChart.vue';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
+import AdditionalCategoriesSection from '@/components/organisms/AdditionalCategoriesSection.vue';
+import ItFocusSection from '@/components/organisms/ItFocusSection.vue';
+import PrintReportShell from '@/components/organisms/print/PrintReportShell.vue';
+import ResultsPrintModulePage from '@/components/organisms/print/ResultsPrintModulePage.vue';
+import { useResultsPrintData } from '@/composables/print/useResultsPrintData';
+import { useModuleStore } from '@/stores/modules';
+import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
 
 const {
   resultsSummary,
   resultsSummaryLoading,
   currentYear,
+  combinedUnitIds,
+  scopeLabel,
+  excludedModules,
   viewAdditionalData,
   co2PerKmKg,
   hasCo2PerKmKg,
@@ -45,6 +51,7 @@ const {
 
 const moduleStore = useModuleStore();
 const { t } = useI18n();
+const { anyAdditionalCategoryActive } = useModuleCategoriesAvailability();
 
 const yearComparisonPct = computed(
   () => resultsSummary.value?.unit_totals.year_comparison_percentage ?? null,
@@ -113,39 +120,27 @@ function formatPercentChange(value: number | null | undefined): string {
   return percentChangeFormatter.format(value / 100);
 }
 
-function printReport() {
-  window.print();
-}
-
 onMounted(async () => {
   const carbonReportId = await initWorkspaceFromRoute();
   if (!carbonReportId) return;
 
   await loadModulesConfig();
   await fetchAllData(carbonReportId);
+
+  // Chrome seeds the "Save as PDF" filename from the document title.
+  document.title = toPrintDocumentTitle(
+    scopeLabel.value,
+    t('results_print_title'),
+  );
 });
 </script>
 
 <template>
-  <div class="bg-grey-2 print-report">
-    <q-toolbar class="bg-ac text-primary q-py-sm print-toolbar print-hide">
-      <q-space />
-      <q-btn
-        color="accent"
-        icon="o_print"
-        size="md"
-        class="text-weight-medium"
-        :label="$t('results_print')"
-        @click="printReport"
-      />
-    </q-toolbar>
-
-    <div
-      v-if="resultsSummary && !resultsSummaryLoading"
-      class="report-container"
-    >
+  <PrintReportShell :loading="resultsSummaryLoading || !resultsSummary">
+    <template v-if="resultsSummary">
       <ReportPage
         :title="$t('results_print_title')"
+        :scope="scopeLabel"
         :page-number="1"
         :is-first="true"
       >
@@ -153,7 +148,7 @@ onMounted(async () => {
           {{ $t('results_print_title') }}
         </h2>
         <div class="text-body2 text-secondary report-subtitle">
-          {{ $t('results_subtitle', { year: currentYear }) }}
+          {{ scopeLabel }}
         </div>
 
         <div class="grid-3-col q-mt-lg">
@@ -240,7 +235,6 @@ onMounted(async () => {
             :validated-categories="validatedCategories"
             :headcount-validated="headcountValidatedForPerPerson"
             :view-additional-data="viewAdditionalData"
-            :print-mode="true"
           />
         </section>
       </ReportPage>
@@ -256,11 +250,15 @@ onMounted(async () => {
         :has-co2-per-km-kg="hasCo2PerKmKg"
         :co2-per-km-kg="co2PerKmKg"
         :current-year="currentYear"
+        :combine-unit-ids="combinedUnitIds"
+        :exclude-modules="excludedModules"
+        :scope="scopeLabel"
       />
 
       <ReportPage
         v-if="showItFocusSection"
         :title="$t('it-focus-title')"
+        :scope="scopeLabel"
         :page-number="itPageNumber"
       >
         <h2 class="text-h5 q-mt-none">
@@ -283,9 +281,11 @@ onMounted(async () => {
         v-if="
           viewAdditionalData &&
           additionalBreakdown.length > 0 &&
-          additionalChartsValidated
+          additionalChartsValidated &&
+          anyAdditionalCategoryActive
         "
         :title="$t('results_additional_title')"
+        :scope="scopeLabel"
         :page-number="additionalPageNumber"
       >
         <h2 class="text-h5 q-mt-none">
@@ -311,27 +311,12 @@ onMounted(async () => {
           />
         </q-card>
       </ReportPage>
-    </div>
-  </div>
+    </template>
+  </PrintReportShell>
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
-
-.report-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: tokens.$print-report-container-padding;
-  color: tokens.$color-text !important;
-}
-
-.toolbar {
-  position: sticky;
-  top: 0;
-  border-bottom: 1px solid var(--half-muted-color);
-  z-index: tokens.$print-toolbar-z-index;
-}
+@use '@/css/02-tokens' as tokens;
 
 .module-page-header {
   margin-bottom: 0px;

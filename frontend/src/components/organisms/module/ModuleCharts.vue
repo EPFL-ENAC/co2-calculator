@@ -26,26 +26,23 @@
     <template v-else>
       <template v-if="!isPrintMode">
         <div class="flex w-full items-center justify-between q-mx-lg">
-          <div class="text-body1 text-weight-medium q-ml-sm q-mb-md text-black">
-            {{ carbonFootprintTitle }}
-          </div>
           <div
-            v-if="showControls"
-            class="flex items-center no-wrap q-gutter-xs"
+            class="flex items-center no-wrap q-ml-sm q-mb-md text-body1 text-weight-medium text-black"
           >
+            {{ carbonFootprintTitle }}
             <q-btn
-              v-if="emissionTypeInfoKey && moduleChartView === 'type'"
+              v-if="emissionTypeInfoKey"
               flat
               round
               dense
               icon="info_outline"
               size="sm"
-              class="text-grey-7"
+              class="text-grey-7 q-ml-xs"
               :aria-label="t('emission-type-breakdown-info-aria')"
             >
               <q-tooltip
-                anchor="bottom right"
-                self="top right"
+                anchor="bottom left"
+                self="top left"
                 :offset="[0, 8]"
                 max-width="320px"
                 class="text-body2"
@@ -53,6 +50,11 @@
                 {{ t(emissionTypeInfoKey) }}
               </q-tooltip>
             </q-btn>
+          </div>
+          <div
+            v-if="showControls"
+            class="flex items-center no-wrap q-gutter-xs"
+          >
             <div class="chart-view-toggle">
               <q-btn
                 unelevated
@@ -170,30 +172,31 @@
 <script setup lang="ts">
 import { computed, inject, ref, watch, type ComputedRef } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Module, MODULES } from 'src/constant/modules';
-import ChartEmptyState from 'src/components/molecules/ChartEmptyState.vue';
-import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
-import TripsMap from 'src/components/molecules/TripsMap.vue';
-import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
-import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
-import { useModuleStore } from 'src/stores/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useAuthStore } from 'src/stores/auth';
-import { PermissionAction } from 'src/utils/permission';
-import { usePrintMode } from 'src/composables/print/usePrintMode';
+import { Module, MODULES } from '@/constant/modules';
+import ChartEmptyState from '@/components/molecules/ChartEmptyState.vue';
+import HeadCountBarChart from '@/components/molecules/HeadCountBarChart.vue';
+import TripsMap from '@/components/molecules/TripsMap.vue';
+import GenericEmissionTreeMapChart from '@/components/charts/GenericEmissionTreeMapChart.vue';
+import EmissionTypeBreakdownChart from '@/components/charts/results/EmissionTypeBreakdownChart.vue';
+import { useModuleStore, type MergedUnitsContext } from '@/stores/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useAuthStore } from '@/stores/auth';
+import { PermissionAction } from '@/utils/permission';
+import { usePrintMode } from '@/composables/print/usePrintMode';
 import {
   buildModuleTreemapData,
   CATEGORY_CHART_KEYS,
-} from 'src/composables/useEmissionTreemap';
+} from '@/composables/useEmissionTreemap';
 import {
   CHART_CATEGORY_COLOR_SCALES,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
   MODULE_TO_CATEGORIES,
-} from 'src/constant/charts';
-import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
-import { getHeadcountChartKeys } from 'src/utils/headcountChart';
-import { getHeadcountMembers } from 'src/api/modules';
-import { resolveTravelerNames } from 'src/utils/trips-map-data';
+} from '@/constant/charts';
+import { getEmissionTypeBreakdownInfoKey } from '@/constant/emissionTypeBreakdownInfo';
+import { getHeadcountChartKeys } from '@/utils/headcountChart';
+import { getHeadcountMembers } from '@/api/modules';
+import { resolveTravelerNames } from '@/utils/trips-map-data';
+import { travelerSentinelMapEntries } from '@/constant/module-config/traveler-options';
 
 const props = withDefaults(
   defineProps<{
@@ -202,10 +205,20 @@ const props = withDefaults(
     forcedView?: 'breakdown' | 'type';
     showControls?: boolean;
     printMode?: boolean;
+    /** Extra units whose entries are ranked together with the current unit's. */
+    combineUnitIds?: number[];
+    /**
+     * Module type ids the parent has filtered out. Must match what the parent
+     * passed to `getEmissionBreakdown`, or the refetch below misses the shared
+     * cache and overwrites the parent's breakdown with an unfiltered one.
+     */
+    excludeModules?: number[];
   }>(),
   {
     showControls: true,
-    forcedView: 'breakdown',
+    forcedView: 'type',
+    combineUnitIds: () => [],
+    excludeModules: () => [],
   },
 );
 
@@ -248,9 +261,12 @@ watch(
   },
 );
 
-const emissionTypeInfoKey = computed(() =>
-  getEmissionTypeBreakdownInfoKey(props.type),
-);
+const emissionTypeInfoKey = computed(() => {
+  const key = getEmissionTypeBreakdownInfoKey(props.type);
+  // Honor the tooltips.ts convention: empty copy hides the icon.
+  if (!key || !te(key) || !t(key)) return null;
+  return key;
+});
 
 const carbonFootprintTitle = computed(() => {
   const moduleKey = `carbon_footprint_title_${props.type}`;
@@ -316,6 +332,17 @@ const supportsTopClassBreakdown = computed(() =>
   TOP_CLASS_MODULES.includes(props.type),
 );
 
+/**
+ * Mirrors the Results page's combined-units context. Without it the breakdown
+ * refetch below would overwrite the combined data with this unit's alone.
+ */
+const mergedUnitsContext = computed<MergedUnitsContext | null>(() => {
+  const unitId = workspaceStore.selectedUnit?.id;
+  const year = workspaceStore.selectedYear;
+  if (!props.combineUnitIds.length || !unitId || !year) return null;
+  return { unitIds: [unitId, ...props.combineUnitIds], year };
+});
+
 function fetchTopClassBreakdownIfNeeded() {
   const unitId = workspaceStore.selectedUnit?.id;
   const year = workspaceStore.selectedYear;
@@ -324,7 +351,12 @@ function fetchTopClassBreakdownIfNeeded() {
     return;
   }
   if (unitId && year && supportsTopClassBreakdown.value) {
-    void moduleStore.getTopClassBreakdown(unitId, String(year), props.type);
+    void moduleStore.getTopClassBreakdown(
+      unitId,
+      String(year),
+      props.type,
+      props.combineUnitIds,
+    );
   }
 }
 
@@ -336,14 +368,15 @@ const travelerNames = ref<Map<string, string>>(new Map());
 async function loadTravelerNames(unitId: number, year: number | string) {
   try {
     const members = await getHeadcountMembers(
-      unitId,
-      year,
-      moduleStore.carbonProjectType,
+      await moduleStore.resolveCarbonReportId(unitId, year),
     );
-    travelerNames.value = new Map(
-      members.map((m) => [m.institutional_id, m.name]),
-    );
+    travelerNames.value = new Map([
+      ...travelerSentinelMapEntries(t),
+      ...members.map((m): [string, string] => [m.institutional_id, m.name]),
+    ]);
   } catch (err) {
+    // Still resolve the sentinels even if the roster fetch fails.
+    travelerNames.value = new Map(travelerSentinelMapEntries(t));
     // Non-fatal: legs simply fall back to showing the raw SCIPER.
     console.error('Failed to load headcount members for trips map', err);
   }
@@ -352,17 +385,35 @@ async function loadTravelerNames(unitId: number, year: number | string) {
 function fetchTripsMapIfNeeded() {
   const unitId = workspaceStore.selectedUnit?.id;
   const year = workspaceStore.selectedYear;
-  if (unitId && year && props.type === MODULES.ProfessionalTravel) {
+  if (props.type !== MODULES.ProfessionalTravel) return;
+  if (
+    !authStore.hasUserModulePermission(
+      MODULES.ProfessionalTravel,
+      PermissionAction.VIEW,
+    )
+  ) {
+    return;
+  }
+  if (unitId && year) {
     void moduleStore.getProfessionalTravelTripsMap(unitId, String(year));
     void loadTravelerNames(unitId, year);
   }
 }
 
 watch(
-  () => workspaceStore.selectedCarbonReport?.id,
-  (carbonReportId) => {
+  () => [
+    workspaceStore.selectedCarbonReport?.id,
+    props.combineUnitIds.join(','),
+    props.excludeModules.join(','),
+  ],
+  () => {
+    const carbonReportId = workspaceStore.selectedCarbonReport?.id;
     if (carbonReportId) {
-      void moduleStore.getEmissionBreakdown(carbonReportId);
+      void moduleStore.getEmissionBreakdown(
+        carbonReportId,
+        props.excludeModules,
+        mergedUnitsContext.value,
+      );
       fetchTopClassBreakdownIfNeeded();
       fetchTripsMapIfNeeded();
     }
@@ -441,7 +492,7 @@ const topClassBreakdownData = computed(() => {
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .module-charts {
   color: tokens.$graph-color-primary;

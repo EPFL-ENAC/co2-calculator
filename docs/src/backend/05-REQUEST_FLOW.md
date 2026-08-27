@@ -12,7 +12,7 @@ the lifecycle and points at the auth and audit hooks.
 
 For deeper auth details see
 [06 Permission System](06-PERMISSION-SYSTEM.md),
-[07 Permissions Developer Guide](07-DEVELOPER-GUIDE-PERMISSIONS.md),
+[06 Permission System](06-PERMISSION-SYSTEM.md),
 [ADR-005 In-Code RBAC](../architecture-decision-records/005-authorization-strategy.md),
 and [ADR-012 JWT](../architecture-decision-records/012-jwt-authentication-strategy.md).
 
@@ -80,7 +80,7 @@ policy evaluation per request from the role list — never persisted.
 `GET /v1/session` is the separate route the SPA calls to fetch its own
 permission set; it is not on the request-time auth path for other
 endpoints. See [06 Permission System](06-PERMISSION-SYSTEM.md) for
-computation rules and [07](07-DEVELOPER-GUIDE-PERMISSIONS.md) for adding
+computation rules and [06](06-PERMISSION-SYSTEM.md) for adding
 new permission paths.
 
 ## Worked Example: `GET /api/v1/resources`

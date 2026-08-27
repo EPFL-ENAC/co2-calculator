@@ -1,11 +1,9 @@
 """Carbon report repository for database operations."""
 
-from typing import List, Optional
-
+from sqlalchemy import JSON, String, column, true
 from sqlalchemy.dialects.postgresql import insert
-from sqlmodel import col, select
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel.sql.expression import desc
 
 from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
@@ -33,8 +31,9 @@ class CarbonReportRepository:
     async def bulk_upsert(self, data: list[CarbonReportCreate]) -> list[CarbonReport]:
         """Bulk upsert carbon reports using INSERT ... ON CONFLICT DO NOTHING.
 
-        Uses the uq_carbon_reports_project_year constraint (carbon_project_id, year)
-        as the conflict target. Callers must resolve carbon_project_id before
+        Uses the uq_carbon_reports_project_year constraint (carbon_project_id,
+        year, is_grant) as the conflict target. Callers must resolve
+        carbon_project_id before
         calling this method (it must be non-null for conflict detection to work).
         """
         stmt = (
@@ -46,7 +45,7 @@ class CarbonReportRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get(self, carbon_report_id: int) -> Optional[CarbonReport]:
+    async def get(self, carbon_report_id: int) -> CarbonReport | None:
         """Get a carbon report by ID."""
         statement = select(CarbonReport).where(CarbonReport.id == carbon_report_id)
         result = await self.session.execute(statement)
@@ -68,9 +67,78 @@ class CarbonReportRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
+    def _calculator_reports_of(self, unit_ids: list[int], year: int | None):
+        """Base select of several units' Calculator reports, optionally one year."""
+        statement = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(
+                col(CarbonReport.unit_id).in_(unit_ids),
+                CarbonProject.carbon_report_type == CarbonReportType.CALCULATOR,
+            )
+        )
+        if year is not None:
+            statement = statement.where(CarbonReport.year == year)
+        return statement
+
+    async def list_by_units(
+        self, unit_ids: list[int], year: int | None = None
+    ) -> list[CarbonReport]:
+        """Calculator reports of several units in one query, oldest year first.
+
+        A unit can own more than one Calculator project, so a (unit, year) pair
+        may yield several reports; callers fold them.
+        """
+        statement = self._calculator_reports_of(unit_ids, year).order_by(
+            col(CarbonReport.year), col(CarbonReport.id)
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
+    async def sum_stat_buckets_by_year(
+        self, unit_ids: list[int]
+    ) -> list[tuple[int, str, int, float]]:
+        """Sum persisted ``stats.buckets`` kg per (year, bucket key) across units.
+
+        One grouped query over ``json_each(stats->'buckets')`` instead of a
+        Python fold over every report. Rows are ``(year, key, scope, total_kg)``
+        ordered by year then key.
+        """
+        bucket = func.json_each(col(CarbonReport.stats)["buckets"]).table_valued(
+            column("key", String), column("value", JSON)
+        )
+        scope = func.max(bucket.c.value["scope"].as_integer())
+        total_kg = func.sum(bucket.c.value["total_kg"].as_float())
+        statement = (
+            self._calculator_reports_of(unit_ids, None)
+            .with_only_columns(col(CarbonReport.year), bucket.c.key, scope, total_kg)
+            .join(bucket, true())
+            .where(bucket.c.key.is_not(None))
+            .group_by(col(CarbonReport.year), bucket.c.key)
+            .order_by(col(CarbonReport.year), bucket.c.key)
+        )
+        result = await self.session.execute(statement)
+        return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+
+    async def list_validated_buckets_by_year(
+        self, unit_ids: list[int]
+    ) -> dict[int, set[str]]:
+        """Union of ``stats.validated_buckets`` per year across the units."""
+        statement = self._calculator_reports_of(unit_ids, None).with_only_columns(
+            col(CarbonReport.year), col(CarbonReport.stats)["validated_buckets"]
+        )
+        result = await self.session.execute(statement)
+        validated: dict[int, set[str]] = {}
+        for year, keys in result.all():
+            validated.setdefault(year, set()).update(keys or [])
+        return validated
+
     async def get_by_unit_and_year(
         self, unit_id: int, year: int
-    ) -> Optional[CarbonReport]:
+    ) -> CarbonReport | None:
         """Get a Calculator carbon report by unit and year."""
         statement = (
             select(CarbonReport)
@@ -92,11 +160,15 @@ class CarbonReportRepository:
         *,
         unit_id: int,
         reference_year: int,
-    ) -> Optional[CarbonReport]:
-        """Get the latest Simulator Explore report for a unit + reference year.
+        created_by: int,
+    ) -> CarbonReport | None:
+        """Get the Simulator Explore report for a unit + reference year.
 
-        In the new schema, Explore reports store the reference year in the ``year``
-        field (year is always non-null).
+        Explore sandboxes are private per user (#2293): only the report whose
+        project was created by ``created_by`` is returned. Explore reports
+        store the reference year in the ``year`` field (year is always
+        non-null), and ``uq_carbon_reports_project_year`` guarantees at most
+        one report per project + year.
         """
         statement = (
             select(CarbonReport)
@@ -108,16 +180,15 @@ class CarbonReportRepository:
                 CarbonReport.unit_id == unit_id,
                 CarbonReport.year == reference_year,
                 CarbonProject.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE,
+                CarbonProject.created_by == created_by,
             )
-            .order_by(desc(col(CarbonReport.last_updated)))
-            .limit(1)
         )
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
     async def update(
         self, carbon_report_id: int, data: CarbonReportUpdate
-    ) -> Optional[CarbonReport]:
+    ) -> CarbonReport | None:
         """Update a carbon report."""
         statement = select(CarbonReport).where(CarbonReport.id == carbon_report_id)
         result = await self.session.execute(statement)
@@ -145,23 +216,32 @@ class CarbonReportRepository:
 
     async def get_reporting_overview(
         self,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
-        path_lvl4: Optional[List[str]] = None,
-        overall_status: Optional[ModuleStatus] = None,
-        search: Optional[str] = None,
-        modules: Optional[List[str]] = None,
-        years: Optional[List[int]] = None,
+        path_lvl2: list[str] | None = None,
+        path_lvl3: list[str] | None = None,
+        path_lvl4: list[str] | None = None,
+        overall_status: ModuleStatus | None = None,
+        search: str | None = None,
+        modules: list[str] | None = None,
+        years: list[int] | None = None,
         page: int = 1,
         page_size: int = 50,
     ) -> list[CarbonReport]:
-        """
-        Retrieves the aggregated reporting data using a Deferred Join strategy.
+        """Retrieves the aggregated reporting data using a Deferred Join strategy.
         First paginates the Units, then calculates footprints ONLY for those 50 units.
         """
-        statement = select(CarbonReport).where(
-            (col(CarbonReport.year).in_(years)) if years else True
+        # Reporting is Calculator-only: never surface Simulator Explore/Plan
+        # reports (they are carbon_reports rows too, under non-Calculator
+        # projects) in the backoffice reporting overview.
+        statement = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR)
         )
+        if years:
+            statement = statement.where(col(CarbonReport.year).in_(years))
 
         statement = statement.offset((page - 1) * page_size).limit(page_size)
         result = await self.session.execute(statement)

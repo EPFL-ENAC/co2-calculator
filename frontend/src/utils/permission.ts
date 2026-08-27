@@ -8,7 +8,7 @@
  * stays a store-free leaf importable by pure unit tests.
  */
 
-import { MODULES, type Module } from 'src/constant/modules';
+import { MODULES, type Module } from '@/constant/modules';
 
 /** Actions that can be performed on a permission resource. */
 export enum PermissionAction {
@@ -18,6 +18,8 @@ export enum PermissionAction {
   EDIT = 'edit',
   /** Export/download access. */
   EXPORT = 'export',
+  /** Delete a record the user created, or any record at global breadth. */
+  DELETE = 'delete',
 }
 
 /** Allowed actions on a single resource, as returned by the backend. */
@@ -58,6 +60,43 @@ export interface FlatUserPermissions {
  * standard (own) users never receive it, so the button is hidden for them.
  */
 export const MODULE_STATUS_PERMISSION = 'module.status';
+
+/**
+ * Planner affordance key. `planner.plans` (bare) is emitted for global
+ * breadth, `planner.plans/<cf>` for unit breadth and `planner.plans/<cf>/own`
+ * for own breadth; `delete` at own breadth covers only the plans the user
+ * created.
+ */
+export const PLANNER_PLANS_PERMISSION = 'planner.plans';
+
+/**
+ * Whether the user may delete a plan: `delete` at global or unit breadth,
+ * or at own breadth when the plan's `created_by` is the user.
+ */
+export function canDeletePlan(
+  permissions: FlatUserPermissions | null | undefined,
+  institutionalId: string | null | undefined,
+  userId: number | null | undefined,
+  createdBy: number | null | undefined,
+): boolean {
+  if (
+    hasPermission(
+      permissions,
+      PLANNER_PLANS_PERMISSION,
+      PermissionAction.DELETE,
+    )
+  )
+    return true;
+  if (!institutionalId) return false;
+  const unitPath = `${PLANNER_PLANS_PERMISSION}/${institutionalId}`;
+  if (hasPermission(permissions, unitPath, PermissionAction.DELETE))
+    return true;
+  return (
+    hasPermission(permissions, `${unitPath}/own`, PermissionAction.DELETE) &&
+    userId != null &&
+    createdBy === userId
+  );
+}
 
 /**
  * Check if a user has a specific permission.
@@ -114,7 +153,7 @@ export function hasPermission(
   } catch (error) {
     // Edge case: any unexpected error (TypeError, etc.)
     // Log in development for debugging, but return false in production
-    if (process.env.NODE_ENV === 'development') {
+    if (typeof import.meta.env !== 'undefined' && import.meta.env.DEV) {
       console.warn('Error checking permission:', error, { path, action });
     }
     return false;

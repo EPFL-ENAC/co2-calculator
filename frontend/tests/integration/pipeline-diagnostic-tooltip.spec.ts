@@ -65,8 +65,7 @@ async function dispatchPipelineUpdate(
       if (!map) return false;
       const url = `/api/v1/sync/pipelines/${pipelineId}/stream`;
       const pipe = map.get(url) as
-        | { dispatch(eventName: string, payload: unknown): void }
-        | undefined;
+        { dispatch(eventName: string, payload: unknown): void } | undefined;
       if (!pipe) return false;
       pipe.dispatch('pipeline-update', payload);
       return true;
@@ -108,10 +107,11 @@ test.describe('data-management — pipeline observability + a11y (Unit 11)', () 
   let activePipelines: ActivePipelinesController;
   const year = defaultSelectedYear();
 
-  test.beforeEach(async ({ page, context }) => {
-    // Clipboard API is gated behind permissions in chromium — tests
-    // that read ``navigator.clipboard.readText`` need both grants.
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  test.beforeEach(async ({ page }) => {
+    // No clipboard permission grants needed: the copy test asserts off
+    // the deterministic ``window.__clipboard`` mirror installed by
+    // ``installPlaywrightTestShims`` — the real system clipboard is
+    // never read or written (headless CI can't do either reliably).
     ({ activePipelines } = await setupDataManagementMocks(page, year));
   });
 
@@ -179,13 +179,21 @@ test.describe('data-management — pipeline observability + a11y (Unit 11)', () 
     await waitForSsePipe(page, PIPELINE_UUID);
     await badge.hover();
 
-    // The copy button is the only ``content_copy`` icon in the
-    // tooltip.  Quasar's tooltip portal sets ``no-pointer-events`` on
-    // the wrapper, so even ``click({ force: true })`` lands on the
-    // overlay and the underlying Vue ``@click`` handler never fires.
-    // Dispatch a synthetic ``click`` event straight at the button
-    // element instead — the same event Vue listens for.
-    const copyButton = page
+    // Scope the lookup to the open diagnostic tooltip (the portal
+    // containing the ``Pipeline:`` label): the data-management page
+    // itself also renders ``content_copy`` buttons (#740 "copy
+    // factors" feature), so a page-wide ``.first()`` would grab the
+    // wrong button.  Quasar's tooltip portal sets
+    // ``no-pointer-events`` on the wrapper, so even
+    // ``click({ force: true })`` lands on the overlay and the
+    // underlying Vue ``@click`` handler never fires.  Dispatch a
+    // synthetic ``click`` event straight at the button element
+    // instead — the same event Vue listens for.
+    const diagnosticTooltip = page
+      .locator('.q-tooltip')
+      .filter({ hasText: PIPELINE_LABEL });
+    await expect(diagnosticTooltip).toBeVisible();
+    const copyButton = diagnosticTooltip
       .locator('button')
       .filter({ has: page.locator('.q-icon').getByText('content_copy') })
       .first();

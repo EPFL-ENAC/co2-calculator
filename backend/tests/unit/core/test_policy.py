@@ -1,17 +1,48 @@
 """Unit tests for core policy module - authorization policy evaluation."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 
+from app.core.plan_policy import PlanPolicy
 from app.core.policy import (
     _get_module_permission_path,
     check_module_permission,
+    check_module_permission_for_report,
     is_module_permitted,
     query_policy,
+    require_plan_scope_for_report,
 )
-from app.models.user import Role, RoleName, UnitScope
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReportType
+from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope, User
+
+
+def _plan_user(user_id: int, role: RoleName | None, iid: str = "0184") -> User:
+    user = User(id=user_id, institutional_id=str(user_id), email=f"{user_id}@x")
+    if role is None:
+        user.roles = []
+    elif role == RoleName.CO2_SUPERADMIN:
+        user.roles = [Role(role=role, on=GlobalScope())]
+    elif role == RoleName.CO2_USER_PRINCIPAL:
+        user.roles = [Role(role=role, on=UnitScope(institutional_id=iid))]
+    else:
+        user.roles = [Role(role=role, on=OwnScope(institutional_id=iid))]
+    return user
+
+
+def _plan_unit(iid: str = "0184"):
+    unit = MagicMock()
+    unit.institutional_id = iid
+    return unit
+
+
+def _plan(created_by: int, *, shared: bool = False):
+    plan = MagicMock()
+    plan.created_by = created_by
+    plan.is_viewable_by_unit_members = shared
+    return plan
 
 
 class TestGetModulePermissionPath:
@@ -232,7 +263,8 @@ class TestCheckModulePermission:
         self, mock_query_policy
     ):
         """institutional_id kwarg must reach the policy via input_data so the
-        scoped permission key (modules.X/iid) can be matched."""
+        scoped permission key (modules.X/iid) can be matched.
+        """
         user = MagicMock()
         user.id = "user-123"
         user.email = "test@example.com"
@@ -450,65 +482,23 @@ class TestQueryPolicyResourceAccess:
     """Tests for query_policy with resource access policy."""
 
     @pytest.mark.asyncio
-    async def test_query_policy_resource_access_api_provider_denied(self):
-        """Test resource access denies edit for API trips."""
-        input_data = {
-            "user": {
-                "id": 1,
-                "email": "user@example.com",
-                "roles": [
-                    {
-                        "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"kind": "unit", "institutional_id": "123"},
-                    }
-                ],
-            },
-            "resource_type": "professional_travel",
-            "resource": {
-                "id": 100,
-                "provider": "api",
-                "unit_id": "123",
-            },
-        }
-
-        result = await query_policy("authz/resource/access", input_data)
-
-        assert result["allow"] is False
-        assert "read-only" in result["reason"]
-
-    @pytest.mark.asyncio
-    async def test_query_policy_resource_access_global_scope_allow(self):
-        """Test resource access allows for global scope admin."""
-        input_data = {
-            "user": {
-                "id": 1,
-                "email": "admin@example.com",
-                "roles": [
-                    {"role": RoleName.CO2_SUPERADMIN.value, "on": {"kind": "global"}}
-                ],
-            },
-            "resource_type": "professional_travel",
-            "resource": {
-                "id": 100,
-                "provider": "manual",
-                "created_by": 999,
-                "unit_id": "456",
-            },
-        }
-
-        result = await query_policy("authz/resource/access", input_data)
-
-        assert result["allow"] is True
-        assert "Global scope" in result["reason"]
-
-    @pytest.mark.asyncio
-    async def test_query_policy_resource_access_owner_allow(self):
-        """Test resource access allows user to edit their own resource."""
+    async def test_query_policy_resource_access_professional_travel_denied_by_default(
+        self,
+    ):
+        """professional_travel's bespoke rule (API read-only, unit/owner
+        allow) was retired for #951 — the imported-branch lock in
+        app.core.data_entry_permissions supersedes it. It now falls through
+        to the same deny-by-default as any other unhandled resource_type,
+        even for an owner/global-scope caller who'd have been allowed
+        before.
+        """
         input_data = {
             "user": {
                 "id": 123,
                 "email": "user@example.com",
-                "roles": [],
+                "roles": [
+                    {"role": RoleName.CO2_SUPERADMIN.value, "on": {"kind": "global"}}
+                ],
             },
             "resource_type": "professional_travel",
             "resource": {
@@ -521,8 +511,8 @@ class TestQueryPolicyResourceAccess:
 
         result = await query_policy("authz/resource/access", input_data)
 
-        assert result["allow"] is True
-        assert "Owner access" in result["reason"]
+        assert result["allow"] is False
+        assert "No policy defined" in result["reason"]
 
     @pytest.mark.asyncio
     async def test_query_policy_resource_access_missing_resource(self):
@@ -582,3 +572,322 @@ class TestQueryPolicyLegacy:
 
         assert result["allow"] is True
         assert result["filters"] == {}
+
+
+class TestPlanPolicy:
+    """Simulator Plan scoping: shared plans are editable by unit members,
+    deletion stays creator-only; breadth comes from ``planner.plans``.
+    """
+
+    @staticmethod
+    def _policy(user_id: int, role: RoleName | None, unit=None) -> PlanPolicy:
+        return PlanPolicy.from_unit(
+            _plan_user(user_id, role), unit if unit is not None else _plan_unit()
+        )
+
+    def test_creator_can_view_edit_and_delete(self):
+        policy = self._policy(1, RoleName.CO2_USER_STD)
+        plan = _plan(created_by=1)
+        policy.require(plan, "view")
+        policy.require(plan, "edit")
+        policy.require(plan, "delete")
+        assert policy.can_delete(plan)
+
+    def test_unshared_plan_is_invisible_to_other_members(self):
+        policy = self._policy(2, RoleName.CO2_USER_PRINCIPAL)
+        with pytest.raises(HTTPException) as exc:
+            policy.require(_plan(created_by=1), "view")
+        assert exc.value.status_code == 404
+
+    @pytest.mark.parametrize(
+        "role", [RoleName.CO2_USER_STD, RoleName.CO2_USER_PRINCIPAL]
+    )
+    def test_shared_plan_is_editable_but_not_deletable_by_other_members(self, role):
+        policy = self._policy(2, role)
+        plan = _plan(created_by=1, shared=True)
+        policy.require(plan, "view")
+        policy.require(plan, "edit")
+        assert not policy.can_delete(plan)
+        with pytest.raises(HTTPException) as exc:
+            policy.require(plan, "delete")
+        assert exc.value.status_code == 403
+
+    def test_global_scope_bypasses_plan_scoping(self):
+        policy = self._policy(99, RoleName.CO2_SUPERADMIN)
+        plan = _plan(created_by=1)
+        policy.require(plan, "view")
+        policy.require(plan, "delete")
+
+    def test_member_of_another_unit_is_denied(self):
+        with pytest.raises(HTTPException) as exc:
+            self._policy(1, RoleName.CO2_USER_STD, unit=_plan_unit("9999"))
+        assert exc.value.status_code == 403
+
+    def test_no_roles_is_denied(self):
+        with pytest.raises(HTTPException) as exc:
+            self._policy(1, None)
+        assert exc.value.status_code == 403
+
+    def test_missing_unit_is_404(self):
+        with pytest.raises(HTTPException) as exc:
+            PlanPolicy.from_unit(_plan_user(1, RoleName.CO2_USER_STD), None)
+        assert exc.value.status_code == 404
+
+    def test_visible_filters_by_view_rule(self):
+        policy = self._policy(2, RoleName.CO2_USER_STD)
+        own, shared, private = (
+            _plan(created_by=2),
+            _plan(created_by=1, shared=True),
+            _plan(created_by=1),
+        )
+        assert policy.visible([own, shared, private]) == [own, shared]
+
+
+class TestRequirePlanScopeForReport:
+    """The report-level plan-scope enforcer used by every report-addressed write."""
+
+    @staticmethod
+    def _report(project_id):
+        report = MagicMock()
+        report.carbon_project_id = project_id
+        report.unit_id = 1
+        return report
+
+    @staticmethod
+    def _db(project):
+        async def _get(model, key):
+            return project if model is CarbonProject else _plan_unit()
+
+        db = MagicMock()
+        db.get = AsyncMock(side_effect=_get)
+        return db
+
+    @pytest.mark.asyncio
+    async def test_noop_when_report_has_no_project(self):
+        db = MagicMock()
+        db.get = AsyncMock()
+        await require_plan_scope_for_report(db, MagicMock(), self._report(None), "edit")
+        db.get.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_noop_for_calculator_report(self):
+        project = MagicMock()
+        project.carbon_report_type = CarbonReportType.CALCULATOR
+        # Would raise if plan scoping ran; a Calculator report must pass through.
+        await require_plan_scope_for_report(
+            self._db(project), _plan_user(2, None), self._report(5), "edit"
+        )
+
+    @pytest.mark.asyncio
+    async def test_enforces_plan_access_for_plan_report(self):
+        project = MagicMock()
+        project.carbon_report_type = CarbonReportType.SIMULATOR_PLAN
+        project.created_by = 1
+        project.is_viewable_by_unit_members = True
+        non_creator = _plan_user(2, RoleName.CO2_USER_STD)
+        await require_plan_scope_for_report(
+            self._db(project), non_creator, self._report(5), "edit"
+        )
+
+        project.is_viewable_by_unit_members = False
+        with pytest.raises(HTTPException) as exc:
+            await require_plan_scope_for_report(
+                self._db(project), non_creator, self._report(5), "edit"
+            )
+        assert exc.value.status_code == 404
+
+
+class TestCheckModulePermissionForReport:
+    """Explore and plan reports (grant and plan years alike) drop the module
+    gate to unit membership (#1988, #1983, #2120); Calculator reports
+    delegate to the strict per-module gate.
+    """
+
+    @staticmethod
+    def _report(project_id=5, unit_id=1, is_grant=False):
+        report = MagicMock()
+        report.carbon_project_id = project_id
+        report.unit_id = unit_id
+        report.is_grant = is_grant
+        return report
+
+    @staticmethod
+    def _db(project_type, unit):
+        from app.models.carbon_project import CarbonProject
+
+        project = MagicMock()
+        project.carbon_report_type = project_type
+
+        async def _get(model, key):
+            if model is CarbonProject:
+                return project
+            return unit
+
+        db = MagicMock()
+        db.get = AsyncMock(side_effect=_get)
+        return db
+
+    @staticmethod
+    def _std_user(iid):
+        user = MagicMock()
+        user.roles = [
+            Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id=iid))
+        ]
+        return user
+
+    @staticmethod
+    def _unit(iid="0184"):
+        unit = MagicMock()
+        unit.institutional_id = iid
+        return unit
+
+    @pytest.mark.asyncio
+    async def test_explore_report_passes_for_std_unit_member(self):
+        from app.models.carbon_report import CarbonReportType
+
+        unit = self._unit("0184")
+        result = await check_module_permission_for_report(
+            current_user=self._std_user("0184"),
+            module_id="headcount",
+            action="view",
+            db=self._db(CarbonReportType.SIMULATOR_EXPLORE, unit),
+            report=self._report(),
+        )
+        assert result is unit
+
+    @pytest.mark.asyncio
+    async def test_plan_year_report_passes_for_std_unit_member(self):
+        from app.models.carbon_report import CarbonReportType
+
+        unit = self._unit("0184")
+        with patch(
+            "app.core.policy.check_module_permission_for_unit",
+            AsyncMock(),
+        ) as delegate:
+            result = await check_module_permission_for_report(
+                current_user=self._std_user("0184"),
+                module_id="equipment",
+                action="edit",
+                db=self._db(CarbonReportType.SIMULATOR_PLAN, unit),
+                report=self._report(is_grant=False),
+            )
+        assert result is unit
+        delegate.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_plan_year_report_denies_std_of_other_unit(self):
+        from app.models.carbon_report import CarbonReportType
+
+        with pytest.raises(HTTPException) as exc:
+            await check_module_permission_for_report(
+                current_user=self._std_user("9999"),
+                module_id="equipment",
+                action="edit",
+                db=self._db(CarbonReportType.SIMULATOR_PLAN, self._unit("0184")),
+                report=self._report(is_grant=False),
+            )
+        assert exc.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_grant_plan_report_passes_for_std_unit_member(self):
+        from app.models.carbon_report import CarbonReportType
+
+        unit = self._unit("0184")
+        result = await check_module_permission_for_report(
+            current_user=self._std_user("0184"),
+            module_id="equipment",
+            action="edit",
+            db=self._db(CarbonReportType.SIMULATOR_PLAN, unit),
+            report=self._report(is_grant=True),
+        )
+        assert result is unit
+
+    @pytest.mark.asyncio
+    async def test_grant_plan_report_denies_std_of_other_unit(self):
+        from app.models.carbon_report import CarbonReportType
+
+        with pytest.raises(HTTPException) as exc:
+            await check_module_permission_for_report(
+                current_user=self._std_user("9999"),
+                module_id="equipment",
+                action="edit",
+                db=self._db(CarbonReportType.SIMULATOR_PLAN, self._unit("0184")),
+                report=self._report(is_grant=True),
+            )
+        assert exc.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_explore_report_denies_std_of_other_unit(self):
+        from app.models.carbon_report import CarbonReportType
+
+        with pytest.raises(HTTPException) as exc:
+            await check_module_permission_for_report(
+                current_user=self._std_user("9999"),
+                module_id="headcount",
+                action="view",
+                db=self._db(CarbonReportType.SIMULATOR_EXPLORE, self._unit("0184")),
+                report=self._report(),
+            )
+        assert exc.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_simulator_report_missing_unit_is_404(self):
+        from app.models.carbon_report import CarbonReportType
+
+        with pytest.raises(HTTPException) as exc:
+            await check_module_permission_for_report(
+                current_user=self._std_user("0184"),
+                module_id="headcount",
+                action="view",
+                db=self._db(CarbonReportType.SIMULATOR_EXPLORE, None),
+                report=self._report(),
+            )
+        assert exc.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_calculator_report_delegates_to_unit_gate(self):
+        from app.models.carbon_report import CarbonReportType
+
+        unit = self._unit("0184")
+        user = self._std_user("0184")
+        db = self._db(CarbonReportType.CALCULATOR, unit)
+        with patch(
+            "app.core.policy.check_module_permission_for_unit",
+            AsyncMock(return_value=unit),
+        ) as delegate:
+            result = await check_module_permission_for_report(
+                current_user=user,
+                module_id="headcount",
+                action="view",
+                db=db,
+                report=self._report(unit_id=7),
+            )
+        assert result is unit
+        delegate.assert_awaited_once_with(
+            current_user=user,
+            module_id="headcount",
+            action="view",
+            db=db,
+            unit_id=7,
+        )
+
+    @pytest.mark.asyncio
+    async def test_report_without_project_delegates_to_unit_gate(self):
+        unit = self._unit("0184")
+        user = self._std_user("0184")
+        db = MagicMock()
+        db.get = AsyncMock()
+        with patch(
+            "app.core.policy.check_module_permission_for_unit",
+            AsyncMock(return_value=unit),
+        ) as delegate:
+            result = await check_module_permission_for_report(
+                current_user=user,
+                module_id="headcount",
+                action="view",
+                db=db,
+                report=self._report(project_id=None, unit_id=7),
+            )
+        assert result is unit
+        db.get.assert_not_awaited()
+        delegate.assert_awaited_once()

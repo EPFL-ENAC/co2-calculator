@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Annotated, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from pydantic import BaseModel
 from pydantic import Field as PydanticField
@@ -48,7 +48,7 @@ class AffiliationScope(BaseModel):
 # affiliation boundary explicit (matches the permission matrix) instead of
 # inferring it from the role.
 Scope = Annotated[
-    Union[GlobalScope, UnitScope, OwnScope, AffiliationScope],
+    GlobalScope | UnitScope | OwnScope | AffiliationScope,
     PydanticField(discriminator="kind"),
 ]
 
@@ -64,7 +64,7 @@ class UserProvider(int, Enum):
     TEST = 2
 
 
-def calculate_user_permissions(roles: List[Role]) -> dict:
+def calculate_user_permissions(roles: list[Role]) -> dict:
     """Calculate permissions based on user roles.
 
     This function maps role-based access control to permission-based access control.
@@ -250,6 +250,14 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                     permissions.get(f"module.status{scope_key}"),
                     ["edit"],
                 )
+                permissions[f"planner.plans{scope_key}"] = merge_actions(
+                    permissions.get(f"planner.plans{scope_key}"),
+                    ["view", "edit"],
+                )
+                permissions[f"planner.plans{scope_key}/own"] = merge_actions(
+                    permissions.get(f"planner.plans{scope_key}/own"),
+                    ["delete"],
+                )
 
         elif role_name == RoleName.CO2_USER_STD.value:
             # Standard user is own-scoped: own records only. The "/<unit>/own"
@@ -270,6 +278,10 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                             "edit",
                         ],
                     )
+                )
+                permissions[f"planner.plans{scope_key}"] = merge_actions(
+                    permissions.get(f"planner.plans{scope_key}"),
+                    ["view", "edit", "delete"],
                 )
 
         # SUPER ADMIN - global access to every backoffice page (#862)
@@ -301,25 +313,28 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                 permissions["backoffice.logs"] = merge_actions(
                     permissions.get("backoffice.logs"), ["view"]
                 )
+                permissions["planner.plans"] = merge_actions(
+                    permissions.get("planner.plans"), ["view", "edit", "delete"]
+                )
 
     return permissions
 
 
 class UserBase(SQLModel):
-    roles_raw: Optional[List[dict]] = Field(
+    roles_raw: list[dict] | None = Field(
         default=None,
         sa_column=Column(JSON),
         description="Raw roles data for DB storage (from provider)",
     )
 
     @property
-    def roles(self) -> List[Role]:
+    def roles(self) -> list[Role]:
         if self.roles_raw:
             return [Role(**r) if isinstance(r, dict) else r for r in self.roles_raw]
         return []
 
     @roles.setter
-    def roles(self, value: List[Role]):
+    def roles(self, value: list[Role]):
         self.roles_raw = [
             {
                 **r.model_dump(),
@@ -328,7 +343,7 @@ class UserBase(SQLModel):
             for r in value
         ]
 
-    last_login: Optional[datetime] = Field(default=None, nullable=True)
+    last_login: datetime | None = Field(default=None, nullable=True)
 
     def calculate_permissions(self) -> dict:
         return calculate_user_permissions(self.roles)
@@ -339,7 +354,7 @@ class User(UserBase, table=True):
 
     __tablename__ = "users"
 
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: int | None = Field(default=None, primary_key=True, index=True)
     institutional_id: str = Field(
         unique=True,
         index=True,
@@ -354,13 +369,13 @@ class User(UserBase, table=True):
         description="Sync source provider (accred, default, test)",
     )
     email: str = Field(unique=True, index=True, nullable=False)
-    display_name: Optional[str] = Field(default=None, nullable=True)
-    function: Optional[str] = Field(
+    display_name: str | None = Field(default=None, nullable=True)
+    function: str | None = Field(
         default=None,
         nullable=True,
         description="User function/title (e.g., 'Professor', 'PhD Student')",
     )
-    last_roles_sync_at: Optional[datetime] = Field(
+    last_roles_sync_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
         description="Last timestamp when roles were synced from provider",

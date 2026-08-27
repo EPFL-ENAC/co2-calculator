@@ -212,7 +212,7 @@ export async function parsePermissionErrorAsync(
  * @example
  * ```typescript
  * import { useQuasar } from 'quasar';
- * import { showPermissionError } from 'src/utils/errors';
+ * import { showPermissionError } from '@/utils/errors';
  *
  * const $q = useQuasar();
  *

@@ -19,18 +19,17 @@ import {
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 
-import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
-import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
+import TooltipEcharts from '@/components/charts/results/TooltipEcharts.vue';
+import { useEchartsTooltip } from '@/components/charts/results/useEchartsTooltip';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
-  colors,
-} from 'src/constant/charts';
-import { IT_FOCUS_CATEGORY_TO_MODULE } from 'src/constant/itFocus';
-import { useColorblindStore } from 'src/stores/colorblind';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
-import type { ItBreakdownResponse } from 'src/stores/modules';
-import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
+} from '@/constant/charts';
+import { IT_FOCUS_CATEGORY_TO_MODULE } from '@/constant/itFocus';
+import { useColorblindStore } from '@/stores/colorblind';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
+import type { ItBreakdownResponse } from '@/stores/modules';
+import type { TooltipRow, TooltipState } from '@/types/chartTooltip';
 
 use([
   CanvasRenderer,
@@ -141,8 +140,8 @@ const IT_FOCUS_CATEGORY_ORDER = [
 ] as const;
 
 const categoryColor = computed(() => ({
-  equipment_it: colors.value.plum.dark,
-  purchases_it: colors.value.lightGreen.dark,
+  equipment_it: CHART_CATEGORY_COLOR_SCHEMES.value.equipment,
+  purchases_it: CHART_CATEGORY_COLOR_SCHEMES.value.purchases,
   external_cloud_and_ai:
     CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
   research_facilities_it:
@@ -169,9 +168,12 @@ interface WaffleCategory {
   color: string;
   units: number;
   isIT: boolean;
+  /** False for IT categories whose source module is not yet validated. */
+  validated: boolean;
 }
 
 function largestRemainder(values: number[], target: number): number[] {
+  if (values.length === 0) return [];
   const floors = values.map((v) => Math.floor(v));
   const remainder = target - floors.reduce((a, b) => a + b, 0);
   const indexed = values.map((v, i) => ({ i, frac: v - Math.floor(v) }));
@@ -194,6 +196,10 @@ function waffleUnitsToLegendLabel(units: number): string {
   return waffleUnitsToPercentLabel(units);
 }
 
+const validatedKeys = computed(
+  () => new Set(props.data.validated_sources ?? []),
+);
+
 const waffleCategoryData = computed<WaffleCategory[]>(() => {
   const totalItUnits = Math.min(
     WAFFLE_TOTAL_UNITS,
@@ -202,26 +208,38 @@ const waffleCategoryData = computed<WaffleCategory[]>(() => {
       Math.round((props.data.percentage_of_source_modules ?? 0) * 10),
     ),
   );
-  const totalItTonnes = props.data.total_it_tonnes_co2eq;
 
-  const rawUnits = Array.from(IT_FOCUS_CATEGORY_ORDER).map((key) => {
+  const validatedCategoryKeys = IT_FOCUS_CATEGORY_ORDER.filter((key) =>
+    validatedKeys.value.has(key),
+  );
+
+  const validatedTotalTonnes = validatedCategoryKeys.reduce((sum, key) => {
     const cat = props.data.categories.find((c) => c.category_key === key);
-    if (!cat || totalItTonnes <= 0) return 0;
-    return (cat.tonnes_co2eq / totalItTonnes) * totalItUnits;
+    return sum + (cat?.tonnes_co2eq ?? 0);
+  }, 0);
+
+  const rawUnits = validatedCategoryKeys.map((key) => {
+    const cat = props.data.categories.find((c) => c.category_key === key);
+    if (!cat || validatedTotalTonnes <= 0) return 0;
+    return (cat.tonnes_co2eq / validatedTotalTonnes) * totalItUnits;
   });
 
   const rounded = largestRemainder(rawUnits, totalItUnits);
-
-  const cats: WaffleCategory[] = Array.from(IT_FOCUS_CATEGORY_ORDER).map(
-    (key, i) => ({
-      key,
-      label: t(CATEGORY_LABEL_MAP[key] ?? key),
-      color:
-        categoryColor.value[key as keyof typeof categoryColor.value] ?? '#999',
-      units: rounded[i],
-      isIT: true,
-    }),
+  const unitsByKey = new Map(
+    validatedCategoryKeys.map((key, i) => [key, rounded[i]] as const),
   );
+
+  // Keep all IT categories in display order; unvalidated ones carry 0 units
+  // (no waffle cells) and are flagged so the legend can grey them out.
+  const cats: WaffleCategory[] = IT_FOCUS_CATEGORY_ORDER.map((key) => ({
+    key,
+    label: t(CATEGORY_LABEL_MAP[key] ?? key),
+    color:
+      categoryColor.value[key as keyof typeof categoryColor.value] ?? '#999',
+    units: unitsByKey.get(key) ?? 0,
+    isIT: true,
+    validated: validatedKeys.value.has(key),
+  }));
 
   cats.push({
     key: 'non_it',
@@ -229,6 +247,7 @@ const waffleCategoryData = computed<WaffleCategory[]>(() => {
     color: NON_IT_COLOR,
     units: WAFFLE_TOTAL_UNITS - totalItUnits,
     isIT: false,
+    validated: true,
   });
 
   return cats;
@@ -389,11 +408,16 @@ defineExpose({ downloadPNG });
           v-for="cat in waffleCategoryData"
           :key="cat.key"
           class="waffle-legend-item"
+          :class="{ 'waffle-legend-item--unvalidated': !cat.validated }"
         >
           <span
-            v-if="cat.isIT"
+            v-if="cat.isIT && cat.validated"
             class="waffle-swatch"
             :style="{ backgroundColor: cat.color }"
+          />
+          <span
+            v-else-if="cat.isIT"
+            class="waffle-swatch waffle-swatch--unvalidated"
           />
           <span
             v-else
@@ -423,7 +447,11 @@ defineExpose({ downloadPNG });
               );
             "
           >
-            {{ waffleUnitsToLegendLabel(cat.units) }}
+            {{
+              cat.validated
+                ? waffleUnitsToLegendLabel(cat.units)
+                : $t('it-focus-not-validated')
+            }}
           </span>
         </span>
       </div>
@@ -440,7 +468,7 @@ defineExpose({ downloadPNG });
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens/decisions' as dec;
+@use '@/css/02-tokens/decisions' as dec;
 
 .waffle-caption {
   color: dec.$color-text-muted;
@@ -466,6 +494,10 @@ defineExpose({ downloadPNG });
   gap: dec.$spacing-xs;
 }
 
+.waffle-legend-item--unvalidated {
+  opacity: 0.45;
+}
+
 .waffle-swatch {
   width: dec.$spacing-md;
   height: dec.$spacing-md;
@@ -477,6 +509,16 @@ defineExpose({ downloadPNG });
 .waffle-swatch--outlined {
   border: 1.3px solid;
   opacity: 0.6;
+}
+
+.waffle-swatch--unvalidated {
+  background: repeating-linear-gradient(
+    45deg,
+    #c8c6be,
+    #c8c6be 2px,
+    #e4e2db 2px,
+    #e4e2db 4px
+  );
 }
 
 .waffle-legend-label {

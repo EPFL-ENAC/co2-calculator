@@ -1,16 +1,10 @@
 """Year configuration schemas for API request/response validation."""
 
-import csv
-import io
 from datetime import datetime
 from enum import IntEnum
 from typing import (
     Any,
-    Dict,
-    List,
     Literal,
-    Optional,
-    Type,
 )
 
 from pydantic import (
@@ -21,8 +15,10 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.config import get_settings
 from app.models.data_ingestion import IngestionResult
 from app.models.module_type import ModuleTypeEnum
+from app.utils.csv_dialect import csv_dict_reader
 
 # Type definitions
 UncertaintyTag = Literal["low", "medium", "high", "none"]
@@ -35,7 +31,7 @@ class FileMetadata(BaseModel):
     path: str = Field(..., description="Storage path for the file")
     filename: str = Field(..., description="Original filename")
     uploaded_at: str = Field(..., description="Upload timestamp in ISO format")
-    rows_processed: Optional[int] = Field(
+    rows_processed: int | None = Field(
         default=None, description="Number of rows successfully ingested"
     )
 
@@ -125,8 +121,8 @@ class ReductionObjectiveType(IntEnum):
     SCENARIOS = 2  # unit_scenarios
 
 
-REDUCTION_OBJECTIVE_HANDLERS: Dict[
-    "ReductionObjectiveType", "BaseReductionObjectiveHandler"
+REDUCTION_OBJECTIVE_HANDLERS: dict[
+    ReductionObjectiveType, BaseReductionObjectiveHandler
 ] = {}
 
 
@@ -145,14 +141,14 @@ class ReductionObjectiveHandlerMeta(type):
 class BaseReductionObjectiveHandler(metaclass=ReductionObjectiveHandlerMeta):
     """Base handler for reduction-objective CSV rows."""
 
-    objective_type: Optional[ReductionObjectiveType] = None
+    objective_type: ReductionObjectiveType | None = None
     config_key: str = ""  # key inside year_config.reduction_objectives
-    create_dto: Type[BaseModel]
+    create_dto: type[BaseModel]
 
     @classmethod
     def get_by_type(
         cls, objective_type: ReductionObjectiveType
-    ) -> "BaseReductionObjectiveHandler":
+    ) -> BaseReductionObjectiveHandler:
         handler = REDUCTION_OBJECTIVE_HANDLERS.get(objective_type)
         if handler is None:
             raise ValueError(
@@ -229,7 +225,7 @@ def validate_reduction_objective_csv(
     else:
         raise ValueError(["Unable to decode CSV file. Please save it as UTF-8."])
 
-    reader = csv.DictReader(io.StringIO(text))
+    reader = csv_dict_reader(text)
 
     # Validate header presence
     if reader.fieldnames is None:
@@ -269,6 +265,10 @@ def validate_reduction_objective_csv(
     return validated_rows
 
 
+MIN_REDUCTION_YEAR = get_settings().APP_MIN_REDUCTION_YEAR
+MAX_REDUCTION_YEAR = get_settings().APP_MAX_REDUCTION_YEAR
+
+
 class ReductionObjectiveGoal(BaseModel):
     """Institutional reduction goal configuration."""
 
@@ -280,41 +280,51 @@ class ReductionObjectiveGoal(BaseModel):
         description="Reduction percentage as decimal (e.g., 0.4 for 40%)",
     )
     reference_year: int = Field(
-        ..., description="Reference year to calculate reduction from"
+        ...,
+        ge=MIN_REDUCTION_YEAR,
+        le=MAX_REDUCTION_YEAR,
+        description="Reference year to calculate reduction from",
     )
+
+
+ReductionObjectiveFiles = dict[
+    Literal["institutional_footprint", "population_projections", "unit_scenarios"],
+    FileMetadata | None,
+]
+
+
+def _default_reduction_objective_files() -> ReductionObjectiveFiles:
+    return {
+        "institutional_footprint": None,
+        "population_projections": None,
+        "unit_scenarios": None,
+    }
 
 
 class ReductionObjectives(BaseModel):
     """Reduction objectives configuration."""
 
-    files: Dict[
-        Literal["institutional_footprint", "population_projections", "unit_scenarios"],
-        Optional[FileMetadata],
-    ] = Field(
-        default_factory=lambda: {  # type: ignore
-            "institutional_footprint": None,
-            "population_projections": None,
-            "unit_scenarios": None,
-        },
+    files: ReductionObjectiveFiles = Field(
+        default_factory=_default_reduction_objective_files,
         description="File metadata for reduction objective references",
     )
 
     # Parsed CSV data — populated automatically on successful CSV upload.
-    institutional_footprint: Optional[List[Dict[str, Any]]] = Field(
+    institutional_footprint: list[dict[str, Any]] | None = Field(
         default=None,
         description=(
             "Parsed rows from the institutional_footprint CSV "
             "(list of {year, category, co2} dicts)"
         ),
     )
-    population_projections: Optional[List[Dict[str, Any]]] = Field(
+    population_projections: list[dict[str, Any]] | None = Field(
         default=None,
         description=(
             "Parsed rows from the population_projections CSV "
             "(list of {year, pop} dicts)"
         ),
     )
-    unit_scenarios: Optional[List[Dict[str, Any]]] = Field(
+    unit_scenarios: list[dict[str, Any]] | None = Field(
         default=None,
         description=(
             "Parsed rows from the unit_scenarios CSV "
@@ -322,7 +332,7 @@ class ReductionObjectives(BaseModel):
         ),
     )
 
-    goals: List[ReductionObjectiveGoal] = Field(
+    goals: list[ReductionObjectiveGoal] = Field(
         default_factory=list,
         description="List of institutional reduction goals",
     )
@@ -332,22 +342,22 @@ class SyncJobSummary(BaseModel):
     """Summary of the latest sync job for a submodule (read-only, not stored in DB)."""
 
     job_id: int = Field(..., description="Ingestion job ID")
-    module_type_id: Optional[int] = Field(None, description="Module type ID")
-    data_entry_type_id: Optional[int] = Field(None, description="Data entry type ID")
-    year: Optional[int] = Field(None, description="Reference year")
+    module_type_id: int | None = Field(None, description="Module type ID")
+    data_entry_type_id: int | None = Field(None, description="Data entry type ID")
+    year: int | None = Field(None, description="Reference year")
     ingestion_method: int = Field(..., description="0=api, 1=csv, 2=manual")
-    target_type: Optional[int] = Field(None, description="0=data_entries, 1=factors")
-    state: Optional[int] = Field(None, description="0=NOT_STARTED..3=FINISHED")
-    result: Optional[int] = Field(None, description="0=SUCCESS, 1=WARNING, 2=ERROR")
-    status_message: Optional[str] = Field(None, description="Human-readable status")
-    meta: Optional[Dict[str, Any]] = Field(None, description="Job metadata")
+    target_type: int | None = Field(None, description="0=data_entries, 1=factors")
+    state: int | None = Field(None, description="0=NOT_STARTED..3=FINISHED")
+    result: int | None = Field(None, description="0=SUCCESS, 1=WARNING, 2=ERROR")
+    status_message: str | None = Field(None, description="Human-readable status")
+    meta: dict[str, Any] | None = Field(None, description="Job metadata")
 
 
 class SubmoduleConfig(BaseModel):
     """Configuration for a single data entry type (submodule)."""
 
     enabled: bool = Field(default=True, description="Whether this submodule is enabled")
-    threshold: Optional[float] = Field(
+    threshold: float | None = Field(
         default=None,
         description="Fixed threshold in kgCO2eq (null if not set)",
     )
@@ -355,21 +365,27 @@ class SubmoduleConfig(BaseModel):
         default=False,
         description="When True, the data-entry input form is hidden for end-users",
     )
-    latest_data_job: Optional[SyncJobSummary] = Field(
+    csv_deactivated: bool = Field(
+        default=False,
+        description=(
+            "When True, CSV upload & template download are hidden for end-users"
+        ),
+    )
+    latest_data_job: SyncJobSummary | None = Field(
         default=None,
         description="Latest data entries sync job (read-only, injected by API)",
     )
-    latest_api_data_job: Optional[SyncJobSummary] = Field(
+    latest_api_data_job: SyncJobSummary | None = Field(
         default=None,
         description=(
             "Latest API-sourced data entries sync job (read-only, injected by API)"
         ),
     )
-    latest_factor_job: Optional[SyncJobSummary] = Field(
+    latest_factor_job: SyncJobSummary | None = Field(
         default=None,
         description="Latest factors sync job (read-only, injected by API)",
     )
-    latest_reference_job: Optional[SyncJobSummary] = Field(
+    latest_reference_job: SyncJobSummary | None = Field(
         default=None,
         description="Latest reference data sync job (read-only, injected by API)",
     )
@@ -379,7 +395,7 @@ class SubmoduleConfig(BaseModel):
         default=False,
         description="True when a mandatory upload is missing (read-only from API)",
     )
-    incomplete_reasons: List[str] = Field(
+    incomplete_reasons: list[str] = Field(
         default_factory=list,
         description=(
             "Reasons the submodule is incomplete, e.g. "
@@ -389,7 +405,7 @@ class SubmoduleConfig(BaseModel):
 
     @field_validator("threshold")
     @classmethod
-    def validate_threshold(cls, v: Optional[float]) -> Optional[float]:
+    def validate_threshold(cls, v: float | None) -> float | None:
         """Threshold must be >= 0 when set."""
         if v is not None and v < 0:
             raise ValueError("threshold must be >= 0")
@@ -403,7 +419,7 @@ class ModuleConfig(BaseModel):
     uncertainty_tag: UncertaintyTag = Field(
         default="medium", description="Uncertainty level for the module"
     )
-    submodules: Dict[str, SubmoduleConfig] = Field(
+    submodules: dict[str, SubmoduleConfig] = Field(
         default_factory=dict,
         description="Configuration for each data entry type under this module",
     )
@@ -425,7 +441,7 @@ class YearConfigurationBase(BaseModel):
         default=False,
         description="If true, data entry is open for users for this year",
     )
-    config: Optional[Dict[str, Any]] = Field(
+    config: dict[str, Any] | None = Field(
         default=None,
         description="Deep configuration (thresholds, tags, goals) as JSON",
     )
@@ -440,11 +456,11 @@ class YearConfigurationCreate(YearConfigurationBase):
 class YearConfigurationUpdate(BaseModel):
     """Schema for partial update of year configuration."""
 
-    is_started: Optional[bool] = None
-    config: Optional[Dict[str, Any]] = None
+    is_started: bool | None = None
+    config: dict[str, Any] | None = None
 
     @model_validator(mode="after")
-    def validate_thresholds(self) -> "YearConfigurationUpdate":
+    def validate_thresholds(self) -> YearConfigurationUpdate:
         """Validate threshold values in modules config if provided."""
         if not self.config or "modules" not in self.config:
             return self
@@ -482,10 +498,19 @@ class RecalculationStatusEntry(BaseModel):
     data_entry_type_id: int
     year: int
     needs_recalculation: bool
-    last_factor_job_id: Optional[int] = None
-    last_factor_job_result: Optional[IngestionResult] = None
-    last_recalculation_job_id: Optional[int] = None
-    last_recalculation_job_result: Optional[IngestionResult] = None
+    last_factor_job_id: int | None = None
+    last_factor_job_result: IngestionResult | None = None
+    # Issue #1591 — count of per-factor failures recorded on the last
+    # factor job (``stats.errors``), so the UI can show "N factors could
+    # not be recomputed" without a second round trip.  ``None`` when the
+    # last factor job had no errors (or none is known).  Deliberately a
+    # COUNT only — never the per-row ``stats.error_details`` (factor_id +
+    # raw exception), which can name a Unit/CarbonReport belonging to a
+    # different unit than the one viewing this status (research
+    # facilities "common" factors are shared across units).
+    last_factor_job_error_count: int | None = None
+    last_recalculation_job_id: int | None = None
+    last_recalculation_job_result: IngestionResult | None = None
 
 
 class ModuleRecalculationStatusEntry(BaseModel):
@@ -494,7 +519,7 @@ class ModuleRecalculationStatusEntry(BaseModel):
     module_type_id: int
     year: int
     needs_recalculation: bool
-    data_entry_types: List[RecalculationStatusEntry]
+    data_entry_types: list[RecalculationStatusEntry]
 
 
 class YearConfigurationResponse(BaseModel):
@@ -506,9 +531,9 @@ class YearConfigurationResponse(BaseModel):
     # finishes SUCCESS; dispatch refuses uploads while None. The UI
     # uses this to disable upload buttons + show a "year is being
     # provisioned" tooltip.
-    configuration_completed: Optional[datetime] = None
-    config: Dict[str, Any]
-    recalculation_status: List[ModuleRecalculationStatusEntry] = Field(
+    configuration_completed: datetime | None = None
+    config: dict[str, Any]
+    recalculation_status: list[ModuleRecalculationStatusEntry] = Field(
         default_factory=list,
         description=(
             "Per-module recalculation status for this year (read-only, injected by API)"
@@ -521,12 +546,26 @@ class YearConfigurationResponse(BaseModel):
     # job lives in ``GET /sync/active-pipelines`` — this field is the
     # one-shot id returned at creation time so the page can subscribe
     # without a follow-up call).
-    pipeline_id: Optional[str] = Field(
+    pipeline_id: str | None = Field(
         default=None,
         description=(
             "UUID of the unit_sync pipeline kicked off by the create endpoint "
             "(populated only on POST; None elsewhere)."
         ),
+    )
+    # Issue #1204 follow-up — echoes ``settings.MIN_CONFIGURABLE_YEAR`` so the
+    # backoffice year dropdown (frontend/src/stores/yearConfig.ts) can derive
+    # its lower bound from the backend instead of hardcoding its own copy.
+    min_configurable_year: int = Field(
+        description="Earliest year backoffice can create a configuration for."
+    )
+    min_reduction_year: int = Field(
+        default=MIN_REDUCTION_YEAR,
+        description="Earliest year a reduction objective may use as reference.",
+    )
+    max_reduction_year: int = Field(
+        default=MAX_REDUCTION_YEAR,
+        description="Latest year a reduction objective may use as reference.",
     )
 
     class Config:
@@ -543,7 +582,7 @@ class YearConfigurationListItem(BaseModel):
     year: int
     is_started: bool
     # #1234-followup — see YearConfigurationResponse.
-    configuration_completed: Optional[datetime] = None
+    configuration_completed: datetime | None = None
     updated_at: datetime
 
     class Config:

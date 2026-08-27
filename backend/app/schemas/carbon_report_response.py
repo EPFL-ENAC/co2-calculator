@@ -1,7 +1,8 @@
 """Equipment-related Pydantic schemas for API requests and responses."""
 
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Dict, Generic, List, Literal, Optional, Sequence, TypeVar
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -10,21 +11,33 @@ class SubmoduleSummary(BaseModel):
     """Summary statistics for a submodule."""
 
     total_items: int = Field(..., description="Number of equipment items")
-    annual_fte: Optional[float] = Field(
+    annual_fte: float | None = Field(
         None, description="Annual full-time equivalent (FTE) associated"
     )
-    annual_consumption_kwh: Optional[float] = Field(
+    annual_consumption_kwh: float | None = Field(
         None, description="Total annual energy consumption"
     )
-    total_kg_co2eq: Optional[float] = Field(
-        None, description="Total annual CO2 emissions"
+    total_kg_co2eq: float | None = Field(None, description="Total annual CO2 emissions")
+
+
+class RowPolicy(BaseModel):
+    """#951: edit rights for one data-entry provenance branch."""
+
+    create: bool = Field(..., description="Whether this branch may add new rows")
+    delete: bool = Field(..., description="Whether a row on this branch may be deleted")
+    editable_fields: list[str] = Field(
+        ..., description="Field names updatable on a row of this branch"
     )
 
 
-T = TypeVar("T", bound=BaseModel)
+class DataEntryPolicies(BaseModel):
+    """#951: both provenance branches for one submodule."""
+
+    user: RowPolicy
+    imported: RowPolicy
 
 
-class SubmoduleResponse(BaseModel, Generic[T]):
+class SubmoduleResponse[T: BaseModel](BaseModel):
     """Submodule data with items and summary."""
 
     id: int = Field(..., description="Submodule identifier")
@@ -34,6 +47,13 @@ class SubmoduleResponse(BaseModel, Generic[T]):
     )
     summary: SubmoduleSummary = Field(..., description="Submodule summary")
     has_more: bool = Field(False, description="Whether more items are available")
+    # #951: user/imported edit-rights for this submodule, keyed on row
+    # provenance (each row already carries its own ``source``). None for
+    # types the data-entry permission layer doesn't cover (planner, embodied
+    # energy) — see app.core.data_entry_permissions.submodule_policies.
+    data_entry_policies: DataEntryPolicies | None = Field(
+        None, description="Edit rights per row provenance (user/imported)"
+    )
 
 
 class ModuleTotals(BaseModel):
@@ -41,16 +61,16 @@ class ModuleTotals(BaseModel):
 
     # total_submodules: int = Field(..., description="Number of submodules")
     # total_items: int = Field(..., description="Total equipment count")
-    total_annual_consumption_kwh: Optional[float] = Field(
+    total_annual_consumption_kwh: float | None = Field(
         None, description="Total annual energy consumption"
     )
-    total_kg_co2eq: Optional[float] = Field(
+    total_kg_co2eq: float | None = Field(
         None, description="Total annual CO2 emissions in kg CO2-eq"
     )
-    total_tonnes_co2eq: Optional[float] = Field(
+    total_tonnes_co2eq: float | None = Field(
         None, description="Total annual CO2 emissions in tonnes CO2-eq"
     )
-    total_annual_fte: Optional[float] = Field(
+    total_annual_fte: float | None = Field(
         None, description="Total full-time equivalent (FTE) associated"
     )
 
@@ -58,20 +78,26 @@ class ModuleTotals(BaseModel):
 class ModuleResponse(BaseModel):
     """Complete module response with all submodules."""
 
-    carbon_report_module_id: Optional[int] = Field(
+    carbon_report_module_id: int | None = Field(
         None, description="Carbon report module ID"
     )
     retrieved_at: datetime = Field(..., description="Retrieval timestamp")
     # submodules: Dict[int, SubmoduleResponse] = Field(
     #     ..., description="Submodule data keyed by data_entry_type_id (integer)"
     # )
-    data_entry_types_total_items: Dict[int, int] = Field(
+    data_entry_types_total_items: dict[int, int] = Field(
         ..., description="Total items per data entry type ID"
     )
-    stats: Optional[dict[str, float | None]] = Field(
-        None, description="Module statistics"
-    )
+    stats: dict[str, float | None] | None = Field(None, description="Module statistics")
     totals: ModuleTotals = Field(..., description="Module totals")
+    incomplete_new_equipment_count: int = Field(
+        0,
+        description=(
+            "Equipment new vs the previous year that is still missing usage "
+            "data (#259). Non-zero only for the Equipment module; blocks "
+            "validation until zero."
+        ),
+    )
 
 
 class TripLeg(BaseModel):
@@ -102,5 +128,5 @@ class TripsMapResponse(BaseModel):
     show "X trips not shown" if any.
     """
 
-    legs: List[TripLeg]
+    legs: list[TripLeg]
     dropped_count: int = 0

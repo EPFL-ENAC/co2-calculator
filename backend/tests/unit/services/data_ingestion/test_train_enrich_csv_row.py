@@ -11,14 +11,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.modules.professional_travel.schemas import (
+from app.modules.professional_travel import (
     ProfessionalTravelTrainModuleHandler,
 )
 
 
 class _ForbiddenSession:
     """Sentinel session: any attribute access means the resolver wrongly
-    reached the DB instead of rejecting the row on the missing country_code."""
+    reached the DB instead of rejecting the row on the missing country_code.
+    """
 
     def __getattr__(self, name: str):
         raise AssertionError(
@@ -69,7 +70,8 @@ async def test_train_enrich_normalizes_country_code_case_for_lookup(
     """The seed stores ISO-2 country codes uppercase (``FR``) and the station
     lookup matches ``country_code`` exactly, so the resolver must canonicalize
     the CSV value to uppercase — otherwise a lowercase ``de`` silently fails
-    to resolve and the row persists without emission."""
+    to resolve and the row persists without emission.
+    """
     captured: dict[str, str] = {}
 
     class _FakeStation:
@@ -80,7 +82,7 @@ async def test_train_enrich_normalizes_country_code_case_for_lookup(
         return _FakeStation(), "ok"
 
     monkeypatch.setattr(
-        "app.modules.professional_travel.schemas."
+        "app.modules.professional_travel.handlers."
         "LocationService.resolve_train_station_for_csv",
         _fake_resolve,
     )
@@ -98,3 +100,35 @@ async def test_train_enrich_normalizes_country_code_case_for_lookup(
     assert err is None
     assert captured["Berne"] == "DE"
     assert captured["Geneva"] == "CH"
+
+
+@pytest.mark.asyncio
+async def test_train_enrich_not_found_is_a_hard_row_error(monkeypatch) -> None:
+    """#1186: zero station matches must reject the row, not persist it
+    silently. Supersedes #1183's original choice to mirror plane's
+    unknown-IATA behavior here — warn-and-persist on a WARNING nobody reads
+    is a silent fallback, not real parity.
+    """
+
+    async def _fake_resolve(self, name: str, country_code: str):
+        return None, "not_found"
+
+    monkeypatch.setattr(
+        "app.modules.professional_travel.handlers."
+        "LocationService.resolve_train_station_for_csv",
+        _fake_resolve,
+    )
+
+    handler = ProfessionalTravelTrainModuleHandler()
+    data = {
+        "origin_name": "Atlantis",
+        "origin_country_code": "CH",
+        "destination_name": "Geneva",
+        "destination_natural_key": "train:ch:geneva:46.2104:6.1428",
+    }
+
+    enriched, err = await handler.enrich_csv_row(data, MagicMock())
+
+    assert err is not None
+    assert "Atlantis" in err
+    assert "origin_natural_key" not in enriched

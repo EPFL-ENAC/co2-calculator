@@ -5,10 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+from app.core.config import UnitProviderType
 from app.models.user import UserProvider
 from app.providers.unit_provider import (
     AccredUnitProvider,
-    DefaultUnitProvider,
+    DatabaseUnitProvider,
     TestUnitProvider,
     get_unit_provider,
 )
@@ -20,7 +21,7 @@ from app.providers.unit_provider import (
 class TestAccredMapApiUnit:
     def _make_provider(self):
         with patch("app.providers.unit_provider.settings") as mock_settings:
-            mock_settings.ACCRED_API_URL = "https://api.example.com"
+            mock_settings.ACCRED_API_BASE_URL = "https://api.example.com"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
             return AccredUnitProvider()
@@ -117,7 +118,7 @@ class TestAccredMapApiUnit:
 class TestAccredGetUnits:
     def _make_provider(self):
         with patch("app.providers.unit_provider.settings") as mock_settings:
-            mock_settings.ACCRED_API_URL = "https://api.example.com"
+            mock_settings.ACCRED_API_BASE_URL = "https://api.example.com"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
             return AccredUnitProvider()
@@ -173,7 +174,7 @@ class TestAccredGetUnits:
     @pytest.mark.asyncio
     async def test_get_units_not_configured(self):
         with patch("app.providers.unit_provider.settings") as mock_settings:
-            mock_settings.ACCRED_API_URL = ""
+            mock_settings.ACCRED_API_BASE_URL = ""
             mock_settings.ACCRED_API_USERNAME = ""
             mock_settings.ACCRED_API_KEY = ""
             provider = AccredUnitProvider()
@@ -207,7 +208,7 @@ class TestAccredFetchAllUnits:
     @pytest.mark.asyncio
     async def test_fetch_all_units_not_configured(self):
         with patch("app.providers.unit_provider.settings") as mock_settings:
-            mock_settings.ACCRED_API_URL = ""
+            mock_settings.ACCRED_API_BASE_URL = ""
             mock_settings.ACCRED_API_USERNAME = ""
             mock_settings.ACCRED_API_KEY = ""
             provider = AccredUnitProvider()
@@ -218,7 +219,7 @@ class TestAccredFetchAllUnits:
     @pytest.mark.asyncio
     async def test_fetch_all_units_single_page(self):
         with patch("app.providers.unit_provider.settings") as mock_settings:
-            mock_settings.ACCRED_API_URL = "https://api.example.com"
+            mock_settings.ACCRED_API_BASE_URL = "https://api.example.com"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
             provider = AccredUnitProvider()
@@ -254,7 +255,7 @@ class TestAccredFetchAllUnits:
     @pytest.mark.asyncio
     async def test_fetch_all_units_deduplicates_users(self):
         with patch("app.providers.unit_provider.settings") as mock_settings:
-            mock_settings.ACCRED_API_URL = "https://api.example.com"
+            mock_settings.ACCRED_API_BASE_URL = "https://api.example.com"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
             provider = AccredUnitProvider()
@@ -283,15 +284,15 @@ class TestAccredFetchAllUnits:
 
 
 # ---------------------------------------------------------------------------
-# DefaultUnitProvider.get_units (with real async db)
+# DatabaseUnitProvider.get_units (with real async db)
 # ---------------------------------------------------------------------------
-class TestDefaultUnitProvider:
+class TestDatabaseUnitProvider:
     @pytest.mark.asyncio
     async def test_get_all_units(self, db_session, make_unit):
         await make_unit(db_session, name="Unit A")
         await make_unit(db_session, name="Unit B")
 
-        provider = DefaultUnitProvider(db_session)
+        provider = DatabaseUnitProvider(db_session)
         units = await provider.get_units()
         assert len(units) == 2
 
@@ -300,14 +301,14 @@ class TestDefaultUnitProvider:
         u1 = await make_unit(db_session, name="Unit A")
         await make_unit(db_session, name="Unit B")
 
-        provider = DefaultUnitProvider(db_session)
+        provider = DatabaseUnitProvider(db_session)
         units = await provider.get_units(unit_ids=[u1.id])
         assert len(units) == 1
         assert units[0].name == "Unit A"
 
     @pytest.mark.asyncio
     async def test_get_units_empty_db(self, db_session):
-        provider = DefaultUnitProvider(db_session)
+        provider = DatabaseUnitProvider(db_session)
         units = await provider.get_units()
         assert units == []
 
@@ -341,7 +342,8 @@ class TestTestUnitProvider:
     async def test_fetch_all_units_returns_fixtures_round_trippable(self):
         """``unit_sync_handler`` calls ``fetch_all_units`` then maps each
         raw dict through ``map_api_unit``. The pair must round-trip TEST
-        fixtures back into ``Unit`` instances with ``provider=TEST``."""
+        fixtures back into ``Unit`` instances with ``provider=TEST``.
+        """
         from app.models.user import UserProvider as _UP
         from app.providers.test_fixtures import TEST_UNITS
 
@@ -382,34 +384,65 @@ class TestGetUnitById:
 # get_unit_provider factory
 # ---------------------------------------------------------------------------
 class TestGetUnitProvider:
-    def test_default_requires_session(self):
+    def test_database_requires_session_via_override(self):
+        """Override param also accepts a persisted UserProvider value (e.g.
+        DataIngestionJob.provider), used by background sync to re-resolve
+        units from an entity's original source.
+        """
         with pytest.raises(ValueError, match="requires a database session"):
             get_unit_provider(UserProvider.DEFAULT, db_session=None)
 
-    def test_default_with_session(self):
+    def test_database_with_session_via_override(self):
         mock_db = MagicMock()
         provider = get_unit_provider(UserProvider.DEFAULT, db_session=mock_db)
-        assert isinstance(provider, DefaultUnitProvider)
+        assert isinstance(provider, DatabaseUnitProvider)
 
-    def test_accred(self):
+    def test_accred_via_override(self):
         provider = get_unit_provider(UserProvider.ACCRED)
         assert isinstance(provider, AccredUnitProvider)
 
-    def test_test_provider(self):
+    def test_test_provider_via_override(self):
         provider = get_unit_provider(UserProvider.TEST)
         assert isinstance(provider, TestUnitProvider)
 
-    def test_unknown_falls_back_to_default(self):
-        mock_db = MagicMock()
-        provider = get_unit_provider(999, db_session=mock_db)
-        assert isinstance(provider, DefaultUnitProvider)
+    def test_unknown_provider_type_raises(self):
+        # No silent fallback: an unknown type is a config error, even
+        # with a usable session at hand.
+        with pytest.raises(ValueError, match="Unknown unit provider type"):
+            get_unit_provider(999, db_session=MagicMock())
 
-    def test_unknown_without_session_raises(self):
-        with pytest.raises(ValueError):
-            get_unit_provider(999, db_session=None)
-
-    def test_none_uses_settings(self):
+    def test_none_uses_settings_database(self):
         with patch("app.providers.unit_provider.settings") as mock_settings:
-            mock_settings.PROVIDER_PLUGIN = UserProvider.TEST
+            mock_settings.UNIT_PROVIDER_TYPE = UnitProviderType.DATABASE
+            mock_db = MagicMock()
+            provider = get_unit_provider(None, db_session=mock_db)
+            assert isinstance(provider, DatabaseUnitProvider)
+
+    def test_none_uses_settings_accred(self):
+        with patch("app.providers.unit_provider.settings") as mock_settings:
+            mock_settings.UNIT_PROVIDER_TYPE = UnitProviderType.ACCRED
+            mock_settings.ACCRED_API_BASE_URL = "https://api.example.com"
+            mock_settings.ACCRED_API_USERNAME = "user"
+            mock_settings.ACCRED_API_KEY = "key"
             provider = get_unit_provider(None)
+            assert isinstance(provider, AccredUnitProvider)
+
+    def test_none_uses_settings_test(self):
+        with patch("app.providers.unit_provider.settings") as mock_settings:
+            mock_settings.UNIT_PROVIDER_TYPE = UnitProviderType.TEST
+            provider = get_unit_provider(None)
+            assert isinstance(provider, TestUnitProvider)
+
+    def test_factory_no_longer_reads_provider_plugin(self):
+        """Regression: the factory must read UNIT_PROVIDER_TYPE, not the
+        removed PROVIDER_PLUGIN setting.
+        """
+        with patch("app.providers.unit_provider.settings") as mock_settings:
+            mock_settings.UNIT_PROVIDER_TYPE = UnitProviderType.TEST
+            # A stray PROVIDER_PLUGIN would only be read by legacy code; the
+            # factory must ignore it and dispatch off UNIT_PROVIDER_TYPE.
+            mock_settings.PROVIDER_PLUGIN = UnitProviderType.ACCRED
+
+            provider = get_unit_provider(None)
+
             assert isinstance(provider, TestUnitProvider)

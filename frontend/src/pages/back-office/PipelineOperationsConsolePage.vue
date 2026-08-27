@@ -2,17 +2,21 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { copyToClipboard, debounce, Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import { api } from 'src/api/http';
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
-import { usePipelineStream } from 'src/composables/usePipelineStream';
-import { usePipelineStreamStore } from 'src/stores/pipelineStream';
-import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
+import { api } from '@/api/http';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
+import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
+import RecomputeStatsCard from '@/components/molecules/backoffice/RecomputeStatsCard.vue';
+import { usePipelineStream } from '@/composables/usePipelineStream';
+import { usePipelineStreamStore } from '@/stores/pipelineStream';
+import { useBackofficeDataManagement } from '@/stores/backofficeDataManagement';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { usePipelineJobRecovery } from '@/composables/usePipelineJobRecovery';
+import { fmtDuration, fmtQueued, fmtWhen } from '@/utils/pipelineFormat';
 import {
   usePipelineOperationsConsole,
   type PipelineListItem,
   type PipelineJobListEntry,
-} from 'src/stores/pipelineOperationsConsole';
+} from '@/stores/pipelineOperationsConsole';
 
 /**
  * Wire shape of ``GET /v1/sync/workers`` — one row per live pod.
@@ -34,6 +38,14 @@ const { t } = useI18n();
 
 const store = usePipelineOperationsConsole();
 const backofficeStore = useBackofficeDataManagement();
+const yearConfigStore = useYearConfigStore();
+
+// Only years with a year-configuration row are valid filter/recompute
+// targets — filtering by an arbitrary typed year could silently show
+// zero rows with no indication why.
+const yearOptions = computed(() =>
+  [...yearConfigStore.configuredYears].map((y) => y.year).sort((a, b) => b - a),
+);
 
 // Abort dialog — one-step confirmation so an accidental click on a
 // row doesn't kill a long-running chain mid-flight.  Mirrors the
@@ -74,6 +86,8 @@ async function confirmAbort(): Promise<void> {
     aborting.value = false;
   }
 }
+
+const { recovering, recoverJob } = usePipelineJobRecovery(() => store.fetch());
 
 // Processed-CSV download — surfaces ``meta.processed_file_path``
 // straight from the pipeline row so an operator triaging a stalled
@@ -231,28 +245,6 @@ function pipelineMessage(p: PipelineListItem): string | null {
   return null;
 }
 
-function fmtDuration(a: string | null, b: string | null): string {
-  if (!a) return '—';
-  const start = new Date(a).getTime();
-  const end = b ? new Date(b).getTime() : Date.now();
-  const ms = Math.max(0, end - start);
-  // Sub-second jobs render "<1s" instead of "0s" — common for the
-  // trailing aggregation after 4A.3 scoped the write set down to just
-  // the affected modules.  "0s" read as "didn't run"; "<1s" says
-  // "ran, was just fast".
-  if (ms < 1000) return ms === 0 && !b ? '—' : '<1s';
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m${String(s % 60).padStart(2, '0')}s`;
-  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m`;
-}
-
-function fmtWhen(s: string | null): string {
-  if (!s) return '—';
-  return new Date(s).toLocaleString();
-}
-
 // Scope label for the "Type" column.  Backend sends the entity_type
 // enum NAME; unit-specific runs also carry the unit's institutional_id,
 // appended so an operator sees *which* unit at a glance.
@@ -348,6 +340,11 @@ interface HistoryEntry {
   ts: string;
 }
 
+interface FactorError {
+  factor_id?: number | null;
+  error?: string | null;
+}
+
 function jobPhases(j: { meta: Record<string, unknown> }): PhaseEntry[] {
   const raw = j.meta?.phases;
   return Array.isArray(raw) ? (raw as PhaseEntry[]) : [];
@@ -356,6 +353,44 @@ function jobPhases(j: { meta: Record<string, unknown> }): PhaseEntry[] {
 function jobHistory(j: { meta: Record<string, unknown> }): HistoryEntry[] {
   const raw = j.meta?.status_history;
   return Array.isArray(raw) ? (raw as HistoryEntry[]) : [];
+}
+
+function jobErrors(j: { meta: Record<string, unknown> }): FactorError[] {
+  const raw = j.meta?.error_details;
+  return Array.isArray(raw) ? (raw as FactorError[]) : [];
+}
+
+function formatFactorError(e: FactorError): string {
+  const id = e?.factor_id != null ? `#${e.factor_id}` : '#?';
+  const msg = e?.error ?? JSON.stringify(e);
+  return `${id}: ${msg}`;
+}
+
+function errorBlock(errors: FactorError[]): string {
+  return [
+    t('pipeops_factor_errors_title', { n: errors.length }),
+    ...errors.map(formatFactorError),
+  ].join('\n');
+}
+
+function jobMessageText(j: PipelineJobListEntry): string {
+  const errors = jobErrors(j);
+  const parts = [j.status_message ?? ''];
+  if (errors.length) parts.push(errorBlock(errors));
+  return parts.filter(Boolean).join('\n\n');
+}
+
+function pipelineMessageText(p: PipelineListItem): string {
+  const parts = [pipelineMessage(p) ?? ''];
+  for (const j of p.jobs) {
+    const errors = jobErrors(j);
+    if (errors.length) parts.push(`#${j.job_id}\n${errorBlock(errors)}`);
+  }
+  return parts.filter(Boolean).join('\n\n');
+}
+
+function hasErrorDetails(p: PipelineListItem): boolean {
+  return p.jobs.some((j) => jobErrors(j).length > 0);
 }
 
 function phaseColor(p: PhaseEntry): string {
@@ -381,6 +416,9 @@ function fmtTs(s: string | null | undefined): string {
 onMounted(() => {
   void store.fetch();
   void fetchWorkers();
+  if (yearConfigStore.configuredYears.length === 0) {
+    void yearConfigStore.fetchConfiguredYears();
+  }
 });
 
 // 🐞#3 (Guilbert 2026-05-20) — SSE live-update on the ops page.
@@ -440,6 +478,8 @@ onUnmounted(() => {
     <div class="q-my-xl q-px-xl">
       <div class="container full-width">
         <div class="text-body1 q-mb-lg">{{ $t('pipeops_subtitle') }}</div>
+
+        <recompute-stats-card />
 
         <!-- Workers panel — surfaces "who's actually polling jobs right
              now" so an operator can spot a two-pods-on-different-code
@@ -590,16 +630,15 @@ onUnmounted(() => {
             :options="jobTypeOptions"
             @update:model-value="(v) => store.applyFilters({ job_type: v })"
           />
-          <q-input
+          <q-select
             class="col-6 col-md-1"
             dense
             outlined
-            type="number"
+            clearable
             :label="$t('pipeops_filter_year')"
             :model-value="store.filters.year"
-            @update:model-value="
-              (v) => store.applyFilters({ year: v ? Number(v) : null })
-            "
+            :options="yearOptions"
+            @update:model-value="(v) => store.applyFilters({ year: v })"
           />
           <q-input
             class="col-12 col-md-3"
@@ -727,10 +766,13 @@ onUnmounted(() => {
                 <td>{{ p.author ?? '—' }}</td>
                 <td
                   class="text-grey-8 ellipsis"
-                  :class="{ 'cursor-pointer': !!pipelineMessage(p) }"
+                  :class="{
+                    'cursor-pointer':
+                      !!pipelineMessage(p) || hasErrorDetails(p),
+                  }"
                   style="max-width: 320px"
                   :title="$t('pipeops_msg_click_hint')"
-                  @click.stop="openMsg(pipelineMessage(p))"
+                  @click.stop="openMsg(pipelineMessageText(p))"
                 >
                   {{ pipelineMessage(p) ?? '—' }}
                 </td>
@@ -793,6 +835,26 @@ onUnmounted(() => {
                           {{ j.state ?? '?'
                           }}{{ j.result ? ' · ' + j.result : '' }}
                         </q-badge>
+                        <q-badge
+                          v-if="j.is_stale"
+                          color="deep-orange"
+                          text-color="white"
+                          class="q-mr-sm"
+                        >
+                          {{ $t('pipeops_stale') }}
+                        </q-badge>
+                        <q-btn
+                          v-if="j.is_stale"
+                          dense
+                          flat
+                          size="sm"
+                          icon="restart_alt"
+                          color="deep-orange"
+                          class="q-mr-sm"
+                          :loading="recovering.has(j.job_id)"
+                          :title="$t('pipeops_recover')"
+                          @click.stop="recoverJob(j)"
+                        />
                         <span class="text-weight-medium q-mr-sm">
                           #{{ j.job_id }} {{ j.job_type ?? '—' }}
                         </span>
@@ -804,13 +866,29 @@ onUnmounted(() => {
                               : '—')
                           }}
                           · {{ fmtDuration(j.started_at, j.finished_at) }}
+                          <template
+                            v-if="fmtQueued(j.created_at, j.started_at)"
+                          >
+                            ·
+                            {{
+                              $t('pipeops_queued', {
+                                d: fmtQueued(j.created_at, j.started_at),
+                              })
+                            }}
+                          </template>
+                          <template v-if="j.worker">
+                            ·
+                            <span :title="$t('pipeops_worker_hint')">
+                              ⚙ {{ j.worker }}
+                            </span>
+                          </template>
                         </span>
                         <span
-                          v-if="j.status_message"
+                          v-if="j.status_message || jobErrors(j).length"
                           class="text-caption text-grey-8 ellipsis cursor-pointer"
                           style="max-width: 520px"
                           :title="$t('pipeops_msg_click_hint')"
-                          @click.stop="openMsg(j.status_message)"
+                          @click.stop="openMsg(jobMessageText(j))"
                         >
                           {{ j.status_message }}
                         </span>
@@ -833,6 +911,41 @@ onUnmounted(() => {
                           {{ ph.name }}
                           <q-tooltip v-if="ph.error">{{ ph.error }}</q-tooltip>
                         </q-chip>
+                      </div>
+
+                      <!-- per-factor recompute failures -->
+                      <div
+                        v-if="jobErrors(j).length"
+                        class="q-mt-xs q-pl-md text-caption text-negative"
+                      >
+                        <div class="row items-center no-wrap">
+                          <q-icon name="report_problem" size="14px" />
+                          <span class="q-ml-xs">
+                            {{
+                              $t('pipeops_factor_errors_count', {
+                                n: jobErrors(j).length,
+                              })
+                            }}
+                          </span>
+                        </div>
+                        <div
+                          v-for="(e, idx) in jobErrors(j).slice(0, 5)"
+                          :key="idx"
+                          class="q-pl-md"
+                        >
+                          {{ formatFactorError(e) }}
+                        </div>
+                        <q-btn
+                          v-if="jobErrors(j).length > 5"
+                          flat
+                          dense
+                          no-caps
+                          size="sm"
+                          color="negative"
+                          class="q-pl-md"
+                          :label="$t('pipeops_factor_errors_show_all')"
+                          @click.stop="openMsg(jobMessageText(j))"
+                        />
                       </div>
 
                       <!-- #2A — status_history timeline -->
@@ -962,8 +1075,7 @@ onUnmounted(() => {
               overflow: auto;
               margin: 0;
             "
-            >{{ msgText }}</pre
-          >
+            >{{ msgText }}</pre>
         </q-card-section>
         <q-card-actions class="q-px-md q-pb-md">
           <q-btn

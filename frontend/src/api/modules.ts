@@ -1,4 +1,4 @@
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 
 /**
  * Response type for module totals endpoint
@@ -60,34 +60,43 @@ export interface ResultsSummary {
 }
 
 /**
- * Dropdown item returned by GET /modules/{unitId}/{year}/headcount/members.
+ * Dropdown item returned by
+ * GET /carbon-reports/{carbonReportId}/modules/headcount/members.
  */
 export interface HeadcountMemberDropdownItem {
   institutional_id: string;
   name: string;
 }
 
+// Concurrent mount-time callers (travel tables, traveler selects, charts)
+// share one request per report (4 identical GETs observed on explore-page
+// mount, #2360). Only the in-flight promise is held — never the result — so
+// later calls refetch and see roster edits.
+const headcountMembersInFlight = new Map<
+  number,
+  Promise<HeadcountMemberDropdownItem[]>
+>();
+
 /**
  * Fetch headcount members that have an institutional_id, for the traveler dropdown.
  *
- * @param unitId - Unit ID
- * @param year - Reporting year
- * @param carbonProjectType - 0 = Calculator, 1 = Simulator Explore. Scopes the
- *   lookup to the matching carbon report so the simulator reads its own members.
+ * @param carbonReportId - The addressed carbon report (pins unit and year;
+ *   resolve it via moduleStore.resolveCarbonReportId)
  * @returns Ordered list of members with institutional_id and name
  */
 export async function getHeadcountMembers(
-  unitId: number,
-  year: number | string,
-  carbonProjectType = 0,
+  carbonReportId: number,
 ): Promise<HeadcountMemberDropdownItem[]> {
-  const unitEncoded = encodeURIComponent(unitId);
-  const yearEncoded = encodeURIComponent(String(year));
-  return api
-    .get(`modules/${unitEncoded}/${yearEncoded}/headcount/members`, {
-      searchParams: { carbon_project_type: carbonProjectType },
-    })
-    .json<HeadcountMemberDropdownItem[]>();
+  const inFlight = headcountMembersInFlight.get(carbonReportId);
+  if (inFlight) return inFlight;
+  const request = api
+    .get(
+      `carbon-reports/${encodeURIComponent(String(carbonReportId))}/modules/headcount/members`,
+    )
+    .json<HeadcountMemberDropdownItem[]>()
+    .finally(() => headcountMembersInFlight.delete(carbonReportId));
+  headcountMembersInFlight.set(carbonReportId, request);
+  return request;
 }
 
 /**
@@ -108,4 +117,30 @@ export async function getResultsSummary(
   }
   const query = searchParams.toString();
   return api.get(query ? `${path}?${query}` : path).json<ResultsSummary>();
+}
+
+/**
+ * Fetch the results summary summed over several units for one year.
+ *
+ * @param unitIds - Units to combine, including the one currently viewed
+ * @param year - Report year
+ * @param excludeModules - Optional list of module_type_ids to exclude from totals
+ * @returns Combined totals and per-module breakdowns, same shape as the single-unit call
+ */
+export async function getMergedResultsSummary(
+  unitIds: number[],
+  year: number,
+  excludeModules: number[] = [],
+): Promise<ResultsSummary> {
+  const searchParams = new URLSearchParams();
+  searchParams.append('year', String(year));
+  for (const id of unitIds) {
+    searchParams.append('unit_ids', String(id));
+  }
+  for (const id of excludeModules) {
+    searchParams.append('exclude_modules', String(id));
+  }
+  return api
+    .get(`modules-stats/merged/results-summary?${searchParams.toString()}`)
+    .json<ResultsSummary>();
 }

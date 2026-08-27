@@ -16,15 +16,17 @@ the job.  Endpoints stamp the matching ``job_type`` so the runner's
 registry lookup hits the right handler.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionResult,
 )
+from app.models.module_type import DERIVED_DATA_ENTRY_TYPES
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks._chain import EMISSION_RECALC_DEDUP, chain_job
@@ -182,7 +184,7 @@ async def factor_ingest_handler(
 _STATUS_MESSAGE_REASON_CAP = 200
 
 
-def _sample_row_error_reason(row_errors: list) -> Optional[str]:
+def _sample_row_error_reason(row_errors: list) -> str | None:
     """Pick a representative reason from ``stats.row_errors`` (#1236).
 
     Row errors are recorded in order; the first one is usually
@@ -224,7 +226,10 @@ def finalize_ingest_meta(result: dict) -> dict:
     ``reference_ingest_handler`` — they had two identical copies of
     this join; the duplication is what let the bug exist in one.
     """
-    data = result.get("data", {}) or {}
+    # CSV/factor providers wrap their summary under ``data`` while the
+    # Tableau API providers return the same summary directly. Normalize both
+    # shapes before deriving the runner-owned FINISHED result.
+    data = (result.get("data") or {}) if "data" in result else result
     ingestion_result = data.get("result", IngestionResult.SUCCESS)
     status_message = result.get("status_message", "Success")
     if ingestion_result != IngestionResult.SUCCESS and (
@@ -235,7 +240,10 @@ def finalize_ingest_meta(result: dict) -> dict:
             f"{rec}: {data.get('inserted', 0)} inserted, "
             f"{data.get('skipped', 0)} skipped"
         )
-        sample_reason = _sample_row_error_reason(data.get("row_errors") or [])
+        stats = data.get("stats") or {}
+        sample_reason = _sample_row_error_reason(
+            data.get("row_errors") or stats.get("row_errors") or []
+        )
         if sample_reason:
             status_message += f" — first error: {sample_reason}"
     return {
@@ -280,9 +288,11 @@ async def _run_ingest(
         )
 
     job_config = job_meta.get("config") or {}
+    # DataIngestionJob carries no user/created_by field — background jobs
+    # are never attributed to a user (audit falls back to job_id/handler_id).
     provider = provider_class(
         config={**job.__dict__, **job_config, "job_id": job.id},
-        user=job.user if hasattr(job, "user") else None,
+        user=None,
         job_session=job_session,
         data_session=data_session,
     )
@@ -493,6 +503,21 @@ async def _chain_emission_recalc_for_data_ingest(
                 "year": year,
             }
         ]
+        # Derived types get a parallel recalc sibling — their rows were
+        # created synchronously by the ingest, so no ordering dependency.
+        try:
+            pinned = DataEntryTypeEnum(job.data_entry_type_id)
+        except ValueError:
+            pinned = None
+        if pinned is not None:
+            targets.extend(
+                {
+                    "module_type_id": job.module_type_id,
+                    "data_entry_type_id": derived.value,
+                    "year": year,
+                }
+                for derived in DERIVED_DATA_ENTRY_TYPES.get(pinned, [])
+            )
     else:
         # Multi-det data ingest (e.g. headcount.csv covers member +
         # student in one upload).  Late import avoids the
@@ -536,11 +561,11 @@ async def _chain_emission_recalc_for_data_ingest(
     # full-slice recalc is their contract.
     parent_config = (job.meta or {}).get("config") or {}
     raw_module_id = parent_config.get("carbon_report_module_id")
-    child_config: Optional[dict[str, Any]] = None
+    child_config: dict[str, Any] | None = None
     if raw_module_id is not None:
         try:
             child_config = {"carbon_report_module_ids": [int(raw_module_id)]}
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             logger.warning(
                 f"data ingest job {job.id}: non-int carbon_report_module_id="
                 f"{raw_module_id!r} in config — chaining unscoped recalc"

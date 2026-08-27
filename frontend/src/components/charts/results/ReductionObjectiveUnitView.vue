@@ -17,26 +17,26 @@ import {
 import VChart from 'vue-echarts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
-import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
+import type { TooltipRow, TooltipState } from '@/types/chartTooltip';
 import {
   normalizeAxisParams,
   extractSeriesValue,
   formatTooltipTonnes,
-  formatTooltipPopulation,
-} from 'src/utils/chart-tooltip-extractors';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useColorblindStore } from 'src/stores/colorblind';
-import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+} from '@/utils/chart-tooltip-extractors';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useColorblindStore } from '@/stores/colorblind';
+import { useModuleStore, useTimelineStore } from '@/stores/modules';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
   getModuleForCategoryKey,
   RESULTS_CATEGORY_LABEL_KEYS,
   RESULTS_CATEGORY_ORDER,
-} from 'src/constant/charts';
-import { MODULE_STATES } from 'src/constant/moduleStates';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
+} from '@/constant/charts';
+import { MODULE_STATES } from '@/constant/moduleStates';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
+import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
 
 interface Props {
   hideResearchFacilities?: boolean;
@@ -64,15 +64,12 @@ type PopulationRow = { year: number; pop: number };
 
 const { t, te } = useI18n();
 
-const INT_FORMATTER = new Intl.NumberFormat(undefined, {
-  maximumFractionDigits: 0,
-});
-
 const yearConfigStore = useYearConfigStore();
 const workspaceStore = useWorkspaceStore();
 const colorblindStore = useColorblindStore();
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
+const { isCategoryModuleActive } = useModuleCategoriesAvailability();
 
 const currentYear = computed(
   () => workspaceStore.selectedYear ?? new Date().getFullYear(),
@@ -122,8 +119,11 @@ function categoryLabel(categoryKey: string): string {
   return categoryKey;
 }
 
-function categoryTooltipKey(categoryKey: string): string {
-  return `results-reduction-${categoryKey}`;
+// Empty tooltip copy means the category has nothing to explain — hide the icon.
+function categoryTooltipText(categoryKey: string): string {
+  const key = `results-reduction-${categoryKey}`;
+  if (!te(key)) return '';
+  return t(key, { category: categoryLabel(categoryKey) });
 }
 
 // ── Unit-mode sliders (right panel) ─────────────────────────────────────────
@@ -136,6 +136,48 @@ const ADDITIONAL_UNIT_CATEGORY_KEYS = new Set([
   'embodied_energy',
 ]);
 const TOOLTIP_CATEGORY_ORDER = RESULTS_CATEGORY_ORDER;
+
+const SLIDER_LEVEL_LABEL_KEYS = [
+  'results_objectives_scenario_bau',
+  'results_objectives_scenario_low_effort',
+  'results_objectives_scenario_middle',
+  'results_objectives_scenario_high_effort',
+  'results_objectives_scenario_ambitious',
+] as const;
+
+const SCENARIO_PRESETS = [
+  {
+    value: 'bau',
+    labelKey: 'results_objectives_scenario_bau',
+    descriptionKey: 'results_objectives_scenario_bau_description',
+  },
+  {
+    value: 'middle',
+    labelKey: 'results_objectives_scenario_middle',
+    descriptionKey: 'results_objectives_scenario_middle_description',
+  },
+  {
+    value: 'ambitious',
+    labelKey: 'results_objectives_scenario_ambitious',
+    descriptionKey: 'results_objectives_scenario_ambitious_description',
+  },
+] as const;
+
+function sliderLevelLabel(level: number): string {
+  const clamped = Math.max(1, Math.min(SLIDER_LEVEL_LABEL_KEYS.length, level));
+  return t(SLIDER_LEVEL_LABEL_KEYS[clamped - 1]);
+}
+
+const scenarioOptions = computed(() =>
+  SCENARIO_PRESETS.map((p) => ({ label: t(p.labelKey), value: p.value })),
+);
+
+const scenarioDescription = computed(() => {
+  const preset = SCENARIO_PRESETS.find(
+    (p) => p.value === unitScenarioPreset.value,
+  );
+  return preset ? t(preset.descriptionKey) : '';
+});
 
 // ── Teleport tooltip composable ───────────────────────────────────────────────
 const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
@@ -167,37 +209,20 @@ function buildTooltipState(rawParams: unknown): TooltipState {
 
   const title = String(params[0]?.axisValue ?? '');
 
-  const populationParam = params.find(
-    (p) => String(p.seriesName) === 'population' && p.value != null,
-  );
-
   const rows: TooltipRow[] = params
     .filter((p) => p.seriesName && p.value != null)
-    .filter((p) => String(p.seriesName) !== 'population')
     .sort(
       (a, b) =>
         tooltipSortIndex(String(a.seriesName ?? '')) -
         tooltipSortIndex(String(b.seriesName ?? '')),
     )
-    .map(
-      (p): TooltipRow => ({
-        label: categoryLabel(String(p.seriesName)),
-        value: formatTooltipTonnes(extractSeriesValue(p.value)),
-        color: categoryColor(String(p.seriesName)),
-      }),
-    );
+    .map((p): TooltipRow => ({
+      label: categoryLabel(String(p.seriesName)),
+      value: formatTooltipTonnes(extractSeriesValue(p.value)),
+      color: categoryColor(String(p.seriesName)),
+    }));
 
-  const separatorRow: TooltipRow | undefined = populationParam
-    ? {
-        label: t('results_objectives_population_forecast'),
-        value: formatTooltipPopulation(
-          extractSeriesValue(populationParam.value),
-        ),
-        color: '#ff0000',
-      }
-    : undefined;
-
-  return { title, rows, separatorRow };
+  return { title, rows };
 }
 
 const validatedEmissionCategoryKeys = computed(() => {
@@ -230,6 +255,7 @@ const visibleUnitCategoryKeys = computed(() =>
     if (props.hideAdditionalData && ADDITIONAL_UNIT_CATEGORY_KEYS.has(c)) {
       return false;
     }
+    if (!isCategoryModuleActive(c)) return false;
     return isUnitCategoryInteractive(c);
   }),
 );
@@ -315,42 +341,6 @@ onUpdated(async () => {
   ensureSlidersResetIfLocked();
 });
 
-const populationSeries = computed(() => {
-  const pop = epflPopulationRows.value;
-  if (!pop.length) return null;
-  const popByYear = Object.fromEntries(pop.map((r) => [r.year, r.pop]));
-  const firstPopYear = pop.reduce<number | null>((min, r) => {
-    if (typeof r.year !== 'number') return min;
-    if (typeof r.pop !== 'number') return min;
-    return min == null ? r.year : Math.min(min, r.year);
-  }, null);
-  const firstPopValue =
-    firstPopYear == null ? null : (popByYear[firstPopYear] ?? null);
-
-  return {
-    name: 'population',
-    type: 'line',
-    yAxisIndex: 1,
-    showSymbol: false,
-    symbol: 'circle',
-    symbolSize: 7,
-    zlevel: 6,
-    z: 60,
-    lineStyle: { type: 'dotted', width: 2, color: '#ff0000' },
-    itemStyle: {
-      color: '#ff0000',
-      borderColor: '#ffffff',
-      borderWidth: 2,
-    },
-    data: years.value.map((y) => {
-      const v = popByYear[y];
-      if (typeof v === 'number') return v;
-      if (firstPopYear != null && y < firstPopYear) return firstPopValue;
-      return null;
-    }),
-  };
-});
-
 const unitSeriesData = computed(() => {
   const payload = moduleStore.state.emissionBreakdown;
   if (!payload) return null;
@@ -378,6 +368,7 @@ const unitSeriesData = computed(() => {
     if (props.hideAdditionalData && ADDITIONAL_UNIT_CATEGORY_KEYS.has(key)) {
       continue;
     }
+    if (!isCategoryModuleActive(key)) continue;
     if (!isUnitCategoryInteractive(key)) continue;
     baselineByCat[key] = (baselineByCat[key] ?? 0) + sumRowTonnes(row);
   }
@@ -392,6 +383,7 @@ const unitSeriesData = computed(() => {
     ) {
       continue;
     }
+    if (!isCategoryModuleActive(key)) continue;
     if (!isUnitCategoryInteractive(key)) continue;
     baselineByCat[key] = (baselineByCat[key] ?? 0) + sumRowTonnes(row);
   }
@@ -445,7 +437,6 @@ const showUnitEmptyState = computed(() => !hasAnyInteractiveUnitCategory.value);
 const chartOption = computed<EChartsOption | null>(() => {
   const payload = unitSeriesData.value;
   if (!payload) return null;
-  const popSeries = populationSeries.value;
 
   return {
     tooltip: {
@@ -462,7 +453,7 @@ const chartOption = computed<EChartsOption | null>(() => {
     legend: { show: false },
     grid: {
       left: 48,
-      right: 64,
+      right: 24,
       top: 24,
       bottom: 24,
       containLabel: true,
@@ -488,22 +479,8 @@ const chartOption = computed<EChartsOption | null>(() => {
         axisLabel: { formatter: (v: number) => `${v.toFixed(1)}` },
         splitLine: { show: false },
       },
-      {
-        type: 'value',
-        name: t('results_objectives_population_axis'),
-        min: 0,
-        position: 'right',
-        nameGap: 56,
-        nameLocation: 'middle',
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisLabel: { formatter: (v: number) => INT_FORMATTER.format(v) },
-        splitLine: { show: false },
-      },
     ],
-    series: popSeries
-      ? [...payload.stackedSeries, popSeries]
-      : [...payload.stackedSeries],
+    series: [...payload.stackedSeries],
     aria: {
       enabled: true,
       decal: buildChartDecal(colorblindStore.enabled, {
@@ -547,17 +524,20 @@ const chartOption = computed<EChartsOption | null>(() => {
 
     <div v-if="!showUnitEmptyState" class="col-12 col-lg-3">
       <section class="unit-controls">
-        <div class="q-pt-xl q-px-lg">
+        <div class="q-pt-lg q-px-lg">
           <div class="row items-center justify-between q-mb-xs">
-            <div class="text-caption text-secondary">Scenario</div>
+            <div class="text-caption text-secondary">
+              {{ $t('results_objectives_scenario_label') }}
+            </div>
             <q-btn
+              flat
+              dense
               no-caps
-              unelevated
-              outline
-              color="accent"
-              label="Reset"
               size="sm"
-              class="text-weight-medium"
+              color="secondary"
+              icon="o_restart_alt"
+              :label="$t('results_objectives_scenario_reset')"
+              class="scenario-reset text-weight-medium q-px-xs"
               :disable="!hasAnyInteractiveUnitCategory"
               @click="resetUnitSliders"
             />
@@ -570,46 +550,47 @@ const chartOption = computed<EChartsOption | null>(() => {
             map-options
             hide-bottom-space
             :disable="!hasAnyInteractiveUnitCategory"
-            :options="[
-              { label: 'BAU', value: 'bau' },
-              { label: 'Middle of the road', value: 'middle' },
-              { label: 'Ambitious', value: 'ambitious' },
-            ]"
-          />
+            :options="scenarioOptions"
+          >
+            <template #append>
+              <q-icon
+                name="o_info"
+                size="18px"
+                class="text-secondary"
+                @click.stop
+              >
+                <q-tooltip class="text-body2 text-black" max-width="260px">
+                  {{ scenarioDescription }}
+                </q-tooltip>
+              </q-icon>
+            </template>
+          </q-select>
         </div>
 
-        <q-separator class="q-my-lg" />
+        <q-separator class="q-my-md" />
 
         <div class="unit-controls__sliders">
-          <div class="unit-controls__scroll column">
+          <div class="unit-controls__scroll column no-wrap">
             <div
               v-for="cat in visibleUnitCategoryKeys"
               :key="cat"
-              class="objective-slider q-px-xl"
+              class="objective-slider"
               :style="{ '--cat-color': categoryColor(cat) }"
             >
-              <div class="objective-slider__header">
-                <div class="objective-slider__label text-caption text-primary">
-                  <span class="objective-slider__label-text">
-                    {{ categoryLabel(cat) }}
-                  </span>
-                  <q-icon
-                    name="o_info"
-                    size="14px"
-                    class="objective-slider__label-info text-secondary"
-                  >
-                    <q-tooltip class="text-body2 text-black" max-width="260px">
-                      {{
-                        $t(categoryTooltipKey(cat), {
-                          category: categoryLabel(cat),
-                        })
-                      }}
-                    </q-tooltip>
-                  </q-icon>
-                </div>
-                <div class="objective-slider__value text-caption text-primary">
-                  {{ unitSliderLevels[cat] }}
-                </div>
+              <div class="objective-slider__label text-caption text-primary">
+                <span class="objective-slider__label-text">
+                  {{ categoryLabel(cat) }}
+                </span>
+                <q-icon
+                  v-if="categoryTooltipText(cat)"
+                  name="o_info"
+                  size="14px"
+                  class="objective-slider__label-info text-secondary"
+                >
+                  <q-tooltip class="text-body2 text-black" max-width="260px">
+                    {{ categoryTooltipText(cat) }}
+                  </q-tooltip>
+                </q-icon>
               </div>
               <q-slider
                 v-model="unitSliderLevels[cat]"
@@ -622,6 +603,9 @@ const chartOption = computed<EChartsOption | null>(() => {
                 thumb-size="12px"
                 track-size="2px"
               />
+              <div class="objective-slider__value text-caption text-secondary">
+                {{ sliderLevelLabel(unitSliderLevels[cat] ?? 1) }}
+              </div>
             </div>
           </div>
         </div>
@@ -638,15 +622,16 @@ const chartOption = computed<EChartsOption | null>(() => {
 </template>
 
 <style scoped lang="scss">
+/* #2027: a definite height, not min-height — same constraint as the other
+   results charts: vue-echarts 8.1.0 keeps a zero-height canvas forever if the
+   chart measures 0 once at init. */
 .objective-chart {
-  height: 100%;
-  min-height: 620px;
+  height: 620px;
 }
 
 .objective-chart__canvas {
   width: 100%;
-  height: 100%;
-  min-height: 620px;
+  height: 620px;
 }
 
 .objective-chart__empty {
@@ -694,8 +679,8 @@ const chartOption = computed<EChartsOption | null>(() => {
 }
 
 .unit-controls :deep(.q-slider) {
-  margin-left: 6px;
-  margin-right: 6px;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .unit-controls__scroll {
@@ -717,21 +702,22 @@ const chartOption = computed<EChartsOption | null>(() => {
   border-radius: 999px !important;
 }
 
-.objective-slider__header {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: start;
-  column-gap: 12px;
+.objective-slider {
+  padding: 0 20px;
+}
+
+.objective-slider :deep(.q-slider__track-container--h) {
+  padding: 4px 0;
 }
 
 .objective-slider__label {
   min-width: 0;
-  display: inline-flex;
+  display: flex;
   align-items: flex-start;
   gap: 6px;
   white-space: normal;
   overflow-wrap: anywhere;
-  line-height: 1.55;
+  line-height: 1.25;
 }
 
 .objective-slider__label-text {
@@ -744,8 +730,14 @@ const chartOption = computed<EChartsOption | null>(() => {
 }
 
 .objective-slider__value {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  line-height: 1.5;
+  text-align: left;
+  line-height: 1.2;
+  margin-top: -4px;
+  margin-bottom: 10px;
+}
+
+.scenario-reset :deep(.q-icon) {
+  font-size: 16px;
+  margin-right: 4px;
 }
 </style>

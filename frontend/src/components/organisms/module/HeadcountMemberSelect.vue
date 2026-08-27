@@ -22,15 +22,11 @@
     :error="error"
     :error-message="errorMessage"
     :hint="
-      !loading && members.length === 0
-        ? $t(
-            isNotValidated
-              ? `${MODULES.ProfessionalTravel}-field-traveler-not-validated`
-              : `${MODULES.ProfessionalTravel}-field-traveler-empty-headcount`,
-          )
+      !loading && isNotValidated
+        ? $t(`${MODULES.ProfessionalTravel}-field-traveler-not-validated`)
         : undefined
     "
-    :disable="!loading && members.length === 0"
+    :disable="!loading && members.length === 0 && !canEditHeadcount"
     dense
     outlined
     clearable
@@ -41,14 +37,20 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { MODULES } from 'src/constant/modules';
-import { useAuthStore } from 'src/stores/auth';
-import { useModuleStore } from 'src/stores/modules';
+import { MODULES } from '@/constant/modules';
+import {
+  TRAVELER_OTHER_INTERNAL,
+  TRAVELER_OTHER_EXTERNAL,
+  TRAVELER_OTHER_INTERNAL_LABEL_KEY,
+  TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
+} from '@/constant/module-config/traveler-options';
+import { useAuthStore } from '@/stores/auth';
+import { useModuleStore } from '@/stores/modules';
 import {
   getHeadcountMembers,
   type HeadcountMemberDropdownItem,
-} from 'src/api/modules';
-import { PermissionAction } from 'src/stores/auth';
+} from '@/api/modules';
+import { PermissionAction } from '@/stores/auth';
 
 const { t: $t } = useI18n();
 
@@ -67,7 +69,7 @@ const emit = defineEmits<{
 
 interface SelectOption {
   label: string;
-  value: string;
+  value: string | null;
 }
 
 const loading = ref(false);
@@ -80,7 +82,6 @@ const canEditHeadcount = computed(() =>
 const isNotValidated = computed(
   () => members.value.length === 0 && !canEditHeadcount.value,
 );
-const options = ref<SelectOption[]>([]);
 
 function buildOptions(list: HeadcountMemberDropdownItem[]): SelectOption[] {
   return list.map((m) => ({
@@ -89,22 +90,41 @@ function buildOptions(list: HeadcountMemberDropdownItem[]): SelectOption[] {
   }));
 }
 
+const memberOptions = ref<SelectOption[]>([]);
+
+// Two static "Other traveler" sentinels are always offered after the real
+// headcount members (issue #1153), so a manager can attribute a trip to a
+// traveler who isn't in this unit's headcount. Built as a computed so the
+// labels re-translate on locale change.
+const options = computed<SelectOption[]>(() => [
+  ...memberOptions.value,
+  {
+    label: $t(TRAVELER_OTHER_INTERNAL_LABEL_KEY),
+    value: TRAVELER_OTHER_INTERNAL,
+  },
+  {
+    label: $t(TRAVELER_OTHER_EXTERNAL_LABEL_KEY),
+    value: TRAVELER_OTHER_EXTERNAL,
+  },
+]);
+
 async function fetchMembers() {
   if (!props.unitId || !props.year) return;
   loading.value = true;
   try {
     members.value = await getHeadcountMembers(
-      props.unitId,
-      props.year,
-      moduleStore.carbonProjectType,
+      await moduleStore.resolveCarbonReportId(props.unitId, props.year),
     );
-    options.value = buildOptions(members.value);
-    if (!canEditHeadcount.value && options.value.length > 0) {
-      emit('update:modelValue', options.value[0].value);
+    memberOptions.value = buildOptions(members.value);
+    // Standard users (no Headcount edit) are auto-attributed to their own
+    // headcount entry. Only auto-emit a REAL member — never a sentinel — so a
+    // standard user without a headcount entry is not silently misattributed.
+    if (!canEditHeadcount.value && memberOptions.value.length > 0) {
+      emit('update:modelValue', memberOptions.value[0].value);
     }
   } catch {
     members.value = [];
-    options.value = [];
+    memberOptions.value = [];
   } finally {
     loading.value = false;
   }

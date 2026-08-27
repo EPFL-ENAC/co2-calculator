@@ -15,6 +15,12 @@ from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
 from sqlalchemy.exc import PendingRollbackError
 
 from app.models.data_ingestion import (
@@ -28,7 +34,8 @@ from app.tasks.registry import _REGISTRY, register
 def _clean_registry():
     """Snapshot+restore the global registry between tests (matches the
     pattern in test_registry.py so this file stays order-independent
-    once Tier 2 wires real handlers via import-time decorators)."""
+    once Tier 2 wires real handlers via import-time decorators).
+    """
     snapshot = dict(_REGISTRY)
     _REGISTRY.clear()
     try:
@@ -53,7 +60,8 @@ def _make_job(job_id: int = 1, job_type: str = "test_job") -> MagicMock:
 
 def _make_repo_returning(job: MagicMock | None) -> MagicMock:
     """Mock of ``DataIngestionRepository`` whose ``get_job_by_id``
-    returns the given job (or None for the not-found case)."""
+    returns the given job (or None for the not-found case).
+    """
     repo = MagicMock()
     repo.get_job_by_id = AsyncMock(return_value=job)
     repo.claim_job = AsyncMock(return_value=True)
@@ -74,7 +82,8 @@ async def _mock_session_ctx():
     ``SessionLocal()`` is an async context manager in production; the
     runner uses ``async with SessionLocal() as session_a, SessionLocal()
     as session_b``.  This mock yields a fresh MagicMock per ``with``,
-    matching that shape."""
+    matching that shape.
+    """
     session = MagicMock()
     session.commit = AsyncMock()
     session.rollback = AsyncMock()
@@ -94,13 +103,15 @@ async def _noop_heartbeat(_job_id: int, _abort_event=None) -> None:
     ``finally`` is then a no-op.
 
     ``_abort_event`` is the second arg the production loop accepts
-    (B-H3); the noop ignores it."""
+    (B-H3); the noop ignores it.
+    """
     return None
 
 
 def _patch_heartbeat():
     """Patch ``_heartbeat_loop`` to a no-op so the runner's heartbeat
-    spawn doesn't sleep through STALE_JOB_TIMEOUT_MINUTES/4 minutes."""
+    spawn doesn't sleep through STALE_JOB_TIMEOUT_MINUTES/4 minutes.
+    """
     return patch.object(runner_mod, "_heartbeat_loop", _noop_heartbeat)
 
 
@@ -141,7 +152,8 @@ async def test_run_job_null_job_type_refuses_to_dispatch():
 @pytest.mark.asyncio
 async def test_run_job_claim_fails_returns_silently():
     """``claim_job`` returns False (already claimed / out of retries)
-    → run_job exits without calling the handler or updating state."""
+    → run_job exits without calling the handler or updating state.
+    """
     job = _make_job()
     repo = _make_repo_returning(job)
     repo.claim_job = AsyncMock(return_value=False)
@@ -171,7 +183,8 @@ async def test_run_job_claim_fails_returns_silently():
 @pytest.mark.asyncio
 async def test_run_job_success_commits_and_marks_finished_success():
     """Happy path: handler returns a meta dict, data committed,
-    state→FINISHED, result→SUCCESS, status_message from meta."""
+    state→FINISHED, result→SUCCESS, status_message from meta.
+    """
     job = _make_job()
     job.locked_by = runner_mod.POD_ID
     repo = _make_repo_returning(job)
@@ -200,7 +213,8 @@ async def test_run_job_success_commits_and_marks_finished_success():
 @pytest.mark.asyncio
 async def test_run_job_handler_raises_marks_finished_error_and_rolls_back():
     """Handler exception → data_session rolled back, state→FINISHED,
-    result→ERROR, status_message captures the exception."""
+    result→ERROR, status_message captures the exception.
+    """
     job = _make_job()
     job.locked_by = runner_mod.POD_ID
     repo = _make_repo_returning(job)
@@ -251,7 +265,8 @@ async def test_run_job_preempted_rolls_back_and_skips_state_update():
     """The pre-commit re-read sees a different ``locked_by`` (a stale-
     sweep recovered the row mid-handler) → roll back data_session,
     skip the state update so the new owner can finish without a
-    racing FINISHED write."""
+    racing FINISHED write.
+    """
     job = _make_job()
     job.locked_by = runner_mod.POD_ID
 
@@ -295,7 +310,8 @@ async def test_run_job_preempted_rolls_back_and_skips_state_update():
 @pytest.mark.asyncio
 async def test_run_job_preempted_to_deleted_rolls_back():
     """Preemption check sees job has vanished (recovered + recreated
-    under a different id, or admin deleted) → same rollback path."""
+    under a different id, or admin deleted) → same rollback path.
+    """
     job = _make_job()
     job.locked_by = runner_mod.POD_ID
     repo = _make_repo_returning(job)
@@ -448,6 +464,63 @@ async def test_run_job_handler_poisons_job_session_still_marks_error():
     _, kwargs = repo.finish_job.call_args
     assert kwargs["result"] == IngestionResult.ERROR
     assert "uq_emission_recalc_active" in kwargs["status_message"]
+
+
+# ---------------------------------------------------------------------------
+# run_job — job execution span (#2371)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_job_handler_runs_inside_job_span():
+    """#2371 — the runner opens one OTel span per job execution so SQL
+    spans emitted during the job nest under it instead of exporting as
+    parentless root traces.
+
+    A local SDK ``TracerProvider`` with an in-memory exporter is patched
+    onto ``runner_mod.tracer`` (the global provider stays untouched).
+    The stub handler captures the current span mid-run; it must be the
+    recording ``job <type>`` span carrying the job attributes, and the
+    span must be ended (exported exactly once) after ``run_job`` returns.
+    """
+    job = _make_job()
+    job.locked_by = runner_mod.POD_ID
+    job.pipeline_id = "pipe-1"
+    repo = _make_repo_returning(job)
+    repo.recompute_pipeline_status = AsyncMock(return_value=None)
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+
+    seen: dict = {}
+
+    @register("test_job")
+    async def _handler(j, js, ds) -> dict:
+        current = trace.get_current_span()
+        seen["recording"] = current.is_recording()
+        seen["span_id"] = current.get_span_context().span_id
+        return {}
+
+    with (
+        _patch_session_local(),
+        _patch_heartbeat(),
+        patch.object(runner_mod, "DataIngestionRepository", return_value=repo),
+        patch.object(runner_mod, "tracer", provider.get_tracer("test-2371")),
+    ):
+        await runner_mod.run_job(1)
+
+    assert seen["recording"] is True
+    finished = exporter.get_finished_spans()
+    assert len(finished) == 1
+    span = finished[0]
+    assert span.name == "job test_job"
+    attributes = dict(span.attributes or {})
+    assert attributes["job.id"] == 1
+    assert attributes["job.type"] == "test_job"
+    assert attributes["pipeline.id"] == "pipe-1"
+    # The handler ran inside THIS span, not merely some span.
+    assert span.get_span_context().span_id == seen["span_id"]
 
 
 # chain_job tests live in ``test_chain.py``.

@@ -1,7 +1,8 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { MODULES, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
-import { formatFTE } from 'src/utils/number';
-import type { Module } from 'src/constant/modules';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { MODULES, MODULES_THRESHOLD_TYPES } from '@/constant/modules';
+import { formatFTE } from '@/utils/number';
+import type { Module } from '@/constant/modules';
+import { SIUS_CODES } from '@/types/module-lookups.gen';
 
 // Define an icon map to convert string keys to SVG icons
 import {
@@ -24,49 +25,53 @@ const memberFields: ModuleField[] = [
     id: 'name',
     labelKey: 'headcount-member-form-field-name-label',
     type: 'text',
+    required: true,
     sortable: true,
     ratio: '1/4',
     icon: 'o_filter_drama',
     columnSize: 'sm',
+    editableInline: true,
   },
   {
     id: 'sius_code',
     labelKey: 'headcount-member-form-field-function-label',
     type: 'select',
+    required: true,
     sortable: true,
     ratio: '1/4',
     icon: 'o_assignment_ind',
     optionLabelsAreKeys: true,
     columnSize: 'sm',
+    editableInline: true,
+    // #2254: imported rows may carry the "Other staff" sentinel (-1),
+    // which is display-only — not offered in the dropdown options below.
+    // renderCell falls back to this key template when no option matches.
+    optionLabelKey: '{value}',
 
-    options: [
-      { value: '51', label: '51' },
-      { value: '52', label: '52' },
-      { value: '53', label: '53' },
-      { value: '54', label: '54' },
-      { value: '56', label: '56' },
-      { value: '57', label: '57' },
-      { value: '58', label: '58' },
-      { value: '59', label: '59' },
-    ],
+    options: SIUS_CODES.map((value) => ({ value, label: value })),
   },
   {
     id: 'user_institutional_id',
     labelKey: 'headcount-member-form-field-user-institutional-id-label',
     type: 'text',
+    required: true,
     sortable: false,
     ratio: '1/4',
+    editableInline: true,
   },
   {
     id: 'fte',
     labelKey: 'headcount-member-form-field-fte-label',
     type: 'number',
+    required: true,
     min: 0,
     max: 1,
     step: 0.1,
+    maxDecimals: 1,
     sortable: false,
     ratio: '1/4',
     icon: 'o_timer',
+    editableInline: true,
   },
 ];
 
@@ -80,12 +85,15 @@ const studentFields: ModuleField[] = [
     id: 'fte',
     labelKey: 'headcount-student_form_field_fte_label',
     type: 'number',
+    required: true,
     min: 0,
     step: 0.1,
+    maxDecimals: 1,
     sortable: true,
     ratio: '12/12',
     icon: iconMap['o_timer'],
     tooltip: 'module-headcount-submodule-student-table-fte',
+    editableInline: true,
   },
 ];
 

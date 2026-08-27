@@ -1,9 +1,13 @@
 import { defineStore } from 'pinia';
+// Moved to a leaf module so pure-function Playwright specs can import the
+// enums without dragging api/i18n (import.meta.glob) into the node runner;
+// re-exported here so existing importers keep one canonical path.
+import { IngestionState, IngestionResult } from '@/constant/ingestion';
 import { computed, ref } from 'vue';
-import { api } from 'src/api/http';
-import { Module } from 'src/constant/modules';
-import { getModuleTypeId } from 'src/constant/moduleStates';
-import { usePipelineStateStore } from 'src/stores/pipelineState';
+import { api } from '@/api/http';
+import { Module } from '@/constant/modules';
+import { getModuleTypeId } from '@/constant/moduleStates';
+import { usePipelineStateStore } from '@/stores/pipelineState';
 
 export interface DataIngestionJob {
   job_id: number;
@@ -42,6 +46,8 @@ export interface ImportRow {
 export interface JobRowError {
   row: number;
   reason: string;
+  type?: string;
+  unit_institutional_id?: string;
 }
 
 export interface JobUpdatePayload {
@@ -60,6 +66,15 @@ export interface JobUpdatePayload {
     rows_skipped?: number;
     rows_with_factors?: number;
     rows_without_factors?: number;
+    // Issue #1591 — factor-recompute stats (``BaseFactorUpdateProvider``).
+    // Deliberately typed as a count only, not ``error_details``: those
+    // per-row entries can name a Unit/CarbonReport belonging to a
+    // different unit for shared "common" research-facilities factors,
+    // and are reserved for the permission-gated Pipeline Operations
+    // Console, not this generic per-job stream payload.
+    stats?: {
+      errors?: number;
+    };
   };
 }
 
@@ -124,18 +139,7 @@ export enum FactorType {
 // that file or the per-row spinner rehydrate on page reload will
 // silently mis-map states — the unit test mirrors the literals so it
 // won't catch you either.
-export enum IngestionState {
-  NOT_STARTED = 0,
-  QUEUED = 1,
-  RUNNING = 2,
-  FINISHED = 3,
-}
-
-export enum IngestionResult {
-  SUCCESS = 0,
-  WARNING = 1,
-  ERROR = 2,
-}
+export { IngestionState, IngestionResult };
 
 export type InitiateSyncParams = {
   module_type_id: number;
@@ -566,34 +570,6 @@ provider_type
     }
 
     /**
-     * Get successful jobs from a specific year, filtered by module type and target type.
-     * Returns only jobs that have state = FINISHED (3) and result = SUCCESS (0).
-     */
-    async function getPreviousYearSuccessfulJobs(
-      year: number,
-      moduleTypeId: number,
-      targetType: TargetType,
-    ): Promise<SyncJobResponse[]> {
-      try {
-        const jobs = (await api
-          .get(`sync/jobs/year/${year}/latest`)
-          .json()) as SyncJobResponse[];
-
-        const result = jobs.filter(
-          (job) =>
-            job.module_type_id === moduleTypeId &&
-            job.target_type === targetType &&
-            job.state === IngestionState.FINISHED && // FINISHED
-            job.result === IngestionResult.SUCCESS, // SUCCESS
-        );
-        return result;
-      } catch (err: unknown) {
-        console.error('Failed to fetch previous year jobs:', err);
-        return [];
-      }
-    }
-
-    /**
      * Trigger a computed factor recomputation for a given module / data-entry type.
      * Uses the dedicated /sync/factors endpoint with ingestion_method=COMPUTED.
      *
@@ -728,6 +704,41 @@ provider_type
       }
     }
 
+    /** Wire shape of POST /sync/admin/recompute-stats. */
+    interface RecomputeStatsResponse {
+      dispatched: number;
+      skipped: number;
+      skipped_no_factors: number;
+      job_ids: number[];
+    }
+
+    async function recomputeStats(
+      year: number | null,
+      moduleTypeId: number | null = null,
+    ): Promise<RecomputeStatsResponse> {
+      // Admin backfill trigger (#841 follow-up): dispatches one root
+      // aggregation job per (module_type_id, year) scope so every
+      // report/module stats row gets recomputed under the current code —
+      // needed after a stats JSON shape change, since existing rows keep
+      // whatever an older deploy wrote until something re-triggers them.
+      try {
+        return await api
+          .post('sync/admin/recompute-stats', {
+            searchParams: {
+              ...(year ? { year } : {}),
+              ...(moduleTypeId ? { module_type_id: moduleTypeId } : {}),
+            },
+          })
+          .json<RecomputeStatsResponse>();
+      } catch (err: unknown) {
+        error.value =
+          err instanceof Error
+            ? err.message
+            : 'Failed to trigger stats recompute';
+        throw err;
+      }
+    }
+
     async function reset(): Promise<void> {
       loading.value = false;
       error.value = null;
@@ -753,7 +764,6 @@ provider_type
       getResultLabel,
       fetchSyncJobsByYear,
       fetchLatestSyncJobsByYear,
-      getPreviousYearSuccessfulJobs,
       initiateSync,
       initiateComputedFactorSync,
       initiateEmissionRecalculation,
@@ -761,6 +771,7 @@ provider_type
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,
       abortPipeline,
+      recomputeStats,
       reset,
     };
   },

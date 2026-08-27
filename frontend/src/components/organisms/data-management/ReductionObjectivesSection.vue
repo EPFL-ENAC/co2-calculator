@@ -5,17 +5,22 @@ import {
   useYearConfigStore,
   type ReductionObjectiveGoal,
   type FileMetadata,
-} from 'src/stores/yearConfig';
+} from '@/stores/yearConfig';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
 import { inject } from 'vue';
 import {
   TargetType,
   type ImportRow,
   type SyncJobResponse,
-} from 'src/stores/backofficeDataManagement';
-import UploadCard from 'src/components/molecules/data-management/UploadCard.vue';
+} from '@/stores/backofficeDataManagement';
+import UploadCard from '@/components/molecules/data-management/UploadCard.vue';
+
+const props = defineProps<{
+  minReductionYear: number;
+  maxReductionYear: number;
+}>();
 
 const yearConfigStore = useYearConfigStore();
 const { selectedYear } = storeToRefs(yearConfigStore);
@@ -86,10 +91,21 @@ const goalsAreValid = computed(() =>
       g.target_year > selectedYear.value &&
       g.reduction_percentage >= 0 &&
       g.reduction_percentage <= 100 &&
-      g.reference_year > 0
+      g.reference_year >= props.minReductionYear &&
+      g.reference_year <= props.maxReductionYear
     );
   }),
 );
+
+const referenceYearRules = [
+  (v: number) =>
+    !v ||
+    (v >= props.minReductionYear && v <= props.maxReductionYear) ||
+    $t('year_config_reference_year_error', {
+      min: props.minReductionYear,
+      max: props.maxReductionYear,
+    }),
+];
 
 /** Persist all non-empty goals to the store. Converts percentage from 0–100 display to 0–1 storage. */
 async function saveReductionGoals(): Promise<void> {
@@ -316,10 +332,9 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
               class="full-width"
               :label="$t('data_management_reduction_objectives_reference_year')"
               placeholder="2019"
-              :rules="[
-                (v: number) =>
-                  !v || v > 0 || $t('year_config_reference_year_error'),
-              ]"
+              :min="minReductionYear"
+              :max="maxReductionYear"
+              :rules="referenceYearRules"
             />
           </div>
         </q-card>
@@ -368,10 +383,9 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
               class="full-width"
               :label="$t('data_management_reduction_objectives_reference_year')"
               placeholder="2019"
-              :rules="[
-                (v: number) =>
-                  !v || v > 0 || $t('year_config_reference_year_error'),
-              ]"
+              :min="minReductionYear"
+              :max="maxReductionYear"
+              :rules="referenceYearRules"
             />
           </div>
         </q-card>
@@ -420,10 +434,9 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
               class="full-width"
               :label="$t('data_management_reduction_objectives_reference_year')"
               placeholder="2019"
-              :rules="[
-                (v: number) =>
-                  !v || v > 0 || $t('year_config_reference_year_error'),
-              ]"
+              :min="minReductionYear"
+              :max="maxReductionYear"
+              :rules="referenceYearRules"
             />
           </div>
         </q-card>

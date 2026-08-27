@@ -1,22 +1,22 @@
 <script setup lang="ts">
 import { computed, inject, ref, type ComputedRef } from 'vue';
-import { useUploadCard } from 'src/composables/useUploadCard';
-import { mergeLivePipelineJob } from 'src/composables/useModuleConfig';
+import { useUploadCard } from '@/composables/useUploadCard';
+import { mergeLivePipelineJob } from '@/composables/useModuleConfig';
 import { useI18n } from 'vue-i18n';
 import {
   useBackofficeDataManagement,
   TargetType,
   IngestionState,
   IngestionResult,
-} from 'src/stores/backofficeDataManagement';
+} from '@/stores/backofficeDataManagement';
 import type {
   ImportRow,
   SyncJobResponse,
   JobUpdatePayload,
   InitiateSyncParams,
-} from 'src/stores/backofficeDataManagement';
-import type { PipelineJob } from 'src/stores/pipelineStream';
-import { useFilesStore, type FileObject } from 'src/stores/files';
+} from '@/stores/backofficeDataManagement';
+import type { PipelineJob } from '@/stores/pipelineStream';
+import { useFilesStore, type FileObject } from '@/stores/files';
 import { Notify } from 'quasar';
 
 interface Props {
@@ -229,8 +229,7 @@ async function uploadSelectedFile(file: File) {
       (payload?: JobUpdatePayload) => {
         const result = payload?.result;
         const rowsProcessed = payload?.meta?.rows_processed as
-          | number
-          | undefined;
+          number | undefined;
 
         let color: string;
         let message: string;
@@ -414,7 +413,7 @@ function isErrorOrWarning(): boolean {
             {{ getJobInfo().rowsProcessed }}
             {{ $t('data_management_rows_imported') }}
             <span v-if="getJobInfo().timestamp">
-              • {{ getJobInfo().timestamp.toLocaleDateString() }}
+              · {{ getJobInfo().timestamp.toLocaleDateString() }}
             </span>
           </div>
         </div>

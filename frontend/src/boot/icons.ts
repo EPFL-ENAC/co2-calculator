@@ -1,4 +1,4 @@
-import { icons } from 'src/plugin/module-icon';
+import { icons } from '@/plugin/module-icon';
 
 export default ({ app }) => {
   app.config.globalProperties.$moduleIcons = icons;

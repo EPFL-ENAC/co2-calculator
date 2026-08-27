@@ -22,11 +22,11 @@ clears the rest of the table.
 import csv
 import io
 import urllib.parse
-from typing import Any, Dict, List
+from typing import Any
 
 import psycopg
 from sqlalchemy.engine.url import make_url
-from sqlmodel import delete
+from sqlmodel import col, delete
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -43,6 +43,7 @@ from app.models.user import User
 from app.seed.seed_locations import _NATURAL_KEY_EXPR
 from app.services.data_ingestion.base_csv_provider import _validate_file_path
 from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.utils.csv_dialect import csv_dict_reader
 
 logger = get_logger(__name__)
 
@@ -82,7 +83,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         user: User | None = None,
         job_session: Any = None,
         data_session: Any = None,
@@ -134,18 +135,18 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             logger.error(f"Failed to validate reference CSV: {exc}")
             return False
 
-    async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_data(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         return []
 
     async def transform_data(
-        self, raw_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         return raw_data
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _load_data(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         return {"inserted": 0, "skipped": 0, "errors": 0}
 
-    async def ingest(self, filters: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    async def ingest(self, filters: dict[str, Any] | None = None) -> dict[str, Any]:
         try:
             await self._update_job(
                 status_message="processing",
@@ -167,7 +168,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
                     "reference type (expected plane=20, train=21, building=30)"
                 )
 
-            processed_path = await self._move_to_processed(processing_path, filename)
+            processed_path = await self._move_to_processed(processing_path)
 
             result = (
                 IngestionResult.SUCCESS
@@ -224,34 +225,12 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         if not self.source_file_path:
             raise ValueError("Missing file_path in config")
         _validate_file_path(self.source_file_path)
-        filename = self.source_file_path.split("/")[-1]
-        processing_path = f"processing/{self.job_id}/{filename}"
-        logger.info(f"Moving file from {self.source_file_path} to {processing_path}")
-        move_result = await self.files_store.move_file(
-            self.source_file_path, processing_path
-        )
-        if not move_result:
-            raise ValueError("Failed to move file to processing path")
+        processing_path = await self._move_to_processing(self.source_file_path)
+        filename = processing_path.split("/")[-1]
 
         file_content, _ = await self.files_store.get_file(processing_path)
         csv_text = file_content.decode("utf-8")
         return csv_text, processing_path, filename
-
-    async def _move_to_processed(self, processing_path: str, filename: str) -> str:
-        """On success only — promote ``processing/<job>/<file>`` to ``processed/``.
-
-        Kept off the failure path so an admin downloading "the last CSV"
-        always reads a file that was actually ingested.
-        """
-        processed_path = f"processed/{self.job_id}/{filename}"
-        moved = await self.files_store.move_file(processing_path, processed_path)
-        if not moved:
-            logger.warning(
-                f"Failed to move {processing_path} to {processed_path} — "
-                "keeping in processing/"
-            )
-            return processing_path
-        return processed_path
 
     @staticmethod
     def _validate_headers(
@@ -259,7 +238,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         required_columns: set[str],
         expected_columns: set[str],
     ) -> None:
-        reader = csv.DictReader(io.StringIO(csv_text))
+        reader = csv_dict_reader(csv_text)
         try:
             first = next(reader)
         except StopIteration:
@@ -273,14 +252,15 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             )
         unknown = keys - expected_columns
         if unknown:
-            logger.warning(
-                f"Reference CSV has unexpected columns (ignored): "
-                f"{', '.join(sorted(unknown))}"
+            raise ValueError(
+                "CSV has unexpected columns: "
+                f"{', '.join(sorted(unknown))}. "
+                f"Expected: {', '.join(sorted(expected_columns))}"
             )
 
     async def _ingest_locations(
         self, csv_text: str, det: DataEntryTypeEnum
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """COPY into a staging temp table, then REPLACE the ``locations`` of
         this upload's mode.
 
@@ -314,7 +294,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         if url.drivername.split("+")[0] != "postgresql":
             return await self._ingest_locations_sqlite(rows, det)
 
-        conn_kwargs: Dict[str, Any] = {
+        conn_kwargs: dict[str, Any] = {
             "host": url.host,
             "port": url.port or 5432,
             "dbname": url.database,
@@ -398,10 +378,10 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         }
 
     @staticmethod
-    def _parse_locations_rows(csv_text: str, det: DataEntryTypeEnum) -> List[List[str]]:
+    def _parse_locations_rows(csv_text: str, det: DataEntryTypeEnum) -> list[list[str]]:
         target_mode = det.name  # "plane" or "train"
-        rows: List[List[str]] = []
-        reader = csv.DictReader(io.StringIO(csv_text))
+        rows: list[list[str]] = []
+        reader = csv_dict_reader(csv_text)
         for raw in reader:
             mode = (raw.get("transport_mode") or "").strip().lower()
             if mode != target_mode:
@@ -423,8 +403,8 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         return rows
 
     async def _ingest_locations_sqlite(
-        self, rows: List[List[str]], det: DataEntryTypeEnum
-    ) -> Dict[str, Any]:
+        self, rows: list[list[str]], det: DataEntryTypeEnum
+    ) -> dict[str, Any]:
         """SQLite fallback for tests: ORM upsert keyed on natural_key.
 
         Production runs against PostgreSQL via the COPY+UPSERT path above;
@@ -441,9 +421,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         # untouched by a train upload and vice-versa.
         target_mode = TransportModeEnum(det.name)
         await self.data_session.exec(
-            delete(Location).where(
-                Location.transport_mode == target_mode  # type: ignore[arg-type]
-            )
+            delete(Location).where(col(Location.transport_mode) == target_mode)
         )
 
         inserted = 0
@@ -478,9 +456,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             # ``bool``; at runtime it's a ``BinaryExpression``.  Same workaround
             # used elsewhere in the codebase (see app/api/v1/data_sync.py).
             existing = await self.data_session.execute(
-                select(Location).where(
-                    Location.natural_key == natural_key  # type: ignore[arg-type]
-                )
+                select(Location).where(col(Location.natural_key) == natural_key)
             )
             row_obj = existing.scalar_one_or_none()
             if row_obj is None:
@@ -517,7 +493,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             "rows_inserted": inserted,
         }
 
-    async def _ingest_building_rooms(self, csv_text: str) -> Dict[str, Any]:
+    async def _ingest_building_rooms(self, csv_text: str) -> dict[str, Any]:
         """Delete and re-insert all building rooms (matches seed semantics).
 
         Uploading a partial CSV will wipe everything outside it; the
@@ -529,9 +505,9 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             BUILDING_ROOMS_EXPECTED_COLUMNS,
         )
 
-        rooms: List[BuildingRoom] = []
+        rooms: list[BuildingRoom] = []
         skipped = 0
-        reader = csv.DictReader(io.StringIO(csv_text))
+        reader = csv_dict_reader(csv_text)
         for raw in reader:
             building_location = (raw.get("building_location") or "").strip()
             building_name = (raw.get("building_name") or "").strip()
@@ -564,6 +540,10 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
 
 
 def _to_float(value: Any) -> float | None:
+    """Absent/blank/'-' cells are legal Nones; an unparseable present value is
+    an error (#1489, audit F-2) — silently NULLing it is the same failure mode
+    as #1545's typo'd column, just one level down.
+    """
     if value is None:
         return None
     normalized = str(value).strip()
@@ -572,4 +552,4 @@ def _to_float(value: Any) -> float | None:
     try:
         return float(normalized)
     except ValueError:
-        return None
+        raise ValueError(f"Invalid numeric value {value!r} in reference CSV") from None

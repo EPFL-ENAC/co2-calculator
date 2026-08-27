@@ -140,7 +140,8 @@ def _make_child_data_entries_job(
 async def test_get_pipeline_returns_ordered_jobs(pg_app):
     """End-to-end: seed a parent + 2 children sharing a pipeline_id and
     verify the endpoint returns all 3 jobs ordered by id ASC, with the
-    enum columns serialised to their integer values."""
+    enum columns serialised to their integer values.
+    """
     Sf = pg_app["factory"]
     pipeline_id = uuid4()
 
@@ -204,7 +205,8 @@ async def test_get_pipeline_returns_ordered_jobs(pg_app):
 async def test_get_pipeline_does_not_leak_jobs_from_other_pipelines(pg_app):
     """Filtering bug regression — two unrelated pipelines should not
     cross-contaminate.  Catches a ``SELECT *`` that forgot the WHERE
-    clause."""
+    clause.
+    """
     Sf = pg_app["factory"]
     target_pipeline = uuid4()
     other_pipeline = uuid4()
@@ -239,7 +241,8 @@ async def test_get_pipeline_unknown_uuid_returns_404(pg_app):
     ``cancel_job`` / ``recover_job`` not-found convention in this module
     so the frontend can distinguish 'pipeline does not exist' from
     'pipeline exists but is empty' (which is impossible by construction —
-    310B always seeds the parent)."""
+    310B always seeds the parent).
+    """
     unknown_pipeline = uuid4()
 
     async with httpx.AsyncClient(
@@ -262,7 +265,8 @@ async def test_get_pipeline_returns_403_for_user_without_permission(
     Deliberately bypasses ``pg_app`` (which monkeypatches ``is_permitted``
     to always-True) so the real permission check fires.  We still need to
     override ``get_db`` and the auth dependencies so the route reaches the
-    permission gate."""
+    permission gate.
+    """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
