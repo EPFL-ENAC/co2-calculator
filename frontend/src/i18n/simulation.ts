@@ -219,9 +219,9 @@ export default {
     en: 'Grant proposal',
     fr: 'Demande de financement',
   },
-  planner_grant_proposal_hint: {
-    en: 'Adds a Grant proposal section covering the whole project.',
-    fr: 'Ajoute une section Demande de financement couvrant tout le projet.',
+  planner_sections_hint: {
+    en: 'Add a Grant proposal section covering the whole project, detailed sections for each year, or both.',
+    fr: 'Ajoutez une section Demande de financement couvrant tout le projet, des sections détaillées pour chaque année, ou les deux.',
   },
   planner_project_grant_title: {
     en: 'Grant proposal',
@@ -230,10 +230,6 @@ export default {
   planner_year_by_year_checkbox: {
     en: 'Detailed per year',
     fr: 'Détail par année',
-  },
-  planner_year_by_year_hint: {
-    en: 'Add detailed sections for each year.',
-    fr: 'Ajoute des sections détaillées pour chaque année.',
   },
   planner_sections_need_one: {
     en: 'Select the detail per year, the grant proposal, or both.',
