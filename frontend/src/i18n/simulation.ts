@@ -8,16 +8,16 @@ export default {
     fr: "Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets).",
   },
   documentation_editing_rows_simulation_topic: {
-    en: 'Simulation',
-    fr: 'Simulation',
+    en: 'Explorer CO₂',
+    fr: 'Explorateur CO₂',
   },
   documentation_editing_rows_simulation_description: {
-    en: 'Find all text related to the CO₂ simulator pages.',
-    fr: 'Trouvez tous les textes liés aux pages du simulateur CO₂.',
+    en: 'Find all text related to the CO₂ Explorer pages.',
+    fr: "Trouvez tous les textes liés aux pages de l'Explorateur CO₂.",
   },
   simulation_title: {
-    en: 'Welcome to the CO₂ Simulator',
-    fr: 'Bienvenue dans le Simulateur de CO₂',
+    en: 'Welcome to the CO₂ Explorer',
+    fr: 'Bienvenue dans le Explorateur de CO₂',
   },
   simulation_intro: {
     en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
@@ -44,8 +44,8 @@ export default {
     fr: "Démarrer une nouvelle simulation d'exploration",
   },
   simulation_explore_description: {
-    en: 'Explore the emissions of your decision and action',
-    fr: 'Explorez les émissions de votre décision et de votre action',
+    en: 'Explore the carbon footprint of your decision and action',
+    fr: 'Explorez les empreintes carbone de votre décision et de votre action',
   },
   simulation_explore_btn: {
     en: 'Start exploration',
@@ -65,38 +65,38 @@ export default {
   },
   simulation_explore_page_title: {
     en: 'CO₂ Explorer',
-    fr: 'CO₂ Explorer',
+    fr: 'Explorateur CO₂',
   },
   simulation_explore_page_intro: {
     en: 'Explore the carbon impact of any equipment, travel, purchase, research facilities and lab activity quickly, temporarily, and without saving.',
     fr: "Explorez l'impact carbone de tout équipement, voyage, achat, infrastructure de recherche et activité de laboratoire rapidement, temporairement, et sans sauvegarder.",
   },
   simulation_explore_page_results_title: {
-    en: 'Exploration Results',
+    en: 'Explorer results',
     fr: "Résultats de l'exploration",
   },
   simulation_explore_page_results_total_tonnes_co2eq: {
-    en: 'Total exploration footprint',
-    fr: "Empreinte carbone totale de l'exploration",
+    en: 'Total carbon footprint',
+    fr: 'Empreinte carbone totale',
   },
   simulation_explore_page_results_download_title: {
-    en: 'Your Exploration Report',
-    fr: "Votre rapport d'exploration",
+    en: 'Your exploration report',
+    fr: "Votre rapport de l'exploration",
   },
   simulation_explore_page_results_download_button: {
-    en: 'Download Report',
+    en: 'Download report',
     fr: 'Télécharger le rapport',
   },
   simulation_explore_page_convert_to_plan_title: {
-    en: 'Convert to a Plan',
+    en: 'Convert to a plan',
     fr: 'Convertir en planification',
   },
   simulation_explore_page_convert_to_plan_description: {
-    en: 'Pin this simulation as a permanent plan scenario to track and compare over time.',
-    fr: 'Épinglez cette simulation comme scénario de planification permanent pour le suivre et le comparer dans le temps.',
+    en: 'Pin this exploration as a permanent plan scenario to track and compare over time.',
+    fr: 'Épinglez cette exploration comme scénario de planification permanent pour le suivre et le comparer dans le temps.',
   },
   simulation_explore_page_convert_to_plan_button: {
-    en: 'Convert to Plan',
+    en: 'Convert to plan',
     fr: 'Convertir en planification',
   },
   simulation_explore_print_subtitle: {
@@ -112,7 +112,7 @@ export default {
     fr: "Planifiez l'empreinte carbone d'un projet à venir. Donnez un nom à votre projet ; son contenu apparaîtra ici.",
   },
   planner_page_title: {
-    en: 'CO₂ Project Planner',
+    en: 'CO₂ Project planner',
     fr: 'Planificateur de projet CO₂',
   },
   planner_page_subtitle: {
@@ -120,7 +120,7 @@ export default {
     fr: "Estimer l'empreinte d'un projet ou d'une catégorie d'émission carbone.",
   },
   planner_page_intro: {
-    en: 'The CO₂ Project Planner allows you to estimate the carbon footprint of your past, current, or future projects based on your facility’s annual report. This data can be used to optimize your project designs, support your grant applications, and guide your planning.',
+    en: 'The CO₂ Project planner allows you to estimate the carbon footprint of your past, current, or future projects based on your facility’s annual report. This data can be used to optimize your project designs, support your grant applications, and guide your planning.',
     fr: "Le planificateur de projet CO₂ permet de simuler l'empreinte carbone de vos projets passés, en cours ou futurs à partir du bilan annuel de votre unité. Ces données peuvent être utilisées pour optimiser la conception de vos projets, soutenir vos demandes de financement et guider votre planification.",
   },
   planner_project_label: {
@@ -128,7 +128,7 @@ export default {
     fr: 'Projet',
   },
   planner_year_selection_label: {
-    en: 'Year Selection',
+    en: 'Year selection',
     fr: 'Sélection des années',
   },
   planner_module_active_label: {
@@ -160,7 +160,7 @@ export default {
     fr: 'Détail par année',
   },
   planner_results_grant_total_title: {
-    en: 'Grant Proposal carbon footprint',
+    en: 'Grant proposal carbon footprint',
     fr: 'Empreinte carbone de la demande de financement',
   },
   planner_results_years_total_title: {
@@ -168,11 +168,11 @@ export default {
     fr: 'Empreinte carbone effective',
   },
   planner_results_download_title: {
-    en: 'Your Project Report',
+    en: 'Your project report',
     fr: 'Votre rapport de projet',
   },
   planner_results_download_button: {
-    en: 'Download Report',
+    en: 'Download report',
     fr: 'Télécharger le rapport',
   },
   project_planner_name_label: {
@@ -633,6 +633,6 @@ export default {
   },
   planner_headcount_student_category: {
     en: 'Students',
-    fr: 'Étudiant-e-s',
+    fr: 'Étudiant·e·s',
   },
 };
