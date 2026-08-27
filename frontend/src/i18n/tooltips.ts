@@ -622,7 +622,10 @@ export default {
   'results-reduction-process_emissions': { en: '', fr: '' },
   'results-reduction-buildings_energy_combustion': { en: '', fr: '' },
   'results-reduction-buildings_room': { en: '', fr: '' },
-  'results-reduction-equipment': { en: '', fr: '' },
+  'results-reduction-equipment': {
+    en: 'Low effort: switching off unused equipment. Middle of the road: sharing equipment; optimizing active/standby schedules. High effort: widespread sharing; optimizing energy-intensive equipment use. Ambitious: sharing and pooling across the institution; minimizing energy-intensive devices.',
+    fr: "Faible effort : éteindre les équipements inutilisés. Niveau intermédiaire : partager les équipements, optimiser les horaires de fonctionnement et de veille. Effort élevé : partage généralisé, utilisation optimisée des équipements à forte consommation d'énergie. Ambition : partage et mise en commun à l'échelle de l'établissement, réduction au minimum des appareils à forte consommation d'énergie.",
+  },
   'results-reduction-external_cloud_and_ai': { en: '', fr: '' },
   'results-reduction-professional_travel': { en: '', fr: '' },
   'results-reduction-purchases': { en: '', fr: '' },
