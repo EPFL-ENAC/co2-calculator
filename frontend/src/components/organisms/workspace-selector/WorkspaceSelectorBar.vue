@@ -6,6 +6,7 @@ import { useYearConfigStore } from '@/stores/yearConfig';
 import { HOME_ROUTE_NAME } from '@/router/routeNames';
 import { pickDefaultYear } from '@/router/guards/redirectToDefaultRoute';
 import { resolveNoWorkspaceRoute } from '@/utils/unauthorized';
+import RoleAccessBadge from '@/components/molecules/RoleAccessBadge.vue';
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
@@ -128,15 +129,7 @@ const affiliationSegments = computed(
         v-if="selectedUnit"
         class="column items-end text-right workspace-selector-bar__user"
       >
-        <span class="text-body2">
-          {{ selectedUnit.principal_user_name
-          }}<template v-if="selectedUnit.current_user_role"
-            >,
-            <span class="text-info text-weight-medium">{{
-              $t(selectedUnit.current_user_role)
-            }}</span></template
-          >
-        </span>
+        <RoleAccessBadge />
         <span
           v-if="affiliationSegments.length"
           class="affiliation text-caption"
@@ -169,6 +162,7 @@ const affiliationSegments = computed(
 
   &__user {
     min-width: 0;
+    row-gap: tokens.$spacing-sm;
   }
 }
 
