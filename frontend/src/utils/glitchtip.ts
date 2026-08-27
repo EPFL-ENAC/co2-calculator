@@ -244,6 +244,11 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
       level: ctx?.level ?? 'error',
       release,
       environment,
+      // The browser cannot know its own public IP: GlitchTip fills it in from
+      // the ingest connection, but only when the event asks for it with this
+      // sentinel (what `sendDefaultPii` sends in the real SDK). Without it,
+      // every event arrived with no IP at all.
+      user: { ip_address: '{{auto}}' },
       // GlitchTip parses the User-Agent server-side into browser/os/device
       // tags (+ icons) — the same way the Sentry SDK gets them. We just have
       // to ship the header in the request context.
