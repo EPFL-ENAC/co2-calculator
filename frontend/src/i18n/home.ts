@@ -120,10 +120,6 @@ export default {
     en: 'Assessment Year',
     fr: "Année d'évaluation",
   },
-  workspace_unit_manager_label: {
-    en: 'Your unit manager:',
-    fr: 'Votre responsable d’unité :',
-  },
   co2_calculator_title: {
     en: 'CO₂ Calculator',
     fr: 'Calculateur CO₂',

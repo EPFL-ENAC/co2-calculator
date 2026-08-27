@@ -1,17 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useWorkspaceStore, unitSlug } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { useAuthStore } from 'src/stores/auth';
-import { ROLES } from 'src/constant/roles';
-import { HOME_ROUTE_NAME } from 'src/router/routeNames';
-import { pickDefaultYear } from 'src/router/guards/redirectToDefaultRoute';
-import { resolveNoWorkspaceRoute } from 'src/utils/unauthorized';
+import { useWorkspaceStore, unitSlug } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { HOME_ROUTE_NAME } from '@/router/routeNames';
+import { pickDefaultYear } from '@/router/guards/redirectToDefaultRoute';
+import { resolveNoWorkspaceRoute } from '@/utils/unauthorized';
+import RoleAccessBadge from '@/components/molecules/RoleAccessBadge.vue';
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
-const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
@@ -85,10 +83,6 @@ async function handleUnitChange(unitId: number) {
 const affiliationSegments = computed(
   () => selectedUnit.value?.affiliations ?? [],
 );
-
-const isPrincipalUser = computed(
-  () => selectedUnit.value?.current_user_role === ROLES.PrincipalUser,
-);
 </script>
 
 <template>
@@ -135,32 +129,7 @@ const isPrincipalUser = computed(
         v-if="selectedUnit"
         class="column items-end text-right workspace-selector-bar__user"
       >
-        <span class="text-body2">
-          <span class="workspace-selector-bar__name">{{
-            authStore.displayName
-          }}</span
-          ><template v-if="selectedUnit.current_user_role"
-            >,
-            <span class="text-info text-weight-medium">{{
-              $t(selectedUnit.current_user_role)
-            }}</span></template
-          >
-        </span>
-        <span
-          v-if="!isPrincipalUser && selectedUnit.principal_user_name"
-          class="row items-baseline no-wrap text-body2 workspace-selector-bar__principal"
-        >
-          <span class="text-secondary">{{
-            $t('workspace_unit_manager_label')
-          }}</span>
-          <a
-            v-if="selectedUnit.principal_user_email"
-            :href="`mailto:${selectedUnit.principal_user_email}`"
-            class="workspace-selector-bar__principal-link"
-            >{{ selectedUnit.principal_user_name }}</a
-          >
-          <span v-else>{{ selectedUnit.principal_user_name }}</span>
-        </span>
+        <RoleAccessBadge />
         <span
           v-if="affiliationSegments.length"
           class="affiliation text-caption"
@@ -193,30 +162,7 @@ const isPrincipalUser = computed(
 
   &__user {
     min-width: 0;
-    row-gap: 0.125rem;
-  }
-
-  &__name {
-    font-weight: tokens.$text-weight-medium;
-  }
-
-  &__principal {
-    column-gap: tokens.$spacing-xs;
-  }
-
-  &__principal-link {
-    color: tokens.$link-color;
-    text-decoration: underline;
-    text-decoration-color: tokens.$link-underline-color;
-    text-underline-offset: tokens.$link-underline-offset;
-    transition:
-      color tokens.$transition-default,
-      text-decoration-color tokens.$transition-default;
-
-    &:hover {
-      color: tokens.$link-hover-color;
-      text-decoration-color: tokens.$link-hover-underline-color;
-    }
+    row-gap: tokens.$spacing-sm;
   }
 }
 
