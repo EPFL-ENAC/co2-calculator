@@ -427,6 +427,7 @@
           icon="o_close"
           color="grey-6"
           class="text-weight-medium"
+          :disable="deleteInFlight"
         />
       </q-card-section>
       <q-separator />
@@ -449,6 +450,7 @@
             color="grey-4"
             text-color="primary"
             :label="$t('common_cancel')"
+            :disable="deleteInFlight"
             unelevated
             no-caps
             outline
@@ -459,6 +461,7 @@
           <q-btn
             type="submit"
             autofocus
+            :loading="deleteInFlight"
             :style="{
               background: moduleColors.bgColorLighter,
               color: moduleColors.buttonTextColor,
@@ -1094,6 +1097,7 @@ watch(editDialogOpen, (isOpen) => {
 
 const deleteItemName = ref<string>('');
 const deleteRowId = ref<number | null>(null);
+const deleteInFlight = ref(false);
 
 type TableViewColumn = {
   name: string;
@@ -2067,6 +2071,7 @@ function onDownloadTemplate() {
 
 function onConfirmDelete() {
   const store = useModuleStore();
+  if (deleteInFlight.value) return;
   if (deleteRowId.value == null) {
     confirmDelete.value = false;
     return;
@@ -2075,6 +2080,7 @@ function onConfirmDelete() {
   const submoduleType = props.submoduleType;
   const unit = props.unitId;
   const year = String(props.year);
+  deleteInFlight.value = true;
   store
     .deleteItem(
       moduleType,
@@ -2085,6 +2091,7 @@ function onConfirmDelete() {
       props.carbonReportId,
     )
     .finally(() => {
+      deleteInFlight.value = false;
       confirmDelete.value = false;
       deleteRowId.value = null;
     });
