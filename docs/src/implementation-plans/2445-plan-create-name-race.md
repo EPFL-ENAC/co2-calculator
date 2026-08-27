@@ -15,6 +15,28 @@ GlitchTip [CO2-CALCULATOR-DEV-9F](https://enac-it-glitchtip.epfl.ch/co2-calculat
 `"A plan with this name already exists for this unit"` — for a request that
 never supplied a name.
 
+## Trace evidence
+
+Backend traces `…4a918f` and `42e3e42ca6ad35ad02db9f3ce3666d1a` (the GlitchTip
+event's trace) pin the full timeline, all one user on unit 456:
+
+| Time (UTC)  | What                                                                    | Outcome              |
+| ----------- | ----------------------------------------------------------------------- | -------------------- |
+| 14:19:23.06 | 1st create — computes `new-project-2`, INSERT blocks                    | 409 after **41.4 s** |
+| 14:19:47.26 | 2nd create (the GlitchTip click) — same name, INSERT blocks             | 409 after **17.2 s** |
+| 14:20:04.49 | Both INSERTs fail together: `UniqueViolation` on `(456, new-project-2)` | —                    |
+| 14:20:13.38 | 3rd create — recomputes from now-committed names, INSERT takes 2 ms     | **201**              |
+
+Both losers failed at the same instant — the moment the **winner** committed: a
+third transaction, absent from both traces, that inserted `new-project-2` and
+held it uncommitted for **≥41 s**. `duplicate_plan` is the only other code path
+inserting `Simulator_Plan` rows, and its shape (flush project row, then build
+all per-year reports before the route commits) is exactly such a window.
+
+The 2 ms 201 on the third click is the fix, performed manually: once the loser
+re-reads names after the winner's commit, the recomputed name succeeds
+immediately.
+
 ## Root cause
 
 Default naming is read-then-insert. `SimulatorPlanService.create_plan(name=None)`
@@ -26,12 +48,10 @@ row with the same name is invisible to that read but locks the index key:
 Postgres blocks the INSERT until the other transaction commits, then raises
 `unique_violation`, which `_flush_guarded` maps to `ValueError` → 409.
 
-The 17 s block matches `duplicate_plan`, which flushes the copied project row
-and then builds all per-year reports in the same transaction before the route
-commits — a long uncommitted window. A duplicate of a default-named plan
-inserts `new-project-2`; a concurrent no-name create computes the same name,
-blocks on it, and dies when the duplicate commits. `duplicate_plan`'s own
-`<name>-N` suffixing has the identical race.
+A duplicate of a default-named plan inserts `new-project-2`; a concurrent
+no-name create computes the same name, blocks on it, and dies when the
+duplicate commits. `duplicate_plan`'s own `<name>-N` suffixing has the
+identical race.
 
 ## Fix
 
@@ -61,3 +81,10 @@ repo boundary). A second test asserts the explicit-name collision still raises.
 - [ ] Shared auto-name retry in `SimulatorPlanService.create_plan` / `duplicate_plan`
 - [ ] Regression tests (race retry + explicit-name 409 kept)
 - [ ] Flip this plan to `delivered`
+
+## Follow-up (out of scope here)
+
+The winner held the name key uncommitted for ≥41 s — `duplicate_plan` doing all
+its per-year report sync inside one transaction is a latency bug of its own,
+and the reason the losers _blocked_ rather than failed fast. Shrinking that
+window (as plan #2050 did for prefill) is a separate issue.
