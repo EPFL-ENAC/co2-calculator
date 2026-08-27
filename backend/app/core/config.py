@@ -370,6 +370,15 @@ class Settings(BaseSettings):
         default="",
         description="SHA256 short hash of formula (e.g., git commit)",
     )
+    BETA_COHORTS: str = Field(
+        default="",
+        description=(
+            "Named tester groups over institutional IDs, "
+            "'cohort:id,id;cohort:id' (e.g. 'team-a:123456,234567;team-b:"
+            "345678'). Their server spans carry beta_cohort, so a whole test "
+            "group's traces are one TraceQL filter. Empty outside dev."
+        ),
+    )
 
     # `@property` under `@computed_field` (unlike `oauth_metadata_url` below):
     # callers iterate this, and without it the type checker sees a bound method.
@@ -378,6 +387,17 @@ class Settings(BaseSettings):
     def csrf_additional_origins(self) -> list[str]:
         """Split CSRF_ADDITIONAL_ORIGINS, dropping blanks from stray commas."""
         return [o.strip() for o in self.CSRF_ADDITIONAL_ORIGINS.split(",") if o.strip()]
+
+    @computed_field
+    @property
+    def beta_cohort_by_user(self) -> dict[str, str]:
+        """Invert BETA_COHORTS into institutional id -> cohort name."""
+        by_user: dict[str, str] = {}
+        for group in self.BETA_COHORTS.split(";"):
+            cohort, _, ids = group.partition(":")
+            members = [uid.strip() for uid in ids.split(",") if uid.strip()]
+            by_user.update(dict.fromkeys(members, cohort.strip()))
+        return by_user
 
     @computed_field
     def oauth_metadata_url(self) -> str:
