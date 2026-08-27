@@ -64,24 +64,24 @@ export default {
     fr: 'Démarrer une planification',
   },
   simulation_explore_page_title: {
-    en: 'CO₂ Simulator - Exploration',
-    fr: 'Simulateur CO₂ - Exploration',
+    en: 'CO₂ Explorer',
+    fr: 'CO₂ Explorer',
   },
   simulation_explore_page_intro: {
     en: 'Explore the carbon impact of any equipment, travel, purchase, research facilities and lab activity quickly, temporarily, and without saving.',
     fr: "Explorez l'impact carbone de tout équipement, voyage, achat, infrastructure de recherche et activité de laboratoire rapidement, temporairement, et sans sauvegarder.",
   },
   simulation_explore_page_results_title: {
-    en: 'Simulation Results',
-    fr: 'Résultats de la simulation',
+    en: 'Exploration Results',
+    fr: "Résultats de l'exploration",
   },
   simulation_explore_page_results_total_tonnes_co2eq: {
-    en: 'Total simulation carbon footprint',
-    fr: 'Empreinte carbone totale de la simulation',
+    en: 'Total exploration footprint',
+    fr: "Empreinte carbone totale de l'exploration",
   },
   simulation_explore_page_results_download_title: {
-    en: 'Your Simulation Report',
-    fr: 'Votre rapport de simulation',
+    en: 'Your Exploration Report',
+    fr: "Votre rapport d'exploration",
   },
   simulation_explore_page_results_download_button: {
     en: 'Download Report',
@@ -100,8 +100,8 @@ export default {
     fr: 'Convertir en planification',
   },
   simulation_explore_print_subtitle: {
-    en: 'Simulation carbon footprint {year}',
-    fr: 'Empreinte carbone de la simulation {year}',
+    en: 'Exploration carbon footprint {year}',
+    fr: "Empreinte carbone de l'exploration {year}",
   },
   project_planner_page_title: {
     en: 'Project planner',
