@@ -67,6 +67,13 @@ COPY --from=builder /app/alembic.ini /app/alembic.ini
 # what that telemetry exists for.
 ARG GIT_SHA=""
 
+# The version the app reports, from root package.json via deploy.yml (#2437).
+# It used to be typed by hand into each gitops overlay, where nothing checked
+# it and every environment drifted. Default names what a local build is rather
+# than pretending to be a release: an empty value would override
+# Settings.APP_VERSION and show blank everywhere it surfaces.
+ARG APP_VERSION="local-build"
+
 ENV PATH="/app/.venv/bin:$PATH" \
   PYTHONUNBUFFERED=1 \
   PYTHONFAULTHANDLER=1 \
@@ -74,6 +81,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
   PORT=8000 \
   WORKERS=1 \
   GIT_SHA=$GIT_SHA \
+  APP_VERSION=$APP_VERSION \
   OTEL_PYTHON_FORK_SAFE=true
 
 EXPOSE 8000

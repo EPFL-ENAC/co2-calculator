@@ -10,6 +10,25 @@ name: deploy
     tags: ["v*.*.*"]
 
 jobs:
+  # The version the images report at runtime, taken from the same root
+  # package.json the release tag comes from (#2437). It used to be typed by
+  # hand into each gitops overlay, where nothing checked it: stage claimed
+  # "sprint-6-stage-2026-03-04" for six months, and its backend and worker
+  # blocks disagreed while running the same image.
+  app-version:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.read.outputs.value }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: read
+        # Fail here rather than ship Settings.APP_VERSION's "0.1.0" default:
+        # this string surfaces in the pod heartbeat, the workers view and the
+        # OpenAPI document, where a wrong value reads as authoritative.
+        run: |
+          VERSION=$(node -p "require('./package.json').version || ''")
+          [ -n "$VERSION" ] || { echo "root package.json has no version"; exit 1; }
+          echo "value=$VERSION" >> $GITHUB_OUTPUT
   publish-chart:
     uses: ./.github/workflows/publish_chart.yaml
     with:
@@ -18,6 +37,7 @@ jobs:
   deploy:
     needs:
       - publish-chart
+      - app-version
     permissions:
       contents: read
       packages: write
@@ -34,11 +54,13 @@ jobs:
       # Scan images in the build job, before push: fixable or not, HIGH/
       # CRITICAL findings block the rollout instead of alerting after it.
       skip_vulnerability_scan: false
-      # Baked into the frontend bundle as APP_VERSION (see frontend/quasar.config.js)
-      # so Sentry/GlitchTip events are tagged with the exact deploy SHA. Backend
-      # and docs Dockerfiles ignore this arg (Docker just warns).
+      # GIT_SHA is baked into the frontend bundle as its APP_VERSION (see
+      # frontend/quasar.config.js) so GlitchTip events carry the exact deploy
+      # SHA, and into the backend image as GIT_SHA (#2436). The docs image
+      # ignores both; Docker just warns.
       build_args: |
         GIT_SHA=${{ github.sha }}
+        APP_VERSION=${{ needs.app-version.outputs.value }}
       registries: |
         [
           {
