@@ -68,58 +68,54 @@
             {{ grantProposalTooltip }}
           </q-tooltip>
         </q-icon>
+        <q-checkbox
+          v-model="yearByYearChecked"
+          :label="$t('planner_year_by_year_checkbox')"
+          color="info"
+          size="sm"
+        />
       </div>
-      <div class="text-body2 text-grey-7">
-        {{ $t('planner_grant_proposal_hint') }}
-      </div>
-    </q-card-section>
-    <q-separator />
-
-    <q-card-section>
-      <q-checkbox
-        v-model="yearByYearChecked"
-        :label="$t('planner_year_by_year_checkbox')"
-        color="info"
-        size="sm"
-      />
-      <div class="text-body2 text-grey-7">
-        {{ $t('planner_year_by_year_hint') }}
-      </div>
-      <div class="row q-col-gutter-md q-mt-xs">
-        <div class="col-12 col-sm-6">
+      <div v-if="yearByYearChecked" class="row q-col-gutter-md q-mt-xs">
+        <div class="col-auto">
           <q-select
             v-model="startYearInput"
             :label="$t('planner_start_year_label')"
             :options="startYearOptions"
-            :disable="!yearByYearChecked"
             outlined
             dense
             hide-bottom-space
             emit-value
             map-options
+            style="width: 180px"
           >
             <template #prepend>
               <q-icon name="o_calendar_month" color="info" />
             </template>
           </q-select>
         </div>
-        <div class="col-12 col-sm-6">
+        <div class="col-auto">
           <q-select
             v-model="endYearInput"
             :label="$t('planner_end_year_label')"
             :options="endYearOptions"
-            :disable="!yearByYearChecked"
             outlined
             dense
             hide-bottom-space
             emit-value
             map-options
+            style="width: 180px"
           >
             <template #prepend>
               <q-icon name="o_calendar_month" color="info" />
             </template>
           </q-select>
         </div>
+      </div>
+      <div class="text-body2 text-grey-7 q-mt-md">
+        {{ $t('planner_sections_hint') }}
+      </div>
+      <div v-if="!sectionTypeSelected" class="text-body2 text-negative q-mt-xs">
+        {{ $t('planner_sections_need_one') }}
       </div>
     </q-card-section>
     <q-separator />
@@ -140,9 +136,6 @@
         :loading="generatingSections"
         @click="generateSections"
       />
-      <div v-if="!sectionTypeSelected" class="text-body2 text-negative q-mt-sm">
-        {{ $t('planner_sections_need_one') }}
-      </div>
       <div class="text-body2 text-grey-7 q-mt-sm">
         {{ $t('planner_generate_sections_hint') }}
       </div>
