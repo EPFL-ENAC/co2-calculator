@@ -426,16 +426,16 @@ export default {
     fr: 'Données additionnelles',
   },
   uncertainty_low: {
-    en: 'Low uncertainty',
-    fr: 'Faible incertitude',
+    en: 'Low confidence',
+    fr: 'Faible confiance',
   },
   uncertainty_medium: {
-    en: 'Moderate uncertainty',
-    fr: 'Incertitude modérée',
+    en: 'Moderate confidence',
+    fr: 'Confiance modérée',
   },
   uncertainty_high: {
-    en: 'High uncertainty',
-    fr: 'Forte incertitude',
+    en: 'High confidence',
+    fr: 'Confiance élevée',
   },
   'charts-unit-gas-category': {
     en: 'Unit-gas',
