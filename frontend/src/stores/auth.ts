@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
+import { setGlitchTipUser } from '@/utils/glitchtip';
 import {
   api,
   API_LOGIN_URL,
@@ -57,6 +58,14 @@ type User = Omit<
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
   const loading = ref(false);
+
+  // Every GlitchTip event carries whoever is logged in, so a crash report
+  // and the backend spans of the same request share one identity. Watched
+  // rather than pushed from bootstrap(): login, logout and session expiry
+  // all assign `user`, and only one of them is bootstrap().
+  watch(user, (u) => setGlitchTipUser(u ? String(u.id) : null), {
+    immediate: true,
+  });
 
   const workspaceStore = useWorkspaceStore();
 
