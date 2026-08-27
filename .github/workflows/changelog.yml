@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
 
       - name: Install conventional-changelog-cli
         run: npm install -g conventional-changelog-cli
@@ -46,6 +46,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add CHANGELOG.md
-          # Only commit if there are changes
-          git diff --cached --quiet || git commit -m "docs(changelog): update changelog for v${{ steps.version.outputs.version }}"
+          # Only commit if there are changes.
+          # [skip ci]: this commit lands on stage seconds after the promotion
+          # merge already deployed it, and touches one file the running app
+          # never reads (the docs site links to CHANGELOG.md, it does not
+          # publish it). Without the marker every stage promotion pays for two
+          # full rounds of deploy + deploy-mkdocs + deploy-storybook -- image
+          # builds pushed to two registries, plus an ArgoCD manifest bump, for
+          # a changelog edit (#2432).
+          git diff --cached --quiet || git commit -m "docs(changelog): update changelog for v${{ steps.version.outputs.version }} [skip ci]"
           git push origin stage
