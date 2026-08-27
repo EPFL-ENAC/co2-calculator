@@ -59,12 +59,21 @@ COPY --from=builder /app/app /app/app
 COPY --from=builder /app/alembic /app/alembic
 COPY --from=builder /app/alembic.ini /app/alembic.ini
 
+# CI already passes this on every build (deploy.yml's build_args), but this
+# stage never declared it, so Docker warned and dropped it and Settings.GIT_SHA
+# stayed None in every environment — the pod heartbeat has been logging
+# `git_sha=None` since it was added. Declaring the ARG is the whole fix; the
+# workers view can then tell two pods on different revisions apart, which is
+# what that telemetry exists for.
+ARG GIT_SHA=""
+
 ENV PATH="/app/.venv/bin:$PATH" \
   PYTHONUNBUFFERED=1 \
   PYTHONFAULTHANDLER=1 \
   HOST=0.0.0.0 \
   PORT=8000 \
   WORKERS=1 \
+  GIT_SHA=$GIT_SHA \
   OTEL_PYTHON_FORK_SAFE=true
 
 EXPOSE 8000
