@@ -55,22 +55,10 @@
               class="text-weight-medium q-px-xl"
             />
             <!-- A user with no unit or no open year is bounced back to
-                 /unauthorized by the landing guard, so "Home" would loop.
-                 Offer Logout instead. -->
+                 /unauthorized by the landing guard, so "Home" would loop:
+                 hide it for those dead-end reasons. -->
             <q-btn
-              v-if="isDeadEndReason"
-              color="accent"
-              :label="t('logout')"
-              :loading="authStore.loading"
-              unelevated
-              no-caps
-              size="md"
-              class="text-weight-medium q-px-xl"
-              :outline="hasBackOfficeAccess"
-              @click="onLogout"
-            />
-            <q-btn
-              v-else
+              v-if="!isDeadEndReason"
               color="accent"
               :to="homeRoute"
               :label="t('home')"
@@ -79,6 +67,20 @@
               size="md"
               class="text-weight-medium q-px-xl"
               :outline="hasBackOfficeAccess"
+            />
+            <!-- This fullscreen page has no header, and a broken session
+                 (e.g. a stale account after a DB reset) can 403 every call —
+                 including "Home" — so Logout must always be reachable here. -->
+            <q-btn
+              color="accent"
+              :label="t('logout')"
+              :loading="authStore.loading"
+              unelevated
+              no-caps
+              size="md"
+              class="text-weight-medium q-px-xl"
+              :outline="hasBackOfficeAccess || !isDeadEndReason"
+              @click="onLogout"
             />
           </div>
 
@@ -99,10 +101,10 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { DEFAULT_ROUTE_NAME } from 'src/router/routes';
-import { currentLanguage, resolveLanguage } from 'src/utils/language';
-import { unauthorizedReasonMessageKey } from 'src/utils/unauthorized';
-import { useAuthStore, PermissionAction } from 'src/stores/auth';
+import { DEFAULT_ROUTE_NAME } from '@/router/routes';
+import { currentLanguage, resolveLanguage } from '@/utils/language';
+import { unauthorizedReasonMessageKey } from '@/utils/unauthorized';
+import { useAuthStore, PermissionAction } from '@/stores/auth';
 
 const route = useRoute();
 const router = useRouter();
@@ -196,10 +198,10 @@ const homeRoute = computed(() => {
 });
 
 /**
- * A no-unit or no-open-year user can't reach anything useful and "Home" loops
- * back here, so the only escape is a real logout: `authStore.logout` clears
- * the server session cookie (localStorage alone won't) and redirects to the
- * login page.
+ * The only guaranteed escape from this page: `authStore.logout` clears the
+ * server session cookies (localStorage alone won't) and redirects to the
+ * login page. DELETE /session has no permission dependency, so it succeeds
+ * even when every other call 403s (e.g. a stale account after a DB reset).
  */
 async function onLogout() {
   await authStore.logout(router);

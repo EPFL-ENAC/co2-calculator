@@ -1,4 +1,4 @@
-import { useAuthStore } from 'src/stores/auth';
+import { useAuthStore } from '@/stores/auth';
 import { RouteLocationNormalized } from 'vue-router';
 import { LOGIN_ROUTES, DEFAULT_ROUTE_NAME } from '../routeNames';
 // Authentication guard for protected routes

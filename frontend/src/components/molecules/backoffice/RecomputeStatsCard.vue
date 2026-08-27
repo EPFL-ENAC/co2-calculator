@@ -78,9 +78,9 @@
 import { computed, onMounted, ref } from 'vue';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { MODULE_SUBMODULES } from 'src/constant/backoffice-module-config';
+import { useBackofficeDataManagement } from '@/stores/backofficeDataManagement';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { MODULE_SUBMODULES } from '@/constant/backoffice-module-config';
 
 const { t } = useI18n();
 const store = useBackofficeDataManagement();

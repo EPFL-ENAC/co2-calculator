@@ -50,6 +50,8 @@ from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
 from app.models.year_configuration import YearConfiguration
 from app.services.year_config_service import generate_default_year_config
+from tests.browser import SAME_ORIGIN_HEADERS
+from tests.unit.v1.test_temp_upload_auth_ordering import valid_access_token
 
 URL = "/api/v1/year-configuration/2025"
 YEAR = 2025
@@ -133,7 +135,13 @@ async def db_with_multi_module_uploads():
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies
+    # run, so the get_current_user override alone no longer gets past it.
+    with TestClient(
+        app,
+        cookies={"auth_token": valid_access_token()},
+        headers=SAME_ORIGIN_HEADERS,
+    ) as c:
         yield c
 
 

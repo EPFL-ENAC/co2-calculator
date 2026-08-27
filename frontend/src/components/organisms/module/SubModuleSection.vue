@@ -66,7 +66,6 @@
           :show-reference-columns="showReferenceColumns"
           :project-years-count="projectYearsCount"
           :percentage-locked="percentageLocked"
-          :exclude-snapshots="excludeSnapshots"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -119,39 +118,39 @@
 import {
   Submodule as ConfigSubmodule,
   ModuleConfig,
-} from 'src/constant/moduleConfig';
-import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
-import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
-import PlannerSubmoduleBudget from 'src/components/organisms/planner/PlannerSubmoduleBudget.vue';
+} from '@/constant/moduleConfig';
+import ModuleTable from '@/components/organisms/module/ModuleTable.vue';
+import ModuleForm from '@/components/organisms/module/ModuleForm.vue';
+import PlannerSubmoduleBudget from '@/components/organisms/planner/PlannerSubmoduleBudget.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
-import { useAuthStore } from 'src/stores/auth';
-import { PermissionAction } from 'src/stores/auth';
+import { useAuthStore } from '@/stores/auth';
+import { PermissionAction } from '@/stores/auth';
 import type {
   ModuleResponse,
   Threshold,
   AllSubmoduleTypes,
   EnumSubmoduleType,
   Module,
-} from 'src/constant/modules';
-import { enumSubmodule, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
-import { getModuleTypeId } from 'src/constant/moduleStates';
-import { useModuleStore, useTimelineStore } from 'src/stores/modules';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
-import { submitCreateItem } from 'src/utils/submitCreateItem';
+} from '@/constant/modules';
+import { enumSubmodule, MODULES_THRESHOLD_TYPES } from '@/constant/modules';
+import { getModuleTypeId } from '@/constant/moduleStates';
+import { useModuleStore, useTimelineStore } from '@/stores/modules';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
+import { submitCreateItem } from '@/utils/submitCreateItem';
 import { Notify } from 'quasar';
 import {
   getSubmoduleIconColor,
   getSubmoduleLighterColor,
-} from 'src/composables/useModuleIconColors';
+} from '@/composables/useModuleIconColors';
 import {
   canShowModuleForm,
   resolveExplorerFormDefaults,
   resolvePlannerFormDefaults,
-} from 'src/utils/module-table-access';
-import { submoduleTooltipKey, type TooltipScope } from 'src/utils/tooltipScope';
+} from '@/utils/module-table-access';
+import { submoduleTooltipKey, type TooltipScope } from '@/utils/tooltipScope';
 interface Option {
   label: string;
   value: string;
@@ -219,8 +218,6 @@ type CommonProps = {
   projectYearsCount?: number | null;
   /** Grant equipment global mode: per-row % controls read-only (#1981). */
   percentageLocked?: boolean;
-  /** Grant equipment global mode: list only manually added entries (#1981). */
-  excludeSnapshots?: boolean;
   /** Planner Project Grant: show this submodule's budget field (#1978). */
   showGrantBudget?: boolean;
   /** The submodule's saved share of the grant budget. */
@@ -251,7 +248,6 @@ const props = withDefaults(defineProps<SubModuleSectionProps>(), {
   showReferenceColumns: undefined,
   projectYearsCount: null,
   percentageLocked: false,
-  excludeSnapshots: false,
   showGrantBudget: false,
   grantBudget: null,
   grantBudgetCurrency: null,

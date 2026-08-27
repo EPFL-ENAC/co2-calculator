@@ -1,7 +1,7 @@
 import { ref, shallowReactive, watch, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useFactorsStore } from 'src/stores/factors';
-import { AllSubmoduleTypes } from 'src/constant/modules';
+import { useFactorsStore } from '@/stores/factors';
+import { AllSubmoduleTypes } from '@/constant/modules';
 
 type Option = { label: string; value: string };
 
@@ -9,9 +9,10 @@ interface FieldConfig {
   // identifiers of the fields in the entity record (real value we want to use)
   classFieldId?: string;
   subClassFieldId?: string;
-  // Factor field to label the class select with, when the class value itself is
-  // an opaque code (research facility ids). Options then come from the factor
-  // catalog rather than the class/subclass map (#2007).
+  // Set when the class value itself is an opaque code (research facility ids):
+  // the select then shows the taxonomy node's server-side label instead of the
+  // stored value (#2007). Which factor field backs that label is the module
+  // handler's `kind_label_field`, not the frontend's business.
   classLabelField?: string;
   // identifiers of the power fields in the entity record
   // (where to write the fetched power values)
@@ -41,6 +42,7 @@ export function useEquipmentClassOptions<
   TEntity extends Record<string, unknown>,
 >(
   entity: TEntity,
+  moduleType: Ref<string>,
   submoduleType: Ref<AllSubmoduleTypes>,
   config: FieldConfig = {},
   year?: Ref<string | number | null | undefined>,
@@ -80,18 +82,17 @@ export function useEquipmentClassOptions<
 
   async function loadClassOptions() {
     const sub = submoduleType.value;
-    // `year` is required by the class-subclass-map endpoint (factors are
-    // year-scoped); without it the request 422s.
+    // `year` is required by the taxonomy endpoint (factors are year-scoped);
+    // without it the request 422s.
     const yearValue = year?.value;
     if (!sub || yearValue == null) return;
     loadingClasses.value = true;
     try {
       const rawClasses = await store.fetchClassOptions(
+        moduleType.value,
         sub,
         yearValue,
-        config.classLabelField
-          ? { valueField: classFieldId, labelField: config.classLabelField }
-          : undefined,
+        Boolean(config.classLabelField),
       );
       dynamicOptions[classOptionId] = rawClasses.map((o) => ({
         label: te(o.label) ? t(o.label) : o.label,
@@ -116,7 +117,12 @@ export function useEquipmentClassOptions<
     loadingSubclasses.value = true;
     subclassLoadError.value = false;
     try {
-      const rawOptions = await store.fetchSubclassOptions(sub, cls, yearValue);
+      const rawOptions = await store.fetchSubclassOptions(
+        moduleType.value,
+        sub,
+        cls,
+        yearValue,
+      );
       const options = rawOptions.map((o) => ({
         label: te(o.label) ? t(o.label) : o.label,
         value: o.value,

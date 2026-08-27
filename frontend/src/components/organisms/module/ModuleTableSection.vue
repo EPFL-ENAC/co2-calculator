@@ -18,7 +18,6 @@
           :show-reference-columns="showReferenceColumns"
           :project-years-count="projectYearsCount"
           :percentage-locked="percentageLocked"
-          :exclude-snapshots="excludeSnapshots"
           :show-grant-budget="showGrantBudgets"
           :grant-budget="grantBudgets?.[sub.id] ?? null"
           :grant-budget-currency="grantBudgetCurrency"
@@ -32,16 +31,16 @@
 
 <script setup lang="ts">
 import { computed, Ref } from 'vue';
-import { ModuleConfig } from 'src/constant/moduleConfig';
-import { MODULES_CONFIG } from 'src/constant/module-config';
-import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
+import { ModuleConfig } from '@/constant/moduleConfig';
+import { MODULES_CONFIG } from '@/constant/module-config';
+import SubModuleSection from '@/components/organisms/module/SubModuleSection.vue';
 
-import type { ModuleResponse } from 'src/constant/modules';
-import { MODULES_THRESHOLD_TYPES, type Threshold } from 'src/constant/modules';
+import type { ModuleResponse } from '@/constant/modules';
+import { MODULES_THRESHOLD_TYPES, type Threshold } from '@/constant/modules';
 
-import { Module } from 'src/constant/modules';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import type { TooltipScope } from 'src/utils/tooltipScope';
+import { Module } from '@/constant/modules';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import type { TooltipScope } from '@/utils/tooltipScope';
 
 const props = defineProps<{
   type: Module;
@@ -65,8 +64,6 @@ const props = defineProps<{
   projectYearsCount?: number | null;
   /** Grant equipment global mode: per-row % controls read-only (#1981). */
   percentageLocked?: boolean;
-  /** Grant equipment global mode: list only manually added entries (#1981). */
-  excludeSnapshots?: boolean;
   /** Planner Project Grant: show a budget field above each submodule table. */
   showGrantBudgets?: boolean;
   /** Grant submodule budgets of this module, keyed by submodule id (#1978). */

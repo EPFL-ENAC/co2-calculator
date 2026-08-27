@@ -48,6 +48,31 @@ class HeadcountFteBreakdown(BaseModel):
 # Default filter map when handler doesn't provide one
 DEFAULT_FILTER_MAP = {"name": DataEntry.data["name"].as_string()}
 
+# #2404 page-first: tables a sort/filter/default-where expression may read
+# that live outside data_entries. Same string-based detection the count
+# query below already uses for its conditional factor join.
+_PAGE_FIRST_JOINED_TABLES = ("factors", "building_rooms")
+
+
+def _reads_joined_table(expr: Any) -> bool:
+    rendered = str(expr)
+    return any(name in rendered for name in _PAGE_FIRST_JOINED_TABLES)
+
+
+def _equipment_usage_priority() -> Any:
+    """New equipment still missing its usage floats to the top (#2050 J10).
+
+    Shared by the page query and the full statement — the two must order
+    identically or the page-first ids and the displayed order diverge.
+    """
+    is_new_expr = DataEntry.data["is_new"].as_boolean()
+    missing_usage_expr = or_(
+        DataEntry.data["active_usage_hours_per_week"].as_string().is_(None),
+        DataEntry.data["standby_usage_hours_per_week"].as_string().is_(None),
+    )
+    return desc(and_(is_new_expr, missing_usage_expr))
+
+
 # data_entry_type ids that make up the Equipment module (issue #259 "new vs
 # previous year" detection applies only to these).
 EQUIPMENT_DATA_ENTRY_TYPE_IDS = {
@@ -593,7 +618,9 @@ class DataEntryRepository:
             statement = statement.where(or_(*conditions))
         return statement, filter_pattern
 
-    def _resolved_factor_id(self, handler: Any, data_entry_type_id: int) -> Any:
+    def _resolved_factor_id(
+        self, handler: Any, data_entry_type_id: int, factor_year: int | None
+    ) -> Any:
         """SQL twin of ``FactorResolver`` for list queries.
 
         Correlated scalar subquery returning, per entry row, the id of the
@@ -609,13 +636,22 @@ class DataEntryRepository:
         kind-anchored — a code match under a *different* kind is not
         considered — and ambiguity resolves to the lowest id instead of
         raising; compute/update paths keep the loud semantics.
+
+        ``factor_year`` is the caller's ``resolve_factor_year`` result — the
+        year whose factors actually apply to this report. It must be used
+        instead of the entry's own denormalized ``DataEntry.year``: Simulator
+        Plan reports have a (future) year of their own but source factors
+        from their reference year, so comparing against ``DataEntry.year``
+        directly would never match and silently null every factor-backed
+        display column (#2050-style divergence, but undocumented until now).
         """
         f = aliased(Factor)
         kind_field: str = handler.kind_field
         entry_kind = DataEntry.data[kind_field].as_string()
+        year_expr = factor_year if factor_year is not None else col(DataEntry.year)
         conditions = [
             col(f.data_entry_type_id) == data_entry_type_id,
-            col(f.year) == col(DataEntry.year),
+            col(f.year) == year_expr,
             f.classification[kind_field].as_string() == entry_kind,
         ]
         ordering: list[Any] = []
@@ -651,6 +687,84 @@ class DataEntryRepository:
             return statement.order_by(asc(sort_expr))
         else:
             return statement.order_by(desc(sort_expr))
+
+    def _page_first_eligible(
+        self, handler: Any, sort_by: str, filter: str | None
+    ) -> bool:
+        """True when ordering and filtering read nothing outside data_entries.
+
+        ``kg_co2eq`` sorts on the emission aggregate; joined-table sort/filter
+        expressions (factors, building_rooms) need the full join to order or
+        match rows. Everything else is decidable from the entries alone.
+        """
+        if sort_by == "kg_co2eq":
+            return False
+        sort_expr = dict(handler.sort_map).get(sort_by)
+        if sort_expr is None or _reads_joined_table(sort_expr):
+            return False
+        if any(_reads_joined_table(w) for w in getattr(handler, "default_where", [])):
+            return False
+        # _apply_name_filter ORs across every map entry, so a single
+        # joined-table filter expression forces the original shape whenever
+        # an effective filter is present.
+        filter_map = dict(getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP)
+        if (
+            filter
+            and filter.strip() not in ("", "%", "*")
+            and any(_reads_joined_table(e) for e in filter_map.values())
+        ):
+            return False
+        return True
+
+    async def _page_first_entry_ids(
+        self,
+        handler: Any,
+        carbon_report_module_id: int,
+        data_entry_type_id: int,
+        limit: int,
+        offset: int,
+        sort_by: str,
+        sort_order: str,
+        filter: str | None,
+        exclude_planner_snapshots: bool,
+        is_equipment_entry: bool,
+    ) -> list[int] | None:
+        """Resolve the page's entry ids with an entries-only query (#2404).
+
+        The full statement joins the per-row factor-resolution subquery and
+        aggregates the module's *entire* emission set to serve one page —
+        18,620 of 20,912 buffers on a measured 20-row request went to rows
+        the LIMIT then discarded. When eligible, fetching the ids first lets
+        the caller restrict both expensive branches to them, making cost
+        proportional to the page instead of the module.
+
+        Returns None when ineligible — the caller keeps the original shape.
+        Either way the same resolution subquery decides *which* factor a row
+        shows, so results cannot differ between paths, only their cost.
+        """
+        if not self._page_first_eligible(handler, sort_by, filter):
+            return None
+        page_q = select(col(DataEntry.id)).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        )
+        if exclude_planner_snapshots:
+            page_q = page_q.where(
+                col(DataEntry.source).is_distinct_from(
+                    DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+                )
+            )
+        handler_default = getattr(handler, "default_where", [])
+        if handler_default:
+            page_q = page_q.where(*handler_default)
+        filter_map = dict(getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP)
+        page_q, _ = self._apply_name_filter(page_q, filter, filter_map)
+        if is_equipment_entry:
+            page_q = page_q.order_by(_equipment_usage_priority())
+        page_q = self._apply_sort(page_q, sort_by, sort_order, dict(handler.sort_map))
+        page_q = page_q.offset(offset).limit(limit)
+        ids = (await self.session.execute(page_q)).scalars().all()
+        return [int(i) for i in ids]
 
     async def _prior_equipment_year(
         self, unit_id: int, current_year: int
@@ -812,6 +926,7 @@ class DataEntryRepository:
         filter: str | None = None,
         institutional_id_filter: str | None = None,
         exclude_planner_snapshots: bool = False,
+        factor_year: int | None = None,
     ) -> SubmoduleResponse:
         is_travel_entry = data_entry_type_id in (
             DataEntryTypeEnum.plane.value,
@@ -855,7 +970,29 @@ class DataEntryRepository:
             and not is_headcount_entry
             and handler.kind_field is not None
         ):
-            resolved_factor_id = self._resolved_factor_id(handler, data_entry_type_id)
+            resolved_factor_id = self._resolved_factor_id(
+                handler, data_entry_type_id, factor_year
+            )
+
+        # #2404 page-first: when ordering/filtering reads nothing outside
+        # data_entries, resolve the page's ids up front and restrict every
+        # expensive branch (emission aggregation, per-row factor resolution)
+        # to them. Travel/buildings/headcount keep their own shapes — their
+        # sorts read joined entities the ids query doesn't have.
+        page_entry_ids: list[int] | None = None
+        if not is_travel_entry and not is_buildings_entry and not is_headcount_entry:
+            page_entry_ids = await self._page_first_entry_ids(
+                handler=handler,
+                carbon_report_module_id=carbon_report_module_id,
+                data_entry_type_id=data_entry_type_id,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                filter=filter,
+                exclude_planner_snapshots=exclude_planner_snapshots,
+                is_equipment_entry=is_equipment_entry,
+            )
 
         # The entries this page can possibly show. Both aggregation subqueries
         # below restrict to it: a GROUP BY over the whole data_entry_emissions
@@ -864,6 +1001,10 @@ class DataEntryRepository:
             col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
             col(DataEntry.data_entry_type_id) == data_entry_type_id,
         )
+        if page_entry_ids is not None:
+            module_entry_ids = module_entry_ids.where(
+                col(DataEntry.id).in_(page_entry_ids)
+            )
 
         if is_buildings_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
@@ -1182,17 +1323,19 @@ class DataEntryRepository:
             # it instead of re-deriving it. Deriving it here meant pulling the
             # unit's entire prior-year id set into Python and inlining it as
             # thousands of bind parameters — 1711ms on dev to render 20 rows.
-            is_new_expr = DataEntry.data["is_new"].as_boolean()
-            missing_usage_expr = or_(
-                DataEntry.data["active_usage_hours_per_week"].as_string().is_(None),
-                DataEntry.data["standby_usage_hours_per_week"].as_string().is_(None),
-            )
-            # New equipment still missing its usage floats to the top.
-            statement = statement.order_by(desc(and_(is_new_expr, missing_usage_expr)))
+            # New equipment still missing its usage floats to the top —
+            # shared with the page-first ids query, which must order the same.
+            statement = statement.order_by(_equipment_usage_priority())
 
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
-        statement = statement.offset(offset).limit(limit)
+        if page_entry_ids is None:
+            statement = statement.offset(offset).limit(limit)
+        else:
+            # The ids already encode filter+sort+offset+limit; re-applying the
+            # offset would empty the page. The statement's own ORDER BY still
+            # runs, so display order matches the ids query's.
+            statement = statement.where(col(DataEntry.id).in_(page_entry_ids))
         result = await self.session.execute(statement)
 
         # Query for total count (for pagination)

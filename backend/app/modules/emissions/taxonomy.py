@@ -229,7 +229,6 @@ class EmissionType(int, Enum):
     external__ai__provider_mistral_ai = 110202
     external__ai__provider_anthropic = 110203
     external__ai__provider_openai = 110204
-    external__ai__provider_cohere = 110205
     external__ai__provider_others = 110206
     external__ai__provider_github = 110207
     external__ai__provider_microsoft = 110208

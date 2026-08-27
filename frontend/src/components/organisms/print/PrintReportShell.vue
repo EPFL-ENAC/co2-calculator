@@ -74,7 +74,7 @@ function printReport() {
      that lives outside this component, and reach into the .q-card elements the
      report pages render into the slot. -->
 <style lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .print-report {
   min-height: 100vh;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import type { RecalculationStatusEntry } from 'src/stores/yearConfig';
+import type { RecalculationStatusEntry } from '@/stores/yearConfig';
 
 interface Props {
   modelValue: boolean;

@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
+from enacit4r_files.utils.files import FileChecker
 from fastapi import (
     APIRouter,
     Depends,
@@ -20,6 +21,7 @@ from fastapi import (
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.auth_first_route import AuthFirstRoute
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -66,8 +68,12 @@ from app.tasks._background import fire_and_forget
 from app.tasks.runner import run_job
 
 logger = get_logger(__name__)
-router = APIRouter()
+# All six routes here already require get_current_user, and the reduction-
+# objective upload declares a File(...) body — so the whole router
+# authenticates before the body is read (#2261). See AuthFirstRoute.
+router = APIRouter(route_class=AuthFirstRoute)
 settings = get_settings()
+file_checker = FileChecker(settings.FILES_MAX_SIZE_MB * 1024 * 1024)
 
 
 def _build_job_lookup(
@@ -966,6 +972,11 @@ async def upload_reduction_objective_file(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only super administrators can upload files",
         )
+
+    # This route had no size limit at all, unlike every other upload path
+    # (#2261). AuthFirstRoute already bounded the whole request body from the
+    # Content-Length header; this is the exact per-file check.
+    await file_checker.check_size([file])
 
     # Validate file extension
     allowed_extensions = {".csv", ".xlsx", ".xls", ".pdf"}

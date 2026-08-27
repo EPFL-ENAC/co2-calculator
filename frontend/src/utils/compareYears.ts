@@ -1,5 +1,5 @@
-import type { MultiYearReportStatsEntry } from 'src/stores/modules';
-import type { ReductionObjectiveGoal } from 'src/stores/yearConfig';
+import type { MultiYearReportStatsEntry } from '@/stores/modules';
+import type { ReductionObjectiveGoal } from '@/stores/yearConfig';
 
 /**
  * Pure helpers for the "Compare Years" dialog. Kept out of the component so the

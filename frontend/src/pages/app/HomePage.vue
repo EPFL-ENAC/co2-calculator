@@ -1,17 +1,16 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { MODULES_LIST } from 'src/constant/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useAuthStore } from 'src/stores/auth';
-import { useModuleStore } from 'src/stores/modules';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { nOrDash } from 'src/utils/number';
-import { runtimeConfig } from 'src/config/runtime';
-import WorkspaceSelectorBar from 'src/components/organisms/workspace-selector/WorkspaceSelectorBar.vue';
-import CO2ProjectPlanner from 'src/components/organisms/home/CO2ProjectPlanner.vue';
-import CO2Explorer from 'src/components/organisms/home/CO2Explorer.vue';
-import ChartSkeleton from 'src/components/charts/ChartSkeleton.vue';
+import { MODULES_LIST } from '@/constant/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useAuthStore } from '@/stores/auth';
+import { useModuleStore } from '@/stores/modules';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { nOrDash } from '@/utils/number';
+import WorkspaceSelectorBar from '@/components/organisms/workspace-selector/WorkspaceSelectorBar.vue';
+import CO2ProjectPlanner from '@/components/organisms/home/CO2ProjectPlanner.vue';
+import CO2Explorer from '@/components/organisms/home/CO2Explorer.vue';
+import ChartSkeleton from '@/components/charts/ChartSkeleton.vue';
 
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
@@ -26,7 +25,7 @@ const hasText = (key: string) => te(key) && t(key).trim().length > 0;
 // chunk; ChartSkeleton holds the layout while it loads.
 const ModuleCarbonFootprintChart = defineAsyncComponent({
   loader: () =>
-    import('src/components/charts/results/ModuleCarbonFootprintChart.vue'),
+    import('@/components/charts/results/ModuleCarbonFootprintChart.vue'),
   loadingComponent: ChartSkeleton,
   delay: 0,
 });
@@ -62,48 +61,7 @@ const firstEditableModule = computed(() =>
   ),
 );
 
-// Principal (unit-breadth) users can validate module status; standard (own)
-// users cannot. We use the same signal to tailor the empty-state access copy.
-const isPrincipalUser = computed(() =>
-  authStore.hasUserCanValidateModuleStatus(),
-);
-
 const isAboutDialogOpen = ref(false);
-
-// Drives the role-scoped i18n keys (co2_calculator_role_*, _access_*_title/_body).
-const userType = computed(() =>
-  isPrincipalUser.value ? 'principal' : 'standard',
-);
-
-// Access-management portal (name + URL), configurable per deployment via
-// APP_ACCESS_MANAGEMENT_PROVIDER_* — see src/config/runtime.ts. No default: when
-// unset the popover CTA link is hidden. Principals delegate roles here; standard
-// users instead email the principal.
-const accessManagementProviderName = runtimeConfig.accessManagementProviderName;
-const accessManagementProviderUrl = runtimeConfig.accessManagementProviderUrl;
-const accessManagementProviderAboutUrl =
-  runtimeConfig.accessManagementProviderAboutUrl;
-const rolesDocUrl = runtimeConfig.rolesDocUrl;
-
-const principalUserName = computed(
-  () => workspaceStore.selectedUnit?.principal_user_name ?? '',
-);
-
-// Standard users request access by emailing the unit's principal user, with a
-// pre-filled subject/body. Null when no principal email is known for the unit.
-const requestAccessMailto = computed(() => {
-  const email = workspaceStore.selectedUnit?.principal_user_email;
-  if (!email) return null;
-  const unit = workspaceStore.selectedUnit?.name ?? '';
-  const subject = t('co2_calculator_access_mail_subject', { unit });
-  const body = t('co2_calculator_access_mail_body', {
-    name: principalUserName.value,
-    unit,
-  });
-  return `mailto:${email}?subject=${encodeURIComponent(
-    subject,
-  )}&body=${encodeURIComponent(body)}`;
-});
 
 const calculatorUpdates = computed(() => {
   // Discover update indices from the i18n keys (calculator_update_<n>_*) instead
@@ -250,120 +208,6 @@ const calculatorUpdates = computed(() => {
               <h2 class="text-h5 text-weight-medium q-mb-none">
                 {{ $t('co2_calculator_chart_title', { year: currentYear }) }}
               </h2>
-
-              <!-- Discreet role badge; opens a popover explaining the access
-                   level and how to request more (via the configured
-                   authorization provider). Always available, independent of
-                   the empty/populated chart state. -->
-              <q-btn
-                flat
-                dense
-                no-caps
-                size="sm"
-                class="calculator-card__role-chip"
-                :class="{
-                  'calculator-card__role-chip--principal': isPrincipalUser,
-                }"
-              >
-                <q-icon
-                  :name="isPrincipalUser ? 'o_verified_user' : 'o_lock'"
-                  size="xs"
-                  class="q-mr-xs"
-                />
-                {{ $t(`co2_calculator_role_${userType}`) }}
-                <q-icon name="expand_more" size="xs" class="q-ml-xs" />
-                <q-menu anchor="bottom right" self="top right" :offset="[0, 6]">
-                  <div class="calculator-card__access-popover">
-                    <div>
-                      <p class="text-subtitle2 text-weight-medium q-mb-xs">
-                        {{ $t(`co2_calculator_access_${userType}_title`) }}
-                      </p>
-                      <p class="text-body2 text-secondary q-mb-none">
-                        {{
-                          $t(`co2_calculator_access_${userType}_body`, {
-                            provider:
-                              accessManagementProviderName ||
-                              $t('co2_calculator_access_provider_generic'),
-                          })
-                        }}
-                      </p>
-                    </div>
-
-                    <!-- Standard users email their unit's principal user. -->
-                    <q-btn
-                      v-if="!isPrincipalUser && requestAccessMailto"
-                      type="a"
-                      :href="requestAccessMailto"
-                      color="info"
-                      icon="o_mail"
-                      :label="$t('co2_calculator_access_cta_standard')"
-                      unelevated
-                      no-caps
-                      size="sm"
-                      class="text-weight-medium self-start"
-                    />
-                    <p
-                      v-else-if="!isPrincipalUser"
-                      class="text-body2 text-secondary q-mb-none"
-                    >
-                      {{
-                        $t('co2_calculator_access_no_email', {
-                          name: principalUserName,
-                        })
-                      }}
-                    </p>
-
-                    <div class="calculator-card__access-links">
-                      <a
-                        v-if="rolesDocUrl"
-                        :href="rolesDocUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="link text-body2 text-weight-medium"
-                      >
-                        {{ $t('co2_calculator_access_cta_roles_doc') }}
-                        <q-icon name="o_arrow_outward" size="xs" />
-                      </a>
-
-                      <a
-                        v-if="accessManagementProviderAboutUrl"
-                        :href="accessManagementProviderAboutUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="link text-body2 text-weight-medium"
-                      >
-                        {{
-                          $t('co2_calculator_access_cta_about_provider', {
-                            provider:
-                              accessManagementProviderName ||
-                              $t('co2_calculator_access_provider_generic'),
-                          })
-                        }}
-                        <q-icon name="o_arrow_outward" size="xs" />
-                      </a>
-
-                      <!-- Principals delegate roles in the access-management
-                           portal; hidden when no portal URL is configured. -->
-                      <a
-                        v-if="isPrincipalUser && accessManagementProviderUrl"
-                        :href="accessManagementProviderUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="link text-body2 text-weight-medium"
-                      >
-                        {{
-                          $t('co2_calculator_access_cta_principal', {
-                            provider:
-                              accessManagementProviderName ||
-                              $t('co2_calculator_access_provider_generic'),
-                          })
-                        }}
-                        <q-icon name="o_arrow_outward" size="xs" />
-                      </a>
-                    </div>
-                  </div>
-                </q-menu>
-              </q-btn>
             </div>
 
             <q-separator />
@@ -502,7 +346,7 @@ const calculatorUpdates = computed(() => {
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .about-btn :deep(.q-icon.on-left) {
   margin-right: tokens.$spacing-sm;
@@ -612,37 +456,6 @@ const calculatorUpdates = computed(() => {
   height: 100%;
 }
 
-// Discreet role badge in the card header. Neutral pill, color keyed to role,
-// opens the access popover below.
-.calculator-card__role-chip {
-  color: tokens.$color-text;
-  border: 1px solid tokens.$color-text;
-  border-radius: tokens.$radius-pill;
-  padding: 2px tokens.$spacing-sm;
-  flex-shrink: 0;
-
-  &--principal {
-    color: tokens.$color-validated;
-    border-color: tokens.$color-validated;
-  }
-}
-
-// Access details revealed from the role badge.
-.calculator-card__access-popover {
-  display: flex;
-  flex-direction: column;
-  gap: tokens.$spacing-lg;
-  max-width: 400px;
-  padding: tokens.$spacing-xl;
-}
-
-.calculator-card__access-links {
-  display: flex;
-  flex-direction: column;
-  gap: tokens.$spacing-md;
-  align-items: flex-start;
-}
-
 .calculator-card__updates {
   padding: tokens.$spacing-xl;
 }
@@ -696,31 +509,6 @@ const calculatorUpdates = computed(() => {
   .calculator-card__divider {
     display: block;
     align-self: stretch;
-  }
-}
-
-.link {
-  color: tokens.$link-color;
-  text-decoration: underline;
-  text-decoration-color: tokens.$link-underline-color;
-  text-underline-offset: tokens.$link-underline-offset;
-  transition:
-    color tokens.$transition-default,
-    text-decoration-color tokens.$transition-default;
-
-  &:hover {
-    color: tokens.$link-hover-color;
-    text-decoration-color: tokens.$link-hover-underline-color;
-  }
-
-  &:visited {
-    color: tokens.$link-visited-color;
-    text-decoration-color: tokens.$link-underline-color;
-  }
-
-  &:active {
-    color: tokens.$link-active-color;
-    text-decoration-color: tokens.$link-underline-color;
   }
 }
 </style>

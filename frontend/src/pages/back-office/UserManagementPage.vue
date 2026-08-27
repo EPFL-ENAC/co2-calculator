@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import { ROLES } from 'src/constant/roles';
-import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
+import { ROLES } from '@/constant/roles';
+import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();

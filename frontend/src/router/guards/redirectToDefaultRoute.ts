@@ -1,7 +1,7 @@
 import type { RouteLocationNormalized } from 'vue-router';
-import { useWorkspaceStore, unitSlug } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { resolveNoWorkspaceRoute } from 'src/utils/unauthorized';
+import { useWorkspaceStore, unitSlug } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { resolveNoWorkspaceRoute } from '@/utils/unauthorized';
 import { HOME_ROUTE_NAME } from '../routeNames';
 
 /**

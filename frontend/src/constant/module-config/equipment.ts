@@ -1,12 +1,12 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { formatTonnesCO2 } from 'src/utils/number';
-import type { Module, EquipmentSubType } from 'src/constant/modules';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { formatTonnesCO2 } from '@/utils/number';
+import type { Module, EquipmentSubType } from '@/constant/modules';
 
 import {
   MODULES,
   MODULES_THRESHOLD_TYPES,
   SUBMODULE_EQUIPMENT_TYPES,
-} from 'src/constant/modules';
+} from '@/constant/modules';
 
 const nameField: ModuleField = {
   id: 'name',

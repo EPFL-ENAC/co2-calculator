@@ -3,34 +3,37 @@ import {
   useTimelineStore,
   useModuleStore,
   type CarbonReportModuleResponse,
-} from 'src/stores/modules';
+} from '@/stores/modules';
 import {
   toEmissionBreakdown,
   type ReportStats,
-} from 'src/utils/emissionStatsAdapter';
-import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
-import { useWorkspaceStore } from 'src/stores/workspace';
+} from '@/utils/emissionStatsAdapter';
+import { useSimulatorPlansStore } from '@/stores/simulatorPlans';
+import { useWorkspaceStore } from '@/stores/workspace';
 import {
   useYearConfigStore,
   type YearConfigurationResponse,
-} from 'src/stores/yearConfig';
-import { resolveLanguage } from 'src/utils/language';
+} from '@/stores/yearConfig';
+import { resolveLanguage } from '@/utils/language';
+import { resolveWorkspaceUnit } from '@/utils/resolveWorkspaceUnit';
 import {
   CARBON_PROJECT,
   resolveCarbonProject,
-} from 'src/constant/carbon-project';
-import {
-  DEFAULT_ROUTE_NAME,
-  WORKSPACE_ROUTE_NAME,
-} from 'src/router/routeNames';
+} from '@/constant/carbon-project';
+import { DEFAULT_ROUTE_NAME, WORKSPACE_ROUTE_NAME } from '@/router/routeNames';
 
 async function validateUnit() {
   const workspaceStore = useWorkspaceStore();
   const routeUnit = String(workspaceStore.selectedParams?.unit || '');
-  const unitIdFromRoute = routeUnit.split('-')[0];
-  const validUnit = workspaceStore.units.find(
-    (unit) =>
-      unit.id === parseInt(unitIdFromRoute, 10) || unit.name === routeUnit,
+  // Membership list first; otherwise the backend decides (#2369) — global
+  // roles may access units they are not members of.
+  const validUnit = await resolveWorkspaceUnit(
+    routeUnit,
+    workspaceStore.units,
+    async (id) => {
+      await workspaceStore.getUnit(id);
+      return workspaceStore.selectedUnit;
+    },
   );
 
   if (validUnit) {
@@ -38,7 +41,8 @@ async function validateUnit() {
     workspaceStore.setYear(workspaceStore.selectedParams?.year || null);
     return true;
   }
-  // If the unit from the route is not valid, fall back to the landing resolver
+  // Backend refused (403/404) or the route unit is unparsable — fall back to
+  // the landing resolver
   workspaceStore.setUnit(null);
   workspaceStore.setYear(null);
   return false;

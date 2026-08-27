@@ -6,13 +6,14 @@ from fastapi.testclient import TestClient
 import app.core.config as config
 from app.main import app
 from app.models.user import UserProvider
+from tests.browser import SAME_ORIGIN_HEADERS
 
 API_PREFIX = config.get_settings().API_VERSION
 
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    with TestClient(app, headers=SAME_ORIGIN_HEADERS) as c:
         yield c
 
 

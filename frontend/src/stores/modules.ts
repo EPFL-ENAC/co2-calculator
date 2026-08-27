@@ -1,35 +1,36 @@
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref } from 'vue';
-import { MODULES, Module } from 'src/constant/modules';
-import { api } from 'src/api/http';
+import { MODULES, Module } from '@/constant/modules';
+import { api } from '@/api/http';
+import { getModuleDataEntriesTaxonomies } from '@/api/taxonomies';
 import {
   MODULE_STATES,
   ModuleState,
   ModuleStates,
   getModuleTypeId,
   getModuleFromTypeId,
-} from 'src/constant/moduleStates';
+} from '@/constant/moduleStates';
 
 import type {
   AllSubmoduleTypes,
   ModuleResponse,
   Submodule,
   TaxonomyNode,
-} from 'src/constant/modules';
+} from '@/constant/modules';
 import { useRoute } from 'vue-router';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useSimulatorPlansStore } from 'src/stores/simulatorPlans';
-import { buildModulePath, hasValidModuleParams } from 'src/utils/modulePath';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useSimulatorPlansStore } from '@/stores/simulatorPlans';
+import { buildModulePath, hasValidModuleParams } from '@/utils/modulePath';
 import {
   toEmissionBreakdown,
   toItBreakdown,
   type ReportStats,
-} from 'src/utils/emissionStatsAdapter';
+} from '@/utils/emissionStatsAdapter';
 import {
   carbonReportLookupPath,
   resolveCarbonProject,
   type CarbonProject,
-} from 'src/constant/carbon-project';
+} from '@/constant/carbon-project';
 
 /**
  * API response for validated totals endpoint.
@@ -355,7 +356,6 @@ export const useModuleStore = defineStore('modules', () => {
     loading: boolean;
     error: string | null;
     data: ModuleResponse | null;
-    taxonomy: TaxonomyNode | null;
     expandedSubmodules: Record<string, boolean>; // key: submodule ID
     loadingSubmodule: Record<string, boolean>; // key: submodule ID
     errorSubmodule: Record<string, string | null>; // key: submodule ID
@@ -397,7 +397,6 @@ export const useModuleStore = defineStore('modules', () => {
     loading: false,
     error: null,
     data: null,
-    taxonomy: null,
     filterTermSubmodule: reactive({}),
     expandedSubmodules: reactive({}),
     loadingSubmodule: reactive({}),
@@ -433,6 +432,11 @@ export const useModuleStore = defineStore('modules', () => {
   // unit/year resolve to a carbon report id once per context; every module
   // operation then addresses /carbon-reports/{id}/modules/... directly.
   const reportIdCache = reactive<Record<string, number>>({});
+  // In-flight lookups for the same key share one request: every module
+  // table/chart/select mounting at once would otherwise each fire the same
+  // GET (7 identical lookups observed on explore-page mount, #2360).
+  // Rejections are never stored — a failed lookup retries on the next call.
+  const reportIdInFlight = new Map<string, Promise<number>>();
 
   // The planner addresses reports by id directly (a unit can hold several
   // plans with overlapping years, so unit/year cannot identify a report):
@@ -447,10 +451,32 @@ export const useModuleStore = defineStore('modules', () => {
     const key = `${unit}|${year}|${project}`;
     const cached = reportIdCache[key];
     if (cached) return cached;
-    const path = carbonReportLookupPath(project, unit, year);
-    const report = await api.get(path).json<{ id: number }>();
-    reportIdCache[key] = report.id;
-    return report.id;
+    const inFlight = reportIdInFlight.get(key);
+    if (inFlight) return inFlight;
+    const request = (async () => {
+      const path = carbonReportLookupPath(project, unit, year);
+      const report = await api.get(path).json<{ id: number }>();
+      reportIdCache[key] = report.id;
+      return report.id;
+    })();
+    reportIdInFlight.set(key, request);
+    try {
+      return await request;
+    } finally {
+      reportIdInFlight.delete(key);
+    }
+  }
+
+  // Lets a resolution done elsewhere (the explore page's workspace-home call)
+  // seed this cache, so the module components' later resolveCarbonReportId
+  // calls for the same key hit cache instead of re-resolving (#2360 follow-up).
+  function seedReportId(
+    unit: number | string,
+    year: number | string,
+    project: CarbonProject,
+    id: number,
+  ) {
+    reportIdCache[`${unit}|${year}|${project}`] = id;
   }
 
   async function modulePath(
@@ -465,6 +491,21 @@ export const useModuleStore = defineStore('modules', () => {
     // A planner call that forgot its report id throws in carbonReportLookupPath
     // rather than silently writing to the Calculator report.
     return buildModulePath(moduleType, await resolveCarbonReportId(unit, year));
+  }
+
+  // Resolve the carbon_report_module_id for a table's own identity
+  // (moduleType + unit/year or explicit report id). CSV dispatch must never
+  // read it from the shared `state.data`, which another page may have filled
+  // with a different report's module.
+  async function resolveCarbonReportModuleId(
+    moduleType: Module,
+    unit: number | string,
+    year: number | string,
+    carbonReportId?: number,
+  ): Promise<number | undefined> {
+    const path = `${await modulePath(moduleType, unit, year, carbonReportId)}?preview_limit=0`;
+    const data = (await api.get(path).json()) as ModuleResponse;
+    return data?.carbon_report_module_id;
   }
 
   function initializeSubmoduleState(submoduleId: string) {
@@ -501,7 +542,6 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
     carbonReportId?: number,
-    excludeSnapshots?: boolean,
   ) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
@@ -510,9 +550,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.data = null;
     try {
       const base = await modulePath(moduleType, unit, year, carbonReportId);
-      state.data = (await api
-        .get(excludeSnapshots ? `${base}?exclude_snapshots=true` : base)
-        .json()) as ModuleResponse;
+      state.data = (await api.get(base).json()) as ModuleResponse;
     } catch (err: unknown) {
       if (err instanceof Error) {
         state.error = err.message ?? 'Unknown error';
@@ -531,7 +569,6 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
     carbonReportId?: number,
-    excludeSnapshots?: boolean,
   ) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
@@ -540,9 +577,7 @@ export const useModuleStore = defineStore('modules', () => {
 
     state.data = null;
     try {
-      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}?preview_limit=0${
-        excludeSnapshots ? '&exclude_snapshots=true' : ''
-      }`;
+      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}?preview_limit=0`;
       state.data = (await api.get(path).json()) as ModuleResponse;
       if (state.data?.data_entry_types_total_items) {
         state.moduleTotalsMap[moduleType] =
@@ -559,42 +594,18 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getModuleTaxonomy(moduleType: Module) {
-    state.loading = true;
-    state.error = null;
-    state.taxonomy = null;
-    try {
-      state.taxonomy = (await api
-        .get(`taxonomies/module_type/${encodeURIComponent(moduleType)}`)
-        .json()) as TaxonomyNode;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        state.error = err.message ?? 'Unknown error';
-        state.taxonomy = null;
-      } else {
-        state.error = 'Unknown error';
-        state.taxonomy = null;
-      }
-    } finally {
-      state.loading = false;
-    }
-  }
-
   async function getSubmoduleData({
     moduleType,
     submoduleType,
     unit,
     year,
     carbonReportId,
-    excludeSnapshots,
   }: {
     moduleType: Module;
     submoduleType: string;
     unit: number;
     year: string;
     carbonReportId?: number;
-    /** Grant equipment global mode: list only manually added entries (#1981). */
-    excludeSnapshots?: boolean;
   }) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
@@ -619,9 +630,6 @@ export const useModuleStore = defineStore('modules', () => {
       const filterTerm = state.filterTermSubmodule[submoduleType];
       if (filterTerm && filterTerm.trim().length > 0) {
         queryParams.append('filter', filterTerm.trim());
-      }
-      if (excludeSnapshots) {
-        queryParams.append('exclude_snapshots', 'true');
       }
       const url = `${await modulePath(moduleType, unit, year, carbonReportId)}/${encodeURIComponent(
         submoduleType,
@@ -702,6 +710,54 @@ export const useModuleStore = defineStore('modules', () => {
         state.taxonomySubmodule[submoduleType] = null;
       } else {
         state.error = 'Unknown error';
+        state.taxonomySubmodule[submoduleType] = null;
+      }
+    } finally {
+      state.loading = false;
+    }
+  }
+
+  /**
+   * Batch variant of getSubmoduleTaxonomy: one round trip for every
+   * submodule of a module instead of one call each (#2049 T6). Populates
+   * the same state.taxonomySubmodule keys, so existing readers (ModuleTable,
+   * ModuleForm, ...) don't need to know which path filled them in.
+   */
+  async function getSubmoduleTaxonomiesBatch(
+    moduleType: Module,
+    submoduleTypes: string[],
+    year: string,
+  ) {
+    if (submoduleTypes.length === 0) return;
+    state.loading = true;
+    state.error = null;
+    for (const submoduleType of submoduleTypes) {
+      state.taxonomySubmodule[submoduleType] = null;
+    }
+    try {
+      const taxonomies = await getModuleDataEntriesTaxonomies(
+        moduleType,
+        submoduleTypes,
+        year,
+      );
+      const missing: string[] = [];
+      for (const submoduleType of submoduleTypes) {
+        // A submodule the backend couldn't resolve (logged loud there,
+        // #2258 follow-up) is simply absent from the response — leave
+        // it null rather than throwing, so one bad entry doesn't blank
+        // every other, already-resolved submodule in the batch too.
+        const node = taxonomies[submoduleType];
+        state.taxonomySubmodule[submoduleType] = node ? markRaw(node) : null;
+        if (!node) missing.push(submoduleType);
+      }
+      // Surface the gap instead of a silently-empty submodule (no
+      // silent fallbacks) — the backend already logged the cause.
+      if (missing.length > 0) {
+        state.error = `Failed to load taxonomy for: ${missing.join(', ')}`;
+      }
+    } catch (err: unknown) {
+      state.error = err instanceof Error ? err.message : 'Unknown error';
+      for (const submoduleType of submoduleTypes) {
         state.taxonomySubmodule[submoduleType] = null;
       }
     } finally {
@@ -1312,10 +1368,10 @@ export const useModuleStore = defineStore('modules', () => {
     initializeSubmoduleState,
     getModuleData,
     getModuleTotals,
-    getModuleTaxonomy,
     getSubmoduleData,
     refreshLoadedSubmodules,
     getSubmoduleTaxonomy,
+    getSubmoduleTaxonomiesBatch,
     postItem,
     patchItem,
     deleteItem,
@@ -1334,6 +1390,8 @@ export const useModuleStore = defineStore('modules', () => {
     validatedTotalsCarbonReportId,
     carbonProject,
     resolveCarbonReportId,
+    resolveCarbonReportModuleId,
+    seedReportId,
     state,
   };
 });

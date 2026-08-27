@@ -136,26 +136,51 @@ const MODULE_TYPE_IDS: Record<string, number> = {
   'process-emissions': 8,
 };
 
-// ─── Factor catalogue (class → subclasses), keyed by enumSubmodule id ─────────
+// ─── Factor catalogue (class → subclasses), keyed by data entry name ─────────
+// Named, not id-keyed: since #2391 decision 1 the options come from
+// `taxonomies/module/{module}/{data_entry}`, and the numeric ids only ever
+// addressed the retired `factors/{det}/class-subclass-map`.
 
-export const FACTOR_CLASS_MAP: Record<number, Record<string, string[]>> = {
-  50: { co2: ['fossil'], ch4: ['biogenic'], sf6: ['electrical'] },
-  31: { natural_gas: [], heating_oil: [], pellets: [] },
-  30: { BC: [], GC: [] },
-  10: { Centrifuge: ['Benchtop', 'Floor'], Microscope: ['Optical'] },
-  11: { Laptop: [], Monitor: [] },
-  12: { Freezer: ['-80 °C'], Fridge: ['Standard'] },
-  40: { AWS: ['virtualisation', 'stockage'], Azure: ['calcul'] },
-  41: { OpenAI: ['chat'], Anthropic: ['chat'] },
-  60: { 'Laboratory equipment': [] },
-  61: { Computers: [] },
-  62: { 'Lab consumables': [] },
-  63: { Solvents: [] },
-  64: { Consulting: [] },
-  65: { Cars: [] },
-  66: { Furniture: [] },
-  67: { LN2: [] },
+export const FACTOR_CLASS_MAP: Record<string, Record<string, string[]>> = {
+  process_emissions: {
+    co2: ['fossil'],
+    ch4: ['biogenic'],
+    sf6: ['electrical'],
+  },
+  energy_combustion: { natural_gas: [], heating_oil: [], pellets: [] },
+  building: { BC: [], GC: [] },
+  scientific: { Centrifuge: ['Benchtop', 'Floor'], Microscope: ['Optical'] },
+  it: { Laptop: [], Monitor: [] },
+  other: { Freezer: ['-80 °C'], Fridge: ['Standard'] },
+  external_clouds: { AWS: ['virtualisation', 'stockage'], Azure: ['calcul'] },
+  external_ai: { OpenAI: ['chat'], Anthropic: ['chat'] },
+  scientific_equipment: { 'Laboratory equipment': [] },
+  it_equipment: { Computers: [] },
+  consumable_accessories: { 'Lab consumables': [] },
+  biological_chemical_gaseous_product: { Solvents: [] },
+  services: { Consulting: [] },
+  vehicles: { Cars: [] },
+  other_purchases: { Furniture: [] },
+  purchases_centralized: { LN2: [] },
 };
+
+/** The tree ``ModuleHandlerService.get_taxonomy`` builds for one entry. */
+export function taxonomyTreeFor(dataEntry: string) {
+  return {
+    name: dataEntry,
+    label: dataEntry,
+    children: Object.entries(FACTOR_CLASS_MAP[dataEntry] ?? {}).map(
+      ([kind, subkinds]) => ({
+        name: kind,
+        label: kind,
+        children: subkinds.map((subkind) => ({
+          name: subkind,
+          label: subkind,
+        })),
+      }),
+    ),
+  };
+}
 
 const FACTOR_VALUES: Record<number, Record<string, unknown>> = {
   31: { unit: 'kWh' },
@@ -545,6 +570,23 @@ function parseJsonBody(req: Request): Record<string, unknown> {
   }
 }
 
+// Shared shape for a module's ?preview_limit=0 totals response.
+function buildModuleTotalsResponse(
+  module: string,
+  totals: Record<number, number>,
+) {
+  return {
+    module_type: module,
+    unit: UNIT_ID,
+    year: String(YEAR),
+    data_entry_types_total_items: totals,
+    carbon_report_module_id: 100 + (MODULE_TYPE_IDS[module] ?? 0),
+    retrieved_at: '2024-01-01T00:00:00Z',
+    submodules: {},
+    totals: { total_submodules: 0, total_items: 0 },
+  };
+}
+
 export async function installExplorerInitScripts(
   context: BrowserContext,
 ): Promise<void> {
@@ -655,20 +697,15 @@ export async function mockExplorerBackend(
   );
 
   // ─── Taxonomy / factors ────────────────────────────────────────────────────
-  await context.route('**/api/v1/taxonomies/**', (route) =>
-    json(route, { name: '', label: '', children: [] }),
-  );
-
+  // The single lookup endpoint (#2391): every form select's options come from
+  // here. The batch `/data-entries` variant is registered later (LIFO wins).
   await context.route(
-    /.*\/api\/v1\/factors\/(\d+)\/class-subclass-map/,
+    /.*\/api\/v1\/taxonomies\/module\/[^/]+\/([^/?]+)/,
     (route) => {
-      const id = Number(
-        route
-          .request()
-          .url()
-          .match(/factors\/(\d+)\//)![1],
-      );
-      return json(route, FACTOR_CLASS_MAP[id] ?? {});
+      const dataEntry = new URL(route.request().url()).pathname
+        .split('/')
+        .pop()!;
+      return json(route, taxonomyTreeFor(dataEntry.replace(/-/g, '_')));
     },
   );
 
@@ -684,10 +721,6 @@ export async function mockExplorerBackend(
       ? json(route, values)
       : route.fulfill({ status: 404, body: '' });
   });
-
-  await context.route(/.*\/api\/v1\/factors\/7[01]\/list/, (route) =>
-    json(route, []),
-  );
 
   await context.route(/.*\/api\/v1\/modules\/building-rooms/, (route) => {
     const url = new URL(route.request().url());
@@ -762,16 +795,7 @@ export async function mockExplorerBackend(
       SUBMODULES.filter((s) => s.module === module).forEach((s) => {
         totals[s.enumId] = rowsOf(reportId, module, s.sub).length;
       });
-      return json(route, {
-        module_type: module,
-        unit: UNIT_ID,
-        year: String(YEAR),
-        data_entry_types_total_items: totals,
-        carbon_report_module_id: 100 + (MODULE_TYPE_IDS[module] ?? 0),
-        retrieved_at: '2024-01-01T00:00:00Z',
-        submodules: {},
-        totals: { total_submodules: 0, total_items: 0 },
-      });
+      return json(route, buildModuleTotalsResponse(module, totals));
     }
 
     if (sub === 'members') {
@@ -826,6 +850,41 @@ export async function mockExplorerBackend(
       },
     ]);
   });
+
+  // Print/explore page's fetchAllData batches taxonomy fetches as one
+  // .../data-entries call per module instead of one per submodule
+  // (#2049 T6) — returns a map keyed by entry, not one TaxonomyNode.
+  // Registered after the catch-all above so LIFO picks this more
+  // specific route first for that path.
+  await page.route('**/api/v1/taxonomies/module/*/data-entries*', (route) => {
+    const entries = new URL(route.request().url()).searchParams.getAll(
+      'entries',
+    );
+    const body = Object.fromEntries(
+      entries.map((entry) => [
+        entry,
+        taxonomyTreeFor(entry.replace(/-/g, '_')),
+      ]),
+    );
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+
+  // All other module preview_limit=0 calls (non-headcount modules).
+  // Identity-addressed by the explore report id (99).
+  await page.route(
+    /.*\/api\/v1\/carbon-reports\/99\/modules\/[^/?]+\?.*preview_limit/,
+    (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildModuleTotalsResponse('unknown', {})),
+      });
+    },
+  );
 
   let nextJobId = 1;
   await context.route('**/api/v1/sync/dispatch', (route) => {

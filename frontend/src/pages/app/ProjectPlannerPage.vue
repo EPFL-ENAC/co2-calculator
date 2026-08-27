@@ -218,25 +218,25 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
-import PlannerGrantComparisonChart from 'src/components/charts/results/PlannerGrantComparisonChart.vue';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import PlannerProjectInfo from 'src/components/organisms/planner/PlannerProjectInfo.vue';
-import PlannerYearSection from 'src/components/organisms/planner/PlannerYearSection.vue';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
+import PlannerGrantComparisonChart from '@/components/charts/results/PlannerGrantComparisonChart.vue';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import PlannerProjectInfo from '@/components/organisms/planner/PlannerProjectInfo.vue';
+import PlannerYearSection from '@/components/organisms/planner/PlannerYearSection.vue';
 import {
   useSimulatorPlansStore,
   type SimulatorPlan,
-} from 'src/stores/simulatorPlans';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { sumBreakdownTonnes } from 'src/utils/breakdownTotal';
-import { toEmissionBreakdown } from 'src/utils/emissionStatsAdapter';
-import { formatTonnesCO2 } from 'src/utils/number';
+} from '@/stores/simulatorPlans';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { sumBreakdownTonnes } from '@/utils/breakdownTotal';
+import { toEmissionBreakdown } from '@/utils/emissionStatsAdapter';
+import { formatTonnesCO2 } from '@/utils/number';
 import {
   filledYearRange,
   formatYearRange,
   withYearRange,
-} from 'src/utils/plannerYearRange';
+} from '@/utils/plannerYearRange';
 
 const route = useRoute();
 const router = useRouter();
@@ -362,7 +362,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .year-sections {
   display: grid;

@@ -56,12 +56,19 @@ class SessionRead(BaseModel):
     frontend a source that doesn't depend on any particular year existing —
     e.g. the backoffice year selector can seed its lower bound even when the
     current real-world year has no ``YearConfiguration`` row yet.
+
+    ``client_ip`` is the caller's own address, which the browser cannot
+    discover on its own — it is echoed back so the frontend can put a real IP
+    on its GlitchTip error reports instead of a placeholder. Omitted when the
+    ASGI server reports no client (``response_model_exclude_none``), never
+    faked.
     """
 
     user: UserRead
     units: list[UnitWithUserRole]
     configured_years: list[YearConfigurationListItem]
     min_configurable_year: int
+    client_ip: str | None = None
 
 
 class UserCreate(BaseModel):

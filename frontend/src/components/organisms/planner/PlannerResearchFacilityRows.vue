@@ -128,15 +128,21 @@ import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
-import { api } from 'src/api/http';
-import PlannerSubmoduleBudget from 'src/components/organisms/planner/PlannerSubmoduleBudget.vue';
+import { api } from '@/api/http';
+import PlannerSubmoduleBudget from '@/components/organisms/planner/PlannerSubmoduleBudget.vue';
 import {
-  enumSubmodule,
   MODULES,
   SUBMODULE_RESEARCH_FACILITIES_TYPES,
-} from 'src/constant/modules';
-import { getModuleTypeId } from 'src/constant/moduleStates';
-import { useModuleStore } from 'src/stores/modules';
+} from '@/constant/modules';
+import { getModuleTypeId } from '@/constant/moduleStates';
+import { useFactorsStore } from '@/stores/factors';
+import { useModuleStore } from '@/stores/modules';
+import {
+  buildResearchFacilityRows,
+  rowKey,
+  type RfRow,
+  type RfSub,
+} from '@/utils/researchFacilityRows';
 
 /**
  * Project Grant research-facilities grid (#1980): a dropdown offers the
@@ -149,32 +155,6 @@ import { useModuleStore } from 'src/stores/modules';
  * The Simulator Explorer reuses the same grid without the grant budget
  * section (#2004).
  */
-
-type RfSub = 'research-facilities' | 'animal_facilities';
-
-interface RfRow {
-  key: string;
-  sub: RfSub;
-  facilityId: string;
-  name: string;
-  /** Animal facilities only (rodent / fish). */
-  facilityType: string | null;
-  /** The platform's metric — the factor's use unit. */
-  metric: string;
-  selected: boolean;
-  use: number | null;
-  /** Last persisted use — `blur` after `Enter` must not save twice. */
-  saved: number | null;
-  entryId: number | null;
-  kg: number | null;
-}
-
-interface RfFactor {
-  researchfacility_id?: string | number;
-  researchfacility_name?: string;
-  researchfacility_type?: string;
-  use_unit?: string;
-}
 
 interface RfEntry {
   id: number;
@@ -197,6 +177,7 @@ const props = defineProps<{
 const $q = useQuasar();
 const { t, n } = useI18n();
 const moduleStore = useModuleStore();
+const factorsStore = useFactorsStore();
 
 const GROUPS: { sub: RfSub; titleKey: string }[] = [
   {
@@ -273,19 +254,16 @@ function pathFor(sub: RfSub): string {
   return `carbon-reports/${props.carbonReportId}/modules/${MODULES.ResearchFacilities}/${sub}`;
 }
 
-/** Animal rows are one per (facility, type); common rows one per facility. */
-function rowKey(sub: RfSub, facilityId: string, facilityType: string | null) {
-  return `${sub}:${facilityId}${facilityType ? `:${facilityType}` : ''}`;
-}
-
 // The platform list follows the factor year the backend computes with
 // (reference year, else the report year), so each row's metric matches
 // the factor behind its kgCO₂eq.
-async function fetchFactors(sub: RfSub): Promise<RfFactor[]> {
+async function fetchFacilityNodes(sub: RfSub) {
   if (props.factorYear === null) return [];
-  return api
-    .get(`factors/${enumSubmodule[sub]}/list?year=${props.factorYear}`)
-    .json<RfFactor[]>();
+  return factorsStore.fetchClassNodes(
+    MODULES.ResearchFacilities,
+    sub,
+    props.factorYear,
+  );
 }
 
 async function fetchEntries(sub: RfSub): Promise<RfEntry[]> {
@@ -323,30 +301,11 @@ function bindEntries(sub: RfSub, entries: RfEntry[]) {
 }
 
 async function loadGroup(sub: RfSub) {
-  const [factors, entries] = await Promise.all([
-    fetchFactors(sub),
+  const [facilities, entries] = await Promise.all([
+    fetchFacilityNodes(sub),
     fetchEntries(sub),
   ]);
-  const groupRows: RfRow[] = factors
-    .filter((f) => f.researchfacility_name && f.use_unit)
-    .map((f) => ({
-      key: rowKey(
-        sub,
-        String(f.researchfacility_id ?? ''),
-        f.researchfacility_type ?? null,
-      ),
-      sub,
-      facilityId: String(f.researchfacility_id ?? ''),
-      name: f.researchfacility_name as string,
-      facilityType: f.researchfacility_type ?? null,
-      metric: f.use_unit as string,
-      selected: false,
-      use: null,
-      saved: null,
-      entryId: null,
-      kg: null,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const groupRows = buildResearchFacilityRows(sub, facilities);
   rows.value = [...rows.value.filter((row) => row.sub !== sub), ...groupRows];
   bindEntries(sub, entries);
 }
@@ -411,7 +370,7 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .planner-rf__header {
   padding: tokens.$spacing-md;

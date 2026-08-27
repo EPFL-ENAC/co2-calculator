@@ -1,13 +1,13 @@
-import { CURRENCY_OPTIONS } from 'src/constant/currencies';
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { formatTonnesCO2 } from 'src/utils/number';
+import { CURRENCY_OPTIONS } from '@/constant/currencies';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { formatTonnesCO2 } from '@/utils/number';
 import {
   SUBMODULE_PURCHASE_TYPES,
   MODULES,
   MODULES_THRESHOLD_TYPES,
-} from 'src/constant/modules';
-import type { PurchaseSubType } from 'src/constant/modules';
-import type { Module } from 'src/constant/modules';
+} from '@/constant/modules';
+import type { PurchaseSubType } from '@/constant/modules';
+import type { Module } from '@/constant/modules';
 
 const purchaseFields: ModuleField[] = [
   {
@@ -47,6 +47,7 @@ const purchaseFields: ModuleField[] = [
     ratio: '1/4',
     icon: 'o_category',
     columnSize: 'md',
+    maxColumnWidth: 260,
   },
   {
     id: 'quantity',

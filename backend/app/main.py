@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.engine import make_url
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.api.internal import router as internal_router
 from app.api.router import api_router
 from app.core.config import RoleProviderType, UnitProviderType, get_settings
 from app.core.exception_handlers import permission_denied_handler
@@ -18,6 +19,7 @@ from app.core.exceptions import (
     RecordAccessDeniedError,
 )
 from app.core.logging import get_logger, setup_logging
+from app.core.request_origin import RequestOriginMiddleware
 from app.tasks._db_health import DBHealthState, get_db_health_state, is_fresh
 
 # Setup logging
@@ -185,6 +187,17 @@ async def lifespan(app: FastAPI):
         )
         app.state.db_health_task = asyncio.create_task(db_health_check_loop())
 
+    # Start the event-loop lag probe (#2049 T5) — the only traffic-
+    # independent measurement of whether the loop is blocked.
+    if settings.RUN_EVENT_LOOP_LAG_PROBE:
+        from app.tasks._event_loop_lag import event_loop_lag_probe_loop
+
+        logger.info(
+            "Starting event-loop lag probe (every %ss)",
+            settings.EVENT_LOOP_LAG_PROBE_INTERVAL_SECONDS,
+        )
+        app.state.event_loop_lag_task = asyncio.create_task(event_loop_lag_probe_loop())
+
     yield
 
     # Cancel background tasks on shutdown
@@ -220,8 +233,53 @@ async def lifespan(app: FastAPI):
             await db_health_task
         except asyncio.CancelledError:
             logger.info("DB health poller cancelled successfully")
+    event_loop_lag_task = getattr(app.state, "event_loop_lag_task", None)
+    if event_loop_lag_task:
+        logger.info("Cancelling event-loop lag probe")
+        event_loop_lag_task.cancel()
+        try:
+            await event_loop_lag_task
+        except asyncio.CancelledError:
+            logger.info("Event-loop lag probe cancelled successfully")
 
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
+
+
+def exclude_per_chunk_asgi_spans(app: FastAPI) -> None:
+    """Re-apply FastAPI's OTel instrumentation with per-chunk spans dropped.
+
+    opentelemetry-instrument (backend/Dockerfile) already instrumented `app`
+    inside its own FastAPI() constructor call, with kwargs that don't
+    include ``exclude_spans`` -- that's a keyword-only setting with no
+    OTEL_* env var, and there is no other point at which to pass it (#2397:
+    one upload produced 805 per-body-chunk `http receive` spans, created and
+    exported on the event loop). Re-applying instrumentation here is the
+    only way. A no-op under plain `uv run uvicorn`/pytest, which never runs
+    opentelemetry-instrument -- ``_is_instrumented_by_opentelemetry`` is
+    only ever set by it.
+
+    Must run after every ``app.add_middleware(...)`` call, not before:
+    ``uninstrument_app`` eagerly rebuilds and assigns
+    ``app.middleware_stack``, and Starlette refuses ``add_middleware`` once
+    that attribute is set -- calling this any earlier crashes the app at
+    boot (verified against the pinned packages). ``instrument_app`` then
+    only re-patches the ``build_middleware_stack`` *method*, not the
+    already-built stack, so the explicit rebuild on the last line is
+    required too -- without it every span this app produces (not just
+    receive/send) silently stops being exported, with no exception and no
+    change in response behaviour (also verified).
+
+    Deliberately not wrapped in try/except: a boot-time crash from a wrong
+    assumption here is far more visible than a running app that silently
+    lost this instrumentation.
+    """
+    if not getattr(app, "_is_instrumented_by_opentelemetry", False):
+        return
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+    FastAPIInstrumentor.uninstrument_app(app)
+    FastAPIInstrumentor.instrument_app(app, exclude_spans=["receive", "send"])
+    app.middleware_stack = app.build_middleware_stack()
 
 
 # Create FastAPI application
@@ -361,7 +419,10 @@ app = FastAPI(
 )
 
 
-# NO CORS origins configured allowed on this instance
+# CORS stays disabled on this instance, deliberately: with no CORS headers the
+# browser preflights and then drops every JSON-body and PUT/PATCH/DELETE
+# forgery. RequestOriginMiddleware below covers what preflights don't — see
+# docs/src/implementation-plans/89-security-in-depth.md.
 
 # Add this after creating the FastAPI app
 app.add_middleware(
@@ -373,6 +434,15 @@ app.add_middleware(
     https_only=not settings.DEBUG,
 )
 
+# Registered after SessionMiddleware so it runs *before* it (Starlette builds
+# the stack outside-in from the last registration): a request rejected for its
+# origin must not touch session state on the way out.
+app.add_middleware(RequestOriginMiddleware)
+
+# Must run after every add_middleware() call above -- see the function's
+# docstring for why order here is load-bearing, not stylistic (#2397).
+exclude_per_chunk_asgi_spans(app)
+
 # Register exception handlers for permission-based access control
 app.add_exception_handler(PermissionDeniedError, permission_denied_handler)
 app.add_exception_handler(InsufficientScopeError, permission_denied_handler)
@@ -380,6 +450,11 @@ app.add_exception_handler(RecordAccessDeniedError, permission_denied_handler)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_VERSION)
+
+# Intra-cluster-only endpoints (#2258 follow-up) — deliberately outside
+# settings.API_VERSION and never referenced by a Helm Route; see
+# app.api.internal's module docstring for the trust boundary.
+app.include_router(internal_router)
 
 
 @app.get("/")

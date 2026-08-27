@@ -696,36 +696,32 @@ export default {
     fr: 'IA',
   },
   'charts-ai-provider-google-subcategory': {
-    en: 'Google',
-    fr: 'Google',
+    en: 'Gemini (Google)',
+    fr: 'Gemini (Google)',
   },
   'charts-ai-provider-openai-subcategory': {
-    en: 'OpenAI',
-    fr: 'OpenAI',
+    en: 'ChatGPT (OpenAI)',
+    fr: 'ChatGPT (OpenAI)',
   },
   'charts-ai-provider-anthropic-subcategory': {
-    en: 'Anthropic',
-    fr: 'Anthropic',
+    en: 'Claude (Anthropic)',
+    fr: 'Claude (Anthropic)',
   },
   'charts-ai-provider-mistral-ai-subcategory': {
     en: 'Mistral AI',
     fr: 'Mistral AI',
   },
-  'charts-ai-provider-cohere-subcategory': {
-    en: 'Cohere',
-    fr: 'Cohere',
-  },
   'charts-ai-provider-github-subcategory': {
-    en: 'GitHub Copilot',
-    fr: 'GitHub Copilot',
+    en: 'Copilot (GitHub)',
+    fr: 'Copilot (GitHub)',
   },
   'charts-ai-provider-microsoft-subcategory': {
-    en: 'Microsoft Copilot',
-    fr: 'Microsoft Copilot',
+    en: 'Copilot (Microsoft)',
+    fr: 'Copilot (Microsoft)',
   },
   'charts-ai-provider-others-subcategory': {
-    en: 'Others',
-    fr: 'Autres',
+    en: 'Other',
+    fr: 'Autre',
   },
   'charts-research-facilities-subcategory': {
     en: 'Research facilities',

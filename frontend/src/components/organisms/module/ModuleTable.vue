@@ -427,6 +427,7 @@
           icon="o_close"
           color="grey-6"
           class="text-weight-medium"
+          :disable="deleteInFlight"
         />
       </q-card-section>
       <q-separator />
@@ -449,6 +450,7 @@
             color="grey-4"
             text-color="primary"
             :label="$t('common_cancel')"
+            :disable="deleteInFlight"
             unelevated
             no-caps
             outline
@@ -459,6 +461,7 @@
           <q-btn
             type="submit"
             autofocus
+            :loading="deleteInFlight"
             :style="{
               background: moduleColors.bgColorLighter,
               color: moduleColors.buttonTextColor,
@@ -477,15 +480,15 @@
 </template>
 
 <script setup lang="ts">
-import FilesUploadDialog from 'src/components/organisms//data-management/FilesUploadDialog.vue';
+import FilesUploadDialog from '@/components/organisms//data-management/FilesUploadDialog.vue';
 
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
-import { COLUMN_SIZES } from 'src/constant/moduleConfig';
+import { COLUMN_SIZES } from '@/constant/moduleConfig';
 import type {
   ModuleField,
   ModuleConfig,
   Submodule,
-} from 'src/constant/moduleConfig';
+} from '@/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
@@ -493,59 +496,59 @@ import {
   DATE_INPUT_MASK,
   isValidCalendarDate,
   matchesDateInputFormat,
-} from 'src/utils/date';
-import NoteDialog from 'src/components/molecules/NoteDialog.vue';
-import EquipmentPowerFeedbackDialog from 'src/components/molecules/EquipmentPowerFeedbackDialog.vue';
-import { useWorkspaceStore } from 'src/stores/workspace';
+} from '@/utils/date';
+import NoteDialog from '@/components/molecules/NoteDialog.vue';
+import EquipmentPowerFeedbackDialog from '@/components/molecules/EquipmentPowerFeedbackDialog.vue';
+import { useWorkspaceStore } from '@/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
-import { useModuleStore, useTimelineStore } from 'src/stores/modules';
-import { useFactorsStore } from 'src/stores/factors';
-import { resolveFactorYear } from 'src/utils/factor-year';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { useAuthStore } from 'src/stores/auth';
+import { useModuleStore, useTimelineStore } from '@/stores/modules';
+import { useFactorsStore } from '@/stores/factors';
+import { resolveFactorYear } from '@/utils/factor-year';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { useAuthStore } from '@/stores/auth';
 import {
   useBackofficeDataManagement,
   TargetType,
-} from 'src/stores/backofficeDataManagement';
-import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
-import { PermissionAction } from 'src/stores/auth';
-import { getTemplateFileName } from 'src/constant/templateMapping';
-import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
-import { CARBON_PROJECT } from 'src/constant/carbon-project';
-import { resolveTravelerCellText } from 'src/constant/module-config/traveler-options';
+} from '@/stores/backofficeDataManagement';
+import type { JobUpdatePayload } from '@/stores/backofficeDataManagement';
+import { PermissionAction } from '@/stores/auth';
+import { getTemplateFileName } from '@/constant/templateMapping';
+import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
+import { CARBON_PROJECT } from '@/constant/carbon-project';
+import { resolveTravelerCellText } from '@/constant/module-config/traveler-options';
 import type {
   Module,
   ConditionalSubmoduleProps,
   Threshold,
   EnumSubmoduleType,
-} from 'src/constant/modules';
-import { enumSubmodule, SUBMODULE_PURCHASE_TYPES } from 'src/constant/modules';
+} from '@/constant/modules';
+import { enumSubmodule, SUBMODULE_PURCHASE_TYPES } from '@/constant/modules';
 
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
   SUBMODULE_EXTERNAL_CLOUD_TYPES,
-} from 'src/constant/modules';
+} from '@/constant/modules';
 import {
   getHeadcountMembers,
   type HeadcountMemberDropdownItem,
-} from 'src/api/modules';
-import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
-import { nOrDash } from 'src/utils/number';
-import { getModuleIconColors } from 'src/composables/useModuleIconColors';
-import { formatRowErrorLines } from 'src/utils/rowErrors';
-import { isFieldEditable, isRowDeletable } from 'src/utils/dataEntryPolicy';
+} from '@/api/modules';
+import { getModuleTypeId, MODULE_STATES } from '@/constant/moduleStates';
+import { nOrDash } from '@/utils/number';
+import { getModuleIconColors } from '@/composables/useModuleIconColors';
+import { formatRowErrorLines } from '@/utils/rowErrors';
+import { isFieldEditable, isRowDeletable } from '@/utils/dataEntryPolicy';
 import {
   clampReferencePercentage,
   REFERENCE_PERCENTAGE_MAX,
   REFERENCE_PERCENTAGE_MIN,
-} from 'src/utils/reference-percentage';
+} from '@/utils/reference-percentage';
 import {
   hasRowEditPermission,
   isModuleNoteDisabled,
   isModuleTableDisabled,
   type ModuleTableAccess,
-} from 'src/utils/module-table-access';
+} from '@/utils/module-table-access';
 
 function getNumericRules(col: TableViewColumn) {
   const rules = [];
@@ -724,8 +727,15 @@ const onFilesUploaded = async (filePaths: string[]) => {
       message: $t('csv_sync_starting'),
       position: 'top',
     });
-    const carbonReportModuleId =
-      moduleStore.state.data?.carbon_report_module_id;
+    const carbonReportModuleId = await moduleStore.resolveCarbonReportModuleId(
+      props.moduleType as Module,
+      props.unitId,
+      String(props.year),
+      props.carbonReportId,
+    );
+    if (carbonReportModuleId == null) {
+      throw new Error($t('csv_sync_failed_to_initiate'));
+    }
     const jobId = await dataManagementStore.initiateSync({
       module_type_id: moduleTypeId,
       year: Number(props.year),
@@ -749,14 +759,12 @@ const onFilesUploaded = async (filePaths: string[]) => {
           unit: props.unitId,
           year: String(props.year),
           carbonReportId: props.carbonReportId,
-          excludeSnapshots: props.excludeSnapshots,
         });
         moduleStore.getModuleData(
           props.moduleType as Module,
           props.unitId,
           String(props.year),
           props.carbonReportId,
-          props.excludeSnapshots,
         );
 
         const errorCaption = formatRowErrors(payload);
@@ -895,8 +903,6 @@ type CommonProps = {
    * driven by the module-level value and stay read-only (#1981).
    */
   percentageLocked?: boolean;
-  /** Grant equipment global mode: list only manually added entries (#1981). */
-  excludeSnapshots?: boolean;
   threshold: Threshold;
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
@@ -917,7 +923,6 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
   showReferenceColumns: false,
   projectYearsCount: null,
   percentageLocked: false,
-  excludeSnapshots: false,
   moduleColor: undefined,
   moduleColorLighter: undefined,
 });
@@ -1092,6 +1097,7 @@ watch(editDialogOpen, (isOpen) => {
 
 const deleteItemName = ref<string>('');
 const deleteRowId = ref<number | null>(null);
+const deleteInFlight = ref(false);
 
 type TableViewColumn = {
   name: string;
@@ -2065,6 +2071,7 @@ function onDownloadTemplate() {
 
 function onConfirmDelete() {
   const store = useModuleStore();
+  if (deleteInFlight.value) return;
   if (deleteRowId.value == null) {
     confirmDelete.value = false;
     return;
@@ -2073,6 +2080,7 @@ function onConfirmDelete() {
   const submoduleType = props.submoduleType;
   const unit = props.unitId;
   const year = String(props.year);
+  deleteInFlight.value = true;
   store
     .deleteItem(
       moduleType,
@@ -2083,6 +2091,7 @@ function onConfirmDelete() {
       props.carbonReportId,
     )
     .finally(() => {
+      deleteInFlight.value = false;
       confirmDelete.value = false;
       deleteRowId.value = null;
     });
@@ -2121,7 +2130,6 @@ async function onRequest(request: {
       unit: props.unitId,
       year: String(props.year),
       carbonReportId: props.carbonReportId,
-      excludeSnapshots: props.excludeSnapshots,
     });
   } else {
     // Only change page if sort didn't change
@@ -2131,7 +2139,6 @@ async function onRequest(request: {
       unit: props.unitId,
       year: String(props.year),
       carbonReportId: props.carbonReportId,
-      excludeSnapshots: props.excludeSnapshots,
     });
   }
 }
@@ -2156,7 +2163,6 @@ watch(
           unit: props.unitId,
           year: String(props.year),
           carbonReportId: props.carbonReportId,
-          excludeSnapshots: props.excludeSnapshots,
         });
         moduleStore.getSubmoduleTaxonomy(
           props.moduleType,
@@ -2186,7 +2192,6 @@ onMounted(async () => {
       unit: props.unitId,
       year: String(props.year),
       carbonReportId: props.carbonReportId,
-      excludeSnapshots: props.excludeSnapshots,
     });
     moduleStore.getSubmoduleTaxonomy(
       props.moduleType,
@@ -2379,7 +2384,7 @@ onUnmounted(() => {
 <!-- Not scoped: .co2-table's rules reach into Quasar's rendered table internals
      (thead/tbody/td/tr), which do not receive scoped style attributes. -->
 <style lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .co2-table {
   border: 1px solid tokens.$container-default-border;

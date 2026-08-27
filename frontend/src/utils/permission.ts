@@ -8,7 +8,7 @@
  * stays a store-free leaf importable by pure unit tests.
  */
 
-import { MODULES, type Module } from 'src/constant/modules';
+import { MODULES, type Module } from '@/constant/modules';
 
 /** Actions that can be performed on a permission resource. */
 export enum PermissionAction {
@@ -153,7 +153,7 @@ export function hasPermission(
   } catch (error) {
     // Edge case: any unexpected error (TypeError, etc.)
     // Log in development for debugging, but return false in production
-    if (process.env.NODE_ENV === 'development') {
+    if (typeof import.meta.env !== 'undefined' && import.meta.env.DEV) {
       console.warn('Error checking permission:', error, { path, action });
     }
     return false;

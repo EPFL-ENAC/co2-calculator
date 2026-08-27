@@ -179,16 +179,6 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
     DataEntryTypeEnum.services: [EmissionType.purchases__services],
     DataEntryTypeEnum.vehicles: [EmissionType.purchases__vehicles],
     DataEntryTypeEnum.other_purchases: [EmissionType.purchases__other],
-    DataEntryTypeEnum.external_ai: [
-        EmissionType.external__ai__provider_google,
-        EmissionType.external__ai__provider_mistral_ai,
-        EmissionType.external__ai__provider_anthropic,
-        EmissionType.external__ai__provider_openai,
-        EmissionType.external__ai__provider_cohere,
-        EmissionType.external__ai__provider_github,
-        EmissionType.external__ai__provider_microsoft,
-        EmissionType.external__ai__provider_others,
-    ],
 }
 
 _RUNTIME_RESOLVERS = {

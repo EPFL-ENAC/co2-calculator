@@ -35,10 +35,15 @@ async def test_loop_calls_reconcile_and_sleeps():
         sleep_called.set()
         raise asyncio.CancelledError()  # break out after one tick
 
+    orphan_backfill = AsyncMock(return_value=1)
     with (
         patch("app.tasks._pipeline_reconciler.DataIngestionRepository") as repo_cls,
         patch("app.tasks._pipeline_reconciler.SessionLocal") as session_cls,
         patch("app.tasks._pipeline_reconciler.asyncio.sleep", side_effect=fake_sleep),
+        patch(
+            "app.tasks._pipeline_reconciler._recover_orphan_aggregations",
+            orphan_backfill,
+        ),
     ):
         repo_cls.return_value.reconcile_pipeline_statuses = AsyncMock(
             return_value={"checked": 3, "corrected": 1}
@@ -52,6 +57,8 @@ async def test_loop_calls_reconcile_and_sleeps():
 
     assert sleep_called.is_set()
     repo_cls.return_value.reconcile_pipeline_statuses.assert_awaited_once()
+    # fired=1 → the backfill INFO branch runs inside the sweep span.
+    orphan_backfill.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -24,6 +24,8 @@ jitter; until then, YAGNI.
 
 import asyncio
 
+from opentelemetry import trace
+
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
@@ -32,6 +34,7 @@ from app.repositories.data_ingestion import DataIngestionRepository
 from app.tasks._chain import AGGREGATION_DEDUP, chain_job
 
 logger = get_logger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 async def _recover_orphan_aggregations() -> int:
@@ -111,29 +114,34 @@ async def reconcile_pipeline_statuses_loop() -> None:
     interval = settings.PIPELINE_RECONCILER_INTERVAL_SECONDS
     while True:
         try:
-            async with SessionLocal() as session:
-                repo = DataIngestionRepository(session)
-                summary = await repo.reconcile_pipeline_statuses()
-            if summary.get("corrected"):
-                # Only log when the sweep had to fix something — a
-                # quiet sweep is the common case and would otherwise
-                # spam the logs.
-                logger.info(
-                    "Pipeline reconciler healed %s/%s pipeline(s)",
-                    summary["corrected"],
-                    summary["checked"],
-                )
-            # Orphan-aggregation backfill (#1080 follow-up, 2026-05-21
-            # stuck-recalc bug).  Independent of the status recompute —
-            # it fixes a DIFFERENT class of stall (the coalescing-gate
-            # gap), and the two healing actions naturally compose on
-            # the same sweep cadence.
-            fired = await _recover_orphan_aggregations()
-            if fired:
-                logger.info(
-                    "Pipeline reconciler backfilled %s orphan aggregation(s)",
-                    fired,
-                )
+            # #2371 — one span per sweep iteration so the bookkeeping
+            # SQL (``UPDATE pipelines SET expected_recalc/status/...``)
+            # nests under it instead of exporting as parentless root
+            # traces.  No-op without a configured exporter.
+            with tracer.start_as_current_span("pipeline reconcile sweep"):
+                async with SessionLocal() as session:
+                    repo = DataIngestionRepository(session)
+                    summary = await repo.reconcile_pipeline_statuses()
+                if summary.get("corrected"):
+                    # Only log when the sweep had to fix something — a
+                    # quiet sweep is the common case and would otherwise
+                    # spam the logs.
+                    logger.info(
+                        "Pipeline reconciler healed %s/%s pipeline(s)",
+                        summary["corrected"],
+                        summary["checked"],
+                    )
+                # Orphan-aggregation backfill (#1080 follow-up, 2026-05-21
+                # stuck-recalc bug).  Independent of the status recompute —
+                # it fixes a DIFFERENT class of stall (the coalescing-gate
+                # gap), and the two healing actions naturally compose on
+                # the same sweep cadence.
+                fired = await _recover_orphan_aggregations()
+                if fired:
+                    logger.info(
+                        "Pipeline reconciler backfilled %s orphan aggregation(s)",
+                        fired,
+                    )
         except Exception as exc:
             logger.warning(
                 f"Pipeline reconciler iteration failed: {exc}",

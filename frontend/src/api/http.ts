@@ -1,7 +1,7 @@
 import ky, { type Options } from 'ky';
 import { Notify } from 'quasar';
-import { i18n } from 'src/boot/i18n';
-import { captureError } from 'src/utils/glitchtip';
+import { i18n } from '@/boot/i18n';
+import { captureError, traceparent } from '@/utils/glitchtip';
 
 declare module 'ky' {
   interface Options {
@@ -27,9 +27,39 @@ const isRefresh = (u: string, m: string) =>
 const isSessionCheck = (u: string, m: string) =>
   endsWithSession(u) && m.toUpperCase() === 'GET';
 
+/**
+ * Request timeout for every call through this client.
+ *
+ * ky's own default is **10 s**, and nothing here used to set it — so it was
+ * easy to miss that a hard ceiling existed at all. It aborts in the browser
+ * regardless of the server still working, which is what #2360 was.
+ *
+ * **590 s = the OpenShift Route timeout (10 m) minus 10 s.** Deliberately
+ * just *under* the router, so on a genuinely stuck request the browser is
+ * always the one that gives up first and the failure is attributable: a
+ * client abort at ~590 s and a router 504 at 600 s are distinguishable by
+ * when they happen. Equal values would collapse them into one symptom.
+ *
+ * ⚠️ **Coupled to infrastructure.** `haproxy.router.openshift.io/timeout: 10m`
+ * is set on the backend Route in all three environments
+ * (`epfl/co2-calculator/overlays/{dev,stage,prod}/kustomization.yaml` in the
+ * ops repo). If that annotation changes, change this with it — nothing
+ * enforces the relationship at build or deploy time.
+ *
+ * **Applied globally on purpose, not per endpoint.** The first attempt raised
+ * it only on the three endpoints with measured cause; a fourth
+ * (`carbon-reports/{id}/modules/{m}/{sub}`, #2404) timed out within hours.
+ * A hand-maintained list of "known slow" calls is a list that is always out
+ * of date, and being wrong means a *user-visible failure on a working
+ * backend*. Slowness is a monitoring problem — the latency alerts exist to
+ * say "this is too slow"; the client's job is not to guess.
+ */
+export const REQUEST_TIMEOUT_MS = 590_000;
+
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
   credentials: 'include',
+  timeout: REQUEST_TIMEOUT_MS,
   // ky's default `methods` excludes POST/PATCH, so without overriding it the
   // beforeRetry hook below would never fire on form submits — users mid-edit
   // would get bounced to /login on a single 401 even though the refresh
@@ -40,6 +70,13 @@ export const api = ky.create({
     methods: ['get', 'put', 'post', 'patch', 'head', 'delete', 'options'],
   },
   hooks: {
+    beforeRequest: [
+      // Propagate the per-navigation trace id so backend OTel spans join the
+      // browser's trace — GlitchTip trace_ids become searchable in Tempo (#2372).
+      (request) => {
+        request.headers.set('traceparent', traceparent());
+      },
+    ],
     beforeRetry: [
       async ({ request }) => {
         if (!isRefresh(request.url, request.method))
@@ -76,6 +113,12 @@ export const api = ky.create({
           });
           location.replace(loginPageName);
         } else if (res.status === 403) {
+          // Caller declared 403 an expected outcome (skipErrorCodes): skip the
+          // toast + hard /unauthorized redirect and let it handle the
+          // HTTPError itself (e.g. the unit guard's soft redirect, #2369).
+          if (((options as ApiOptions).skipErrorCodes ?? []).includes(403)) {
+            return;
+          }
           // Parse permission error details from response body
           let permissionDetails: {
             path?: string;
@@ -236,6 +279,10 @@ export const api = ky.create({
   },
 });
 
-if (process.env.NODE_ENV === 'development') {
+// `typeof import.meta.env !== 'undefined' &&` guards this: this file can be
+// loaded by Playwright's component-test collection phase directly in Node,
+// without Vite's transform, where `import.meta.env` is plain `undefined` —
+// an unguarded `import.meta.env.DEV` throws there.
+if (typeof import.meta.env !== 'undefined' && import.meta.env.DEV) {
   window['api'] = api; // Expose for debugging
 }

@@ -18,12 +18,12 @@
 <script setup lang="ts">
 import { computed, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
-import VirtualSelectField from 'src/components/molecules/VirtualSelectField.vue';
-import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
-import { useModuleStore } from 'src/stores/modules';
-import { sortByOrder } from 'src/utils/options';
-import { resolveFactorYear } from 'src/utils/factor-year';
+import { useEquipmentClassOptions } from '@/composables/useEquipmentClassOptions';
+import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
+import type { Module, ConditionalSubmoduleProps } from '@/constant/modules';
+import { useModuleStore } from '@/stores/modules';
+import { sortByOrder } from '@/utils/options';
+import { resolveFactorYear } from '@/utils/factor-year';
 
 const moduleStore = useModuleStore();
 
@@ -84,6 +84,7 @@ const subkindFieldId = computed(() => {
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
   useEquipmentClassOptions(
     props.row,
+    toRef(props, 'moduleType'),
     toRef(props, 'submoduleType'),
     {
       classFieldId: kindFieldId.value,
@@ -192,7 +193,7 @@ async function onValueChange(val: string | number | null) {
 </script>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .inline-select-wrapper {
   width: 100%;

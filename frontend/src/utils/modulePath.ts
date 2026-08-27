@@ -1,4 +1,4 @@
-import { Module } from 'src/constant/modules';
+import { Module } from '@/constant/modules';
 
 /**
  * Values produced when a Vue ref is stringified before it has resolved

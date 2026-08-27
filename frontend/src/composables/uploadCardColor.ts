@@ -1,4 +1,4 @@
-import { IngestionResult } from 'src/constant/ingestion';
+import { IngestionResult } from '@/constant/ingestion';
 
 /**
  * Pure color decision for the data-upload button (leaf module so the

@@ -1,6 +1,6 @@
 import type { RouteParams } from 'vue-router';
-import { LOCALE_MAP, Language, Locale } from 'src/constant/languages';
-import { i18n } from 'src/boot/i18n';
+import { LOCALE_MAP, Language, Locale } from '@/constant/languages';
+import { i18n } from '@/boot/i18n';
 
 // Maps route language codes (en, fr) to i18n locale codes (en-US, fr-CH)
 export const routeLanguageToLocale = (language: Language): Locale => {

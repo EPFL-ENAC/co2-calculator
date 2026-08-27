@@ -40,10 +40,9 @@ class EquipmentModuleHandler(BaseModuleHandler):
 
     # Sort/filter keys MUST read from the same source `to_response` displays,
     # or the visible column won't match the ordering. equipment_class is shown
-    # from DataEntry.data (the factor `class` lookup is a dead key); sub_class is
-    # factor-preferred-then-data. Factor-only keys (active/standby_power_w) leave
-    # rows with no matched emission-row factor id with a NULL sort key — which
-    # is correct, since those rows display NULL for those fields too.
+    # from DataEntry.data (the factor `class` lookup is a dead key); sub_class,
+    # active_power_w and standby_power_w are all data-preferred-then-factor,
+    # matching `_displayed_value` in `to_response`.
     sub_class_expr = func.coalesce(
         Factor.classification["sub_class"].as_string(),
         DataEntry.data["sub_class"].as_string(),
@@ -59,8 +58,14 @@ class EquipmentModuleHandler(BaseModuleHandler):
             Factor.values["standby_usage_hours_per_week"].as_float(),
         ),
         "name": DataEntry.data["name"].as_string(),
-        "active_power_w": Factor.values["active_power_w"].as_float(),
-        "standby_power_w": Factor.values["standby_power_w"].as_float(),
+        "active_power_w": func.coalesce(
+            DataEntry.data["active_power_w"].as_float(),
+            Factor.values["active_power_w"].as_float(),
+        ),
+        "standby_power_w": func.coalesce(
+            DataEntry.data["standby_power_w"].as_float(),
+            Factor.values["standby_power_w"].as_float(),
+        ),
         "equipment_class": DataEntry.data["equipment_class"].as_string(),
         "sub_class": sub_class_expr,
         "kg_co2eq": DataEntryEmission.kg_co2eq,
@@ -141,7 +146,7 @@ class EquipmentModuleHandler(BaseModuleHandler):
         primary_factor = data.get("primary_factor", {})
         is_new = bool(data.get("is_new", False))
 
-        def _displayed_usage(field: str) -> float | None:
+        def _displayed_value(field: str) -> float | None:
             entered = data.get(field)
             if entered is not None or is_new:
                 return entered
@@ -153,12 +158,12 @@ class EquipmentModuleHandler(BaseModuleHandler):
             "carbon_report_module_id": data_entry.carbon_report_module_id,
             "source": data_entry.source,
             **data,
-            "active_power_w": primary_factor.get("active_power_w", None),
-            "standby_power_w": primary_factor.get("standby_power_w", None),
-            "active_usage_hours_per_week": _displayed_usage(
+            "active_power_w": _displayed_value("active_power_w"),
+            "standby_power_w": _displayed_value("standby_power_w"),
+            "active_usage_hours_per_week": _displayed_value(
                 "active_usage_hours_per_week"
             ),
-            "standby_usage_hours_per_week": _displayed_usage(
+            "standby_usage_hours_per_week": _displayed_value(
                 "standby_usage_hours_per_week"
             ),
             "equipment_class": primary_factor.get("class")

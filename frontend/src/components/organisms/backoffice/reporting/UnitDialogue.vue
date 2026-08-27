@@ -2,12 +2,12 @@
 import { computed, ref, watch } from 'vue';
 // import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import { useBackofficeStore } from 'src/stores/backoffice';
-// import { Module, getBackendModuleName } from 'src/constant/modules';
-import { MODULE_STATES } from 'src/constant/moduleStates';
-// import { MODULE_CARDS } from 'src/constant/moduleCards';
+import { useBackofficeStore } from '@/stores/backoffice';
+// import { Module, getBackendModuleName } from '@/constant/modules';
+import { MODULE_STATES } from '@/constant/moduleStates';
+// import { MODULE_CARDS } from '@/constant/moduleCards';
 import ReportExport from './ReportExport.vue';
-// import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+// import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
 
 const backofficeStore = useBackofficeStore();
 
@@ -355,7 +355,7 @@ const completionCountsForYear = computed(() => {
 <!-- Not scoped: .co2-table's rules reach into Quasar's rendered table internals
      (thead/tbody/td/tr), which do not receive scoped style attributes. -->
 <style lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .co2-table {
   border: 1px solid tokens.$container-default-border;

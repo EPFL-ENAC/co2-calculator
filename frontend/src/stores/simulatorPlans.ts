@@ -1,8 +1,8 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import { api } from 'src/api/http';
-import { pollUntilPrefilled } from 'src/composables/pollUntilPrefilled';
-import type { ReportStats } from 'src/utils/emissionStatsAdapter';
+import { api } from '@/api/http';
+import { pollUntilPrefilled } from '@/composables/pollUntilPrefilled';
+import type { ReportStats } from '@/utils/emissionStatsAdapter';
 
 /**
  * Hand-typed DTOs mirroring backend/app/schemas/simulator_plan.py; re-run

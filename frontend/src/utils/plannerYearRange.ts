@@ -1,4 +1,4 @@
-import type { SimulatorPlanYear } from 'src/stores/simulatorPlans';
+import type { SimulatorPlanYear } from '@/stores/simulatorPlans';
 
 export function formatYearRange(
   first?: number | null,

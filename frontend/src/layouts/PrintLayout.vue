@@ -7,7 +7,7 @@
 </template>
 
 <script setup lang="ts">
-import { providePrintMode } from 'src/composables/print/usePrintMode';
+import { providePrintMode } from '@/composables/print/usePrintMode';
 
 providePrintMode(true);
 </script>

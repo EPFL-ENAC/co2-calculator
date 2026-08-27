@@ -8,12 +8,33 @@ from typing import TYPE_CHECKING
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.factor_taxonomy_cache import (
+    TaxonomyCacheEntry,
+    compute_taxonomy_etag,
+    taxonomy_cache,
+)
 from app.models.data_entry import DataEntryTypeEnum
 from app.schemas.taxonomy import TaxonomyNode
 from app.services.factor_service import FactorService
 
 if TYPE_CHECKING:
     from app.schemas.data_entry import ModuleHandler
+
+
+def _display_meta(handler: ModuleHandler, factor) -> dict | None:
+    """Whitelisted display metadata for the node this factor row builds.
+
+    Only the fields the handler declares in ``taxonomy_meta_fields`` travel —
+    a factor's other values are emission coefficients and stay server-side
+    (#2396). ``None`` when the handler declares none, so
+    ``response_model_exclude_none`` keeps unaffected payloads unchanged.
+    """
+    fields = handler.taxonomy_meta_fields
+    if not fields:
+        return None
+    source = {**(factor.classification or {}), **(factor.values or {})}
+    meta = {field: source[field] for field in fields if field in source}
+    return meta or None
 
 
 class ModuleHandlerService:
@@ -60,14 +81,42 @@ class ModuleHandlerService:
     ) -> TaxonomyNode:
         """Build taxonomy tree from factors for the given handler.
 
+        Thin wrapper around ``get_taxonomy_with_etag`` for the many callers
+        that only need the tree, not its cache entry's ETag (#2391
+        decision 2).
+        """
+        entry = await self.get_taxonomy_with_etag(handler, data_entry_type, year)
+        return entry.tree
+
+    async def get_taxonomy_with_etag(
+        self,
+        handler: ModuleHandler,
+        data_entry_type: DataEntryTypeEnum,
+        year: int,
+    ) -> TaxonomyCacheEntry:
+        """Build (or fetch cached) the taxonomy tree and its ETag.
+
         Builds a two-level taxonomy based on the handler's kind and
-        subkind fields by querying factors from the database.
+        subkind fields by querying factors from the database. The ETag is
+        computed once here, at build time, and cached alongside the tree
+        (#2391 decision 2) so every pod serving this entry from cache
+        reuses it instead of recomputing per request.
 
         Args:
             handler: The module handler providing field config
             data_entry_type: The data entry type to build taxonomy for
             year: The year for which to retrieve factors
         """
+        # Cache key omits `handler` on purpose: both call sites (taxonomies.py)
+        # derive it as `BaseModuleHandler.get_by_type(data_entry_type)`, so it's
+        # a pure function of `data_entry_type` and never varies independently —
+        # if a future caller passes a different handler for the same
+        # (data_entry_type, year), the key must include it too.
+        cache_key = (data_entry_type, year)
+        cached = taxonomy_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         factors = await self.factor_service.list_by_data_entry_type(
             data_entry_type, year
         )
@@ -75,7 +124,6 @@ class ModuleHandlerService:
 
         for factor in factors:
             classification = factor.classification or {}
-            values = factor.values or {}
 
             # Lookup kind
             kind_field = handler.kind_field
@@ -101,7 +149,8 @@ class ModuleHandlerService:
                 kind_node = TaxonomyNode(
                     name=kind_value,
                     label=label,
-                    translation_key=values.get("translation_key") or kind_value,
+                    translation_key=kind_value,
+                    meta=_display_meta(handler, factor),
                 )
                 children.append(kind_node)
 
@@ -111,17 +160,9 @@ class ModuleHandlerService:
                 if "subkind" in classification:
                     subkind_field = "subkind"
                 else:
-                    # if no subkind field defined,
-                    # add classification and values to kind node
-                    kind_node.classification = classification
-                    kind_node.values = values
                     continue  # if no subkind field defined, skip adding subkind nodes
             subkind_value = classification.get(subkind_field, "")
             if subkind_value is None or subkind_value == "":
-                # if no subkind field defined, add classification
-                # and values to kind node
-                kind_node.classification = classification
-                kind_node.values = values
                 continue  # skip if no subkind in classification
             # Build subkind node as a child of kind node
             if kind_node.children is None:
@@ -139,15 +180,23 @@ class ModuleHandlerService:
                 TaxonomyNode(
                     name=subkind_value,
                     label=subkind_label,
-                    translation_key=values.get("translation_key") or subkind_value,
-                    classification=classification,
-                    values=values,
+                    translation_key=subkind_value,
+                    # Per-row, not per-kind: an animal facility carries one
+                    # metric unit per housing type, so the subkind node must
+                    # take its own factor's meta rather than the kind's.
+                    meta=_display_meta(handler, factor),
                 )
             )
 
-        # Return root node with children grouped by kind and subkind
-        return TaxonomyNode(
+        # Return root node with children grouped by kind and subkind.
+        # Callers (see taxonomies.py) only ever wrap this node as a `children`
+        # entry of a parent — they never mutate it — so sharing the cached
+        # instance across requests is safe.
+        node = TaxonomyNode(
             name=data_entry_type.name,
             label=handler.to_label(data_entry_type.name),
             children=children,
         )
+        entry = TaxonomyCacheEntry(tree=node, etag=compute_taxonomy_etag(node))
+        taxonomy_cache.set(cache_key, entry)
+        return entry

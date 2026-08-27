@@ -6,9 +6,11 @@ These pin two contracts that otherwise regress silently:
   missing year yields 422, never a wrong-year factor. Guards the buildings
   room-defaults fix (``useBuildingRoomDynamicOptions`` now passes year) and
   the equipment power-factor path that already passed it.
-- ``GET /v1/factors/{type}/class-subclass-map`` is **scoped to** ``year`` so
-  the class/subclass dropdown options match the year-scoped values lookup —
-  a class that only has a factor in another year is not offered.
+- ``GET /v1/taxonomies/module/{module}/{data_entry}`` is **scoped to**
+  ``year`` so the class/subclass dropdown options match the year-scoped
+  values lookup — a class that only has a factor in another year is not
+  offered. It is the single lookup endpoint since #2391 decision 1 retired
+  ``factors/{det}/class-subclass-map``.
 
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
@@ -22,7 +24,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.api.deps as deps_module
+from app.core.factor_taxonomy_cache import started_year_cache, taxonomy_cache
 from app.main import app
+from app.models.user import UserProvider
 from tests.integration.services.data_ingestion.test_plan_310b_factor_pipeline_pg import (  # noqa: E501
     _make_factor,
 )
@@ -44,6 +48,9 @@ async def pg_app(pg_dsn):
     fake_user = MagicMock()
     fake_user.id = 1
     fake_user.email = "test@example.com"
+    # A real column bind, not a mock -- the taxonomies routes now query
+    # year_configuration by (year, provider) for Cache-Control (#2391).
+    fake_user.provider = UserProvider.DEFAULT
 
     app.dependency_overrides[deps_module.get_db] = override_get_db
     app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
@@ -67,20 +74,8 @@ async def test_values_endpoint_requires_year(pg_app):
 
 
 @pytest.mark.asyncio
-async def test_class_subclass_map_requires_year(pg_app):
-    """Missing ``year`` on class-subclass-map is a 422."""
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        resp = await client.get(f"/v1/factors/{SCIENTIFIC}/class-subclass-map")
-
-    assert resp.status_code == 422, resp.text
-
-
-@pytest.mark.asyncio
-async def test_class_subclass_map_scoped_to_year(pg_app):
-    """The map returns only classes whose factor matches the queried year."""
+async def test_taxonomy_options_scoped_to_year(pg_app):
+    """The tree offers only classes whose factor matches the queried year."""
     Sf = pg_app["factory"]
 
     async with Sf() as session:
@@ -100,15 +95,22 @@ async def test_class_subclass_map_scoped_to_year(pg_app):
         )
         await session.commit()
 
+    # Both caches are process-wide singletons (#2258, #2391) — a tree or an
+    # is_started read another test left behind for the same key would be
+    # served instead.
+    taxonomy_cache.clear()
+    started_year_cache.clear()
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://test",
     ) as client:
         resp = await client.get(
-            f"/v1/factors/{SCIENTIFIC}/class-subclass-map",
+            "/v1/taxonomies/module/equipment/scientific",
             params={"year": 2025},
         )
 
     assert resp.status_code == 200, resp.text
     # 2024's ClassQ must NOT leak into the 2025 options.
-    assert resp.json() == {"ClassP": ["SubP"]}
+    children = resp.json()["children"]
+    assert [c["name"] for c in children] == ["ClassP"]
+    assert [c["name"] for c in children[0]["children"]] == ["SubP"]

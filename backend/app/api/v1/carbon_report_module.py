@@ -57,6 +57,7 @@ from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import SIMULATOR_REPORT_TYPES, DataEntryService
+from app.utils.factor_year import resolve_factor_year
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 from app.workflows.embodied_energy import EmbodiedEnergyWorkflow
@@ -280,11 +281,6 @@ async def get_module(
     preview_limit: int = Query(
         default=20, ge=0, le=100, description="Items per submodule"
     ),
-    exclude_snapshots: bool = Query(
-        default=False,
-        description="Hide reference-year snapshot rows from item lists and "
-        "counts; stats and totals keep them (#1981 grant global mode)",
-    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -335,7 +331,7 @@ async def get_module(
     module_data = await DataEntryService(db).get_module_data(
         carbon_report_module_id=carbon_report_module_id,
         travel_institutional_id_filter=travel_institutional_id_filter,
-        exclude_planner_snapshots=hide_for_viewer or exclude_snapshots,
+        exclude_planner_snapshots=hide_for_viewer,
     )
 
     # if headcount compute FTE here
@@ -734,11 +730,6 @@ async def get_submodule(
     filter: str | None = Query(
         default=None, description="Filter string to search in name or display_name"
     ),
-    exclude_snapshots: bool = Query(
-        default=False,
-        description="Hide reference-year snapshot rows; grant equipment global "
-        "mode lists only manually added entries (#1981)",
-    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -794,9 +785,10 @@ async def get_submodule(
         current_user=current_user,
         data_entry_type_id=DataEntryTypeEnum(data_entry_type_id),
     )
-    exclude_planner_snapshots = exclude_snapshots or _hide_planner_snapshots_for_viewer(
+    exclude_planner_snapshots = _hide_planner_snapshots_for_viewer(
         report, _module_type_from_slug(module_id), current_user, unit
     )
+    factor_year = await resolve_factor_year(db, report)
 
     submodule_data = await DataEntryService(db).get_submodule_data(
         carbon_report_module_id=module.id,
@@ -808,6 +800,7 @@ async def get_submodule(
         filter=filter,
         institutional_id_filter=institutional_id_filter,
         exclude_planner_snapshots=exclude_planner_snapshots,
+        factor_year=factor_year,
     )
 
     if not submodule_data:

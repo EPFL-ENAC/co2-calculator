@@ -144,21 +144,6 @@ class FactorService:
         """
         return await self.repo.list_by_data_entry_type(data_entry_type_id, year)
 
-    async def get_class_subclass_map(
-        self,
-        data_entry_type: DataEntryTypeEnum,
-        kind_field: str,
-        subkind_field: str,
-        year: int,
-    ) -> dict[str, list[str]]:
-        """Get class/subclass mapping for power factors, scoped to ``year``."""
-        return await self.repo.get_class_subclass_map(
-            data_entry_type=data_entry_type,
-            kind_field=kind_field,
-            subkind_field=subkind_field,
-            year=year,
-        )
-
     async def prepare_create(
         self,
         emission_type_id: int,  # DataEntryTypeEnum, #

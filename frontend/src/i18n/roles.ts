@@ -1,4 +1,4 @@
-import { ROLES } from 'src/constant/roles';
+import { ROLES } from '@/constant/roles';
 
 // Single source of truth for role display names and descriptions.
 // Names are keyed by the role string so `$t(role)` resolves directly.

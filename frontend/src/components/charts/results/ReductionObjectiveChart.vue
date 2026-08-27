@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import ReductionObjectiveEpflView from 'src/components/charts/results/ReductionObjectiveEpflView.vue';
-import ReductionObjectiveUnitView from 'src/components/charts/results/ReductionObjectiveUnitView.vue';
+import ReductionObjectiveEpflView from '@/components/charts/results/ReductionObjectiveEpflView.vue';
+import ReductionObjectiveUnitView from '@/components/charts/results/ReductionObjectiveUnitView.vue';
 
 const epflViewRef = ref<{ downloadPNG: () => Promise<void> } | null>(null);
 const unitViewRef = ref<{ downloadPNG: () => Promise<void> } | null>(null);
@@ -152,37 +152,12 @@ const chartTitle = computed(() =>
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .chart-view-toggle {
   :deep(.q-btn) {
     font-weight: tokens.$text-weight-medium;
     font-size: tokens.$text-size-base;
-  }
-}
-
-.link {
-  color: tokens.$link-color;
-  text-decoration: underline;
-  text-decoration-color: tokens.$link-underline-color;
-  text-underline-offset: tokens.$link-underline-offset;
-  transition:
-    color tokens.$transition-default,
-    text-decoration-color tokens.$transition-default;
-
-  &:hover {
-    color: tokens.$link-hover-color;
-    text-decoration-color: tokens.$link-hover-underline-color;
-  }
-
-  &:visited {
-    color: tokens.$link-visited-color;
-    text-decoration-color: tokens.$link-underline-color;
-  }
-
-  &:active {
-    color: tokens.$link-active-color;
-    text-decoration-color: tokens.$link-underline-color;
   }
 }
 </style>

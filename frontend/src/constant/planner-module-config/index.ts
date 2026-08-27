@@ -1,11 +1,11 @@
-import { MODULES, Module } from 'src/constant/modules';
-import { MODULES_ORDER } from 'src/constant/timelineItems';
+import { MODULES, Module } from '@/constant/modules';
+import { MODULES_ORDER } from '@/constant/timelineItems';
 import {
   TRAVELER_OTHER_EXTERNAL,
   TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
   TRAVELER_OTHER_INTERNAL,
   TRAVELER_OTHER_INTERNAL_LABEL_KEY,
-} from 'src/constant/module-config/traveler-options';
+} from '@/constant/module-config/traveler-options';
 
 /**
  * How a module behaves inside the Simulator Plan (PRD #1555):

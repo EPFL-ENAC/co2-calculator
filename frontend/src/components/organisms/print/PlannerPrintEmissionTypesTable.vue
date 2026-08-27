@@ -4,9 +4,9 @@ import { useI18n } from 'vue-i18n';
 import {
   RESULTS_CATEGORY_LABEL_KEYS,
   RESULTS_SUBCATEGORY_LABEL_KEYS,
-} from 'src/constant/charts';
-import { normalizeParentKey } from 'src/composables/useEmissionTreemap';
-import type { EmissionBreakdownCategoryRow } from 'src/stores/modules';
+} from '@/constant/charts';
+import { normalizeParentKey } from '@/composables/useEmissionTreemap';
+import type { EmissionBreakdownCategoryRow } from '@/stores/modules';
 
 interface RowTotal {
   key: string;

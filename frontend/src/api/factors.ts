@@ -1,39 +1,15 @@
-import { api } from 'src/api/http';
+import { api } from '@/api/http';
 
-import type { AllSubmoduleTypes } from 'src/constant/modules';
-import { enumSubmodule } from 'src/constant/modules';
-import type { FactorRow } from 'src/utils/factorOptions';
-
-export async function getSubclassMap(
-  submodule: keyof typeof enumSubmodule,
-  year: number | string,
-): Promise<Record<string, string[]>> {
-  const res = await api
-    .get(
-      `factors/${encodeURIComponent(enumSubmodule[submodule])}/class-subclass-map?year=${encodeURIComponent(String(year))}`,
-    )
-    .json<Record<string, string[]>>();
-  return res ?? {};
-}
-
-/**
- * The year's whole factor catalog for a submodule. Backs selects whose stored
- * value is an opaque classification code needing a human label (#2007).
- */
-export async function listFactors(
-  submodule: keyof typeof enumSubmodule,
-  year: number | string,
-): Promise<FactorRow[]> {
-  const res = await api
-    .get(
-      `factors/${encodeURIComponent(enumSubmodule[submodule])}/list?year=${encodeURIComponent(String(year))}`,
-    )
-    .json<FactorRow[]>();
-  return res ?? [];
-}
+import type { AllSubmoduleTypes } from '@/constant/modules';
+import { enumSubmodule } from '@/constant/modules';
 
 export type ValueFactorResponse = Record<string, number | string | null> | null;
 
+/**
+ * The one factor route the frontend still calls: the equipment form/table
+ * prefill for a single picked class (#2391 decision 3). Options themselves
+ * come from the taxonomy endpoint — see `api/taxonomies.ts`.
+ */
 export async function getFactorValues(
   submodule: AllSubmoduleTypes,
   equipmentClass: string,

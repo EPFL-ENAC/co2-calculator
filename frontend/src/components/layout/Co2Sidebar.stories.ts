@@ -2,9 +2,9 @@ import type { Meta, StoryObj } from '@storybook/vue3';
 import type { Decorator } from '@storybook/vue3';
 import { useRouter } from 'vue-router';
 import { nextTick, ref } from 'vue';
-import { useAuthStore } from 'src/stores/auth';
-import { ROLES } from 'src/constant/roles';
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
+import { useAuthStore } from '@/stores/auth';
+import { ROLES } from '@/constant/roles';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
 import Co2Sidebar from './Co2Sidebar.vue';
 
 /**

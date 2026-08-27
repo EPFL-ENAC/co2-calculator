@@ -1,4 +1,4 @@
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
 
 export default {
   [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName]: {

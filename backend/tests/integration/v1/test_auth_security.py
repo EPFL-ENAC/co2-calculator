@@ -24,6 +24,7 @@ import app.core.config as config
 from app.core.security import create_access_token, create_refresh_token
 from app.main import app
 from app.models.user import User, UserProvider
+from tests.browser import SAME_ORIGIN_HEADERS
 
 API_PREFIX = config.get_settings().API_VERSION
 
@@ -35,7 +36,7 @@ API_PREFIX = config.get_settings().API_VERSION
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    with TestClient(app, headers=SAME_ORIGIN_HEADERS) as c:
         yield c
 
 
@@ -751,3 +752,81 @@ def test_e2e_callback_session_refresh_logout_happy_path(client, monkeypatch):
         assert r_me_logged_out.status_code == 401
     finally:
         app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------------------
+# #89 — request origin. A sibling under the shared `*.epfl.ch` registrable
+# domain is `same-site`, so `SameSite=Lax` attaches `auth_token` to its
+# requests. These pin the middleware that refuses them, on the two endpoints
+# a preflight does not already cover: a query-param-only POST and a
+# multipart POST.
+# ---------------------------------------------------------------------------
+
+RECOMPUTE_PATH = f"{API_PREFIX}/sync/admin/recompute-stats"
+TEMP_UPLOAD_PATH = f"{API_PREFIX}/files/temp-upload"
+
+
+def _authed(client: TestClient) -> TestClient:
+    client.cookies.set("auth_token", _valid_access_token())
+    return client
+
+
+def test_recompute_stats_rejects_same_site_post(client, monkeypatch):
+    """The sibling-subdomain attack, on the endpoint that needs no body at all."""
+    dispatched = MagicMock()
+    monkeypatch.setattr(
+        "app.api.v1.data_sync.recompute_stats", dispatched, raising=False
+    )
+
+    response = _authed(client).post(
+        RECOMPUTE_PATH,
+        params={"year": 2025},
+        headers={"Sec-Fetch-Site": "same-site"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Request origin not allowed"
+    dispatched.assert_not_called()
+
+
+def test_temp_upload_rejects_cross_site_multipart_post(client):
+    """`multipart/form-data` is CORS-simple, so no preflight stands in the way."""
+    response = _authed(client).post(
+        TEMP_UPLOAD_PATH,
+        files={"files": ("payload.csv", b"a,b\n1,2\n", "text/csv")},
+        headers={"Sec-Fetch-Site": "cross-site"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Request origin not allowed"
+
+
+def test_foreign_origin_header_is_rejected():
+    """A client with no `Sec-Fetch-Site` at all falls through to `Origin`.
+
+    Built without the module `client` fixture on purpose: that fixture sends
+    `Sec-Fetch-Site: same-origin` on every request, and httpx offers no way to
+    unset a client-level header per call.
+    """
+    with TestClient(app) as bare:
+        response = _authed(bare).post(
+            RECOMPUTE_PATH, headers={"Origin": "https://evil.epfl.ch"}
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Request origin not allowed"
+
+
+@pytest.mark.parametrize("path", [RECOMPUTE_PATH, TEMP_UPLOAD_PATH])
+def test_same_origin_post_reaches_the_permission_gate(client, path):
+    """The middleware must gate on origin only — never become a blanket denial.
+
+    The token is real but carries no roles, so a request that gets past the
+    origin check lands on authorization (403 with the *permission* detail) or
+    on request validation (422) — never on the origin refusal.
+    """
+    response = _authed(client).post(path, headers={"Sec-Fetch-Site": "same-origin"})
+
+    assert response.status_code != 403 or (
+        response.json().get("detail") != "Request origin not allowed"
+    )

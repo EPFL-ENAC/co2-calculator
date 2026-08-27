@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
-import ReportPage from 'src/components/organisms/ReportPage.vue';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
-import PrintReportShell from 'src/components/organisms/print/PrintReportShell.vue';
-import SimulationExplorePrintModulePage from 'src/components/organisms/print/SimulationExplorePrintModulePage.vue';
-import { useSimulationExplorePrintData } from 'src/composables/print/useSimulationExplorePrintData';
-import { formatTonnesCO2 } from 'src/utils/number';
+import ReportPage from '@/components/organisms/ReportPage.vue';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
+import PrintReportShell from '@/components/organisms/print/PrintReportShell.vue';
+import SimulationExplorePrintModulePage from '@/components/organisms/print/SimulationExplorePrintModulePage.vue';
+import { useSimulationExplorePrintData } from '@/composables/print/useSimulationExplorePrintData';
+import { formatTonnesCO2 } from '@/utils/number';
 
 const {
   currentYear,
@@ -54,6 +54,7 @@ onMounted(async () => {
       <section>
         <ModuleCarbonFootprintChart
           :breakdown-data="breakdown"
+          :view-additional-data="true"
           :enforce-module-activation="false"
         />
       </section>

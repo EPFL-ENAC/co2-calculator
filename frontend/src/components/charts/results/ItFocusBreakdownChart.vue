@@ -19,17 +19,17 @@ import {
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 
-import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
-import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
+import TooltipEcharts from '@/components/charts/results/TooltipEcharts.vue';
+import { useEchartsTooltip } from '@/components/charts/results/useEchartsTooltip';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
-} from 'src/constant/charts';
-import { IT_FOCUS_CATEGORY_TO_MODULE } from 'src/constant/itFocus';
-import { useColorblindStore } from 'src/stores/colorblind';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
-import type { ItBreakdownResponse } from 'src/stores/modules';
-import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
+} from '@/constant/charts';
+import { IT_FOCUS_CATEGORY_TO_MODULE } from '@/constant/itFocus';
+import { useColorblindStore } from '@/stores/colorblind';
+import { downloadEchartAsPng } from '@/utils/chartDownload';
+import type { ItBreakdownResponse } from '@/stores/modules';
+import type { TooltipRow, TooltipState } from '@/types/chartTooltip';
 
 use([
   CanvasRenderer,
@@ -468,7 +468,7 @@ defineExpose({ downloadPNG });
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens/decisions' as dec;
+@use '@/css/02-tokens/decisions' as dec;
 
 .waffle-caption {
   color: dec.$color-text-muted;

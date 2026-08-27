@@ -25,6 +25,7 @@ from fastapi import (
     status,
 )
 
+from app.api.auth_first_route import AuthFirstRoute
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -33,7 +34,10 @@ from app.models.user import User
 from app.utils.permissions import has_permission
 
 logger = get_logger(__name__)
-router = APIRouter()
+# Every route here already requires get_current_user, and upload_temp_files
+# declares a File(...) body — so the whole router authenticates before the
+# body is read (#2261). See AuthFirstRoute for why signature order can't.
+router = APIRouter(route_class=AuthFirstRoute)
 settings = get_settings()
 
 

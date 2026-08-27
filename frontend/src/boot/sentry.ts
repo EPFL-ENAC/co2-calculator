@@ -1,15 +1,15 @@
-import { boot } from 'quasar/wrappers';
+import { defineBoot } from '#q-app';
 import { Notify } from 'quasar';
 import { HTTPError } from 'ky';
 import type { ComponentPublicInstance } from 'vue';
-import { runtimeConfig } from 'src/config/runtime';
-import { i18n } from 'src/boot/i18n';
+import { runtimeConfig } from '@/config/runtime';
+import { i18n } from '@/boot/i18n';
 import {
   addBreadcrumb,
   captureError,
   initGlitchTip,
   startNavigationTrace,
-} from 'src/utils/glitchtip';
+} from '@/utils/glitchtip';
 
 // Shallow (depth-1) copy of a component's props for the report: nested values
 // collapse to "[Object]" / "[Array]". Avoids circular refs (which would make
@@ -110,7 +110,7 @@ function notifyReloadOnce() {
   });
 }
 
-export default boot(({ app, router }) => {
+export default defineBoot(({ app, router }) => {
   const { sentryDsn, environment, release } = runtimeConfig;
 
   // Init is a no-op without a DSN (dev, CI Lighthouse, unconfigured deploys),

@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ReportPage from 'src/components/organisms/ReportPage.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
-import { getModuleTypeId } from 'src/constant/moduleStates';
-import { PLANNER_MODULES } from 'src/constant/planner-module-config';
-import type { EmissionBreakdownResponse } from 'src/stores/modules';
-import type { SimulatorPlanYear } from 'src/stores/simulatorPlans';
-import { formatTonnesCO2 } from 'src/utils/number';
+import BigNumber from '@/components/molecules/BigNumber.vue';
+import ReportPage from '@/components/organisms/ReportPage.vue';
+import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
+import { getModuleTypeId } from '@/constant/moduleStates';
+import { PLANNER_MODULES } from '@/constant/planner-module-config';
+import type { EmissionBreakdownResponse } from '@/stores/modules';
+import type { SimulatorPlanYear } from '@/stores/simulatorPlans';
+import { formatTonnesCO2 } from '@/utils/number';
 
 interface Props {
   year: SimulatorPlanYear;

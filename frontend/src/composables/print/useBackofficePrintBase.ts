@@ -1,11 +1,11 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import { useBackofficeStore } from 'src/stores/backoffice';
-import type { UnitFilters } from 'src/stores/backoffice';
-import { buildBackofficeScopeLabel } from 'src/utils/unitPerimeterLabel';
-import { MODULES, MODULES_LIST } from 'src/constant/modules';
-import { MODULE_TO_CATEGORIES } from 'src/constant/charts';
+import { useBackofficeStore } from '@/stores/backoffice';
+import type { UnitFilters } from '@/stores/backoffice';
+import { buildBackofficeScopeLabel } from '@/utils/unitPerimeterLabel';
+import { MODULES, MODULES_LIST } from '@/constant/modules';
+import { MODULE_TO_CATEGORIES } from '@/constant/charts';
 
 // Same order as the calculator (MODULES_LIST from timelineItems); headcount has
 // no emission breakdown.

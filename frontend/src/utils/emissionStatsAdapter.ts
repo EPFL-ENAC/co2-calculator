@@ -5,7 +5,7 @@
  * this file only reshapes and converts kg → tonnes for display.
  */
 
-import { EMISSION_TYPE_NAMES } from 'src/types/emission-taxonomy.gen';
+import { EMISSION_TYPE_NAMES } from '@/types/emission-taxonomy.gen';
 import type {
   EmbodiedEnergyCategoryEntry,
   EmissionBreakdownCategoryRow,
@@ -13,7 +13,7 @@ import type {
   EmissionBreakdownValue,
   ItBreakdownCategory,
   ItBreakdownResponse,
-} from 'src/stores/modules';
+} from '@/stores/modules';
 
 export interface BucketStats {
   scope: number;

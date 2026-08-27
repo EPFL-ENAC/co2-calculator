@@ -12,7 +12,7 @@
  *   - For specific decimals: { minimumFractionDigits: 2, maximumFractionDigits: 2 }
  * @returns Formatted number string
  */
-import { i18n } from 'src/boot/i18n';
+import { i18n } from '@/boot/i18n';
 
 const defaultNumberValue = '–';
 export function nOrDash(

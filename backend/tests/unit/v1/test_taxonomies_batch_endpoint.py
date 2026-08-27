@@ -1,0 +1,507 @@
+"""#2049 T6 -- batched ``GET /taxonomies/module/{module}/data-entries``.
+
+A report page fires ~11 sequential ``GET /taxonomies/module/{module}/
+{data_entry}`` calls per load (docs/src/implementation-plans/
+2049-optimize-pipeline-performance.md, S1.5/S3.4). This endpoint collapses
+one module's data entries into a single round trip. It must return exactly
+what N calls to the single-entry endpoint would -- same data, keyed by the
+requested entry name -- and still fail loudly on an unresolvable entry
+instead of silently dropping it.
+"""
+
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from fastapi import HTTPException, Response
+from fastapi.testclient import TestClient
+
+from app.api.deps import get_current_user, get_db
+from app.api.v1 import taxonomies as taxonomies_mod
+from app.core.factor_taxonomy_cache import (
+    TaxonomyCacheEntry,
+    started_year_cache,
+    taxonomy_cache,
+)
+from app.main import app
+from app.models.factor import Factor
+from app.schemas.taxonomy import TaxonomyNode
+from app.services.factor_service import FactorService
+
+
+@pytest.fixture(autouse=True)
+def _clear_caches():
+    """Both process-wide singletons (#2258, #2391) — reset around every
+    test so one test's cached tree or started-year read can't leak into
+    another's.
+    """
+    taxonomy_cache.clear()
+    started_year_cache.clear()
+    yield
+    taxonomy_cache.clear()
+    started_year_cache.clear()
+
+
+def _fake_taxonomy(data_entry_type) -> TaxonomyNode:
+    return TaxonomyNode(name=data_entry_type.name, label=data_entry_type.name)
+
+
+def _fake_entry(data_entry_type) -> TaxonomyCacheEntry:
+    return TaxonomyCacheEntry(
+        tree=_fake_taxonomy(data_entry_type),
+        etag=f'"etag-{data_entry_type.name}"',
+    )
+
+
+def _mock_get_taxonomy_with_etag():
+    """Patch context for `ModuleHandlerService.get_taxonomy_with_etag`,
+    deterministic per data entry type (see `_fake_entry`).
+    """
+    return patch.object(
+        taxonomies_mod.ModuleHandlerService,
+        "get_taxonomy_with_etag",
+        new=AsyncMock(
+            side_effect=lambda handler, data_entry_type, year: _fake_entry(
+                data_entry_type
+            )
+        ),
+    )
+
+
+def _mock_is_year_started(started: bool = False):
+    """Patch context stubbing out the year_configuration lookup so tests
+    that don't care about Cache-Control can pass a bare `object()`/`db`.
+    """
+    return patch.object(
+        taxonomies_mod, "is_year_started", new=AsyncMock(return_value=started)
+    )
+
+
+@pytest.mark.asyncio
+async def test_batch_endpoint_matches_n_single_entry_calls():
+    """Batched result == calling the single-entry endpoint once per entry."""
+    fake_db = object()
+    fake_user = MagicMock()
+
+    with _mock_get_taxonomy_with_etag(), _mock_is_year_started():
+        batched = await taxonomies_mod.get_taxonomies_for_module_data_entries(
+            response=Response(),
+            module="equipment",
+            entries=["scientific", "it"],
+            year=2025,
+            db=fake_db,
+            current_user=fake_user,
+        )
+
+        single_scientific = await taxonomies_mod.get_taxonomy_for_module_data_entry(
+            response=Response(),
+            module="equipment",
+            data_entry="scientific",
+            year=2025,
+            db=fake_db,
+            current_user=fake_user,
+        )
+        single_it = await taxonomies_mod.get_taxonomy_for_module_data_entry(
+            response=Response(),
+            module="equipment",
+            data_entry="it",
+            year=2025,
+            db=fake_db,
+            current_user=fake_user,
+        )
+
+    assert batched == {"scientific": single_scientific, "it": single_it}
+    # Insertion order mirrors the requested `entries` order (no reordering).
+    assert list(batched.keys()) == ["scientific", "it"]
+
+
+@pytest.mark.asyncio
+async def test_batch_endpoint_unknown_entry_raises_404_not_skipped():
+    """An unresolvable entry must fail loudly, not be silently dropped."""
+    fake_db = object()
+    fake_user = MagicMock()
+
+    with _mock_get_taxonomy_with_etag(), _mock_is_year_started():
+        with pytest.raises(HTTPException) as exc:
+            await taxonomies_mod.get_taxonomies_for_module_data_entries(
+                response=Response(),
+                module="equipment",
+                entries=["scientific", "not-a-real-entry"],
+                year=2025,
+                db=fake_db,
+                current_user=fake_user,
+            )
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_batch_endpoint_entry_from_other_module_raises_400():
+    """An entry that belongs to a different module must 400, not be dropped."""
+    fake_db = object()
+    fake_user = MagicMock()
+
+    with _mock_get_taxonomy_with_etag(), _mock_is_year_started():
+        with pytest.raises(HTTPException) as exc:
+            await taxonomies_mod.get_taxonomies_for_module_data_entries(
+                response=Response(),
+                module="equipment",
+                entries=["scientific", "building"],  # building belongs to buildings
+                year=2025,
+                db=fake_db,
+                current_user=fake_user,
+            )
+    assert exc.value.status_code == 400
+
+
+def test_batch_route_response_has_no_coefficients_or_classification():
+    """#2391 decision 3, end-to-end through the real router + service stack
+    (not the `get_taxonomy` mock the other tests use): a batch response
+    must carry no `values`/`classification` keys or coefficient values,
+    even though the underlying factors have them.
+    """
+    fake_user = MagicMock()
+    app.dependency_overrides[get_db] = lambda: MagicMock()
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+
+    factors = [
+        Factor(
+            emission_type_id=1,
+            classification={"equipment_class": "Centrifuge", "sub_class": "Ultra"},
+            values={"ef_kg_co2eq_per_kwh": 0.42, "active_power_w": 150},
+        )
+    ]
+
+    try:
+        with (
+            patch.object(
+                FactorService,
+                "list_by_data_entry_type",
+                new=AsyncMock(return_value=factors),
+            ),
+            _mock_is_year_started(),
+        ):
+            with TestClient(app) as client:
+                response = client.get(
+                    "/api/v1/taxonomies/module/equipment/data-entries",
+                    params={"entries": ["scientific"], "year": 2025},
+                )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.text
+    for forbidden in (
+        "values",
+        "classification",
+        "ef_kg_co2eq_per_kwh",
+        "active_power_w",
+    ):
+        assert forbidden not in body
+
+
+def _taxonomy_bodies(module: str, entry: str, factors: list[Factor]) -> list[dict]:
+    """One entry's tree from both routes, through the real router + service.
+
+    Both are asserted: the batch route is what a report page calls, the
+    single-entry one is what the factors store calls for a form's options
+    (#2391 decision 1). A `response_model` set on only one of them would be
+    invisible otherwise.
+    """
+    app.dependency_overrides[get_db] = lambda: MagicMock()
+    app.dependency_overrides[get_current_user] = lambda: MagicMock()
+    try:
+        with (
+            patch.object(
+                FactorService,
+                "list_by_data_entry_type",
+                new=AsyncMock(return_value=factors),
+            ),
+            _mock_is_year_started(),
+        ):
+            with TestClient(app) as client:
+                batched = client.get(
+                    f"/api/v1/taxonomies/module/{module}/data-entries",
+                    params={"entries": [entry], "year": 2025},
+                )
+                single = client.get(
+                    f"/api/v1/taxonomies/module/{module}/{entry}",
+                    params={"year": 2025},
+                )
+    finally:
+        app.dependency_overrides.clear()
+    assert batched.status_code == 200, batched.text
+    assert single.status_code == 200, single.text
+    return [batched.json()[entry], single.json()]
+
+
+def test_taxonomy_routes_carry_declared_display_meta():
+    """#2391 decision 1: the lookup endpoint has to carry what a form needs to
+    render an option — here the per-facility metric unit the planner grid
+    shows as its input suffix.
+    """
+    bodies = _taxonomy_bodies(
+        "research-facilities",
+        "research_facilities",
+        [
+            Factor(
+                emission_type_id=1,
+                classification={
+                    "researchfacility_id": "1902",
+                    "researchfacility_name": "SCITAS-GE",
+                },
+                values={"use_unit": "CHF", "total_use": 2195625.795},
+            )
+        ],
+    )
+
+    for body in bodies:
+        (facility,) = body["children"]
+        assert facility["name"] == "1902"
+        assert facility["label"] == "SCITAS-GE"
+        assert facility["meta"] == {"use_unit": "CHF"}
+        # The whitelist is the point: `total_use` is a coefficient (#2396).
+        assert "total_use" not in json.dumps(body)
+
+
+def test_taxonomy_routes_omit_meta_for_a_module_that_declares_none():
+    """`response_model_exclude_none` must keep unaffected payloads the size
+    they are today — no empty `meta` object per node.
+    """
+    bodies = _taxonomy_bodies(
+        "equipment",
+        "scientific",
+        [
+            Factor(
+                emission_type_id=1,
+                classification={"equipment_class": "Centrifuge", "sub_class": "Ultra"},
+                values={"active_power_w": 150},
+            )
+        ],
+    )
+
+    for body in bodies:
+        (kind,) = body["children"]
+        assert "meta" not in kind
+        assert all("meta" not in child for child in kind["children"])
+
+
+def test_batch_route_wins_over_single_entry_catch_all():
+    """Starlette matches routes in registration order: '/data-entries' must
+    resolve to the batch handler, not be swallowed as a {data_entry} value
+    by the single-entry route registered after it.
+    """
+    fake_user = MagicMock()
+    app.dependency_overrides[get_db] = lambda: MagicMock()
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+
+    try:
+        with _mock_get_taxonomy_with_etag(), _mock_is_year_started():
+            with TestClient(app) as client:
+                response = client.get(
+                    "/api/v1/taxonomies/module/equipment/data-entries",
+                    params={"entries": ["scientific", "it"], "year": 2025},
+                )
+    finally:
+        app.dependency_overrides.clear()
+
+    # The single-entry route would 404 ("Data entry type not found") since
+    # "data-entries" is not a DataEntryTypeEnum member -- 200 here proves
+    # the batch route matched instead.
+    assert response.status_code == 200
+    assert set(response.json().keys()) == {"scientific", "it"}
+
+
+@pytest.mark.asyncio
+async def test_batch_endpoint_isolates_a_per_entry_runtime_failure():
+    """#2258 follow-up: a per-entry runtime failure (not a request-shape
+    bug like an unknown/mismatched entry — see the 404/400 tests above)
+    must not blank every other, already-resolved entry in the batch.
+    """
+    fake_db = AsyncMock()
+    fake_user = MagicMock()
+
+    async def _flaky_get_taxonomy_with_etag(handler, data_entry_type, year):
+        if data_entry_type.name == "it":
+            raise RuntimeError("transient DB hiccup")
+        return _fake_entry(data_entry_type)
+
+    with (
+        patch.object(
+            taxonomies_mod.ModuleHandlerService,
+            "get_taxonomy_with_etag",
+            new=AsyncMock(side_effect=_flaky_get_taxonomy_with_etag),
+        ),
+        _mock_is_year_started(),
+    ):
+        batched = await taxonomies_mod.get_taxonomies_for_module_data_entries(
+            response=Response(),
+            module="equipment",
+            entries=["scientific", "it", "other"],
+            year=2025,
+            db=fake_db,
+            current_user=fake_user,
+        )
+
+    assert set(batched.keys()) == {"scientific", "other"}
+    # A real DB error leaves the shared session's transaction aborted --
+    # every later entry would fail too without a rollback in between.
+    fake_db.rollback.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("started", "expected_cache_control"),
+    [
+        (True, taxonomies_mod._CACHE_CONTROL_STARTED),
+        (False, taxonomies_mod._CACHE_CONTROL_PREPARING),
+    ],
+)
+@pytest.mark.asyncio
+async def test_batch_endpoint_cache_control_follows_year_lifecycle(
+    started, expected_cache_control
+):
+    """#2391 decision 2: a started year is immutable per the lifecycle
+    invariant (long max-age); a year still in preparation can be
+    re-ingested any moment and a browser cache is unreachable by the
+    write-time broadcast, so it keeps a short max-age.
+
+    #2258 (server cache + browser caching) and #2049 T6 (batching) landed
+    together and meet exactly here: batching introduced a shared resolver,
+    and it would have been easy to thread the response through the
+    single-entry route only. Then the endpoint the frontend actually calls
+    would silently lose its cache header while every other test still
+    passed.
+    """
+    with _mock_get_taxonomy_with_etag(), _mock_is_year_started(started):
+        response = Response()
+        await taxonomies_mod.get_taxonomies_for_module_data_entries(
+            response=response,
+            module="equipment",
+            entries=["scientific", "it"],
+            year=2025,
+            db=object(),
+            current_user=MagicMock(),
+        )
+
+    assert response.headers["Cache-Control"] == expected_cache_control
+
+
+@pytest.mark.parametrize(
+    ("started", "expected_cache_control"),
+    [
+        (True, taxonomies_mod._CACHE_CONTROL_STARTED),
+        (False, taxonomies_mod._CACHE_CONTROL_PREPARING),
+    ],
+)
+@pytest.mark.asyncio
+async def test_single_entry_cache_control_follows_year_lifecycle(
+    started, expected_cache_control
+):
+    with _mock_get_taxonomy_with_etag(), _mock_is_year_started(started):
+        response = Response()
+        await taxonomies_mod.get_taxonomy_for_module_data_entry(
+            response=response,
+            module="equipment",
+            data_entry="scientific",
+            year=2025,
+            db=object(),
+            current_user=MagicMock(),
+        )
+
+    assert response.headers["Cache-Control"] == expected_cache_control
+
+
+@pytest.mark.asyncio
+async def test_single_entry_route_sets_etag_header():
+    with _mock_get_taxonomy_with_etag(), _mock_is_year_started():
+        response = Response()
+        await taxonomies_mod.get_taxonomy_for_module_data_entry(
+            response=response,
+            module="equipment",
+            data_entry="scientific",
+            year=2025,
+            db=object(),
+            current_user=MagicMock(),
+        )
+
+    assert response.headers["ETag"] == '"etag-scientific"'
+
+
+@pytest.mark.asyncio
+async def test_single_entry_route_if_none_match_returns_304_with_empty_body():
+    with _mock_get_taxonomy_with_etag(), _mock_is_year_started():
+        response = Response()
+        result = await taxonomies_mod.get_taxonomy_for_module_data_entry(
+            response=response,
+            module="equipment",
+            data_entry="scientific",
+            year=2025,
+            if_none_match='"etag-scientific"',
+            db=object(),
+            current_user=MagicMock(),
+        )
+
+    assert isinstance(result, Response)
+    assert result.status_code == 304
+    assert result.body == b""
+
+
+@pytest.mark.asyncio
+async def test_single_entry_route_stale_if_none_match_returns_200():
+    with _mock_get_taxonomy_with_etag(), _mock_is_year_started():
+        response = Response()
+        result = await taxonomies_mod.get_taxonomy_for_module_data_entry(
+            response=response,
+            module="equipment",
+            data_entry="scientific",
+            year=2025,
+            if_none_match='"stale-etag"',
+            db=object(),
+            current_user=MagicMock(),
+        )
+
+    assert isinstance(result, TaxonomyNode)
+
+
+@pytest.mark.asyncio
+async def test_batch_route_sets_a_combined_etag_header():
+    """The batch ETag must combine the per-entry ETags deterministically
+    -- same entries resolved, same combined ETag, regardless of any
+    incidental ordering.
+    """
+    with _mock_get_taxonomy_with_etag(), _mock_is_year_started():
+        response = Response()
+        await taxonomies_mod.get_taxonomies_for_module_data_entries(
+            response=response,
+            module="equipment",
+            entries=["scientific", "it"],
+            year=2025,
+            db=object(),
+            current_user=MagicMock(),
+        )
+
+    expected = taxonomies_mod._combine_etags(['"etag-scientific"', '"etag-it"'])
+    assert response.headers["ETag"] == expected
+
+
+@pytest.mark.asyncio
+async def test_batch_route_if_none_match_returns_304_before_serialization():
+    entries = ["scientific", "it"]
+    expected_etag = taxonomies_mod._combine_etags(
+        [f'"etag-{name}"' for name in entries]
+    )
+
+    with _mock_get_taxonomy_with_etag(), _mock_is_year_started():
+        response = Response()
+        result = await taxonomies_mod.get_taxonomies_for_module_data_entries(
+            response=response,
+            module="equipment",
+            entries=entries,
+            year=2025,
+            if_none_match=expected_etag,
+            db=object(),
+            current_user=MagicMock(),
+        )
+
+    assert isinstance(result, Response)
+    assert result.status_code == 304
+    assert result.body == b""

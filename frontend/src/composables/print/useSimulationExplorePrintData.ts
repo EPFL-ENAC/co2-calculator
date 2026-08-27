@@ -1,18 +1,18 @@
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { getHeadcountMembers } from 'src/api/modules';
-import { MODULES } from 'src/constant/modules';
-import { useModuleStore } from 'src/stores/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { sumBreakdownTonnes } from 'src/utils/breakdownTotal';
-import { getExploreModules } from 'src/utils/exploreModules';
+import { getHeadcountMembers } from '@/api/modules';
+import { MODULES } from '@/constant/modules';
+import { useModuleStore } from '@/stores/modules';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { sumBreakdownTonnes } from '@/utils/breakdownTotal';
+import { getExploreModules } from '@/utils/exploreModules';
 import {
   fetchPlannerHeadcountRows,
   type PlannerHeadcountRow,
-} from 'src/utils/plannerHeadcountRows';
-import { fetchAllSubmoduleRows } from 'src/utils/printSubmoduleRows';
-import type { PrintRow } from 'src/utils/printTable';
+} from '@/utils/plannerHeadcountRows';
+import { fetchAllSubmoduleRows } from '@/utils/printSubmoduleRows';
+import type { PrintRow } from '@/utils/printTable';
 
 export function useSimulationExplorePrintData() {
   const route = useRoute();
@@ -105,6 +105,7 @@ export function useSimulationExplorePrintData() {
           );
           continue;
         }
+        const taxonomyEntries: string[] = [];
         for (const sub of m.submodules) {
           tasks.push(
             fetchAllSubmoduleRows(m.type, sub.id, carbonReportId).then(
@@ -114,10 +115,18 @@ export function useSimulationExplorePrintData() {
             ),
           );
           if (sub.moduleFields.some((f) => f.optionsId === 'kind')) {
-            tasks.push(
-              moduleStore.getSubmoduleTaxonomy(m.type, sub.id, String(year)),
-            );
+            taxonomyEntries.push(sub.id);
           }
+        }
+        // One batched call per module instead of one per submodule (#2049 T6).
+        if (taxonomyEntries.length > 0) {
+          tasks.push(
+            moduleStore.getSubmoduleTaxonomiesBatch(
+              m.type,
+              taxonomyEntries,
+              String(year),
+            ),
+          );
         }
       }
 

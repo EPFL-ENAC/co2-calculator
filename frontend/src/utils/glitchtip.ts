@@ -128,11 +128,11 @@ let client: Client | null = null;
 //     ~250–400 lines — this is the bulk of @sentry/vue's tracing and the
 //     subtle, bug-prone part (span lifecycles, sampling, clocks). Prefer
 //     lazily re-adding @sentry/vue for tracing only over hand-rolling it.
-//   • Distributed tracing: inject `sentry-trace` + `baggage` headers on /api
-//     requests (a ky beforeRequest hook) AND run a Sentry/OTel SDK on the
-//     backend reporting to the same GlitchTip — only then do these IDs link a
-//     request across front ↔ back. Without the backend half, the IDs alone
-//     just group front-end errors.
+//   • Sentry-native distributed tracing: `sentry-trace` + `baggage` headers
+//     AND a Sentry/OTel SDK on the backend reporting to the same GlitchTip.
+//     We instead ship the W3C `traceparent` header (see traceparent() below,
+//     stamped on /api calls by api/http.ts) so backend OTel spans join this
+//     trace id and GlitchTip events become searchable in Tempo (#2372).
 function randomHex(bytes: number): string {
   const buf = new Uint8Array(bytes);
   crypto.getRandomValues(buf);
@@ -142,10 +142,32 @@ function randomHex(bytes: number): string {
 let traceId = randomHex(16); // 32 hex chars; stable for the current navigation
 let spanId = randomHex(8); // 16 hex chars
 
+// Who is logged in, attached to every event so a report can be tied to the
+// backend spans of the same person. Deliberately our own `User.id`, never the
+// sciper: a sciper identifies a person across every EPFL system, this id means
+// nothing outside our database. Cleared on logout — the store watches for it.
+//
+// `ip` comes from `GET /v1/session` — the browser cannot discover its own
+// address, and GlitchTip stores the Sentry `{{auto}}` sentinel verbatim rather
+// than resolving it (seen on a real dev event), so it has to arrive as a value.
+let currentUser: { id: string; ip?: string } | null = null;
+
+export function setGlitchTipUser(user: { id: string; ip?: string } | null) {
+  currentUser = user;
+}
+
 // Begin a fresh trace for a new route navigation (called from boot/sentry.ts).
 export function startNavigationTrace(): void {
   traceId = randomHex(16);
   spanId = randomHex(8);
+}
+
+// W3C tracecontext header value for outgoing /api requests: same trace id as
+// the GlitchTip events of this navigation, fresh span id per request. FastAPI's
+// OTel instrumentation extracts it, so backend server spans join the browser's
+// trace and any GlitchTip trace_id is searchable in Tempo (#2372).
+export function traceparent(): string {
+  return `00-${traceId}-${randomHex(8)}-01`;
 }
 
 export function initGlitchTip(opts: GlitchTipOptions): void {
@@ -236,6 +258,17 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
       level: ctx?.level ?? 'error',
       release,
       environment,
+      // Identity of whoever hit the error: our own User.id, plus the IP the
+      // backend saw for this session. Both are set by the auth store; an event
+      // fired before login (or after logout) simply carries neither.
+      ...(currentUser
+        ? {
+            user: {
+              id: currentUser.id,
+              ...(currentUser.ip ? { ip_address: currentUser.ip } : {}),
+            },
+          }
+        : {}),
       // GlitchTip parses the User-Agent server-side into browser/os/device
       // tags (+ icons) — the same way the Sentry SDK gets them. We just have
       // to ship the header in the request context.

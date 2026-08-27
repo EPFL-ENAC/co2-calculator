@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
+import { BACKOFFICE_NAV } from '@/constant/navigation';
+import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
@@ -260,7 +260,7 @@ const columns: QTableColumn[] = [
 <!-- Not scoped: .co2-table's rules reach into Quasar's rendered table internals
      (thead/tbody/td/tr), which do not receive scoped style attributes. -->
 <style lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .co2-table {
   border: 1px solid tokens.$container-default-border;

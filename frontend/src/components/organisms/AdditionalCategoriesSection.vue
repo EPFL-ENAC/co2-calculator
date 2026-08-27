@@ -19,26 +19,26 @@ import {
   AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
-import { downloadCompositeChartAsPng } from 'src/utils/chartDownload';
-import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
-import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
-import { useColorblindStore } from 'src/stores/colorblind';
+import { downloadCompositeChartAsPng } from '@/utils/chartDownload';
+import TooltipEcharts from '@/components/charts/results/TooltipEcharts.vue';
+import { useEchartsTooltip } from '@/components/charts/results/useEchartsTooltip';
+import { useColorblindStore } from '@/stores/colorblind';
 import {
   CHART_CATEGORY_COLOR_SCHEMES,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
-} from 'src/constant/charts';
+} from '@/constant/charts';
 import {
   buildDoughnutOption,
   legendItems,
   type DisplayEntry,
   WASTE_DISPLAY_CATEGORY,
   WASTE_DISPLAY_ORDER,
-} from 'src/composables/results/useAdditionalCategoryCharts';
-import { useModuleCategoriesAvailability } from 'src/composables/results/useModuleCategoriesAvailability';
+} from '@/composables/results/useAdditionalCategoryCharts';
+import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
 import type {
   EmissionBreakdownCategoryRow,
   EmbodiedEnergyCategoryEntry,
-} from 'src/stores/modules';
+} from '@/stores/modules';
 
 use([
   CanvasRenderer,

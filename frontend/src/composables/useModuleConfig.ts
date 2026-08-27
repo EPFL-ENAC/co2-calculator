@@ -3,7 +3,7 @@ import {
   useYearConfigStore,
   type SyncJobSummary,
   type ModuleConfig as ModuleConfigType,
-} from 'src/stores/yearConfig';
+} from '@/stores/yearConfig';
 import {
   IngestionState,
   IngestionResult,
@@ -11,19 +11,19 @@ import {
   TargetType,
   type ImportRow,
   type SyncJobResponse,
-} from 'src/stores/backofficeDataManagement';
+} from '@/stores/backofficeDataManagement';
 
 // Re-exported so existing call-sites that ``import { mergeLivePipelineJob }``
 // from this composable keep working.  The implementation lives in a leaf
 // file so the regression test can import it without Playwright tripping
 // over Vite's ``import.meta.glob`` in the i18n boot chain.
-export { mergeLivePipelineJob } from 'src/composables/mergeLivePipelineJob';
+export { mergeLivePipelineJob } from '@/composables/mergeLivePipelineJob';
 import {
   MODULE_SUBMODULES,
   MODULE_COMMON_UPLOADS,
   type SubmoduleConfig as SubmoduleConfigItem,
-} from 'src/constant/backoffice-module-config';
-import type { Module } from 'src/constant/modules';
+} from '@/constant/backoffice-module-config';
+import type { Module } from '@/constant/modules';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
 

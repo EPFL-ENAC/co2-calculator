@@ -35,7 +35,6 @@
   @import './05-quasar-overrides/q-tooltip';
   @import './05-quasar-overrides/q-dialog';
   @import './05-quasar-overrides/q-table';
-  @import './05-quasar-overrides/q-select';
 }
 
 // The `components` layer is intentionally empty: component styles live in each
@@ -45,4 +44,5 @@
 @layer utilities {
   @import './04-utils/spacing';
   @import './04-utils/text';
+  @import './04-utils/link';
 }

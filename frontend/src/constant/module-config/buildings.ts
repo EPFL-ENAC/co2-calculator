@@ -1,8 +1,9 @@
-import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { SUBMODULE_BUILDINGS_TYPES, MODULES } from 'src/constant/modules';
-import type { BuildingsSubType, Module } from 'src/constant/modules';
-import { formatTonnesCO2 } from 'src/utils/number';
-import type { AllSubmoduleTypes } from 'src/constant/modules';
+import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import { SUBMODULE_BUILDINGS_TYPES, MODULES } from '@/constant/modules';
+import type { BuildingsSubType, Module } from '@/constant/modules';
+import { formatTonnesCO2 } from '@/utils/number';
+import type { AllSubmoduleTypes } from '@/constant/modules';
+import { ROOM_TYPES } from '@/types/module-lookups.gen';
 
 const roomFields: ModuleField[] = [
   {
@@ -53,14 +54,10 @@ const roomFields: ModuleField[] = [
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
     optionLabelsAreKeys: true,
     tooltip: 'module-buildings-submodule-building-table-room_type',
-    options: [
-      { value: 'laboratories', label: 'buildings-room-type-laboratories' },
-      { value: 'office', label: 'buildings-room-type-office' },
-      { value: 'archives', label: 'buildings-room-type-archives' },
-      { value: 'libraries', label: 'buildings-room-type-libraries' },
-      { value: 'auditoriums', label: 'buildings-room-type-auditoriums' },
-      { value: 'miscellaneous', label: 'buildings-room-type-miscellaneous' },
-    ],
+    options: ROOM_TYPES.map((value) => ({
+      value,
+      label: `buildings-room-type-${value}`,
+    })),
   },
   {
     id: 'room_surface_square_meter',

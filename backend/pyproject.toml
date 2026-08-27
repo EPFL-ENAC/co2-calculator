@@ -32,6 +32,7 @@ dependencies = [
     "elasticsearch>=8.0.0,<9.0.0",
     "pyyaml>=6.0.3",
     "cryptography>=50.0.0",
+    "opentelemetry-api>=1.44.0",
 ]
 
 [project.scripts]
@@ -127,6 +128,7 @@ dev = [
     "asyncpg>=0.31.0",
     "types-pyyaml>=6.0.12.20260815",
     "ty>=0.0.74",
+    "opentelemetry-instrumentation-fastapi==0.65b0",
 ]
 
 [tool.alembic]
@@ -148,12 +150,9 @@ prepend_sys_path = ["."]
 
 [tool.uv]
 package = true
-# aiobotocore (via enacit4r-files) pins aiohttp below the CVE-2026-69244 fix;
-# force the resolver past it until aiobotocore's own pin catches up.
-override-dependencies = ["aiohttp>=3.14.3"]
 
 [tool.uv.sources]
-enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files", tag = "1.1.0" }
+enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files", tag = "1.2.0" }
 
 # timezone to use when rendering the date within the migration file
 # as well as the filename.

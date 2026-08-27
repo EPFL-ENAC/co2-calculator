@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, type Directive } from 'vue';
-import { icons } from 'src/plugin/module-icon';
+import { icons } from '@/plugin/module-icon';
 
 const props = withDefaults(
   defineProps<{
@@ -47,7 +47,7 @@ const iconClass = computed(() => [
      child nodes never receive Vue's scope attribute. `.module-icon` is only
      rendered by this component, so global scope is safe here. -->
 <style lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .module-icon {
   width: tokens.$icon-size-md;

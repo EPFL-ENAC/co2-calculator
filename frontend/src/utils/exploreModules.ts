@@ -1,8 +1,8 @@
-import { MODULES_CONFIG } from 'src/constant/module-config';
-import type { ModuleConfig, Submodule } from 'src/constant/moduleConfig';
-import type { Module } from 'src/constant/modules';
-import { MODULES_ORDER } from 'src/constant/timelineItems';
-import type { UnifiedModuleConfig } from 'src/stores/yearConfig';
+import { MODULES_CONFIG } from '@/constant/module-config';
+import type { ModuleConfig, Submodule } from '@/constant/moduleConfig';
+import type { Module } from '@/constant/modules';
+import { MODULES_ORDER } from '@/constant/timelineItems';
+import type { UnifiedModuleConfig } from '@/stores/yearConfig';
 
 export interface ExploreModule {
   type: Module;

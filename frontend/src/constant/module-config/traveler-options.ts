@@ -1,4 +1,4 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES } from '@/constant/modules';
 
 // "Other traveler" support for the Professional Travel module (issue #1153).
 //

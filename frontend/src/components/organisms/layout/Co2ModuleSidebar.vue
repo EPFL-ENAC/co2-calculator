@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useAuthStore } from 'src/stores/auth';
-import { useTimelineStore, useModuleStore } from 'src/stores/modules';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { PermissionAction } from 'src/stores/auth';
-import { MODULE_STATUS_DISPLAY } from 'src/constant/moduleStates';
-import { timelineItems } from 'src/constant/timelineItems';
-import { MODULES, type Module } from 'src/constant/modules';
-import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
-import ModuleTotalResult from 'src/components/organisms/module/ModuleTotalResult.vue';
-import ResultsFilterPanel from 'src/components/layout/ResultsFilterPanel.vue';
-import { MODULES_CONFIG } from 'src/constant/module-config';
-import type { ModuleConfig } from 'src/constant/moduleConfig';
-import { HOME_ROUTE_NAME } from 'src/router/routeNames';
+import { useAuthStore } from '@/stores/auth';
+import { useTimelineStore, useModuleStore } from '@/stores/modules';
+import { useYearConfigStore } from '@/stores/yearConfig';
+import { PermissionAction } from '@/stores/auth';
+import { MODULE_STATUS_DISPLAY } from '@/constant/moduleStates';
+import { timelineItems } from '@/constant/timelineItems';
+import { MODULES, type Module } from '@/constant/modules';
+import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
+import ModuleTotalResult from '@/components/organisms/module/ModuleTotalResult.vue';
+import ResultsFilterPanel from '@/components/layout/ResultsFilterPanel.vue';
+import { MODULES_CONFIG } from '@/constant/module-config';
+import type { ModuleConfig } from '@/constant/moduleConfig';
+import { HOME_ROUTE_NAME } from '@/router/routeNames';
 
 const route = useRoute();
 const router = useRouter();
@@ -250,7 +250,7 @@ function navigateToHome() {
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 .sidebar {
   height: 100%;

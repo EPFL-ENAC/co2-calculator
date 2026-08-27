@@ -1,4 +1,4 @@
-import type { ModuleField } from 'src/constant/moduleConfig';
+import type { ModuleField } from '@/constant/moduleConfig';
 
 /**
  * Who may interact with a module table's rows, across the three contexts a

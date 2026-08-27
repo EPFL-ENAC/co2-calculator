@@ -1,4 +1,4 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES } from '@/constant/modules';
 
 export default {
   validation_must_be_at_least: {
@@ -48,6 +48,10 @@ export default {
   'project-planner': {
     en: 'Project Planner',
     fr: 'Planificateur de projet',
+  },
+  'simulation-explore': {
+    en: 'CO₂ Explorer',
+    fr: 'CO₂ Explorer',
   },
   'simulation-edit': {
     en: 'Edit Simulation',

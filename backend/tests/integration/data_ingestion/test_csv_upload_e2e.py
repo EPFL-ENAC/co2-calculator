@@ -26,6 +26,8 @@ from app.main import app
 from app.models.data_ingestion import IngestionMethod
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import GlobalScope, Role, RoleName, User
+from tests.browser import SAME_ORIGIN_HEADERS
+from tests.unit.v1.test_temp_upload_auth_ordering import valid_access_token
 
 # Test fixtures directory
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -72,7 +74,14 @@ def get_test_client(test_user, db_session, monkeypatch):
         monkeypatch.setattr(files, "is_permitted", mock_is_permitted)
         monkeypatch.setattr(data_sync, "is_permitted", mock_is_permitted)
 
-        client = TestClient(app, raise_server_exceptions=False)
+        # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies
+        # run, so the get_current_user override alone no longer gets past it.
+        client = TestClient(
+            app,
+            raise_server_exceptions=False,
+            cookies={"auth_token": valid_access_token()},
+            headers=SAME_ORIGIN_HEADERS,
+        )
         return client
 
     yield _get_client

@@ -7,11 +7,11 @@ import { useRoute, useRouter } from 'vue-router';
 import {
   useSimulatorPlansStore,
   type SimulatorPlan,
-} from 'src/stores/simulatorPlans';
-import { useAuthStore } from 'src/stores/auth';
-import { useWorkspaceStore } from 'src/stores/workspace';
-import { parseUtcDate } from 'src/utils/date';
-import { formatTonnesCO2 } from 'src/utils/number';
+} from '@/stores/simulatorPlans';
+import { useAuthStore } from '@/stores/auth';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { parseUtcDate } from '@/utils/date';
+import { formatTonnesCO2 } from '@/utils/number';
 
 const { t, locale } = useI18n();
 const route = useRoute();
@@ -27,6 +27,9 @@ const unitId = computed(() => workspaceStore.selectedUnit!.id);
 const creating = ref(false);
 const confirmDelete = ref(false);
 const planToDelete = ref<SimulatorPlan | null>(null);
+
+const ROWS_PER_PAGE = 10;
+const pagination = ref({ rowsPerPage: ROWS_PER_PAGE });
 
 function formatPlanDate(dateString: string | null): string {
   if (!dateString) return '';
@@ -151,6 +154,7 @@ onMounted(() => {
       </p>
 
       <q-table
+        v-model:pagination="pagination"
         flat
         dense
         class="co2-table"
@@ -158,8 +162,8 @@ onMounted(() => {
         :rows="plansStore.plans"
         :loading="plansStore.loading"
         row-key="id"
-        hide-pagination
-        :rows-per-page-options="[0]"
+        :hide-pagination="plansStore.plans.length <= ROWS_PER_PAGE"
+        :rows-per-page-options="[10, 25, 50]"
         :no-data-label="$t('common_no_items')"
         :rows-per-page-label="$t('rows_per_page')"
       >
@@ -319,7 +323,7 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
-@use 'src/css/02-tokens' as tokens;
+@use '@/css/02-tokens' as tokens;
 
 // Full-width grey band spanning the whole content area (sits outside the
 // centred page-grid); its inner content stays aligned with the page width.
