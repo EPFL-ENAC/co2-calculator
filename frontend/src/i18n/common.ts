@@ -49,6 +49,10 @@ export default {
     en: 'Project Planner',
     fr: 'Planificateur de projet',
   },
+  'simulation-explore': {
+    en: 'CO₂ Explorer',
+    fr: 'CO₂ Explorer',
+  },
   'simulation-edit': {
     en: 'Edit Simulation',
     fr: 'Modifier la Simulation',
