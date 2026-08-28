@@ -31,7 +31,8 @@ Deviations from the original spec, as shipped:
   `src/utils/emissionStatsAdapter.ts`; `exclude_modules` became a
   client-side display filter. Emission-type id → name mapping is generated
   into `src/types/emission-taxonomy.gen.ts` by `make gen-emission-taxonomy`.
-- The IT section carries `percentage_of_source_modules`, `cloud_ai_detail`
+- The IT section carries `percentage_of_validated_total` (named
+  `percentage_of_source_modules` until #2441), `cloud_ai_detail`
   and `validated_sources` so the IT page needs no client-side math.
 
 ## Problem

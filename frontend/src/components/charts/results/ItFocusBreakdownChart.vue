@@ -205,7 +205,7 @@ const waffleCategoryData = computed<WaffleCategory[]>(() => {
     WAFFLE_TOTAL_UNITS,
     Math.max(
       0,
-      Math.round((props.data.percentage_of_source_modules ?? 0) * 10),
+      Math.round((props.data.percentage_of_validated_total ?? 0) * 10),
     ),
   );
 
