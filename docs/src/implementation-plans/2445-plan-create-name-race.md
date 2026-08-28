@@ -15,27 +15,39 @@ GlitchTip [CO2-CALCULATOR-DEV-9F](https://enac-it-glitchtip.epfl.ch/co2-calculat
 `"A plan with this name already exists for this unit"` — for a request that
 never supplied a name.
 
-## Trace evidence
+## Incident reconstruction (traces + stage pod logs, 2026-08-27/28)
 
-Backend traces `…4a918f` and `42e3e42ca6ad35ad02db9f3ce3666d1a` (the GlitchTip
-event's trace) pin the full timeline, all one user on unit 456:
+Traces `…97e12d`, `…4a918f`, `…666d1a` plus the backend access logs give the
+complete request-level story — all one user on unit 456:
 
-| Time (UTC)  | What                                                                    | Outcome              |
-| ----------- | ----------------------------------------------------------------------- | -------------------- |
-| 14:19:23.06 | 1st create — computes `new-project-2`, INSERT blocks                    | 409 after **41.4 s** |
-| 14:19:47.26 | 2nd create (the GlitchTip click) — same name, INSERT blocks             | 409 after **17.2 s** |
-| 14:20:04.49 | Both INSERTs fail together: `UniqueViolation` on `(456, new-project-2)` | —                    |
-| 14:20:13.38 | 3rd create — recomputes from now-committed names, INSERT takes 2 ms     | **201**              |
+| Time (UTC)  | What                                                                        | Outcome              |
+| ----------- | --------------------------------------------------------------------------- | -------------------- |
+| 14:16:37    | Create → plan 2209 (`new-project-2`), instant                               | 201                  |
+| 14:16:44    | User deletes 2209 — the name is free again                                  | 204                  |
+| 14:18:42    | Create #0 → recomputes `new-project-2` (id 2211), INSERT **blocks on X**    | 201 after **82.2 s** |
+| 14:19:23    | Create #1 — same name, blocks on #0's uncommitted name key (id 2212 burned) | 409 after **41.4 s** |
+| 14:19:47    | Create #2 (the GlitchTip click) — same, id 2213 burned                      | 409 after **17.2 s** |
+| 14:20:04.2  | **X rolls back** → #0's INSERT proceeds, commits 14:20:04.4                 | —                    |
+| 14:20:04.49 | #1 and #2 fail together: `UniqueViolation` on `(456, new-project-2)`        | —                    |
+| 14:20:13    | Create #3 → `new-project-3` (id 2214), 2 ms                                 | **201**              |
 
-Both losers failed at the same instant — the moment the **winner** committed: a
-third transaction, absent from both traces, that inserted `new-project-2` and
-held it uncommitted for **≥41 s**. `duplicate_plan` is the only other code path
-inserting `Simulator_Plan` rows, and its shape (flush project row, then build
-all per-year reports before the route commits) is exactly such a window.
+**X — the transaction that held `(456, new-project-2)` uncommitted from
+≤14:18:42 to 14:20:04 — is not any completed application request.** Verified
+absent: the duplicate endpoint (zero calls all day), unit_sync/pipeline jobs
+(worker and all backend pods idle of job logs), deploys/migrations (CI runs
+checked), and every completed request in all three pods' access logs. X ended
+in **rollback**, not commit (a commit would have 409'd #0 too), which is why
+it left no row. The remaining shapes: an abandoned uncommitted transaction —
+a cancelled HTTP request whose session leaked its transaction, or a human
+pgadmin/psql session (three testers were active) — released by manual
+rollback, pool recycle, or idle-in-transaction timeout. The Postgres server
+log's lock-wait line at ~14:18:43 (if `log_lock_waits` is on) names X's PID,
+application_name, client IP and query; that identification is open, and does
+not gate the fix.
 
-The 2 ms 201 on the third click is the fix, performed manually: once the loser
-re-reads names after the winner's commit, the recomputed name succeeds
-immediately.
+The 2 ms 201 on the last click is the fix performed manually: re-read names
+after the conflict resolves, recompute, insert. The bounded retry works
+against every X-shape — app race, leaked transaction, or human session.
 
 ## Root cause
 
@@ -48,10 +60,26 @@ row with the same name is invisible to that read but locks the index key:
 Postgres blocks the INSERT until the other transaction commits, then raises
 `unique_violation`, which `_flush_guarded` maps to `ValueError` → 409.
 
-A duplicate of a default-named plan inserts `new-project-2`; a concurrent
-no-name create computes the same name, blocks on it, and dies when the
-duplicate commits. `duplicate_plan`'s own `<name>-N` suffixing has the
-identical race.
+Any holder of the key triggers it — another auto-named create (the observed
+incident: create #0, blocked on X, held the key for the two later creates),
+a duplicate of a default-named plan (`duplicate_plan`'s `<name>-N` suffixing
+has the identical read-then-insert race), or a non-app transaction.
+
+## Manual reproduction
+
+Two minutes, on stage or local, simulating X with a SQL console:
+
+1. Session A (psql/pgadmin), with a plan named `new-project` existing on the
+   unit: `BEGIN; INSERT INTO carbon_projects (unit_id, carbon_report_type,
+name, created_by, created_at) VALUES (<unit>, 'Simulator_Plan',
+'new-project-2', <user>, now());` — leave the transaction open.
+2. App, same unit's home: click **Démarrer un projet** → the button spins
+   (blocked INSERT, invisible to the user).
+3. Second tab: click again → also spins.
+4. Session A: `ROLLBACK;` → tab 1 gets 201 (`new-project-2`), tab 2 gets the
+   409 — the incident, exactly. (`COMMIT;` instead: both tabs 409.)
+
+After the fix, step 4 yields 201 + 201 (the loser retries as `new-project-3`).
 
 ## Fix
 
@@ -111,7 +139,9 @@ flowchart TD
 The upward rollup (entry → emission → module stats → report stats) is the
 same chain a user edit walks; #2050 already moved the bulk version of it out
 of the request. The downward fan-out (project → reports → modules) was left
-in-request, which is what held the name key for ≥41 s in this incident.
+in-request. (In this incident the actual key holder turned out to be an
+abandoned non-app transaction, not the duplicate cascade — but the cascade
+remains the largest in-app lock window of this shape; tracked in #2449.)
 
 ## Follow-up (out of scope here)
 
