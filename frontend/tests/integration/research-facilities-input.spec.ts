@@ -69,18 +69,23 @@ test.describe('#2007 research facilities manual input', () => {
     }
   });
 
-  test('options keep their acronyms when the taxonomy is unavailable', async ({
+  test('a load error, not a silent empty list, shows when the taxonomy is unavailable', async ({
     page,
   }) => {
-    // The labels come from the factor catalog, not the taxonomy — a taxonomy
-    // that fails to load must not silently turn the dropdown back into codes.
+    // Since #2391 decision 1 the taxonomy endpoint is the select's only
+    // option source — a 404 there means the lookup failed, not "this
+    // submodule has no facilities". An empty dropdown would read as the
+    // latter, so the failure must surface as a visible error (#2498).
     await openModule(page, { taxonomyUnavailable: true });
     await expandSection(page, COMMON_TABLE);
-    await openFacilityOptions(page, COMMON_TABLE);
+    await facilitySelect(page, COMMON_TABLE).click();
 
     await expect(
-      page.locator('.q-menu .q-item').filter({ hasText: 'SCITAS-GE' }),
-    ).toHaveCount(1);
+      facilitySelect(page, COMMON_TABLE).getByText(
+        'Options could not be loaded. Try again later.',
+      ),
+    ).toBeVisible();
+    await expect(page.locator('.q-menu .q-item')).toHaveCount(0);
   });
 
   test('options are sorted by acronym', async ({ page }) => {

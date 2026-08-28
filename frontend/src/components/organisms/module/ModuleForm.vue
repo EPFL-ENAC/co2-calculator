@@ -188,8 +188,8 @@
                 "
                 :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
                 :hint="inp.hint ? $t(inp.hint) : null"
-                :error="!!errors[inp.id]"
-                :error-message="errors[inp.id]"
+                :error="!!errors[inp.id] || !!optionsLoadErrorMessage(inp)"
+                :error-message="errors[inp.id] || optionsLoadErrorMessage(inp)"
                 :readonly="isReadOnly(inp)"
                 :disable="inp.disable"
                 :icon="inp.icon"
@@ -727,21 +727,26 @@ if (props.moduleType === MODULES.Equipment) {
   factorValueFieldIds.push('researchfacility_name', 'use_unit');
 }
 
-const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useEquipmentClassOptions(
-    form,
-    toRef(props, 'moduleType'),
-    toRef(props, 'submoduleType'),
-    {
-      classFieldId: kindFieldId.value ?? undefined,
-      subClassFieldId: subkindFieldId.value ?? undefined,
-      classLabelField: kindLabelField.value ?? undefined,
-      fetchFactorValuesOnChange: true,
-      valueFieldIds: factorValueFieldIds,
-      defaultValueFieldIds: factorDefaultFieldIds,
-    },
-    factorYear,
-  );
+const {
+  dynamicOptions,
+  loadingClasses,
+  loadingSubclasses,
+  classLoadError,
+  subclassLoadError,
+} = useEquipmentClassOptions(
+  form,
+  toRef(props, 'moduleType'),
+  toRef(props, 'submoduleType'),
+  {
+    classFieldId: kindFieldId.value ?? undefined,
+    subClassFieldId: subkindFieldId.value ?? undefined,
+    classLabelField: kindLabelField.value ?? undefined,
+    fetchFactorValuesOnChange: true,
+    valueFieldIds: factorValueFieldIds,
+    defaultValueFieldIds: factorDefaultFieldIds,
+  },
+  factorYear,
+);
 
 const { dynamicOptions: buildingRoomDynamicOptions, loadingRooms } =
   useBuildingRoomDynamicOptions(
@@ -759,6 +764,16 @@ const isSubkindLoading = computed(() => {
     return loadingRooms.value;
   return loadingSubclasses.value;
 });
+
+// #2498: the lookup failed (e.g. the taxonomy endpoint 404s), not "this
+// submodule has no options" — an empty list alone reads the same as either,
+// so the select needs its own error state rather than staying a silent blank.
+function optionsLoadErrorMessage(inp: ModuleField): string | null {
+  const failed =
+    (inp.optionsId === 'kind' && classLoadError.value) ||
+    (inp.optionsId === 'subkind' && subclassLoadError.value);
+  return failed ? $t('module_options_load_error') : null;
+}
 
 function getTravelMode(): 'plane' | 'train' | undefined {
   if (props.moduleType !== MODULES.ProfessionalTravel) return undefined;

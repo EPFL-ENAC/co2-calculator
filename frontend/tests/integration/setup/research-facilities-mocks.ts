@@ -203,7 +203,11 @@ function yearConfig(options: { inputsDeactivated: boolean }) {
 export interface RfMockOptions {
   /** Backoffice switch: hides the form, shows the deactivated notice. */
   inputsDeactivated?: boolean;
-  /** Drop the taxonomy, to prove the select's labels don't depend on it. */
+  /**
+   * Drop the taxonomy (#2391 decision 1 made it the select's only option
+   * source), to prove the failure surfaces as a visible error rather than a
+   * silent empty dropdown (#2498).
+   */
   taxonomyUnavailable?: boolean;
   /** Collects create payloads so a test can assert what was submitted. */
   created?: Record<string, unknown>[];

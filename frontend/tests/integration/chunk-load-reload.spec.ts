@@ -18,7 +18,23 @@ import { test, expect } from '@playwright/test';
 test('a stale-chunk failure shows a non-dismissible reload prompt, not an error toast', async ({
   page,
 }) => {
+  // No backend runs against this webServer. Left unmocked, the session
+  // check hits a real 404, which api/http.ts's generic error handler toasts
+  // — a toast unrelated to the chunk-load failure this test is about, but
+  // indistinguishable from it by the assertion below (#2497).
+  await page.route(/\/api\/v1\/session$/, (route) =>
+    route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
+  );
+
   await page.goto('/');
+  // Wait for the app to actually be interactive before firing the
+  // synthetic rejection: `unhandledrejection` is a point-in-time browser
+  // event, not a retryable condition, so dispatching it before
+  // boot/sentry.ts's listener is attached means it's silently dropped —
+  // this waits for a real readiness signal instead of an arbitrary delay.
+  await expect(
+    page.getByRole('button', { name: /log ?in/i }).first(),
+  ).toBeVisible();
 
   await page.evaluate(() => {
     void Promise.reject(

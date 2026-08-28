@@ -579,4 +579,8 @@ export default {
     en: 'Later',
     fr: 'Plus tard',
   },
+  module_options_load_error: {
+    en: 'Options could not be loaded. Try again later.',
+    fr: 'Impossible de charger les options. Réessayez plus tard.',
+  },
 };
