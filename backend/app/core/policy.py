@@ -648,6 +648,29 @@ async def check_module_permission_for_unit(
     return unit
 
 
+def require_explore_ownership(
+    current_user: User, project: CarbonProject | None
+) -> None:
+    """Raise 404 unless ``current_user`` created this Explore sandbox.
+
+    Explore sandboxes are private per user (#2293). No-op for non-Explore
+    projects (and ``None``) — Plan's sharing model is separate, see
+    ``require_plan_scope_for_report``. Matches the 404
+    ``CarbonReportService.get_explore`` already returns to a non-owner
+    querying by unit/year: a report-id lookup gets the same "not found"
+    rather than a 403 confirming the sandbox exists (#2461).
+    """
+    if (
+        project is not None
+        and project.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE
+        and project.created_by != current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Carbon report not found",
+        )
+
+
 async def check_module_permission_for_report(
     *,
     current_user: User,
@@ -662,9 +685,11 @@ async def check_module_permission_for_report(
     (``check_module_permission_for_unit``). Explore and plan reports (grant
     and plan years alike) drop to unit membership: any unit member gets
     every module's input form there. Plan creator/share rules are enforced
-    separately by
-    ``require_plan_scope_for_report``, and the professional-travel own-rows
-    filter stays keyed on the caller's role at the data layer.
+    separately by ``require_plan_scope_for_report``, and the
+    professional-travel own-rows filter stays keyed on the caller's role at
+    the data layer. Explore additionally gates on ``created_by`` via
+    ``require_explore_ownership`` — unlike Plan, Explore sandboxes are never
+    shared, so unit membership alone is not enough (#2461).
 
     Returns the loaded ``Unit`` so callers can reuse it (e.g. for travel
     filters or principal/global checks) without re-fetching.
@@ -682,6 +707,7 @@ async def check_module_permission_for_report(
                     detail=f"Unit {report.unit_id} not found",
                 )
             require_unit_access(current_user, unit)
+            require_explore_ownership(current_user, project)
             return unit
     return await check_module_permission_for_unit(
         current_user=current_user,

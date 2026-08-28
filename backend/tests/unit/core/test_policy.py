@@ -12,6 +12,7 @@ from app.core.policy import (
     check_module_permission_for_report,
     is_module_permitted,
     query_policy,
+    require_explore_ownership,
     require_plan_scope_for_report,
 )
 from app.models.carbon_project import CarbonProject
@@ -712,11 +713,12 @@ class TestCheckModulePermissionForReport:
         return report
 
     @staticmethod
-    def _db(project_type, unit):
+    def _db(project_type, unit, created_by=2):
         from app.models.carbon_project import CarbonProject
 
         project = MagicMock()
         project.carbon_report_type = project_type
+        project.created_by = created_by
 
         async def _get(model, key):
             if model is CarbonProject:
@@ -728,8 +730,9 @@ class TestCheckModulePermissionForReport:
         return db
 
     @staticmethod
-    def _std_user(iid):
+    def _std_user(iid, user_id=2):
         user = MagicMock()
+        user.id = user_id
         user.roles = [
             Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id=iid))
         ]
@@ -891,3 +894,66 @@ class TestCheckModulePermissionForReport:
         assert result is unit
         db.get.assert_not_awaited()
         delegate.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_explore_report_denies_non_creator_same_unit(self):
+        """#2461: unit membership alone must not open a colleague's sandbox."""
+        from app.models.carbon_report import CarbonReportType
+
+        unit = self._unit("0184")
+        other_user = self._std_user("0184", user_id=99)
+        with pytest.raises(HTTPException) as exc:
+            await check_module_permission_for_report(
+                current_user=other_user,
+                module_id="headcount",
+                action="edit",
+                db=self._db(CarbonReportType.SIMULATOR_EXPLORE, unit, created_by=1),
+                report=self._report(),
+            )
+        assert exc.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_plan_report_ignores_creator_mismatch(self):
+        """Plan sharing stays governed by require_plan_scope_for_report, not
+        created_by — #2461 must not regress Plan's existing sharing model.
+        """
+        from app.models.carbon_report import CarbonReportType
+
+        unit = self._unit("0184")
+        other_user = self._std_user("0184", user_id=99)
+        result = await check_module_permission_for_report(
+            current_user=other_user,
+            module_id="equipment",
+            action="edit",
+            db=self._db(CarbonReportType.SIMULATOR_PLAN, unit, created_by=1),
+            report=self._report(is_grant=False),
+        )
+        assert result is unit
+
+
+class TestRequireExploreOwnership:
+    """Direct tests for the #2461 Explore ownership gate."""
+
+    def _project(self, report_type, created_by):
+        project = MagicMock()
+        project.carbon_report_type = report_type
+        project.created_by = created_by
+        return project
+
+    def test_noop_for_none_project(self):
+        require_explore_ownership(MagicMock(id=1), None)
+
+    def test_noop_for_non_explore_project(self):
+        project = self._project(CarbonReportType.SIMULATOR_PLAN, created_by=1)
+        require_explore_ownership(MagicMock(id=2), project)
+
+    def test_noop_for_owner(self):
+        project = self._project(CarbonReportType.SIMULATOR_EXPLORE, created_by=1)
+        require_explore_ownership(MagicMock(id=1), project)
+
+    def test_denies_non_owner(self):
+        project = self._project(CarbonReportType.SIMULATOR_EXPLORE, created_by=1)
+        with pytest.raises(HTTPException) as exc:
+            require_explore_ownership(MagicMock(id=2), project)
+        assert exc.value.status_code == 404
+        assert exc.value.detail == "Carbon report not found"

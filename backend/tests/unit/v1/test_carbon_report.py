@@ -152,6 +152,94 @@ async def test_get_carbon_report_not_found():
         module.CarbonReportService = original
 
 
+def _explore_report_db(report_type, created_by, unit=None):
+    """DB stub returning a fixed report's project by CarbonProject, else unit."""
+    from app.models.carbon_project import CarbonProject
+
+    project = MagicMock()
+    project.carbon_report_type = report_type
+    project.created_by = created_by
+    unit = unit if unit is not None else MagicMock()
+
+    async def _get(model, key):
+        if model is CarbonProject:
+            return project
+        return unit
+
+    db = _db()
+    db.get = AsyncMock(side_effect=_get)
+    return db
+
+
+@pytest.mark.asyncio
+async def test_get_carbon_report_denies_non_creator_explore_by_id():
+    """#2461: a same-unit colleague cannot GET another user's Explore sandbox."""
+    from app.models.carbon_report import CarbonReportType
+
+    report = MagicMock()
+    report.carbon_project_id = 7
+    report.unit_id = 1
+    db = _explore_report_db(CarbonReportType.SIMULATOR_EXPLORE, created_by=1)
+    svc = MagicMock()
+    svc.get = AsyncMock(return_value=report)
+    current_user = MagicMock(id=2)
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: svc
+    try:
+        with patch.object(module, "require_unit_access"):
+            with pytest.raises(HTTPException) as exc:
+                await module.get_carbon_report(7, db, current_user)
+        assert exc.value.status_code == 404
+    finally:
+        module.CarbonReportService = original
+
+
+@pytest.mark.asyncio
+async def test_get_carbon_report_allows_creator_explore_by_id():
+    from app.models.carbon_report import CarbonReportType
+
+    report = MagicMock()
+    report.carbon_project_id = 7
+    report.unit_id = 1
+    db = _explore_report_db(CarbonReportType.SIMULATOR_EXPLORE, created_by=1)
+    svc = MagicMock()
+    svc.get = AsyncMock(return_value=report)
+    current_user = MagicMock(id=1)
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: svc
+    try:
+        with patch.object(module, "require_unit_access"):
+            result = await module.get_carbon_report(7, db, current_user)
+        assert result is report
+    finally:
+        module.CarbonReportService = original
+
+
+@pytest.mark.asyncio
+async def test_get_carbon_report_plan_report_ignores_creator_mismatch():
+    """SIMULATOR_PLAN must stay unaffected by the #2461 Explore ownership gate."""
+    from app.models.carbon_report import CarbonReportType
+
+    report = MagicMock()
+    report.carbon_project_id = 7
+    report.unit_id = 1
+    db = _explore_report_db(CarbonReportType.SIMULATOR_PLAN, created_by=1)
+    svc = MagicMock()
+    svc.get = AsyncMock(return_value=report)
+    current_user = MagicMock(id=2)
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: svc
+    try:
+        with patch.object(module, "require_unit_access"):
+            result = await module.get_carbon_report(7, db, current_user)
+        assert result is report
+    finally:
+        module.CarbonReportService = original
+
+
 # ── list_carbon_report_modules ────────────────────────────────────────────────
 
 
