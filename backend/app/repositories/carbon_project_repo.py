@@ -77,15 +77,6 @@ class CarbonProjectRepository:
         project, display_name, is_grant_proposal = row
         return project, display_name, bool(is_grant_proposal)
 
-    async def list_plan_names(self, unit_id: int) -> set[str]:
-        """Return the names of all plan projects for a unit."""
-        statement = select(col(CarbonProject.name)).where(
-            CarbonProject.unit_id == unit_id,
-            CarbonProject.carbon_report_type == CarbonReportType.SIMULATOR_PLAN,
-        )
-        result = await self.session.execute(statement)
-        return {name for name in result.scalars().all() if name is not None}
-
     async def list_report_ids_for_project(self, project_id: int) -> list[int]:
         """Return the IDs of carbon reports belonging to a project."""
         statement = select(col(CarbonReport.id)).where(

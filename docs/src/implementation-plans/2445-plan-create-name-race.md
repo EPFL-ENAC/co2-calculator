@@ -2,7 +2,7 @@
 status: in-progress
 issue: 2445
 last_updated: 2026-08-28
-summary: 409 on auto-named plan create — bounded retry ships now; dropping name uniqueness is the proposed endgame (ADR); pipeline splitting stays in #2449 on the existing job system
+summary: Plan names are display metadata, not identity — unique index dropped, allocator replaced by a random 3-char suffix; heavy-cascade splitting inventoried and routed to #2449
 ---
 
 # 2445 — Auto-named plan create loses the unique-index race
@@ -83,75 +83,73 @@ Note: the index's stated justification — "the name is a URL identifier"
 (comment in `carbon_project.py`) — is **stale**: all planner routes use the
 numeric `:planId(\d+)`; nothing routes by name.
 
-## Decision — three tiers
+## Decision (maintainer, 2026-08-28)
 
-### Tier 1 · ships in this PR: bounded retry
+**Plan names are not unique. The plan id is the identity** (verified:
+routing uses `:planId(\d+)` only — the index's "name is a URL identifier"
+comment was stale). Shipped in this PR:
 
-In `SimulatorPlanService`, when the name was **auto-generated** (create with
-`name=None`, duplicate's suffixing), an `IntegrityError` on flush means the
-computed name lost the race: rollback, re-read names (the winner is now
-visible), recompute, retry the insert — bounded at 3 attempts, one shared
-helper for both call sites. An explicitly user-chosen colliding name keeps
-its 409. No schema change, no product change, ~15 lines; works against every
-X-shape including non-app transactions (proven by create #3's 2 ms success).
+- Drop `uq_carbon_projects_unit_plan_name` (migration `6e32aa42f6f4`).
+- Auto-generated names get a short recognizable suffix instead of the
+  sequential allocator: `new-project-<3 chars a-z0-9>` (e.g.
+  `new-project-k4f`), likewise duplicates: `<source-name>-<3 chars>`.
+  46k combinations makes a duplicate _suggestion_ vanishingly rare at the
+  tens-of-plans-per-unit scale — with **zero read of existing names**, which
+  was the read-then-insert race. Duplicate names are valid, just never our
+  first proposition.
+- Deleted: the sequential allocator, `list_plan_names`, the explicit-name
+  and rename collision 409s, `_flush_guarded`. Explicit names (create and
+  rename) are stored as-is.
+- The earlier bounded-retry idea is dead — with no unique index there is
+  nothing to retry.
 
-Explicitly accepted: if Tier 2 lands, this retry and the whole sequential
-allocator are **deleted** (no backward-compat paths). Small, reversible churn
-in exchange for closing a live user-facing bug now.
+Maintainer's operational constraint driving the rest: request latency
 
-### Tier 2 · proposal for maintainer sign-off (ADR): drop name uniqueness
+> 10 s trips alerting; the budget is **< 1 s** for every request. That
+> promotes #2449 (below) from hygiene to operational work.
 
-Names are display metadata; the ID is identity (verified: routing uses
-`planId` only). Dropping `uq_carbon_projects_unit_plan_name` deletes the
-allocator, the name query, the name-409s (create _and_ rename), the retry,
-and the whole race class — strictly less code than any fix that keeps the
-index. Prior art for the audit before removal: lookups by `(unit_id, name)`,
-`IntegrityError` handling tied to the index, frontend duplicate-name
-validation, docs describing the 409.
+### Stays in #2449: shorter transactions, on the existing job system
 
-This is a product decision (duplicate names become visible in the plan
-table) and a schema migration, so per the guardrails it waits for an ADR and
-maintainer review rather than shipping while the lead is away. Two product
-questions to settle there: (a) is "rename to an existing name → 409" a
-feature or a bug (the 2026-08-05 event may be evidence either way, once
-classified); (b) what the default name looks like without an allocator — a
-constant `new-project` (the table already shows date + creator), or a
-date-stamped suffix. A random suffix (`new-project-a8F3k91`) is rejected:
-once uniqueness is dropped it has no correctness role, and as UX it is
-strictly worse than a number or a date.
+Split the remaining heavy in-request cascades into **jobs on the existing
+`DataIngestionJob` runner** (the #2050 pattern: route commits the cheap
+metadata write, an idempotent job does the rest, UI polls job status). No
+new per-plan phase state machine, no reset mechanism — the job system
+already has states, retries, heartbeats and stuck-job recovery
+(`/sync/jobs/{id}/recover`, hardened by plans 1215/1219/1559/1723).
 
-### Tier 3 · stays in #2449: shorter transactions, on the existing job system
+## Endpoint inventory (audit 2026-08-28) — against the < 1 s budget
 
-The proposal to split PATCH/duplicate's report+module fan-out out of the
-request transaction is right and already tracked in #2449 — implemented as
-**jobs in the existing `DataIngestionJob` runner** (the #2050 pattern:
-route commits the cheap metadata write, an idempotent job does the fan-out,
-the UI polls the existing job-status endpoint).
+Scale anchors (plan #2050 measurements): ~21k `data_entries` per unit-year,
+~25 emissions per entry → a prefilled 10-year plan ≈ 200k entries /
+0.4–1M emission rows. One report = 1 `carbon_reports` + 8
+`carbon_report_modules` rows, but ~18 statements (a `session.refresh` per
+module — an easy win on its own).
 
-Rejected from the proposed redesign, with reasons:
+| Route                               | In-request writes                                                                                                             | Verdict                                                            |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| plan create                         | 1 row                                                                                                                         | **OK** (after index drop, can no longer block)                     |
+| plan PATCH grow range               | ~99 rows / ~198 stmts (11 reports × 9)                                                                                        | borderline → #2449 job (or drop per-module refreshes first)        |
+| plan PATCH shrink range / grant off | **DELETE cascade of removed years: up to ~170k entries + 0.35–0.8M emissions, in-request**                                    | **violates budget** → #2449 job                                    |
+| plan PATCH reference-year           | 1 row (+ prefill already a job)                                                                                               | **OK**                                                             |
+| plan duplicate                      | ~100 rows / ~200 stmts                                                                                                        | borderline → #2449 job                                             |
+| plan DELETE                         | **~200k entries + 0.4–1M emissions + 88 modules + 11 reports, one transaction**                                               | **worst offender** → #2449 job (mark deleted, purge in background) |
+| explorer create                     | ~10 rows                                                                                                                      | OK scale; **unguarded race, see below**                            |
+| explorer TTL refresh                | `BackgroundTasks` (not a job): full report entry-cascade delete + recreate, no retry/lock/idempotency                         | shaky → #2449 job                                                  |
+| grant budget PATCHes                | 1 row                                                                                                                         | **OK**                                                             |
+| grant reference-percentage PATCH    | per-entry loop: ~3k entry UPDATEs + ~3k emission DELETE/INSERT round-trips, no `FactorResolver` cache, stats recomputed twice | **violates budget** → #2449 job + batch resolver                   |
+| module item POST/PATCH/DELETE       | 5 tables, bounded (1–25 emission rows)                                                                                        | OK                                                                 |
+| login (`upsert_user`)               | `unit_users` DELETE-all + per-unit re-INSERT **on every login**                                                               | flag — separate issue                                              |
+| year-config CSV upload              | 2 rows but the parsed CSV stored 3× (config + audit snapshot + diff)                                                          | flag — separate issue                                              |
 
-- **A new per-plan phase state machine** (`CREATING/READY/FAILED` +
-  persisted `initialization_phase`, per-phase auto-retry): duplicates the
-  job system the repo already runs (states, retries, heartbeats, stuck-job
-  recovery via `/sync/jobs/{id}/recover`, hardened by plans 1215/1219/1559/
-  1723). Mirror, don't invent.
-- **A reset/restart mechanism for partially initialized plans**: nothing
-  references a half-initialized plan; delete-and-recreate _is_ the reset,
-  and plan IDs are not a resource worth preserving. YAGNI.
-- **Phase-splitting the create endpoint**: create is already one
-  millisecond-scale transaction; there is nothing to split. The six-phase
-  model applies at most to PATCH/duplicate, where phases 5–6 (prefill,
-  stats) are _already_ jobs since #2050, and a new empty plan's stats/
-  prefill phases are no-ops.
-- **The premise "the first INSERT then performs the complete cascade in the
-  same transaction"** is factually wrong for create (see reconstruction),
-  and the incident's 82 s was wait, not work. A design justified by that
-  premise fixes latency nobody measured while leaving the actual trigger
-  (any foreign uncommitted holder) unaddressed.
-
-Kept as design notes for #2449: per-phase tracing/metrics on the fan-out
-job, idempotency requirements (already the pipeline rule), and the
-observation that each job commit releases its locks before the next starts.
+**New race found (same family as this one, worse outcome):** explorer and
+calculator get-or-create are unguarded read-then-insert against their
+partial unique indexes (`uq_carbon_projects_unit_explore_creator`,
+`uq_carbon_projects_unit_type_calculator`, plus
+`uq_carbon_reports_project_year` on double-POST). No `IntegrityError`
+handling anywhere on that path and no global handler → surfaces as **500**,
+and the frontend _produces_ the race (GET → 404 → POST in `workspace.ts`).
+Those indexes are semantic and stay — the fix is a guard (catch
+`IntegrityError` → re-fetch the winner), as a separate small issue.
 
 ## The write cascade, and where the lock lives
 
@@ -200,26 +198,32 @@ name, created_by, created_at) VALUES (<unit>, 'Simulator_Plan',
 4. Session A: `ROLLBACK;` → tab 1 gets 201 (`new-project-2`), tab 2 gets the
    409 — the incident, exactly. (`COMMIT;` instead: both tabs 409.)
 
-After the Tier-1 fix, step 4 yields 201 + 201 (the loser retries as
-`new-project-3`). After Tier 2, steps 2–3 don't block at all.
+After this PR, steps 2–3 don't block at all: creates never read or index
+names, so no other transaction — app or human — can make them wait or 409.
 
 ## Test
 
-Regression test in `backend/tests/unit`: first flush raises `IntegrityError`,
-retry recomputes from the refreshed name list and succeeds (the SQLite test
-schema intentionally omits the partial indexes, so the race is simulated at
-the repo boundary). A second test asserts the explicit-name collision still
-raises. The manual repro above is the end-to-end validation.
+`backend/tests/unit/services/test_simulator_plan_service.py`:
+auto-generated and duplicated names match `<base>-[a-z0-9]{3}`; the
+regression tests invert the old collision tests — two plans with the same
+explicit name coexist, and renaming to an existing name succeeds (no
+uniqueness read, so creation can never 409 or block on another
+transaction's uncommitted name). The manual repro above is the end-to-end
+validation.
 
 ## Deliverables
 
-- [ ] Tier 1: shared auto-name retry in `create_plan` / `duplicate_plan`
-- [ ] Tier 1: regression tests (race retry + explicit-name 409 kept)
+- [x] Drop `uq_carbon_projects_unit_plan_name` (migration `6e32aa42f6f4`)
+- [x] Random-suffix naming; delete allocator, `list_plan_names`,
+      collision 409s, `_flush_guarded`
+- [x] Regression tests (suffix shape, duplicate names allowed, rename
+      allowed)
 - [ ] Classify the 2026-08-05 PATCH 409 (which `ValueError`?)
 - [ ] Small follow-up issue: 422 for PATCH validation errors, 409 for
       conflicts only
-- [ ] Tier 2: ADR proposal "plan names are not unique" for maintainer review
-- [ ] Flip this plan to `delivered` when Tier 1 ships
+- [ ] Small follow-up issue: guard explorer/calculator get-or-create
+      against `IntegrityError` (currently a 500 race)
+- [ ] Flip this plan to `delivered` on merge
 
 ## Follow-up (out of scope here)
 

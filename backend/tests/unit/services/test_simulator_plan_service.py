@@ -1,3 +1,5 @@
+import re
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -14,7 +16,7 @@ from app.schemas.simulator_plan import SimulatorPlanUpdate
 from app.services.carbon_report_service import CarbonReportService
 from app.services.simulator_plan_service import (
     SimulatorPlanService,
-    _next_available_name,
+    _suffixed_name,
 )
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -77,39 +79,26 @@ async def user(async_session):
     return db_user
 
 
-# ── _next_available_name (pure function) ──────────────────────────────────────
+# ── _suffixed_name (pure function) ────────────────────────────────────────────
+
+SUFFIXED_NAME_PATTERN = r"^new-project-[a-z0-9]{3}$"
 
 
-def test_next_available_name_returns_base_when_free():
-    assert _next_available_name("new-project", set()) == "new-project"
-
-
-def test_next_available_name_appends_suffixes():
-    assert _next_available_name("new-project", {"new-project"}) == "new-project-2"
-    assert (
-        _next_available_name("new-project", {"new-project", "new-project-2"})
-        == "new-project-3"
-    )
-
-
-def test_next_available_name_fills_gaps():
-    assert (
-        _next_available_name("new-project", {"new-project", "new-project-3"})
-        == "new-project-2"
-    )
+def test_suffixed_name_shape():
+    assert re.fullmatch(SUFFIXED_NAME_PATTERN, _suffixed_name("new-project"))
 
 
 # ── create_plan ───────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_create_plan_default_name_sequence(async_session, user):
+async def test_create_plan_default_name_is_suffixed(async_session, user):
     service = SimulatorPlanService(async_session)
     first = await service.create_plan(unit_id=1, user=user)
     second = await service.create_plan(unit_id=1, user=user)
 
-    assert first.name == "new-project"
-    assert second.name == "new-project-2"
+    assert re.fullmatch(SUFFIXED_NAME_PATTERN, first.name)
+    assert re.fullmatch(SUFFIXED_NAME_PATTERN, second.name)
     assert first.unit_id == 1
     assert first.created_by == user.id
     assert first.created_at is not None
@@ -117,21 +106,16 @@ async def test_create_plan_default_name_sequence(async_session, user):
 
 
 @pytest.mark.asyncio
-async def test_create_plan_default_names_are_per_unit(async_session, user):
+async def test_create_plan_duplicate_explicit_name_is_allowed(async_session, user):
+    # Regression for #2445: names are not identity — no uniqueness check,
+    # no read of existing names, so creation can never 409 or block on
+    # another transaction's uncommitted name.
     service = SimulatorPlanService(async_session)
-    first = await service.create_plan(unit_id=1, user=user)
-    other_unit = await service.create_plan(unit_id=2, user=user)
+    first = await service.create_plan(unit_id=1, user=user, name="my-plan")
+    second = await service.create_plan(unit_id=1, user=user, name="my-plan")
 
-    assert first.name == "new-project"
-    assert other_unit.name == "new-project"
-
-
-@pytest.mark.asyncio
-async def test_create_plan_explicit_name_collision_raises(async_session, user):
-    service = SimulatorPlanService(async_session)
-    await service.create_plan(unit_id=1, user=user, name="my-plan")
-    with pytest.raises(ValueError):
-        await service.create_plan(unit_id=1, user=user, name="my-plan")
+    assert first.name == second.name == "my-plan"
+    assert first.id != second.id
 
 
 # ── get_plan / list_plans ─────────────────────────────────────────────────────
@@ -189,12 +173,13 @@ async def test_rename_plan_same_name_is_noop(async_session, user):
 
 
 @pytest.mark.asyncio
-async def test_rename_plan_collision_raises(async_session, user):
+async def test_rename_plan_to_existing_name_is_allowed(async_session, user):
     service = SimulatorPlanService(async_session)
     await service.create_plan(unit_id=1, user=user, name="taken")
     created = await service.create_plan(unit_id=1, user=user, name="mine")
-    with pytest.raises(ValueError):
-        await _update_plan(service, created.id, SimulatorPlanUpdate(name="taken"))
+    renamed = await _update_plan(service, created.id, SimulatorPlanUpdate(name="taken"))
+    assert renamed is not None
+    assert renamed.name == "taken"
 
 
 @pytest.mark.asyncio
@@ -209,15 +194,17 @@ async def test_rename_plan_missing_returns_none(async_session, user):
 
 
 @pytest.mark.asyncio
-async def test_duplicate_plan_suffix_chain(async_session, user):
+async def test_duplicate_plan_gets_suffixed_name(async_session, user):
     service = SimulatorPlanService(async_session)
     original = await service.create_plan(unit_id=1, user=user, name="foo")
 
     first_copy = await service.duplicate_plan(original.id, user)
     second_copy = await service.duplicate_plan(original.id, user)
 
-    assert first_copy is not None and first_copy.name == "foo-2"
-    assert second_copy is not None and second_copy.name == "foo-3"
+    assert first_copy is not None and re.fullmatch(r"foo-[a-z0-9]{3}", first_copy.name)
+    assert second_copy is not None and re.fullmatch(
+        r"foo-[a-z0-9]{3}", second_copy.name
+    )
     assert first_copy.created_by == user.id
     assert first_copy.creator_name == "Ada Lovelace"
 
