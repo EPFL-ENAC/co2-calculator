@@ -1,7 +1,7 @@
 ---
-status: delivered
+status: in-progress
 issue: 2161
-last_updated: 2026-08-18
+last_updated: 2026-08-28
 summary: "Turn #2161's real per-data_entry_type ceiling estimates into a
   reusable Postgres fixture (one unit seeded at worst-case scale via the
   production recalc path, so factor resolution is real) and a systematically
@@ -10,6 +10,9 @@ summary: "Turn #2161's real per-data_entry_type ceiling estimates into a
 ---
 
 # Ceiling-scale performance fixtures (#2161)
+
+> Re-flipped `delivered` → `in-progress` (#2469): no ceiling fixture, seed
+> module, or perf test files exist anywhere in the tree.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > superpowers:subagent-driven-development (recommended) or
