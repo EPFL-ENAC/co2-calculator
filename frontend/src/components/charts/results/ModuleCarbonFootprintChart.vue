@@ -150,9 +150,9 @@ type IconAxisItem = {
   submoduleType?: string;
   x: number;
   // Whether the icon links to its module page — false (greyed-out,
-  // non-clickable) when the module is disabled in the back-office, the
-  // user lacks edit access, or the module has no computed stats yet (never
-  // touched). See isModuleFullyAvailable — same decision every page uses.
+  // non-clickable) only when the module is disabled in the back-office or
+  // the user lacks view/edit access. Module status and data presence never
+  // grey an icon. See isModuleFullyAvailable.
   enabled: boolean;
 };
 
@@ -185,7 +185,7 @@ function updateIconAxis(chart: NonNullable<typeof chartRef.value>['chart']) {
       module,
       submoduleType: CATEGORY_TO_SUBMODULE[categoryKey],
       x: chart.convertToPixel({ xAxisIndex: 0 }, label) as number,
-      enabled: isModuleFullyAvailable(module, Boolean(item.__hasStats)),
+      enabled: isModuleFullyAvailable(module),
     };
   });
   iconAxisTop.value = yZero;
@@ -677,7 +677,6 @@ const datasetSource = computed(() => {
     category_key: key,
     scope,
     additional: false,
-    __hasStats: false,
   }));
   // Add placeholders for additional categories that are missing from the backend response,
   // but only if the toggle is on. These categories are always considered "not validated"
@@ -699,7 +698,6 @@ const datasetSource = computed(() => {
         scope: 3 as const,
         additional: true,
         __validated: false,
-        __hasStats: false,
       }));
     missingPlaceholders.push(...additionalMissingPlaceholders);
   }
@@ -708,10 +706,7 @@ const datasetSource = computed(() => {
     [
       ...props.breakdownData.module_breakdown.map((entry) => {
         const category = String(entry.category ?? '');
-        const row = isCategoryValidated(category)
-          ? entry
-          : zeroNumericValues(entry);
-        return { ...row, __hasStats: true };
+        return isCategoryValidated(category) ? entry : zeroNumericValues(entry);
       }),
       ...missingPlaceholders,
     ]

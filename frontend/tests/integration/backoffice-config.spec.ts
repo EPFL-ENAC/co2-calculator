@@ -29,10 +29,6 @@ import {
   installInitScripts,
   mockBackend,
 } from './setup/data-management-mocks';
-import {
-  HOME_URL,
-  mockHomeBackend,
-} from './setup/home-module-visibility-mocks';
 
 // ReductionObjectivesSection renders its own "Incomplete" badge whenever
 // goals/files aren't fully populated — unrelated to the module/submodule

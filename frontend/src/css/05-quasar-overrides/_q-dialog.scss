@@ -4,3 +4,9 @@
     // width: inherit;
   }
 }
+
+// Stale-chunk reload prompt (frontend/src/boot/sentry.ts): blur the backdrop
+// in addition to Quasar's default dim, scoped to this dialog only.
+.reload-prompt-dialog .q-dialog__backdrop {
+  backdrop-filter: blur(4px);
+}

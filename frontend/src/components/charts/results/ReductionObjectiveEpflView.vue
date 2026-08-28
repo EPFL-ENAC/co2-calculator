@@ -151,18 +151,9 @@ const epflGoals = computed(
 );
 
 const yearsStart = computed(() => {
-  const candidates: number[] = [];
-
-  for (const r of epflFootprintRows.value) {
-    if (typeof r.year === 'number') candidates.push(r.year);
-  }
-  for (const r of epflPopulationRows.value) {
-    if (typeof r.year === 'number') candidates.push(r.year);
-  }
-  for (const g of epflGoals.value) {
-    if (typeof g?.reference_year === 'number')
-      candidates.push(g.reference_year);
-  }
+  const candidates = [...epflFootprintTotalsByYear.value.entries()]
+    .filter(([, total]) => total > 0)
+    .map(([year]) => year);
 
   const rawMin = candidates.length
     ? Math.min(...candidates)
@@ -220,8 +211,16 @@ const epflBaselineYear = computed(() => {
   return years.value.find((y) => getEpflYearTotal(y) > 0) ?? yearsStart.value;
 });
 
+// The institutional footprint CSV uses EPFL-level category names that don't
+// exist in CHART_CATEGORY_COLOR_SCHEMES; map them to the matching module key.
+const EPFL_FOOTPRINT_CATEGORY_ALIASES: Record<string, string> = {
+  energy: 'buildings_room',
+  'professional trips': 'professional_travel',
+};
+
 function categoryColor(categoryKey: string): string {
-  return CHART_CATEGORY_COLOR_SCHEMES.value[categoryKey] ?? '#CFD4EE';
+  const key = EPFL_FOOTPRINT_CATEGORY_ALIASES[categoryKey] ?? categoryKey;
+  return CHART_CATEGORY_COLOR_SCHEMES.value[key] ?? '#CFD4EE';
 }
 
 function categoryLabel(categoryKey: string): string {
@@ -233,7 +232,7 @@ function categoryLabel(categoryKey: string): string {
 
   const mod = getModuleForCategoryKey(categoryKey);
   if (mod && te(mod)) return t(mod);
-  return categoryKey;
+  return categoryKey.charAt(0).toUpperCase() + categoryKey.slice(1);
 }
 
 const TOOLTIP_CATEGORY_ORDER = RESULTS_CATEGORY_ORDER;

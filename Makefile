@@ -243,9 +243,13 @@ gen-module-constants: ## Generate frontend module lookup constants from backend 
 .PHONY: sync-agent-rules
 sync-agent-rules: ## Re-vendor the shared ENAC IT4R rules from it4r-agent-kit
 	@sha=$$(gh api repos/EPFL-ENAC/it4r-agent-kit/commits/main --jq .sha); \
-	{ echo "<!-- Vendored from https://github.com/EPFL-ENAC/it4r-agent-kit @ $${sha:0:7}"; \
+	{ echo "---"; \
+	  echo "applyTo: \"**\""; \
+	  echo "---"; \
+	  echo; \
+	  echo "<!-- Vendored from https://github.com/EPFL-ENAC/it4r-agent-kit @ $$(printf %.7s "$$sha")"; \
 	  echo "     Do not edit here — edit AGENTS.md upstream, then run \`make sync-agent-rules\`. -->"; \
 	  echo; \
-	  curl -fsSL https://raw.githubusercontent.com/EPFL-ENAC/it4r-agent-kit/main/AGENTS.md; \
+	  curl -fsSL https://raw.githubusercontent.com/EPFL-ENAC/it4r-agent-kit/$$sha/AGENTS.md; \
 	} > docs/src/contributing/it4r-rules.md
 	@git diff --stat -- docs/src/contributing/it4r-rules.md

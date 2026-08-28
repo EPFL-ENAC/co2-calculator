@@ -1,5 +1,5 @@
 import { defineBoot } from '#q-app';
-import { Notify } from 'quasar';
+import { Dialog, Notify } from 'quasar';
 import { HTTPError } from 'ky';
 import type { ComponentPublicInstance } from 'vue';
 import { runtimeConfig } from '@/config/runtime';
@@ -45,7 +45,26 @@ function vueErrorContext(
   };
 }
 
-// Errors that are not actionable (browser quirks, user-driven aborts).
+// A route's lazy chunk (or its CSS) failed to load. After a deploy, clients
+// holding an old index.html request hashed chunks that no longer exist on the
+// server — the dynamic import rejects. Messages differ per engine, hence the
+// broad match (WebKit: "Importing a module script failed."; Chromium: "Failed
+// to fetch dynamically imported module"; Firefox/Vite variants below).
+const chunkLoadPatterns: RegExp[] = [
+  /Failed to fetch dynamically imported module/i,
+  /error loading dynamically imported module/i,
+  /Importing a module script failed/i,
+  /Unable to preload CSS/i,
+  /Loading chunk \S+ failed/i,
+];
+
+function isChunkLoadError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return chunkLoadPatterns.some((p) => p.test(message));
+}
+
+// Errors that are not actionable (browser quirks, user-driven aborts, and
+// stale-chunk deploy noise — self-recovers via the reload prompt below).
 // captureError() drops events whose message matches any of these.
 const ignoreErrors: (string | RegExp)[] = [
   // Harmless browser-bug noise from libraries that observe element sizes.
@@ -58,6 +77,7 @@ const ignoreErrors: (string | RegExp)[] = [
   'Failed to fetch',
   // Media element auto-aborted by browser when the user navigates.
   "The fetching process for the media resource was aborted by the user agent at the user's request.",
+  ...chunkLoadPatterns,
 ];
 
 // Toast helper. Uses `color: 'negative'` to match api/http.ts.
@@ -72,42 +92,40 @@ function notifyError(message: string, caption?: string) {
   });
 }
 
-// A route's lazy chunk (or its CSS) failed to load. After a deploy, clients
-// holding an old index.html request hashed chunks that no longer exist on the
-// server — the dynamic import rejects. Messages differ per engine, hence the
-// broad match (WebKit: "Importing a module script failed."; Chromium: "Failed
-// to fetch dynamically imported module"; Firefox/Vite variants below).
-function isChunkLoadError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return (
-    /Failed to fetch dynamically imported module/i.test(message) ||
-    /error loading dynamically imported module/i.test(message) ||
-    /Importing a module script failed/i.test(message) ||
-    /Unable to preload CSS/i.test(message) ||
-    /Loading chunk \S+ failed/i.test(message)
-  );
-}
-
-// Persistent "reload to get the new version" prompt. Guarded so a burst of
-// chunk errors (one per failed prefetch) shows a single toast. We prompt
-// rather than auto-reload to avoid clobbering unsaved work.
+// Blocking "reload to get the new version" prompt. `persistent` blocks
+// Escape/backdrop-click so it can't be swiped away unnoticed; "Later" is the
+// deliberate escape hatch — we prompt rather than auto-reload, and this
+// dialog is reachable from generic error paths too (not just post-deploy
+// chunk failures), so a Reload-only trap could force a mid-form user to lose
+// unsaved work on an ordinary network blip. Guarded so a burst of chunk
+// errors (one per failed prefetch) shows a single dialog.
 let reloadPromptShown = false;
 function notifyReloadOnce() {
   if (reloadPromptShown) return;
   reloadPromptShown = true;
-  Notify.create({
-    color: 'info',
+  Dialog.create({
+    class: 'reload-prompt-dialog',
     message: i18n.global.t('new_version_available'),
-    position: 'top',
-    timeout: 0, // sticky until the user acts
-    actions: [
-      {
-        label: i18n.global.t('reload'),
-        color: 'white',
-        handler: () => window.location.reload(),
-      },
-    ],
-  });
+    persistent: true,
+    ok: { label: i18n.global.t('reload'), color: 'primary', noCaps: true },
+    cancel: { label: i18n.global.t('later'), flat: true, noCaps: true },
+  })
+    .onOk(() => window.location.reload())
+    .onCancel(() => {
+      reloadPromptShown = false;
+    });
+}
+
+// Route a stale-chunk failure to the reload prompt instead of the generic
+// error toast. Still passed through captureError() by every call site below
+// as usual — it's `ignoreErrors` above that keeps it off GlitchTip, this
+// only picks which toast the user sees.
+function toastFor(err: unknown, message: string, caption?: string) {
+  if (isChunkLoadError(err)) {
+    notifyReloadOnce();
+    return;
+  }
+  notifyError(message, caption);
 }
 
 export default defineBoot(({ app, router }) => {
@@ -136,7 +154,8 @@ export default defineBoot(({ app, router }) => {
     if (import.meta.env.DEV) {
       console.error('[vue errorHandler]', err, info);
     }
-    notifyError(
+    toastFor(
+      err,
       err instanceof Error ? err.message : String(err),
       info, // e.g. "render", "mounted hook"
     );
@@ -181,7 +200,8 @@ export default defineBoot(({ app, router }) => {
     if (import.meta.env.DEV) {
       console.error('[window error]', event.error ?? event.message);
     }
-    notifyError(
+    toastFor(
+      event.error ?? event.message,
       event.message || 'Unknown error',
       `${event.filename}:${event.lineno}:${event.colno}`,
     );
@@ -210,7 +230,7 @@ export default defineBoot(({ app, router }) => {
         ? reason.message
         : ((reason?.message as string | undefined) ??
           String(reason ?? 'Unhandled rejection'));
-    notifyError(message);
+    toastFor(reason, message);
   });
 
   // -------------------------------------------------------------------------

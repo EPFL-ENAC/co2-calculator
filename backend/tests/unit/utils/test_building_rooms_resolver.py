@@ -4,6 +4,10 @@ Verifies ``resolve_building_rooms`` (used by ``resolve_emission_types`` at
 runtime) emits a *single* heating leaf chosen by the matched factor's
 ``energy_type`` — the fix for the heating double-count (#1575). No matched
 factor skips heating; a matched factor with an invalid energy_type fails loud.
+
+Incomplete rows (#2501): a building change clears room_name/room_type, and
+the row deliberately resolves to *no* leaves (blank kg, equipment-style)
+instead of raising — only *present but invalid* values still fail loud.
 """
 
 from unittest.mock import MagicMock
@@ -30,39 +34,61 @@ def _factor(energy_type: str | None) -> Factor:
     return factor
 
 
+def _room(room_type: str) -> dict:
+    return {"room_name": "BCH 1234", "room_type": room_type}
+
+
 def _heating(result: list[EmissionType]) -> set[EmissionType]:
     return set(result) & _HEATING_LEAVES
 
 
 def test_office_electric_emits_only_electric_leaf() -> None:
-    result = resolve_building_rooms({"room_type": "office"}, _factor("electric"))
+    result = resolve_building_rooms(_room("office"), _factor("electric"))
     assert _heating(result) == {EmissionType.buildings__rooms__heating_electric__office}
 
 
 def test_office_thermal_emits_only_thermal_leaf() -> None:
-    result = resolve_building_rooms({"room_type": "office"}, _factor("thermal"))
+    result = resolve_building_rooms(_room("office"), _factor("thermal"))
     assert _heating(result) == {EmissionType.buildings__rooms__heating_thermal__office}
 
 
-def test_missing_room_type_fails_loud() -> None:
-    # #2091: a missing/unknown room_type used to drop the suffix and land on
+def test_invalid_room_type_fails_loud() -> None:
+    # #2091: an unknown room_type used to drop the suffix and land on
     # buildings__rooms__heating_electric — an intermediate node that already
-    # sums its six room-type children.
+    # sums its six room-type children. Present-but-wrong stays loud (#2501
+    # only softened *missing* fields).
     with pytest.raises(EmissionTypeResolutionError, match="room_type"):
-        resolve_building_rooms({}, _factor("electric"))
+        resolve_building_rooms(_room("hallway"), _factor("electric"))
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {},
+        {"room_name": "BCH 1234"},
+        {"room_type": "office"},
+        {"room_name": "", "room_type": "office"},
+        {"room_name": "BCH 1234", "room_type": None},
+    ],
+)
+def test_incomplete_row_yields_no_leaves(data: dict) -> None:
+    # #2501: a building change clears room_name/room_type server-side; the
+    # incomplete row must contribute no emission rows (blank kg cell,
+    # equipment-style) rather than 422 the whole update.
+    assert resolve_building_rooms(data, _factor("electric")) == []
 
 
 def test_never_emits_both_heating_leaves() -> None:
     # Regression #1575: the same kwh/m² must never fan out to both heating
     # branches, which double-counted heating emissions.
     for energy_type in ("electric", "thermal"):
-        result = resolve_building_rooms({"room_type": "office"}, _factor(energy_type))
+        result = resolve_building_rooms(_room("office"), _factor(energy_type))
         assert len(_heating(result)) == 1
 
 
 def test_no_matched_factor_skips_heating() -> None:
     # None factor = no matched factor: heating is skipped, non-heating remains.
-    result = resolve_building_rooms({"room_type": "office"}, None)
+    result = resolve_building_rooms(_room("office"), None)
     assert _heating(result) == set()
     assert EmissionType.buildings__rooms__lighting__office in result
 
@@ -72,4 +98,4 @@ def test_invalid_energy_type_fails_loud(energy_type: str | None) -> None:
     # A matched factor with a missing/unrecognized energy_type is corrupt data
     # and must raise here rather than silently drop the heating leaf (#1575).
     with pytest.raises(ValueError, match="energy_type"):
-        resolve_building_rooms({"room_type": "office"}, _factor(energy_type))
+        resolve_building_rooms(_room("office"), _factor(energy_type))

@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -180,10 +181,23 @@ class CarbonReportService:
     async def _create_project(
         self, unit_id: int, report_type: CarbonReportType
     ) -> CarbonProject:
-        """Create and flush a new CarbonProject for a unit+type."""
+        """Create and flush a new CarbonProject for a unit+type.
+
+        Guarded get-or-create tail (#2483): two concurrent requests can both
+        read "no project yet" and insert; the SAVEPOINT confines the loser's
+        unique-index error, and the committed winner is returned instead of
+        surfacing a 500.
+        """
         project = CarbonProject(unit_id=unit_id, carbon_report_type=report_type)
-        self.session.add(project)
-        await self.session.flush()
+        try:
+            async with self.session.begin_nested():
+                self.session.add(project)
+                await self.session.flush()
+        except IntegrityError:
+            winner = await self._get_project(unit_id, report_type)
+            if winner is None:
+                raise
+            return winner
         return project
 
     async def _get_explore_project(
@@ -200,28 +214,64 @@ class CarbonReportService:
     async def _create_explore_project(
         self, unit_id: int, created_by: int
     ) -> CarbonProject:
-        """Create and flush a per-user Simulator Explore project (#2293)."""
+        """Create and flush a per-user Simulator Explore project (#2293).
+
+        Guarded like :meth:`_create_project` (#2483): the frontend's
+        GET → 404 → POST flow makes two tabs race here routinely.
+        """
         project = CarbonProject(
             unit_id=unit_id,
             carbon_report_type=CarbonReportType.SIMULATOR_EXPLORE,
             created_by=created_by,
             created_at=datetime.now(UTC),
         )
-        self.session.add(project)
-        await self.session.flush()
+        try:
+            async with self.session.begin_nested():
+                self.session.add(project)
+                await self.session.flush()
+        except IntegrityError:
+            winner = await self._get_explore_project(unit_id, created_by)
+            if winner is None:
+                raise
+            return winner
         return project
+
+    async def ensure_calculator_projects(self, unit_ids: list[int]) -> dict[int, int]:
+        """Explicitly provision each unit's Calculator project (#2487).
+
+        The project's lifecycle moment is unit_sync — not a branch
+        discovered inside ``create``/``bulk_upsert`` (ADR-014: cross-request
+        existence decisions are a hidden side-effect write, not a caller's
+        explicit step). Idempotent: reuses the #2483 SAVEPOINT-guarded
+        create, though unit_sync's advisory lock already serializes writers
+        here.
+        """
+        project_by_unit: dict[int, int] = {}
+        for unit_id in dict.fromkeys(unit_ids):
+            project = await self._get_project(
+                unit_id, CarbonReportType.CALCULATOR
+            ) or await self._create_project(unit_id, CarbonReportType.CALCULATOR)
+            if project.id is None:
+                raise ValueError("project must be persisted before use")
+            project_by_unit[unit_id] = project.id
+        return project_by_unit
 
     async def create(self, data: CarbonReportCreate) -> CarbonReportRead:
         """Create a new carbon report and auto-create all module records.
 
-        Automatically resolves the Calculator carbon project for the unit
-        (creating it if it doesn't yet exist).
+        The Calculator project must already exist (unit_sync provisions it
+        explicitly, #2487) — a missing ``carbon_project_id`` only triggers a
+        read-only lookup here, never a hidden create. A caller-supplied
+        ``carbon_project_id`` (Explore/Plan/Grant reports) skips the lookup.
         """
         project_id = data.carbon_project_id
         if project_id is None:
-            project = await self._get_project(
-                data.unit_id, CarbonReportType.CALCULATOR
-            ) or await self._create_project(data.unit_id, CarbonReportType.CALCULATOR)
+            project = await self._get_project(data.unit_id, CarbonReportType.CALCULATOR)
+            if project is None:
+                raise ValueError(
+                    f"No Calculator project provisioned for unit {data.unit_id}; "
+                    "run unit sync before creating its Calculator reports"
+                )
             project_id = project.id
         carbon_report = await self.repo.create(
             data.model_copy(update={"carbon_project_id": project_id})
@@ -280,16 +330,28 @@ class CarbonReportService:
             unit_id, created_by
         ) or await self._create_explore_project(unit_id, created_by)
         now_ts = int(datetime.now(UTC).timestamp())
-        created = await self.repo.create(
-            CarbonReportCreate(
-                unit_id=unit_id,
-                year=reference_year,
-                reference_year=None,
-                carbon_project_id=project.id,
+        try:
+            async with self.session.begin_nested():
+                created = await self.repo.create(
+                    CarbonReportCreate(
+                        unit_id=unit_id,
+                        year=reference_year,
+                        reference_year=None,
+                        carbon_project_id=project.id,
+                    )
+                )
+                created.last_updated = now_ts
+                await self.session.flush()
+        except IntegrityError:
+            # Double-POST race on uq_carbon_reports_project_year (#2483):
+            # the winner already created the report and its modules — return
+            # it as-is instead of surfacing a 500.
+            existing = await self.repo.get_explore_by_unit_and_reference_year(
+                unit_id=unit_id, reference_year=reference_year, created_by=created_by
             )
-        )
-        created.last_updated = now_ts
-        await self.session.flush()
+            if existing is None:
+                raise
+            return CarbonReportRead.model_validate(existing)
         created_read = CarbonReportRead.model_validate(created)
         await self.module_service.create_all_modules_for_report(created_read.id)
         return created_read
@@ -299,27 +361,18 @@ class CarbonReportService:
     ) -> list[CarbonReportRead]:
         """Bulk upsert carbon reports (Calculator type only).
 
-        Resolves the Calculator project for each unique unit_id before upserting.
+        Callers resolve each item's ``carbon_project_id`` first — see
+        ``ensure_calculator_projects`` — #2487 removed the lazy per-item
+        get-or-create that used to live here (ADR-014: no hidden
+        side-effect creation from a report-creation call).
         """
-        # Resolve project IDs for all unique unit_ids
-        unit_project: dict[int, int] = {}
-        enriched: list[CarbonReportCreate] = []
-        for item in data:
-            if item.unit_id not in unit_project:
-                project = await self._get_project(
-                    item.unit_id, CarbonReportType.CALCULATOR
-                ) or await self._create_project(
-                    item.unit_id, CarbonReportType.CALCULATOR
-                )
-                if project.id is None:
-                    raise ValueError("project must be persisted before use")
-                unit_project[item.unit_id] = project.id
-            enriched.append(
-                item.model_copy(
-                    update={"carbon_project_id": unit_project[item.unit_id]}
-                )
+        missing = [d.unit_id for d in data if d.carbon_project_id is None]
+        if missing:
+            raise ValueError(
+                f"bulk_upsert called without carbon_project_id for units "
+                f"{missing}; call ensure_calculator_projects first"
             )
-        carbon_reports = await self.repo.bulk_upsert(enriched)
+        carbon_reports = await self.repo.bulk_upsert(data)
         return [CarbonReportRead.model_validate(cr) for cr in carbon_reports]
 
     async def get(self, carbon_report_id: int) -> CarbonReportRead | None:

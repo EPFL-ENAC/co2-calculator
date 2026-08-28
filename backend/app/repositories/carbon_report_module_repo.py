@@ -74,8 +74,6 @@ class CarbonReportModuleRepository:
         ]
         self.session.add_all(carbon_report_modules)
         await self.session.flush()
-        for obj in carbon_report_modules:
-            await self.session.refresh(obj)
         return carbon_report_modules
 
     async def bulk_create_carbon_report_modules_of_carbon_report(
@@ -95,8 +93,6 @@ class CarbonReportModuleRepository:
         ]
         self.session.add_all(db_objects)
         await self.session.flush()
-        for obj in db_objects:
-            await self.session.refresh(obj)
         return db_objects
 
     async def get_by_year_and_unit(

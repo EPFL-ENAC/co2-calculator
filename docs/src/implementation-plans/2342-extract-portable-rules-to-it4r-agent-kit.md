@@ -2,7 +2,7 @@
 status: delivered
 issue: 2342
 last_updated: 2026-08-25
-summary: Move the portable half of guardrails.md into the shared it4r-agent-kit repo, vendored here as a submodule, leaving guardrails.md as the co2-specific delta.
+summary: Move the portable half of guardrails.md into the shared it4r-agent-kit repo, vendored here as a plain file (not a submodule), leaving guardrails.md as the co2-specific delta.
 ---
 
 # 2342 — Extract portable engineering rules into `it4r-agent-kit`

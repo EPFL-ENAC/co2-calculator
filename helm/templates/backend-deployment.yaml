@@ -84,16 +84,26 @@ spec:
               protocol: TCP
           env:
             {{- include "co2-calculator.backendSecretEnv" . | nindent 12 }}
-            {{- range $key, $value := .Values.backend.env }}
+            {{- /* When the worker split is on, the explicit block below owns
+                 these two keys. Emitting them from backend.env as well made a
+                 duplicate env name — Kubernetes tolerates that (last entry
+                 wins) but strategic-merge-patch does not: ArgoCD's diff dies
+                 with "order in patch list doesn't match $setElementOrder"
+                 and the app wedges in ComparisonError. */}}
+            {{- $env := .Values.backend.env }}
+            {{- if .Values.worker.enabled }}
+            {{- $env = omit $env "RUN_BACKGROUND_POLLER" "DISPATCH_JOBS_INLINE" }}
+            {{- end }}
+            {{- range $key, $value := $env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
             {{- if .Values.worker.enabled }}
             # #2050 Track B: worker.enabled is the single switch — API pods
             # stop executing jobs themselves the moment a worker exists to
-            # pick them up. These override backend.env's static values
-            # above (last entry with a given name wins), so the pairing
-            # can't drift out of sync between the two Deployments.
+            # pick them up. These take the place of backend.env's static
+            # values (omitted from the range above), so the pairing can't
+            # drift out of sync between the two Deployments.
             - name: RUN_BACKGROUND_POLLER
               value: "false"
             - name: DISPATCH_JOBS_INLINE

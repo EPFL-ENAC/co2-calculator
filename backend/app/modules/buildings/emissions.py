@@ -72,6 +72,13 @@ def resolve_building_rooms(
     data: dict,
     factor: FactorLike | None,
 ) -> list[EmissionType]:
+    # Incomplete row (#2501): a building change clears room_name/room_type,
+    # and the row deliberately contributes no emission until a room of the
+    # new building is picked — the equipment-module semantic (blank kg cell,
+    # not a failure). Values that are present but wrong still raise below.
+    if not data.get("room_name") or not data.get("room_type"):
+        return []
+
     energies = list(_NON_HEATING_ENERGIES)
     heating_leaf = _heating_leaf_for_factor(factor)
     if heating_leaf is not None:

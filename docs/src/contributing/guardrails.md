@@ -1,3 +1,7 @@
+---
+applyTo: "**"
+---
+
 # Engineering Guardrails
 
 Read this before your first PR, and again before every release. It exists so

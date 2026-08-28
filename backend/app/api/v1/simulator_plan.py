@@ -112,17 +112,18 @@ async def create_simulator_plan(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a simulator plan; without a name, the next default is assigned."""
+    """Create a simulator plan; without a name, a suffixed default is assigned.
+
+    Names are not unique (#2445) — the plan id is the identity — so creation
+    cannot conflict.
+    """
     await PlanPolicy.for_unit(db, current_user, unit_id)
     service = SimulatorPlanService(db)
-    try:
-        result = await service.create_plan(
-            unit_id=unit_id,
-            user=current_user,
-            name=plan.name if plan else None,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    result = await service.create_plan(
+        unit_id=unit_id,
+        user=current_user,
+        name=plan.name if plan else None,
+    )
     await db.commit()
     return result
 

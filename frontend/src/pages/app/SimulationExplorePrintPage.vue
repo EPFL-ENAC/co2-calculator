@@ -55,7 +55,6 @@ onMounted(async () => {
         <ModuleCarbonFootprintChart
           :breakdown-data="breakdown"
           :view-additional-data="true"
-          :enforce-module-activation="false"
         />
       </section>
     </ReportPage>

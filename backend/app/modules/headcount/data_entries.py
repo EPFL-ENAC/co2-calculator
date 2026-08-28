@@ -13,6 +13,14 @@ OTHER_SIUS_CODE = "-1"
 
 
 def normalize_sius_code(value: object) -> str:
+    # #2463 (raised, reviewed, confirmed intended 2026-08-28): this is a
+    # deliberate silent coercion, not a validation gap. ANY sius_code that
+    # isn't blank/missing AND isn't in SIUS_CODE_VALUES lands in "Other
+    # staff" here, before HeadCountCreate/HeadCountUpdate's
+    # validate_sius_code field validator ever runs — so that validator's
+    # raise-on-unknown-code branch is unreachable from the API/form/CSV
+    # paths on purpose. Do not "fix" this to let unknown codes raise
+    # instead; the decision was to bucket them, not reject the row.
     code = str(value).strip() if value is not None else ""
     return code if code in SIUS_CODE_VALUES else OTHER_SIUS_CODE
 

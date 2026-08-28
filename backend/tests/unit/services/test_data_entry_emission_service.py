@@ -1867,7 +1867,13 @@ class TestPrepareCreateResolvesFactorDynamically:
             id=3,
             data_entry_type_id=DataEntryTypeEnum.building.value,
             carbon_report_module_id=10,
-            data={"building_name": "B1", "room_type": "office"},
+            # room_name is required since #2501 — an incomplete row resolves
+            # to no leaves, and this test needs the real resolver to fire.
+            data={
+                "building_name": "B1",
+                "room_name": "BCH 1234",
+                "room_type": "office",
+            },
         )
 
         with (

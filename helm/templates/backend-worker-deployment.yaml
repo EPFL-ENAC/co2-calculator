@@ -91,7 +91,10 @@ spec:
             # on boot missing required Settings fields (#2050, caught on
             # dev's first real worker.enabled deploy; unit/integration
             # tests mock Settings and never exercise this).
-            {{- range $key, $value := .Values.worker.env }}
+            {{- /* omit: the explicit block below owns these two keys; a
+                 duplicate env name breaks ArgoCD's strategic-merge-patch
+                 diff — see the matching note in backend-deployment.yaml. */}}
+            {{- range $key, $value := omit .Values.worker.env "RUN_BACKGROUND_POLLER" "DISPATCH_JOBS_INLINE" }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}

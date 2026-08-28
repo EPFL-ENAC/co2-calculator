@@ -23,12 +23,14 @@ export type DataEntryBranch = 'user' | 'imported';
 
 // Mirrors backend/app/models/data_entry.py DataEntrySourceEnum values that
 // app.core.data_entry_permissions._USER_BRANCH_SOURCES buckets into the
-// "user" branch: USER_MANUAL (0) and PLANNER_SNAPSHOT (6, Simulator Plan
-// prefill — the user's own plan row, not externally imported data). No
-// shared source of truth for this bucketing (accepted tradeoff, see the
+// "user" branch: USER_MANUAL (0), CSV/API_MODULE_UNIT_SPECIFIC (2/4 —
+// #2453, an upload into one's OWN module is the operator's own data, same
+// rights as manual entry; only backoffice per-year ingests are locked) and
+// PLANNER_SNAPSHOT (6, Simulator Plan prefill — the user's own plan row).
+// No shared source of truth for this bucketing (accepted tradeoff, see the
 // #951 plan doc) — a new backend member meant to read as "user" needs this
 // set updated too.
-const USER_BRANCH_SOURCES = new Set([0, 6]);
+const USER_BRANCH_SOURCES = new Set([0, 2, 4, 6]);
 
 export function branchOf(source: number | null | undefined): DataEntryBranch {
   return source == null || USER_BRANCH_SOURCES.has(source)

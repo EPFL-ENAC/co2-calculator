@@ -149,7 +149,7 @@ import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { runtimeConfig } from '@/config/runtime';
-import { pickDefaultYear } from '@/router/guards/redirectToDefaultRoute';
+import { resolveDefaultReferenceYear } from '@/utils/plannerYearRange';
 import { useYearConfigStore } from '@/stores/yearConfig';
 
 import {
@@ -265,11 +265,16 @@ const sectionTypeSelected = computed(
 );
 
 // Default reference year is today's year - 1; when that year isn't open
-// in the Calculator, fall back to the latest open year.
+// in the Calculator, fall back to the latest open year. Throws when no year
+// is open at all, so callers' existing catch blocks handle it instead of
+// PATCHing a null reference_year (#2459).
 function defaultReferenceYear(): number {
-  const target = new Date().getFullYear() - 1;
-  const open = yearConfigStore.startedYears;
-  return open.has(target) ? target : pickDefaultYear(open);
+  const year = resolveDefaultReferenceYear(
+    yearConfigStore.startedYears,
+    new Date().getFullYear(),
+  );
+  if (year === null) throw new Error('defaultReferenceYear: no open year');
+  return year;
 }
 
 /**
@@ -289,14 +294,14 @@ async function generateSections() {
     is_grant_proposal: grantProposalInput.value,
     with_year_sections: yearByYearChecked.value,
   };
-  if (start !== null && end !== null) {
-    payload.start_year = start;
-    payload.end_year = end;
-    payload.default_reference_year = defaultReferenceYear();
-  }
 
   generatingSections.value = true;
   try {
+    if (start !== null && end !== null) {
+      payload.start_year = start;
+      payload.end_year = end;
+      payload.default_reference_year = defaultReferenceYear();
+    }
     const updated = await plansStore.updatePlan(props.plan.id, payload);
     yearByYearInput.value = null;
     if (grantSectionAdded) await defaultGrantReferenceYear();

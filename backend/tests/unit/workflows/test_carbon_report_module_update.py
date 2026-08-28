@@ -244,3 +244,83 @@ async def test_update_value_error_from_emission_service_returns_422():
     assert exc_info.value.status_code == 422
     assert "factor_id=37756" in exc_info.value.detail
     session.rollback.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_building_change_persists_incomplete_room_row():
+    """#2501 regression: PATCH ``{building_name}`` on a buildings room row
+    must persist an incomplete row — ``room_name`` and ``room_type`` nulled
+    — and complete without raising.
+
+    Before the fix the kind-change clear nulled ``room_type`` only, the old
+    building's ``room_name`` survived, and the #2050 fail-hard rejected the
+    emission recompute: every building change rolled back as 422
+    ("No emission type for building room_type ''").
+    """
+    session = MagicMock()
+    session.flush = AsyncMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    _stub_inputs_deactivated_lookup(session)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    existing_data = {
+        "building_name": "ALO",
+        "room_name": "ALO 123",
+        "room_type": "office",
+        "room_allocation_ratio": 1,
+    }
+    item_data = {"building_name": "BCH"}
+
+    captured: dict = {}
+
+    data_entry_service = MagicMock()
+    data_entry_service.get = AsyncMock(
+        return_value=SimpleNamespace(data=existing_data, source=None)
+    )
+
+    async def _capture_update(*, id, data, user, request_context, background_tasks):
+        captured["data"] = data
+        return SimpleNamespace(id=id)
+
+    data_entry_service.update = AsyncMock(side_effect=_capture_update)
+
+    emission_service = MagicMock()
+    emission_service.upsert_by_data_entry = AsyncMock()
+    module_service = MagicMock()
+    module_service.recompute_stats = AsyncMock()
+
+    with (
+        patch(
+            "app.workflows.carbon_report_module.DataEntryService",
+            return_value=data_entry_service,
+        ),
+        patch(
+            "app.workflows.carbon_report_module.DataEntryEmissionService",
+            return_value=emission_service,
+        ),
+        patch(
+            "app.workflows.carbon_report_module.CarbonReportModuleService",
+            return_value=module_service,
+        ),
+    ):
+        await workflow.update(
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=3
+            ),
+            data_entry_type_id=DataEntryTypeEnum.building.value,
+            item_id=1,
+            item_data=item_data,
+            current_user=_CURRENT_USER,
+            request_context={},
+            background_tasks=MagicMock(),
+        )
+
+    persisted = captured["data"].data
+    assert persisted["building_name"] == "BCH"
+    assert persisted["room_name"] is None
+    assert persisted["room_type"] is None
+    # The incomplete row still goes through the emission upsert — the
+    # resolver returns no leaves and the upsert deletes stale rows.
+    emission_service.upsert_by_data_entry.assert_awaited_once()
+    session.commit.assert_awaited()

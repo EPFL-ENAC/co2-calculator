@@ -103,6 +103,9 @@ _EXISTING_EQUIPMENT_DATA = {
     "sub_class": "Old (>=12yo)",
 }
 _IMPORTED_SOURCE = DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value
+# #2453: a CSV uploaded INTO ONE'S OWN module (job config carries
+# carbon_report_module_id) is the operator's own data — user branch.
+_UNIT_SPECIFIC_SOURCE = DataEntrySourceEnum.CSV_MODULE_UNIT_SPECIFIC.value
 
 
 @pytest.mark.asyncio
@@ -368,6 +371,58 @@ async def test_update_purchase_user_row_additional_code_is_403():
 
     assert exc_info.value.status_code == 403
     data_entry_service.update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_unit_specific_upload_row_succeeds():
+    """#2453 regression: rows a user CSV-uploaded into their own module were
+    403 FIELD_NOT_EDITABLE on every field — ``equipment_class`` is outside
+    the IMPORTED whitelist but inside the USER one, so it is the field that
+    discriminates the two branches.
+    """
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        _EXISTING_EQUIPMENT_DATA, source=_UNIT_SPECIFIC_SOURCE
+    )
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        await workflow.update(
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=4
+            ),
+            data_entry_type_id=DataEntryTypeEnum.other.value,
+            item_id=1,
+            item_data={"equipment_class": "Something else"},
+            current_user=_CURRENT_USER,
+            request_context={},
+            background_tasks=MagicMock(),
+        )
+
+    data_entry_service.update.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_unit_specific_upload_row_succeeds():
+    """#2453 regression: the same rows were 403 ROW_NOT_DELETABLE."""
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        _EXISTING_EQUIPMENT_DATA, source=_UNIT_SPECIFIC_SOURCE
+    )
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        await workflow.delete(
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=4
+            ),
+            data_entry_id=1,
+            current_user=_CURRENT_USER,
+            request_context={},
+            background_tasks=MagicMock(),
+        )
+
+    data_entry_service.delete.assert_called_once()
 
 
 @pytest.mark.asyncio

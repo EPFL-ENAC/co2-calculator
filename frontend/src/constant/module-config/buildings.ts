@@ -254,6 +254,9 @@ export const buildings: ModuleConfig = {
       hasTableAction: true,
       notifyInfoOnAddKey: `${MODULES.Buildings}-rooms-form-add-info`,
       addButtonLabelKey: `${MODULES.Buildings}.add_room_button`,
+      // A building change clears room_name/room_type server-side (#2501):
+      // the row persists without a CO₂eq until a room is re-picked.
+      requiredFieldIds: ['building_name', 'room_name', 'room_type'],
     },
   ],
   totalFormatter: formatTonnesCO2,

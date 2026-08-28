@@ -64,6 +64,7 @@ export function useEquipmentClassOptions<
   const loadingClasses = ref(false);
   const loadingSubclasses = ref(false);
   const loadingPowerFactor = ref(false);
+  const classLoadError = ref(false);
   const subclassLoadError = ref(false);
 
   const store = useFactorsStore();
@@ -87,6 +88,7 @@ export function useEquipmentClassOptions<
     const yearValue = year?.value;
     if (!sub || yearValue == null) return;
     loadingClasses.value = true;
+    classLoadError.value = false;
     try {
       const rawClasses = await store.fetchClassOptions(
         moduleType.value,
@@ -99,7 +101,11 @@ export function useEquipmentClassOptions<
         value: o.value,
       }));
     } catch {
+      // #2498: an empty list here is otherwise indistinguishable from "this
+      // submodule genuinely has no classes" — the select would silently show
+      // nothing instead of surfacing that the lookup itself failed.
       dynamicOptions[classOptionId] = [];
+      classLoadError.value = true;
     } finally {
       loadingClasses.value = false;
     }
@@ -287,6 +293,7 @@ export function useEquipmentClassOptions<
     loadingClasses,
     loadingSubclasses,
     loadingPowerFactor,
+    classLoadError,
     subclassLoadError,
     loadClassOptions,
     loadSubclassOptions,

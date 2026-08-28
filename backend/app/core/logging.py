@@ -199,8 +199,9 @@ def setup_logging() -> None:
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     # httpcore/httpx emit per-request connect/TLS/header DEBUG lines (e.g. the
     # ECB FX calls during recalc); watchfiles spams file-change DEBUG in dev.
-    # They drown out pipeline progress, so cap them at WARNING.
-    for noisy in ("httpcore", "httpx", "watchfiles"):
+    # They drown out pipeline progress, so cap them at WARNING. aiosqlite logs
+    # every cursor/execute/fetch at DEBUG in LOCAL (sqlite) mode.
+    for noisy in ("httpcore", "httpx", "watchfiles", "aiosqlite"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     # Let uvicorn loggers propagate so they use our formatter/handlers

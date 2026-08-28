@@ -1,14 +1,15 @@
 """Simulator plan service for business logic.
 
 A "plan" (project planner project) is a ``CarbonProject`` row with
-``carbon_report_type = SIMULATOR_PLAN``; its ``name`` is the URL identifier
-shown in the project planner routes.
+``carbon_report_type = SIMULATOR_PLAN``. Its ``name`` is display metadata —
+the numeric plan id is the identity everywhere (routes, FKs), so names need
+not be unique (#2445).
 """
 
+import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -72,19 +73,20 @@ class _ReferenceCache:
     entries: dict[int, list[DataEntry]] = field(default_factory=dict)
 
 
-def _next_available_name(base: str, existing: set[str]) -> str:
-    """Return ``base`` if free, else the first free ``base-2``, ``base-3``, ..."""
-    if base not in existing:
-        return base
-    return _next_suffixed_name(base, existing)
+# Names are not unique (#2445) — the suffix only makes auto-generated names
+# recognizable in a unit's plan table. 3 chars over a-z0-9 keeps duplicate
+# *suggestions* vanishingly rare at the tens-of-plans scale without any
+# read of existing names (the read-then-insert race behind the 409s).
+_NAME_SUFFIX_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
+_NAME_SUFFIX_LENGTH = 3
 
 
-def _next_suffixed_name(base: str, existing: set[str]) -> str:
-    """Return the first free ``base-2``, ``base-3``, ... (never bare ``base``)."""
-    counter = 2
-    while f"{base}-{counter}" in existing:
-        counter += 1
-    return f"{base}-{counter}"
+def _suffixed_name(base: str) -> str:
+    """Return ``base-<3 random chars>``, e.g. ``new-project-k4f``."""
+    suffix = "".join(
+        secrets.choice(_NAME_SUFFIX_ALPHABET) for _ in range(_NAME_SUFFIX_LENGTH)
+    )
+    return f"{base}-{suffix}"
 
 
 def _to_read(
@@ -179,15 +181,11 @@ class SimulatorPlanService:
     ) -> SimulatorPlanRead:
         """Create a plan for a unit, owned by ``user``.
 
-        Without an explicit ``name``, assigns the next available default name
-        (new-project, new-project-2, ...). An explicit name that collides with
-        an existing plan of the unit raises ``ValueError``.
+        Without an explicit ``name``, assigns ``new-project-<suffix>``.
+        Names are not unique — an explicit duplicate is stored as-is.
         """
-        existing_names = await self.repo.list_plan_names(unit_id)
         if name is None:
-            name = _next_available_name(DEFAULT_PLAN_NAME, existing_names)
-        elif name in existing_names:
-            raise ValueError(f"A plan named '{name}' already exists for this unit")
+            name = _suffixed_name(DEFAULT_PLAN_NAME)
         project = CarbonProject(
             unit_id=unit_id,
             carbon_report_type=CarbonReportType.SIMULATOR_PLAN,
@@ -195,7 +193,7 @@ class SimulatorPlanService:
             created_by=user.id,
             created_at=datetime.now(UTC),
         )
-        project = await self._flush_guarded(self.repo.create(project))
+        project = await self.repo.create(project)
         return _to_read(
             project,
             user.display_name,
@@ -210,19 +208,13 @@ class SimulatorPlanService:
         Returns the updated plan and the report ids still needing prefill —
         the caller enqueues that work (plan #2050 Track F4).
 
-        Renaming to the current name is a no-op; a collision with another
-        plan of the same unit raises ``ValueError``. When the plan ends up
-        with a complete year range, its per-year reports are synced to it.
+        Names are not unique, so a rename is stored as-is. When the plan ends
+        up with a complete year range, its per-year reports are synced to it.
         """
         project = await self.repo.get_plan(plan_id)
         if project is None:
             return None
-        if update.name is not None and update.name != project.name:
-            existing_names = await self.repo.list_plan_names(project.unit_id)
-            if update.name in existing_names:
-                raise ValueError(
-                    f"A plan named '{update.name}' already exists for this unit"
-                )
+        if update.name is not None:
             project.name = update.name
         if update.is_viewable_by_unit_members is not None:
             project.is_viewable_by_unit_members = update.is_viewable_by_unit_members
@@ -236,7 +228,7 @@ class SimulatorPlanService:
             and project.start_year > project.end_year
         ):
             raise ValueError("start_year must be <= end_year")
-        project = await self._flush_guarded(self.repo.create(project))
+        project = await self.repo.create(project)
         needs_prefill = await self._sync_year_reports(
             project,
             default_reference_year=update.default_reference_year,
@@ -988,7 +980,7 @@ class SimulatorPlanService:
     async def duplicate_plan(
         self, plan_id: int, user: User
     ) -> SimulatorPlanRead | None:
-        """Duplicate a plan as ``<name>-2`` (then ``-3``, ...); None if missing.
+        """Duplicate a plan as ``<name>-<suffix>``; None if missing.
 
         The project row and its year range are copied, and the copy's per-year
         reports are synced to that range so it opens with the same year
@@ -997,8 +989,7 @@ class SimulatorPlanService:
         source = await self.repo.get_plan(plan_id)
         if source is None:
             return None
-        existing_names = await self.repo.list_plan_names(source.unit_id)
-        new_name = _next_suffixed_name(source.name or "", existing_names)
+        new_name = _suffixed_name(source.name or DEFAULT_PLAN_NAME)
         copy = CarbonProject(
             unit_id=source.unit_id,
             carbon_report_type=CarbonReportType.SIMULATOR_PLAN,
@@ -1009,7 +1000,7 @@ class SimulatorPlanService:
             created_by=user.id,
             created_at=datetime.now(UTC),
         )
-        copy = await self._flush_guarded(self.repo.create(copy))
+        copy = await self.repo.create(copy)
         # The copy has no reports yet, so its shape (with or without per-year
         # sections) cannot be derived from itself — carry the source's over.
         source_reports = await self.repo.list_reports_for_project(plan_id)
@@ -1059,13 +1050,3 @@ class SimulatorPlanService:
             default_factor_year=default_factor_year,
             is_grant_proposal=is_grant_proposal,
         )
-
-    @staticmethod
-    async def _flush_guarded(awaitable) -> CarbonProject:
-        """Await a repo write, mapping unique-index races to ValueError."""
-        try:
-            return await awaitable
-        except IntegrityError as exc:
-            raise ValueError(
-                "A plan with this name already exists for this unit"
-            ) from exc
