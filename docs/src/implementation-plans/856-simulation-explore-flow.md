@@ -131,8 +131,15 @@ A single `GET` endpoint (`get_or_create_simulator_explore_carbon_report`) combin
 
 Background coroutine that opens its own `SessionLocal` session (same pattern as audit sync tasks), deletes the stale report, and creates a fresh one. Runs after the response is sent.
 
+The TTL itself is a settings field, not a module constant:
+
 ```python
-_EXPLORE_TTL_SECONDS = 24 * 60 * 60
+# backend/app/core/config.py
+EXPLORE_TTL_SECONDS: int = Field(default=24 * 60 * 60, ge=1, ...)
+
+# backend/app/api/v1/carbon_report.py
+if result.last_updated is None or age > get_settings().EXPLORE_TTL_SECONDS:
+    ...
 ```
 
 All four call sites to the old `_require_unit_access` local function were updated to the imported `require_unit_access` (see §4).

@@ -30,10 +30,9 @@ emits them. Listed here only so a future collapse can confirm they survived.
   `uq_aggregation_active`, `ix_data_ingestion_jobs_is_current_unique`,
   `ix_data_ingestion_jobs_pending`, `audit_document_one_current_idx`,
   `uq_member_role_per_module` (`data_entry.py`), `uq_active_datasource_per_module`
-  (`connector.py`), `uq_carbon_projects_unit_type_nonplan` /
-  `uq_carbon_projects_unit_plan_name` (`carbon_project.py`). The last two were found
-  live only in migration history during the 2211 collapse — moved into
-  `__table_args__` in the same PR instead of hand-writing them into the new migration.
+  (`connector.py`), `uq_carbon_projects_unit_plan_name` (`carbon_project.py`). It was
+  found live only in migration history during the 2211 collapse — moved into
+  `__table_args__` in the same PR instead of hand-writing it into the new migration.
 - Enum values added over time via `ALTER TYPE ... ADD VALUE`
   (`sync_status_enum`: `SKIPPED`, `RETRY_QUEUED`; `ingestion_method_enum`: `computed`;
   `target_type_enum`: `REFERENCE_DATA`, reduction-objective values). These come from the
@@ -52,6 +51,11 @@ Do not re-add these; the final schema no longer uses them.
   `onupdate=datetime.utcnow` and raw-SQL writers set `updated_at` explicitly.
   ⚠️ If a future raw `UPDATE data_entries ...` omits `updated_at`, that column will go
   stale — re-introduce the trigger if that ever happens.
+- **`uq_carbon_projects_unit_type_nonplan`** partial unique index on `carbon_projects`
+  (`unit_id`, `carbon_report_type` where `carbon_report_type <> 'Simulator_Plan'`).
+  Dropped by migration `ff4f9bac0339` (scope simulator explore projects per user) in
+  favour of two narrower partial indexes now in `__table_args__`:
+  `uq_carbon_projects_unit_explore_creator` and `uq_carbon_projects_unit_type_calculator`.
 
 ## Data migrations / backfills — not part of schema
 
