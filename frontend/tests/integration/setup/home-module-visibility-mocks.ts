@@ -1,11 +1,11 @@
 /**
- * HTTP-boundary mocks for the "module deactivation greys out the module in
- * the calculator view" spec (Issue #1403, slice c) — extended to also cover
- * a module with no computed stats at all ("not started"), which must
- * likewise render greyed-out rather than being omitted from the chart.
- * Single source of truth for the enabled/greyed decision is
- * `isModuleFullyAvailable` (src/composables/useModuleAvailability.ts),
- * shared with Results and the backoffice Reporting page.
+ * HTTP-boundary mocks for the Home chart icon-axis greying rules
+ * (Issue #1403 slice c, reworked for #2443): a module icon is greyed out
+ * ONLY when the user lacks view/edit access, hidden ONLY when the module is
+ * deactivated in the back-office — module status (validated or not) and
+ * data presence never grey an icon. Single source of truth for the
+ * enabled/greyed decision is `isModuleFullyAvailable`
+ * (src/composables/useModuleAvailability.ts).
  *
  * Unlike ``data-management-mocks.ts`` we do NOT set
  * ``__LIGHTHOUSE_BYPASS__``: ``workspaceGuard`` returns early on that flag
@@ -30,13 +30,14 @@ const MOCK_USER = {
   display_name: 'Test User',
   institutional_id: 'test-user',
   roles_raw: [],
-  // Grant edit on all three modules under test so config (enabled/disabled)
-  // and stats presence are the only things differing between the icons —
-  // isolates each grey-out reason from permission gating.
+  // Access to every module under test EXCEPT professional_travel — its
+  // icon must render greyed out (missing access is the only grey-out
+  // reason left after #2443).
   permissions: {
     'modules.process_emissions': ['view', 'edit'],
     'modules.equipment': ['view', 'edit'],
     'modules.external_cloud_and_ai': ['view', 'edit'],
+    'modules.purchase': ['view', 'edit'],
   },
 };
 
@@ -52,10 +53,16 @@ const MOCK_UNIT = {
 };
 
 /**
- * Register the mocks and drive the home page to a state where the
- * module-carbon-footprint chart's icon axis renders with one disabled
- * (process-emissions, module_type_id 8) and one enabled (equipment,
- * module_type_id 4) module.
+ * Register the mocks. The scenario exercises every icon-axis rule at once:
+ *  - process-emissions (8): back-office disabled → hidden from the chart
+ *    (even though it has stats and is validated);
+ *  - equipment (4): enabled, access, validated with stats → clickable;
+ *  - external-cloud-and-ai (7): enabled, access, VALIDATED but no stats
+ *    bucket → clickable (the #2443 regression);
+ *  - purchase (5): enabled, access, not started (no stats, not validated)
+ *    → clickable;
+ *  - professional-travel (2): enabled, validated with stats, but the user
+ *    has NO access → greyed out.
  */
 export async function mockHomeBackend(page: Page): Promise<void> {
   // Catch-all registered FIRST = lowest priority under Playwright's LIFO
@@ -99,6 +106,13 @@ export async function mockHomeBackend(page: Page): Promise<void> {
                 incomplete: false,
                 submodules: {},
               },
+              // professional-travel — enabled; the user has no access.
+              '2': {
+                enabled: true,
+                uncertainty_tag: 'medium',
+                incomplete: false,
+                submodules: {},
+              },
               // equipment — enabled, has stats.
               '4': {
                 enabled: true,
@@ -106,9 +120,15 @@ export async function mockHomeBackend(page: Page): Promise<void> {
                 incomplete: false,
                 submodules: {},
               },
-              // external-cloud-and-ai — enabled, but never touched: no entry
-              // in module_breakdown below, so it has no computed stats at
-              // all ("not started"). Must still render, greyed out.
+              // purchase — enabled, never touched (no bucket, not validated).
+              '5': {
+                enabled: true,
+                uncertainty_tag: 'medium',
+                incomplete: false,
+                submodules: {},
+              },
+              // external-cloud-and-ai — enabled and validated, but with no
+              // stats bucket below (#2443).
               '7': {
                 enabled: true,
                 uncertainty_tag: 'medium',
@@ -132,11 +152,12 @@ export async function mockHomeBackend(page: Page): Promise<void> {
           updated_at: '2024-01-01T00:00:00Z',
         },
         // Raw persisted-stats shape (`ReportStats` in emissionStatsAdapter.ts)
-        // — workspaceGuard adapts this via toEmissionBreakdown() itself. A
-        // bucket's mere presence (regardless of its emissions detail) is what
-        // makes `isModuleFullyAvailable`'s `hasStats` true for that category;
-        // `external_cloud_and_ai` has no bucket at all, so it renders as "not
-        // started" / greyed out.
+        // — workspaceGuard adapts this via toEmissionBreakdown() itself.
+        // Neither a bucket's presence nor membership in validated_buckets
+        // may influence icon greying: `external_cloud_and_ai` is validated
+        // with NO bucket (#2443) and `purchases` has neither, yet both
+        // render clickable; `professional_travel` has both, yet renders
+        // greyed (no access).
         stats: {
           buckets: {
             process_emissions: {
@@ -151,13 +172,24 @@ export async function mockHomeBackend(page: Page): Promise<void> {
               total_kg: 2000,
               by_emission_type: {},
             },
+            professional_travel: {
+              scope: 3,
+              additional: false,
+              total_kg: 1500,
+              by_emission_type: {},
+            },
           },
           per_fte: {},
           // Non-empty so HomePage's ``hasValidatedData`` renders the chart
           // instead of the empty "ready to start" state.
-          validated_buckets: ['process_emissions', 'equipment'],
+          validated_buckets: [
+            'process_emissions',
+            'equipment',
+            'external_cloud_and_ai',
+            'professional_travel',
+          ],
           total_fte: 0,
-          total_tonnes_validated_co2eq: 5,
+          total_tonnes_validated_co2eq: 6.5,
         },
       }),
     });
