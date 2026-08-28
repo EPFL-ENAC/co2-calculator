@@ -2,7 +2,7 @@
 applyTo: "**"
 ---
 
-<!-- Vendored from https://github.com/EPFL-ENAC/it4r-agent-kit @ f6ff6fd
+<!-- Vendored from https://github.com/EPFL-ENAC/it4r-agent-kit @ 64a467a
      Do not edit here — edit AGENTS.md upstream, then run `make sync-agent-rules`. -->
 
 # ENAC IT4R — agent operating rules
@@ -49,8 +49,20 @@ Not preferences. Load-bearing.
   drifted published number is the worst failure a data product can have.
 - **Respect the layering — no SQL in routes.** `route → service → repo`, or
   `route → workflow → service → repo` for multi-step operations. Repos own the
-  SQL, services own the logic, routes own the transaction: **the commit happens
-  in the route**, never in a service or repo.
+  SQL, services own the logic, and **the transaction belongs to whatever the
+  route delegates to**: a route calling services directly owns the commit — a
+  service or repo never commits; a workflow owns its own commits (that is why
+  it exists: multi-step work, possibly several short transactions, possibly
+  handing the heavy part to a background job). Never both in one request path.
+- **A service serves one aggregate; crossing aggregates is a workflow.** A
+  service composes its own table family through its repo. The moment an
+  operation orchestrates several aggregates — create-then-fan-out, cascade
+  deletes, cross-entity sync — it is a workflow, named after the operation,
+  not a service calling other services. Side-effect writes hidden inside an
+  unrelated service call (lazily creating a parent row, syncing a sibling)
+  are the silent-fallback family: existence and provisioning are explicit
+  workflow steps, never a branch discovered mid-request. Existing service
+  webs migrate opportunistically — the rule binds new code.
 - **No silent fallbacks.** No "misc" buckets, no swallowed exceptions, no
   defaulted-away missing data. A wrong total that _looks_ complete is worse
   than a visible error. Fail hard: `raise`, don't `logger.error` and carry on —
