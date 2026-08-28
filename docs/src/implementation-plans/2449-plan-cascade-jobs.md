@@ -54,12 +54,19 @@ which are SSE streams, long-lived **by design**. Conclusions:
 
 ## Tracks (revised by evidence)
 
-### Track M — monitoring hygiene · ship now
+### Track M — monitoring hygiene · verified already in place
 
-- Exclude `GET /sync/pipelines/{pipeline_id}/stream` from request-duration
-  alerting (it is a stream; its duration is pipeline runtime, not latency).
-- Expected-404 noise from the explore/calculator existence probes
-  disappears with #2487 (PUT singletons — no GET, no 404, one round-trip).
+Checked rather than assumed: the stage collector transform from #1402
+already classes `…/stream$` spans and metric datapoints as
+`route_class="stream"` (verified on a live stream span from 2026-08-27,
+`route_class=stream`), and every latency alert selects
+`route_class="api"` — so SSE streams are excluded from latency alerting
+today. **No change needed** in `openshift-app-config`. The stream spans in
+this plan's >5 s sweep appeared only because the TraceQL query did not
+filter by class. Consequently the only api-class requests above 10 s in
+recent history were the #2445 lock waits, now fixed. Remaining hygiene item
+rides on #2487: the explore/calculator existence probes' expected 404s
+disappear with the PUT singletons.
 
 ### Track B — fan-out trim · ship now, cheap
 
@@ -108,7 +115,9 @@ machine, no reset mechanism.
 
 ## Deliverables
 
-- [ ] Track M: alerting excludes the SSE stream route (monitoring config)
-- [ ] Track B: bulk module insert, refreshes dropped, statement-count test
+- [x] Track M: verified — stream already excluded via `route_class` (#1402);
+      no config change
+- [x] Track B: per-object refresh chatter dropped in report/module
+      creation, statement-count regression test
 - [ ] Track A: **not now** — triggers documented above; revisit on evidence
-- [ ] Flip to `delivered` when M + B ship
+- [ ] Flip to `delivered` on merge
