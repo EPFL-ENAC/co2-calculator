@@ -208,3 +208,184 @@ def test_make_db_create_then_db_migrate(alembic_env: dict[str, str]) -> None:
         f"`make db-migrate` (alembic upgrade head) failed:\n"
         f"stdout:\n{migrate.stdout}\nstderr:\n{migrate.stderr}"
     )
+
+
+# revision 95fe938000d4 (#2458): deletes orphaned NULL-created_by
+# Simulator_Explore projects. Migrated to just before it, seed one orphaned
+# project tree + one normal one, apply it, assert only the orphaned tree is
+# gone.
+_PRE_2458_REVISION = "6e32aa42f6f4"
+
+
+def _seed_2458_fixture(db_url: str) -> dict[str, int]:
+    """Seed one NULL-created_by (orphaned) and one normal Simulator_Explore
+    project, each with a full report/module/data-entry tree, plus a
+    Calculator project (unaffected — different report type, must survive
+    regardless of created_by) to prove the type filter isn't a no-op.
+
+    Plain sync psycopg + raw SQL, deliberately not the async ORM session
+    used by the app: mixing ``asyncio.run()`` calls with SQLAlchemy's
+    asyncpg/greenlet bridge inside a sync pytest-asyncio test reliably hit
+    ``MissingGreenlet`` here, for reasons orthogonal to the migration this
+    is testing — sync sidesteps that class of bug entirely.
+
+    Returns the ids the test needs to check afterward.
+    """
+    from sqlalchemy import create_engine, text
+
+    sync_url = db_url.replace("postgresql://", "postgresql+psycopg://")
+    engine = create_engine(sync_url)
+    try:
+        with engine.begin() as conn:
+            unit_id = conn.execute(
+                text(
+                    "INSERT INTO units"
+                    " (provider, institutional_code, name, level, is_active)"
+                    " VALUES ('TEST'::user_provider_enum, 'U2458',"
+                    " 'Migration test unit', 1, true) RETURNING id"
+                )
+            ).scalar_one()
+            user_id = conn.execute(
+                text(
+                    "INSERT INTO users (institutional_id, provider, email)"
+                    " VALUES ('U2458-user', 'TEST'::user_provider_enum,"
+                    " 'u2458@example.test') RETURNING id"
+                )
+            ).scalar_one()
+
+            def _project(created_by: int | None, report_type: str) -> int:
+                return conn.execute(
+                    text(
+                        "INSERT INTO carbon_projects"
+                        " (unit_id, carbon_report_type, created_by,"
+                        " is_viewable_by_unit_members)"
+                        " VALUES (:unit_id,"
+                        " CAST(:report_type AS carbon_report_type_enum),"
+                        " :created_by, false) RETURNING id"
+                    ),
+                    {
+                        "unit_id": unit_id,
+                        "report_type": report_type,
+                        "created_by": created_by,
+                    },
+                ).scalar_one()
+
+            project_ids = {
+                "orphaned": _project(None, "Simulator_Explore"),
+                "normal": _project(user_id, "Simulator_Explore"),
+                "calculator": _project(None, "Calculator"),
+            }
+
+            ids: dict[str, int] = {"unit_id": unit_id}
+            for label, project_id in project_ids.items():
+                report_id = conn.execute(
+                    text(
+                        "INSERT INTO carbon_reports"
+                        " (year, unit_id, carbon_project_id, overall_status)"
+                        " VALUES (2026, :unit_id, :project_id, 0) RETURNING id"
+                    ),
+                    {"unit_id": unit_id, "project_id": project_id},
+                ).scalar_one()
+                module_id = conn.execute(
+                    text(
+                        "INSERT INTO carbon_report_modules"
+                        " (module_type_id, carbon_report_id, status)"
+                        " VALUES (1, :report_id, 0) RETURNING id"
+                    ),
+                    {"report_id": report_id},
+                ).scalar_one()
+                entry_id = conn.execute(
+                    text(
+                        "INSERT INTO data_entries"
+                        " (data_entry_type_id, carbon_report_module_id, data,"
+                        " created_at, updated_at)"
+                        " VALUES (1, :module_id, '{}'::jsonb, now(), now())"
+                        " RETURNING id"
+                    ),
+                    {"module_id": module_id},
+                ).scalar_one()
+                ids[f"{label}_project_id"] = project_id
+                ids[f"{label}_report_id"] = report_id
+                ids[f"{label}_module_id"] = module_id
+                ids[f"{label}_entry_id"] = entry_id
+
+            # Sanity: exactly what we think we seeded, nothing more (this
+            # unit is fresh, so a plain count is unambiguous).
+            count = conn.execute(
+                text("SELECT count(*) FROM carbon_projects WHERE unit_id = :unit_id"),
+                {"unit_id": unit_id},
+            ).scalar_one()
+            assert count == 3, f"expected 3 seeded projects, found {count}"
+
+        return ids
+    finally:
+        engine.dispose()
+
+
+def _assert_2458_cleanup(db_url: str, ids: dict[str, int]) -> None:
+    from sqlalchemy import create_engine, text
+
+    sync_url = db_url.replace("postgresql://", "postgresql+psycopg://")
+    engine = create_engine(sync_url)
+    table_by_kind = {
+        "project": "carbon_projects",
+        "report": "carbon_reports",
+        "module": "carbon_report_modules",
+        "entry": "data_entries",
+    }
+    try:
+        with engine.connect() as conn:
+
+            def _exists(table: str, row_id: int) -> bool:
+                result = conn.execute(
+                    text(f"SELECT 1 FROM {table} WHERE id = :id"),  # noqa: S608
+                    {"id": row_id},
+                )
+                return result.first() is not None
+
+            for label in ("orphaned",):
+                for kind, table in table_by_kind.items():
+                    assert not _exists(table, ids[f"{label}_{kind}_id"]), (
+                        f"{label} {kind} should have been deleted"
+                    )
+            for label in ("normal", "calculator"):
+                for kind, table in table_by_kind.items():
+                    assert _exists(table, ids[f"{label}_{kind}_id"]), (
+                        f"{label} {kind} should have survived"
+                    )
+    finally:
+        engine.dispose()
+
+
+def test_2458_orphaned_explore_cleanup(alembic_env: dict[str, str]) -> None:
+    """#2458: only the NULL-created_by Simulator_Explore tree is deleted.
+
+    A same-typed but non-orphaned Explore project, and a NULL-created_by
+    Calculator project (created_by is legitimately unset for Calculator —
+    the column only means something for Explore/Plan), must both survive.
+    """
+    _drop_target_db(alembic_env)
+    create = _run(
+        ["uv", "run", "-m", "scripts.manage_db", "--action", "create"],
+        alembic_env,
+    )
+    assert create.returncode == 0, create.stderr
+
+    pre = _run(
+        ["uv", "run", "alembic", "upgrade", _PRE_2458_REVISION],
+        alembic_env,
+    )
+    assert pre.returncode == 0, (
+        f"upgrade to {_PRE_2458_REVISION} (just before #2458) failed:\n"
+        f"{pre.stdout}\n{pre.stderr}"
+    )
+
+    db_url = alembic_env["DB_URL"]
+    ids = _seed_2458_fixture(db_url)
+
+    migrate = _run(["uv", "run", "alembic", "upgrade", "head"], alembic_env)
+    assert migrate.returncode == 0, (
+        f"upgrade to head (applying #2458) failed:\n{migrate.stdout}\n{migrate.stderr}"
+    )
+
+    _assert_2458_cleanup(db_url, ids)
