@@ -537,6 +537,7 @@ import { getModuleTypeId, MODULE_STATES } from '@/constant/moduleStates';
 import { nOrDash } from '@/utils/number';
 import { getModuleIconColors } from '@/composables/useModuleIconColors';
 import { formatRowErrorLines } from '@/utils/rowErrors';
+import { getNumericRules } from '@/utils/numeric-rules';
 import { isFieldEditable, isRowDeletable } from '@/utils/dataEntryPolicy';
 import {
   clampReferencePercentage,
@@ -549,48 +550,6 @@ import {
   isModuleTableDisabled,
   type ModuleTableAccess,
 } from '@/utils/module-table-access';
-
-function getNumericRules(col: TableViewColumn) {
-  const rules = [];
-
-  rules.push((val: string | number | null) => {
-    if (val === '' || val === null || val === undefined) return true;
-    const s = typeof val === 'string' ? val.trim() : String(val);
-    if (s.includes(',')) return $t('validation_use_dot_not_comma');
-    return /^-?\d+(\.\d+)?$/.test(s) || $t('validation_number_format');
-  });
-
-  if (col.min !== undefined) {
-    rules.push((val: string | number | null) => {
-      const num = Number(val);
-      return (
-        num >= col.min! || $t('validation_must_be_at_least', { min: col.min })
-      );
-    });
-  }
-
-  if (col.max !== undefined) {
-    rules.push((val: string | number | null) => {
-      const num = Number(val);
-      return (
-        num <= col.max! || $t('validation_must_be_at_most', { max: col.max })
-      );
-    });
-  }
-
-  if (col.maxDecimals !== undefined) {
-    rules.push((val: string | number | null) => {
-      if (val === '' || val === null || val === undefined) return true;
-      const s = typeof val === 'string' ? val.trim() : String(val);
-      return (
-        (s.split('.')[1]?.length ?? 0) <= col.maxDecimals! ||
-        $t('validation_max_decimals', { max: col.maxDecimals })
-      );
-    });
-  }
-
-  return rules;
-}
 
 const { t: $t, te: $te } = useI18n();
 
@@ -1009,7 +968,7 @@ function getColumnPlaceholder(
 }
 
 function getColumnRules(col: TableViewColumn) {
-  return col.type === 'number' ? getNumericRules(col) : [];
+  return col.type === 'number' ? getNumericRules(col, $t) : [];
 }
 
 const hasModuleUpload = computed(() => {
