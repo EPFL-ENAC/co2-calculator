@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2449
 last_updated: 2026-08-28
 summary: Measured stage traces show the planner cascades are fast today — monitoring hygiene and a cheap fan-out trim ship now; the purge job is specified but deferred behind explicit triggers
@@ -120,4 +120,4 @@ machine, no reset mechanism.
 - [x] Track B: per-object refresh chatter dropped in report/module
       creation, statement-count regression test
 - [ ] Track A: **not now** — triggers documented above; revisit on evidence
-- [ ] Flip to `delivered` on merge
+- [x] Flip to `delivered` on merge

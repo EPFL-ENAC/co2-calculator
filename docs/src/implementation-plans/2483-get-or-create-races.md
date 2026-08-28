@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2483
 last_updated: 2026-08-28
 summary: Guard explorer/calculator get-or-create with a SAVEPOINT so the race loser returns the winner instead of a 500
@@ -50,4 +50,4 @@ explore project, calculator project, and explore report.
 - [x] SAVEPOINT guards in `_create_project`, `_create_explore_project`,
       `create_explore`
 - [x] Regression tests (three race paths)
-- [ ] Flip to `delivered` on merge
+- [x] Flip to `delivered` on merge
