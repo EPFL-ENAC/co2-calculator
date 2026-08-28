@@ -227,9 +227,7 @@ const chartData = computed(() => {
       if (allowedParents.length > 0 && !allowedParents.includes(barName)) {
         continue;
       }
-      const collapseAiChildren =
-        categoryKey === 'external_cloud_and_ai' && barName === 'ai';
-      const segmentKey = collapseAiChildren ? barName : emission.key;
+      const segmentKey = emission.key;
       const compoundKey = `${categoryKey}_${barName}`;
 
       if (!barMap.has(compoundKey)) {
