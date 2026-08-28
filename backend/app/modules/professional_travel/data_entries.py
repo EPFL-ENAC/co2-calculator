@@ -3,6 +3,10 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationInfo, field_validator
 
+from app.modules.professional_travel.emissions import (
+    PLANE_CABIN_MAP,
+    TRAIN_CLASS_MAP,
+)
 from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponseGen,
@@ -14,10 +18,9 @@ class TrainCabinClassValidationMixin:
     @field_validator("cabin_class", mode="after")
     @classmethod
     def validate_cabin_class(cls, v: str | None) -> str | None:
-        valid_classes = ["first", "second"]
-        if v is not None and v.lower() not in valid_classes:
+        if v is not None and v.lower() not in TRAIN_CLASS_MAP:
             raise ValueError(
-                f"Invalid cabin class '{v}', must be one of {valid_classes}"
+                f"Invalid cabin class '{v}', must be one of {sorted(TRAIN_CLASS_MAP)}"
             )
         return v.lower() if v else None
 
@@ -26,10 +29,9 @@ class PlaneCabinClassValidationMixin:
     @field_validator("cabin_class", mode="after")
     @classmethod
     def validate_cabin_class(cls, v: str | None) -> str | None:
-        valid_classes = ["first", "business", "economy"]
-        if v is not None and v.lower() not in valid_classes:
+        if v is not None and v.lower() not in PLANE_CABIN_MAP:
             raise ValueError(
-                f"Invalid cabin class '{v}', must be one of {valid_classes}"
+                f"Invalid cabin class '{v}', must be one of {sorted(PLANE_CABIN_MAP)}"
             )
         return v.lower() if v else None
 
