@@ -103,10 +103,9 @@ comment was stale). Shipped in this PR:
 - The earlier bounded-retry idea is dead — with no unique index there is
   nothing to retry.
 
-Maintainer's operational constraint driving the rest: request latency
-
-> 10 s trips alerting; the budget is **< 1 s** for every request. That
-> promotes #2449 (below) from hygiene to operational work.
+Maintainer's operational constraint driving the rest: request latency above
+10 s trips alerting; the budget is **under 1 s** for every request. That
+promotes #2449 (below) from hygiene to operational work.
 
 ### Stays in #2449: shorter transactions, on the existing job system
 
