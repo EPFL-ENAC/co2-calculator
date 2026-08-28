@@ -559,8 +559,11 @@ async def test_report_creation_statement_budget(async_session):
 
     Regression for #2449 Track B: the per-module ``session.refresh`` loops
     added 9 SELECT round-trips per report (~200 statements on a 10-year
-    grow). The cap is generous on purpose — it only has to catch the
-    reintroduction of per-object chatter, not exact statement shapes.
+    grow). Floor on SQLite is 13 (1 SELECT + SAVEPOINT/RELEASE from the
+    #2483 race guard + 2 INSERTs + 8 module INSERTs — aiosqlite can't
+    batch RETURNING into one statement). The cap is generous above that on
+    purpose — it only has to catch the reintroduction of per-object
+    chatter, not exact statement shapes.
     """
     service = CarbonReportService(async_session)
     engine = async_session.bind
@@ -575,4 +578,4 @@ async def test_report_creation_statement_budget(async_session):
     finally:
         event.remove(engine.sync_engine, "before_cursor_execute", _count)
 
-    assert len(statements) <= 12, statements
+    assert len(statements) <= 16, statements
