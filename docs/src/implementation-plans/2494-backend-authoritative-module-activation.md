@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: uncategorized
 issue: 2494
 last_updated: 2026-08-28
 title: "Backend-authoritative module activation for simulator report types"
@@ -217,6 +217,11 @@ it's the actual gate that defeats a naive "just omit the data" fix.
    deactivated in year 2, should `merge_report_stats`' union treat the merged
    aggregate as active (union) or inactive (intersection)?
 
+**Both decided (2026-08-28)**: staleness accepted as a documented tradeoff,
+no recompute-on-config-change job; merge semantics is union — a module counts
+as active in the merged aggregate if it was active in _any_ year of the plan,
+matching how `validated_buckets` already merges today.
+
 ## Recommendation
 
 (b), accepting the staleness tradeoff as documented rather than solving it in
@@ -227,6 +232,6 @@ corrects on next edit).
 
 ## Status
 
-Proposed. Not implemented. Filed as
-[#2494](https://github.com/EPFL-ENAC/co2-calculator/issues/2494) pending a
-decision on the two points above.
+Not implemented; not currently scheduled. Both open decisions above are
+resolved, so this is ready to pick up without further design work. Filed as
+[#2494](https://github.com/EPFL-ENAC/co2-calculator/issues/2494).
