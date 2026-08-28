@@ -17,6 +17,7 @@ import { toEmissionBreakdown } from '../../src/utils/emissionStatsAdapter';
 const emptyIt = {
   total_kg: 0,
   percentage_of_total: 0,
+  percentage_of_validated_total: 0,
   per_fte: 0,
   percentage_of_source_modules: 0,
   categories: {},
