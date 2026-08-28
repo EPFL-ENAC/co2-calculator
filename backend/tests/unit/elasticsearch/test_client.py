@@ -1,5 +1,6 @@
 """Unit tests for the Elasticsearch client."""
 
+import ssl
 from unittest.mock import Mock, patch
 
 import pytest
@@ -12,6 +13,31 @@ from app.elasticsearch.client import (
     stringify_payload,
     validate_ip,
 )
+
+# Self-signed, no-private-key test CA (100yr validity) — only used to give
+# ssl.SSLContext.load_verify_locations() a real, parseable PEM file to load in
+# TestElasticsearchClientSslContext. Not a real secret.
+_TEST_CA_CERT_PEM = """\
+-----BEGIN CERTIFICATE-----
+MIIDJTCCAg2gAwIBAgIUW4MZAqkhf7qws8wl6ogrYbTrzaIwDQYJKoZIhvcNAQEL
+BQAwITEfMB0GA1UEAwwWY28yLWNhbGN1bGF0b3ItdGVzdC1jYTAgFw0yNjA4Mjgx
+NDMzMTRaGA8yMTI2MDgwNDE0MzMxNFowITEfMB0GA1UEAwwWY28yLWNhbGN1bGF0
+b3ItdGVzdC1jYTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJMWgLGZ
+iC3ZcQ9llFa2eJPQsUbfLG/hR8BcL3R+0/fGT5jMSmW00RSeuvtMNs6rIlBcycC1
+RqTPuxImgTqGb6dn2IzRn+1PvShI/6X3x8OlWJhFT771sRl0Knfk7EDkgQAi5P1T
+CDQlGhbZHaqfMjc6aHaCiUZqwIQd5y93kLLSLByJgiRqLHrJ89LjcQaEvJ2oqZ0t
+oieIhMc0GRFdqFHVDjCO9iMboJH+PJlvHj1dYDpXNtFTr0HICC9s6rIpPNQTCsCx
+WT8ptGYv0R5VOoWEj3DOzIqDVDIWrhdsJX+2UEzfCM657W5Oi3m3iJpU9eG6l628
+tVS7y+9CPbMTZB8CAwEAAaNTMFEwHQYDVR0OBBYEFG8UZlGCpsjqXWfpK07y4gR8
+5WRpMB8GA1UdIwQYMBaAFG8UZlGCpsjqXWfpK07y4gR85WRpMA8GA1UdEwEB/wQF
+MAMBAf8wDQYJKoZIhvcNAQELBQADggEBAG6cXTjtj9tFNp42CJ07PbgOd0e9gVW7
+Ibv20mhDluQxne3qtD0uLNdflt8Czfj+re/a+HOZ0evnlBUL+ruz0fHNe1B2+V2W
+sYXD5YZGxnkYALNymQifeeCSaoGTQnbrQ8JkyKf/P1Rh4GQgMuVXAmz9xTyX9DV8
+7t1cMPOwhcH4xtY/HvLk28XKdk0tTS6Z848GdCAwyiGwuvx43G9YFu4xAn2SPYHM
+fhm5qNqAcg056dEqgO19rIbKwTWXRgzPgP9FyAi92H58UGaHmlI60cFcoyP2VP6u
+7lDhKdBBPpBuwbStK7E4TAIpQHdgyARUC/QtxEeYFMvhFXk+a4hLwgU=
+-----END CERTIFICATE-----
+"""
 
 
 class TestFormatTimestamp:
@@ -289,6 +315,20 @@ class TestMapToOpdoSchema:
 
 class TestElasticsearchClient:
     """Tests for the ElasticsearchClient class."""
+
+    @pytest.fixture(autouse=True)
+    def _stub_ssl_context(self):
+        """Stub real SSL context creation.
+
+        ssl.create_default_context().load_verify_locations(CERT_PATH) does
+        real filesystem I/O; these tests mock Path/Elasticsearch but not
+        ssl, so without this they'd hit the disk for a cert that doesn't
+        exist. The SSL behavior itself is covered separately in
+        TestElasticsearchClientSslContext.
+        """
+        with patch("app.elasticsearch.client.ssl.create_default_context") as mock_ctx:
+            mock_ctx.return_value = Mock(verify_flags=ssl.VERIFY_X509_STRICT)
+            yield
 
     @patch("app.elasticsearch.client.Path")
     @patch("app.elasticsearch.client.Elasticsearch")
@@ -1072,3 +1112,28 @@ class TestElasticsearchClient:
         assert result["errors"][0]["id"] == "error-id"
         assert "Invalid field value" in result["errors"][0]["error"]
         mock_bulk.assert_called_once()
+
+
+class TestElasticsearchClientSslContext:
+    """Regression test for #2503: the real ssl.SSLContext built for the
+    Elasticsearch connection must clear VERIFY_X509_STRICT.
+    """
+
+    @patch("app.elasticsearch.client.Elasticsearch")
+    def test_initialize_client_relaxes_x509_strict_verification(
+        self, mock_elasticsearch, tmp_path
+    ):
+        """Strict X.509 checks reject some real-world CA certs; this must stay off."""
+        cert_path = tmp_path / "ca.pem"
+        cert_path.write_text(_TEST_CA_CERT_PEM)
+
+        mock_es_instance = Mock()
+        mock_elasticsearch.return_value = mock_es_instance
+        mock_es_instance.info.return_value = {"version": {"number": "8.11.0"}}
+
+        with patch("app.elasticsearch.client.CERT_PATH", str(cert_path)):
+            ElasticsearchClient()
+
+        ctx = mock_elasticsearch.call_args.kwargs["ssl_context"]
+        assert isinstance(ctx, ssl.SSLContext)
+        assert not ctx.verify_flags & ssl.VERIFY_X509_STRICT
