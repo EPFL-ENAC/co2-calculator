@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 
 import BigNumber from '@/components/molecules/BigNumber.vue';
 import ItFocusBreakdownChart from '@/components/charts/results/ItFocusBreakdownChart.vue';
-import { formatTonnesCO2 } from '@/utils/number';
+import { nOrDash } from '@/utils/number';
 import type { ItBreakdownResponse } from '@/stores/modules';
 
 const props = withDefaults(
@@ -53,6 +53,14 @@ const displayTotalItTonnes = computed(() => {
   return sum;
 });
 
+// One decimal even above 1 t, so the total visibly matches the sum of the
+// per-category values (0.8 + 0.4 must read "1.2", not "1").
+const displayTotalItLabel = computed(() =>
+  nOrDash(displayTotalItTonnes.value, {
+    options: { minimumFractionDigits: 0, maximumFractionDigits: 1 },
+  }),
+);
+
 const hasData = computed(() => !!props.data);
 
 const downloadPNG = () => breakdownChartRef.value?.downloadPNG();
@@ -77,7 +85,7 @@ const downloadPNG = () => breakdownChartRef.value?.downloadPNG();
       <div class="it-stats-row__item">
         <BigNumber
           :title="$t('it-focus-total')"
-          :number="`${formatTonnesCO2(displayTotalItTonnes)}`"
+          :number="displayTotalItLabel"
           comparison=""
           color="info"
           :bordered="false"
@@ -91,8 +99,8 @@ const downloadPNG = () => breakdownChartRef.value?.downloadPNG();
         <BigNumber
           :title="$t('it-focus-share-of-total')"
           :number="
-            data.percentage_of_source_modules != null
-              ? `${Math.round(data.percentage_of_source_modules)}%`
+            data.percentage_of_validated_total != null
+              ? `${Math.round(data.percentage_of_validated_total)}%`
               : '-'
           "
           :comparison="$t('it-focus-share-of-total-hint')"

@@ -83,21 +83,23 @@ def derive_report_sections(
     it_category_kg = build_it_category_totals(by_emission_type)
     it_total_kg = sum(it_category_kg.values())
     validated_it_kg = 0.0
-    validated_source_kg = 0.0
     for category, bucket_key in IT_CATEGORY_TO_BUCKET_KEY.items():
         if bucket_key not in validated_buckets:
             continue
         validated_it_kg += it_category_kg.get(category, 0.0)
-        validated_source_kg += (buckets.get(bucket_key) or {}).get("total_kg", 0.0)
+    validated_total_kg = sum(
+        (buckets.get(key) or {}).get("total_kg", 0.0) or 0.0
+        for key in validated_buckets
+    )
     it_stats = {
         "total_kg": it_total_kg,
         "percentage_of_total": (
             it_total_kg / total_kg * 100.0 if total_kg > 0 else 0.0
         ),
         "per_fte": it_total_kg / total_fte / 1000.0 if total_fte > 0 else 0.0,
-        "percentage_of_source_modules": (
-            validated_it_kg / validated_source_kg * 100.0
-            if validated_source_kg > 0
+        "percentage_of_validated_total": (
+            validated_it_kg / validated_total_kg * 100.0
+            if validated_total_kg > 0
             else 0.0
         ),
         "categories": it_category_kg,

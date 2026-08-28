@@ -39,7 +39,7 @@ export interface ItStats {
   total_kg: number;
   percentage_of_total: number;
   per_fte: number;
-  percentage_of_source_modules: number;
+  percentage_of_validated_total: number;
   categories: Record<string, number>;
   cloud_ai_detail: Record<string, number>;
   validated_sources: string[];
@@ -307,7 +307,7 @@ export function toItBreakdown(
     total_it_tonnes_co2eq: totalItKg / 1000.0,
     total_it_per_fte: it?.per_fte ?? 0,
     percentage_of_total: it?.percentage_of_total ?? 0,
-    percentage_of_source_modules: it?.percentage_of_source_modules ?? 0,
+    percentage_of_validated_total: it?.percentage_of_validated_total ?? 0,
     categories,
     scope_breakdown: {
       scope_2: scope2Kg / 1000.0,

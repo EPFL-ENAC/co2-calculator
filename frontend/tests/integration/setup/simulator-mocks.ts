@@ -453,7 +453,7 @@ export const REPORT_STATS = {
     total_kg: 3100,
     percentage_of_total: 12.4,
     per_fte: 310,
-    percentage_of_source_modules: 20,
+    percentage_of_validated_total: 20,
     categories: {
       equipment_it: 700,
       purchases_it: 2000,
