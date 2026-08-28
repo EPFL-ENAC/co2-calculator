@@ -71,6 +71,9 @@ class ModuleHandlerService:
         override_field = getattr(handler, "kind_field_override", None) or ""
         if override_field and override_field not in item_data:
             update_payload[override_field] = None
+        for field in getattr(handler, "kind_dependent_fields", ()):
+            if field not in item_data:
+                update_payload[field] = None
         return update_payload
 
     async def get_taxonomy(
