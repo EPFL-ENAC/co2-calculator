@@ -83,4 +83,17 @@ split in two so both halves are asserted explicitly:
 - `frontend/tests/unit/dataEntryPolicy.spec.ts` — `branchOf` for `[2, 4]` is
   `user`, for `[1, 3, 5]` is `imported`.
 
-Both fail without the change.
+Plus the symptom the ticket names, at the workflow layer
+(`backend/tests/unit/workflows/test_carbon_report_module_permissions.py`):
+updating `equipment_class` — the field that discriminates the two branches —
+and deleting a `CSV_MODULE_UNIT_SPECIFIC` row both 403'd before and now
+succeed.
+
+All fail without the change.
+
+## Not changed: re-upload behaviour
+
+The unit-specific ingest path appends; only `MODULE_PER_YEAR` runs
+`_delete_existing_entries_for_module_per_year`
+(`base_csv_provider.py:911-928`). So re-uploading a CSV into a module does
+not wipe rows the user edited — pre-existing behaviour, unaffected here.

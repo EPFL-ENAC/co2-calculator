@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 951
-last_updated: 2026-08-24
+last_updated: 2026-08-28
 title: "Edit rights per permissions on each dataset — hardcoded provenance-keyed data-entry permissions"
 summary: "Enforce, per module/submodule, which fields of BackOffice-imported rows vs user-added rows may be edited and whether a row is deletable — keyed on DataEntry.source provenance, matrix hardcoded in code (no DB table, no backoffice UI), enforced in the module mutation workflow and surfaced to the frontend via a per-submodule policy object."
 ---
