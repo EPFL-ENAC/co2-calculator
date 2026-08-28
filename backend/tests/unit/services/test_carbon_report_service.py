@@ -1,5 +1,6 @@
 import pytest
 import pytest_asyncio
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession as SAAsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -476,3 +477,73 @@ async def test_entry_counts_and_fte_matches_the_two_queries_it_replaces(
     assert fte[headcount.id] == pytest.approx(5.5)
     # Non-headcount modules carry no FTE at all, exactly as before.
     assert travel.id not in fte
+
+
+# ── get-or-create race guards (#2483) ─────────────────────────────────────────
+
+
+def _duplicate_key_error() -> IntegrityError:
+    return IntegrityError("INSERT", {}, Exception("duplicate key"))
+
+
+def _flaky_first_flush(async_session, monkeypatch):
+    """Make the first flush raise like a unique-index loser, then behave.
+
+    The SQLite test schema intentionally omits the partial unique indexes,
+    so the loser's UniqueViolation is injected at the flush boundary.
+    """
+    real_flush = async_session.flush
+    calls = {"n": 0}
+
+    async def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise _duplicate_key_error()
+        return await real_flush(*args, **kwargs)
+
+    monkeypatch.setattr(async_session, "flush", flaky)
+
+
+@pytest.mark.asyncio
+async def test_create_explore_project_race_returns_winner(async_session, monkeypatch):
+    service = CarbonReportService(async_session)
+    winner = CarbonProject(
+        unit_id=1,
+        carbon_report_type=CarbonReportType.SIMULATOR_EXPLORE,
+        created_by=7,
+    )
+    async_session.add(winner)
+    await async_session.flush()
+
+    _flaky_first_flush(async_session, monkeypatch)
+    recovered = await service._create_explore_project(1, 7)
+    assert recovered.id == winner.id
+
+
+@pytest.mark.asyncio
+async def test_create_calculator_project_race_returns_winner(
+    async_session, monkeypatch
+):
+    service = CarbonReportService(async_session)
+    winner = CarbonProject(unit_id=1, carbon_report_type=CarbonReportType.CALCULATOR)
+    async_session.add(winner)
+    await async_session.flush()
+
+    _flaky_first_flush(async_session, monkeypatch)
+    recovered = await service._create_project(1, CarbonReportType.CALCULATOR)
+    assert recovered.id == winner.id
+
+
+@pytest.mark.asyncio
+async def test_create_explore_report_race_returns_winner(async_session, monkeypatch):
+    service = CarbonReportService(async_session)
+    winner = await service.create_explore(unit_id=1, reference_year=2025, created_by=7)
+
+    async def losing_insert(_data):
+        raise _duplicate_key_error()
+
+    monkeypatch.setattr(service.repo, "create", losing_insert)
+    recovered = await service.create_explore(
+        unit_id=1, reference_year=2025, created_by=7
+    )
+    assert recovered.id == winner.id

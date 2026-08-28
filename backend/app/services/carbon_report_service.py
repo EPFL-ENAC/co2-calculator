@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -180,10 +181,23 @@ class CarbonReportService:
     async def _create_project(
         self, unit_id: int, report_type: CarbonReportType
     ) -> CarbonProject:
-        """Create and flush a new CarbonProject for a unit+type."""
+        """Create and flush a new CarbonProject for a unit+type.
+
+        Guarded get-or-create tail (#2483): two concurrent requests can both
+        read "no project yet" and insert; the SAVEPOINT confines the loser's
+        unique-index error, and the committed winner is returned instead of
+        surfacing a 500.
+        """
         project = CarbonProject(unit_id=unit_id, carbon_report_type=report_type)
-        self.session.add(project)
-        await self.session.flush()
+        try:
+            async with self.session.begin_nested():
+                self.session.add(project)
+                await self.session.flush()
+        except IntegrityError:
+            winner = await self._get_project(unit_id, report_type)
+            if winner is None:
+                raise
+            return winner
         return project
 
     async def _get_explore_project(
@@ -200,15 +214,26 @@ class CarbonReportService:
     async def _create_explore_project(
         self, unit_id: int, created_by: int
     ) -> CarbonProject:
-        """Create and flush a per-user Simulator Explore project (#2293)."""
+        """Create and flush a per-user Simulator Explore project (#2293).
+
+        Guarded like :meth:`_create_project` (#2483): the frontend's
+        GET → 404 → POST flow makes two tabs race here routinely.
+        """
         project = CarbonProject(
             unit_id=unit_id,
             carbon_report_type=CarbonReportType.SIMULATOR_EXPLORE,
             created_by=created_by,
             created_at=datetime.now(UTC),
         )
-        self.session.add(project)
-        await self.session.flush()
+        try:
+            async with self.session.begin_nested():
+                self.session.add(project)
+                await self.session.flush()
+        except IntegrityError:
+            winner = await self._get_explore_project(unit_id, created_by)
+            if winner is None:
+                raise
+            return winner
         return project
 
     async def create(self, data: CarbonReportCreate) -> CarbonReportRead:
@@ -280,16 +305,28 @@ class CarbonReportService:
             unit_id, created_by
         ) or await self._create_explore_project(unit_id, created_by)
         now_ts = int(datetime.now(UTC).timestamp())
-        created = await self.repo.create(
-            CarbonReportCreate(
-                unit_id=unit_id,
-                year=reference_year,
-                reference_year=None,
-                carbon_project_id=project.id,
+        try:
+            async with self.session.begin_nested():
+                created = await self.repo.create(
+                    CarbonReportCreate(
+                        unit_id=unit_id,
+                        year=reference_year,
+                        reference_year=None,
+                        carbon_project_id=project.id,
+                    )
+                )
+                created.last_updated = now_ts
+                await self.session.flush()
+        except IntegrityError:
+            # Double-POST race on uq_carbon_reports_project_year (#2483):
+            # the winner already created the report and its modules — return
+            # it as-is instead of surfacing a 500.
+            existing = await self.repo.get_explore_by_unit_and_reference_year(
+                unit_id=unit_id, reference_year=reference_year, created_by=created_by
             )
-        )
-        created.last_updated = now_ts
-        await self.session.flush()
+            if existing is None:
+                raise
+            return CarbonReportRead.model_validate(existing)
         created_read = CarbonReportRead.model_validate(created)
         await self.module_service.create_all_modules_for_report(created_read.id)
         return created_read
