@@ -2,7 +2,7 @@
 status: delivered
 issue: 2466
 last_updated: 2026-08-28
-summary: 'changelog.yml (dev -> stage) regenerates CHANGELOG.md via conventional-changelog, which always diffs from the latest git *tag*. Tags are only cut later, at the stage -> main promotion (release-please.yml), so every dev -> stage run before that tag exists re-diffed from the same stale tag and prepended a fresh overlapping block on top of whatever the previous untagged run already wrote (recurrence of #2352). Fixed by trimming CHANGELOG.md back to the last actually-tagged entry before each regenerate, instead of tagging earlier or dropping the dev -> stage step.'
+summary: "changelog.yml (dev -> stage) regenerates CHANGELOG.md via conventional-changelog, which always diffs from the latest git *tag*. Tags are only cut later, at the stage -> main promotion (release-please.yml), so every dev -> stage run before that tag exists re-diffed from the same stale tag and prepended a fresh overlapping block on top of whatever the previous untagged run already wrote (recurrence of #2352). Fixed by trimming CHANGELOG.md back to the last actually-tagged entry before each regenerate, instead of tagging earlier or dropping the dev -> stage step."
 ---
 
 # CHANGELOG.md duplication on every dev -> stage merge (#2466)
@@ -32,7 +32,7 @@ overlapping diff since `v1.0.7` instead of an incremental one.
 **(a) Tag at `dev -> stage` too** (real version or a `-stage.N` suffix) so
 conventional-changelog always has an immediately-preceding tag to diff from.
 Rejected: `deploy.yml` triggers production image builds + ArgoCD updates on
-`push: tags: ["v*.*.*"]`. That glob matches *any* string starting with `v`
+`push: tags: ["v*.*.*"]`. That glob matches _any_ string starting with `v`
 with two further `.`-separated segments — including `v1.4.4-stage.1` — so
 every `dev -> stage` merge would additionally fire the prod-deploy path.
 Making this safe means editing the production deploy trigger, which is an
@@ -40,7 +40,8 @@ infra/release-policy change, not a changelog fix.
 
 **(b) Drop the `dev -> stage` changelog job entirely**, generate only at
 `stage -> main`. Rejected on two counts:
-- `release-please.yml` only *extracts* the top `CHANGELOG.md` block for the
+
+- `release-please.yml` only _extracts_ the top `CHANGELOG.md` block for the
   GitHub Release body (`awk` between the first two `## [x.y.z]` headers) — it
   never generates one. Removing `changelog.yml` with no replacement leaves
   stage/main release notes stale.
@@ -48,7 +49,7 @@ infra/release-policy change, not a changelog fix.
   an intentional human/LLM curation window on `stage`, between changelog
   generation and the `stage -> main` promotion. Moving generation to
   tag-time removes that window.
-- A naive move (generate + commit CHANGELOG.md on `main`, *then* tag) also
+- A naive move (generate + commit CHANGELOG.md on `main`, _then_ tag) also
   risks the commit carrying `[skip ci]` in its message (needed to avoid
   re-triggering `deploy-storybook.yml`/`security.yml` on the `main` push) —
   and if the tag then points at that same commit, `[skip ci]` also suppresses
@@ -68,7 +69,7 @@ was never released, so it stacks a new diff instead of replacing it.
 `## [x.y.z]` headers top-down and drops every one whose `refs/tags/vX.Y.Z`
 does not exist, stopping at the first that does. `changelog.yml` runs it
 immediately before `conventional-changelog`. Result: each `dev -> stage` run
-always starts from the last *actually released* entry, so the regenerated
+always starts from the last _actually released_ entry, so the regenerated
 diff can never overlap a previous untagged run's content — it replaces it.
 
 No tag policy, deploy trigger, or curation timing changed. Regression test:
@@ -78,7 +79,7 @@ No tag policy, deploy trigger, or curation timing changed. Regression test:
 
 `CHANGELOG.md`'s existing duplicate `## [1.4.2]` block (fully subsumed by the
 `## [1.4.3]` block above it — same `v1.0.7` diff base, superset content) was
-deleted by hand in the same commit; the script only prevents *future*
+deleted by hand in the same commit; the script only prevents _future_
 duplication, it doesn't retroactively clean history. Older, unrelated
 oddities further down the file (duplicate `1.0.2` header, SHA-based compare
 links for `1.1.1`/`1.0.8`) were left alone — pre-existing archaeology,
