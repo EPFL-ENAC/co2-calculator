@@ -61,7 +61,6 @@
           <ModuleCarbonFootprintChart
             :breakdown-data="breakdown"
             :bordered="false"
-            :enforce-module-activation="false"
           />
 
           <q-separator />
