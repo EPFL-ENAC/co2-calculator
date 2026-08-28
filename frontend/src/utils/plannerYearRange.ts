@@ -1,5 +1,20 @@
 import type { SimulatorPlanYear } from '@/stores/simulatorPlans';
 
+/**
+ * Reference-year default: last calendar year when it's open, else the
+ * latest open year. `null` when no year is open at all — callers must not
+ * PATCH a null `reference_year` (issue #2459).
+ */
+export function resolveDefaultReferenceYear(
+  open: Set<number>,
+  currentYear: number,
+): number | null {
+  const lastYear = currentYear - 1;
+  if (open.has(lastYear)) return lastYear;
+  if (open.size === 0) return null;
+  return Math.max(...open);
+}
+
 export function formatYearRange(
   first?: number | null,
   last?: number | null,
