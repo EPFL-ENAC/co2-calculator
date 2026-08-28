@@ -92,14 +92,18 @@ buildings.ts`) so the generic `row-incomplete` styling and completeness
    `room_type` per room) — mirroring the dialog's autofill. Without this,
    a room re-pick after a building change leaves the row incomplete until
    the user separately sets `room_type`, and a plain room change silently
-   keeps the old room's type (a lab priced as an office).
+   keeps the old room's type (a lab priced as an office). Payload/option
+   mapping extracted to `frontend/src/utils/buildingRoomInline.ts`.
 
-6. **Inline `room_name` options scope (investigate first).** The inline
-   select for `room_name` must list the rooms of the row's _current_
-   building — after a building change, the old building's rooms must not
-   be offered. Verify how the table resolves `optionsId: 'subkind'`
-   options for buildings and scope them per row; the dialog composable
-   already fetches per-building rooms via `buildingRoomStore.fetchRooms`.
+6. **Inline `room_name` options source (investigated: wrong source).**
+   `ModuleInlineSelect` fed the Local column from the factor taxonomy's
+   subkind options — which for buildings are room _types_
+   ("auditoriums", …), not room names. Picking one PATCHed
+   `room_name: "auditoriums"` → unknown room → the deep formula 422
+   (the issue's second repro). The Local select now loads the ref-data
+   rooms of the row's current building via `buildingRoomStore.fetchRooms`
+   (store-cached per building, 60 s), the same source as the dialog, and
+   refreshes when the row's building changes.
 
 ## Tests (regression-first)
 

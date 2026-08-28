@@ -72,6 +72,10 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
 
     kind_field: str = "building_name"
     subkind_field: str = "room_type"
+    # A room belongs to exactly one building: a building change clears
+    # room_name (with the subkind room_type) and the row goes incomplete
+    # — no emission rows until a room of the new building is picked (#2501).
+    kind_dependent_fields: tuple[str, ...] = ("room_name",)
     require_subkind_for_factor = False
     require_factor_to_match = False
 
