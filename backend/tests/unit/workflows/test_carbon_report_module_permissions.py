@@ -13,6 +13,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
@@ -32,6 +34,20 @@ _CURRENT_USER_READ = UserRead(
     provider=UserProvider.TEST,
     institutional_id="352707",
 )
+
+
+def _session_get(models: dict[type, object]):
+    """``session.get(Model, id)`` side effect, dispatched by model class.
+
+    A real ``AsyncSession.get`` resolves by table; a single fixed
+    ``return_value`` can't stand in once the guard loads both the report and
+    (for a project-stamped report) its project (#2456).
+    """
+
+    async def _get(model, _id):
+        return models.get(model)
+
+    return _get
 
 
 def _workflow_deps(existing_data: dict, source: int | None):
@@ -63,8 +79,11 @@ def _workflow_deps(existing_data: dict, source: int | None):
 
     # #2007: the inputs-deactivated guard resolves the report, then its year
     # config. No year_configuration row → not deactivated, the schema default.
+    # carbon_project_id=None here means the project lookup is never reached.
     session.get = AsyncMock(
-        return_value=SimpleNamespace(year=2026, carbon_project_id=None)
+        side_effect=_session_get(
+            {CarbonReport: SimpleNamespace(year=2026, carbon_project_id=None)}
+        )
     )
     no_year_config = MagicMock()
     no_year_config.first = MagicMock(return_value=None)
@@ -608,11 +627,25 @@ async def test_update_member_sciper_on_imported_row_is_403():
 # write to a submodule the backoffice had switched off.
 
 
-def _deactivated(session, *, carbon_project_id=None):
-    """Point the workflow at a year config with RF inputs deactivated."""
-    session.get = AsyncMock(
-        return_value=SimpleNamespace(year=2026, carbon_project_id=carbon_project_id)
-    )
+def _deactivated(
+    session,
+    *,
+    carbon_project_id: int | None = None,
+    carbon_report_type: CarbonReportType = CarbonReportType.CALCULATOR,
+):
+    """Point the workflow at a year config with RF inputs deactivated.
+
+    ``carbon_project_id``/``carbon_report_type`` model the report's real
+    persisted shape (#2456): every report — Calculator included — is stamped
+    with a project at creation, so the guard's exemption test has to load and
+    check the project's type, not merely whether the id is set.
+    """
+    models: dict[type, object] = {
+        CarbonReport: SimpleNamespace(year=2026, carbon_project_id=carbon_project_id)
+    }
+    if carbon_project_id is not None:
+        models[CarbonProject] = SimpleNamespace(carbon_report_type=carbon_report_type)
+    session.get = AsyncMock(side_effect=_session_get(models))
     year_config = SimpleNamespace(
         config={
             "modules": {
@@ -641,10 +674,18 @@ _RF_TYPE = DataEntryTypeEnum.research_facilities.value
 
 @pytest.mark.asyncio
 async def test_create_is_403_when_inputs_deactivated():
+    """#2456 regression: a real Calculator report always carries a stamped
+    carbon_project_id (unit_sync provisions it up front) — the old
+    ``carbon_project_id is not None`` discriminator treated every Calculator
+    report as exempt, making this 403 unreachable in production. The guard
+    must key off the project's type instead.
+    """
     session, data_entry_service, emission_service, module_service = _workflow_deps(
         {}, source=DataEntrySourceEnum.USER_MANUAL.value
     )
-    _deactivated(session)
+    _deactivated(
+        session, carbon_project_id=42, carbon_report_type=CarbonReportType.CALCULATOR
+    )
     p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
     workflow = CarbonReportModuleWorkflow(session)
 
@@ -671,6 +712,9 @@ async def test_create_is_403_when_inputs_deactivated():
 
 @pytest.mark.asyncio
 async def test_delete_is_403_when_inputs_deactivated():
+    """Same #2456 regression as test_create_is_403_when_inputs_deactivated,
+    exercised through the delete path.
+    """
     session, data_entry_service, emission_service, module_service = _workflow_deps(
         {}, source=DataEntrySourceEnum.USER_MANUAL.value
     )
@@ -681,7 +725,9 @@ async def test_delete_is_403_when_inputs_deactivated():
             data_entry_type_id=_RF_TYPE,
         )
     )
-    _deactivated(session)
+    _deactivated(
+        session, carbon_project_id=42, carbon_report_type=CarbonReportType.CALCULATOR
+    )
     p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
     workflow = CarbonReportModuleWorkflow(session)
 
@@ -737,12 +783,17 @@ async def test_update_note_still_saves_when_inputs_deactivated():
 async def test_create_on_plan_report_ignores_inputs_deactivated():
     """A plan/grant report carries the user's own scenario, not calculator
     data entry — the Project Grant research-facilities grid must keep working
-    while the calculator switch is off.
+    while the calculator switch is off. Its project is SIMULATOR_PLAN, not
+    CALCULATOR — the discriminator the fixed #2456 guard now checks.
     """
     session, data_entry_service, emission_service, module_service = _workflow_deps(
         {}, source=DataEntrySourceEnum.USER_MANUAL.value
     )
-    _deactivated(session, carbon_project_id=7)
+    _deactivated(
+        session,
+        carbon_project_id=7,
+        carbon_report_type=CarbonReportType.SIMULATOR_PLAN,
+    )
     p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
     workflow = CarbonReportModuleWorkflow(session)
 
