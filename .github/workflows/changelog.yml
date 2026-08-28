@@ -37,6 +37,14 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Trim unreleased CHANGELOG.md entries
+        # See the script header for why: conventional-changelog diffs from
+        # the latest *tag*, but tags aren't cut until stage -> main, so any
+        # entry already sitting above the latest real tag was written by a
+        # dev -> stage run that never got promoted. Drop it before
+        # regenerating, or it stacks into an overlapping duplicate (#2466).
+        run: .github/scripts/trim-unreleased-changelog.sh CHANGELOG.md
+
       - name: Generate CHANGELOG.md
         run: |
           conventional-changelog -p angular -i CHANGELOG.md -s
