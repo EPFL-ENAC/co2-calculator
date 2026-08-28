@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: delivered
 issue: 2501
 last_updated: 2026-08-28
 summary: changing building_name on a buildings room row 422s — the kind-change clear nulls room_type and the #2050 fail-hard rejects the recompute, rolling back the edit; decided fix is to authorize incomplete rows (clear room_name + room_type, row computes no CO₂eq, equipment-style) instead of blocking the edit
