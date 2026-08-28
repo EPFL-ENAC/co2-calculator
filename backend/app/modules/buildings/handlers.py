@@ -62,6 +62,27 @@ async def _resolve_room(
     return await BuildingRoomService(session).get_room(room_name=room_name)
 
 
+async def _reject_unknown_room(data: dict, session: Any) -> tuple[dict, str | None]:
+    """CSV-time reference check shared by the rooms and embodied-energy
+    handlers (#2253).
+
+    A room absent from the ``BuildingRoom`` ref-data resolves to no surface
+    at compute time, so the entry would persist and silently contribute zero
+    — reject the row instead, mirroring the data→factor and train-station
+    (#1186) checks.
+    """
+    room_name = data.get("room_name")
+    if not room_name:
+        return data, "Missing room_name"
+    room = await BuildingRoomService(session).get_room(room_name=room_name)
+    if room is None:
+        return data, (
+            f"Room {room_name!r} not found in the building rooms reference — "
+            "fix the room_name or upload the building rooms reference CSV first"
+        )
+    return data, None
+
+
 class BuildingRoomModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.buildings
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.building
@@ -114,6 +135,13 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         year: int | None = None,
     ) -> dict:
         return await _prefetch_rooms(entries, session)
+
+    async def enrich_csv_row(
+        self,
+        data: dict,
+        session: Any,
+    ) -> tuple[dict, str | None]:
+        return await _reject_unknown_room(data, session)
 
     async def pre_compute(
         self, data_entry: Any, session: Any, *, slice_cache: dict | None = None
@@ -369,6 +397,13 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
         year: int | None = None,
     ) -> dict:
         return await _prefetch_rooms(entries, session)
+
+    async def enrich_csv_row(
+        self,
+        data: dict,
+        session: Any,
+    ) -> tuple[dict, str | None]:
+        return await _reject_unknown_room(data, session)
 
     async def pre_compute(
         self, data_entry: Any, session: Any, *, slice_cache: dict | None = None
