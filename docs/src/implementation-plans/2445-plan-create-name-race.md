@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2445
 last_updated: 2026-08-28
 summary: Plan names are display metadata, not identity — unique index dropped, allocator replaced by a random 3-char suffix; heavy-cascade splitting inventoried and routed to #2449
@@ -222,7 +222,7 @@ validation.
       conflicts only
 - [ ] Small follow-up issue: guard explorer/calculator get-or-create
       against `IntegrityError` (currently a 500 race)
-- [ ] Flip this plan to `delivered` on merge
+- [x] Flip this plan to `delivered` on merge
 
 ## Follow-up (out of scope here)
 
