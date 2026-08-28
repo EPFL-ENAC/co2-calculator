@@ -131,22 +131,41 @@ class BaseTableauApiProvider(DataIngestionProvider):
             for key, count in self.drop_reasons.most_common()
         )
 
-    async def _finalize_empty_transform(self, fetched: int) -> dict[str, Any]:
+    def _empty_transform_is_routine(self, raw_data: list[dict[str, Any]]) -> bool:
+        """Whether an empty transform is routine (delete-and-replace) rather
+        than a fault (raise, delete nothing).
+
+        Default: every fired drop reason's *name* is one the provider marked
+        routine. That alone trusts the reason label, not the values behind
+        it — a casing or date-format drift upstream can tag every row under
+        an "expected" reason and pass this check while the data is actually
+        broken (#2457). A subclass whose drop reasons could be faked that
+        way should override this to also verify the underlying values, e.g.
+        proving the field/value that would justify the reason still exists
+        in the raw fetch.
+        """
+        return bool(self.drop_reasons) and set(self.drop_reasons).issubset(
+            self.EXPECTED_EMPTY_DROP_REASONS
+        )
+
+    async def _finalize_empty_transform(
+        self, raw_data: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """Every fetched row was filtered out by ``transform_data``.
 
         Separates "the datasource holds nothing for this request" — routine
         while a year is still being published — from a genuine mismatch, which
-        keeps raising. Both name each filter and its tally (#2007).
+        keeps raising. Both name each filter and its tally (#2007). "Routine"
+        is decided by ``_empty_transform_is_routine`` (#2457).
 
         The routine case still clears the previous bulk, because a sync is a
         replace: a year the datasource no longer carries must not keep showing
         rows an earlier sync loaded. The error case deletes nothing — a fetch
         we do not trust is no reason to drop data.
         """
+        fetched = len(raw_data)
         detail = self._describe_drops()
-        expected = bool(self.drop_reasons) and set(self.drop_reasons).issubset(
-            self.EXPECTED_EMPTY_DROP_REASONS
-        )
+        expected = self._empty_transform_is_routine(raw_data)
         if not expected:
             message = (
                 f"No {self.INGEST_NOUN} rows passed validation — all {fetched} "
@@ -777,7 +796,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
             await self._report_progress(f"Fetched {len(raw_data)} records")
             transformed_data = await self.transform_data(raw_data)
             if raw_data and not transformed_data:
-                return await self._finalize_empty_transform(len(raw_data))
+                return await self._finalize_empty_transform(raw_data)
             await self._report_progress("Resolving carbon report modules...")
             unit_to_module_map = await self._resolve_modules_or_fail(transformed_data)
             stats = self._init_stats()
@@ -897,9 +916,12 @@ class BaseTableauApiProvider(DataIngestionProvider):
         API feeds are complete yearly exports. Delete every machine-owned
         bulk source (prior API syncs AND per-year CSV uploads — see
         ``BULK_PER_YEAR_SOURCES``) for this provider's data-entry type,
-        preserving manual entries and unit-specific uploads. This is called
-        only after at least one valid replacement row has survived
-        transformation and module resolution.
+        preserving manual entries and unit-specific uploads. Called after at
+        least one valid replacement row has survived transformation and
+        module resolution — with one exception: a routine empty transform
+        (see ``_empty_transform_is_routine``) also calls this with zero
+        replacement rows, because the sync still owns the year and a year
+        the datasource no longer carries must not keep showing stale rows.
         """
         year = self.config.get("year")
         if year is None:
