@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
-import { HTTPError } from 'ky';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
 import { api } from '@/api/http';
+import { putExploreCarbonReport } from '@/api/carbon_reports';
 import type { SimulatorPlan } from '@/stores/simulatorPlans';
 import { useModuleStore } from '@/stores/modules';
 import { CARBON_PROJECT } from '@/constant/carbon-project';
@@ -194,24 +194,12 @@ export const useWorkspaceStore = defineStore(
       unitId: number,
       referenceYear: number,
     ) {
-      const url = `carbon-reports/simulator/explore/unit/${unitId}/reference-year/${referenceYear}/`;
       // Grabbed before the first await: first-time store instantiation reads
       // the active route, which needs a live component context to inject.
       const moduleStore = useModuleStore();
-      let inv: CarbonReport;
-      try {
-        // 404 is expected here — the catch branch creates the explore report.
-        // Opt out of the global error toast for that status only.
-        inv = await api.get(url, { skipErrorCodes: [404] }).json();
-      } catch (err) {
-        if (err instanceof HTTPError && err.response.status === 404) {
-          // No explore report exists yet. It is created empty — the Explorer is
-          // never seeded from the Calculator; only the Planner prefills.
-          inv = await api.post(url).json();
-        } else {
-          throw err;
-        }
-      }
+      // Idempotent PUT (#2487): creates the sandbox on first call, returns
+      // the existing one after. No 404 branch — the backend owns existence.
+      const inv = await putExploreCarbonReport(unitId, referenceYear);
       selectedCarbonReport.value = inv;
       // Seed the module store's cache so every module component's later
       // resolveCarbonReportId for this unit/year hits cache (#2360 follow-up).

@@ -19,6 +19,26 @@ from app.services.carbon_report_service import CarbonReportService
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
+async def _calculator_report(
+    service: CarbonReportService, *, year: int, unit_id: int, **kwargs
+):
+    """Create a Calculator report for ``unit_id``/``year``.
+
+    #2487 removed ``create()``'s lazy project get-or-create (ADR-014: no
+    hidden side-effect creation) — tests provision the unit's Calculator
+    project explicitly first, mirroring what unit_sync now does via
+    ``ensure_calculator_projects``.
+    """
+    project = await service._get_project(
+        unit_id, CarbonReportType.CALCULATOR
+    ) or await service._create_project(unit_id, CarbonReportType.CALCULATOR)
+    return await service.create(
+        CarbonReportCreate(
+            year=year, unit_id=unit_id, carbon_project_id=project.id, **kwargs
+        )
+    )
+
+
 @pytest_asyncio.fixture
 async def async_session():
     engine = create_async_engine(DATABASE_URL, echo=False, future=True)
@@ -34,8 +54,7 @@ async def async_session():
 @pytest.mark.asyncio
 async def test_service_create_and_get(async_session):
     service = CarbonReportService(async_session)
-    data = CarbonReportCreate(year=2025, unit_id=1)
-    inv = await service.create(data)
+    inv = await _calculator_report(service, year=2025, unit_id=1)
     assert inv.id is not None
     fetched = await service.get(inv.id)
     assert fetched is not None
@@ -47,8 +66,7 @@ async def test_service_create_and_get(async_session):
 async def test_service_create_auto_creates_modules(async_session):
     """Test that creating an carbon_report auto-creates all module records."""
     service = CarbonReportService(async_session)
-    data = CarbonReportCreate(year=2025, unit_id=1)
-    inv = await service.create(data)
+    inv = await _calculator_report(service, year=2025, unit_id=1)
 
     # Check that modules were auto-created
     modules = await service.module_service.list_modules(inv.id)
@@ -63,9 +81,9 @@ async def test_service_create_auto_creates_modules(async_session):
 @pytest.mark.asyncio
 async def test_service_list_inventories_by_unit(async_session):
     service = CarbonReportService(async_session)
-    await service.create(CarbonReportCreate(year=2025, unit_id=1))
-    await service.create(CarbonReportCreate(year=2026, unit_id=1))
-    await service.create(CarbonReportCreate(year=2025, unit_id=2))
+    await _calculator_report(service, year=2025, unit_id=1)
+    await _calculator_report(service, year=2026, unit_id=1)
+    await _calculator_report(service, year=2025, unit_id=2)
     items = await service.list_by_unit(1)
     assert len(items) == 2
 
@@ -73,8 +91,7 @@ async def test_service_list_inventories_by_unit(async_session):
 @pytest.mark.asyncio
 async def test_service_update_and_delete(async_session):
     service = CarbonReportService(async_session)
-    data = CarbonReportCreate(year=2025, unit_id=1)
-    inv = await service.create(data)
+    inv = await _calculator_report(service, year=2025, unit_id=1)
 
     update = CarbonReportUpdate(year=2026, unit_id=1)
     updated = await service.update(inv.id, update)
@@ -94,7 +111,7 @@ async def test_service_update_and_delete(async_session):
 async def test_module_status_update(async_session):
     """Test updating module status via service."""
     service = CarbonReportService(async_session)
-    inv = await service.create(CarbonReportCreate(year=2025, unit_id=1))
+    inv = await _calculator_report(service, year=2025, unit_id=1)
 
     # Update a module status
     module_type_id = 1  # my-lab
@@ -113,7 +130,7 @@ async def test_module_status_update(async_session):
 @pytest.mark.asyncio
 async def test_recompute_report_stats_merges_by_additional_value(async_session):
     service = CarbonReportService(async_session)
-    report = await service.create(CarbonReportCreate(year=2025, unit_id=1))
+    report = await _calculator_report(service, year=2025, unit_id=1)
 
     modules = await service.module_service.list_modules(report.id)
     by_type = {m.module_type_id: m for m in modules}
@@ -260,18 +277,34 @@ async def test_get_explore_does_not_cross_years(async_session):
     assert result is None
 
 
-# ── bulk_upsert: project-ID resolution ────────────────────────────────────────
+# ── ensure_calculator_projects / bulk_upsert (#2487) ───────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_bulk_upsert_resolves_project_ids_before_repo_call(async_session):
-    """Service enriches every item with a non-null carbon_project_id.
+async def test_ensure_calculator_projects_creates_one_per_unit(async_session):
+    """One Calculator project per unique unit_id; call order preserved."""
+    service = CarbonReportService(async_session)
+    project_by_unit = await service.ensure_calculator_projects([1, 2])
+    assert set(project_by_unit) == {1, 2}
+    assert project_by_unit[1] != project_by_unit[2]
 
-    Two items for unit_id=1 share the same project; unit_id=2 gets its own.
-    The actual ON CONFLICT SQL runs only in PostgreSQL integration tests;
-    here we confirm the service-layer enrichment is correct.
+
+@pytest.mark.asyncio
+async def test_ensure_calculator_projects_is_idempotent(async_session):
+    """A unit already provisioned reuses its existing project."""
+    service = CarbonReportService(async_session)
+    first = await service.ensure_calculator_projects([1])
+    second = await service.ensure_calculator_projects([1])
+    assert first[1] == second[1]
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_passes_resolved_project_ids_through(async_session):
+    """bulk_upsert no longer resolves projects itself (#2487) — it trusts
+    the caller-supplied ``carbon_project_id`` and forwards data unchanged.
     """
     service = CarbonReportService(async_session)
+    project_by_unit = await service.ensure_calculator_projects([1, 2])
 
     received: list[CarbonReportCreate] = []
 
@@ -282,29 +315,40 @@ async def test_bulk_upsert_resolves_project_ids_before_repo_call(async_session):
     service.repo.bulk_upsert = fake_bulk_upsert
 
     items = [
-        CarbonReportCreate(year=2024, unit_id=1),
-        CarbonReportCreate(year=2025, unit_id=1),
-        CarbonReportCreate(year=2024, unit_id=2),
+        CarbonReportCreate(year=2024, unit_id=1, carbon_project_id=project_by_unit[1]),
+        CarbonReportCreate(year=2025, unit_id=1, carbon_project_id=project_by_unit[1]),
+        CarbonReportCreate(year=2024, unit_id=2, carbon_project_id=project_by_unit[2]),
     ]
     await service.bulk_upsert(items)
 
-    assert len(received) == 3
-    assert all(d.carbon_project_id is not None for d in received)
+    assert received == items
 
-    unit1_ids = [d.carbon_project_id for d in received if d.unit_id == 1]
-    unit2_ids = [d.carbon_project_id for d in received if d.unit_id == 2]
 
-    # Both unit_id=1 rows share one project
-    assert unit1_ids[0] == unit1_ids[1]
-    # unit_id=2 has a distinct project
-    assert unit1_ids[0] != unit2_ids[0]
+@pytest.mark.asyncio
+async def test_bulk_upsert_raises_on_missing_project_id(async_session):
+    """No hidden side-effect creation (ADR-014): a missing project_id is a
+    caller bug, surfaced loudly rather than silently self-provisioned.
+    """
+    service = CarbonReportService(async_session)
+    with pytest.raises(ValueError, match="ensure_calculator_projects"):
+        await service.bulk_upsert([CarbonReportCreate(year=2024, unit_id=1)])
+
+
+@pytest.mark.asyncio
+async def test_create_raises_when_no_calculator_project_provisioned(async_session):
+    """No hidden side-effect creation (ADR-014): create() no longer
+    self-provisions a missing Calculator project.
+    """
+    service = CarbonReportService(async_session)
+    with pytest.raises(ValueError, match="No Calculator project"):
+        await service.create(CarbonReportCreate(year=2024, unit_id=1))
 
 
 @pytest.mark.asyncio
 async def test_recompute_report_stats_excludes_inactive_modules(async_session):
     """Simulator Plan 'Active' checkbox off ⇒ module out of sums and progress."""
     service = CarbonReportService(async_session)
-    report = await service.create(CarbonReportCreate(year=2025, unit_id=1))
+    report = await _calculator_report(service, year=2025, unit_id=1)
 
     modules = await service.module_service.list_modules(report.id)
     by_type = {m.module_type_id: m for m in modules}
@@ -559,13 +603,16 @@ async def test_report_creation_statement_budget(async_session):
 
     Regression for #2449 Track B: the per-module ``session.refresh`` loops
     added 9 SELECT round-trips per report (~200 statements on a 10-year
-    grow). Floor on SQLite is 13 (1 SELECT + SAVEPOINT/RELEASE from the
-    #2483 race guard + 2 INSERTs + 8 module INSERTs — aiosqlite can't
-    batch RETURNING into one statement). The cap is generous above that on
-    purpose — it only has to catch the reintroduction of per-object
-    chatter, not exact statement shapes.
+    grow). Floor on SQLite is 9 (1 INSERT for the report + 8 module
+    INSERTs — aiosqlite can't batch RETURNING into one statement); #2487
+    moved the project's own SELECT + SAVEPOINT/RELEASE + INSERT out of
+    ``create()`` into ``ensure_calculator_projects``, provisioned here
+    outside the measured window like unit_sync now does. The cap is
+    generous above the floor on purpose — it only has to catch the
+    reintroduction of per-object chatter, not exact statement shapes.
     """
     service = CarbonReportService(async_session)
+    project_by_unit = await service.ensure_calculator_projects([1])
     engine = async_session.bind
     statements: list[str] = []
 
@@ -574,8 +621,12 @@ async def test_report_creation_statement_budget(async_session):
 
     event.listen(engine.sync_engine, "before_cursor_execute", _count)
     try:
-        await service.create(CarbonReportCreate(year=2025, unit_id=1))
+        await service.create(
+            CarbonReportCreate(
+                year=2025, unit_id=1, carbon_project_id=project_by_unit[1]
+            )
+        )
     finally:
         event.remove(engine.sync_engine, "before_cursor_execute", _count)
 
-    assert len(statements) <= 16, statements
+    assert len(statements) <= 12, statements

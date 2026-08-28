@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.carbon_report import CarbonReport
+from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_ingestion import (
@@ -71,7 +71,14 @@ async def _seed_plan_awaiting_prefill(Sf) -> tuple[int, list[int], int]:
         await session.flush()
 
         svc = SimulatorPlanService(session)
-        ref = await svc.report_service.create(CarbonReportCreate(year=2024, unit_id=1))
+        # #2487: create() no longer self-provisions a missing Calculator
+        # project (ADR-014) — provision it explicitly first, like unit_sync.
+        project = await svc.report_service._get_project(
+            1, CarbonReportType.CALCULATOR
+        ) or await svc.report_service._create_project(1, CarbonReportType.CALCULATOR)
+        ref = await svc.report_service.create(
+            CarbonReportCreate(year=2024, unit_id=1, carbon_project_id=project.id)
+        )
         modules = await svc.report_service.module_service.list_modules(ref.id)
         ref_module = next(
             m

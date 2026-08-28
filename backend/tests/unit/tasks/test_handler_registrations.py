@@ -439,6 +439,11 @@ async def test_unit_sync_handler_runs_full_chain_and_returns_summary():
     user_service.bulk_upsert = AsyncMock(return_value=user_upsert_result)
 
     carbon_report_service = MagicMock()
+    # #2487: unit_sync provisions Calculator projects explicitly before
+    # bulk_upsert; stub it so the handler's new call resolves.
+    carbon_report_service.ensure_calculator_projects = AsyncMock(
+        return_value={1: 101, 2: 102}
+    )
     carbon_report_service.bulk_upsert = AsyncMock(
         return_value=[MagicMock(), MagicMock()]
     )
@@ -507,6 +512,7 @@ async def test_unit_sync_handler_falls_back_to_job_year_when_config_missing():
     user_service = MagicMock()
     user_service.bulk_upsert = AsyncMock(return_value=MagicMock(data=[]))
     carbon_report_service = MagicMock()
+    carbon_report_service.ensure_calculator_projects = AsyncMock(return_value={})
     carbon_report_service.bulk_upsert = AsyncMock(return_value=[])
     carbon_report_service.ensure_modules_for_reports = AsyncMock()
 
@@ -578,6 +584,7 @@ async def test_unit_sync_handler_passes_job_provider_to_factories():
     user_service = MagicMock()
     user_service.bulk_upsert = AsyncMock(return_value=MagicMock(data=[]))
     carbon_report_service = MagicMock()
+    carbon_report_service.ensure_calculator_projects = AsyncMock(return_value={})
     carbon_report_service.bulk_upsert = AsyncMock(return_value=[])
     carbon_report_service.ensure_modules_for_reports = AsyncMock()
 
@@ -628,6 +635,9 @@ def _stub_unit_sync_deps():
     user_service.bulk_upsert = AsyncMock(return_value=MagicMock(data=[]))
 
     carbon_report_service = MagicMock()
+    # #2487: unit_sync provisions Calculator projects explicitly before
+    # bulk_upsert; stub it so the handler's new call resolves.
+    carbon_report_service.ensure_calculator_projects = AsyncMock(return_value={})
     carbon_report_service.bulk_upsert = AsyncMock(return_value=[])
     carbon_report_service.ensure_modules_for_reports = AsyncMock()
 

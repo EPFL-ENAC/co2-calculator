@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
+from app.models.carbon_report import CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import GlobalScope, Role, RoleName, User
@@ -573,8 +574,13 @@ async def test_set_reference_year_without_calc_report_is_noop(async_session, use
 
 async def _calculator_report_with_process_entries(service, async_session, year=2024):
     """Calculator report for unit 1 with two process-emissions entries."""
+    # #2487: create() no longer self-provisions a missing Calculator
+    # project (ADR-014) — provision it explicitly first, like unit_sync.
+    project = await service.report_service._get_project(
+        1, CarbonReportType.CALCULATOR
+    ) or await service.report_service._create_project(1, CarbonReportType.CALCULATOR)
     report = await service.report_service.create(
-        CarbonReportCreate(year=year, unit_id=1)
+        CarbonReportCreate(year=year, unit_id=1, carbon_project_id=project.id)
     )
     modules = await service.report_service.module_service.list_modules(report.id)
     module = next(
@@ -671,8 +677,11 @@ async def test_prefill_without_reference_year_raises(async_session, user):
 
 async def _second_calculator_year(service, async_session):
     """A 2025 Calculator report for unit 1 with a single process entry."""
+    project = await service.report_service._get_project(
+        1, CarbonReportType.CALCULATOR
+    ) or await service.report_service._create_project(1, CarbonReportType.CALCULATOR)
     report = await service.report_service.create(
-        CarbonReportCreate(year=2025, unit_id=1)
+        CarbonReportCreate(year=2025, unit_id=1, carbon_project_id=project.id)
     )
     modules = await service.report_service.module_service.list_modules(report.id)
     module = next(

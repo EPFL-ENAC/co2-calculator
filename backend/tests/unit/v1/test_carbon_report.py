@@ -429,28 +429,102 @@ async def test_get_simulator_explore_null_last_updated_schedules_refresh():
         module.CarbonReportService = original
 
 
-# ── create_simulator_explore_carbon_report ────────────────────────────────────
+# ── put_simulator_explore_carbon_report (#2487) ────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_create_simulator_explore_commits_and_returns():
-    """POST creates explore report and commits."""
+async def test_put_simulator_explore_creates_when_missing():
+    """PUT is idempotent: missing sandbox → workflow creates it, no refresh."""
     db = _db()
+    fresh_ts = int(datetime.now(UTC).timestamp())
     new_report = MagicMock()
-    svc = MagicMock()
-    svc.create_explore = AsyncMock(return_value=new_report)
+    new_report.id = 55
+    new_report.last_updated = fresh_ts
+    workflow = MagicMock()
+    workflow.ensure = AsyncMock(return_value=new_report)
 
-    original = module.CarbonReportService
-    module.CarbonReportService = lambda db: svc
+    background_tasks = MagicMock()
+    background_tasks.add_task = MagicMock()
+
+    original = module.ExploreProvisioningWorkflow
+    module.ExploreProvisioningWorkflow = lambda db: workflow
     try:
         with (
             patch.object(module, "require_unit_access"),
             patch.object(module, "require_module_unit_scope"),
         ):
-            result = await module.create_simulator_explore_carbon_report(
-                1, 2024, db, _user()
+            result = await module.put_simulator_explore_carbon_report(
+                1, 2024, background_tasks, db, _user()
             )
         assert result == new_report
-        db.commit.assert_awaited_once()
+        workflow.ensure.assert_awaited_once()
+        background_tasks.add_task.assert_not_called()
     finally:
-        module.CarbonReportService = original
+        module.ExploreProvisioningWorkflow = original
+
+
+@pytest.mark.asyncio
+async def test_put_simulator_explore_returns_existing_without_recreating():
+    """PUT is idempotent: an existing, fresh sandbox is returned as-is."""
+    db = _db()
+    fresh_ts = int(datetime.now(UTC).timestamp())
+    existing = MagicMock()
+    existing.id = 42
+    existing.last_updated = fresh_ts
+    workflow = MagicMock()
+    workflow.ensure = AsyncMock(return_value=existing)
+
+    background_tasks = MagicMock()
+    background_tasks.add_task = MagicMock()
+
+    original = module.ExploreProvisioningWorkflow
+    module.ExploreProvisioningWorkflow = lambda db: workflow
+    try:
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
+            result = await module.put_simulator_explore_carbon_report(
+                1, 2024, background_tasks, db, _user()
+            )
+        assert result == existing
+        background_tasks.add_task.assert_not_called()
+    finally:
+        module.ExploreProvisioningWorkflow = original
+
+
+@pytest.mark.asyncio
+async def test_put_simulator_explore_schedules_refresh_when_stale():
+    """A stale existing sandbox is returned immediately; refresh is queued."""
+    db = _db()
+    stale_ts = int(datetime.now(UTC).timestamp()) - (25 * 60 * 60)
+    existing = MagicMock()
+    existing.id = 99
+    existing.last_updated = stale_ts
+    workflow = MagicMock()
+    workflow.ensure = AsyncMock(return_value=existing)
+
+    background_tasks = MagicMock()
+    background_tasks.add_task = MagicMock()
+
+    original = module.ExploreProvisioningWorkflow
+    module.ExploreProvisioningWorkflow = lambda db: workflow
+    user = _user()
+    try:
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
+            result = await module.put_simulator_explore_carbon_report(
+                1, 2024, background_tasks, db, user
+            )
+        assert result == existing
+        background_tasks.add_task.assert_called_once_with(
+            module._refresh_explore_background,
+            unit_id=1,
+            old_report_id=99,
+            reference_year=2024,
+            created_by=user.id,
+        )
+    finally:
+        module.ExploreProvisioningWorkflow = original
