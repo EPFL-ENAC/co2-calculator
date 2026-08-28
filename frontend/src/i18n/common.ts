@@ -575,4 +575,8 @@ export default {
     en: 'Reload',
     fr: 'Recharger',
   },
+  later: {
+    en: 'Later',
+    fr: 'Plus tard',
+  },
 };
