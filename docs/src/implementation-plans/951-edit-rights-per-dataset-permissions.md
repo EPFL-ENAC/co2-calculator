@@ -208,6 +208,15 @@ standard" is satisfied without duplicating role logic.
 
 ### Provenance derivation
 
+> **Amended by #2453 (2026-08-28)** — see
+> [`2453-unit-specific-uploads-are-user-owned.md`](./2453-unit-specific-uploads-are-user-owned.md).
+> The bucketing below read "manual vs uploaded"; the line is actually
+> **per-year vs unit-specific**. A CSV/API upload into one's OWN module
+> (`*_MODULE_UNIT_SPECIFIC`) is the operator's own data and resolves to
+> `USER`. Only backoffice per-year ingests lock. The shipped set is
+> `{USER_MANUAL, CSV_MODULE_UNIT_SPECIFIC, API_MODULE_UNIT_SPECIFIC,
+PLANNER_SNAPSHOT}`.
+
 ```python
 class Provenance(str, Enum):
     USER = "user"          # source is None or USER_MANUAL

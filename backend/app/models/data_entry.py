@@ -71,22 +71,23 @@ class DataEntrySourceEnum(int, Enum):
     Used to track how data entries were created, enabling selective deletion
     and audit trails for different upload methods.
 
-    #951: which values bucket into the "user" edit-rights branch is
+    #951/#2453: which values bucket into the "user" edit-rights branch is
     hardcoded in TWO places that must move together — there is no shared
     source of truth for this specific bucketing (accepted tradeoff, see
     docs/src/implementation-plans/951-edit-rights-per-dataset-permissions.md):
       - backend: app.core.data_entry_permissions._USER_BRANCH_SOURCES
       - frontend: src/utils/dataEntryPolicy.ts USER_BRANCH_SOURCES
-    Adding a new member here that should read as "user" (like
-    PLANNER_SNAPSHOT) means updating both.
+    The line is per-year vs unit-specific, not manual vs uploaded: a
+    unit-specific upload is the operator's own data. Adding a new member
+    here that should read as "user" means updating both.
     """
 
-    USER_MANUAL = 0  # Manual entry via UI
-    CSV_MODULE_PER_YEAR = 1  # CSV upload via module_per_year provider
-    CSV_MODULE_UNIT_SPECIFIC = 2  # CSV upload via module_unit_specific provider
-    API_MODULE_PER_YEAR = 3  # API upload for module per year
-    API_MODULE_UNIT_SPECIFIC = 4  # API upload for unit specific module
-    EXTERNAL_INTEGRATION = 5  # Third-party integration or import
+    USER_MANUAL = 0  # Manual entry via UI — user-owned, editable
+    CSV_MODULE_PER_YEAR = 1  # Backoffice per-year CSV — locked
+    CSV_MODULE_UNIT_SPECIFIC = 2  # CSV into one's own module — user-owned, editable
+    API_MODULE_PER_YEAR = 3  # Backoffice per-year API sync — locked
+    API_MODULE_UNIT_SPECIFIC = 4  # API into one's own module — user-owned, editable
+    EXTERNAL_INTEGRATION = 5  # Third-party integration or import — locked
     PLANNER_SNAPSHOT = 6  # Simulator Plan prefill copy of a reference-year entry
 
 

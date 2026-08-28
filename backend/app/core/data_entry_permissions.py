@@ -23,22 +23,35 @@ from app.models.module_type import (
 from app.schemas.carbon_report_response import DataEntryPolicies, RowPolicy
 from app.schemas.data_entry import BaseModuleHandler
 
-# Sources that resolve to the USER branch: manual entry, and Simulator Plan
-# prefill. A plan-prefilled row (SimulatorPlanService.prefill_module_from_reference)
-# reuses the SAME data_entry_type_id as the regular calculator module
-# (building, energy_combustion, equipment kinds, ...) — it is NOT a
-# planner-kind type (80+) and is_policy_exempt() doesn't catch it. It's the
-# user's own plan data (percentage slider, deletable), not externally
-# imported — must resolve to USER (code review 2026-08-13, real regression:
-# every prefilled plan module's rows were locking up under IMPORTED).
+# Sources that resolve to the USER branch — what the operator owns:
+#   - USER_MANUAL: typed into the module's table.
+#   - *_MODULE_UNIT_SPECIFIC: a CSV/API upload the operator made INTO THEIR
+#     OWN module (the job carries carbon_report_module_id). #2453: same
+#     rights as manual entry — it is their data, uploaded in bulk instead of
+#     row by row. Only per-year ingests are backoffice-owned and locked.
+#   - PLANNER_SNAPSHOT: Simulator Plan prefill
+#     (SimulatorPlanService.prefill_module_from_reference) reuses the SAME
+#     data_entry_type_id as the regular calculator module (building,
+#     energy_combustion, equipment kinds, ...) — it is NOT a planner-kind
+#     type (80+) and is_policy_exempt() doesn't catch it. It's the user's own
+#     plan data (percentage slider, deletable), not externally imported —
+#     must resolve to USER (code review 2026-08-13, real regression: every
+#     prefilled plan module's rows were locking up under IMPORTED).
 _USER_BRANCH_SOURCES = frozenset(
-    {DataEntrySourceEnum.USER_MANUAL.value, DataEntrySourceEnum.PLANNER_SNAPSHOT.value}
+    {
+        DataEntrySourceEnum.USER_MANUAL.value,
+        DataEntrySourceEnum.CSV_MODULE_UNIT_SPECIFIC.value,
+        DataEntrySourceEnum.API_MODULE_UNIT_SPECIFIC.value,
+        DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
+    }
 )
 
 
 class Provenance(str, Enum):
-    USER = "user"  # source is None, USER_MANUAL, or PLANNER_SNAPSHOT
-    IMPORTED = "imported"  # any CSV_* / API_* / EXTERNAL_INTEGRATION
+    # source is None, USER_MANUAL, *_MODULE_UNIT_SPECIFIC, or PLANNER_SNAPSHOT
+    USER = "user"
+    # backoffice per-year ingests: CSV/API_MODULE_PER_YEAR, EXTERNAL_INTEGRATION
+    IMPORTED = "imported"
 
 
 def provenance_of(source: int | None) -> Provenance:
