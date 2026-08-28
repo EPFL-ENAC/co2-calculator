@@ -6,6 +6,7 @@ Transforms audit records to OPDo schema for compliance with ISO 27701.
 
 import json
 import logging
+import ssl
 from datetime import datetime
 from ipaddress import ip_address
 from pathlib import Path
@@ -227,13 +228,15 @@ class ElasticsearchClient:
                 host.strip() for host in ELASTICSEARCH_HOSTS.split(",") if host.strip()
             ]
 
+            ctx = ssl.create_default_context()
+            ctx.load_verify_locations(CERT_PATH)
+            ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+
             # Create Elasticsearch client with SSL certificate verification
             self.client = Elasticsearch(
                 hosts=hosts_list,
                 api_key=(ELASTICSEARCH_ID, ELASTICSEARCH_API_KEY),
-                ca_certs=CERT_PATH,
-                verify_certs=True,
-                ssl_show_warn=False,
+                ssl_context=ctx,
                 request_timeout=30,
                 max_retries=3,
                 retry_on_timeout=True,
