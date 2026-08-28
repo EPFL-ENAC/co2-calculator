@@ -1140,7 +1140,7 @@ function validateField(i: ModuleField) {
         i.maxDecimals !== undefined &&
         (s.split('.')[1]?.length ?? 0) > i.maxDecimals
       )
-        errors[i.id] = $t('validation_max_decimals', { max: i.maxDecimals });
+        errors[i.id] = $t('validation_max_decimals', { count: i.maxDecimals });
     }
   }
   return !errors[i.id];

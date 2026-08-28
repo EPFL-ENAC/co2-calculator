@@ -54,7 +54,9 @@ export function getNumericRules(col: NumericRuleColumn, t: Translate) {
       const s = typeof val === 'string' ? val.trim() : String(val);
       return (
         (s.split('.')[1]?.length ?? 0) <= maxDecimals ||
-        t('validation_max_decimals', { max: maxDecimals })
+        // `count` doubles as the display value and the vue-i18n plural
+        // index (see core-base's getPluralIndex): it reads named.count.
+        t('validation_max_decimals', { count: maxDecimals })
       );
     });
   }

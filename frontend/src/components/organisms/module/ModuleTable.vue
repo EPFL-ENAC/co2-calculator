@@ -1644,7 +1644,7 @@ async function commitInline(
         setError(
           row,
           col,
-          $t('validation_max_decimals', { max: col.maxDecimals }),
+          $t('validation_max_decimals', { count: col.maxDecimals }),
         );
         return null;
       }
