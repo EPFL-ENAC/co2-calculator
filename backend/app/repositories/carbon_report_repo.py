@@ -25,7 +25,6 @@ class CarbonReportRepository:
         db_obj = CarbonReport.model_validate(data.model_dump())
         self.session.add(db_obj)
         await self.session.flush()
-        await self.session.refresh(db_obj)
         return db_obj
 
     async def bulk_upsert(self, data: list[CarbonReportCreate]) -> list[CarbonReport]:

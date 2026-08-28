@@ -1,5 +1,6 @@
 import pytest
 import pytest_asyncio
+from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession as SAAsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -547,3 +548,31 @@ async def test_create_explore_report_race_returns_winner(async_session, monkeypa
         unit_id=1, reference_year=2025, created_by=7
     )
     assert recovered.id == winner.id
+
+
+# ── report-creation statement budget (#2449 Track B) ──────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_report_creation_statement_budget(async_session):
+    """Creating a report must stay a handful of statements.
+
+    Regression for #2449 Track B: the per-module ``session.refresh`` loops
+    added 9 SELECT round-trips per report (~200 statements on a 10-year
+    grow). The cap is generous on purpose — it only has to catch the
+    reintroduction of per-object chatter, not exact statement shapes.
+    """
+    service = CarbonReportService(async_session)
+    engine = async_session.bind
+    statements: list[str] = []
+
+    def _count(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", _count)
+    try:
+        await service.create(CarbonReportCreate(year=2025, unit_id=1))
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", _count)
+
+    assert len(statements) <= 12, statements
