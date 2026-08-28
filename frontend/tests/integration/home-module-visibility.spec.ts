@@ -7,7 +7,10 @@
  * Scenario data lives in ``setup/home-module-visibility-mocks.ts``.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { HOME_URL, mockHomeBackend } from './setup/home-module-visibility-mocks';
+import {
+  HOME_URL,
+  mockHomeBackend,
+} from './setup/home-module-visibility-mocks';
 
 // The icon axis renders one `.module-icon-axis__item` per bar: a
 // `router-link` (anchor) when enabled, a plain `div` with the

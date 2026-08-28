@@ -136,7 +136,21 @@ jobs:
         run: uv python install 3.14
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+          cache-dependency-path: "./package-lock.json"
+
+      # docs/Makefile's `lint` target shells out to `npx prettier`, which
+      # resolves from the nearest node_modules up the tree — install root's
+      # so it's the pinned root prettier@3.9.6, not whatever npx fetches.
+      - name: Install Node dependencies
+        working-directory: .
+        run: npm ci --ignore-scripts
 
       - name: Check Markdown formatting
         run: make lint
