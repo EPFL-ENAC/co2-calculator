@@ -1,4 +1,8 @@
-<!-- Vendored from https://github.com/EPFL-ENAC/it4r-agent-kit @ 37eabc1
+---
+applyTo: "**"
+---
+
+<!-- Vendored from https://github.com/EPFL-ENAC/it4r-agent-kit @ f6ff6fd
      Do not edit here — edit AGENTS.md upstream, then run `make sync-agent-rules`. -->
 
 # ENAC IT4R — agent operating rules
