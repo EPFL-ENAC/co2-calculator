@@ -101,6 +101,18 @@ def test_setup_logging_installs_redactor_on_uvicorn_access():
     )
 
 
+def test_setup_logging_caps_noisy_third_party_loggers():
+    """Aiosqlite logs every cursor/execute/fetch at DEBUG in LOCAL (sqlite)
+    mode, drowning app logs. Regression guard for the noisy-libs cap.
+    """
+    setup_logging()
+
+    for name in ("httpcore", "httpx", "watchfiles", "aiosqlite"):
+        assert logging.getLogger(name).level == logging.WARNING, (
+            f"{name} must be capped at WARNING or it floods DEBUG runs"
+        )
+
+
 def test_loki_handler_is_wrapped_in_a_queue_not_attached_directly(monkeypatch):
     """#2050 Track I3 regression: LokiHandler.emit() does a blocking httpx
     POST. Attached straight to the root logger, every logger.info()+ call
