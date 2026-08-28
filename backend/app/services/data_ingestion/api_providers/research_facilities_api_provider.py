@@ -153,6 +153,48 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
         )
         return transformed
 
+    def _empty_transform_is_routine(self, raw_data: list[dict[str, Any]]) -> bool:
+        """Beyond the reason names, prove the datasource still looks the way
+        we expect before trusting "no INTERNE rows this year" (#2457):
+
+        - at least one raw row is billed to an internal client — proves the
+          ``client_type`` field/value/casing still matches, so an all-rows
+          "client_type" drop means the field genuinely changed, not that we
+          stopped recognizing it;
+        - every one of those internal rows has a 4-digit numeric year prefix
+          on ``date_iso`` — proves the date field's format hasn't drifted,
+          so an all-rows "year" drop means the year genuinely isn't there.
+
+        Otherwise a casing or date-format change upstream would tag every
+        row under one of these "expected" reasons and silently wipe the
+        year's data on the next sync.
+        """
+        if not super()._empty_transform_is_routine(raw_data):
+            return False
+        # ponytail: existence proof only — a mixed-casing datasource (some
+        # "INTERNE", most "Interne") still passes. Tighten to a ratio if
+        # mixed casing ever shows up in practice.
+        internal_rows = [
+            row
+            for row in raw_data
+            if row.get(self.CAPTION_CLIENT_TYPE) == self.INTERNAL_CLIENT_TYPE
+        ]
+        if not internal_rows:
+            return False
+        return all(
+            self._looks_like_year_prefix(row.get(self.CAPTION_DATE))
+            for row in internal_rows
+        )
+
+    @staticmethod
+    def _looks_like_year_prefix(date_value: Any) -> bool:
+        """True if ``date_value`` starts with a plausible 4-digit year —
+        guards against a date-format drift (e.g. epoch millis, DD/MM/YYYY)
+        that would still slice to 4 digits but isn't a year.
+        """
+        prefix = str(date_value or "")[:4]
+        return len(prefix) == 4 and prefix.isdigit() and 1900 <= int(prefix) <= 2100
+
     def _success_status_message(self, stats: StatsDict) -> str:
         return (
             f"Processed {stats['rows_processed']} research facility records, "
