@@ -20,6 +20,15 @@ Track H's own perf test records: local hardware is fast enough that an
 absolute millisecond budget passes on the broken query too. The slope is what
 discriminates, and the slope is hardware-independent.
 
+Each side of the ratio is the **minimum of several repeated timings**, not a
+single sample (flaked once on a loaded machine: 28.3ms measured against a
+26.9ms threshold, 5% over, passed cleanly in isolation). Scheduler/GC/Docker
+I/O noise only ever adds latency on top of the true query cost, so the
+minimum over a handful of repeats converges to that cost and filters the
+noise out — the standard robust statistic for exactly this shape of
+microbenchmark (the same principle `pytest-benchmark`, already a project
+dependency, reports as its headline "min" column).
+
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
@@ -52,6 +61,9 @@ MAX_SCALING_FACTOR = 3.0
 # Floor, so noise on a fast path cannot manufacture a ratio failure in CI —
 # the broken query clears it comfortably.
 RATIO_FLOOR_MS = 25.0
+# Repeats per side, minimum taken (see module docstring): noise only adds
+# latency, so the minimum over a few samples converges to the true cost.
+TIMING_SAMPLES = 5
 
 
 @pytest_asyncio.fixture
@@ -179,16 +191,26 @@ async def test_process_emissions_submodule_get_ignores_table_wide_volume(
         )
         return (time.perf_counter() - start) * 1000, result
 
+    async def min_timed_get() -> tuple[float, object]:
+        """Minimum wall-clock over ``TIMING_SAMPLES`` repeats; see docstring."""
+        best_ms = float("inf")
+        best_response = None
+        for _ in range(TIMING_SAMPLES):
+            ms, response = await timed_get()
+            if ms < best_ms:
+                best_ms, best_response = ms, response
+        return best_ms, best_response
+
     # Warm-up: the first call pays statement compilation, which would otherwise
     # land entirely in the small baseline and hide the scaling being measured.
     await timed_get()
-    small_ms, response = await timed_get()
+    small_ms, response = await min_timed_get()
 
     assert len(response.items) == 1
     assert response.items[0].kg_co2eq == pytest.approx(42.0)
 
     await _seed_background_load(pg_dsn, background_module.id, LARGE_BACKGROUND_ENTRIES)
-    large_ms, response = await timed_get()
+    large_ms, response = await min_timed_get()
 
     small_rows = SMALL_BACKGROUND_ENTRIES * EMISSIONS_PER_BACKGROUND_ENTRY
     large_rows = (
