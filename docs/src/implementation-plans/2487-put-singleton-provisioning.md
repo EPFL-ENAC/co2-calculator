@@ -146,6 +146,17 @@ through over `carbonReportLookupPath` + `api.put`, already exercised
 end-to-end by that spec's `explore-seed-cache` scenario and by
 `SimulationExplorePage`'s own Playwright coverage.
 
+`frontend/tests/integration/setup/simulator-mocks.ts`'s stateful fake
+backend gated `exploreReportCreated` on `method === 'POST'` — updated to
+`'PUT'`, or every `simulator-explore.spec.ts` test would 404 on its first
+request. Could not confirm green locally: `simulator-explore.spec.ts`
+times out at `openExplorer` (`.q-expansion-item` never renders) identically
+on unmodified `dev` (`5f66bd2da`, checked in an isolated worktree before
+touching the mock), so this is a pre-existing local-sandbox gap, not a
+regression from this change — this suite runs nightly in CI's Playwright
+docker image (`.github/workflows/integration-tests.yml`), not per-PR, so
+neither the bug nor the fix was visible in this PR's own CI run.
+
 ## Deliverables
 
 - [x] `PUT /carbon-reports/simulator/explore/unit/{unit_id}/reference-year/{reference_year}/`
