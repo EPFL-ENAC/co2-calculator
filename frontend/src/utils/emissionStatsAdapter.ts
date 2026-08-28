@@ -213,7 +213,9 @@ export function toEmissionBreakdown(
   const validated = stats.validated_buckets ?? [];
   const perPerson: Record<string, number> = {};
   for (const [bucketKey, value] of Object.entries(stats.per_fte ?? {})) {
-    if (!excluded.has(bucketKey)) perPerson[bucketKey] = value;
+    if (!excluded.has(bucketKey) && validated.includes(bucketKey)) {
+      perPerson[bucketKey] = value;
+    }
   }
 
   const embodied = stats.buckets?.embodied_energy;
