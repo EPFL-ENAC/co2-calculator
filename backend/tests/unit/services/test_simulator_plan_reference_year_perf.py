@@ -34,6 +34,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
+from app.models.carbon_report import CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
@@ -231,8 +232,15 @@ async def _reference_report_with_entries(
     reusing one unit/year across a small-N and a large-N run in the same
     session makes both resolve to whichever report was created first.
     """
+    # #2487: create() no longer self-provisions a missing Calculator
+    # project (ADR-014) — provision it explicitly first, like unit_sync.
+    project = await service.report_service._get_project(
+        unit_id, CarbonReportType.CALCULATOR
+    ) or await service.report_service._create_project(
+        unit_id, CarbonReportType.CALCULATOR
+    )
     report = await service.report_service.create(
-        CarbonReportCreate(year=year, unit_id=unit_id)
+        CarbonReportCreate(year=year, unit_id=unit_id, carbon_project_id=project.id)
     )
     modules = await service.report_service.module_service.list_modules(report.id)
     module = next(
@@ -792,7 +800,12 @@ async def test_modules_left_empty_by_prefill_still_get_their_stats_refreshed(
     service = SimulatorPlanService(async_session)
     # A reference report with no entries at all: every rebuilt module of the
     # plan year ends up empty.
-    await service.report_service.create(CarbonReportCreate(year=2024, unit_id=81))
+    project = await service.report_service._get_project(
+        81, CarbonReportType.CALCULATOR
+    ) or await service.report_service._create_project(81, CarbonReportType.CALCULATOR)
+    await service.report_service.create(
+        CarbonReportCreate(year=2024, unit_id=81, carbon_project_id=project.id)
+    )
 
     plan = await service.create_plan(unit_id=81, user=user, name="empty-modules")
     await _update_plan(

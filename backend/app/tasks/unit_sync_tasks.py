@@ -205,8 +205,18 @@ async def unit_sync_handler(
     await job_session.commit()
 
     carbon_report_service = CarbonReportService(data_session)
+    # #2487 — the Calculator project's lifecycle moment: provisioned
+    # explicitly here, once per unit, rather than as a lazy branch inside
+    # CarbonReportService.create/bulk_upsert (ADR-014's "no hidden
+    # side-effect creation"). The global advisory lock above already makes
+    # unit_sync single-writer, so the plain get-or-create is safe without
+    # the SAVEPOINT belt applying at the request layer.
+    unit_ids = [u.id for u in units if u.id is not None]
+    project_by_unit = await carbon_report_service.ensure_calculator_projects(unit_ids)
     report_create_data = [
-        CarbonReportCreate(year=target_year, unit_id=u.id)
+        CarbonReportCreate(
+            year=target_year, unit_id=u.id, carbon_project_id=project_by_unit[u.id]
+        )
         for u in units
         if u.id is not None
     ]

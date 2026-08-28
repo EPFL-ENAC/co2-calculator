@@ -28,6 +28,7 @@ from app.schemas.carbon_report import (
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
+from app.workflows.explore_provisioning import ExploreProvisioningWorkflow
 
 
 async def _refresh_explore_background(
@@ -46,6 +47,31 @@ async def _refresh_explore_background(
             unit_id=unit_id, reference_year=reference_year, created_by=created_by
         )
         await db.commit()
+
+
+def _schedule_explore_refresh_if_stale(
+    result: CarbonReportRead,
+    *,
+    unit_id: int,
+    reference_year: int,
+    created_by: int,
+    background_tasks: BackgroundTasks,
+) -> None:
+    """Queue ``_refresh_explore_background`` once ``result`` ages past its TTL.
+
+    Shared by the GET route (repeat reads via ``resolveCarbonReportId``) and
+    the PUT route (#2487) so staleness is defined in exactly one place.
+    """
+    now_ts = int(datetime.now(UTC).timestamp())
+    age = now_ts - int(result.last_updated or 0)
+    if result.last_updated is None or age > get_settings().EXPLORE_TTL_SECONDS:
+        background_tasks.add_task(
+            _refresh_explore_background,
+            unit_id=unit_id,
+            old_report_id=result.id,
+            reference_year=reference_year,
+            created_by=created_by,
+        )
 
 
 logger = get_logger(__name__)
@@ -131,36 +157,35 @@ async def get_simulator_explore_carbon_report(
             status_code=404, detail="Simulator Explore report not found"
         )
 
-    now_ts = int(datetime.now(UTC).timestamp())
-    age = now_ts - int(result.last_updated or 0)
-    if result.last_updated is None or age > get_settings().EXPLORE_TTL_SECONDS:
-        background_tasks.add_task(
-            _refresh_explore_background,
-            unit_id=unit_id,
-            old_report_id=result.id,
-            reference_year=reference_year,
-            created_by=current_user.id,
-        )
+    _schedule_explore_refresh_if_stale(
+        result,
+        unit_id=unit_id,
+        reference_year=reference_year,
+        created_by=current_user.id,
+        background_tasks=background_tasks,
+    )
 
     return result
 
 
-@router.post(
+@router.put(
     "/simulator/explore/unit/{unit_id}/reference-year/{reference_year}/",
     response_model=CarbonReportRead,
-    status_code=status.HTTP_201_CREATED,
 )
-async def create_simulator_explore_carbon_report(
+async def put_simulator_explore_carbon_report(
     unit_id: int,
     reference_year: int,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new, empty Simulator Explore carbon report.
+    """Idempotent Simulator Explore sandbox: create on first call, return
+    the existing one on every call after (#2487).
 
-    The report is created with its modules and no entries — Simulator Explore is
-    never seeded from the Calculator. Only the Simulator Plan prefills, and only
-    from the reference year its user picks.
+    Replaces the GET(404) + POST pair the frontend used to orchestrate —
+    two round trips, and the 404-as-control-flow race #2483 had to
+    SAVEPOINT-guard. A stale existing sandbox is refreshed in the
+    background and returned as-is immediately, matching the GET route.
     """
     unit = await db.get(Unit, unit_id)
     require_unit_access(current_user, unit)
@@ -169,13 +194,18 @@ async def create_simulator_explore_carbon_report(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User ID missing",
         )
-    service = CarbonReportService(db)
-    result = await service.create_explore(
+    result = await ExploreProvisioningWorkflow(db).ensure(
         unit_id=unit_id,
         reference_year=reference_year,
         created_by=current_user.id,
     )
-    await db.commit()
+    _schedule_explore_refresh_if_stale(
+        result,
+        unit_id=unit_id,
+        reference_year=reference_year,
+        created_by=current_user.id,
+        background_tasks=background_tasks,
+    )
     return result
 
 
