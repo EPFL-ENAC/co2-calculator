@@ -149,13 +149,15 @@ end-to-end by that spec's `explore-seed-cache` scenario and by
 `frontend/tests/integration/setup/simulator-mocks.ts`'s stateful fake
 backend gated `exploreReportCreated` on `method === 'POST'` — updated to
 `'PUT'`, or every `simulator-explore.spec.ts` test would 404 on its first
-request. Could not confirm green locally: `simulator-explore.spec.ts`
-times out at `openExplorer` (`.q-expansion-item` never renders) identically
-on unmodified `dev` (`5f66bd2da`, checked in an isolated worktree before
-touching the mock), so this is a pre-existing local-sandbox gap, not a
-regression from this change — this suite runs nightly in CI's Playwright
-docker image (`.github/workflows/integration-tests.yml`), not per-PR, so
-neither the bug nor the fix was visible in this PR's own CI run.
+request. Confirmed green locally: `npm run build` followed by
+`npx playwright test tests/integration/simulator-explore.spec.ts` passes
+28/28, run twice for stability. An earlier local attempt without a fresh
+`npm run build` first produced a spurious `openExplorer` timeout
+(`.q-expansion-item` never renders, likely a stale/missing `dist/spa`) —
+that was a local-sandbox mistake, not a real gap. This suite is not part
+of per-PR CI: it runs via `test-frontend-integration` in
+`.github/workflows/integration-tests.yml` (nightly + `workflow_dispatch` +
+pushes to `ci-test/**`), which does build first, same as this local run.
 
 ## Deliverables
 
