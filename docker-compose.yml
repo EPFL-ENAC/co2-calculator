@@ -47,7 +47,12 @@ services:
       - "traefik.enable=false"
     volumes:
       - postgres-data-18:/var/lib/postgresql
-    command: ["postgres", "-c", "listen_addresses=*"]
+    # 1000-VU load tests (#2295) hit both defaults: 4 uvicorn workers ×
+    # (DB_POOL_SIZE+DB_MAX_OVERFLOW)=120 connections > max_connections=100
+    # ("too many clients"), and limit=1000 sorts overflow the 64MB
+    # container /dev/shm ("could not resize shared memory segment").
+    shm_size: "1gb"
+    command: ["postgres", "-c", "listen_addresses=*", "-c", "max_connections=200"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -d $$DB_URL"]
       interval: 3s
