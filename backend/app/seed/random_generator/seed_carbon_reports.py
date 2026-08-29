@@ -57,7 +57,9 @@ async def insert_carbon_projects(conn):
 
     start_year = min(YEARS)
     end_year = max(YEARS)
-    records = [(u_id, "Calculator", start_year, end_year, False) for u_id in unit_ids]
+    # Viewable by members: standard users (OwnScope) can read their unit's
+    # results/home — the realistic mixed-role read scenario (#2295).
+    records = [(u_id, "Calculator", start_year, end_year, True) for u_id in unit_ids]
 
     await conn.execute("""
         CREATE TEMP TABLE tmp_carbon_projects (

@@ -31,19 +31,30 @@ platforms without it, export PERF_AUTH_COOKIE=<auth_token JWT>. Every
 non-GET needs the Sec-Fetch-Site header or RequestOriginMiddleware 403s.
 """
 
+import itertools
 import os
 import random
 import time
 import uuid
+from datetime import timedelta
 from pathlib import Path
 
 from locust import HttpUser, between, task
 
+from app.core.security import create_access_token
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.models.user import UserProvider
 
 ROLE = os.environ.get("PERF_ROLE", "calco2.user.principal")
 AUTH_COOKIE = os.environ.get("PERF_AUTH_COOKIE", "")
+# File with one "<institutional_id> <principal|standard>" line per seeded
+# DEFAULT-provider user (make perf-load derives it from the DB). When
+# present, every VU becomes a DISTINCT seeded user via a locally-minted
+# auth_token (same JWT_HMAC_KEY as the target backend) — no login endpoint
+# in the loop, no shared-user stampede. Requires the backend to read the
+# same backend/.env; for remote hosts use PERF_AUTH_COOKIE instead.
+USERS_FILE = os.environ.get("PERF_USERS_FILE", "")
 CSV_DIR = Path(
     os.environ.get(
         "PERF_CSV_DIR", str(Path(__file__).resolve().parents[2] / "INPUT_DATA" / "perf")
@@ -55,6 +66,54 @@ CSV_DIR = Path(
 # in (make perf-load derives them from the DB). A role WITH memberships
 # (principal/standard) uses its session units instead.
 UNIT_IDS = os.environ.get("PERF_UNIT_IDS", "")
+
+
+def load_seeded_users() -> dict[str, list[str]]:
+    pools: dict[str, list[str]] = {"principal": [], "standard": []}
+    if not USERS_FILE or not Path(USERS_FILE).is_file():
+        return pools
+    for line in Path(USERS_FILE).read_text().splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1] in pools:
+            pools[parts[1]].append(parts[0])
+    return pools
+
+
+SEEDED_USERS = load_seeded_users()
+_POOL_COUNTERS = {
+    "principal": itertools.count(),
+    "standard": itertools.count(),
+    "any": itertools.count(),
+}
+
+
+def next_seeded_user(pool: str) -> str | None:
+    """Round-robin a distinct seeded user per VU; 'any' draws from both."""
+    candidates = (
+        SEEDED_USERS[pool]
+        if pool != "any"
+        else (SEEDED_USERS["principal"] + SEEDED_USERS["standard"])
+    )
+    if not candidates:
+        return None
+    return candidates[next(_POOL_COUNTERS[pool]) % len(candidates)]
+
+
+def mint_auth_cookie(institutional_id: str) -> str:
+    """Access token for a seeded DEFAULT-provider user, identical in shape
+    to what _set_auth_cookies issues — resolution only needs the
+    (institutional_id, provider) pair and a valid signature.
+    """
+    return create_access_token(
+        data={
+            "sub": institutional_id,
+            "email": f"{institutional_id}@example.org",
+            "institutional_id": institutional_id,
+            "provider": str(int(UserProvider.DEFAULT)),
+            "type": "access",
+        },
+        expires_delta=timedelta(hours=6),
+    )
 
 
 def units_from_env() -> list[int]:
@@ -135,13 +194,20 @@ class CO2User(HttpUser):
 
     abstract = True
     wait_time = between(1, 5)
+    # Which seeded-user pool this scenario draws from in PERF_USERS_FILE
+    # mode: "principal" (full modules.* on their unit), "standard"
+    # (own travel/cloud + plans), or "any".
+    user_pool = "principal"
 
     def on_start(self):
         # RequestOriginMiddleware rejects cookie-authed non-GETs without a
         # trusted origin marker; Sec-Fetch-Site: none is the sanctioned path.
         self.client.headers.update({"Sec-Fetch-Site": "none"})
+        seeded_user = next_seeded_user(self.user_pool)
         if AUTH_COOKIE:
             self.client.cookies.set("auth_token", AUTH_COOKIE)
+        elif seeded_user:
+            self.client.cookies.set("auth_token", mint_auth_cookie(seeded_user))
         else:
             with self.client.get(
                 f"/v1/auth/login-test?role={ROLE}",
@@ -217,6 +283,8 @@ class ExplorerReadUser(CO2User):
     Merged stats validate units against the caller's membership allow-list,
     so run this as a unit role (principal/standard), not backoffice admin.
     """
+
+    user_pool = "any"
 
     @task(3)
     def workspace_home(self):

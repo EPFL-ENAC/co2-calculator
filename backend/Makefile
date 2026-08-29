@@ -161,6 +161,7 @@ PERF_REPORT_DIR ?= tests/performance/reports
 # Local docker-compose Postgres; override for another target.
 PERF_DB_URL ?= postgresql://co2_user:co2_password@localhost:5432/co2_calculator
 PERF_DUMP ?= tests/performance/dumps/perf_backdrop.dump
+PERF_USERS_FILE ?= $(PERF_REPORT_DIR)/perf_users.txt
 
 .PHONY: perf-csvs
 perf-csvs: ## Generate per-module ceiling-scale upload CSVs into INPUT_DATA/perf/
@@ -177,6 +178,10 @@ perf-seed: ## Seed the #2295 load-test backdrop (SEED_NUM_UNITS/SEED_YEARS/SEED_
 .PHONY: perf-load
 perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES="ExplorerReadUser"
 	@mkdir -p $(PERF_REPORT_DIR)
+	@test -s $(PERF_USERS_FILE) || docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc \
+		"select institutional_id || ' ' || case when roles_raw::text like '%principal%' then 'principal' else 'standard' end from users where institutional_id like 'USR%'" \
+		> $(PERF_USERS_FILE) 2>/dev/null || true
+	PERF_USERS_FILE="$(PERF_USERS_FILE)" \
 	PERF_UNIT_IDS="$${PERF_UNIT_IDS:-$$(docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc "select min(id)||'-'||max(id) from units where institutional_code like 'U0%'" 2>/dev/null | tr -d '[:space:]' || true)}" \
 	PERF_ROLE="$${PERF_ROLE:-calco2.user.principal}" \
 	$(UV) run locust -f tests/performance/locustfile.py $(PERF_CLASSES) \

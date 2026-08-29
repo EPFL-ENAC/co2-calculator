@@ -185,6 +185,12 @@ def generate_users(unit_map):
 
             role = random.choice(USER_ROLES)  # nosec B311
 
+            # Role.on is a discriminated union on "kind" — mirror the shapes
+            # TEST_ROLES uses: standard=OwnScope, principal=UnitScope.
+            scope_kind = "own"
+            if role == RoleName.CO2_USER_PRINCIPAL:
+                scope_kind = "unit"
+
             user_rows.append(
                 (
                     institutional_id,
@@ -196,7 +202,10 @@ def generate_users(unit_map):
                         [
                             {
                                 "role": role.value,
-                                "on": {"institutional_id": unit_iid},
+                                "on": {
+                                    "kind": scope_kind,
+                                    "institutional_id": unit_iid,
+                                },
                             }
                         ]
                     ),
@@ -216,12 +225,15 @@ def generate_users(unit_map):
         user_counter += 1
 
         if role == RoleName.CO2_SUPERADMIN:
-            roles_raw = [{"role": role.value, "on": {"scope": "global"}}]
+            roles_raw = [{"role": role.value, "on": {"kind": "global"}}]
         else:
             roles_raw = [
                 {
                     "role": role.value,
-                    "on": {"affiliation": random.choice(["SB", "STI", "IC", "SV"])},  # nosec B311
+                    "on": {
+                        "kind": "affiliation",
+                        "affiliation": random.choice(["SB", "STI", "IC", "SV"]),  # nosec B311
+                    },
                 }
             ]
 
