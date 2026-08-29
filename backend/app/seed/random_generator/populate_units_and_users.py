@@ -21,6 +21,7 @@ from faker import Faker
 
 from app.core.config import get_settings
 from app.models.user import RoleName, UserProvider
+from app.providers.test_fixtures import TEST_LEAF_UNIT_IIDS
 
 # 500 units × 3 years × 8 module_types × ~67 entries/module ≈ 804k data_entry rows
 # (see seed_data_entries.ENTRIES_PER_MODULE). Keep NUM_USERS between
@@ -61,7 +62,10 @@ async def get_asyncpg_connection():
 # ============================================================
 
 
-SEEDED_UNIT_LEVEL = 5  # leaf level (lab/team).
+# Level 4 = the leaf labs the workspace surfaces (#930's Unit.level == 4
+# filter in get_user_units); level 5 predates that filter and made seeded
+# units invisible in unit listings.
+SEEDED_UNIT_LEVEL = 4
 
 
 def generate_units():
@@ -71,6 +75,11 @@ def generate_units():
         institutional_code = f"U{i:05d}"
         # cf-style id; RoleScope.institutional_id matches this column.
         institutional_id = f"CF{i:05d}"
+        # The first seeded units take the TEST fixture leaf iids so the
+        # login-test principal/standard roles (scoped to those iids) own
+        # ceiling-loaded units — required for the #2295 role ladder.
+        if i < len(TEST_LEAF_UNIT_IIDS):
+            institutional_id = TEST_LEAF_UNIT_IIDS[i]
         rows.append(
             (
                 institutional_code,

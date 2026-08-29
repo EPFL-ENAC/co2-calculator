@@ -171,11 +171,14 @@ perf-seed: ## Seed the #2295 load-test backdrop (SEED_NUM_UNITS/SEED_YEARS/SEED_
 	SEED_NUM_UNITS=$${SEED_NUM_UNITS:-600} \
 	SEED_YEARS="$${SEED_YEARS:-2021 2022 2023 2024 2025}" \
 	SEED_CEILING_SCALE=$${SEED_CEILING_SCALE:-0.1} \
+	SEED_CEILING_UNITS_PREFIX=$${SEED_CEILING_UNITS_PREFIX:-U0} \
 	$(UV) run -m app.seed.random_generator.seed_all
 
 .PHONY: perf-load
 perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES="ExplorerReadUser"
 	@mkdir -p $(PERF_REPORT_DIR)
+	PERF_UNIT_IDS="$${PERF_UNIT_IDS:-$$(docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc "select min(id)||'-'||max(id) from units where institutional_code like 'U0%'" 2>/dev/null | tr -d '[:space:]' || true)}" \
+	PERF_ROLE="$${PERF_ROLE:-calco2.user.principal}" \
 	$(UV) run locust -f tests/performance/locustfile.py $(PERF_CLASSES) \
 		--host $(PERF_HOST) --headless \
 		-u $(PERF_USERS) -r $$(( $(PERF_USERS) / 10 + 1 )) -t $(PERF_TIME) \
@@ -183,9 +186,12 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 		--only-summary
 
 .PHONY: perf-sweep
-perf-sweep: ## Full #2295 ladder: reads 50→1000, plan/explore-create 10→40, uploads 5→20
+perf-sweep: ## Full #2295 ladder: admin reads 50→1000, principal module reads/plans/explore, standard uploads
 	for u in 50 100 200 500 1000; do \
 		$(MAKE) perf-load PERF_USERS=$$u PERF_CLASSES=ExplorerReadUser PERF_TAG=read_$$u || exit 1; \
+	done
+	for u in 50 100 200 500 1000; do \
+		$(MAKE) perf-load PERF_USERS=$$u PERF_CLASSES=ModuleReadUser PERF_TAG=module_read_$$u || exit 1; \
 	done
 	for u in 10 20 30 40; do \
 		$(MAKE) perf-load PERF_USERS=$$u PERF_CLASSES=PlanUser PERF_TAG=plan_$$u || exit 1; \

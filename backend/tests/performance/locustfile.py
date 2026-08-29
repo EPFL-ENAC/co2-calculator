@@ -12,9 +12,19 @@ Run (see backend/Makefile):
 
 User classes — pass the class names on the CLI to pick a scenario:
     ExplorerReadUser   dashboard/explorer read mix (50/100/200/500/1000)
+    ModuleReadUser     module/submodule page reads
     ExploreCreateUser  parallel Simulator-Explore report creation (10-40)
     PlanUser           parallel project-plan create → prefill → read → delete
     CsvUploadUser      parallel CSV upload → dispatch → poll to completion
+
+Roles (PERF_ROLE, default calco2.user.principal): merged stats and module
+reads/uploads are scoped to the caller's unit memberships and modules.*
+permissions, so the unit-role logins are the realistic drivers. Their
+login-test scopes cover the four TEST leaf units — the perf seeder maps its
+first four fake units onto those iids so the ladder hits ceiling-loaded
+units. The backoffice admin (calco2.backoffice.admin) has no memberships
+and no modules.* permissions: use it only for workspace-home/totals reads
+across the whole seeded pool via PERF_UNIT_IDS.
 
 Auth: GET /v1/auth/login-test (DEBUG builds only) sets the auth cookie; on
 platforms without it, export PERF_AUTH_COOKIE=<auth_token JWT>. Every
@@ -32,22 +42,45 @@ from locust import HttpUser, between, task
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 
-ROLE = os.environ.get("PERF_ROLE", "calco2.backoffice.admin")
+ROLE = os.environ.get("PERF_ROLE", "calco2.user.principal")
 AUTH_COOKIE = os.environ.get("PERF_AUTH_COOKIE", "")
 CSV_DIR = Path(
     os.environ.get(
         "PERF_CSV_DIR", str(Path(__file__).resolve().parents[2] / "INPUT_DATA" / "perf")
     )
 )
+# Explicit unit-id pool, e.g. "4403-5002" or "12,13,20-40". Used when the
+# role has no unit memberships (the global backoffice login-test user):
+# unit listing is membership-based, so local admin runs pass the seeded ids
+# in (make perf-load derives them from the DB). A role WITH memberships
+# (principal/standard) uses its session units instead.
+UNIT_IDS = os.environ.get("PERF_UNIT_IDS", "")
+
+
+def units_from_env() -> list[int]:
+    ids: list[int] = []
+    for part in UNIT_IDS.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            lo, hi = part.split("-", 1)
+            ids.extend(range(int(lo), int(hi) + 1))
+            continue
+        ids.append(int(part))
+    return ids
+
+
 # How many unit_ids a merged explorer query aggregates over.
 MERGED_UNITS = int(os.environ.get("PERF_MERGED_UNITS", "10"))
 # Upload/prefill jobs poll every POLL_INTERVAL s until JOB_TIMEOUT s.
 JOB_TIMEOUT = float(os.environ.get("PERF_JOB_TIMEOUT", "600"))
 POLL_INTERVAL = float(os.environ.get("PERF_POLL_INTERVAL", "2"))
 
-# IngestionState / IngestionResult int values (app/models/data_ingestion.py).
-STATE_FINISHED = 3
-RESULT_ERROR = 2
+# IngestionState / IngestionResult are int enums in the model, but the
+# pipeline endpoint serializes them by NAME.
+STATE_FINISHED = "FINISHED"
+RESULT_ERROR = "ERROR"
 
 CALCULATOR_TYPES_BY_MODULE = {
     module_type: [t for t in types if not t.is_planner_kind]
@@ -120,18 +153,33 @@ class CO2User(HttpUser):
                     resp.failure(f"login-test returned {resp.status_code}")
 
         session = self.client.get("/v1/session", name="/v1/session").json()
+        # configured_years entries are YearConfiguration objects, not ints.
+        self.years = [y["year"] for y in session.get("configured_years", [])]
         self.unit_ids = [u["id"] for u in session.get("units", [])]
-        self.years = session.get("configured_years", [])
         if not self.unit_ids:
-            # Global-scope roles may carry no unit_users rows; list instead.
-            units = self.client.get("/v1/units?limit=1000", name="/v1/units").json()
-            self.unit_ids = [u["id"] for u in units]
+            # Global-scope roles carry no unit memberships; take the pool
+            # from PERF_UNIT_IDS, else from the units listing.
+            self.unit_ids = units_from_env()
+        if not self.unit_ids:
+            self.unit_ids = [u["id"] for u in self._list_all_units()]
         if not self.unit_ids or not self.years:
             raise RuntimeError(
                 f"no units ({len(self.unit_ids)}) or years ({self.years}) for "
                 f"role {ROLE} — is the backdrop seeded (make perf-seed)?"
             )
         self._report_ids: dict[tuple[int, int], int] = {}
+
+    def _list_all_units(self) -> list[dict]:
+        units: list[dict] = []
+        skip = 0
+        while True:
+            page = self.client.get(
+                f"/v1/units?skip={skip}&limit=1000", name="/v1/units"
+            ).json()
+            units.extend(page)
+            if len(page) < 1000:
+                return units
+            skip += 1000
 
     def pick_unit(self) -> int:
         return random.choice(self.unit_ids)  # nosec B311
@@ -164,7 +212,11 @@ class CO2User(HttpUser):
 
 
 class ExplorerReadUser(CO2User):
-    """Dashboard + explorer read mix — the 50/100/200/500/1000 ladder."""
+    """Dashboard + explorer read mix — the 50/100/200/500/1000 ladder.
+
+    Merged stats validate units against the caller's membership allow-list,
+    so run this as a unit role (principal/standard), not backoffice admin.
+    """
 
     @task(3)
     def workspace_home(self):
@@ -214,6 +266,31 @@ class ExplorerReadUser(CO2User):
             name="/v1/unit/[id]/results",
         )
 
+    @task(1)
+    def explore_read(self):
+        path = (
+            f"/v1/carbon-reports/simulator/explore/unit/{self.pick_unit()}"
+            f"/reference-year/{self.pick_year()}/"
+        )
+        with self.client.get(
+            path,
+            name="/v1/carbon-reports/simulator/explore/...",
+            catch_response=True,
+        ) as resp:
+            if resp.status_code == 404:
+                # No explore report yet for this (unit, year) — create it
+                # (PUT), like the frontend does on first visit.
+                resp.success()
+                self.client.put(
+                    path, name="PUT /v1/carbon-reports/simulator/explore/..."
+                )
+
+
+class ModuleReadUser(CO2User):
+    """Module + submodule page reads. Needs a module-permission role:
+    run with PERF_ROLE=calco2.user.principal or calco2.user.standard.
+    """
+
     @task(2)
     def module_read(self):
         report = self.report_id(self.pick_unit(), self.pick_year())
@@ -239,11 +316,10 @@ class ExplorerReadUser(CO2User):
         )
 
     @task(1)
-    def explore_read(self):
+    def workspace_home(self):
         self.client.get(
-            f"/v1/carbon-reports/simulator/explore/unit/{self.pick_unit()}"
-            f"/reference-year/{self.pick_year()}/",
-            name="/v1/carbon-reports/simulator/explore/...",
+            f"/v1/workspace/{self.pick_unit()}/{self.pick_year()}/home",
+            name="/v1/workspace/[unit]/[year]/home",
         )
 
 
@@ -254,10 +330,10 @@ class ExploreCreateUser(CO2User):
 
     @task
     def create_explore(self):
-        self.client.post(
+        self.client.put(
             f"/v1/carbon-reports/simulator/explore/unit/{self.pick_unit()}"
             f"/reference-year/{self.pick_year()}/",
-            name="POST /v1/carbon-reports/simulator/explore/...",
+            name="PUT /v1/carbon-reports/simulator/explore/...",
         )
 
 
@@ -271,6 +347,7 @@ class PlanUser(CO2User):
     @task
     def plan_lifecycle(self):
         unit = self.pick_unit()
+        reference_year = self.pick_year()
         start = time.perf_counter()
 
         created = self.client.post(
@@ -286,18 +363,16 @@ class PlanUser(CO2User):
         plan_id = created.json()["id"]
 
         try:
-            years = self.client.get(
-                f"/v1/project-plans/{plan_id}/years",
-                name="/v1/project-plans/[id]/years",
-            ).json()
-            if not years:
-                raise RuntimeError("plan has no year rows")
-            plan_year = years[0]["year"]
-
+            # A fresh plan has no year rows; setting the range + default
+            # reference year creates them and enqueues the prefill job.
             patched = self.client.patch(
-                f"/v1/project-plans/{plan_id}/years/{plan_year}",
-                json={"reference_year": self.pick_year(), "is_grant": False},
-                name="PATCH /v1/project-plans/[id]/years/[y]",
+                f"/v1/project-plans/{plan_id}",
+                json={
+                    "start_year": 2027,
+                    "end_year": 2031,
+                    "default_reference_year": reference_year,
+                },
+                name="PATCH /v1/project-plans/[id]",
             )
             job_id = patched.status_code == 200 and patched.json().get("prefill_job_id")
             if job_id:
@@ -305,6 +380,10 @@ class PlanUser(CO2User):
 
             self.client.get(
                 f"/v1/project-plans/{plan_id}", name="/v1/project-plans/[id]"
+            )
+            self.client.get(
+                f"/v1/project-plans/{plan_id}/years",
+                name="/v1/project-plans/[id]/years",
             )
             self.client.get(
                 f"/v1/project-plans/{plan_id}/aggregate-stats",
@@ -335,6 +414,9 @@ class PlanUser(CO2User):
 class CsvUploadUser(CO2User):
     """CSV upload → dispatch → poll the ingestion pipeline to completion.
     Wall time of upload-to-ingested lands in the FLOW row.
+
+    Run as principal: standard users only carry ``.../own`` permissions on
+    travel and cloud/AI — bulk module uploads are a principal capability.
     """
 
     wait_time = between(10, 30)

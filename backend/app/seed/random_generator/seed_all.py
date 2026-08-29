@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.seed.random_generator.populate_units_and_users import (
     main as seed_units_users,
 )
+from app.seed.random_generator.seed_carbon_reports import YEARS
 from app.seed.random_generator.seed_carbon_reports import main as seed_carbon_reports
 from app.seed.random_generator.seed_data_entries import main as seed_data_entries
 from app.seed.random_generator.seed_post_all import main as seed_post_all
@@ -66,7 +67,10 @@ async def main():
         print("✓ Carbon reports and modules seeded successfully")
 
         print("\n4. Seeding factors...")
-        await seed_factors()
+        # Every seeded year needs its factor set: year-scoped modules
+        # (energy_combustion, external_clouds, ...) hard-fail ingest and
+        # recalc for a year with no factors.
+        await seed_factors(years=YEARS)
         print("✓ Factors seeded successfully")
 
         print("\n5. Seeding data entries and emissions...")

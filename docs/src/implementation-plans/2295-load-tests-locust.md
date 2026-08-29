@@ -68,6 +68,30 @@ CSV+HTML pair per stage. Restore the backdrop anytime with
 Against dev: `make perf-load PERF_HOST=https://<dev-url>`; if `login-test`
 is disabled there, export `PERF_AUTH_COOKIE=<auth_token JWT>`.
 
+## What the first local run taught us (2026-08-29)
+
+- The random seeder had drifted from the dev schema: `carbon_projects` /
+  `carbon_reports` grew partial/extended unique indexes the seeder's
+  `ON CONFLICT` targets no longer matched — fixed in
+  `seed_carbon_reports.py`. Its `SEEDED_UNIT_LEVEL = 5` also predated
+  \#930's `Unit.level == 4` workspace filter, which made seeded units
+  invisible — now 4.
+- Unit listing (`get_user_units`) is membership + level-4 based; a
+  GlobalScope backoffice user sees **no** units, and merged modules-stats
+  validate against that same allow-list. Module reads/uploads additionally
+  need `modules.*` permissions the admin lacks. Hence the role model:
+  unit roles drive the load; the seeder maps its first four fake units to
+  the TEST leaf iids so principal/standard own ceiling-loaded units, and
+  `PERF_UNIT_IDS` feeds admin-wide reads.
+- The pipeline endpoint serializes job state/result enums by NAME
+  (`"FINISHED"`, `"ERROR"`), not int value.
+- A fresh simulator plan has no year rows: `PATCH /{plan_id}` with
+  `start_year`/`end_year`/`default_reference_year` creates them and
+  enqueues the prefill job.
+- The full upload chain (temp-upload → dispatch → csv_ingest →
+  emission_recalc → aggregation) was verified green end-to-end as the
+  principal login-test user.
+
 ## Traps encoded in the locustfile (don't rediscover these)
 
 - `RequestOriginMiddleware` 403s every cookie-authed non-GET without

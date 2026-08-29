@@ -86,7 +86,9 @@ async def insert_carbon_projects(conn):
             end_year,
             is_viewable_by_unit_members
         FROM tmp_carbon_projects
-        ON CONFLICT (unit_id, carbon_report_type) DO NOTHING
+        ON CONFLICT (unit_id, carbon_report_type)
+            WHERE carbon_report_type = 'Calculator'::carbon_report_type_enum
+            DO NOTHING
     """)
 
     rows = await conn.fetch(
@@ -105,9 +107,10 @@ async def insert_carbon_reports(conn, unit_to_project):
     print(f"Creating carbon reports for {len(unit_to_project)} units...")
 
     # `overall_status` is NOT NULL and its default lives on the SQLModel field,
-    # not on the column — a raw INSERT must supply it.
+    # not on the column — a raw INSERT must supply it. Same for `is_grant`,
+    # which is part of uq_carbon_reports_project_year.
     records = [
-        (year, unit_id, project_id, ModuleStatus.NOT_STARTED.value)
+        (year, unit_id, project_id, ModuleStatus.NOT_STARTED.value, False)
         for unit_id, project_id in unit_to_project.items()
         for year in YEARS
     ]
@@ -117,17 +120,20 @@ async def insert_carbon_reports(conn, unit_to_project):
             year INTEGER,
             unit_id INTEGER,
             carbon_project_id INTEGER,
-            overall_status INTEGER
+            overall_status INTEGER,
+            is_grant BOOLEAN
         ) ON COMMIT DROP
     """)
 
     await conn.copy_records_to_table("tmp_carbon_reports", records=records)
 
     inserted = await conn.fetch("""
-        INSERT INTO carbon_reports (year, unit_id, carbon_project_id, overall_status)
-        SELECT year, unit_id, carbon_project_id, overall_status
+        INSERT INTO carbon_reports (
+            year, unit_id, carbon_project_id, overall_status, is_grant
+        )
+        SELECT year, unit_id, carbon_project_id, overall_status, is_grant
         FROM tmp_carbon_reports
-        ON CONFLICT (carbon_project_id, year) DO NOTHING
+        ON CONFLICT (carbon_project_id, year, is_grant) DO NOTHING
         RETURNING id
     """)
 

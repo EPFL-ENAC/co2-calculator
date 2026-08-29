@@ -27,7 +27,13 @@ make perf-db-dump          # snapshot the backdrop for cheap re-runs
 
 Re-runs: `make perf-db-restore` instead of re-seeding. Knobs:
 `SEED_NUM_UNITS`, `SEED_YEARS`, `SEED_CEILING_SCALE` (1 = the full #2161
-worst case, ≈63M rows — plan for a long seed).
+worst case, ≈63M rows — plan for a long seed), `SEED_CEILING_UNITS_PREFIX`
+(default `U0`: only the fake perf units get ceiling data, so a DB that also
+holds real accred-synced units doesn't balloon).
+
+If your host `pg_dump`/`pg_restore` is older than the server (compose runs
+Postgres 18), dump through the container instead:
+`docker exec co2-calculator-postgres pg_dump -U co2_user -Fc co2_calculator > dump`.
 
 ## Running
 
@@ -57,21 +63,44 @@ columns, not averages.
 Pick with `PERF_CLASSES` (class names in
 `backend/tests/performance/locustfile.py`):
 
-| Class               | Simulates                                                                                                |
-| ------------------- | -------------------------------------------------------------------------------------------------------- |
-| `ExplorerReadUser`  | Dashboard/explorer read mix: workspace home, merged modules-stats, unit totals, module + submodule reads |
-| `ExploreCreateUser` | Parallel Simulator-Explore report creation                                                               |
-| `PlanUser`          | Project-plan lifecycle: create → reference year (prefill job) → read → delete                            |
-| `CsvUploadUser`     | CSV upload → dispatch → poll ingestion pipeline to completion                                            |
+| Class               | Simulates                                                                      |
+| ------------------- | ------------------------------------------------------------------------------ |
+| `ExplorerReadUser`  | Dashboard/explorer read mix: workspace home, merged modules-stats, unit totals |
+| `ModuleReadUser`    | Module + paginated submodule page reads                                        |
+| `ExploreCreateUser` | Parallel Simulator-Explore report creation                                     |
+| `PlanUser`          | Project-plan lifecycle: create → year range + prefill job → read → delete      |
+| `CsvUploadUser`     | CSV upload → dispatch → poll ingestion pipeline to completion                  |
 
 Multi-request flows (plan lifecycle, upload-to-ingested) also report their
 total wall time as `FLOW` rows in the stats.
 
+### Roles and the order of creation
+
+Uploads require an **opened year configuration** — normally the backoffice
+admin's `bootstrap-years`; `make perf-seed` stamps it directly for the
+DEFAULT and TEST providers, so login-test users see the seeded years.
+
+Merged stats, module reads and uploads are scoped to the caller's unit
+memberships and `modules.*` permissions, so the **unit roles are the
+drivers**: `calco2.user.principal` (default) and `calco2.user.standard`.
+Their login-test scopes cover the four TEST leaf units; the perf seeder
+maps its first four fake units onto those iids so both roles own
+ceiling-loaded units. Note the permission split: a standard user carries
+only `.../own` permissions on travel and cloud/AI plus `planner.plans`, so
+module reads and bulk uploads run as principal; rerun the read/plan
+ladders as standard with `PERF_ROLE=calco2.user.standard make perf-load ...`.
+
+The backoffice admin (`calco2.backoffice.admin`) has **no memberships and
+no `modules.*` permissions** — use it only for workspace-home/totals reads
+across the full seeded pool: `make perf-load` auto-derives `PERF_UNIT_IDS`
+from the local DB (or pass ranges like `PERF_UNIT_IDS=4403-5002`).
+
 ### Knobs (env)
 
 `PERF_HOST`, `PERF_USERS`, `PERF_TIME`, `PERF_ROLE` (default
-`calco2.backoffice.admin` — global scope), `PERF_MERGED_UNITS`,
-`PERF_JOB_TIMEOUT`, `PERF_AUTH_COOKIE`.
+`calco2.user.principal`), `PERF_UNIT_IDS` (explicit unit-id pool for roles
+without memberships), `PERF_MERGED_UNITS`, `PERF_JOB_TIMEOUT`,
+`PERF_AUTH_COOKIE`.
 
 ## Against dev
 

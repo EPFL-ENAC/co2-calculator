@@ -67,6 +67,10 @@ BATCH_SIZE = 1000
 # to #2161's per-type ceilings × scale, all VALIDATED (#2295 load backdrop).
 # 0 (default) keeps the legacy random density.
 CEILING_SCALE = float(os.environ.get("SEED_CEILING_SCALE", "0"))
+# In ceiling mode, restrict seeding to units whose institutional_code starts
+# with this prefix (the fake perf units) — keeps a DB that also holds real
+# accred-synced units from ballooning to every unit × every year.
+CEILING_UNITS_PREFIX = os.environ.get("SEED_CEILING_UNITS_PREFIX", "")
 
 
 # ============================================================
@@ -628,6 +632,17 @@ async def main():
         modules = await conn.fetch(
             "SELECT id, module_type_id FROM carbon_report_modules"
         )
+        if CEILING_SCALE > 0 and CEILING_UNITS_PREFIX:
+            modules = await conn.fetch(
+                """
+                SELECT crm.id, crm.module_type_id
+                FROM carbon_report_modules crm
+                JOIN carbon_reports cr ON cr.id = crm.carbon_report_id
+                JOIN units u ON u.id = cr.unit_id
+                WHERE u.institutional_code LIKE $1 || '%'
+                """,
+                CEILING_UNITS_PREFIX,
+            )
 
         print(f"Seeding data for {len(modules)} modules...\n")
 
