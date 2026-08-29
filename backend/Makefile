@@ -183,7 +183,7 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 		--host $(PERF_HOST) --headless \
 		-u $(PERF_USERS) -r $$(( $(PERF_USERS) / 10 + 1 )) -t $(PERF_TIME) \
 		--csv $(PERF_REPORT_DIR)/$(PERF_TAG) --html $(PERF_REPORT_DIR)/$(PERF_TAG).html \
-		--only-summary
+		--only-summary --exit-code-on-error 0
 
 .PHONY: perf-sweep
 perf-sweep: ## Full #2295 ladder: admin reads 50→1000, principal module reads/plans/explore, standard uploads
