@@ -19,7 +19,8 @@ from typing import Any
 import pytest
 from sqlmodel import col, select
 
-from app.models.carbon_report import CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReportModule, CarbonReportType
 from app.models.data_ingestion import EntityType
 from app.models.module_type import ModuleTypeEnum
 from app.services.data_ingestion.base_csv_provider import BaseCSVProvider
@@ -86,6 +87,11 @@ async def test_missing_report_is_created_and_mapped(pg_session, make_unit):
     Every CSV unit must still end up in the map (rows must NOT skip).
     """
     unit = await make_unit(pg_session)
+    # unit_sync provisions the Calculator project up front (#2487); creating a
+    # report no longer lazily creates it, so the seed mirrors that shape.
+    pg_session.add(
+        CarbonProject(unit_id=unit.id, carbon_report_type=CarbonReportType.CALCULATOR)
+    )
     await pg_session.commit()
 
     resolved = await _provider(pg_session)._resolve_carbon_report_modules(

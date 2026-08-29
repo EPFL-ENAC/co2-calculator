@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2050
-last_updated: 2026-08-19
+last_updated: 2026-08-29
 title: "Write-path statement budget — 29 SQL statements to 12"
 summary: "Implementation plan for the interactive write path's statement-count reduction (#2050 Track J4/I5). One headcount-member POST costs 29 SQL statements after the B3 subtree fix (50 before), and twelve of them re-read three rows because four services are each constructed with only a session and re-derive identity independently. Eight tasks, each lowering the STATEMENT_BUDGET ratchet in test_headcount_post_statement_budget_pg.py: drop two redundant session.refresh calls, skip the audit head lookup on CREATE, skip the pre-delete SELECT on create, merge the count and FTE aggregates, thread the resolved (report, project, module) through the workflow, batch factor prefetch across emission roots, dispatch the report rollup, and replace the member uniqueness pre-check with a unique index. Lands at 8, against an irreducible synchronous floor of 7 for 'insert an entry and return fresh module stats'."
 ---
@@ -17,7 +17,8 @@ summary: "Implementation plan for the interactive write path's statement-count r
 > statements**, down from 29 at plan time and 50 before Track J4's subtree fix.
 > Every task landed; two diverged from what is written below, both recorded in
 > [Outcome](#outcome). The final statement list and the two open follow-ups are
-> there too.
+> there too. The ratchet has since moved to **18** — see
+> [Ratchet raises](#ratchet-raises).
 
 **Goal:** take one interactive `POST` of a headcount member from 29 SQL
 statements to 8, without giving up the caller's read-after-write contract
@@ -2495,6 +2496,23 @@ nothing.
 
 **Duplicates checked on the lead's environment 2026-08-19: none.** Run the
 script against dev, stage and prod before the migration reaches them.
+
+### Ratchet raises
+
+The delivered 12 did not hold; both raises are deliberate behavior, not
+regressions.
+
+- **12 → 16 (2026-08-19).** Task 7's rollup deferral was reverted the same
+  day: `fire_and_forget_or_defer_to_poller` closes its coroutine unstarted on
+  every API pod running with `DISPATCH_JOBS_INLINE=false`, so the deferred
+  rollup silently never ran and `carbon_reports.stats` went stale. The rollup
+  is back inline at the tail of the request (commit `c3f2ad1c0`).
+- **16 → 18 (2026-08-29, #2456).** The inputs-deactivated guard exempted any
+  report with a `carbon_project_id` — dead code since #2487 gave every
+  Calculator report one too. Keying the exemption off the project's type
+  costs one `carbon_projects` get, and the `year_configuration` check the
+  guard exists for now actually runs on Calculator writes. Fail-closed
+  security beats two statements.
 
 ### Follow-ups
 
