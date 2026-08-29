@@ -956,7 +956,7 @@ async def create(
         scope=scope,
     )
     await EmbodiedEnergyWorkflow(db).post_create(
-        carbon_report_module,
+        scope,
         response,
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
@@ -1018,9 +1018,10 @@ async def update(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    report, carbon_report_module = await resolve_report_module(
+    scope = await resolve_write_scope(
         carbon_report_id, module_id, db, current_user, action="edit"
     )
+    report, carbon_report_module = scope.report, scope.module
     await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
@@ -1049,9 +1050,10 @@ async def update(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        scope=scope,
     )
     await EmbodiedEnergyWorkflow(db).post_update(
-        carbon_report_module,
+        scope,
         response,
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
@@ -1074,9 +1076,10 @@ async def delete(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    report, carbon_report_module = await resolve_report_module(
+    scope = await resolve_write_scope(
         carbon_report_id, module_id, db, current_user, action="edit"
     )
+    report, carbon_report_module = scope.report, scope.module
     await check_module_permission_for_report(
         current_user=current_user,
         module_id=module_id,
@@ -1107,9 +1110,10 @@ async def delete(
             current_user=UserRead.model_validate(current_user),
             request_context=request_context,
             background_tasks=background_tasks,
+            scope=scope,
         )
         await EmbodiedEnergyWorkflow(db).post_delete(
-            carbon_report_module,
+            scope,
             data_entry_type.value,
             current_user=UserRead.model_validate(current_user),
             request_context=request_context,

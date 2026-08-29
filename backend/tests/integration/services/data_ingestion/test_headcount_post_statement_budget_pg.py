@@ -303,7 +303,10 @@ async def test_headcount_member_post_statement_budget(
 # Calculator reports; keying it off the project's type costs one
 # carbon_projects get plus the year_configuration check it exists for, which
 # now actually runs. Reason recorded in plan 2050 (Ratchet raises).
-STATEMENT_BUDGET = 18
+# 18 → 16 (2026-08-29): the guard now reads report and project type off the
+# WriteScope the route already resolved — its two session.gets are gone; the
+# year_configuration check stays.
+STATEMENT_BUDGET = 16
 # One per emission leaf is the ceiling worth defending: factor resolution
 # must not scale with the fallback chain's depth.
 FACTOR_LOOKUP_BUDGET = 1
