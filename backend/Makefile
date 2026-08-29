@@ -181,6 +181,7 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 	@test -s $(PERF_USERS_FILE) || docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc \
 		"select institutional_id || ' ' || case when roles_raw::text like '%principal%' then 'principal' else 'standard' end from users where institutional_id like 'USR%'" \
 		> $(PERF_USERS_FILE) 2>/dev/null || true
+	@$(UV) run python -m tests.performance.resource_sampler $(PERF_REPORT_DIR)/$(PERF_TAG)_resources.csv & echo $$! > $(PERF_REPORT_DIR)/.sampler.pid
 	PERF_USERS_FILE="$(PERF_USERS_FILE)" \
 	PERF_UNIT_IDS="$${PERF_UNIT_IDS:-$$(docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc "select min(id)||'-'||max(id) from units where institutional_code like 'U0%'" 2>/dev/null | tr -d '[:space:]' || true)}" \
 	PERF_ROLE="$${PERF_ROLE:-calco2.user.principal}" \
@@ -188,7 +189,8 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 		--host $(PERF_HOST) --headless \
 		-u $(PERF_USERS) -r $$(( $(PERF_USERS) / 10 + 1 )) -t $(PERF_TIME) \
 		--csv $(PERF_REPORT_DIR)/$(PERF_TAG) --html $(PERF_REPORT_DIR)/$(PERF_TAG).html \
-		--only-summary --exit-code-on-error 0
+		--only-summary --exit-code-on-error 0; \
+	status=$$?; kill $$(cat $(PERF_REPORT_DIR)/.sampler.pid) 2>/dev/null; exit $$status
 
 .PHONY: perf-sweep
 perf-sweep: ## Full #2295 ladder: admin reads 50→1000, principal module reads/plans/explore, standard uploads
@@ -210,6 +212,10 @@ perf-sweep: ## Full #2295 ladder: admin reads 50→1000, principal module reads/
 .PHONY: perf-report
 perf-report: ## List endpoints with p95 > 1s across all recorded stages
 	$(UV) run python -m tests.performance.report_slow $(PERF_REPORT_DIR)
+
+.PHONY: perf-capacity
+perf-capacity: ## Capacity table: per stage requests/failures/p95 + peak backend & postgres CPU/memory
+	$(UV) run python -m tests.performance.resource_sampler --summarize --reports $(PERF_REPORT_DIR)
 
 .PHONY: perf-table-matrix
 perf-table-matrix: ## Sweep the table endpoint: every submodule × limit × sort column × order (+filter, deep pages, items, charts)
