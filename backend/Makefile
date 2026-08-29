@@ -181,7 +181,8 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 	@test -s $(PERF_USERS_FILE) || docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc \
 		"select institutional_id || ' ' || case when roles_raw::text like '%principal%' then 'principal' else 'standard' end from users where institutional_id like 'USR%'" \
 		> $(PERF_USERS_FILE) 2>/dev/null || true
-	@$(UV) run python -m tests.performance.resource_sampler $(PERF_REPORT_DIR)/$(PERF_TAG)_resources.csv & echo $$! > $(PERF_REPORT_DIR)/.sampler.pid
+	@p="$(PERF_HOST)"; p="$${p##*:}"; case "$$p" in *[!0-9]*|"") p=0;; esac; \
+	$(UV) run python -m tests.performance.resource_sampler --port $$p $(PERF_REPORT_DIR)/$(PERF_TAG)_resources.csv & echo $$! > $(PERF_REPORT_DIR)/.sampler.pid
 	PERF_USERS_FILE="$(PERF_USERS_FILE)" \
 	PERF_UNIT_IDS="$${PERF_UNIT_IDS:-$$(docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc "select min(id)||'-'||max(id) from units where institutional_code like 'U0%'" 2>/dev/null | tr -d '[:space:]' || true)}" \
 	PERF_ROLE="$${PERF_ROLE:-calco2.user.principal}" \

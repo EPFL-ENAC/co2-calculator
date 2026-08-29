@@ -20,15 +20,26 @@ from pathlib import Path
 REPORTS = Path(__file__).parent / "reports"
 
 
-def backend_usage() -> tuple[float, float]:
-    """Sum CPU%% and RSS(MB) of the uvicorn app processes."""
+def backend_usage(port: int) -> tuple[float, float]:
+    """Sum CPU%% and RSS(MB) of the processes serving ``port``.
+
+    uvicorn's spawned workers show up as ``spawn_main`` in ps, so match by
+    the listening socket (lsof) instead of the command line.
+    """
+    pids = subprocess.run(  # nosec B603 B607
+        ["lsof", "-ti", f":{port}"], capture_output=True, text=True
+    ).stdout.split()
+    if not pids:
+        return 0.0, 0.0
     out = subprocess.run(  # nosec B603 B607
-        ["ps", "-Ao", "%cpu,rss,command"], capture_output=True, text=True
+        ["ps", "-o", "%cpu=,rss=", "-p", ",".join(pids)],
+        capture_output=True,
+        text=True,
     ).stdout
     cpu = rss_kb = 0.0
     for line in out.splitlines():
-        if "uvicorn" in line and "app.main:app" in line:
-            parts = line.split(None, 2)
+        parts = line.split()
+        if len(parts) == 2:
             cpu += float(parts[0])
             rss_kb += float(parts[1])
     return cpu, rss_kb / 1024
@@ -59,7 +70,7 @@ def postgres_usage() -> tuple[float, float]:
     return cpu, 0.0
 
 
-def sample(out_path: Path, interval: float) -> None:
+def sample(out_path: Path, interval: float, port: int) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="") as handle:
         writer = csv.writer(handle)
@@ -67,7 +78,7 @@ def sample(out_path: Path, interval: float) -> None:
             ["ts", "backend_cpu_pct", "backend_rss_mb", "pg_cpu_pct", "pg_mem_mb"]
         )
         while True:  # killed by perf-load when locust exits
-            backend_cpu, backend_rss = backend_usage()
+            backend_cpu, backend_rss = backend_usage(port)
             pg_cpu, pg_mem = postgres_usage()
             writer.writerow(
                 [
@@ -134,6 +145,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out", nargs="?", help="csv to write samples into")
     parser.add_argument("--interval", type=float, default=3)
+    parser.add_argument("--port", type=int, default=8010)
     parser.add_argument("--summarize", action="store_true")
     parser.add_argument("--reports", default=str(REPORTS))
     args = parser.parse_args()
@@ -142,7 +154,7 @@ def main() -> int:
         return summarize(Path(args.reports))
     if not args.out:
         raise SystemExit("pass an output csv or --summarize")
-    sample(Path(args.out), args.interval)
+    sample(Path(args.out), args.interval, args.port)
     return 0
 
 
