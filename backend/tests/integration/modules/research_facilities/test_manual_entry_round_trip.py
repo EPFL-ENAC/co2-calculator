@@ -24,8 +24,9 @@ from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
 from app.modules.emissions import EmissionType
-from app.schemas.carbon_report import CarbonReportModuleRead
+from app.schemas.carbon_report import CarbonReportModuleRead, CarbonReportRead
 from app.schemas.user import UserRead
+from app.schemas.write_scope import WriteScope
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 
 _USER = UserRead(
@@ -37,7 +38,9 @@ _USER = UserRead(
 )
 
 
-async def _seed_module(session: AsyncSession, year: int = 2025) -> CarbonReportModule:
+async def _seed_module(
+    session: AsyncSession, year: int = 2025
+) -> tuple[CarbonReport, CarbonReportModule]:
     report = CarbonReport(year=year, unit_id=1, overall_status=0)
     session.add(report)
     await session.flush()
@@ -48,7 +51,16 @@ async def _seed_module(session: AsyncSession, year: int = 2025) -> CarbonReportM
     )
     session.add(module)
     await session.flush()
-    return module
+    return report, module
+
+
+def _scope_for(report: CarbonReport, module_read: CarbonReportModuleRead) -> WriteScope:
+    """The WriteScope the routes resolve before calling the workflow (#2050 J4)."""
+    return WriteScope(
+        report=CarbonReportRead.model_validate(report, from_attributes=True),
+        module=module_read,
+        is_simulator=False,
+    )
 
 
 async def _emission_of(session: AsyncSession, entry_id: int) -> DataEntryEmission:
@@ -64,7 +76,7 @@ async def _emission_of(session: AsyncSession, entry_id: int) -> DataEntryEmissio
 async def test_manual_common_facility_entry_computes_its_share(
     db_session: AsyncSession,
 ):
-    module = await _seed_module(db_session)
+    report, module = await _seed_module(db_session)
     db_session.add(
         Factor(
             emission_type_id=EmissionType.research_facilities__facilities.value,
@@ -80,10 +92,9 @@ async def test_manual_common_facility_entry_computes_its_share(
     await db_session.commit()
 
     workflow = CarbonReportModuleWorkflow(db_session)
+    module_read = CarbonReportModuleRead.model_validate(module, from_attributes=True)
     created = await workflow.create(
-        carbon_report_module=CarbonReportModuleRead.model_validate(
-            module, from_attributes=True
-        ),
+        carbon_report_module=module_read,
         data_entry_type_id=DataEntryTypeEnum.research_facilities.value,
         # Exactly what ModuleForm.buildPayload sends: the id identifies the
         # factor, the name and unit ride along mirrored from it.
@@ -96,6 +107,7 @@ async def test_manual_common_facility_entry_computes_its_share(
         current_user=_USER,
         request_context={},
         background_tasks=_NoopBackgroundTasks(),
+        scope=_scope_for(report, module_read),
     )
 
     emission = await _emission_of(db_session, created.id)
@@ -117,7 +129,7 @@ async def test_manual_common_facility_entry_computes_its_share(
 async def test_manual_animal_facility_entry_sums_its_source_shares(
     db_session: AsyncSession,
 ):
-    module = await _seed_module(db_session)
+    report, module = await _seed_module(db_session)
     db_session.add(
         Factor(
             emission_type_id=EmissionType.research_facilities__animal__rodent.value,
@@ -143,10 +155,9 @@ async def test_manual_animal_facility_entry_sums_its_source_shares(
     await db_session.commit()
 
     workflow = CarbonReportModuleWorkflow(db_session)
+    module_read = CarbonReportModuleRead.model_validate(module, from_attributes=True)
     created = await workflow.create(
-        carbon_report_module=CarbonReportModuleRead.model_validate(
-            module, from_attributes=True
-        ),
+        carbon_report_module=module_read,
         data_entry_type_id=DataEntryTypeEnum.animal_facilities.value,
         item_data={
             "researchfacility_id": "1321",
@@ -158,6 +169,7 @@ async def test_manual_animal_facility_entry_sums_its_source_shares(
         current_user=_USER,
         request_context={},
         background_tasks=_NoopBackgroundTasks(),
+        scope=_scope_for(report, module_read),
     )
 
     # 1000/4000 of (1000 + 2000 + 3000 + 0 + 0 + 4000).
@@ -173,7 +185,7 @@ async def test_a_unit_that_disagrees_with_the_factor_is_refused(
     cannot resolve a unit the factor does not use, and since #2050 J1 that
     raises rather than silently dropping the row.
     """
-    module = await _seed_module(db_session)
+    report, module = await _seed_module(db_session)
     db_session.add(
         Factor(
             emission_type_id=EmissionType.research_facilities__facilities.value,
@@ -189,11 +201,10 @@ async def test_a_unit_that_disagrees_with_the_factor_is_refused(
     await db_session.commit()
 
     workflow = CarbonReportModuleWorkflow(db_session)
+    module_read = CarbonReportModuleRead.model_validate(module, from_attributes=True)
     with pytest.raises(Exception) as exc_info:
         await workflow.create(
-            carbon_report_module=CarbonReportModuleRead.model_validate(
-                module, from_attributes=True
-            ),
+            carbon_report_module=module_read,
             data_entry_type_id=DataEntryTypeEnum.research_facilities.value,
             item_data={
                 "researchfacility_id": "1902",
@@ -204,6 +215,7 @@ async def test_a_unit_that_disagrees_with_the_factor_is_refused(
             current_user=_USER,
             request_context={},
             background_tasks=_NoopBackgroundTasks(),
+            scope=_scope_for(report, module_read),
         )
     assert "hours" in str(exc_info.value) or "unit" in str(exc_info.value).lower()
 

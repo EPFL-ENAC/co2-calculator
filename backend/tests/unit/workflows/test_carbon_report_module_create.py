@@ -27,6 +27,17 @@ _CURRENT_USER = UserRead(
 )
 
 
+def _scope() -> SimpleNamespace:
+    """The WriteScope shape the routes resolve (#2050 J4) — the guard reads
+    ``is_simulator``, ``report.year`` and ``module.module_type_id`` off it.
+    """
+    return SimpleNamespace(
+        report=SimpleNamespace(year=2026),
+        module=SimpleNamespace(id=42, carbon_report_id=99, module_type_id=1),
+        is_simulator=False,
+    )
+
+
 def _member_item_data(sius_code: str) -> dict:
     return {
         "name": "X X",
@@ -46,11 +57,9 @@ def _make_workflow_deps():
     session.refresh = AsyncMock()
     session.commit = AsyncMock()
     session.rollback = AsyncMock()
-    # #2007: the inputs-deactivated guard resolves the report, then its year
-    # config. No year_configuration row → not deactivated, the schema default.
-    session.get = AsyncMock(
-        return_value=SimpleNamespace(year=2026, carbon_project_id=None)
-    )
+    # #2007: the inputs-deactivated guard reads its identity off the caller's
+    # WriteScope (#2050 J4) and only queries the year config. No
+    # year_configuration row → not deactivated, the schema default.
     no_year_config = MagicMock()
     no_year_config.first = MagicMock(return_value=None)
     session.exec = AsyncMock(return_value=no_year_config)
@@ -109,6 +118,7 @@ async def test_create_second_role_for_existing_member_is_accepted():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     assert response.id == 1
@@ -164,6 +174,7 @@ async def test_create_duplicate_role_for_existing_member_is_rejected():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(),
             )
 
     assert exc_info.value.status_code == 422
@@ -207,6 +218,7 @@ async def test_create_stamps_source_manual_and_created_by_id():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     call_kwargs = data_entry_service.create.call_args.kwargs
@@ -257,6 +269,7 @@ async def test_create_value_error_from_emission_service_returns_422():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(),
             )
 
     assert exc_info.value.status_code == 422
@@ -315,6 +328,7 @@ async def test_create_train_without_natural_key_is_rejected():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(),
             )
 
     assert exc_info.value.status_code == 422
@@ -360,6 +374,7 @@ async def test_create_train_with_natural_key_omitted_is_rejected():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(),
             )
 
     assert exc_info.value.status_code == 422
@@ -405,6 +420,7 @@ async def test_create_train_with_natural_key_succeeds():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     assert response.id == 7

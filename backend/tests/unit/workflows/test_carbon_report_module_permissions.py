@@ -13,8 +13,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.models.carbon_project import CarbonProject
-from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
@@ -36,18 +34,20 @@ _CURRENT_USER_READ = UserRead(
 )
 
 
-def _session_get(models: dict[type, object]):
-    """``session.get(Model, id)`` side effect, dispatched by model class.
+def _scope(module_type_id: int = 4, *, is_simulator: bool = False) -> SimpleNamespace:
+    """The WriteScope shape the routes resolve (#2050 J4).
 
-    A real ``AsyncSession.get`` resolves by table; a single fixed
-    ``return_value`` can't stand in once the guard loads both the report and
-    (for a project-stamped report) its project (#2456).
+    The inputs-deactivated guard reads ``is_simulator``, ``report.year`` and
+    ``module.module_type_id`` off it — for tests that don't exercise the
+    deactivation matrix the defaults are inert (no year config is mocked).
     """
-
-    async def _get(model, _id):
-        return models.get(model)
-
-    return _get
+    return SimpleNamespace(
+        report=SimpleNamespace(year=2026),
+        module=SimpleNamespace(
+            id=18036, carbon_report_id=99, module_type_id=module_type_id
+        ),
+        is_simulator=is_simulator,
+    )
 
 
 def _workflow_deps(existing_data: dict, source: int | None):
@@ -77,14 +77,9 @@ def _workflow_deps(existing_data: dict, source: int | None):
         )
     )
 
-    # #2007: the inputs-deactivated guard resolves the report, then its year
-    # config. No year_configuration row → not deactivated, the schema default.
-    # carbon_project_id=None here means the project lookup is never reached.
-    session.get = AsyncMock(
-        side_effect=_session_get(
-            {CarbonReport: SimpleNamespace(year=2026, carbon_project_id=None)}
-        )
-    )
+    # #2007: the inputs-deactivated guard reads its identity off the caller's
+    # WriteScope (#2050 J4) and only queries the year config. No
+    # year_configuration row → not deactivated, the schema default.
     no_year_config = MagicMock()
     no_year_config.first = MagicMock(return_value=None)
     session.exec = AsyncMock(return_value=no_year_config)
@@ -147,6 +142,7 @@ async def test_update_imported_row_locked_field_changed_is_403():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(),
             )
 
     assert exc_info.value.status_code == 403
@@ -174,6 +170,7 @@ async def test_update_imported_row_allowed_field_changed_succeeds():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     data_entry_service.update.assert_awaited_once()
@@ -198,6 +195,7 @@ async def test_update_imported_row_note_always_succeeds():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     data_entry_service.update.assert_awaited_once()
@@ -229,6 +227,7 @@ async def test_update_imported_row_echoed_unchanged_locked_field_succeeds():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     data_entry_service.update.assert_awaited_once()
@@ -253,6 +252,7 @@ async def test_update_user_row_whitelisted_field_succeeds():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     data_entry_service.update.assert_awaited_once()
@@ -281,6 +281,7 @@ async def test_update_planner_snapshot_row_percentage_succeeds():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     data_entry_service.update.assert_awaited_once()
@@ -320,6 +321,7 @@ async def test_update_purchase_user_row_institutional_code_succeeds():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     data_entry_service.update.assert_awaited_once()
@@ -356,6 +358,7 @@ async def test_update_purchase_kind_change_clears_locked_dependent_field():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     persisted = data_entry_service.update.call_args.kwargs["data"].data
@@ -386,6 +389,7 @@ async def test_update_purchase_user_row_additional_code_is_403():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(),
             )
 
     assert exc_info.value.status_code == 403
@@ -416,6 +420,7 @@ async def test_update_unit_specific_upload_row_succeeds():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     data_entry_service.update.assert_called_once()
@@ -439,6 +444,7 @@ async def test_delete_unit_specific_upload_row_succeeds():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     data_entry_service.delete.assert_called_once()
@@ -462,6 +468,7 @@ async def test_delete_imported_row_is_403():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(),
             )
 
     assert exc_info.value.status_code == 403
@@ -493,6 +500,7 @@ async def test_delete_missing_row_is_404_not_500():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(),
             )
 
     assert exc_info.value.status_code == 404
@@ -516,6 +524,7 @@ async def test_delete_user_row_succeeds():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     data_entry_service.delete.assert_awaited_once()
@@ -554,6 +563,7 @@ async def test_update_member_sciper_on_user_row_succeeds_when_unique():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(),
         )
 
     data_entry_service.check_member_role_unique.assert_awaited_once()
@@ -585,6 +595,7 @@ async def test_update_member_sciper_duplicate_is_rejected():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(),
             )
 
     assert exc_info.value.status_code == 422
@@ -615,6 +626,7 @@ async def test_update_member_sciper_on_imported_row_is_403():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(),
             )
 
     assert exc_info.value.status_code == 403
@@ -627,25 +639,13 @@ async def test_update_member_sciper_on_imported_row_is_403():
 # write to a submodule the backoffice had switched off.
 
 
-def _deactivated(
-    session,
-    *,
-    carbon_project_id: int | None = None,
-    carbon_report_type: CarbonReportType = CarbonReportType.CALCULATOR,
-):
+def _deactivated(session):
     """Point the workflow at a year config with RF inputs deactivated.
 
-    ``carbon_project_id``/``carbon_report_type`` model the report's real
-    persisted shape (#2456): every report — Calculator included — is stamped
-    with a project at creation, so the guard's exemption test has to load and
-    check the project's type, not merely whether the id is set.
+    The exemption discriminator — the project's type, not its presence
+    (#2456) — reaches the guard pre-resolved as ``scope.is_simulator``, so
+    the session only serves the year-config lookup.
     """
-    models: dict[type, object] = {
-        CarbonReport: SimpleNamespace(year=2026, carbon_project_id=carbon_project_id)
-    }
-    if carbon_project_id is not None:
-        models[CarbonProject] = SimpleNamespace(carbon_report_type=carbon_report_type)
-    session.get = AsyncMock(side_effect=_session_get(models))
     year_config = SimpleNamespace(
         config={
             "modules": {
@@ -678,14 +678,13 @@ async def test_create_is_403_when_inputs_deactivated():
     carbon_project_id (unit_sync provisions it up front) — the old
     ``carbon_project_id is not None`` discriminator treated every Calculator
     report as exempt, making this 403 unreachable in production. The guard
-    must key off the project's type instead.
+    keys off the project's type, resolved by the route into
+    ``scope.is_simulator``.
     """
     session, data_entry_service, emission_service, module_service = _workflow_deps(
         {}, source=DataEntrySourceEnum.USER_MANUAL.value
     )
-    _deactivated(
-        session, carbon_project_id=42, carbon_report_type=CarbonReportType.CALCULATOR
-    )
+    _deactivated(session)
     p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
     workflow = CarbonReportModuleWorkflow(session)
 
@@ -703,6 +702,7 @@ async def test_create_is_403_when_inputs_deactivated():
                 current_user=_CURRENT_USER_READ,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(ModuleTypeEnum.research_facilities.value),
             )
 
     assert exc_info.value.status_code == 403
@@ -725,9 +725,7 @@ async def test_delete_is_403_when_inputs_deactivated():
             data_entry_type_id=_RF_TYPE,
         )
     )
-    _deactivated(
-        session, carbon_project_id=42, carbon_report_type=CarbonReportType.CALCULATOR
-    )
+    _deactivated(session)
     p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
     workflow = CarbonReportModuleWorkflow(session)
 
@@ -739,6 +737,7 @@ async def test_delete_is_403_when_inputs_deactivated():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(ModuleTypeEnum.research_facilities.value),
             )
 
     assert exc_info.value.detail["code"] == "INPUTS_DEACTIVATED"
@@ -774,6 +773,7 @@ async def test_update_note_still_saves_when_inputs_deactivated():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(ModuleTypeEnum.research_facilities.value),
         )
 
     data_entry_service.update.assert_awaited_once()
@@ -783,17 +783,13 @@ async def test_update_note_still_saves_when_inputs_deactivated():
 async def test_create_on_plan_report_ignores_inputs_deactivated():
     """A plan/grant report carries the user's own scenario, not calculator
     data entry — the Project Grant research-facilities grid must keep working
-    while the calculator switch is off. Its project is SIMULATOR_PLAN, not
-    CALCULATOR — the discriminator the fixed #2456 guard now checks.
+    while the calculator switch is off. Its scope resolves is_simulator —
+    the discriminator the fixed #2456 guard checks.
     """
     session, data_entry_service, emission_service, module_service = _workflow_deps(
         {}, source=DataEntrySourceEnum.USER_MANUAL.value
     )
-    _deactivated(
-        session,
-        carbon_project_id=7,
-        carbon_report_type=CarbonReportType.SIMULATOR_PLAN,
-    )
+    _deactivated(session)
     p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
     workflow = CarbonReportModuleWorkflow(session)
 
@@ -810,6 +806,7 @@ async def test_create_on_plan_report_ignores_inputs_deactivated():
             current_user=_CURRENT_USER_READ,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(ModuleTypeEnum.research_facilities.value, is_simulator=True),
         )
 
     data_entry_service.create.assert_awaited_once()

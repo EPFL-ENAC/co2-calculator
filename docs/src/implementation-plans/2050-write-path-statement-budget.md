@@ -17,7 +17,7 @@ summary: "Implementation plan for the interactive write path's statement-count r
 > statements**, down from 29 at plan time and 50 before Track J4's subtree fix.
 > Every task landed; two diverged from what is written below, both recorded in
 > [Outcome](#outcome). The final statement list and the two open follow-ups are
-> there too. The ratchet has since moved to **18** — see
+> there too. The ratchet has since moved to **16** — see
 > [Ratchet raises](#ratchet-raises).
 
 **Goal:** take one interactive `POST` of a headcount member from 29 SQL
@@ -2513,6 +2513,12 @@ regressions.
   costs one `carbon_projects` get, and the `year_configuration` check the
   guard exists for now actually runs on Calculator writes. Fail-closed
   security beats two statements.
+- **18 → 16 (2026-08-29).** Half of the raise above was recovered the same
+  day by threading the route's `WriteScope` into the guard: it reads
+  `is_simulator` and the report's year off the scope instead of re-fetching
+  the report and project (`create`/`update`/`delete` now all require a
+  scope). The `year_configuration` check — the statement the guard exists
+  for — stays.
 
 ### Follow-ups
 

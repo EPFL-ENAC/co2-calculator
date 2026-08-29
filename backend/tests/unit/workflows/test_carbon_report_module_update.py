@@ -16,16 +16,26 @@ _CURRENT_USER = SimpleNamespace(
 
 
 def _stub_inputs_deactivated_lookup(session: MagicMock) -> None:
-    """#2007 guard: resolve the report, then look up its year config.
+    """#2007 guard: look up the year config (identity comes off the scope).
 
     No ``year_configuration`` row → not deactivated, the schema default.
     """
-    session.get = AsyncMock(
-        return_value=SimpleNamespace(year=2026, carbon_project_id=None)
-    )
     no_year_config = MagicMock()
     no_year_config.first = MagicMock(return_value=None)
     session.exec = AsyncMock(return_value=no_year_config)
+
+
+def _scope(module_type_id: int) -> SimpleNamespace:
+    """The WriteScope shape the routes resolve (#2050 J4) — the guard reads
+    ``is_simulator``, ``report.year`` and ``module.module_type_id`` off it.
+    """
+    return SimpleNamespace(
+        report=SimpleNamespace(year=2026),
+        module=SimpleNamespace(
+            id=18036, carbon_report_id=99, module_type_id=module_type_id
+        ),
+        is_simulator=False,
+    )
 
 
 @pytest.mark.asyncio
@@ -99,6 +109,7 @@ async def test_update_partial_patch_retains_persisted_classification():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(4),
         )
 
     persisted = captured["data"].data
@@ -168,6 +179,7 @@ async def test_update_blank_purchase_institutional_code_rejected():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(4),
             )
 
     assert exc_info.value.status_code == 400
@@ -239,6 +251,7 @@ async def test_update_value_error_from_emission_service_returns_422():
                 current_user=_CURRENT_USER,
                 request_context={},
                 background_tasks=MagicMock(),
+                scope=_scope(4),
             )
 
     assert exc_info.value.status_code == 422
@@ -314,6 +327,7 @@ async def test_update_building_change_persists_incomplete_room_row():
             current_user=_CURRENT_USER,
             request_context={},
             background_tasks=MagicMock(),
+            scope=_scope(3),
         )
 
     persisted = captured["data"].data
