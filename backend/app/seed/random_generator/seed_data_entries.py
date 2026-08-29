@@ -10,6 +10,7 @@ No ORM inserts.
 
 import asyncio
 import json
+import os
 import random
 from collections.abc import Callable
 from datetime import UTC, date, datetime
@@ -56,10 +57,16 @@ from app.modules.research_facilities import (
     ResearchFacilitiesAnimalHandlerCreate,
     ResearchFacilitiesCommonHandlerCreate,
 )
+from app.seed.ceilings import CEILING_PER_UNIT_YEAR, TOTAL_CEILING_PER_UNIT_YEAR
 from app.seed.seed_helper import versionapi
 
 fake = Faker()
 BATCH_SIZE = 1000
+
+# SEED_CEILING_SCALE=0.1 switches from the random ~67-entries/module density
+# to #2161's per-type ceilings × scale, all VALIDATED (#2295 load backdrop).
+# 0 (default) keeps the legacy random density.
+CEILING_SCALE = float(os.environ.get("SEED_CEILING_SCALE", "0"))
 
 
 # ============================================================
@@ -499,6 +506,46 @@ def generate_data_entries_for_module(module_id, module_type_id):
     return rows
 
 
+def generate_data_entries_for_type(module_id, data_entry_type, count):
+    """Like ``generate_data_entries_for_module``, but every row is the given
+    type and every row is VALIDATED — the ceiling backdrop (#2161/#2295)
+    models a unit's finished report at worst-case scale, not a draft mix.
+    """
+    dto_class = DATA_ENTRY_TYPE_TO_DTO[data_entry_type]
+    builder = DTO_BUILDERS[dto_class]
+    rows = []
+    for _ in range(count):
+        payload_dict = builder()
+        dto_instance = dto_class(
+            data_entry_type_id=data_entry_type.value,
+            carbon_report_module_id=module_id,
+            **payload_dict,
+        )
+        rows.append(
+            (
+                data_entry_type.value,
+                module_id,
+                json.dumps(dto_instance.data, default=str),
+                DataEntryStatusEnum.VALIDATED.value,
+            )
+        )
+    return rows
+
+
+def generate_ceiling_entries_for_module(module_id, module_type_id):
+    """Per-type #2161 ceilings × ``CEILING_SCALE`` instead of random density."""
+    rows = []
+    matching_types = [
+        t
+        for t in MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type_id, [])
+        if not t.is_planner_kind
+    ]
+    for data_entry_type in matching_types:
+        count = int(CEILING_PER_UNIT_YEAR[data_entry_type] * CEILING_SCALE)
+        rows.extend(generate_data_entries_for_type(module_id, data_entry_type, count))
+    return rows
+
+
 # The app resolves these data entry types' emission types at compute time from
 # the factor rows (``_RUNTIME_RESOLVERS``), which the seeder deliberately skips.
 # Seeding needs *some* valid leaf under the right taxonomy root, otherwise the
@@ -584,11 +631,24 @@ async def main():
 
         print(f"Seeding data for {len(modules)} modules...\n")
 
+        generate_rows = generate_data_entries_for_module
+        batch_size = BATCH_SIZE
+        if CEILING_SCALE > 0:
+            generate_rows = generate_ceiling_entries_for_module
+            # Cap each COPY batch near ~200k rows regardless of scale.
+            avg_rows_per_module = (
+                TOTAL_CEILING_PER_UNIT_YEAR
+                * CEILING_SCALE
+                / len(MODULE_TYPE_TO_DATA_ENTRY_TYPES)
+            )
+            batch_size = max(10, min(BATCH_SIZE, int(200_000 / avg_rows_per_module)))
+            print(f"Ceiling mode: scale={CEILING_SCALE}, batch_size={batch_size}\n")
+
         total_entries = 0
         total_emissions = 0
         batch_number = 0
 
-        for i in range(0, len(modules), BATCH_SIZE):
+        for i in range(0, len(modules), batch_size):
             batch_number += 1
 
             # Start new transaction block every COMMIT_EVERY batches
@@ -596,13 +656,13 @@ async def main():
                 transaction = conn.transaction()
                 await transaction.start()
 
-            batch = modules[i : i + BATCH_SIZE]
+            batch = modules[i : i + batch_size]
 
             data_entry_rows = []
 
             for module in batch:
                 data_entry_rows.extend(
-                    generate_data_entries_for_module(
+                    generate_rows(
                         module["id"],
                         module["module_type_id"],
                     )

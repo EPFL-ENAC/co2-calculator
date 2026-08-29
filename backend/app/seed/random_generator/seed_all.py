@@ -1,9 +1,12 @@
 """Main seed script to orchestrate all seeding operations in the correct order."""
 
 import asyncio
+import os
 import sys
 import traceback
+from urllib.parse import urlsplit
 
+from app.core.config import get_settings
 from app.seed.random_generator.populate_units_and_users import (
     main as seed_units_users,
 )
@@ -20,8 +23,33 @@ from app.seed.random_generator.seed_year_configuration import (
 from app.seed.seed_generic_factors import main as seed_factors
 
 
+def _guard_target_db() -> None:
+    """Refuse to bulk-seed a non-local database unless explicitly allowed.
+
+    backend/.env commonly points DB_URL at the shared dev platform; dumping
+    millions of fake rows there by accident is unrecoverable. Inline env
+    vars don't reliably override dotenv here, so check the effective URL.
+    """
+    settings = get_settings()
+    if settings.DB_URL is None:
+        raise SystemExit("DB_URL must be set to run this seed script")
+    host = urlsplit(
+        settings.DB_URL.replace("postgresql+psycopg", "postgresql")
+    ).hostname
+    print(f"Target database host: {host}")
+    if host in ("localhost", "127.0.0.1"):
+        return
+    if os.environ.get("SEED_ALLOW_REMOTE") == "1":
+        return
+    raise SystemExit(
+        f"Refusing to bulk-seed non-local database host {host!r}. "
+        "Set SEED_ALLOW_REMOTE=1 if this is intentional."
+    )
+
+
 async def main():
     """Run all seeding operations in the correct order."""
+    _guard_target_db()
     print("Starting comprehensive data seeding...")
 
     try:

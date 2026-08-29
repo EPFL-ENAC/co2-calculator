@@ -13,6 +13,7 @@ in seed_data_entries to hit the target volume.
 
 import asyncio
 import json
+import os
 import random
 
 import asyncpg
@@ -24,8 +25,10 @@ from app.models.user import RoleName, UserProvider
 # 500 units × 3 years × 8 module_types × ~67 entries/module ≈ 804k data_entry rows
 # (see seed_data_entries.ENTRIES_PER_MODULE). Keep NUM_USERS between
 # 3 × NUM_UNITS and 15 × NUM_UNITS so distribute_users converges.
-NUM_UNITS = 500
-NUM_USERS = 4000
+# SEED_NUM_UNITS overrides for load-test backdrops (#2295); users follow at
+# 8×units unless SEED_NUM_USERS pins them.
+NUM_UNITS = int(os.environ.get("SEED_NUM_UNITS", "500"))
+NUM_USERS = int(os.environ.get("SEED_NUM_USERS", str(8 * NUM_UNITS)))
 
 USER_ROLES = [
     RoleName.CO2_USER_STD,

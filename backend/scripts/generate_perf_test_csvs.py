@@ -48,33 +48,20 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+from app.seed.ceilings import CEILING_PER_UNIT_YEAR
+
 INPUT_DATA = Path(__file__).resolve().parent.parent / "INPUT_DATA"
 
-# #2161 real per-data_entry_type ceilings, per unit-year.
+# #2161 real per-data_entry_type ceilings, per unit-year — single source is
+# app.seed.ceilings; this script's CLI keeps the renamed
+# building_construction_renovation name (see module docstring).
 CEILINGS = {
-    "member": 500,
-    "student": 500,
-    "scientific": 1000,
-    "it": 1000,
-    "other": 1000,
-    "plane": 500,
-    "train": 5000,
-    "building": 500,
-    "energy_combustion": 500,
-    "building_construction_renovation": 500,
-    "external_clouds": 500,
-    "external_ai": 500,
-    "process_emissions": 500,
-    "scientific_equipment": 1000,
-    "it_equipment": 1000,
-    "consumable_accessories": 1000,
-    "biological_chemical_gaseous_product": 1000,
-    "services": 1000,
-    "vehicles": 1000,
-    "other_purchases": 1000,
-    "purchases_centralized": 1000,
-    "research_facilities": 500,
-    "animal_facilities": 50,
+    (
+        "building_construction_renovation"
+        if det.name == "building_embodied_energy"
+        else det.name
+    ): count
+    for det, count in CEILING_PER_UNIT_YEAR.items()
 }
 
 

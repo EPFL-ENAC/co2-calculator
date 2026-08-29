@@ -12,6 +12,7 @@ Idempotent.
 """
 
 import asyncio
+import os
 import random
 
 import asyncpg
@@ -20,7 +21,8 @@ from app.core.config import get_settings
 from app.core.constants import ModuleStatus
 from app.models.module_type import ALL_MODULE_TYPE_IDS
 
-YEARS = [2023, 2024, 2025]
+# SEED_YEARS="2021 2022 2023 2024 2025" overrides for load-test backdrops (#2295).
+YEARS = [int(y) for y in os.environ.get("SEED_YEARS", "2023 2024 2025").split()]
 
 
 # ============================================================
