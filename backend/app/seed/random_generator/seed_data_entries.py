@@ -633,13 +633,17 @@ async def main():
             "SELECT id, module_type_id FROM carbon_report_modules"
         )
         if CEILING_SCALE > 0 and CEILING_UNITS_PREFIX:
+            # Calculator reports only — a unit can also carry Simulator
+            # Explore/Plan reports whose modules must not get backdrop rows.
             modules = await conn.fetch(
                 """
                 SELECT crm.id, crm.module_type_id
                 FROM carbon_report_modules crm
                 JOIN carbon_reports cr ON cr.id = crm.carbon_report_id
+                JOIN carbon_projects cp ON cp.id = cr.carbon_project_id
                 JOIN units u ON u.id = cr.unit_id
                 WHERE u.institutional_code LIKE $1 || '%'
+                  AND cp.carbon_report_type = 'Calculator'
                 """,
                 CEILING_UNITS_PREFIX,
             )

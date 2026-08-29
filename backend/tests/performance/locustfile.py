@@ -36,15 +36,19 @@ import os
 import random
 import time
 import uuid
-from datetime import timedelta
 from pathlib import Path
 
 from locust import HttpUser, between, task
 
-from app.core.security import create_access_token
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
-from app.models.user import UserProvider
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
+from tests.performance.perf_common import (
+    TABLE_PAGE_LIMITS,
+    mint_auth_cookie,
+    module_of,
+    slug,
+    sort_columns,
+)
 
 ROLE = os.environ.get("PERF_ROLE", "calco2.user.principal")
 AUTH_COOKIE = os.environ.get("PERF_AUTH_COOKIE", "")
@@ -97,23 +101,6 @@ def next_seeded_user(pool: str) -> str | None:
     if not candidates:
         return None
     return candidates[next(_POOL_COUNTERS[pool]) % len(candidates)]
-
-
-def mint_auth_cookie(institutional_id: str) -> str:
-    """Access token for a seeded DEFAULT-provider user, identical in shape
-    to what _set_auth_cookies issues — resolution only needs the
-    (institutional_id, provider) pair and a valid signature.
-    """
-    return create_access_token(
-        data={
-            "sub": institutional_id,
-            "email": f"{institutional_id}@example.org",
-            "institutional_id": institutional_id,
-            "provider": str(int(UserProvider.DEFAULT)),
-            "type": "access",
-        },
-        expires_delta=timedelta(hours=6),
-    )
 
 
 def units_from_env() -> list[int]:
@@ -176,17 +163,6 @@ CSV_BY_TYPE = {
     DataEntryTypeEnum.research_facilities: "perf_researchfacilities_common.csv",
     DataEntryTypeEnum.animal_facilities: "perf_researchfacilities_animals.csv",
 }
-
-
-def module_of(data_entry_type: DataEntryTypeEnum) -> ModuleTypeEnum:
-    for module_type, types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items():
-        if data_entry_type in types:
-            return module_type
-    raise ValueError(f"{data_entry_type} has no owning module type")
-
-
-def slug(module_type: ModuleTypeEnum) -> str:
-    return module_type.name.replace("_", "-")
 
 
 class CO2User(HttpUser):
@@ -377,9 +353,17 @@ class ModuleReadUser(CO2User):
             return
         module_type = random.choice(list(CALCULATOR_TYPES_BY_MODULE))  # nosec B311
         entry_type = random.choice(CALCULATOR_TYPES_BY_MODULE[module_type])  # nosec B311
+        # Sorted pagination at realistic table page sizes — the table
+        # matrix (table_matrix.py) sweeps every combo; this keeps the
+        # combos under concurrent load too.
         self.client.get(
             f"/v1/carbon-reports/{report}/modules/{slug(module_type)}/{entry_type.name}",
-            params={"page": 1, "limit": 20},
+            params={
+                "page": 1,
+                "limit": random.choice(TABLE_PAGE_LIMITS),  # nosec B311
+                "sort_by": random.choice(sort_columns(entry_type)),  # nosec B311
+                "sort_order": random.choice(("asc", "desc")),  # nosec B311
+            },
             name="/v1/carbon-reports/[id]/modules/[slug]/[sub]",
         )
 

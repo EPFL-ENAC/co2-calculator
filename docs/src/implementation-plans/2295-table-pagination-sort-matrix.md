@@ -1,12 +1,13 @@
 ---
-status: planned
+status: in progress
 issue: 2295
 last_updated: 2026-08-29
 summary: "Exhaustive latency matrix for the table endpoint
   GET /v1/carbon-reports/{id}/modules/{module}/{sub}: every module ×
   submodule × limit {20,100,500,1000} × every sortable column × asc/desc,
-  against a full-ceiling unit; plus sorted big pages folded into the
-  concurrent ModuleReadUser ladder."
+  plus filter search, deep pagination, item GETs and the module chart
+  companions, against a full-ceiling unit; sorted big pages folded into
+  the concurrent ModuleReadUser ladder."
 ---
 
 # Table pagination + sort matrix (#2295 follow-up)
@@ -65,9 +66,31 @@ ceilings.
   ~23 submodules × ~5-10 columns × 8 = **2-4k requests, sequential,
   ≈5-10 min**; `--repeat 3` knob records the median.
 - Output: `reports/table_matrix.csv`
-  (submodule, column, order, limit, rows_returned, status, ms) + stdout
-  table of combos over 1000 ms and over 400 ms (dev-platform proxy for 4 s),
-  worst first. `report_slow.py` stays untouched — different shape.
+  (kind, submodule, column, order, limit, page, rows_returned,
+  response_bytes, status, ms) + stdout table of combos over 1000 ms and
+  over 400 ms (dev-platform proxy for 4 s), worst first.
+  `report_slow.py` stays untouched — different shape.
+
+### Added dimensions (same runner, extra axes)
+
+- **`filter=` search** — the table's search box hits the same endpoint
+  with a substring filter over name-ish JSONB fields; likely the least
+  index-friendly path. One common 2-3 char probe per submodule × the four
+  limits.
+- **Deep pagination** — offset pagination degrades linearly; probe the
+  LAST page (`page = ceil(count/limit)`) per submodule at limit 20 and
+  100 (train at ceiling ≈ 5,500 rows → page ~275 is the worst realistic
+  offset in the app today).
+- **Single-item GET** — the row-expand path
+  `/{report}/modules/{slug}/{sub}/{item_id}`: one probe per submodule
+  (grab an id from the first page).
+- **Module chart companions** — the module page renders
+  `/{report}/modules/{slug}/stats-by-class` and
+  `/{report}/modules/{slug}/top-class-breakdown` next to the table; one
+  probe per module so a slow chart can't hide behind a fast table.
+- **Payload size** — record response bytes per combo: a 1,000-row page
+  can be megabytes, and serialization+transfer can dominate before the
+  DB does; the CSV makes that visible.
 
 ## Task 2 — fold sorted big pages into the concurrent ladder
 

@@ -790,18 +790,25 @@ async def get_submodule(
     )
     factor_year = await resolve_factor_year(db, report)
 
-    submodule_data = await DataEntryService(db).get_submodule_data(
-        carbon_report_module_id=module.id,
-        data_entry_type_id=data_entry_type_id,
-        limit=limit,
-        offset=offset,
-        sort_by=sort_by,
-        sort_order=sort_order,
-        filter=filter,
-        institutional_id_filter=institutional_id_filter,
-        exclude_planner_snapshots=exclude_planner_snapshots,
-        factor_year=factor_year,
-    )
+    try:
+        submodule_data = await DataEntryService(db).get_submodule_data(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=data_entry_type_id,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            filter=filter,
+            institutional_id_filter=institutional_id_filter,
+            exclude_planner_snapshots=exclude_planner_snapshots,
+            factor_year=factor_year,
+        )
+    except ValueError as exc:
+        # An unknown sort_by raises in the repo's _apply_sort; it comes
+        # straight from the query string, so it's a 400, not a 500.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
 
     if not submodule_data:
         raise HTTPException(

@@ -211,6 +211,12 @@ perf-sweep: ## Full #2295 ladder: admin reads 50→1000, principal module reads/
 perf-report: ## List endpoints with p95 > 1s across all recorded stages
 	$(UV) run python -m tests.performance.report_slow $(PERF_REPORT_DIR)
 
+.PHONY: perf-table-matrix
+perf-table-matrix: ## Sweep the table endpoint: every submodule × limit × sort column × order (+filter, deep pages, items, charts)
+	$(UV) run python -m tests.performance.table_matrix \
+		--host $(PERF_HOST) \
+		--user "$${PERF_MATRIX_USER:-$$(docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc "select u.institutional_id from users u join unit_users uu on uu.user_id=u.id join units un on un.id=uu.unit_id where un.institutional_code='U00000' and u.roles_raw::text like '%principal%' limit 1" 2>/dev/null | tr -d '[:space:]')}"
+
 .PHONY: perf-db-dump
 perf-db-dump: ## Dump the seeded backdrop DB for reuse (PERF_DB_URL override)
 	@mkdir -p $(dir $(PERF_DUMP))
