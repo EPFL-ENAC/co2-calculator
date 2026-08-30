@@ -12,6 +12,7 @@ import httpx
 from app.core.config import RoleProviderType, get_settings
 from app.core.logging import get_logger
 from app.models.user import (
+    ROLE_NAME_PREFIX,
     AffiliationScope,
     GlobalScope,
     OwnScope,
@@ -30,6 +31,44 @@ from app.providers.test_fixtures import (
 
 logger = get_logger(__name__)
 settings = get_settings()
+
+
+class RoleProviderNetworkError(Exception):
+    """Raised when role provider cannot reach or use its external service."""
+
+    pass
+
+
+def _raise_on_wholesale_drop(
+    authorizations: list[dict], roles: list[Role], user_id: str
+) -> None:
+    """Refuse to report "no roles" when every authorization was dropped.
+
+    The mapping loop skips an authorization on five conditions; an Accred
+    response-shape change trips them all at once, and "zero roles" then
+    reaches the caller as a fact about the user instead of a broken
+    contract. The Accred schema has moved before (resource.cf →
+    resource.altname), so name the offending payload and fail (#2531).
+    """
+    if roles or not authorizations:
+        return
+    first = authorizations[0]
+    resource = (first.get("reason") or {}).get("resource") or {}
+    logger.error(
+        "Accred returned authorizations but none mapped to a role - "
+        "likely an Accred response-shape change",
+        extra={
+            "user_id": user_id,
+            "total_authorizations": len(authorizations),
+            "first_auth_keys": sorted(first.keys()),
+            "first_auth_name": first.get("name"),
+            "first_auth_state": first.get("state"),
+            "first_resource_keys": sorted(resource.keys()),
+        },
+    )
+    raise RoleProviderNetworkError(
+        f"Accred returned {len(authorizations)} authorizations, none usable"
+    )
 
 
 def _unit_or_own_scope(role_name, institutional_id: str):
@@ -347,7 +386,8 @@ class AccredRoleProvider(RoleProvider):
 
     Calls the EPFL Accred authorizations endpoint to fetch user authorizations
     and maps them to CO2 application roles based on:
-    - authorization.name starting with "co2."
+    - authorization.name matching a ``RoleName`` value (all share
+      ``ROLE_NAME_PREFIX``, currently "calco2.")
     - authorization.accredunitid as the unit scope
 
     This is a placeholder implementation that can be extended to support
@@ -366,6 +406,21 @@ class AccredRoleProvider(RoleProvider):
         self.api_url = settings.ACCRED_API_BASE_URL
         self.api_username = settings.ACCRED_API_USERNAME
         self.api_key = settings.ACCRED_API_KEY
+
+    def _require_credentials(self, user_id: str) -> tuple[str, str, str]:
+        """Return (url, username, key), failing loudly when unconfigured.
+
+        Returning an empty result here would be indistinguishable from "this
+        user has no roles", and callers persist that answer — an unconfigured
+        pod would wipe every user it served (#2531).
+        """
+        if not self.api_url or not self.api_username or not self.api_key:
+            logger.error(
+                "Accred API not configured - cannot resolve roles",
+                extra={"user_id": user_id},
+            )
+            raise RoleProviderNetworkError("Accred API is not configured")
+        return self.api_url, self.api_username, self.api_key
 
     def get_user_id(self, userinfo: dict[str, Any]) -> str:
         """Get institutional ID for a user.
@@ -409,23 +464,18 @@ class AccredRoleProvider(RoleProvider):
         Returns:
             User info dict from Accred API
         """
-        if not self.api_url or not self.api_username or not self.api_key:
-            logger.error(
-                "Cannot fetch user: Accred API not configured",
-                extra={"user_id": user_id},
-            )
-            return {}
+        api_url, api_username, api_key = self._require_credentials(user_id)
 
         try:
             # Call EPFL Accred user endpoint
             # /v1/accreds?persid=352707&onlymainaccred=true
             # /v1/persons/101116
-            url = f"{self.api_url}/persons/{user_id}"
+            url = f"{api_url}/persons/{user_id}"
 
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     url,
-                    auth=(self.api_username, self.api_key),
+                    auth=(api_username, api_key),
                     timeout=10.0,
                 )
                 response.raise_for_status()
@@ -460,6 +510,9 @@ class AccredRoleProvider(RoleProvider):
             raise RoleProviderNetworkError(
                 f"Cannot connect to Accred API: {str(e)}"
             ) from e
+        except RoleProviderNetworkError:
+            # Already logged with its diagnosis; don't re-log as unexpected.
+            raise
         except httpx.HTTPStatusError as e:
             logger.error(
                 "Accred API HTTP error",
@@ -506,31 +559,28 @@ class AccredRoleProvider(RoleProvider):
         Returns:
             List of role dicts derived from authorizations
         """
-        if not self.api_url or not self.api_username or not self.api_key:
-            logger.error(
-                "Cannot fetch roles: Accred API not configured",
-                extra={"user_id": user_id},
-            )
-            return []
+        api_url, api_username, api_key = self._require_credentials(user_id)
 
         try:
             # Call EPFL Accred authorizations endpoint
-            url = f"{self.api_url}/authorizations"
+            url = f"{api_url}/authorizations"
             params: dict[str, str | int] = {
                 "persid": user_id,
                 "state": "active",
                 "expand": "0",
                 "type": "right",
-                "searchauthorization": "calco2.",
+                # Derived from RoleName so the filter and the enum cannot
+                # drift apart and zero every user's roles (#2531).
+                "searchauthorization": ROLE_NAME_PREFIX,
             }
 
             # example using httpx for async HTTP requests
-            # https://api-test.epfl.ch/v1/authorizations?type=right&persid=352707&state=active&expand=0&searchauthorization=co2.
+            # https://api-test.epfl.ch/v1/authorizations?type=right&persid=352707&state=active&expand=0&searchauthorization=calco2.
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     url,
                     params=params,
-                    auth=(self.api_username, self.api_key),
+                    auth=(api_username, api_key),
                     timeout=10.0,
                 )
                 response.raise_for_status()
@@ -562,10 +612,8 @@ class AccredRoleProvider(RoleProvider):
             for auth in authorizations:
                 auth_name = auth.get("name", "")
 
-                # Only process authorizations starting with "co2."
-                if not auth_name.startswith("calco2."):
-                    continue
-                # if authorizations do not match the expected enum skip
+                # Membership in RoleName already implies the namespace
+                # prefix; no second literal to keep in sync.
                 if auth_name not in VALID_ROLES:
                     continue
 
@@ -618,6 +666,8 @@ class AccredRoleProvider(RoleProvider):
                         )
                     )
 
+            _raise_on_wholesale_drop(authorizations, roles, user_id)
+
             logger.info(
                 "Fetched roles from Accred API",
                 extra={
@@ -629,6 +679,9 @@ class AccredRoleProvider(RoleProvider):
 
             return roles
 
+        except RoleProviderNetworkError:
+            # Already logged with its diagnosis; don't re-log as unexpected.
+            raise
         except httpx.HTTPStatusError as e:
             logger.error(
                 "Accred API HTTP error",
@@ -690,9 +743,3 @@ def get_role_provider(
             return TestRoleProvider()
         case _:
             raise ValueError(f"Unknown role provider type: {provider_type!r}")
-
-
-class RoleProviderNetworkError(Exception):
-    """Raised when role provider cannot connect to external service."""
-
-    pass

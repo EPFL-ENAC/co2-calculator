@@ -1,6 +1,7 @@
 """Role synchronization service for background role updates."""
 
 from datetime import UTC, datetime, timedelta
+from enum import Enum
 
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -8,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.core.role_priority import pick_role_for_institutional_id
 from app.models.user import OwnScope, Role, UnitScope
-from app.providers.role_provider import RoleProvider
+from app.providers.role_provider import RoleProvider, RoleProviderNetworkError
 from app.repositories.user_repo import UserRepository
 from app.services.unit_service import UnitService
 from app.services.unit_user_service import UnitUserService
@@ -16,16 +17,63 @@ from app.services.unit_user_service import UnitUserService
 logger = get_logger(__name__)
 
 
+class RoleSyncOutcome(str, Enum):
+    """Why a role sync ended the way it did.
+
+    ``SKIPPED_*`` outcomes never write to the user: the sync could not
+    establish what the roles are, so the stored ones stand (#2531).
+    """
+
+    APPLIED = "applied"
+    NO_CHANGE = "no_change"
+    SKIPPED_TTL = "skipped_ttl"
+    SKIPPED_USER_NOT_FOUND = "skipped_user_not_found"
+    SKIPPED_PROVIDER_UNAVAILABLE = "skipped_provider_unavailable"
+    SKIPPED_SUSPICIOUS_EMPTY = "skipped_suspicious_empty"
+
+
 class RoleSyncResult(BaseModel):
     """Result of a role synchronization operation."""
 
     user_id: int
+    outcome: RoleSyncOutcome
     has_changed: bool = False
     roles_changed: bool = False
     units_changed: bool = False
-    skipped_due_to_ttl: bool = False
     old_roles: list[Role] = []
     new_roles: list[Role] = []
+
+
+def _role_sort_key(role) -> tuple:
+    """Comparable key for a role, tolerant of dict or model scopes."""
+    role_name = role.role if isinstance(role.role, str) else role.role.value
+    role_scope = role.on
+
+    if isinstance(role_scope, dict):
+        institutional_id = role_scope.get("institutional_id")
+        affiliation = role_scope.get("affiliation")
+
+        if institutional_id is not None:
+            return (role_name, "institutional", institutional_id)
+        if affiliation is not None:
+            return (role_name, "affiliation", affiliation)
+        return (role_name, "global", None)
+
+    institutional_id = getattr(role_scope, "institutional_id", None)
+    if institutional_id is not None:
+        return (role_name, "institutional", institutional_id)
+
+    affiliation = getattr(role_scope, "affiliation", None)
+    if affiliation is not None:
+        return (role_name, "affiliation", affiliation)
+
+    scope_type = (
+        type(role_scope).__name__.lower() if role_scope is not None else "global"
+    )
+    if scope_type == "globalscope":
+        return (role_name, "global", None)
+
+    return (role_name, scope_type, None)
 
 
 class RoleSyncService:
@@ -65,7 +113,9 @@ class RoleSyncService:
         user = await self.user_repo.get_by_id(user_id)
         if not user:
             logger.warning("User not found for role sync", extra={"user_id": user_id})
-            return RoleSyncResult(user_id=user_id)
+            return RoleSyncResult(
+                user_id=user_id, outcome=RoleSyncOutcome.SKIPPED_USER_NOT_FOUND
+            )
 
         # Check TTL before hitting the external provider
         if not force and user.last_roles_sync_at:
@@ -79,56 +129,52 @@ class RoleSyncService:
                     },
                 )
                 return RoleSyncResult(
-                    user_id=user_id,
-                    skipped_due_to_ttl=True,
+                    user_id=user_id, outcome=RoleSyncOutcome.SKIPPED_TTL
                 )
 
         # TTL gate passed – fetch fresh data from the external provider now
-        provider_user = await role_provider.get_user_by_user_id(
-            user.institutional_id or ""
-        )
-
-        # Compare roles
         old_roles = user.roles or []
+        try:
+            provider_user = await role_provider.get_user_by_user_id(
+                user.institutional_id or ""
+            )
+        except RoleProviderNetworkError as e:
+            # Provider unreachable/unconfigured: keep what we have and leave
+            # last_roles_sync_at alone so the next call retries (#2531).
+            logger.error(
+                "Role sync aborted - provider unavailable",
+                extra={"user_id": user_id, "error": str(e)},
+            )
+            return RoleSyncResult(
+                user_id=user_id,
+                outcome=RoleSyncOutcome.SKIPPED_PROVIDER_UNAVAILABLE,
+                old_roles=old_roles,
+            )
+
         new_roles = provider_user.get("roles", [])
 
-        # Convert to comparable format
-        def extract_role_key(role):
-            role_name = role.role if isinstance(role.role, str) else role.role.value
-            role_scope = role.on
-
-            if isinstance(role_scope, dict):
-                institutional_id = role_scope.get("institutional_id")
-                affiliation = role_scope.get("affiliation")
-
-                if institutional_id is not None:
-                    return (role_name, "institutional", institutional_id)
-                if affiliation is not None:
-                    return (role_name, "affiliation", affiliation)
-                return (role_name, "global", None)
-
-            institutional_id = getattr(role_scope, "institutional_id", None)
-            if institutional_id is not None:
-                return (role_name, "institutional", institutional_id)
-
-            affiliation = getattr(role_scope, "affiliation", None)
-            if affiliation is not None:
-                return (role_name, "affiliation", affiliation)
-
-            scope_type = (
-                type(role_scope).__name__.lower()
-                if role_scope is not None
-                else "global"
+        # An empty provider response is ambiguous — it means "lost all roles"
+        # only if the provider positively says so, and it cannot. Refuse to
+        # let an absence of data revoke authority (#2531).
+        if not new_roles and old_roles:
+            logger.error(
+                "Role sync aborted - provider returned zero roles for a user "
+                "that has roles; keeping stored roles, will retry",
+                extra={
+                    "user_id": user_id,
+                    "institutional_id": user.institutional_id,
+                    "old_roles_count": len(old_roles),
+                },
             )
-            if scope_type == "globalscope":
-                return (role_name, "global", None)
+            return RoleSyncResult(
+                user_id=user_id,
+                outcome=RoleSyncOutcome.SKIPPED_SUSPICIOUS_EMPTY,
+                old_roles=old_roles,
+            )
 
-            return (role_name, scope_type, None)
-
-        old_roles_comparable = sorted(extract_role_key(r) for r in old_roles)
-        new_roles_comparable = sorted(extract_role_key(r) for r in new_roles)
-
-        roles_changed = old_roles_comparable != new_roles_comparable
+        roles_changed = sorted(_role_sort_key(r) for r in old_roles) != sorted(
+            _role_sort_key(r) for r in new_roles
+        )
 
         if not roles_changed:
             logger.debug(
@@ -140,6 +186,7 @@ class RoleSyncService:
             await self.session.commit()
             return RoleSyncResult(
                 user_id=user_id,
+                outcome=RoleSyncOutcome.NO_CHANGE,
                 has_changed=False,
                 old_roles=old_roles,
                 new_roles=new_roles,
@@ -162,6 +209,7 @@ class RoleSyncService:
 
         return RoleSyncResult(
             user_id=user_id,
+            outcome=RoleSyncOutcome.APPLIED,
             has_changed=True,
             roles_changed=True,
             old_roles=old_roles,

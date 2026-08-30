@@ -23,6 +23,13 @@ class RoleName(str, Enum):
     CO2_SUPERADMIN = "calco2.backoffice.admin"
 
 
+# Accred namespace shared by every RoleName. Derived here so the Accred
+# authorization search filter can never drift from the enum: a rename that
+# misses a member makes the pinning test fail loudly instead of silently
+# matching zero authorizations and zeroing every user's roles (#2531).
+ROLE_NAME_PREFIX = f"{RoleName.CO2_USER_STD.value.split('.')[0]}."
+
+
 class GlobalScope(BaseModel):
     kind: Literal["global"] = "global"
 

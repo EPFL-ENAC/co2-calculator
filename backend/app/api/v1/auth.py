@@ -65,7 +65,7 @@ from app.core.security import (
     resolve_user_by_jwt_payload,
 )
 from app.models.audit import AuditChangeTypeEnum
-from app.models.user import UserProvider
+from app.models.user import RoleName, UserProvider
 from app.providers.role_provider import RoleProviderNetworkError, get_role_provider
 from app.schemas.unit import UnitWithUserRole
 from app.schemas.user import SessionRead, UserRead
@@ -254,7 +254,7 @@ async def _log_auth_audit_event(
 
 async def login_test(
     request: Request,
-    role: str = "co2.user.std",
+    role: str = RoleName.CO2_USER_STD.value,
     db: AsyncSession = Depends(get_db),
 ):
     """Test login endpoint for development.

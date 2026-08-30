@@ -11,6 +11,7 @@ import pytest
 
 from app.core.config import RoleProviderType
 from app.models.user import (
+    ROLE_NAME_PREFIX,
     AffiliationScope,
     GlobalScope,
     OwnScope,
@@ -22,6 +23,7 @@ from app.models.user import (
 from app.providers.role_provider import (
     AccredRoleProvider,
     JwtClaimsRoleProvider,
+    RoleProviderNetworkError,
     TestRoleProvider,
     get_role_provider,
 )
@@ -553,7 +555,12 @@ class TestAccredRoleProvider:
 
     @pytest.mark.asyncio
     async def test_accred_missing_credentials_get_roles(self):
-        """Test get_roles returns empty list when credentials are missing."""
+        """get_roles returns [] for userinfo with no uniqueid.
+
+        This exercises the missing-user-id branch (``get_user_id`` raises
+        ``ValueError``), not the credentials branch — an unconfigured
+        provider raises, see the two tests below.
+        """
         with patch("app.providers.role_provider.settings") as mock_settings:
             mock_settings.ACCRED_API_BASE_URL = None
             mock_settings.ACCRED_API_USERNAME = "user"
@@ -563,6 +570,115 @@ class TestAccredRoleProvider:
             roles = await provider.get_roles({})
 
         assert roles == []
+
+    @pytest.mark.asyncio
+    async def test_accred_unconfigured_raises_on_get_roles_by_user_id(
+        self, sample_user_id
+    ):
+        """Pins #2531: an unconfigured pod must not answer "zero roles".
+
+        Returning ``[]`` here was indistinguishable from a genuine empty
+        authorization list, and the caller persisted it — one pod with
+        rotated credentials wiped the roles of every user it served.
+        """
+        with patch("app.providers.role_provider.settings") as mock_settings:
+            mock_settings.ACCRED_API_BASE_URL = None
+            mock_settings.ACCRED_API_USERNAME = "user"
+            mock_settings.ACCRED_API_KEY = "key"
+            provider = AccredRoleProvider()
+
+        with pytest.raises(RoleProviderNetworkError):
+            await provider.get_roles_by_user_id(sample_user_id)
+
+    @pytest.mark.asyncio
+    async def test_accred_unconfigured_raises_on_get_user_by_user_id(
+        self, sample_user_id
+    ):
+        """Same guarantee for the user fetch the background sync calls."""
+        with patch("app.providers.role_provider.settings") as mock_settings:
+            mock_settings.ACCRED_API_BASE_URL = "https://api.epfl.ch"
+            mock_settings.ACCRED_API_USERNAME = "user"
+            mock_settings.ACCRED_API_KEY = None
+            provider = AccredRoleProvider()
+
+        with pytest.raises(RoleProviderNetworkError):
+            await provider.get_user_by_user_id(sample_user_id)
+
+    @pytest.mark.asyncio
+    async def test_accred_raises_when_every_authorization_is_dropped(
+        self, accred_provider, sample_user_id
+    ):
+        """Pins #2531 hypothesis C: authorizations arrived, none mapped.
+
+        The payload below is a plausible Accred schema move (``resource.cf``
+        → some new key), which trips the same ``continue`` for every row.
+        Reporting that as "zero roles" would let the caller wipe; it is a
+        contract break and must fail loudly instead.
+        """
+        mock_response = {
+            "authorizations": [
+                {
+                    "name": RoleName.CO2_USER_STD.value,
+                    "state": "active",
+                    "accredunitid": "12345",
+                    "reason": {"resource": {"unitcf": "12345"}},
+                },
+                {
+                    "name": RoleName.CO2_USER_PRINCIPAL.value,
+                    "state": "active",
+                    "accredunitid": "67890",
+                    "reason": {"resource": {"unitcf": "67890"}},
+                },
+            ]
+        }
+
+        with patch(
+            "app.providers.role_provider.httpx.AsyncClient"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_response_obj = AsyncMock()
+            mock_response_obj.json = Mock(return_value=mock_response)
+            mock_response_obj.raise_for_status = Mock()
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.get.return_value = mock_response_obj
+            mock_client_class.return_value = mock_client
+
+            with pytest.raises(RoleProviderNetworkError):
+                await accred_provider.get_roles_by_user_id(sample_user_id)
+
+    def test_role_name_prefix_matches_every_role_name(self):
+        """Pins #2531: the Accred search filter is derived from RoleName.
+
+        If a rename leaves one member on another namespace, the filter would
+        stop matching it and that role would silently vanish for every user.
+        Fail here instead.
+        """
+        assert ROLE_NAME_PREFIX == "calco2."
+        for role in RoleName:
+            assert role.value.startswith(ROLE_NAME_PREFIX)
+
+    @pytest.mark.asyncio
+    async def test_accred_query_uses_role_name_prefix(
+        self, accred_provider, sample_user_id
+    ):
+        """The searchauthorization filter sent to Accred is the derived
+        prefix, not a literal that can drift from the enum (#2531).
+        """
+        with patch(
+            "app.providers.role_provider.httpx.AsyncClient"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_response_obj = AsyncMock()
+            mock_response_obj.json = Mock(return_value={"authorizations": []})
+            mock_response_obj.raise_for_status = Mock()
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.get.return_value = mock_response_obj
+            mock_client_class.return_value = mock_client
+
+            await accred_provider.get_roles_by_user_id(sample_user_id)
+
+        params = mock_client.get.await_args.kwargs["params"]
+        assert params["searchauthorization"] == ROLE_NAME_PREFIX
 
 
 # ============================================================================
