@@ -17,10 +17,14 @@ def extract_ip_address(request: Request) -> str:
     Reads ``scope["client"]``, never ``X-Forwarded-For``. The OpenShift HAProxy
     router *appends* to XFF (``set-forwarded-headers`` defaults to ``append``),
     so the header's first element is whatever the client chose to send — an
-    audit trail keyed on it records an attacker-supplied string. ``scope`` is
-    the peer uvicorn accepted the connection from, resolved against
-    FORWARDED_ALLOW_IPS by walking the chain from the right, so it cannot be
-    forged. ``GET /v1/session`` documents the same reasoning.
+    audit trail keyed on it records an attacker-supplied string.
+
+    ``scope["client"]`` is unforgeable under either deployment regime. Today it
+    is the raw TCP peer — and since FORWARDED_ALLOW_IPS is unset here, that is
+    the router pod, not the end user. If FORWARDED_ALLOW_IPS is ever configured,
+    uvicorn resolves it from the *right* of the proxy chain instead. Neither
+    path reads the client-supplied first element. ``GET /v1/session`` documents
+    the same reasoning.
 
     Args:
         request: FastAPI Request object
