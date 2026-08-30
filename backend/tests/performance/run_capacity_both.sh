@@ -8,14 +8,17 @@
 #
 # Usage: bash tests/performance/run_capacity_both.sh
 set -uo pipefail
+trap 'echo "aborted — check $ENV_FILE against its backup" >&2' ERR
 cd "$(dirname "$0")/../.." || exit 1
 
 ENV_FILE=.env
 REPORTS=tests/performance/reports
 PORT=8010
 HOST="http://127.0.0.1:$PORT"
-LOCAL_URL='postgresql://co2_user:co2_password@localhost:5432/co2_calculator?sslmode=disable'
-DEV_URL='postgresql://app:LTasaXCnLE79kKPacVKrnMVKrgkNPofz@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app'
+# Never hardcode a DSN here: this repo is public. Supply both via the
+# environment, e.g. from a local untracked file you source before running.
+: "${LOCAL_URL:?set LOCAL_URL to the local postgres DSN}"
+: "${DEV_URL:?set DEV_URL to the remote DSN (do not commit it)}"
 
 backup=$(mktemp)
 cp "$ENV_FILE" "$backup"
