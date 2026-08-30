@@ -119,20 +119,29 @@ secret is what stops the _receiver_ accepting a caller that never was a pod.
   SNATs without appending, the chain is `[forged, 10.98.42.7]`, the walk stops
   at the forged entry, and audit IPs stay forgeable from outside. Prod already
   captures `http.request.header.x_forwarded_for` on SERVER-kind spans for
-  exactly this purpose — read one and count the hops. Either way this change is
-  a strict improvement: before it, `XFF[0]` was forgeable unconditionally.
+  exactly this purpose — read one and count the hops.
+
+  Be precise about what the change buys in each case, because "strict
+  improvement" would be an overclaim. If AVI appends, the forgery is **fixed**.
+  If it does not, the walk returns the forged entry and the old
+  `XFF.split(",")[0]` returned the same string — **the outcome is identical,
+  neither better nor worse**. So: strictly no worse, and fixed under the
+  expected chain.
+
 - **Narrow `FORWARDED_ALLOW_IPS`** from the pod overlay subnet to the router
   pods' addresses. Not blocking any more — the secret gate is what stops the
   in-cluster spoof — but a whole-cluster trust list is far wider than the
   purpose needs, and it is what let a header stand in for identity.
 - **`set-forwarded-headers: replace` is _not_ recommended**, despite being the
   obvious-looking fix. With `replace`, HAProxy overwrites XFF with the peer
-  _it_ sees — the AVI LB, `10.98.42.x`, which the allowlist trusts. uvicorn
-  then finds every entry trusted and hits the "all hosts are trusted" fallback
-  at the end of `get_trusted_client_address`, returning the leftmost. Every
-  audit IP in the system becomes the load balancer's address: unforgeable and
-  useless, which regresses the thing Part 1 fixes. `append` (the default) is
-  what makes the chain resolvable at all.
+  _it_ sees — the AVI LB, `10.98.42.x`. Every audit IP in the system then
+  becomes the load balancer's address, by either branch of
+  `get_trusted_client_address` and regardless of the two open items above:
+  with the AVI CIDR trusted, the single entry is trusted, the walk exhausts,
+  and the "all hosts are trusted" fallback returns it; with it untrusted, the
+  walk stops on it and returns it. Unforgeable and useless — it regresses the
+  thing Part 1 fixes. `append` (the default) is what makes the chain resolvable
+  at all.
 
 ## Part 2 — Layer 1: OpenShift router (do this first)
 
