@@ -21,10 +21,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
 from app.modules.emissions import EmissionType
 from app.modules.emissions.registry import emission_type_scope
 from app.repositories.data_entry_repo import DataEntryRepository
+from tests.conftest import make_emission
 
 pytestmark = pytest.mark.asyncio
 
@@ -119,11 +119,16 @@ async def _seed_background_load(pg_dsn: str, module_id: int, entries: int) -> No
                 for _ in range(EMISSIONS_PER_BACKGROUND_ENTRY)
             ]
             await conn.copy_records_to_table("tmp_bg_emissions", records=emission_rows)
+            # #2527 join keys are NOT NULL; every background entry above is
+            # this module's `member` type, so they are constants here.
             await conn.execute(
                 "INSERT INTO data_entry_emissions (data_entry_id, "
-                "emission_type_id, kg_co2eq, computed_at) "
-                "SELECT data_entry_id, emission_type_id, kg_co2eq, NOW() "
-                "FROM tmp_bg_emissions"
+                "emission_type_id, kg_co2eq, computed_at, "
+                "carbon_report_module_id, data_entry_type_id) "
+                "SELECT data_entry_id, emission_type_id, kg_co2eq, NOW(), $1, $2 "
+                "FROM tmp_bg_emissions",
+                module_id,
+                DataEntryTypeEnum.member.value,
             )
     finally:
         await conn.close()
@@ -167,26 +172,26 @@ async def test_planner_headcount_submodule_get_ignores_table_wide_emission_volum
     # a slow-but-plausible one.
     psycopg_session.add_all(
         [
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=EmissionType.food.value,
                 kg_co2eq=10.0,
                 scope=emission_type_scope(EmissionType.food),
             ),
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=EmissionType.waste.value,
                 kg_co2eq=5.0,
                 scope=emission_type_scope(EmissionType.waste),
             ),
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=EmissionType.commuting.value,
                 kg_co2eq=3.0,
                 scope=emission_type_scope(EmissionType.commuting),
             ),
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=EmissionType.headcount.value,
                 kg_co2eq=18.0,
                 scope=None,

@@ -28,7 +28,8 @@ from app.modules.emissions.registry import ROLLUP_EMISSION_TYPE_IDS
 _EMISSION_COPY_SQL = """
 COPY data_entry_emissions (
     data_entry_id, emission_type_id, primary_factor_id, kg_co2eq,
-    additional_value, scope, meta, computed_at
+    additional_value, scope, meta, computed_at,
+    carbon_report_module_id, data_entry_type_id
 ) FROM STDIN
 """
 
@@ -158,6 +159,18 @@ class DataEntryEmissionRepository:
         async with driver_conn.cursor() as cur:
             async with cur.copy(_EMISSION_COPY_SQL) as copy:
                 for e in emissions:
+                    if (
+                        e.carbon_report_module_id is None
+                        or e.data_entry_type_id is None
+                    ):
+                        raise ValueError(
+                            f"emission row for data_entry_id={e.data_entry_id!r} "
+                            "was not stamped with carbon_report_module_id/"
+                            "data_entry_type_id"
+                        )
+                    # Positional — this tuple must stay in the exact order of
+                    # _EMISSION_COPY_SQL's column list or COPY mis-assigns
+                    # silently.
                     await copy.write_row(
                         (
                             e.data_entry_id,
@@ -168,6 +181,8 @@ class DataEntryEmissionRepository:
                             e.scope,
                             Json(e.meta) if e.meta is not None else None,
                             e.computed_at,
+                            e.carbon_report_module_id,
+                            e.data_entry_type_id,
                         )
                     )
         return len(emissions)

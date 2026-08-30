@@ -16,12 +16,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.modules.emissions import EmissionType
 from app.repositories.data_entry_repo import DataEntryRepository
+from tests.conftest import make_emission
 
 
 @pytest.mark.asyncio
@@ -95,8 +95,8 @@ async def test_uncomputed_entry_sorts_and_displays_by_resolved_factor(pg_dsn):
             # Emission rows only for `computed` — `uncomputed` relies purely
             # on the classification subquery.
             s.add(
-                DataEntryEmission(
-                    data_entry_id=computed.id,
+                make_emission(
+                    computed,
                     emission_type_id=EmissionType.equipment__it.value,
                     primary_factor_id=low.id,
                     kg_co2eq=12.3,

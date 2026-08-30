@@ -33,6 +33,13 @@ emits them. Listed here only so a future collapse can confirm they survived.
   (`connector.py`), `uq_carbon_projects_unit_plan_name` (`carbon_project.py`). It was
   found live only in migration history during the 2211 collapse — moved into
   `__table_args__` in the same PR instead of hand-writing it into the new migration.
+- Covering index with `INCLUDE` columns: `ix_dee_module_type_entry`
+  (`data_entry_emission.py`, #2527) — `(carbon_report_module_id, data_entry_type_id,
+data_entry_id) INCLUDE (kg_co2eq, emission_type_id, primary_factor_id, scope)`.
+  `index=True` cannot express `INCLUDE`, so it lives in `__table_args__` via
+  `postgresql_include=[...]`. The seeder re-creates it by hand in
+  `seed_post_all.py` after dropping it in `seed_clean_data.py`; that DDL must stay
+  byte-equivalent to the model's or the next autogenerate churns on it.
 - Enum values added over time via `ALTER TYPE ... ADD VALUE`
   (`sync_status_enum`: `SKIPPED`, `RETRY_QUEUED`; `ingestion_method_enum`: `computed`;
   `target_type_enum`: `REFERENCE_DATA`, reduction-objective values). These come from the
