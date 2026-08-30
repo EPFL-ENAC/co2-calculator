@@ -23,6 +23,12 @@ Details in Finding 1.
 
 Everything else is a nit or a named follow-up.
 
+**This review is not one of the two maintainer reviews the PR is waiting on.**
+`guardrails.md` puts recalculation and pipeline internals under "do not touch without a
+written plan reviewed by both maintainers", and the PR correctly stays draft until that
+second review lands. "SHIP WITH FIXES" is a technical verdict on the diff; the remaining
+gate is procedural and this review does not discharge it.
+
 ---
 
 ## What I verified, and how
@@ -207,7 +213,32 @@ exactly one int. So this is a trap, not a bug — but it is the drift the shared
 does not prevent, and it is worth one line in the `_pins_module_scope` docstring saying
 that a *present but empty or non-list* scope is a caller error, not a supported input.
 
-### 3. NIT — the `nosec B608` justification is now incomplete
+### 3. WORTH FIXING — the regression tests never run on a PR
+
+`.github/workflows/test.yml`, `.github/workflows/integration-tests.yml`, `backend/Makefile:102-119`
+
+Both new tests are real and I confirmed they fail without the fix. But the PR gate does
+not execute them. `test.yml` runs `make test-cov-xml`, which is `pytest tests/unit` only.
+The whole `tests/integration/` tree — including
+`test_emission_recalc_dedup_pg.py` — runs exclusively from
+`integration-tests.yml`, whose triggers are a 03:30 UTC `schedule`, `workflow_dispatch`,
+and pushes to `ci-test/**`. Never `pull_request`.
+
+So a future PR that widens the predicate back, or drops the `_pins_module_scope` branch,
+gets a green check and merges; the failure surfaces in the next daily run, on `dev`,
+detached from the change that caused it. The repo invariant is that a fixed bug cannot
+come back, and a test that does not gate the merge does not deliver that.
+
+The lazy fix is not "move the whole integration suite onto PRs" — it is slow for a
+reason. Either add a PR job that runs just this directory
+(`pytest tests/integration/services/data_ingestion/`, ~10 s including container
+startup in my run), or gate it on a `backend/app/tasks/**` path filter. Worth doing in
+this PR, since this PR is the one that establishes the invariant.
+
+(The CI environment is fine — `ubuntu-latest` provides the Docker daemon the
+testcontainer fixture needs, and the daily job already exercises it.)
+
+### 4. NIT — the `nosec B608` justification is now incomplete
 
 `backend/app/tasks/_chain.py:498-502`
 
@@ -217,7 +248,7 @@ constant on the same frozen dataclass, so the justification still holds in subst
 future reader auditing the `nosec` will find the comment does not describe what is actually
 interpolated. One clause fixes it.
 
-### 4. NIT — rollout window (informational, no action needed)
+### 5. NIT — rollout window (informational, no action needed)
 
 `app/db.py:47-55` rewrites the DSN to `postgresql+psycopg`, and the helm README's example
 `DB_URL` confirms psycopg in deployment. Under psycopg, `exc.orig.diag.constraint_name`
@@ -235,7 +266,7 @@ original bug persists for them until they are gone.
 Neither corrupts data, and a loud job error is this repo's preferred failure mode over a
 silent skip. Worth knowing, not worth changing.
 
-### 5. NIT — DDL locking
+### 6. NIT — DDL locking
 
 `op.drop_index` / `op.create_index` without `CONCURRENTLY` take `ACCESS EXCLUSIVE` on
 `data_ingestion_jobs` for the duration. The index this replaces was originally created
@@ -245,7 +276,7 @@ table this is likely milliseconds, and generated migrations shouldn't be hand-ed
 deliberate-tradeoff note, not a change request. If the migration runs against a busy
 stage/prod, expect a brief write stall on that table.
 
-### 6. NIT — `chain_job` length (pre-existing, marginally worse)
+### 7. NIT — `chain_job` length (pre-existing, marginally worse)
 
 `chain_job` is 119 code lines excluding docstring and comments; `_insert_child_with_dedup`
 is 102. Both were far past the ≤40-line rule before this PR, which adds ~5 lines to one
@@ -260,12 +291,12 @@ opportunistic refactors here.
 | Invariant | Result |
 | --- | --- |
 | No silent fallbacks | **Pass, and improved.** This PR removes one: a dedup-skipped recalc that reported success. The `_pins_module_scope` opt-out is unconditional and commented, not a swallow. The pre-existing `except TypeError, ValueError` at `ingestion_tasks.py:568` logs and degrades to an unscoped recalc, which is the safe direction (recompute more, not less) — and is valid Python 3.14 (PEP 758), not a syntax error |
-| Functions ≤40 lines, ≤2 nesting | Nesting fine (≤2 in every touched block). Length: see Finding 6 — pre-existing |
+| Functions ≤40 lines, ≤2 nesting | Nesting fine (≤2 in every touched block). Length: see Finding 7 — pre-existing |
 | Imports at top | **Pass.** The one new import (`EMISSION_RECALC_UNSCOPED_SQL`) is added to the existing top-of-file `app.models.data_ingestion` block. No new inline imports |
 | `col()` on SQLModel column refs | **N/A.** The touched code is raw `text()` SQL and `Index()` declarations; no new ORM column comparisons |
 | No `# type: ignore` / `@ts-expect-error` | **Pass.** None added |
 | Migrations generated, not hand-authored | **Pass.** Autogenerate markers intact, one `drop_index` and it is the index being replaced (no false positives), and the produced index matches the model byte for byte. The rename rationale is sound and correctly explained |
-| Bug fix ships a regression test | **Pass, and verified failing without the fix** — both tests, both messages |
+| Bug fix ships a regression test | **Partial.** Both tests verified failing without the fix — but neither runs on a PR; see Finding 3 |
 | Backend is source of truth / layering | **N/A** — no route or service boundary touched |
 | No backward-compat paths | **Pass.** The old index is dropped, not kept alongside. (The unrelated `dedup_active` deprecation shim is pre-existing) |
 | Docs updated with the rename | **Pass.** `alembic/CUSTOM_DB_OBJECTS.md` and `10-INTEGRATION-TESTING.md` updated; historical plans and code-reviews correctly left alone. The PR already flags `2211-consolidate-alembic-files.md:182` as needing the new name whenever that consolidation runs |
