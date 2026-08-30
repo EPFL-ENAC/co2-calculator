@@ -95,8 +95,8 @@ async def _seed_pipeline_with_recalc_siblings(
     sibling rows across DIFFERENT seeded pipelines don't collide on
     the active-recalc partial unique index
     (``uq_emission_recalc_active_unscoped`` covers
-    ``(module_type_id, data_entry_type_id, target_type,
-    ingestion_method, year)`` for NOT_STARTED/QUEUED/RUNNING rows;
+    ``(module_type_id, data_entry_type_id, year)`` for
+    NOT_STARTED/QUEUED/RUNNING rows without a module scope;
     FINISHED rows are outside the index window so terminal-state
     seeds don't strictly need the offset, but using it consistently
     keeps the helper readable when callers mix states).

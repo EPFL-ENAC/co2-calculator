@@ -324,7 +324,14 @@ concurrent writers (multiple pods, retried tasks, racing user actions):
 | ------------------------------------------ | ------------------------------------------------------------------------------- | ----------------------------- |
 | `ix_data_ingestion_jobs_is_current_unique` | `(combo, is_current=TRUE)`                                                      | `claim_job`                   |
 | `uq_aggregation_active`                    | `(module_type_id, year)` where `job_type='aggregation'`                         | `chain_job(dedup_config=...)` |
-| `uq_emission_recalc_active`                | `(module_type_id, data_entry_type_id, year)` where `job_type='emission_recalc'` | `chain_job(dedup_config=...)` |
+| `uq_emission_recalc_active_unscoped`        | `(module_type_id, data_entry_type_id, year)` where `job_type='emission_recalc'` | `chain_job(dedup_config=...)` |
+
+Only *unscoped* (whole-slice) recalcs are in the third index: a child
+pinning `meta.config.carbon_report_module_ids` recomputes one carbon
+report module's rows, disjoint from every other unit's child for the
+same `(module_type, det, year)`, so collapsing them dropped work (#2527
+Phase A). `chain_job` drops dedup for those children and the Python
+pre-check carries the same predicate as the index.
 
 `claim_job` (`backend/app/repositories/data_ingestion.py:473`) uses
 the first index for atomic claims: only one pod can hold the
