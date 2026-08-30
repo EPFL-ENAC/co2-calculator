@@ -90,15 +90,38 @@ fixed. Hygiene, not the trigger.
 `tests/unit/tasks/test_role_sync_skip.py` (the `JwtClaimsRoleProvider`
 background-sync opt-out from #2526) still passes unchanged.
 
-## Open question for the maintainer
+## Open questions for the maintainer
 
-Not stamping `last_roles_sync_at` on the two skip paths is what makes the next
-sync retry — but it also removes the TTL backoff for exactly the users who are
-failing. If the cause is fleet-wide (an Accred schema change), every
-`/v1/session` from every user re-hits Accred with no rate limit for as long as
-it lasts. No backoff is implemented here; it is a deliberate trade of provider
-load for recovery latency, and worth revisiting if the ERROR logs ever show it
-sustained.
+**1. There is no longer any path that empties a user's roles.** The guard
+fires on exactly the shape a genuine full revocation has (person leaves, last
+accreditation expires → `authorizations: []`), so that user keeps their access
+until someone reads the ERROR log. `force=True` only skips the TTL gate, not
+the guard. This is what the issue asks for — an empty response may not shrink
+authority unless the provider positively confirms it, and it cannot. Partial
+revocations (any non-empty smaller set) still apply normally, so only the
+all-roles-removed case sticks.
+
+If a deprovisioning path is wanted, the ready-made hatch is one line —
+`if not new_roles and old_roles and not force:` — which makes an
+admin-triggered forced sync able to empty roles while the automatic
+`/v1/session` sync (the only production caller, always `force=False`) stays
+guarded. Not implemented here: nothing calls `force=True` in production today,
+and the choice belongs to the maintainer.
+
+**2. No backoff on the retry.** Not stamping `last_roles_sync_at` on the skip
+paths is what makes the next sync retry, but it also removes the TTL backoff
+for exactly the users who are failing. If the cause is fleet-wide (an Accred
+schema change), every `/v1/session` from every user re-hits Accred with no
+rate limit for as long as it lasts. Deliberate trade of provider load for
+recovery latency; worth revisiting if the ERROR logs ever show it sustained.
+
+**3. The drop detection hardens a soft failure into a hard one.** A user
+holding only a `calco2.*` authorization that is not yet in `RoleName` (a new
+role rolled out in Accred before the code supports it) now gets a 503 at login
+instead of logging in with zero roles. Both outcomes are wrong; failing loudly
+is the one that gets noticed and fixed. Narrowing it to "every authorization
+had a recognized name but was dropped later in the loop" would isolate the
+schema-move case from the unknown-role case if that trade is not wanted.
 
 ## Not in scope
 

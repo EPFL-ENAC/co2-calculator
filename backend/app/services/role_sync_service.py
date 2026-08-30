@@ -39,7 +39,6 @@ class RoleSyncResult(BaseModel):
     outcome: RoleSyncOutcome
     has_changed: bool = False
     roles_changed: bool = False
-    units_changed: bool = False
     old_roles: list[Role] = []
     new_roles: list[Role] = []
 
