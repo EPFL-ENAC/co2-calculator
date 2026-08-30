@@ -130,9 +130,16 @@ series sharing one `k8s_pod_name`. The panel legend is
 must say so.
 
 The `worker` deployment (`OTEL_SERVICE_NAME: worker`) runs the same image
-but serves no user traffic, so it reports a constant 0. Harmless under
-`sum()`; scope the per-pod breakdown to `service_name="backend"` to keep
-the legend clean.
+but serves no user traffic, so it reports a constant 0 — a no-op under
+both `sum()` and `max()`, so the queries below deliberately do **not**
+filter it out. Filtering on `service_name="backend"` would be the
+obvious move, but no existing query in the ops repo uses that label
+(every one keys on `namespace` + `k8s_pod_name`), and a label that
+doesn't survive to Prometheus renders the panel blank with no error —
+the same silent-no-op bug class #1402 caught three times (`http.route`
+in the `filter` processor, `OTEL_PYTHON_FASTAPI_EXCLUDED_URLS`, the
+`tail_sampling` `/health` match). If a filter is wanted later, confirm
+the label exists first (query in Steps).
 
 ### Known bias: state it on the panel
 
@@ -158,9 +165,15 @@ Title: **Active users (5m) — capacity tier**
 
 | refId | Query (`$ns` = the env's namespace) | Legend |
 | --- | --- | --- |
-| A | `sum(co2_active_users_5m{namespace="$ns", service_name="backend"})` | `active users (upper bound)` |
-| B | `max(co2_active_users_5m{namespace="$ns", service_name="backend"})` | `active users (lower bound)` |
-| C | `sum(co2_active_users_5m{namespace="$ns", service_name="backend"}) by (k8s_pod_name)` | `{{k8s_pod_name}}` |
+| A | `sum(co2_active_users_5m{namespace="$ns"})` | `active users (upper bound)` |
+| B | `max(co2_active_users_5m{namespace="$ns"})` | `active users (lower bound)` |
+| C | `co2_active_users_5m{namespace="$ns"}` | `{{k8s_pod_name}}` |
+
+refId C is a **bare selector, not `sum(...) by (k8s_pod_name)`** — that
+is the point. Summing by pod name would collapse per-worker series back
+into one line and hide exactly the `WORKERS > 1` inflation described
+above, while refId A silently doubled. Unaggregated, N workers render as
+N lines sharing a pod name, which is visible.
 
 Threshold steps wired to the capacity tiers in #2529 §2, so the panel
 answers "do I need to do something" without a lookup:
@@ -416,7 +429,10 @@ strongest argument for unblocking 2049-C4.
       (`backend/app/core/security.py`), beside `tag_span_with_user`.
 - [ ] Unit test in `backend/tests/unit/core/test_active_users.py`.
 - [ ] Deploy to dev; confirm `co2_active_users_5m` appears with one series
-      per backend pod and a plausible value.
+      per backend pod and a plausible value. Same trip, record which
+      labels actually survive — `count by (service_name, k8s_pod_name)
+      (co2_active_users_5m{namespace="$ns"})` — so the panel is written
+      against observed labels, not assumed ones.
 - [ ] **Ops repo PR** (separate): the "Active users (5m) — capacity tier"
       panel in all three overlays, with the threshold steps and the
       description above; bump the dashboard `version`.
