@@ -82,7 +82,7 @@ Annotations to add:
 | --- | --- |
 | `haproxy.router.openshift.io/rate-limit-connections: "true"` | Enables the stick-table; the others are inert without it. |
 | `haproxy.router.openshift.io/rate-limit-connections.concurrent-tcp` | Concurrent TCP connections per source IP. |
-| `haproxy.router.openshift.io/rate-limit-connections.rate-http` | HTTP requests per source IP per **3 s** window (HAProxy's period for this annotation — not per second). |
+| `haproxy.router.openshift.io/rate-limit-connections.rate-http` | HTTP requests per source IP per window. **Verify the window length** against the [OpenShift Route annotation reference](https://docs.openshift.com/container-platform/latest/networking/routes/route-configuration.html) before sizing — it is not per-second, and the numbers below are wrong by that factor if you assume it is. |
 
 HAProxy sees the true source IP at the socket, so this layer is not affected by
 the XFF problem above.
