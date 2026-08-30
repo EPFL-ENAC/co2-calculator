@@ -63,7 +63,7 @@ Two consequences, both now handled:
   reading XFF. Nothing further is needed for that half.
 - **`10.20.0.0/16` is the cluster's whole pod overlay subnet** — the ops
   comment says so verbatim ("the overlay subnet for pods (which includes the
-  haproxies)"). Every workload in the cluster is therefore a *trusted proxy*:
+  haproxies)"). Every workload in the cluster is therefore a _trusted proxy_:
   uvicorn walks the chain from the right, skips the caller's own trusted
   address, and honours whatever it put to the left. So any in-cluster pod could
   set `scope["client"]` to a live co2 pod's IP and satisfy
@@ -75,10 +75,13 @@ Two consequences, both now handled:
   headers on. `internal.py` now authenticates on a shared secret first (see
   below); the IP check stays as a second factor.
 
-External clients cannot forge: the AVI load balancer (`10.98.42.0/24`) appends
-the real client address before HAProxy appends AVI's own, so the walk from the
-right stops at the first untrusted hop — the user. That is the only reading
-under which the AVI CIDR belongs in the allowlist at all.
+External clients then cannot forge — **on one unverified assumption**: that the
+AVI load balancer (`10.98.42.0/24`) appends the real client address before
+HAProxy appends AVI's own. Under that chain the walk from the right stops at
+the first untrusted hop, the user. It is the only reading under which the AVI
+CIDR belongs in the allowlist at all, and the "we don't need
+`128.178.211.0/24`" note in the prod overlay implies ops models these hops as
+appearing in XFF. Measure it rather than infer it — see "Still worth doing".
 
 ### Delivered — `internal.py` re-gated on a shared secret
 
@@ -90,22 +93,46 @@ ships closed and silently breaks the broadcast. Sent by
 `taxonomy_cache_broadcast._clear_remote`, required by every `/internal` route.
 
 `backend/app/main.py:assert_proxy_trust_settings` additionally refuses to boot
-on `FORWARDED_ALLOW_IPS='*'`, which would make uvicorn take the *first*,
-client-chosen XFF element and restore the forgery this issue removed.
+on a `FORWARDED_ALLOW_IPS` that trusts every proxy. It rejects **both**
+spellings, because uvicorn arrives at the same forgeable value by two paths
+(`uvicorn/middleware/proxy_headers.py`):
+
+- `*` sets `always_trust`, and `get_trusted_client_address` returns the
+  _first_, client-chosen element without walking the chain at all.
+- a `/0` network (`0.0.0.0/0`, `::/0`) trusts every address instead, so the
+  reverse walk finds no untrusted hop and falls through to the same leftmost
+  element. A guard that only grepped for `*` would wave this one through.
+
+### Known property, not a regression
+
+The internal token travels over plain HTTP to whatever address `pods.pod_ip`
+holds. That is the trust model the broadcast already had before #2530 — the
+`pods` table is written only by the pods' own heartbeat — so nothing here got
+weaker. A poisoned `pods` row would misdirect the broadcast either way; the
+secret is what stops the _receiver_ accepting a caller that never was a pod.
 
 ### Still worth doing, for ops
 
+- **Verify the XFF chain against a real span** — the one measurement that
+  confirms Part 1's headline claim. `append` resolves to the real user only if
+  the AVI LB appends the client address before HAProxy appends AVI's. If AVI
+  SNATs without appending, the chain is `[forged, 10.98.42.7]`, the walk stops
+  at the forged entry, and audit IPs stay forgeable from outside. Prod already
+  captures `http.request.header.x_forwarded_for` on SERVER-kind spans for
+  exactly this purpose — read one and count the hops. Either way this change is
+  a strict improvement: before it, `XFF[0]` was forgeable unconditionally.
 - **Narrow `FORWARDED_ALLOW_IPS`** from the pod overlay subnet to the router
   pods' addresses. Not blocking any more — the secret gate is what stops the
   in-cluster spoof — but a whole-cluster trust list is far wider than the
   purpose needs, and it is what let a header stand in for identity.
-- **`set-forwarded-headers: replace` is *not* recommended.** With `replace`,
-  HAProxy overwrites XFF with the peer *it* sees — the AVI LB — and uvicorn,
-  finding every entry trusted, falls back to the leftmost. Every audit IP would
-  become `10.98.42.x`. `append` (the default) is what makes the chain
-  resolvable. Verify against a real span's
-  `http.request.header.x_forwarded_for` array before changing it; prod already
-  captures that header for exactly this purpose.
+- **`set-forwarded-headers: replace` is _not_ recommended**, despite being the
+  obvious-looking fix. With `replace`, HAProxy overwrites XFF with the peer
+  _it_ sees — the AVI LB, `10.98.42.x`, which the allowlist trusts. uvicorn
+  then finds every entry trusted and hits the "all hosts are trusted" fallback
+  at the end of `get_trusted_client_address`, returning the leftmost. Every
+  audit IP in the system becomes the load balancer's address: unforgeable and
+  useless, which regresses the thing Part 1 fixes. `append` (the default) is
+  what makes the chain resolvable at all.
 
 ## Part 2 — Layer 1: OpenShift router (do this first)
 
@@ -116,11 +143,11 @@ existing block, not a new pattern.
 
 Annotations to add:
 
-| Annotation | Purpose |
-| --- | --- |
-| `haproxy.router.openshift.io/rate-limit-connections: "true"` | Enables the stick-table; the others are inert without it. |
-| `haproxy.router.openshift.io/rate-limit-connections.concurrent-tcp` | Concurrent TCP connections per source IP. |
-| `haproxy.router.openshift.io/rate-limit-connections.rate-http` | HTTP requests per source IP per window. **Verify the window length** against the [OpenShift Route annotation reference](https://docs.openshift.com/container-platform/latest/networking/routes/route-configuration.html) before sizing — it is not per-second, and the numbers below are wrong by that factor if you assume it is. |
+| Annotation                                                          | Purpose                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `haproxy.router.openshift.io/rate-limit-connections: "true"`        | Enables the stick-table; the others are inert without it.                                                                                                                                                                                                                                                                          |
+| `haproxy.router.openshift.io/rate-limit-connections.concurrent-tcp` | Concurrent TCP connections per source IP.                                                                                                                                                                                                                                                                                          |
+| `haproxy.router.openshift.io/rate-limit-connections.rate-http`      | HTTP requests per source IP per window. **Verify the window length** against the [OpenShift Route annotation reference](https://docs.openshift.com/container-platform/latest/networking/routes/route-configuration.html) before sizing — it is not per-second, and the numbers below are wrong by that factor if you assume it is. |
 
 HAProxy sees the true source IP at the socket, so this layer is not affected by
 the XFF problem above.
@@ -147,12 +174,12 @@ identity exists yet, and keep those numbers loose for the same NAT reason.
 
 ### Scope: expensive writes only, never reads
 
-| Endpoint | Why it is expensive |
-| --- | --- |
-| `POST /v1/sync/dispatch` | Upload storms saturate the DB — 3.7 CPU cores at 20 parallel ingests. |
-| `POST /v1/files/temp-upload` | Same; #2528's failures scale with this concurrency. |
-| plan create, `PATCH /v1/project-plans/{id}` | Each can enqueue a prefill job — 42 s median at 40 parallel on dev. |
-| login / OAuth callback | Unauthenticated surface; IP-keyed. |
+| Endpoint                                    | Why it is expensive                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------- |
+| `POST /v1/sync/dispatch`                    | Upload storms saturate the DB — 3.7 CPU cores at 20 parallel ingests. |
+| `POST /v1/files/temp-upload`                | Same; #2528's failures scale with this concurrency.                   |
+| plan create, `PATCH /v1/project-plans/{id}` | Each can enqueue a prefill job — 42 s median at 40 parallel on dev.   |
+| login / OAuth callback                      | Unauthenticated surface; IP-keyed.                                    |
 
 Reads stay unlimited. Layer 1 is the backstop for read floods.
 
@@ -226,3 +253,9 @@ Ship Layer 1 first and measure before writing any of this.
    to be real. Say the word and it becomes its own secret — the only cost is
    that the endpoint 403s (fail-closed, TTL covers it) until that secret lands.
 4. Should ops narrow `FORWARDED_ALLOW_IPS` to the router pods?
+5. Can someone read one prod SERVER span's
+   `http.request.header.x_forwarded_for` and paste the array here? It settles
+   whether the AVI LB appends the client address, which is the one assumption
+   Part 1's "audit IPs are now the real user" claim rests on. Not blocking —
+   the change is a strict improvement either way — but it decides whether
+   anything further is needed.

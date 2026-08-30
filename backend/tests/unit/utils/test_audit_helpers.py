@@ -150,14 +150,19 @@ async def test_a_caller_inside_the_pod_subnet_can_still_choose_its_own_ip():
 
 
 @pytest.mark.asyncio
-async def test_trusting_every_proxy_makes_the_audit_ip_forgeable():
-    """Why `assert_proxy_trust_settings` refuses to boot on '*': it skips the
-    walk entirely and takes the client-chosen first element.
+@pytest.mark.parametrize("trust_everything", ["*", "0.0.0.0/0"])
+async def test_trusting_every_proxy_makes_the_audit_ip_forgeable(trust_everything):
+    """Why `assert_proxy_trust_settings` refuses to boot on either spelling.
+
+    '*' skips the walk entirely and takes the client-chosen first element.
+    '0.0.0.0/0' reaches the same value the other way: every hop is trusted, so
+    the reverse walk finds nothing untrusted and falls back to the leftmost.
+    A guard that only rejected '*' would leave the second door open.
     """
     recorded = await _ip_recorded_for(
         peer="10.20.1.5",
         forwarded_for="1.2.3.4, 203.0.113.9, 10.98.42.7",
-        trusted="*",
+        trusted=trust_everything,
     )
     assert recorded == "1.2.3.4"
 
