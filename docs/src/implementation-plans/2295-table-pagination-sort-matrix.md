@@ -1,5 +1,5 @@
 ---
-status: in progress
+status: in-progress
 issue: 2295
 last_updated: 2026-08-29
 summary: "Exhaustive latency matrix for the table endpoint
