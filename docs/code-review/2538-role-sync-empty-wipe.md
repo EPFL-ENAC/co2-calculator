@@ -166,6 +166,16 @@ Two separate defects here:
    `last_roles_sync_at` (and any other field absent from the source dict) to
    the model default.
 
+**The two rows really are the same person**, so `merge` lands on the existing
+row rather than inserting a second one — worth stating, because issue #2531's
+hypothesis B guessed the opposite. Login stores
+`userinfo["uniqueid"]` (`role_provider.py:378`) — the SCIPER — and
+`map_api_user` stores `str(responsible["id"])` from the units endpoint, which
+is the same SCIPER. `users.institutional_id` and `users.email` are both
+`unique=True` (`models/user.py:359,371`), so a divergence could not silently
+produce a duplicate anyway: it would raise an `IntegrityError`. The wipe is the
+only outcome available.
+
 This is not introduced by this PR, but it is squarely inside the invariant the
 PR claims to establish, and it is a _better_ fit for the reported symptom than
 hypotheses A/B/C: it hits only unit responsibles (explains "only some users"),
