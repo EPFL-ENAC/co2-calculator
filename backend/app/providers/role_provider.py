@@ -44,7 +44,7 @@ def _raise_on_wholesale_drop(
 ) -> None:
     """Refuse to report "no roles" when every authorization was dropped.
 
-    The mapping loop skips an authorization on five conditions; an Accred
+    The mapping loop skips an authorization on four conditions; an Accred
     response-shape change trips them all at once, and "zero roles" then
     reaches the caller as a fact about the user instead of a broken
     contract. The Accred schema has moved before (resource.cf →
