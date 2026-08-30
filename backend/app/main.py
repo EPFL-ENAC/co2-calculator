@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 
 import httpx
@@ -53,6 +54,26 @@ def assert_security_settings(settings) -> None:
     ]
     if missing:
         raise RuntimeError(f"Missing required security settings: {missing}")
+
+
+def assert_proxy_trust_settings() -> None:
+    """Fail closed at boot when uvicorn is told to trust every proxy (#2530).
+
+    ``FORWARDED_ALLOW_IPS`` is uvicorn's own environment variable, not a
+    ``Settings`` field — putting it in ``Settings`` would let someone set it in
+    ``backend/.env``, which pydantic reads and the uvicorn process never sees.
+
+    ``*`` makes ``ProxyHeadersMiddleware`` take the *first*, client-chosen
+    element of ``X-Forwarded-For`` instead of walking the chain from the right,
+    which restores exactly the forgery #2530 removed — every audit IP and every
+    IP-keyed decision becomes attacker-supplied.
+    """
+    if os.environ.get("FORWARDED_ALLOW_IPS", "").strip() != "*":
+        return
+    raise RuntimeError(
+        "FORWARDED_ALLOW_IPS='*' makes X-Forwarded-For client-forgeable "
+        "(#2530). Set it to the CIDRs of this cluster's proxies only."
+    )
 
 
 def assert_accred_settings(settings) -> None:
@@ -110,6 +131,7 @@ def assert_poller_isolation(settings) -> None:
 async def lifespan(app: FastAPI):
     """Run on application startup."""
     assert_security_settings(settings)
+    assert_proxy_trust_settings()
     assert_accred_settings(settings)
     assert_poller_isolation(settings)
 
