@@ -36,6 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_ingestion import (
+    EMISSION_RECALC_UNSCOPED_SQL,
     DataIngestionJob,
     EntityType,
     IngestionMethod,
@@ -129,11 +130,18 @@ class DedupConfig:
     Postgres index name so a race-loss ``IntegrityError`` is logged
     with the right context.  ``job_type`` filters the pre-check so a
     different job type for the same scope can coexist with us.
+
+    ``extra_predicate`` is raw SQL appended to the pre-check's WHERE so
+    it covers exactly the rows the partial unique index covers.  It
+    takes no bind parameters and must be the same fragment the index
+    declares — a pre-check wider than the index skips work the index
+    would have allowed (silently, which is the #2527 Phase A bug).
     """
 
     job_type: str
     scope_columns: tuple[str, ...]
     constraint_name: str
+    extra_predicate: str = ""
 
 
 AGGREGATION_DEDUP = DedupConfig(
@@ -146,8 +154,20 @@ AGGREGATION_DEDUP = DedupConfig(
 EMISSION_RECALC_DEDUP = DedupConfig(
     job_type="emission_recalc",
     scope_columns=("module_type_id", "data_entry_type_id", "year"),
-    constraint_name="uq_emission_recalc_active",
+    constraint_name="uq_emission_recalc_active_unscoped",
+    extra_predicate=EMISSION_RECALC_UNSCOPED_SQL,
 )
+
+
+def _pins_module_scope(config: dict | None) -> bool:
+    """True when a child pins ``carbon_report_module_ids`` in its config.
+
+    Key presence, not truthiness — the SQL side tests
+    ``meta -> 'config' -> 'carbon_report_module_ids' IS NULL``, which is
+    false for ``[]`` and for ``null`` too.  The two must agree row for
+    row or a scoped child could dedup on one side and not the other.
+    """
+    return "carbon_report_module_ids" in (config or {})
 
 
 async def chain_job(
@@ -202,6 +222,10 @@ async def chain_job(
     as the same dedup signal.  Returns ``None`` on dedup so the
     caller knows it's a no-op and skips its own follow-up fan-out;
     returns the new child id otherwise.
+
+    A child pinning ``config['carbon_report_module_ids']`` opts out of
+    dedup whatever the caller passes (#2527 Phase A): its work is one
+    carbon report module's rows, disjoint from any sibling's.
 
     ``dedup_active=True`` is a deprecated shim mapping to
     ``AGGREGATION_DEDUP`` for one release cycle; new callers should
@@ -288,6 +312,17 @@ async def chain_job(
                 f"got {scope_values}.  Pass them explicitly or ensure "
                 f"the parent job has them populated."
             )
+
+    if dedup_config is not None and _pins_module_scope(config):
+        # #2527 Phase A — a module-scoped child recomputes ONE carbon
+        # report module's entries.  Two units uploading the same
+        # (module_type, det, year) produce disjoint children, so
+        # collapsing them dropped the second unit's emissions behind a
+        # green pipeline.  Dedup existed to collapse whole-slice
+        # recalcs; scoped children were never in its remit and the
+        # partial unique index excludes them too, so the plain INSERT
+        # below cannot trip it.
+        dedup_config = None
 
     if dedup_config is not None:
         child_id = await _insert_child_with_dedup(
@@ -449,6 +484,12 @@ async def _insert_child_with_dedup(
     scope_predicate = " AND ".join(
         f"{col} = :{col}" for col in dedup_config.scope_columns
     )
+    # Same row set as the partial unique index (#2527 Phase A): without
+    # this, a pending module-scoped child would make a whole-slice
+    # recalc look already-owned and every OTHER unit in the slice would
+    # keep stale emissions after a factor change.
+    if dedup_config.extra_predicate:
+        scope_predicate = f"{scope_predicate} AND {dedup_config.extra_predicate}"
     pre_check_params: dict[str, Any] = {
         col: scope_param_map[col] for col in dedup_config.scope_columns
     }

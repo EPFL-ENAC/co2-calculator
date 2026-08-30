@@ -94,7 +94,7 @@ async def _seed_pipeline_with_recalc_siblings(
     ``det_offset`` shifts the ``data_entry_type_id`` series so
     sibling rows across DIFFERENT seeded pipelines don't collide on
     the active-recalc partial unique index
-    (``uq_emission_recalc_active`` covers
+    (``uq_emission_recalc_active_unscoped`` covers
     ``(module_type_id, data_entry_type_id, target_type,
     ingestion_method, year)`` for NOT_STARTED/QUEUED/RUNNING rows;
     FINISHED rows are outside the index window so terminal-state
