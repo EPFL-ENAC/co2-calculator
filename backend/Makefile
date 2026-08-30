@@ -149,6 +149,102 @@ bootstrap-years: ## Provision years from INPUT_DATA: config + unit sync + factor
 exchange-rates: ## Fetch exchange rates from ECB API and store in database
 	$(UV) run exchange-rates
 
+# ---------------------------------------------------------------------------
+# Load tests (#2295) — see tests/performance/locustfile.py for the scenarios.
+# ---------------------------------------------------------------------------
+PERF_HOST ?= http://localhost:8000
+PERF_USERS ?= 50
+PERF_TIME ?= 3m
+PERF_CLASSES ?= ExplorerReadUser
+PERF_TAG ?= $(shell echo $(PERF_CLASSES) | tr ' A-Z' '_a-z')_$(PERF_USERS)
+PERF_REPORT_DIR ?= tests/performance/reports
+# Local docker-compose Postgres; override for another target.
+PERF_DB_URL ?= postgresql://co2_user:co2_password@localhost:5432/co2_calculator
+PERF_DUMP ?= tests/performance/dumps/perf_backdrop.dump
+PERF_USERS_FILE ?= $(PERF_REPORT_DIR)/perf_users.txt
+
+.PHONY: perf-csvs
+perf-csvs: ## Generate per-module ceiling-scale upload CSVs into INPUT_DATA/perf/
+	$(UV) run python -m scripts.generate_perf_test_csvs
+
+.PHONY: perf-seed
+perf-seed: ## Seed the #2295 load-test backdrop (SEED_NUM_UNITS/SEED_YEARS/SEED_CEILING_SCALE override)
+	SEED_NUM_UNITS=$${SEED_NUM_UNITS:-600} \
+	SEED_YEARS="$${SEED_YEARS:-2021 2022 2023 2024 2025}" \
+	SEED_CEILING_SCALE=$${SEED_CEILING_SCALE:-0.1} \
+	SEED_CEILING_UNITS_PREFIX=$${SEED_CEILING_UNITS_PREFIX:-U0} \
+	$(UV) run -m app.seed.random_generator.seed_all
+
+.PHONY: perf-load
+perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES="ExplorerReadUser"
+	@mkdir -p $(PERF_REPORT_DIR)
+	@test -s $(PERF_USERS_FILE) || docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc \
+		"select institutional_id || ' ' || case when roles_raw::text like '%principal%' then 'principal' else 'standard' end from users where institutional_id like 'USR%'" \
+		> $(PERF_USERS_FILE) 2>/dev/null || true
+	@p="$(PERF_HOST)"; p="$${p%%/}"; p="$${p##*:}"; \
+	case "$$p" in *[!0-9]*|"") \
+		echo "note: $(PERF_HOST) has no numeric port — skipping resource sampling"; \
+		rm -f $(PERF_REPORT_DIR)/.sampler.pid;; \
+	*) exec $(UV) run python -m tests.performance.resource_sampler --port $$p \
+		$(PERF_REPORT_DIR)/$(PERF_TAG)_resources.csv & echo $$! > $(PERF_REPORT_DIR)/.sampler.pid;; \
+	esac
+	PERF_USERS_FILE="$(PERF_USERS_FILE)" \
+	PERF_UNIT_IDS="$${PERF_UNIT_IDS:-$$(docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc "select min(id)||'-'||max(id) from units where institutional_code like 'U0%'" 2>/dev/null | tr -d '[:space:]' || true)}" \
+	PERF_ROLE="$${PERF_ROLE:-calco2.user.principal}" \
+	$(UV) run locust -f tests/performance/locustfile.py $(PERF_CLASSES) \
+		--host $(PERF_HOST) --headless \
+		-u $(PERF_USERS) -r $$(( $(PERF_USERS) / 10 + 1 )) -t $(PERF_TIME) \
+		--csv $(PERF_REPORT_DIR)/$(PERF_TAG) --html $(PERF_REPORT_DIR)/$(PERF_TAG).html \
+		--only-summary --exit-code-on-error 0; \
+	status=$$?; \
+	if [ -f $(PERF_REPORT_DIR)/.sampler.pid ]; then \
+		pid=$$(cat $(PERF_REPORT_DIR)/.sampler.pid); \
+		kill -- -$$pid 2>/dev/null || kill $$pid 2>/dev/null; \
+		pkill -f "resource_sampler --port" 2>/dev/null; \
+		rm -f $(PERF_REPORT_DIR)/.sampler.pid; \
+	fi; exit $$status
+
+.PHONY: perf-sweep
+perf-sweep: ## Full #2295 ladder: admin reads 50→1000, principal module reads/plans/explore, standard uploads
+	for u in 50 100 200 500 1000; do \
+		$(MAKE) perf-load PERF_USERS=$$u PERF_CLASSES=ExplorerReadUser PERF_TAG=read_$$u || exit 1; \
+	done
+	for u in 50 100 200 500 1000; do \
+		$(MAKE) perf-load PERF_USERS=$$u PERF_CLASSES=ModuleReadUser PERF_TAG=module_read_$$u || exit 1; \
+	done
+	for u in 10 20 30 40; do \
+		$(MAKE) perf-load PERF_USERS=$$u PERF_CLASSES=PlanUser PERF_TAG=plan_$$u || exit 1; \
+		$(MAKE) perf-load PERF_USERS=$$u PERF_CLASSES=ExploreCreateUser PERF_TAG=explore_create_$$u || exit 1; \
+	done
+	for u in 5 10 20; do \
+		$(MAKE) perf-load PERF_USERS=$$u PERF_CLASSES=CsvUploadUser PERF_TAG=upload_$$u PERF_TIME=10m || exit 1; \
+	done
+	$(MAKE) perf-report
+
+.PHONY: perf-report
+perf-report: ## List endpoints with p95 > 1s across all recorded stages
+	$(UV) run python -m tests.performance.report_slow $(PERF_REPORT_DIR)
+
+.PHONY: perf-capacity
+perf-capacity: ## Capacity table: per stage requests/failures/p95 + peak backend & postgres CPU/memory
+	$(UV) run python -m tests.performance.resource_sampler --summarize --reports $(PERF_REPORT_DIR)
+
+.PHONY: perf-table-matrix
+perf-table-matrix: ## Sweep the table endpoint: every submodule × limit × sort column × order (+filter, deep pages, items, charts)
+	$(UV) run python -m tests.performance.table_matrix \
+		--host $(PERF_HOST) \
+		--user "$${PERF_MATRIX_USER:-$$(docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc "select u.institutional_id from users u join unit_users uu on uu.user_id=u.id join units un on un.id=uu.unit_id where un.institutional_code='U00000' and u.roles_raw::text like '%principal%' limit 1" 2>/dev/null | tr -d '[:space:]')}"
+
+.PHONY: perf-db-dump
+perf-db-dump: ## Dump the seeded backdrop DB for reuse (PERF_DB_URL override)
+	@mkdir -p $(dir $(PERF_DUMP))
+	pg_dump --format=custom --file=$(PERF_DUMP) "$(PERF_DB_URL)"
+	@ls -lh $(PERF_DUMP)
+
+.PHONY: perf-db-restore
+perf-db-restore: ## Restore a previously dumped backdrop (drops current objects first)
+	pg_restore --clean --if-exists --no-owner --dbname="$(PERF_DB_URL)" $(PERF_DUMP)
+
 .PHONY: dev
 dev: install ## Start backend development server
 	@if [ ! -f .env ]; then \
