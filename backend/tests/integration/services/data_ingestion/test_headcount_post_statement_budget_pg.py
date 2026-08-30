@@ -16,14 +16,11 @@ Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
 import re
-from contextlib import contextmanager
-from dataclasses import dataclass, field
 from unittest.mock import MagicMock
 
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -34,6 +31,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions.taxonomy import EmissionType
+from tests.integration.statement_budget import count_statements
 
 YEAR = 2025
 
@@ -61,81 +59,6 @@ _HEADCOUNT_LEAVES: list[tuple[str, str, EmissionType, float, float]] = [
 
 FACTOR_RE = re.compile(r"\bfactors\b", re.IGNORECASE)
 EMISSION_RE = re.compile(r"\bdata_entry_emissions\b", re.IGNORECASE)
-SELECT_RE = re.compile(r"^SELECT", re.IGNORECASE)
-
-
-@dataclass
-class StatementLog:
-    """Statements issued during a measured block."""
-
-    statements: list[str] = field(default_factory=list)
-    params: list[str] = field(default_factory=list)
-
-    @property
-    def total(self) -> int:
-        return len(self.statements)
-
-    @property
-    def distinct_factor_lookups(self) -> int:
-        """Distinct (statement, parameters) pairs against ``factors``.
-
-        The discriminator between "the same query repeated" (a memo fixes it)
-        and "a different query per emission leaf" (only one combined query
-        fixes it).
-        """
-        return len(
-            {
-                (s, p)
-                for s, p in zip(self.statements, self.params, strict=True)
-                if FACTOR_RE.search(s)
-            }
-        )
-
-    @property
-    def selects(self) -> int:
-        return sum(1 for s in self.statements if SELECT_RE.match(s.strip()))
-
-    @property
-    def factor_lookups(self) -> int:
-        return sum(1 for s in self.statements if FACTOR_RE.search(s))
-
-    @property
-    def emission_statements(self) -> int:
-        return sum(1 for s in self.statements if EMISSION_RE.search(s))
-
-    def breakdown(self) -> str:
-        return (
-            f"total={self.total} selects={self.selects} "
-            f"factor_lookups={self.factor_lookups} "
-            f"distinct_factor_lookups={self.distinct_factor_lookups} "
-            f"emission_statements={self.emission_statements}"
-        )
-
-    def numbered(self) -> str:
-        return "\n".join(
-            f"  {i:>2}. {' '.join(s.split())[:150]}"
-            for i, s in enumerate(self.statements, 1)
-        )
-
-
-@contextmanager
-def count_statements(engine):
-    """Count SQL statements issued by the wrapped block.
-
-    Registers on ``engine.sync_engine``: DBAPI-level events fire on the sync
-    engine backing an async one, regardless of the async driver wrapping it.
-    """
-    log = StatementLog()
-
-    def listener(conn, cursor, statement, parameters, context, executemany):
-        log.statements.append(statement)
-        log.params.append(repr(parameters))
-
-    event.listen(engine.sync_engine, "before_cursor_execute", listener)
-    try:
-        yield log
-    finally:
-        event.remove(engine.sync_engine, "before_cursor_execute", listener)
 
 
 @pytest_asyncio.fixture

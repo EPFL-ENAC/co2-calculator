@@ -296,13 +296,6 @@ class ExplorerReadUser(CO2User):
             name="/v1/modules-stats/merged/multi-year-report-stats",
         )
 
-    @task(2)
-    def unit_totals(self):
-        self.client.get(
-            f"/v1/unit/{self.pick_unit()}/{self.pick_year()}/totals",
-            name="/v1/unit/[id]/[year]/totals",
-        )
-
     @task(1)
     def unit_results(self):
         self.client.get(

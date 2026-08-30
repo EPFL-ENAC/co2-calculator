@@ -4,7 +4,41 @@ Extracted from carbon_report_module_stats routes so they can be unit tested
 without DB or HTTP dependencies.
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
+
+from app.core.constants import ModuleStatus
+from app.models.carbon_report import CarbonReportType
+from app.models.module_type import ModuleTypeEnum
+
+# Row shape of ``CarbonReportRepository.module_stats_by_report``.
+ModuleStatsRow = tuple[int, int, int, dict | None, CarbonReportType | None]
+
+
+def fold_validated_totals(rows: Iterable[ModuleStatsRow]) -> dict:
+    """Aggregate persisted module stats into the validated-totals payload.
+
+    Rows arrive unfiltered on status — the callers that also need the
+    in-progress modules (the home sidebar) read the same set — so the
+    validation rule is applied here. Simulator Explore reports have no
+    validation step, so every one of their modules counts.
+    """
+    emission_stats: dict[str, float] = {}
+    fte_stats: dict[str, float] = {}
+    for _report_id, module_type_id, module_status, stats, report_type in rows:
+        validated_only = report_type != CarbonReportType.SIMULATOR_EXPLORE
+        if validated_only and module_status != ModuleStatus.VALIDATED:
+            continue
+        if not isinstance(stats, dict):
+            continue
+        total = stats.get("total", 0.0) or 0.0
+        if total:
+            emission_stats[str(module_type_id)] = total
+        if stats.get("total_fte"):
+            fte_stats[str(module_type_id)] = stats["total_fte"]
+
+    return compute_validated_totals(
+        emission_stats, fte_stats, str(ModuleTypeEnum.headcount.value)
+    )
 
 
 def compute_validated_totals(

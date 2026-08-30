@@ -12,14 +12,25 @@ import pytest
 from fastapi import HTTPException
 
 import app.api.v1.workspace_home as wh_module
+from app.core.constants import ModuleStatus
+from app.models.carbon_report import CarbonReportType
+
+_CALC = CarbonReportType.CALCULATOR
+# ``module_stats_by_report`` rows: (report_id, module_type_id, status, stats,
+# type). One validated module and one in-progress one — the sidebar must see
+# both, the validated headline only the first.
+_MODULE_ROWS = [
+    (42, 1, ModuleStatus.VALIDATED, {"total": 6100.0}, _CALC),
+    (42, 2, ModuleStatus.IN_PROGRESS, {"total": 999.0}, _CALC),
+]
 
 
-def _db(module_state_rows=None):
+def _db(module_rows=None):
     db = MagicMock()
     db.commit = AsyncMock()
     db.get = AsyncMock(return_value=MagicMock())  # unit lookup
     result = MagicMock()
-    result.all.return_value = module_state_rows or [(1, 2)]
+    result.all.return_value = _MODULE_ROWS if module_rows is None else module_rows
     db.execute = AsyncMock(return_value=result)
     return db
 
@@ -46,11 +57,6 @@ def _patch_common(monkeypatch, *, existing_report):
         wh_module,
         "build_home_year_configuration",
         AsyncMock(return_value=None),
-    )
-    monkeypatch.setattr(
-        wh_module,
-        "build_validated_totals",
-        AsyncMock(return_value={"total_tonnes_co2eq": 6.1, "total_fte": 3.0}),
     )
     return report_service
 
@@ -122,3 +128,33 @@ async def test_project_plans_are_filtered_by_plan_policy(monkeypatch):
 
     assert [p.id for p in response.project_plans] == [1, 2]
     assert "can_manage" not in SimulatorPlanRead.model_fields
+
+
+@pytest.mark.asyncio
+async def test_module_states_keep_unvalidated_modules(monkeypatch):
+    """One read serves both consumers, so the status filter stays in the fold.
+
+    Pushing it into the WHERE clause would empty the sidebar for any unit with
+    in-progress modules while the headline still looked right (#2527 task 5).
+    """
+    db = _db()
+    _patch_common(monkeypatch, existing_report=_report())
+    plan_service = MagicMock()
+    plan_service.list_plans = AsyncMock(return_value=[])
+    monkeypatch.setattr(wh_module, "SimulatorPlanService", lambda _db: plan_service)
+    policy = MagicMock()
+    policy.from_unit.return_value.visible.return_value = []
+    monkeypatch.setattr(wh_module, "PlanPolicy", policy)
+
+    response = await wh_module.get_workspace_home(
+        unit_id=1, year=2025, db=db, current_user=MagicMock()
+    )
+
+    assert response.module_states == [
+        {"module_type_id": 1, "status": ModuleStatus.VALIDATED},
+        {"module_type_id": 2, "status": ModuleStatus.IN_PROGRESS},
+    ]
+    # ...while the headline counted only the validated one.
+    assert response.stats["total_tonnes_validated_co2eq"] == pytest.approx(6.1)
+    # One statement for both, not one each.
+    assert db.execute.await_count == 1

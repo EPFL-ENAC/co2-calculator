@@ -5,26 +5,27 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.constants import ModuleStatus
+from app.models.carbon_report import CarbonReportType
 from app.services.unit_totals_service import UnitTotalsService
 
+CALC = CarbonReportType.CALCULATOR
 
-def _session_with_module_rows(*row_sets):
-    """Session whose execute() yields one module-rows result per call."""
-    session = MagicMock()
-    results = []
-    for rows in row_sets:
-        result = MagicMock()
-        result.all.return_value = rows
-        results.append(result)
-    session.execute = AsyncMock(side_effect=results)
-    return session
-
-
+# ``module_stats_by_report`` rows: (report_id, module_type_id, status, stats, type)
 _VALIDATED_ROWS = [
-    (4, ModuleStatus.VALIDATED, {"total": 5000.0}),
-    (2, ModuleStatus.IN_PROGRESS, {"total": 999.0}),
-    (1, ModuleStatus.VALIDATED, {"total": 100.0, "total_fte": 120.0}),
+    (1, 1, ModuleStatus.VALIDATED, {"total": 100.0, "total_fte": 120.0}, CALC),
+    (1, 2, ModuleStatus.IN_PROGRESS, {"total": 999.0}, CALC),
+    (1, 4, ModuleStatus.VALIDATED, {"total": 5000.0}, CALC),
 ]
+
+
+def _repo(mock_repo_cls, *, report=None, prev_report=None, rows=(), by_units=()):
+    """Wire the patched CarbonReportRepository with the reads the service makes."""
+    repo = mock_repo_cls.return_value
+    repo.get = AsyncMock(return_value=report)
+    repo.get_by_unit_and_year = AsyncMock(return_value=prev_report)
+    repo.list_by_units = AsyncMock(return_value=list(by_units))
+    repo.module_stats_by_report = AsyncMock(return_value=list(rows))
+    return repo
 
 
 # ======================================================================
@@ -36,12 +37,12 @@ _VALIDATED_ROWS = [
 @patch("app.services.unit_totals_service.CarbonReportRepository")
 async def test_results_summary_structure(mock_report_repo_cls):
     """Returned dict has the expected top-level keys."""
-    report = MagicMock(id=1, unit_id=10, year=2024)
-    mock_report_repo_cls.return_value.get = AsyncMock(return_value=report)
-    mock_report_repo_cls.return_value.get_by_unit_and_year = AsyncMock(
-        return_value=None
+    _repo(
+        mock_report_repo_cls,
+        report=MagicMock(id=1, unit_id=10, year=2024),
+        rows=_VALIDATED_ROWS,
     )
-    service = UnitTotalsService(session=_session_with_module_rows(_VALIDATED_ROWS))
+    service = UnitTotalsService(session=MagicMock())
 
     result = await service.get_results_summary(1)
 
@@ -54,12 +55,12 @@ async def test_results_summary_structure(mock_report_repo_cls):
 @patch("app.services.unit_totals_service.CarbonReportRepository")
 async def test_results_summary_no_previous_report(mock_report_repo_cls):
     """No previous year report → prev_emissions == {}."""
-    report = MagicMock(id=1, unit_id=10, year=2024)
-    mock_report_repo_cls.return_value.get = AsyncMock(return_value=report)
-    mock_report_repo_cls.return_value.get_by_unit_and_year = AsyncMock(
-        return_value=None
+    _repo(
+        mock_report_repo_cls,
+        report=MagicMock(id=1, unit_id=10, year=2024),
+        rows=_VALIDATED_ROWS,
     )
-    service = UnitTotalsService(session=_session_with_module_rows(_VALIDATED_ROWS))
+    service = UnitTotalsService(session=MagicMock())
 
     result = await service.get_results_summary(1)
     assert result["prev_emissions"] == {}
@@ -69,16 +70,16 @@ async def test_results_summary_no_previous_report(mock_report_repo_cls):
 @patch("app.services.unit_totals_service.CarbonReportRepository")
 async def test_results_summary_with_previous_report(mock_report_repo_cls):
     """Previous year report exists → prev_emissions from its module stats."""
-    report = MagicMock(id=1, unit_id=10, year=2024)
-    prev_report = MagicMock(id=2, unit_id=10, year=2023)
-    mock_report_repo_cls.return_value.get = AsyncMock(return_value=report)
-    mock_report_repo_cls.return_value.get_by_unit_and_year = AsyncMock(
-        return_value=prev_report
+    _repo(
+        mock_report_repo_cls,
+        report=MagicMock(id=1, unit_id=10, year=2024),
+        prev_report=MagicMock(id=2, unit_id=10, year=2023),
+        rows=[
+            *_VALIDATED_ROWS,
+            (2, 4, ModuleStatus.VALIDATED, {"total": 3000.0}, CALC),
+        ],
     )
-    prev_rows = [(4, ModuleStatus.VALIDATED, {"total": 3000.0})]
-    service = UnitTotalsService(
-        session=_session_with_module_rows(_VALIDATED_ROWS, prev_rows)
-    )
+    service = UnitTotalsService(session=MagicMock())
 
     result = await service.get_results_summary(1)
     assert result["prev_emissions"] == {"4": 3000.0}
@@ -86,9 +87,26 @@ async def test_results_summary_with_previous_report(mock_report_repo_cls):
 
 @pytest.mark.asyncio
 @patch("app.services.unit_totals_service.CarbonReportRepository")
+async def test_results_summary_reads_both_years_in_one_query(mock_report_repo_cls):
+    """Current and previous year module rows come back from a single read."""
+    repo = _repo(
+        mock_report_repo_cls,
+        report=MagicMock(id=1, unit_id=10, year=2024),
+        prev_report=MagicMock(id=2, unit_id=10, year=2023),
+        rows=_VALIDATED_ROWS,
+    )
+    service = UnitTotalsService(session=MagicMock())
+
+    await service.get_results_summary(1)
+
+    repo.module_stats_by_report.assert_awaited_once_with([1, 2])
+
+
+@pytest.mark.asyncio
+@patch("app.services.unit_totals_service.CarbonReportRepository")
 async def test_results_summary_report_not_found(mock_report_repo_cls):
     """CarbonReport not found → raises ValueError."""
-    mock_report_repo_cls.return_value.get = AsyncMock(return_value=None)
+    _repo(mock_report_repo_cls, report=None)
     service = UnitTotalsService(session=MagicMock())
 
     with pytest.raises(ValueError, match="not found"):
@@ -99,17 +117,85 @@ async def test_results_summary_report_not_found(mock_report_repo_cls):
 @patch("app.services.unit_totals_service.CarbonReportRepository")
 async def test_results_summary_non_validated_excluded(mock_report_repo_cls):
     """IN_PROGRESS modules are filtered; headcount FTE rides current_fte."""
-    report = MagicMock(id=1, unit_id=10, year=2024)
-    mock_report_repo_cls.return_value.get = AsyncMock(return_value=report)
-    mock_report_repo_cls.return_value.get_by_unit_and_year = AsyncMock(
-        return_value=None
+    _repo(
+        mock_report_repo_cls,
+        report=MagicMock(id=1, unit_id=10, year=2024),
+        rows=_VALIDATED_ROWS,
     )
-    service = UnitTotalsService(session=_session_with_module_rows(_VALIDATED_ROWS))
+    service = UnitTotalsService(session=MagicMock())
 
     result = await service.get_results_summary(1)
     assert "2" not in result["current_emissions"]  # travel (IN_PROGRESS) absent
-    assert result["current_emissions"] == {"4": 5000.0, "1": 100.0}
+    assert result["current_emissions"] == {"1": 100.0, "4": 5000.0}
     assert result["current_fte"] == {"1": 120.0}
+
+
+@pytest.mark.asyncio
+@patch("app.services.unit_totals_service.CarbonReportRepository")
+async def test_results_summary_keeps_zero_total_validated_module(mock_report_repo_cls):
+    """A validated module summing to 0.0 keeps its key — it is a real row.
+
+    ``compute_results_summary`` turns this key set into the per-module rows of
+    the response, so dropping the zero would silently shrink the payload.
+    """
+    _repo(
+        mock_report_repo_cls,
+        report=MagicMock(id=1, unit_id=10, year=2024),
+        rows=[(1, 6, ModuleStatus.VALIDATED, {"total": 0.0}, CALC)],
+    )
+    service = UnitTotalsService(session=MagicMock())
+
+    result = await service.get_results_summary(1)
+    assert result["current_emissions"] == {"6": 0.0}
+
+
+# ======================================================================
+# get_merged_results_summary
+# ======================================================================
+
+
+@pytest.mark.asyncio
+@patch("app.services.unit_totals_service.CarbonReportRepository")
+async def test_merged_results_summary_is_constant_in_report_count(
+    mock_report_repo_cls,
+):
+    """Three reports cost the same two reads as one (#2527 task 4)."""
+    reports = [MagicMock(id=i, unit_id=i * 10, year=2024) for i in (1, 2, 3)]
+    repo = _repo(
+        mock_report_repo_cls,
+        rows=[
+            (r.id, 4, ModuleStatus.VALIDATED, {"total": 1000.0}, CALC) for r in reports
+        ],
+        by_units=[MagicMock(id=9, unit_id=10, year=2023)],
+    )
+    service = UnitTotalsService(session=MagicMock())
+
+    result = await service.get_merged_results_summary(reports, 2024)
+
+    assert repo.list_by_units.await_count == 1
+    assert repo.module_stats_by_report.await_count == 1
+    assert result["current_emissions"] == {"4": 3000.0}
+
+
+@pytest.mark.asyncio
+@patch("app.services.unit_totals_service.CarbonReportRepository")
+async def test_merged_results_summary_splits_previous_year(mock_report_repo_cls):
+    """Rows of the previous year's reports land in prev_emissions only."""
+    reports = [MagicMock(id=1, unit_id=10, year=2024)]
+    _repo(
+        mock_report_repo_cls,
+        rows=[
+            (1, 4, ModuleStatus.VALIDATED, {"total": 5000.0}, CALC),
+            (7, 4, ModuleStatus.VALIDATED, {"total": 3000.0}, CALC),
+        ],
+        by_units=[MagicMock(id=7, unit_id=10, year=2023)],
+    )
+    service = UnitTotalsService(session=MagicMock())
+
+    result = await service.get_merged_results_summary(reports, 2024)
+
+    assert result["current_emissions"] == {"4": 5000.0}
+    assert result["prev_emissions"] == {"4": 3000.0}
 
 
 # ======================================================================

@@ -37,13 +37,19 @@ _MODULE_ROWS = [
 ]
 
 
-def _db(report_type: CarbonReportType | None):
+def _db(report_type: CarbonReportType | None, report_id: int = 1):
+    """Session whose single module-stats read returns ``_MODULE_ROWS``.
+
+    One statement, not two: the project type now rides the same grouped query
+    as the module rows (#2527 task 4).
+    """
     db = MagicMock()
-    type_result = MagicMock()
-    type_result.scalar_one_or_none.return_value = report_type
     rows_result = MagicMock()
-    rows_result.all.return_value = _MODULE_ROWS
-    db.execute = AsyncMock(side_effect=[type_result, rows_result])
+    rows_result.all.return_value = [
+        (report_id, module_type_id, module_status, stats, report_type)
+        for module_type_id, module_status, stats in _MODULE_ROWS
+    ]
+    db.execute = AsyncMock(return_value=rows_result)
     return db
 
 
@@ -91,3 +97,36 @@ async def test_build_validated_totals_unknown_report_id_uses_validated_only():
     result = await stats_module.build_validated_totals(_db(None), 1)
 
     assert ModuleTypeEnum.professional_travel.value not in result["modules"]
+
+
+@pytest.mark.asyncio
+async def test_build_validated_totals_by_report_is_one_query_for_many_reports():
+    """R reports cost one statement, not 2R (#2527 task 4)."""
+    db = MagicMock()
+    rows_result = MagicMock()
+    rows_result.all.return_value = [
+        (report_id, module_type_id, module_status, stats, CarbonReportType.CALCULATOR)
+        for report_id in (1, 2, 3)
+        for module_type_id, module_status, stats in _MODULE_ROWS
+    ]
+    db.execute = AsyncMock(return_value=rows_result)
+
+    totals = await stats_module.build_validated_totals_by_report(db, [1, 2, 3])
+
+    assert db.execute.await_count == 1
+    assert sorted(totals) == [1, 2, 3]
+    assert totals[2]["total_tonnes_co2eq"] == pytest.approx((41700.0 + 200.0) / 1000.0)
+
+
+@pytest.mark.asyncio
+async def test_build_validated_totals_report_without_modules_is_zero():
+    """A report with no module rows folds to zero rather than raising."""
+    db = MagicMock()
+    rows_result = MagicMock()
+    rows_result.all.return_value = []
+    db.execute = AsyncMock(return_value=rows_result)
+
+    result = await stats_module.build_validated_totals(db, 99)
+
+    assert result["total_tonnes_co2eq"] == 0.0
+    assert result["modules"] == {}

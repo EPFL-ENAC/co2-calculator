@@ -8,17 +8,14 @@ previous year's report, which can change after this report was computed.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
-from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
-from app.models.carbon_project import CarbonProject
-from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
+from app.models.carbon_report import CarbonReport
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
@@ -30,8 +27,9 @@ from app.services.data_entry_service import DataEntryService
 from app.services.unit_service import UnitService
 from app.services.unit_totals_service import UnitTotalsService
 from app.utils.report_computations import (
+    ModuleStatsRow,
     compute_results_summary,
-    compute_validated_totals,
+    fold_validated_totals,
 )
 from app.utils.report_stats import (
     derive_quantity_sections,
@@ -40,6 +38,25 @@ from app.utils.report_stats import (
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+async def build_validated_totals_by_report(
+    db: AsyncSession, carbon_report_ids: list[int]
+) -> dict[int, dict]:
+    """Validated totals of several reports, keyed by report id, in one query.
+
+    Constant in the number of reports: the per-report loop this replaces cost
+    two statements each (#2527 task 4). A report with no module rows is absent
+    from the result — callers read that as zero, exactly as the empty fold did.
+    """
+    rows = await CarbonReportRepository(db).module_stats_by_report(carbon_report_ids)
+    by_report: dict[int, list[ModuleStatsRow]] = {}
+    for row in rows:
+        by_report.setdefault(row[0], []).append(row)
+    return {
+        report_id: fold_validated_totals(report_rows)
+        for report_id, report_rows in by_report.items()
+    }
 
 
 async def build_validated_totals(db: AsyncSession, carbon_report_id: int) -> dict:
@@ -57,42 +74,8 @@ async def build_validated_totals(db: AsyncSession, carbon_report_id: int) -> dic
             "total_fte": 25.5
         }
     """
-    report_type_row = await db.execute(
-        select(CarbonProject.carbon_report_type)
-        .join(
-            CarbonReport, col(CarbonReport.carbon_project_id) == col(CarbonProject.id)
-        )
-        .where(col(CarbonReport.id) == carbon_report_id)
-    )
-    report_type = report_type_row.scalar_one_or_none()
-    validated_only = report_type != CarbonReportType.SIMULATOR_EXPLORE
-
-    rows = (
-        await db.execute(
-            select(
-                col(CarbonReportModule.module_type_id),
-                col(CarbonReportModule.status),
-                col(CarbonReportModule.stats),
-            ).where(col(CarbonReportModule.carbon_report_id) == carbon_report_id)
-        )
-    ).all()
-
-    emission_stats: dict[str, float] = {}
-    fte_stats: dict[str, float] = {}
-    for module_type_id, module_status, stats in rows:
-        if validated_only and module_status != ModuleStatus.VALIDATED:
-            continue
-        if not isinstance(stats, dict):
-            continue
-        total = stats.get("total", 0.0) or 0.0
-        if total:
-            emission_stats[str(module_type_id)] = total
-        if stats.get("total_fte"):
-            fte_stats[str(module_type_id)] = stats["total_fte"]
-
-    return compute_validated_totals(
-        emission_stats, fte_stats, str(ModuleTypeEnum.headcount.value)
-    )
+    totals = await build_validated_totals_by_report(db, [carbon_report_id])
+    return totals.get(carbon_report_id) or fold_validated_totals([])
 
 
 @router.get(
@@ -251,11 +234,10 @@ async def get_merged_report_stats(
         db
     ).build_merged_it_top_classes(report_ids, report_year=year)
 
-    validated_total = 0.0
-    for report_id in report_ids:
-        validated = await build_validated_totals(db, report_id)
-        validated_total += validated["total_tonnes_co2eq"]
-    merged["total_tonnes_validated_co2eq"] = validated_total
+    validated = await build_validated_totals_by_report(db, report_ids)
+    merged["total_tonnes_validated_co2eq"] = sum(
+        totals["total_tonnes_co2eq"] for totals in validated.values()
+    )
 
     return merged
 
@@ -281,28 +263,12 @@ async def get_merged_results_summary(
             detail=f"No carbon report found for year {year}",
         )
 
-    service = UnitTotalsService(db)
-    current_emissions: dict[str, float] = {}
-    current_fte: dict[str, float] = {}
-    prev_emissions: dict[str, float] = {}
-    for report in reports:
-        if report.id is None:
-            continue
-        raw = await service.get_results_summary(report.id)
-        for target, source in (
-            (current_emissions, raw["current_emissions"]),
-            (current_fte, raw["current_fte"]),
-            (prev_emissions, raw["prev_emissions"]),
-        ):
-            for module_type_id, value in source.items():
-                target[module_type_id] = target.get(module_type_id, 0.0) + (
-                    value or 0.0
-                )
+    raw = await UnitTotalsService(db).get_merged_results_summary(reports, year)
 
     return compute_results_summary(
-        current_emissions,
-        current_fte,
-        prev_emissions,
+        raw["current_emissions"],
+        raw["current_fte"],
+        raw["prev_emissions"],
         get_settings().CO2_PER_KM_KG,
         str(ModuleTypeEnum.headcount.value),
         exclude_module_type_ids=set(exclude_modules),
