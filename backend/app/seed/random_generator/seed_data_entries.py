@@ -148,7 +148,9 @@ async def copy_insert_emissions(conn, rows):
             additional_value FLOAT,
             scope INT,
             meta JSONB,
-            computed_at TIMESTAMPTZ
+            computed_at TIMESTAMPTZ,
+            carbon_report_module_id INT,
+            data_entry_type_id INT
         ) ON COMMIT DROP
     """)
 
@@ -168,7 +170,9 @@ async def copy_insert_emissions(conn, rows):
             additional_value,
             scope,
             meta,
-            computed_at
+            computed_at,
+            carbon_report_module_id,
+            data_entry_type_id
         )
         SELECT *
         FROM tmp_emissions
@@ -586,7 +590,7 @@ def seed_emission_candidates(
     return [EmissionType(leaf_id) for leaf_id in get_subtree_leaves(root)]
 
 
-def generate_emissions_for_entry(entry_id, data_entry_type_id):
+def generate_emissions_for_entry(entry_id, data_entry_type_id, carbon_report_module_id):
     rows = []
     now = datetime.now(UTC)
 
@@ -608,6 +612,8 @@ def generate_emissions_for_entry(entry_id, data_entry_type_id):
             scope,
             json.dumps({"seeded": True, "formula_version": versionapi}),
             now,
+            carbon_report_module_id,
+            data_entry_type_id,
         )
     )
 
@@ -711,11 +717,14 @@ async def main():
             emission_rows = []
 
             for idx, entry_id in enumerate(returned_ids):
+                # Positional, matching generate_data_entries_for_module's tuple:
+                # (data_entry_type_id, carbon_report_module_id, data, status).
                 data_entry_type_id = data_entry_rows[idx][0]
                 emission_rows.extend(
                     generate_emissions_for_entry(
                         entry_id,
                         data_entry_type_id,
+                        data_entry_rows[idx][1],
                     )
                 )
 

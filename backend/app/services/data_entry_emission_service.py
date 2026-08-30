@@ -746,6 +746,13 @@ class DataEntryEmissionService:
                 )
             )
 
+        # #2527: stamp the denormalized join keys once, from the same entry
+        # that supplied every row's data_entry_id — so a fifth construction
+        # site above cannot forget them, and the keys cannot disagree with
+        # the parent row (planner copies included).
+        for row in results:
+            row.carbon_report_module_id = data_entry.carbon_report_module_id
+            row.data_entry_type_id = data_entry.data_entry_type_id
         return results
 
     @staticmethod

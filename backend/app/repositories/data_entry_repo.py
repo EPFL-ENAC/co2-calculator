@@ -59,6 +59,18 @@ def _reads_joined_table(expr: Any) -> bool:
     return any(name in rendered for name in _PAGE_FIRST_JOINED_TABLES)
 
 
+def _emission_module_scope(emission: Any, module_id: int, type_id: int) -> Any:
+    """#2527: scope emission rows by their own denormalized keys.
+
+    ``emission`` is ``DataEntryEmission`` or an ``aliased()`` of it. Both
+    columns lead ``ix_dee_module_type_entry``, so the aggregate reads one
+    contiguous index-only range instead of probing ``data_entries`` per row.
+    """
+    return (col(emission.carbon_report_module_id) == module_id) & (
+        col(emission.data_entry_type_id) == type_id
+    )
+
+
 def _equipment_usage_priority() -> Any:
     """New equipment still missing its usage floats to the top (#2050 J10).
 
@@ -1003,17 +1015,14 @@ class DataEntryRepository:
                 is_equipment_entry=is_equipment_entry,
             )
 
-        # The entries this page can possibly show. Both aggregation subqueries
-        # below restrict to it: a GROUP BY over the whole data_entry_emissions
-        # table cannot be narrowed by the outer WHERE (#2050 J8).
-        module_entry_ids = select(col(DataEntry.id)).where(
-            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
-            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        # The emissions this page can possibly aggregate. Every branch below
+        # restricts to it: a GROUP BY over the whole data_entry_emissions
+        # table cannot be narrowed by the outer WHERE (#2050 J8). Since #2527
+        # the restriction is enforced by the emission row's own module/type
+        # columns rather than an IN-subquery over data_entries.
+        emission_scope = _emission_module_scope(
+            DataEntryEmission, carbon_report_module_id, data_entry_type_id
         )
-        if page_entry_ids is not None:
-            module_entry_ids = module_entry_ids.where(
-                col(DataEntry.id).in_(page_entry_ids)
-            )
 
         if is_buildings_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
@@ -1024,6 +1033,17 @@ class DataEntryRepository:
                 DataEntryTypeEnum.building
             ].value
             RollupEmission = aliased(DataEntryEmission)
+            # #2527: the rollup probe carries the module/type predicates too,
+            # so it rides ix_dee_module_type_entry — scope is INCLUDEd there,
+            # which is what keeps the ``scope IS NULL`` test index-only.
+            rollup_on = (
+                (col(RollupEmission.data_entry_id) == col(DataEntry.id))
+                & (col(RollupEmission.emission_type_id) == rollup_et_id)
+                & (col(RollupEmission.scope).is_(None))
+                & _emission_module_scope(
+                    RollupEmission, carbon_report_module_id, data_entry_type_id
+                )
+            )
             # Fallback for legacy rows created before rollups existed.
             # #2050 J8: restricted to this module's entries — see the generic
             # branch below for why an unrestricted GROUP BY here scans the
@@ -1033,7 +1053,7 @@ class DataEntryRepository:
                     DataEntryEmission.data_entry_id,
                     func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
                 )
-                .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+                .where(emission_scope)
                 .group_by(col(DataEntryEmission.data_entry_id))
             )
             if ROLLUP_EMISSION_TYPE_IDS:
@@ -1055,13 +1075,7 @@ class DataEntryRepository:
             ]
             statement: Select[Any] = (
                 sa_select(*entities)
-                .join(
-                    RollupEmission,
-                    (col(RollupEmission.data_entry_id) == col(DataEntry.id))
-                    & (col(RollupEmission.emission_type_id) == rollup_et_id)
-                    & (col(RollupEmission.scope).is_(None)),
-                    isouter=True,
-                )
+                .join(RollupEmission, rollup_on, isouter=True)
                 .join(
                     Factor,
                     col(Factor.id) == resolved_factor_id,
@@ -1097,6 +1111,17 @@ class DataEntryRepository:
                 DataEntryTypeEnum(data_entry_type_id)
             ].value
             RollupEmission = aliased(DataEntryEmission)
+            # #2527: same covering-index predicates as the buildings branch —
+            # the page query and the count query must join identically or the
+            # count degenerates.
+            rollup_on = (
+                (col(RollupEmission.data_entry_id) == col(DataEntry.id))
+                & (col(RollupEmission.emission_type_id) == rollup_et_id)
+                & (col(RollupEmission.scope).is_(None))
+                & _emission_module_scope(
+                    RollupEmission, carbon_report_module_id, data_entry_type_id
+                )
+            )
             entities = [
                 DataEntry,
                 col(RollupEmission.kg_co2eq).label("total_kg_co2eq"),
@@ -1104,13 +1129,7 @@ class DataEntryRepository:
             ]
             statement = (
                 sa_select(*entities)
-                .join(
-                    RollupEmission,
-                    (col(RollupEmission.data_entry_id) == col(DataEntry.id))
-                    & (col(RollupEmission.emission_type_id) == rollup_et_id)
-                    & (col(RollupEmission.scope).is_(None)),
-                    isouter=True,
-                )
+                .join(RollupEmission, rollup_on, isouter=True)
                 .join(
                     Factor,
                     col(RollupEmission.primary_factor_id) == col(Factor.id),
@@ -1119,12 +1138,7 @@ class DataEntryRepository:
             )
             kg_sort_expr = RollupEmission.kg_co2eq
             count_factor_joins = [
-                (
-                    RollupEmission,
-                    (col(RollupEmission.data_entry_id) == col(DataEntry.id))
-                    & (col(RollupEmission.emission_type_id) == rollup_et_id)
-                    & (col(RollupEmission.scope).is_(None)),
-                ),
+                (RollupEmission, rollup_on),
                 (Factor, col(RollupEmission.primary_factor_id) == col(Factor.id)),
             ]
         else:
@@ -1147,9 +1161,19 @@ class DataEntryRepository:
                         "primary_factor_id"
                     ),
                 )
-                .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+                .where(emission_scope)
                 .group_by(col(DataEntryEmission.data_entry_id))
             )
+            if page_entry_ids is not None:
+                # #2404 narrowing, kept on purpose: only kg_co2eq sorts fall
+                # through to the whole-module aggregate. Every other sort
+                # already resolved its ~20 ids, and dropping this in favour of
+                # the module/type predicates alone would make the majority of
+                # table combos slower. data_entry_id is the third column of
+                # ix_dee_module_type_entry, so both shapes use the same index.
+                emission_agg_q = emission_agg_q.where(
+                    col(DataEntryEmission.data_entry_id).in_(page_entry_ids)
+                )
             if ROLLUP_EMISSION_TYPE_IDS:
                 emission_agg_q = emission_agg_q.where(
                     col(DataEntryEmission.emission_type_id).notin_(
@@ -1550,20 +1574,23 @@ class DataEntryRepository:
         ``number_of_trips``. Rows whose origin or destination location did not
         resolve are dropped and counted into the returned ``dropped`` total.
         """
-        # Scope the per-entry emission rollup to THIS module's entries. Without
-        # it, the subquery seq-scans and aggregates the whole emissions table
-        # (~700k rows) on every call — and the mode loop below runs it twice —
-        # which dominates the query (seconds on a cold cache). Restricting by
-        # data_entry_id turns that into an indexed lookup of the module's rows.
-        module_entry_ids = select(col(DataEntry.id)).where(
-            col(DataEntry.carbon_report_module_id) == carbon_report_module_id
-        )
+        # Scope the per-entry emission rollup to THIS module's emissions.
+        # Without it, the subquery seq-scans and aggregates the whole emissions
+        # table (~700k rows) on every call — and the mode loop below runs it
+        # twice — which dominates the query (seconds on a cold cache). #2527:
+        # the module id now lives on the emission row itself, so this is a
+        # range scan on ix_dee_module_type_entry's leading column rather than
+        # an IN-subquery over data_entries. No type predicate here: both
+        # travel modes are wanted.
         emission_agg_q = (
             select(
                 DataEntryEmission.data_entry_id,
                 func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
             )
-            .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+            .where(
+                col(DataEntryEmission.carbon_report_module_id)
+                == carbon_report_module_id
+            )
             .group_by(col(DataEntryEmission.data_entry_id))
         )
         if ROLLUP_EMISSION_TYPE_IDS:

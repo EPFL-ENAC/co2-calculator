@@ -61,7 +61,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
 from app.models.module_type import (
     ModuleTypeEnum,
 )
@@ -69,6 +68,7 @@ from app.modules.emissions import EmissionType
 from app.modules.emissions.registry import emission_type_scope
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
+from tests.conftest import make_emission
 
 from .conftest import seeded_year_with_units
 
@@ -100,8 +100,8 @@ async def _seed_emission(
     session.add(entry)
     await session.flush()
 
-    em = DataEntryEmission(
-        data_entry_id=entry.id,
+    em = make_emission(
+        entry,
         emission_type_id=int(emission_type),
         kg_co2eq=kg_co2eq,
         additional_value=additional_value,

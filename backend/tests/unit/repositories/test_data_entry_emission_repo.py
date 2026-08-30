@@ -8,7 +8,6 @@ from app.models.building_room import BuildingRoom
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.modules.emissions import EmissionType
@@ -17,6 +16,7 @@ from app.modules.emissions.registry import (
     is_additional_breakdown_emission,
 )
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
+from tests.conftest import make_emission
 
 # ======================================================================
 # CRUD Operation Tests
@@ -47,8 +47,8 @@ async def test_create_emission(db_session: AsyncSession):
     await db_session.flush()
 
     # Create emission
-    emission = DataEntryEmission(
-        data_entry_id=data_entry.id,
+    emission = make_emission(
+        data_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
         additional_value=500.0,
@@ -87,8 +87,8 @@ async def test_update_emission(db_session: AsyncSession):
     db_session.add(data_entry)
     await db_session.flush()
 
-    emission = DataEntryEmission(
-        data_entry_id=data_entry.id,
+    emission = make_emission(
+        data_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
@@ -125,8 +125,8 @@ async def test_get_by_data_entry_id(db_session: AsyncSession):
     db_session.add(data_entry)
     await db_session.flush()
 
-    emission = DataEntryEmission(
-        data_entry_id=data_entry.id,
+    emission = make_emission(
+        data_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
@@ -173,8 +173,8 @@ async def test_delete_by_data_entry_id(db_session: AsyncSession):
     db_session.add(data_entry)
     await db_session.flush()
 
-    emission = DataEntryEmission(
-        data_entry_id=data_entry.id,
+    emission = make_emission(
+        data_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
@@ -225,8 +225,8 @@ async def test_bulk_create_emissions(db_session: AsyncSession):
     await db_session.flush()
 
     emissions = [
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.professional_travel__plane__business,
             kg_co2eq=100.0 * (i + 1),
             scope=emission_type_scope(
@@ -289,8 +289,8 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
 
     # Create emissions
     plane_emissions = [
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.professional_travel__plane__business,
             kg_co2eq=200.0,
             scope=emission_type_scope(
@@ -301,8 +301,8 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
     ]
 
     train_emissions = [
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.professional_travel__train__class_2,
             kg_co2eq=50.0,
             scope=emission_type_scope(EmissionType.professional_travel__train__class_2),
@@ -379,8 +379,8 @@ async def test_buildings_banner_total_excludes_embodied_energy(
         db_session.add(entry)
         await db_session.flush()
         db_session.add(
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=emission_type,
                 kg_co2eq=kg,
                 scope=emission_type_scope(emission_type),
@@ -440,15 +440,15 @@ async def test_get_travel_stats_by_class_basic(db_session: AsyncSession):
     await db_session.flush()
 
     # Create emissions
-    eco_emission = DataEntryEmission(
-        data_entry_id=eco_entry.id,
+    eco_emission = make_emission(
+        eco_entry,
         emission_type_id=EmissionType.professional_travel__plane__eco,
         kg_co2eq=200.0,
         scope=emission_type_scope(EmissionType.professional_travel__plane__eco),
     )
 
-    business_emission = DataEntryEmission(
-        data_entry_id=business_entry.id,
+    business_emission = make_emission(
+        business_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=600.0,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
@@ -513,15 +513,15 @@ async def test_get_travel_stats_by_class_null_cabin(db_session: AsyncSession):
     await db_session.flush()
 
     # Create emissions
-    plane_emission = DataEntryEmission(
-        data_entry_id=plane_entry.id,
+    plane_emission = make_emission(
+        plane_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=300.0,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
     )
 
-    train_emission = DataEntryEmission(
-        data_entry_id=train_entry.id,
+    train_emission = make_emission(
+        train_entry,
         emission_type_id=EmissionType.professional_travel__train__class_2,
         kg_co2eq=50.0,
         scope=emission_type_scope(EmissionType.professional_travel__train__class_2),
@@ -579,15 +579,15 @@ async def test_get_travel_stats_by_class_filters_zero_emissions(
     await db_session.flush()
 
     # Create emissions - one valid, one zero
-    valid_emission = DataEntryEmission(
-        data_entry_id=valid_entry.id,
+    valid_emission = make_emission(
+        valid_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=200.0,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
     )
 
-    zero_emission = DataEntryEmission(
-        data_entry_id=zero_entry.id,
+    zero_emission = make_emission(
+        zero_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=0.0,  # Zero emission
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
@@ -631,8 +631,8 @@ async def _seed_emission(db_session, module, name, kg):
     db_session.add(entry)
     await db_session.flush()
     db_session.add(
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.equipment__scientific,
             kg_co2eq=kg,
             scope=emission_type_scope(EmissionType.equipment__scientific),
@@ -809,8 +809,8 @@ async def test_embodied_energy_by_building_groups_by_name(db_session: AsyncSessi
         db_session.add(entry)
         await db_session.flush()
         db_session.add(
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=EmissionType.buildings__construction_and_renovation,
                 kg_co2eq=kg,
                 scope=emission_type_scope(
@@ -857,8 +857,8 @@ async def _seed_building_with_rollup(
     ]
     for et in leaf_types:
         db_session.add(
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=et,
                 kg_co2eq=kg_leaf / len(leaf_types),
                 scope=emission_type_scope(et),
@@ -867,8 +867,8 @@ async def _seed_building_with_rollup(
 
     # The rollup row (buildings__rooms = 60100), created by prepare_create()
     db_session.add(
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.buildings__rooms,
             kg_co2eq=kg_rollup,
             primary_factor_id=None,
