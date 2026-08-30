@@ -35,7 +35,8 @@ empty-out for a user who genuinely has no roles still settles normally, so
 role-less users do not spin.
 
 ### 2. Provider failures raise instead of returning empty
-(`app/providers/role_provider.py`)
+
+In `app/providers/role_provider.py`:
 
 - Unconfigured Accred credentials raised `RoleProviderNetworkError` instead
   of `return []` / `return {}` — one pod with rotated credentials could
@@ -75,16 +76,16 @@ fixed. Hygiene, not the trigger.
 
 ## Regression tests
 
-| Test | Pins |
-| --- | --- |
-| `test_empty_provider_response_does_not_wipe_existing_roles` | the wipe itself |
-| `test_suspicious_empty_leaves_sync_timestamp_untouched` | the next sync retries |
-| `test_non_empty_role_change_still_applies` | the guard does not freeze roles |
-| `test_user_with_no_roles_receiving_no_roles_is_not_an_error` | no retry loop for role-less users |
-| `test_provider_network_error_skips_without_touching_roles` | abort path writes nothing |
-| `test_login_stamps_sync_time_so_next_session_call_is_ttl_gated` | login stamps freshness |
-| `test_accred_unconfigured_raises_on_get_roles_by_user_id` / `..._get_user_by_user_id` | unconfigured raises |
-| `test_accred_raises_when_every_authorization_is_dropped` | schema move fails loudly |
+| Test                                                                                        | Pins                              |
+| ------------------------------------------------------------------------------------------- | --------------------------------- |
+| `test_empty_provider_response_does_not_wipe_existing_roles`                                 | the wipe itself                   |
+| `test_suspicious_empty_leaves_sync_timestamp_untouched`                                     | the next sync retries             |
+| `test_non_empty_role_change_still_applies`                                                  | the guard does not freeze roles   |
+| `test_user_with_no_roles_receiving_no_roles_is_not_an_error`                                | no retry loop for role-less users |
+| `test_provider_network_error_skips_without_touching_roles`                                  | abort path writes nothing         |
+| `test_login_stamps_sync_time_so_next_session_call_is_ttl_gated`                             | login stamps freshness            |
+| `test_accred_unconfigured_raises_on_get_roles_by_user_id` / `..._get_user_by_user_id`       | unconfigured raises               |
+| `test_accred_raises_when_every_authorization_is_dropped`                                    | schema move fails loudly          |
 | `test_role_name_prefix_matches_every_role_name` / `test_accred_query_uses_role_name_prefix` | filter cannot drift from the enum |
 
 `tests/unit/tasks/test_role_sync_skip.py` (the `JwtClaimsRoleProvider`
