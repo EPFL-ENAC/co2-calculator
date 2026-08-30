@@ -5,8 +5,8 @@
 - **Issue**: #2530 (Part 1)
 - **Reviewed**: 2026-08-30
 - **Verdict**: **SHIP WITH FIXES** — one must-fix (an unauthenticated 500 on the
-  new gate), two should-fixes (a test that does not test what it is named for;
-  two overclaims in the PR narrative).
+  new gate) and three should-fixes (a test that does not test what it is named
+  for, and two overclaims in the PR narrative).
 
 Everything below was verified against source — uvicorn 0.52.4 in
 `backend/.venv`, the `openshift-app-config` overlays, `helm/templates/routes.yaml`
@@ -157,21 +157,22 @@ Impact:
   precisely what #2530 Part 2 is about).
 - It also pollutes error tracking and alerting with unauthenticated noise.
 
-Fix is one line, either shape:
+Fix is one token, in the guard clause that is already there:
 
 ```python
 if not presented or not presented.isascii() or not get_settings().JWT_HMAC_KEY:
     return False
 ```
 
-or compare bytes, which sidesteps the encoding question entirely:
+Comparing bytes instead — `hmac.compare_digest(presented.encode("latin-1"),
+internal_auth_token().encode())` — also works for values that came off the
+wire, but it is the weaker fix: `internal_auth_ok` is a public function, and
+any caller passing a character above `U+00FF` (a test, or the next caller)
+trades the `TypeError` for a `UnicodeEncodeError` on the same line. The
+`isascii()` guard cannot raise at all and fails closed by construction.
 
-```python
-return hmac.compare_digest(presented.encode("latin-1"), internal_auth_token().encode())
-```
-
-Prefer the bytes comparison. Ship it with a regression test that feeds a
-non-ASCII header value and asserts `False`, not an exception.
+Ship it with a regression test that feeds a non-ASCII header value and asserts
+`False`, not an exception.
 
 **This is the fix that sets the verdict.** See §3.1 for why the existing suite
 structurally cannot catch it.
@@ -465,7 +466,8 @@ for free.
 **Must fix**
 
 1. §2.1 — non-ASCII `X-Internal-Auth` raises `TypeError` → unauthenticated 500.
-   Compare bytes (or guard `isascii()`), plus a regression test.
+   Add `not presented.isascii()` to the existing guard clause, plus a regression
+   test.
 
 **Should fix**
 
