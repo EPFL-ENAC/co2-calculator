@@ -181,8 +181,13 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 	@test -s $(PERF_USERS_FILE) || docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc \
 		"select institutional_id || ' ' || case when roles_raw::text like '%principal%' then 'principal' else 'standard' end from users where institutional_id like 'USR%'" \
 		> $(PERF_USERS_FILE) 2>/dev/null || true
-	@p="$(PERF_HOST)"; p="$${p##*:}"; case "$$p" in *[!0-9]*|"") p=0;; esac; \
-	$(UV) run python -m tests.performance.resource_sampler --port $$p $(PERF_REPORT_DIR)/$(PERF_TAG)_resources.csv & echo $$! > $(PERF_REPORT_DIR)/.sampler.pid
+	@p="$(PERF_HOST)"; p="$${p%%/}"; p="$${p##*:}"; \
+	case "$$p" in *[!0-9]*|"") \
+		echo "note: $(PERF_HOST) has no numeric port — skipping resource sampling"; \
+		rm -f $(PERF_REPORT_DIR)/.sampler.pid;; \
+	*) exec $(UV) run python -m tests.performance.resource_sampler --port $$p \
+		$(PERF_REPORT_DIR)/$(PERF_TAG)_resources.csv & echo $$! > $(PERF_REPORT_DIR)/.sampler.pid;; \
+	esac
 	PERF_USERS_FILE="$(PERF_USERS_FILE)" \
 	PERF_UNIT_IDS="$${PERF_UNIT_IDS:-$$(docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc "select min(id)||'-'||max(id) from units where institutional_code like 'U0%'" 2>/dev/null | tr -d '[:space:]' || true)}" \
 	PERF_ROLE="$${PERF_ROLE:-calco2.user.principal}" \
@@ -191,7 +196,13 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 		-u $(PERF_USERS) -r $$(( $(PERF_USERS) / 10 + 1 )) -t $(PERF_TIME) \
 		--csv $(PERF_REPORT_DIR)/$(PERF_TAG) --html $(PERF_REPORT_DIR)/$(PERF_TAG).html \
 		--only-summary --exit-code-on-error 0; \
-	status=$$?; kill $$(cat $(PERF_REPORT_DIR)/.sampler.pid) 2>/dev/null; exit $$status
+	status=$$?; \
+	if [ -f $(PERF_REPORT_DIR)/.sampler.pid ]; then \
+		pid=$$(cat $(PERF_REPORT_DIR)/.sampler.pid); \
+		kill -- -$$pid 2>/dev/null || kill $$pid 2>/dev/null; \
+		pkill -f "resource_sampler --port" 2>/dev/null; \
+		rm -f $(PERF_REPORT_DIR)/.sampler.pid; \
+	fi; exit $$status
 
 .PHONY: perf-sweep
 perf-sweep: ## Full #2295 ladder: admin reads 50→1000, principal module reads/plans/explore, standard uploads

@@ -7,12 +7,24 @@ The live probe for the wrapping is ``table_matrix.py``'s bad-sort check;
 this pins the raise the route depends on.
 """
 
+import pydantic
 import pytest
 
-from app.repositories.data_entry_repo import DataEntryRepository
+from app.repositories.data_entry_repo import DataEntryRepository, UnknownSortField
 
 
-def test_unknown_sort_key_raises_value_error():
+def test_unknown_sort_key_raises_unknown_sort_field():
     repo = DataEntryRepository.__new__(DataEntryRepository)
-    with pytest.raises(ValueError, match="Cannot sort by unknown field"):
+    with pytest.raises(UnknownSortField, match="Cannot sort by unknown field"):
         repo._apply_sort(None, "__nope__", "asc", {"id": object()})
+
+
+def test_unknown_sort_field_is_narrower_than_pydantic_validation_error():
+    """The route catches UnknownSortField only.
+
+    pydantic's ValidationError also subclasses ValueError; if the route caught
+    ValueError, a corrupt stored row failing its response DTO would be
+    reported as a 400 client error instead of the 500 it is.
+    """
+    assert issubclass(UnknownSortField, ValueError)
+    assert not issubclass(pydantic.ValidationError, UnknownSortField)

@@ -57,7 +57,7 @@ from app.modules.research_facilities import (
     ResearchFacilitiesAnimalHandlerCreate,
     ResearchFacilitiesCommonHandlerCreate,
 )
-from app.seed.ceilings import CEILING_PER_UNIT_YEAR, TOTAL_CEILING_PER_UNIT_YEAR
+from app.seed.ceilings import CEILING_PER_UNIT_YEAR
 from app.seed.seed_helper import versionapi
 
 fake = Faker()
@@ -652,14 +652,27 @@ async def main():
 
         generate_rows = generate_data_entries_for_module
         batch_size = BATCH_SIZE
+        if CEILING_SCALE > 0 and not CEILING_UNITS_PREFIX:
+            raise SystemExit(
+                "SEED_CEILING_SCALE requires SEED_CEILING_UNITS_PREFIX: "
+                "without it, ceiling density would be applied to every "
+                "module row — including Simulator Explore/Plan modules and "
+                "real accred-synced units."
+            )
         if CEILING_SCALE > 0:
             generate_rows = generate_ceiling_entries_for_module
-            # Cap each COPY batch near ~200k rows regardless of scale.
-            avg_rows_per_module = (
-                TOTAL_CEILING_PER_UNIT_YEAR
-                * CEILING_SCALE
-                / len(MODULE_TYPE_TO_DATA_ENTRY_TYPES)
+            # Cap each COPY batch near ~200k rows regardless of scale. Size
+            # off the LARGEST module (professional_travel ≈ 5500/unit-year,
+            # ~2x the mean) so a travel batch can't blow past the cap.
+            max_rows_per_module = max(
+                sum(
+                    CEILING_PER_UNIT_YEAR[t]
+                    for t in types
+                    if not t.is_planner_kind and t in CEILING_PER_UNIT_YEAR
+                )
+                for types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.values()
             )
+            avg_rows_per_module = max(1.0, max_rows_per_module * CEILING_SCALE)
             batch_size = max(10, min(BATCH_SIZE, int(200_000 / avg_rows_per_module)))
             print(f"Ceiling mode: scale={CEILING_SCALE}, batch_size={batch_size}\n")
 

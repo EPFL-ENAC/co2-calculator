@@ -26,11 +26,17 @@ def backend_usage(port: int) -> tuple[float, float]:
     uvicorn's spawned workers show up as ``spawn_main`` in ps, so match by
     the listening socket (lsof) instead of the command line.
     """
+    # -sTCP:LISTEN or the load generator's own established connections to
+    # this port are counted as backend usage — worst exactly at the high-VU
+    # stages the capacity table exists to characterize.
     pids = subprocess.run(  # nosec B603 B607
-        ["lsof", "-ti", f":{port}"], capture_output=True, text=True
+        ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"], capture_output=True, text=True
     ).stdout.split()
     if not pids:
-        return 0.0, 0.0
+        raise SystemExit(
+            f"no process listening on :{port} — refusing to record zeros "
+            f"that look like a real measurement"
+        )
     out = subprocess.run(  # nosec B603 B607
         ["ps", "-o", "%cpu=,rss=", "-p", ",".join(pids)],
         capture_output=True,
@@ -60,7 +66,10 @@ def postgres_usage() -> tuple[float, float]:
         text=True,
     ).stdout.strip()
     if not out:
-        return 0.0, 0.0
+        raise SystemExit(
+            "docker stats returned nothing for co2-calculator-postgres — "
+            "refusing to record zeros that look like a real measurement"
+        )
     cpu_str, mem_str = out.split()[0], out.split()[1]
     cpu = float(cpu_str.rstrip("%"))
     factor = {"KiB": 1 / 1024, "MiB": 1.0, "GiB": 1024.0}

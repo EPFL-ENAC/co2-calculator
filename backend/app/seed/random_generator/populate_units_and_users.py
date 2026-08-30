@@ -130,10 +130,22 @@ async def insert_units(conn, rows):
             provider::user_provider_enum,
             TRUE
         FROM tmp_units
+        ON CONFLICT (institutional_id) DO NOTHING
         RETURNING id, institutional_id
     """)
 
-    return {r["institutional_id"]: r["id"] for r in unit_ids}
+    inserted = {r["institutional_id"]: r["id"] for r in unit_ids}
+    # The first units take the TEST fixture iids, which app.seed
+    # .seed_fake_user_unit may already own — DO NOTHING skips those, so read
+    # their ids back rather than dying or silently dropping them.
+    missing = [row[1] for row in rows if row[1] not in inserted]
+    if missing:
+        existing = await conn.fetch(
+            "SELECT id, institutional_id FROM units WHERE institutional_id = ANY($1)",
+            missing,
+        )
+        inserted.update({r["institutional_id"]: r["id"] for r in existing})
+    return inserted
 
 
 # ============================================================

@@ -41,6 +41,7 @@ from app.modules.headcount import (
     HeadcountItemResponse,
     HeadcountMemberDropdownItem,
 )
+from app.repositories.data_entry_repo import UnknownSortField
 from app.schemas.carbon_report import CarbonReportModuleRead, CarbonReportRead
 from app.schemas.carbon_report_response import (
     ModuleResponse,
@@ -803,9 +804,11 @@ async def get_submodule(
             exclude_planner_snapshots=exclude_planner_snapshots,
             factor_year=factor_year,
         )
-    except ValueError as exc:
-        # An unknown sort_by raises in the repo's _apply_sort; it comes
-        # straight from the query string, so it's a 400, not a 500.
+    except UnknownSortField as exc:
+        # Only this one: sort_by comes straight from the query string, so an
+        # unknown column is a 400. Every other ValueError in this call path —
+        # notably pydantic's ValidationError on a corrupt stored row — must
+        # stay a 500 so it surfaces in error dashboards.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc

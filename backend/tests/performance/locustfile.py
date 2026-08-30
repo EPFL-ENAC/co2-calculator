@@ -426,7 +426,11 @@ class PlanUser(CO2User):
                 },
                 name="PATCH /v1/project-plans/[id]",
             )
-            job_id = patched.status_code == 200 and patched.json().get("prefill_job_id")
+            if patched.status_code != 200:
+                # Don't let a failed PATCH report a successful FLOW — that
+                # metric is the whole point of this scenario.
+                raise RuntimeError(f"plan PATCH returned {patched.status_code}")
+            job_id = patched.json().get("prefill_job_id")
             if job_id:
                 self._poll_prefill(plan_id, job_id)
 

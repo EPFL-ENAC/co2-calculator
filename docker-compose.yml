@@ -47,10 +47,13 @@ services:
       - "traefik.enable=false"
     volumes:
       - postgres-data-18:/var/lib/postgresql
-    # 1000-VU load tests (#2295) hit both defaults: 4 uvicorn workers ×
-    # (DB_POOL_SIZE+DB_MAX_OVERFLOW)=120 connections > max_connections=100
-    # ("too many clients"), and limit=1000 sorts overflow the 64MB
-    # container /dev/shm ("could not resize shared memory segment").
+    # 1000-VU load tests (#2295) hit both defaults. Connections: 4 uvicorn
+    # workers × (DB_POOL_SIZE + DB_MAX_OVERFLOW) per worker — with this
+    # repo's backend/.env (20+10) that is 120 > the old max_connections=100
+    # ("too many clients"); the config.py defaults (10+10) give 80, so the
+    # ceiling depends on your .env — size it against your own pool values.
+    # Shared memory: limit=1000 sorts overflow the 64MB container /dev/shm
+    # ("could not resize shared memory segment").
     shm_size: "1gb"
     command: ["postgres", "-c", "listen_addresses=*", "-c", "max_connections=200"]
     healthcheck:
