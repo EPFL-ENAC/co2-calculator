@@ -10,7 +10,10 @@ summary: Two-layer rate limiting — OpenShift router annotations for the hard c
 ## Status
 
 **Part 1 — delivered.** `extract_ip_address` no longer reads `X-Forwarded-For`;
-it returns `request.client.host`, which a client cannot forge. See
+it returns `request.client.host`, which a client cannot forge. The follow-up
+shipped with it: `/internal` is re-gated on a shared secret, because proxy
+headers turned out to be trusted already and the IP allowlist was already
+spoofable from inside the cluster. See
 [Part 1, shipped](#part-1-shipped-unforgeable-audit-ip) below.
 
 **Part 2 — planned, not implemented.** This file is the design; no limiter code
@@ -38,36 +41,71 @@ The helper now reads `scope["client"]` only, mirroring the reasoning already
 documented on `GET /v1/session`. Regression test:
 `backend/tests/unit/utils/test_audit_helpers.py::test_extract_ip_address_ignores_forged_forwarded_for`.
 
-### Known consequence — recorded IP is now the router pod
+### Correction — proxy headers were already trusted, and the internal endpoint was already exposed
 
-`FORWARDED_ALLOW_IPS` is set nowhere in this repo, and the deployment runs
-uvicorn without `--proxy-headers` (`backend/Dockerfile:76`). So the peer
-uvicorn sees is **the OpenShift router pod**, not the end user. Audit rows will
-carry the router's address until the follow-up below lands.
+An earlier revision of this plan said `FORWARDED_ALLOW_IPS` was "set nowhere"
+and that audit rows would therefore carry the router pod's address. Both were
+wrong. It is set nowhere **in this repo**; it is set in
+[`openshift-app-config`](https://github.com/EPFL-ENAC/openshift-app-config), in
+**all three** overlays:
 
-This is the intended trade: a coarse-but-true IP beats a plausible-but-forged
-one. Misleading evidence in an audit log is worse than uninformative evidence.
+```yaml
+FORWARDED_ALLOW_IPS: "10.20.0.0/16,10.98.42.0/24"
+```
 
-### Follow-up to restore real client IPs — read this before doing it
+and uvicorn's `proxy_headers` defaults to `True` (`uvicorn/config.py:220`), so
+`--proxy-headers` was never the switch. `scope["client"]` has been the resolved
+end-user address in dev, stage and prod all along.
 
-To get end-user addresses back, both halves are needed:
+Two consequences, both now handled:
 
-1. `haproxy.router.openshift.io/set-forwarded-headers: replace` on the Route,
-   so the router **overwrites** XFF instead of appending — the header then
-   carries only what the router observed.
-2. `FORWARDED_ALLOW_IPS` set to the router's address/CIDR, so uvicorn's
-   `ProxyHeadersMiddleware` resolves `scope["client"]` from that trusted
-   header.
+- **Audit IPs are already real user addresses** once `extract_ip_address` stops
+  reading XFF. Nothing further is needed for that half.
+- **`10.20.0.0/16` is the cluster's whole pod overlay subnet** — the ops
+  comment says so verbatim ("the overlay subnet for pods (which includes the
+  haproxies)"). Every workload in the cluster is therefore a *trusted proxy*:
+  uvicorn walks the chain from the right, skips the caller's own trusted
+  address, and honours whatever it put to the left. So any in-cluster pod could
+  set `scope["client"]` to a live co2 pod's IP and satisfy
+  `internal.py`'s `_caller_is_live_pod` allowlist. On prod, where
+  `networkPolicies` is commented out, it does not even need the Route — it can
+  reach a backend pod on 8000 directly, from a trusted source address.
 
-**Blocking prerequisite:** `backend/app/api/internal.py`'s `_caller_is_live_pod`
-gate is an IP allowlist that holds *only because* uvicorn currently trusts no
-proxy headers — this is stated explicitly in
-`docs/src/implementation-plans/archive/2278-cache-per-request-user-lookup.md`.
-The OpenShift Route's `path: '/api'` is a prefix match
-(`helm/templates/routes.yaml`), so `POST /api/internal/...` is reachable from
-outside. Enabling proxy-header trust without re-verifying that gate opens it.
-Do step 2 only after `internal.py` is re-gated on a shared secret, or after
-proving pod-to-pod calls still resolve to their raw peer address.
+  This was **live exposure, not a future risk** introduced by turning proxy
+  headers on. `internal.py` now authenticates on a shared secret first (see
+  below); the IP check stays as a second factor.
+
+External clients cannot forge: the AVI load balancer (`10.98.42.0/24`) appends
+the real client address before HAProxy appends AVI's own, so the walk from the
+right stops at the first untrusted hop — the user. That is the only reading
+under which the AVI CIDR belongs in the allowlist at all.
+
+### Delivered — `internal.py` re-gated on a shared secret
+
+`backend/app/core/internal_auth.py`: an `X-Internal-Auth` header carrying
+`HMAC-SHA256(JWT_HMAC_KEY, "co2-calculator/internal-api/v1")`, compared with
+`hmac.compare_digest`. Derived rather than provisioned so the gate is real the
+moment the image ships — a gate waiting on an Infisical secret ships open, or
+ships closed and silently breaks the broadcast. Sent by
+`taxonomy_cache_broadcast._clear_remote`, required by every `/internal` route.
+
+`backend/app/main.py:assert_proxy_trust_settings` additionally refuses to boot
+on `FORWARDED_ALLOW_IPS='*'`, which would make uvicorn take the *first*,
+client-chosen XFF element and restore the forgery this issue removed.
+
+### Still worth doing, for ops
+
+- **Narrow `FORWARDED_ALLOW_IPS`** from the pod overlay subnet to the router
+  pods' addresses. Not blocking any more — the secret gate is what stops the
+  in-cluster spoof — but a whole-cluster trust list is far wider than the
+  purpose needs, and it is what let a header stand in for identity.
+- **`set-forwarded-headers: replace` is *not* recommended.** With `replace`,
+  HAProxy overwrites XFF with the peer *it* sees — the AVI LB — and uvicorn,
+  finding every entry trusted, falls back to the leftmost. Every audit IP would
+  become `10.98.42.x`. `append` (the default) is what makes the chain
+  resolvable. Verify against a real span's
+  `http.request.header.x_forwarded_for` array before changing it; prod already
+  captures that header for exactly this purpose.
 
 ## Part 2 — Layer 1: OpenShift router (do this first)
 
@@ -176,8 +214,15 @@ Ship Layer 1 first and measure before writing any of this.
 
 ## Open questions for the maintainer
 
-1. Do you want the `set-forwarded-headers: replace` + `FORWARDED_ALLOW_IPS`
-   follow-up at all, given it requires re-gating `internal.py` first? Audit rows
-   record the router pod IP until then.
+1. ~~Do you want the `set-forwarded-headers: replace` + `FORWARDED_ALLOW_IPS`
+   follow-up at all?~~ Answered by the ops repo: `FORWARDED_ALLOW_IPS` was
+   already set everywhere, so the only outstanding half was the re-gate, which
+   shipped. `replace` should **not** be added — see above.
 2. Is `slowapi` an acceptable new dependency, or should Layer 2 wait entirely
    and let the router annotations stand alone?
+3. `internal_auth` derives its token from `JWT_HMAC_KEY` instead of taking a
+   dedicated `INTERNAL_HMAC_KEY` from Infisical, which trades the codebase's
+   "one key per signing domain" convention for a gate that needs no ops action
+   to be real. Say the word and it becomes its own secret — the only cost is
+   that the endpoint 403s (fail-closed, TTL covers it) until that secret lands.
+4. Should ops narrow `FORWARDED_ALLOW_IPS` to the router pods?

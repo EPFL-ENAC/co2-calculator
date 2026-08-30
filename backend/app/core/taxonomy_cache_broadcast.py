@@ -27,6 +27,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.factor_taxonomy_cache import taxonomy_cache
+from app.core.internal_auth import INTERNAL_AUTH_HEADER, internal_auth_token
 from app.core.logging import get_logger
 from app.models.pod import Pod, is_live, live_cutoff
 from app.tasks._background import fire_and_forget
@@ -63,12 +64,16 @@ async def _clear_remote(client: httpx.AsyncClient, pod: Pod) -> None:
     """POST to one pod's internal cache-clear endpoint.
 
     Best-effort: any failure (timeout, connection refused, non-2xx) is
-    logged and swallowed, never raised — see module docstring.
+    logged and swallowed, never raised — see module docstring. A rolling
+    deploy logs 403s here until every pod carries the #2530 auth header;
+    the cache TTL covers that window.
     """
     settings = get_settings()
     url = f"http://{pod.pod_ip}:{settings.PORT}{INTERNAL_CACHE_CLEAR_PATH}"
     try:
-        response = await client.post(url)
+        response = await client.post(
+            url, headers={INTERNAL_AUTH_HEADER: internal_auth_token()}
+        )
         response.raise_for_status()
     except Exception as exc:
         logger.warning(

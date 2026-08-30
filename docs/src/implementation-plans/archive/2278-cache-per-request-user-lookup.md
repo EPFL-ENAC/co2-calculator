@@ -225,6 +225,12 @@ pattern at all:
   cold cache; for anything touching authorization state it wants a real
   shared secret first.
 
+  **Correction (#2530).** That config change had already been made, in
+  `openshift-app-config`: `FORWARDED_ALLOW_IPS` covers the pod overlay
+  subnet in all three envs and uvicorn enables proxy headers by default, so
+  the gate was spoofable from inside the cluster, not one change away from
+  it. `/internal` now requires the `app.core.internal_auth` shared secret.
+
 **Build it if, and only if,** a TTL beyond ~60 s is wanted, or a
 user-management write endpoint is added. Then add a second path to
 `backend/app/api/internal.py` reusing `_caller_is_live_pod` and

@@ -11,7 +11,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.main import assert_poller_isolation, assert_security_settings
+from app.main import (
+    assert_poller_isolation,
+    assert_proxy_trust_settings,
+    assert_security_settings,
+)
 
 
 def _settings(**overrides) -> SimpleNamespace:
@@ -122,3 +126,28 @@ def test_deployed_pods_are_exempt():
         DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app",
     )
     assert_poller_isolation(settings)  # must not raise
+
+
+# --- assert_proxy_trust_settings (#2530) ---------------------------------
+
+
+def test_trusting_every_proxy_refuses_to_boot(monkeypatch):
+    """'*' makes uvicorn take the client-chosen first X-Forwarded-For element
+    instead of walking the chain — the exact forgery #2530 removed.
+    """
+    monkeypatch.setenv("FORWARDED_ALLOW_IPS", "*")
+    with pytest.raises(RuntimeError, match="FORWARDED_ALLOW_IPS"):
+        assert_proxy_trust_settings()
+
+
+def test_real_proxy_cidrs_boot(monkeypatch):
+    monkeypatch.setenv("FORWARDED_ALLOW_IPS", "10.20.0.0/16,10.98.42.0/24")
+    assert_proxy_trust_settings()  # must not raise
+
+
+def test_unset_forwarded_allow_ips_boots(monkeypatch):
+    """Uvicorn's own default is 127.0.0.1 — trust nothing. Local dev and any
+    env that has not configured a proxy must still start.
+    """
+    monkeypatch.delenv("FORWARDED_ALLOW_IPS", raising=False)
+    assert_proxy_trust_settings()  # must not raise

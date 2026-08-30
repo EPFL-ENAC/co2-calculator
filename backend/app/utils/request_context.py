@@ -19,12 +19,12 @@ def extract_ip_address(request: Request) -> str:
     so the header's first element is whatever the client chose to send — an
     audit trail keyed on it records an attacker-supplied string.
 
-    ``scope["client"]`` is unforgeable under either deployment regime. Today it
-    is the raw TCP peer — and since FORWARDED_ALLOW_IPS is unset here, that is
-    the router pod, not the end user. If FORWARDED_ALLOW_IPS is ever configured,
-    uvicorn resolves it from the *right* of the proxy chain instead. Neither
-    path reads the client-supplied first element. ``GET /v1/session`` documents
-    the same reasoning.
+    ``scope["client"]`` is what uvicorn resolved. Every deployed environment
+    sets ``FORWARDED_ALLOW_IPS`` (openshift-app-config, ``overlays/{env}``) and
+    uvicorn's ``proxy_headers`` defaults to True, so this is the end user's
+    address, walked in from the *right* of the proxy chain past each trusted
+    hop — never the client-supplied first element. ``GET /v1/session``
+    documents the same reasoning.
 
     Args:
         request: FastAPI Request object
