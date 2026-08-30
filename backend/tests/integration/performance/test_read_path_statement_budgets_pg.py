@@ -36,12 +36,18 @@ from tests.integration.statement_budget import count_statements
 
 YEAR = 2025
 
-# Ratchets, measured on the fixtures below. Lower them when a path gets
-# cheaper; never raise one without a written reason in plan 2527.
-MERGED_REPORT_STATS_BUDGET = 8
-MERGED_RESULTS_SUMMARY_BUDGET = 6
-MERGED_MULTI_YEAR_BUDGET = 4
-WORKSPACE_HOME_BUDGET = 7
+# Ratchets set at the *exact* counts measured on the fixtures below — no
+# headroom on purpose. Slack in a ceiling is room for an N+1 to hide on a small
+# fixture, which is the regression these tests exist to catch. Lower one when a
+# path gets cheaper; never raise one without a written reason in plan 2527.
+#
+# The caller is injected via ``dependency_overrides``, so these exclude the
+# ``get_current_user`` lookup every authenticated route pays in production —
+# add 1 to compare against the plan's tables.
+MERGED_REPORT_STATS_BUDGET = 5
+MERGED_RESULTS_SUMMARY_BUDGET = 4
+MERGED_MULTI_YEAR_BUDGET = 3
+WORKSPACE_HOME_BUDGET = 6
 
 
 @pytest_asyncio.fixture
