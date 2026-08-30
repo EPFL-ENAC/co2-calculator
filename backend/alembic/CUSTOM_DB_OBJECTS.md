@@ -26,7 +26,7 @@ These were once raw SQL but are now in `__table_args__` / `Column(...)`, so auto
 emits them. Listed here only so a future collapse can confirm they survived.
 
 - Partial / expression unique indexes:
-  `uq_factor_identity`, `uq_factor_identity_no_year`, `uq_emission_recalc_active`,
+  `uq_factor_identity`, `uq_factor_identity_no_year`, `uq_emission_recalc_active_unscoped`,
   `uq_aggregation_active`, `ix_data_ingestion_jobs_is_current_unique`,
   `ix_data_ingestion_jobs_pending`, `audit_document_one_current_idx`,
   `uq_member_role_per_module` (`data_entry.py`), `uq_active_datasource_per_module`
