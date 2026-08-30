@@ -170,36 +170,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/unit/{unit_id}/{year}/totals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Unit Totals
-         * @description Get total carbon footprint metrics for a unit across all modules.
-         *
-         *     Returns:
-         *         Dict with:
-         *         - total_kg_co2eq: Total carbon footprint in kg CO2eq
-         *         - total_tonnes_co2eq: Total carbon footprint in tonnes CO2eq
-         *         - total_fte: Total FTE count
-         *         - kg_co2eq_per_fte: Carbon footprint per FTE
-         *         - previous_year_total_kg_co2eq: Previous year's total (if available)
-         *         - previous_year_total_tonnes_co2eq: Previous year's total in tonnes
-         *         - year_comparison_percentage: Percentage change from previous year
-         */
-        get: operations["get_unit_totals_v1_unit__unit_id___year__totals_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/unit/{unit_id}/yearly-validated-emissions": {
         parameters: {
             query?: never;
@@ -935,6 +905,10 @@ export interface paths {
          *     resolves through get_taxonomy_for_data_entry_type, so it hits/populates
          *     the same (data_entry_type, year) cache a single-entry call would.
          *
+         *     The response ETag combines every resolved entry's own ETag (#2391
+         *     decision 2); a matching `If-None-Match` short-circuits with an empty
+         *     304 before any tree is serialized to JSON.
+         *
          *     An ``HTTPException`` (bad entry name, entry not in this module) means
          *     the request itself is malformed — that's not one submodule's problem,
          *     it propagates and fails the whole batch. Any other exception is a
@@ -962,6 +936,9 @@ export interface paths {
         /**
          * Get Taxonomy For Module Data Entry
          * @description Get taxonomy for a given module and data entry type.
+         *
+         *     A matching `If-None-Match` short-circuits with an empty 304 before the
+         *     tree is serialized to JSON (#2391 decision 2).
          */
         get: operations["get_taxonomy_for_module_data_entry_v1_taxonomies_module__module___data_entry__get"];
         put?: never;
@@ -1049,16 +1026,18 @@ export interface paths {
          *     report is returned immediately so the user is not blocked.
          */
         get: operations["get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___get"];
-        put?: never;
         /**
-         * Create Simulator Explore Carbon Report
-         * @description Create a new, empty Simulator Explore carbon report.
+         * Put Simulator Explore Carbon Report
+         * @description Idempotent Simulator Explore sandbox: create on first call, return
+         *     the existing one on every call after (#2487).
          *
-         *     The report is created with its modules and no entries — Simulator Explore is
-         *     never seeded from the Calculator. Only the Simulator Plan prefills, and only
-         *     from the reference year its user picks.
+         *     Replaces the GET(404) + POST pair the frontend used to orchestrate —
+         *     two round trips, and the 404-as-control-flow race #2483 had to
+         *     SAVEPOINT-guard. A stale existing sandbox is refreshed in the
+         *     background and returned as-is immediately, matching the GET route.
          */
-        post: operations["create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___post"];
+        put: operations["put_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1242,7 +1221,10 @@ export interface paths {
         put?: never;
         /**
          * Create Simulator Plan
-         * @description Create a simulator plan; without a name, the next default is assigned.
+         * @description Create a simulator plan; without a name, a suffixed default is assigned.
+         *
+         *     Names are not unique (#2445) — the plan id is the identity — so creation
+         *     cannot conflict.
          */
         post: operations["create_simulator_plan_v1_project_plans_unit__unit_id___post"];
         delete?: never;
@@ -3966,6 +3948,12 @@ export interface components {
          *     frontend a source that doesn't depend on any particular year existing —
          *     e.g. the backoffice year selector can seed its lower bound even when the
          *     current real-world year has no ``YearConfiguration`` row yet.
+         *
+         *     ``client_ip`` is the caller's own address, which the browser cannot
+         *     discover on its own — it is echoed back so the frontend can put a real IP
+         *     on its GlitchTip error reports instead of a placeholder. Omitted when the
+         *     ASGI server reports no client (``response_model_exclude_none``), never
+         *     faked.
          */
         SessionRead: {
             user: components["schemas"]["UserRead"];
@@ -3975,6 +3963,8 @@ export interface components {
             configured_years: components["schemas"]["YearConfigurationListItem"][];
             /** Min Configurable Year */
             min_configurable_year: number;
+            /** Client Ip */
+            client_ip?: string | null;
         };
         /**
          * SimulatorPlanCreate
@@ -4981,42 +4971,6 @@ export interface operations {
             header?: never;
             path: {
                 unit_id: number;
-            };
-            cookie?: {
-                auth_token?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_unit_totals_v1_unit__unit_id___year__totals_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                unit_id: number;
-                year: number;
             };
             cookie?: {
                 auth_token?: string;
@@ -6282,7 +6236,9 @@ export interface operations {
                 /** @description Year for which to retrieve the taxonomy */
                 year?: number;
             };
-            header?: never;
+            header?: {
+                "if-none-match"?: string | null;
+            };
             path: {
                 module: string;
             };
@@ -6320,7 +6276,9 @@ export interface operations {
                 /** @description Year for which to retrieve the taxonomy */
                 year?: number;
             };
-            header?: never;
+            header?: {
+                "if-none-match"?: string | null;
+            };
             path: {
                 module: string;
                 data_entry: string;
@@ -6487,7 +6445,7 @@ export interface operations {
             };
         };
     };
-    create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___post: {
+    put_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___put: {
         parameters: {
             query?: never;
             header?: never;
@@ -6502,7 +6460,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

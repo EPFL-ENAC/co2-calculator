@@ -1,6 +1,7 @@
 """Carbon project repository for simulator plan database operations."""
 
-from sqlmodel import col, exists, func, select
+from sqlalchemy.orm import aliased
+from sqlmodel import and_, col, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -39,22 +40,42 @@ class CarbonProjectRepository:
 
     async def list_plans_by_unit(
         self, unit_id: int
-    ) -> list[tuple[CarbonProject, str | None, bool]]:
-        """List plan projects for a unit with creator names, newest first.
+    ) -> list[tuple[CarbonProject, str | None, bool, list[dict]]]:
+        """Plans of a unit with creator name and year-report stats, newest first.
 
         Ordered by id (creation order); created_at is nullable so ordering
-        on it would need NULL handling.
+        on it would need NULL handling. The per-plan report stats come from
+        the same statement rather than a follow-up keyed on the ids this one
+        returned (#2527 task 5) — one row per (plan, year report), folded
+        back to one entry per plan below.
+
+        Project Grant reports are excluded from the stats: how grant results
+        combine with the per-year results is still open (#1977), and summing
+        both would count the same project twice.
         """
+        year_report = aliased(CarbonReport)
         statement = (
             self._plan_with_creator_stmt()
+            .add_columns(col(year_report.id), col(year_report.stats))
+            .outerjoin(
+                year_report,
+                and_(
+                    col(year_report.carbon_project_id) == col(CarbonProject.id),
+                    col(year_report.is_grant).is_(False),
+                ),
+            )
             .where(CarbonProject.unit_id == unit_id)
             .order_by(col(CarbonProject.id).desc())
         )
         result = await self.session.execute(statement)
-        return [
-            (project, display_name, bool(is_grant_proposal))
-            for project, display_name, is_grant_proposal in result.all()
-        ]
+        plans: dict[int | None, tuple[CarbonProject, str | None, bool, list[dict]]] = {}
+        for project, display_name, is_grant_proposal, report_id, stats in result.all():
+            entry = plans.setdefault(
+                project.id, (project, display_name, bool(is_grant_proposal), [])
+            )
+            if report_id is not None:
+                entry[3].append(dict(stats or {}))
+        return list(plans.values())
 
     async def get_plan(self, plan_id: int) -> CarbonProject | None:
         """Get a plan project by ID (non-plan projects are not returned)."""
@@ -122,29 +143,6 @@ class CarbonProjectRepository:
         )
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
-
-    async def list_report_stats_by_project(
-        self, project_ids: list[int]
-    ) -> list[tuple[int, dict | None]]:
-        """Return ``(project_id, report.stats)`` for many projects in one query.
-
-        Backs the plan totals shown in the home-page planner table: one query
-        for the whole unit instead of one per plan.
-
-        Project Grant reports are excluded: how grant results combine with the
-        per-year results is still open (#1977), and summing both would count
-        the same project twice.
-        """
-        if not project_ids:
-            return []
-        statement = select(
-            col(CarbonReport.carbon_project_id), col(CarbonReport.stats)
-        ).where(
-            col(CarbonReport.carbon_project_id).in_(project_ids),
-            col(CarbonReport.is_grant).is_(False),
-        )
-        result = await self.session.execute(statement)
-        return [(project_id, stats) for project_id, stats in result.all()]
 
     async def list_reports_for_project(self, project_id: int) -> list[CarbonReport]:
         """Return the carbon reports of a project, ordered by year."""

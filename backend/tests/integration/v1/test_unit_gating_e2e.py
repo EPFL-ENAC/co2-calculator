@@ -4,7 +4,6 @@ Covers:
 - ``carbon_report.py::list_carbon_report_modules`` (gated this PR)
 - ``carbon_report.py::update_carbon_report_module_status`` (gated this PR)
 - ``unit_results.py::get_unit_results`` (gated this PR)
-- ``unit_results.py::get_unit_totals`` (gated this PR)
 - ``unit_results.py::get_validated_emissions`` (gated this PR)
 - ``files.py::list_files`` / ``get_file`` / ``upload_temp_files``
   / ``delete_temp_files`` — regression for the ``modules.*`` fallback removal.
@@ -261,23 +260,21 @@ class TestUpdateCarbonReportModuleStatus:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# unit_results.py — 3 endpoints (gated this PR)
+# unit_results.py — 2 endpoints (gated this PR)
 # ─────────────────────────────────────────────────────────────────────────────
 
 UR_RESULTS_URL = "/api/v1/unit/1/results"
-UR_TOTALS_URL = "/api/v1/unit/1/2024/totals"
 UR_EMISSIONS_URL = "/api/v1/unit/1/yearly-validated-emissions"
 
 
 def _mock_unit_totals_service(monkeypatch) -> None:
     svc = MagicMock()
-    svc.get_unit_totals = AsyncMock(return_value={"total_kg_co2eq": 0})
     svc.get_validated_emissions_by_unit = AsyncMock(return_value=[])
     monkeypatch.setattr("app.api.v1.unit_results.UnitTotalsService", lambda db: svc)
 
 
 class TestUnitResults:
-    """All three endpoints take ``unit_id`` and must gate on it."""
+    """Both endpoints take ``unit_id`` and must gate on it."""
 
     def test_get_unit_results_cross_unit_denied(self, client, monkeypatch):
         _wire_user(_user(USER_IID, [_principal(UNIT_IID)]))
@@ -299,20 +296,6 @@ class TestUnitResults:
         _mock_unit_totals_service(monkeypatch)
         r = client.get(UR_RESULTS_URL)
         assert r.status_code == 403, r.text
-
-    def test_get_unit_totals_cross_unit_denied(self, client, monkeypatch):
-        _wire_user(_user(USER_IID, [_principal(UNIT_IID)]))
-        _wire_db_unit(OTHER_IID)
-        _mock_unit_totals_service(monkeypatch)
-        r = client.get(UR_TOTALS_URL)
-        assert r.status_code == 403, r.text
-
-    def test_get_unit_totals_in_unit_allowed(self, client, monkeypatch):
-        _wire_user(_user(USER_IID, [_principal(UNIT_IID)]))
-        _wire_db_unit(UNIT_IID)
-        _mock_unit_totals_service(monkeypatch)
-        r = client.get(UR_TOTALS_URL)
-        assert r.status_code == 200, r.text
 
     def test_get_validated_emissions_cross_unit_denied(self, client, monkeypatch):
         _wire_user(_user(USER_IID, [_principal(UNIT_IID)]))

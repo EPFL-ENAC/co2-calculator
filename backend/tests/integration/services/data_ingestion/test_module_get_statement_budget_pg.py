@@ -14,14 +14,11 @@ Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
 import re
-from contextlib import contextmanager
-from dataclasses import dataclass, field
 from unittest.mock import MagicMock
 
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -30,60 +27,11 @@ import app.core.security as security_module
 from app.main import app
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
+from tests.integration.statement_budget import count_statements
 
 YEAR = 2025
 
-SELECT_RE = re.compile(r"^SELECT", re.IGNORECASE)
 TAXONOMY_RE = re.compile(r"\bfactors\b|\bemission_type", re.IGNORECASE)
-
-
-@dataclass
-class StatementLog:
-    statements: list[str] = field(default_factory=list)
-
-    @property
-    def total(self) -> int:
-        return len(self.statements)
-
-    @property
-    def selects(self) -> int:
-        return sum(1 for s in self.statements if SELECT_RE.match(s.strip()))
-
-    def by_table(self) -> dict[str, int]:
-        """Rough per-table tally — enough to see an N+1 without reading 40 lines."""
-        counts: dict[str, int] = {}
-        for statement in self.statements:
-            match = re.search(
-                r"\bFROM\s+([a-z_]+)|\bINTO\s+([a-z_]+)|\bUPDATE\s+([a-z_]+)",
-                statement,
-                re.IGNORECASE,
-            )
-            table = next((g for g in (match.groups() if match else ()) if g), "?")
-            counts[table] = counts.get(table, 0) + 1
-        return dict(sorted(counts.items(), key=lambda kv: -kv[1]))
-
-    def breakdown(self) -> str:
-        return f"total={self.total} selects={self.selects} {self.by_table()}"
-
-    def numbered(self) -> str:
-        return "\n".join(
-            f"  {i:>2}. {' '.join(s.split())[:110]}"
-            for i, s in enumerate(self.statements, 1)
-        )
-
-
-@contextmanager
-def count_statements(engine):
-    log = StatementLog()
-
-    def listener(conn, cursor, statement, parameters, context, executemany):
-        log.statements.append(statement)
-
-    event.listen(engine.sync_engine, "before_cursor_execute", listener)
-    try:
-        yield log
-    finally:
-        event.remove(engine.sync_engine, "before_cursor_execute", listener)
 
 
 @pytest_asyncio.fixture

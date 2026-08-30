@@ -8,8 +8,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
-from app.models.carbon_report import CarbonReport, CarbonReportType
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.schemas.carbon_report import CarbonReportCreate, CarbonReportUpdate
+from app.utils.report_computations import ModuleStatsRow
 
 logger = get_logger(__name__)
 
@@ -96,6 +97,44 @@ class CarbonReportRepository:
         )
         result = await self.session.execute(statement)
         return list(result.scalars().all())
+
+    async def module_stats_by_report(
+        self, report_ids: list[int]
+    ) -> list[ModuleStatsRow]:
+        """Module stats of several reports in one query, with the project type.
+
+        Rows are ``(carbon_report_id, module_type_id, status, stats,
+        carbon_report_type)``, **unfiltered on status**: the home sidebar needs
+        the in-progress modules too, so each consumer applies its own rule in
+        the Python fold. Ordered so the folded payloads stay deterministic.
+        """
+        if not report_ids:
+            return []
+        statement = (
+            select(
+                col(CarbonReportModule.carbon_report_id),
+                col(CarbonReportModule.module_type_id),
+                col(CarbonReportModule.status),
+                col(CarbonReportModule.stats),
+            )
+            # sqlmodel's ``select`` overloads stop at four entities.
+            .add_columns(col(CarbonProject.carbon_report_type))
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .outerjoin(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(col(CarbonReportModule.carbon_report_id).in_(report_ids))
+            .order_by(
+                col(CarbonReportModule.carbon_report_id),
+                col(CarbonReportModule.module_type_id),
+            )
+        )
+        result = await self.session.execute(statement)
+        return [(r[0], r[1], r[2], r[3], r[4]) for r in result.all()]
 
     async def sum_stat_buckets_by_year(
         self, unit_ids: list[int]

@@ -45,18 +45,18 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.api.v1.carbon_report_module_stats import build_validated_totals
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.plan_policy import PlanPolicy
 from app.core.policy import require_unit_access
-from app.models.carbon_report import CarbonReportModule
 from app.models.unit import Unit
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
+from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.schemas.simulator_plan import SimulatorPlanRead
 from app.services.carbon_report_service import CarbonReportService
 from app.services.simulator_plan_service import SimulatorPlanService
+from app.utils.report_computations import fold_validated_totals
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -147,23 +147,18 @@ async def get_workspace_home(
 
     year_config = await build_home_year_configuration(db, year, current_user.provider)
 
-    stats = dict(report.stats or {})
-    # The headline needs the validated-only total with headcount-FTE and
-    # simulator treat-all-validated semantics; reuse the shared helper.
-    validated = await build_validated_totals(db, report.id)
-    stats["total_tonnes_validated_co2eq"] = validated["total_tonnes_co2eq"]
+    # One read of the report's module rows feeds both consumers: the sidebar
+    # needs every module, the headline only the validated ones (#2527 task 5).
+    # The status filter therefore stays in the fold, never in the WHERE.
+    module_rows = await CarbonReportRepository(db).module_stats_by_report([report.id])
 
-    module_state_rows = (
-        await db.execute(
-            select(
-                col(CarbonReportModule.module_type_id),
-                col(CarbonReportModule.status),
-            ).where(col(CarbonReportModule.carbon_report_id) == report.id)
-        )
-    ).all()
+    stats = dict(report.stats or {})
+    stats["total_tonnes_validated_co2eq"] = fold_validated_totals(module_rows)[
+        "total_tonnes_co2eq"
+    ]
     module_states = [
         {"module_type_id": module_type_id, "status": module_status}
-        for module_type_id, module_status in module_state_rows
+        for _, module_type_id, module_status, _, _ in module_rows
     ]
 
     plans = await SimulatorPlanService(db).list_plans(unit_id)
