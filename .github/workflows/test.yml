@@ -77,6 +77,40 @@ jobs:
       - name: Run alembic migration smoke test
         run: uv run pytest tests/integration/test_alembic_migrations.py -vv
 
+  test-backend-statement-budgets:
+    name: Backend Statement Budgets (read-path query counts)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync
+
+      # On the dev DB a query costs ~14 ms of round trip (#2529), so these
+      # endpoints' latency is their statement count. Without this job the
+      # budgets live under tests/integration/ and are only reached by the
+      # daily cron — a new N+1 would ship and surface a day later, already
+      # merged (#2527 task 6). Same shape as the migration smoke job above:
+      # the suite spawns its own postgres:16-alpine, no service container.
+      # Its conftest imports app.main, which constructs Settings, so seed
+      # .env the way gen-constants-check does.
+      - name: Run statement-budget tests
+        run: |
+          cp .env.example .env
+          uv run pytest tests/integration/performance -vv
+
   test-frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest

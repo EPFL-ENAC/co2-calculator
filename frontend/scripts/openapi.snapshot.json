@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CO2 Calculator API - LOCAL",
+    "title": "CO2 Calculator API",
     "description": "\n    CO2 Calculator API with permission-based authorization using Open Policy Agent.\n\n    ## Features\n\n    * **JWT Authentication** - Secure token-based authentication\n    * **Permission-Based Authorization** - Fine-grained access control with\n      calculated permissions\n    * **OPA Policies** - Policy-based resource filtering and access control\n    * **Multi-tenancy** - Support for multiple EPFL units with scope-based\n      data filtering\n    * **RESTful API** - Clean and consistent API design\n\n    ## Permission-Based Authorization\n\n    The API uses a permission-based authorization model where:\n\n    - **Roles are assigned** to users (e.g., principal, backoffice metier, super admin)\n    - **Permissions are calculated** dynamically from roles at authentication\n    - **Access control** is enforced at the route level using permissions\n    - **Data filtering** is applied based on user scope (global, unit, own)\n\n    ### Permission Structure\n\n    Permissions follow a hierarchical dot-notation structure:\n\n    * **backoffice.*** - One permission per backoffice page\n        * `backoffice.reporting` (view, export) - Reporting (affiliation-scoped)\n        * `backoffice.users` (view, edit, export) - User management\n        * `backoffice.documentation` / `backoffice.ui_texts` (view, edit)\n        * `backoffice.configuration` / `backoffice.pipeline_operations`\n          (view, edit) - super admin only\n        * `backoffice.logs` (view) - super admin only\n\n    * **modules.*** - CO2 calculation modules (unit-scoped `\u2026/<unit>`, or\n      own-scoped `\u2026/<unit>/own` for standard users)\n        * `modules.headcount`, `modules.professional_travel`, `modules.equipment`,\n          \u2026 (view, edit, sync)\n\n    ### Permission Actions\n\n    Each permission supports different actions:\n    - **view** - Read access to resources\n    - **edit** - Create, update, and delete operations\n    - **export** - Data export capabilities\n\n    ### How Permissions Work\n\n    1. User authenticates via `/api/v1/auth/login` and receives JWT token\n    2. JWT token contains user information and assigned roles\n    3. On each request, permissions are calculated from roles\n    4. Routes use `require_permission(\"path.resource\", \"action\")` decorator\n    5. If permission denied, returns 403 with specific error message\n    6. Data queries are filtered by user scope (global/unit/own)\n\n    ### Example Permission Check\n\n    ```python\n    @router.get(\"/headcounts\")\n    async def get_headcounts(\n        user: User = Depends(require_permission(\"modules.headcount\", \"view\"))\n    ):\n        # Only users with modules.headcount.view permission can access\n        # Data is filtered by scope: global, unit, or own\n    ```\n\n    ## Authorization Model with OPA\n\n    The API uses OPA (Open Policy Agent) patterns for authorization decisions:\n\n    1. **Route-level permission checks** - Enforced via `require_permission()`\n       decorator\n    2. **Service-level data filtering** - Applied via `get_data_filters()`\n       based on scope\n    3. **Resource-level access control** - Checked via `check_resource_access()`\n       for individual resources\n\n    ### Scope-Based Data Filtering\n\n    Data access is automatically filtered based on user scope:\n\n    * **Global scope** (super admin) - See all data\n    * **Unit scope** (principals) - See data for their assigned units\n    * **Own scope** (standard users) - See only their own data\n\n    ## Assigned Roles\n\n    Users are assigned one or more of these roles. Permissions are calculated\n    from role assignments:\n\n    * **calco2.user.std** - Basic user with own-scope access\n    * **calco2.user.principal** - Unit-level manager with unit-scope access\n    * **calco2.backoffice.metier** - Backoffice administrator with reporting and\n      data access\n    * **calco2.backoffice.admin** - Super administrator with full system and backoffice\n    See permission documentation for detailed role-to-permission mapping.\n\n    ## 403 Error Responses\n\n    When a user lacks required permissions, the API returns a 403 Forbidden response:\n\n    ```json\n    {\n        \"detail\": \"Permission denied: modules.headcount.edit required\"\n    }\n    ```\n\n    ### Common Causes\n\n    * **Missing permission** - User's roles don't grant the required permission\n    * **Insufficient scope** - User has permission but wrong scope\n      (e.g., different unit)\n    * **Resource restrictions** - Business rules prevent access\n      (e.g., API trips are read-only)\n\n    ### Requesting Access\n\n    To gain additional permissions:\n    1. Contact your unit principal or backoffice administrator\n    2. Request the specific permission needed (shown in error message)\n    3. Administrator can assign appropriate role via\n       `/api/v1/backoffice/users` endpoints\n\n    ",
     "version": "0.1.0"
   },
@@ -367,69 +367,6 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Get Unit Results V1 Unit  Unit Id  Results Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/unit/{unit_id}/{year}/totals": {
-      "get": {
-        "tags": [
-          "unit-results"
-        ],
-        "summary": "Get Unit Totals",
-        "description": "Get total carbon footprint metrics for a unit across all modules.\n\nReturns:\n    Dict with:\n    - total_kg_co2eq: Total carbon footprint in kg CO2eq\n    - total_tonnes_co2eq: Total carbon footprint in tonnes CO2eq\n    - total_fte: Total FTE count\n    - kg_co2eq_per_fte: Carbon footprint per FTE\n    - previous_year_total_kg_co2eq: Previous year's total (if available)\n    - previous_year_total_tonnes_co2eq: Previous year's total in tonnes\n    - year_comparison_percentage: Percentage change from previous year",
-        "operationId": "get_unit_totals_v1_unit__unit_id___year__totals_get",
-        "parameters": [
-          {
-            "name": "unit_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Year"
-            }
-          },
-          {
-            "name": "auth_token",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Auth Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Unit Totals V1 Unit  Unit Id   Year  Totals Get"
                 }
               }
             }
@@ -3481,7 +3418,7 @@
           "taxonomies"
         ],
         "summary": "Get Taxonomies For Module Data Entries",
-        "description": "Batch-fetch taxonomies for several data entry types of one module.\n\nCollapses a report page's ~11 sequential /module/{module}/{data_entry}\nround trips into one call per module (#2049 T6). Each entry still\nresolves through get_taxonomy_for_data_entry_type, so it hits/populates\nthe same (data_entry_type, year) cache a single-entry call would.\n\nAn ``HTTPException`` (bad entry name, entry not in this module) means\nthe request itself is malformed \u2014 that's not one submodule's problem,\nit propagates and fails the whole batch. Any other exception is a\nper-entry runtime failure (e.g. a transient DB hiccup) and must not\nblank every other, already-resolved entry in the batch (#2258\nfollow-up) \u2014 logged loud and the entry is left out of the response\nrather than silently rendered as an empty taxonomy.",
+        "description": "Batch-fetch taxonomies for several data entry types of one module.\n\nCollapses a report page's ~11 sequential /module/{module}/{data_entry}\nround trips into one call per module (#2049 T6). Each entry still\nresolves through get_taxonomy_for_data_entry_type, so it hits/populates\nthe same (data_entry_type, year) cache a single-entry call would.\n\nThe response ETag combines every resolved entry's own ETag (#2391\ndecision 2); a matching `If-None-Match` short-circuits with an empty\n304 before any tree is serialized to JSON.\n\nAn ``HTTPException`` (bad entry name, entry not in this module) means\nthe request itself is malformed \u2014 that's not one submodule's problem,\nit propagates and fails the whole batch. Any other exception is a\nper-entry runtime failure (e.g. a transient DB hiccup) and must not\nblank every other, already-resolved entry in the batch (#2258\nfollow-up) \u2014 logged loud and the entry is left out of the response\nrather than silently rendered as an empty taxonomy.",
         "operationId": "get_taxonomies_for_module_data_entries_v1_taxonomies_module__module__data_entries_get",
         "parameters": [
           {
@@ -3517,6 +3454,22 @@
               "title": "Year"
             },
             "description": "Year for which to retrieve the taxonomy"
+          },
+          {
+            "name": "if-none-match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-None-Match"
+            }
           },
           {
             "name": "auth_token",
@@ -3562,7 +3515,7 @@
           "taxonomies"
         ],
         "summary": "Get Taxonomy For Module Data Entry",
-        "description": "Get taxonomy for a given module and data entry type.",
+        "description": "Get taxonomy for a given module and data entry type.\n\nA matching `If-None-Match` short-circuits with an empty 304 before the\ntree is serialized to JSON (#2391 decision 2).",
         "operationId": "get_taxonomy_for_module_data_entry_v1_taxonomies_module__module___data_entry__get",
         "parameters": [
           {
@@ -3593,6 +3546,22 @@
               "title": "Year"
             },
             "description": "Year for which to retrieve the taxonomy"
+          },
+          {
+            "name": "if-none-match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-None-Match"
+            }
           },
           {
             "name": "auth_token",
@@ -3858,13 +3827,13 @@
           }
         }
       },
-      "post": {
+      "put": {
         "tags": [
           "carbon-reports"
         ],
-        "summary": "Create Simulator Explore Carbon Report",
-        "description": "Create a new, empty Simulator Explore carbon report.\n\nThe report is created with its modules and no entries \u2014 Simulator Explore is\nnever seeded from the Calculator. Only the Simulator Plan prefills, and only\nfrom the reference year its user picks.",
-        "operationId": "create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___post",
+        "summary": "Put Simulator Explore Carbon Report",
+        "description": "Idempotent Simulator Explore sandbox: create on first call, return\nthe existing one on every call after (#2487).\n\nReplaces the GET(404) + POST pair the frontend used to orchestrate \u2014\ntwo round trips, and the 404-as-control-flow race #2483 had to\nSAVEPOINT-guard. A stale existing sandbox is refreshed in the\nbackground and returned as-is immediately, matching the GET route.",
+        "operationId": "put_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___put",
         "parameters": [
           {
             "name": "unit_id",
@@ -3895,7 +3864,7 @@
           }
         ],
         "responses": {
-          "201": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -4434,7 +4403,7 @@
           "project-plans"
         ],
         "summary": "Create Simulator Plan",
-        "description": "Create a simulator plan; without a name, the next default is assigned.",
+        "description": "Create a simulator plan; without a name, a suffixed default is assigned.\n\nNames are not unique (#2445) \u2014 the plan id is the identity \u2014 so creation\ncannot conflict.",
         "operationId": "create_simulator_plan_v1_project_plans_unit__unit_id___post",
         "parameters": [
           {
@@ -11237,6 +11206,17 @@
           "min_configurable_year": {
             "type": "integer",
             "title": "Min Configurable Year"
+          },
+          "client_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Ip"
           }
         },
         "type": "object",
@@ -11247,7 +11227,7 @@
           "min_configurable_year"
         ],
         "title": "SessionRead",
-        "description": "Bootstrap payload for ``GET /v1/session``.\n\nBundles everything the frontend needs at app-init in a single call: the\ncurrent user (unchanged ``UserRead`` shape), the units the user can access,\nand the globally-configured years for the workspace year selector. This\ncollapses what used to be three separate calls (``/session`` + ``/users/units``\n+ ``/year-configuration/``) into one.\n\n``min_configurable_year`` is also echoed on the single-year\n``YearConfigurationResponse``, but that one only exists once a row has\nbeen created for the requested year. Bundling it here too gives the\nfrontend a source that doesn't depend on any particular year existing \u2014\ne.g. the backoffice year selector can seed its lower bound even when the\ncurrent real-world year has no ``YearConfiguration`` row yet."
+        "description": "Bootstrap payload for ``GET /v1/session``.\n\nBundles everything the frontend needs at app-init in a single call: the\ncurrent user (unchanged ``UserRead`` shape), the units the user can access,\nand the globally-configured years for the workspace year selector. This\ncollapses what used to be three separate calls (``/session`` + ``/users/units``\n+ ``/year-configuration/``) into one.\n\n``min_configurable_year`` is also echoed on the single-year\n``YearConfigurationResponse``, but that one only exists once a row has\nbeen created for the requested year. Bundling it here too gives the\nfrontend a source that doesn't depend on any particular year existing \u2014\ne.g. the backoffice year selector can seed its lower bound even when the\ncurrent real-world year has no ``YearConfiguration`` row yet.\n\n``client_ip`` is the caller's own address, which the browser cannot\ndiscover on its own \u2014 it is echoed back so the frontend can put a real IP\non its GlitchTip error reports instead of a placeholder. Omitted when the\nASGI server reports no client (``response_model_exclude_none``), never\nfaked."
       },
       "SimulatorPlanCreate": {
         "properties": {

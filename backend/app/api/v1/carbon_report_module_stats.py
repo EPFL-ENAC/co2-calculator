@@ -75,7 +75,10 @@ async def build_validated_totals(db: AsyncSession, carbon_report_id: int) -> dic
         }
     """
     totals = await build_validated_totals_by_report(db, [carbon_report_id])
-    return totals.get(carbon_report_id) or fold_validated_totals([])
+    if carbon_report_id not in totals:
+        # No module rows at all: the empty fold is the zero payload.
+        return fold_validated_totals([])
+    return totals[carbon_report_id]
 
 
 @router.get(

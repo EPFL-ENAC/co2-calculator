@@ -15,7 +15,6 @@ psycopg3 batches some round trips, so an ORM-level count would lie.
 Requires Docker — see this package's ``conftest.py``.
 """
 
-
 import httpx
 import pytest
 import pytest_asyncio
@@ -97,8 +96,15 @@ async def _seed_units(session, user: User, count: int, *, years=(YEAR,)) -> list
 
     Every report carries one validated module and one in-progress one, so the
     folds that filter on status are actually exercised.
+
+    The caller also gets a ``CO2_USER_STD`` role per unit: ``PlanPolicy``
+    reads ``current_user.roles``, not ``unit_users``, so without them workspace
+    home 403s on the planner section. Standard rather than superadmin on
+    purpose — a global breadth short-circuits ``PlanPolicy.can_view`` and would
+    skip the per-plan filtering the merged query has to keep intact.
     """
     unit_ids: list[int] = []
+    roles: list[dict] = list(user.roles_raw or [])
     for index in range(count):
         unit = Unit(
             provider=UserProvider.DEFAULT,
@@ -112,6 +118,12 @@ async def _seed_units(session, user: User, count: int, *, years=(YEAR,)) -> list
         await session.flush()
         session.add(
             UnitUser(unit_id=unit.id, user_id=user.id, role=RoleName.CO2_USER_STD)
+        )
+        roles.append(
+            {
+                "role": RoleName.CO2_USER_STD.value,
+                "on": {"kind": "own", "institutional_id": unit.institutional_id},
+            }
         )
         project = CarbonProject(
             unit_id=unit.id, carbon_report_type=CarbonReportType.CALCULATOR
@@ -146,6 +158,9 @@ async def _seed_units(session, user: User, count: int, *, years=(YEAR,)) -> list
             )
         unit_ids.append(unit.id)
     await session.commit()
+    # The routes read the object ``get_current_user`` is overridden with, so
+    # the in-memory assignment is what the policy sees.
+    user.roles_raw = roles
     return unit_ids
 
 

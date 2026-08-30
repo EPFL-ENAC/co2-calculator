@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 2161
-last_updated: 2026-08-28
+last_updated: 2026-08-30
 summary: "Turn #2161's real per-data_entry_type ceiling estimates into a
   reusable Postgres fixture (one unit seeded at worst-case scale via the
   production recalc path, so factor resolution is real) and a systematically
@@ -235,6 +235,33 @@ git commit -m "feat(seed): add #2161 real per-data_entry_type ceiling table"
 ---
 
 ### Task 2: Harness spike — HTTP + real Postgres + auth override, one endpoint
+
+> **Partially delivered by #2536 (read-path query counts, plan 2527).** That PR
+> created `backend/tests/integration/performance/{__init__.py,conftest.py}` and
+> a first suite, `test_read_path_statement_budgets_pg.py`, plus a per-PR CI job
+> (`test-backend-statement-budgets` in `.github/workflows/test.yml`). It proves
+> the harness this task set out to prove, so Step 1 is done — but **not as
+> specified here**, and the differences are load-bearing for the remaining
+> steps:
+>
+> - The conftest is **self-contained**, not a cross-package import of
+>   `data_ingestion/conftest.py`: those fixtures hard-code a container name and
+>   host port, so a run covering both packages would have the second container
+>   clobber the first. It picks its own (`test-read-path-budget-postgres`,
+>   port `55434`), the way `test_alembic_migrations.py` already does.
+> - Its `pg_dsn` is **function-scoped**, not session-scoped. Statement budgets
+>   need a handful of rows and a clean slate per test, not the 21k-row ceiling
+>   fixture. The session-scoped `perf_pg_dsn` / `perf_session_factory` /
+>   `ceiling_unit` this task specifies are still unwritten, and a ceiling suite
+>   will need them **alongside** the existing function-scoped fixture, not
+>   instead of it.
+> - Fixture names are `postgres_container` / `pg_dsn` / `pg_app`, not the
+>   `perf_`-prefixed ones below. Adding the session-scoped set means picking
+>   distinct names in the same conftest.
+>
+> Still open here: the ceiling seeding (Task 1), the session-scoped fixtures,
+> and every timing assertion — #2536 asserts statement counts only, by
+> deliberate maintainer decision (no timing in CI).
 
 Prove the harness before building ten more tests on top of an assumption.
 `GET /v1/units/{unit_id}/results` is the target: it's a plain read, no

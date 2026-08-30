@@ -1,36 +1,6 @@
 import { api } from '@/api/http';
 
 /**
- * Response type for module totals endpoint
- * Keys are module names (e.g., "equipment", "professional-travel")
- */
-export interface ModuleTotalsResponse {
-  total: number;
-  equipment: number;
-  'professional-travel': number;
-  [key: string]: number; // Allow other module names as keys
-}
-
-/**
- * Fetch total tCO₂eq for modules.
- *
- * @param unitId - Unit ID
- * @param year - Year for the data
- * @returns Dictionary with `total` tCO₂eq and breakdown by module, including `equipment` and `professional-travel`
- */
-export async function getModuleTotals(
-  unitId: number,
-  year: number | string,
-): Promise<ModuleTotalsResponse> {
-  const unitEncoded = encodeURIComponent(unitId);
-  const yearEncoded = encodeURIComponent(String(year));
-  const path = `modules-stats/${unitEncoded}/${yearEncoded}/totals`;
-
-  const response = await api.get(path).json<ModuleTotalsResponse>();
-  return response;
-}
-
-/**
  * Per-module result in the results summary response.
  */
 export interface ModuleResult {
