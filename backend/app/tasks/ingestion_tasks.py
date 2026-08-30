@@ -333,7 +333,7 @@ async def _chain_recalc_for_stale(
     inheritance, runner-driven dispatch, no manual fire_and_forget).
 
     Each chain passes ``dedup_config=EMISSION_RECALC_DEDUP`` (#1064): the
-    partial unique index ``uq_emission_recalc_active`` collapses
+    partial unique index ``uq_emission_recalc_active_unscoped`` collapses
     back-to-back factor reuploads for the same ``(module, det, year)``
     into a single pending recalc.  Without this, a user re-uploading
     a corrected factors CSV seconds after the first upload would queue
@@ -576,6 +576,9 @@ async def _chain_emission_recalc_for_data_ingest(
     # ``None``) instead of an uncaught IntegrityError that poisoned the
     # job_session and stranded the parent.  Mirror the factor path.
     # Count only owned children — see ``_chain_recalc_for_stale``.
+    # It stays passed unconditionally: ``chain_job`` drops dedup for the
+    # module-scoped children below (#2527 Phase A) and keeps it for the
+    # per-year ingests that still chain a whole-slice recalc.
     chained = 0
     for row in targets:
         child_id = await chain_job(
