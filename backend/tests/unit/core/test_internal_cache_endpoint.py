@@ -168,3 +168,17 @@ async def test_caller_is_live_pod_helper_used_directly():
     to pin its no-host short-circuit.
     """
     assert await _caller_is_live_pod(MagicMock(), None) is False
+
+
+def test_non_ascii_token_is_rejected_not_a_crash():
+    """A latin-1 header byte must fail closed, not raise.
+
+    Starlette decodes headers as latin-1, and hmac.compare_digest raises
+    TypeError on a str holding a codepoint above U+007F. Unhandled, that
+    turned an unauthenticated request on a publicly reachable route into a
+    500 instead of a 403 (review finding on PR #2542).
+    """
+    from app.core.internal_auth import internal_auth_ok
+
+    assert internal_auth_ok("café") is False
+    assert internal_auth_ok("\xff" * 64) is False

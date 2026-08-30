@@ -43,7 +43,15 @@ def internal_auth_ok(presented: str | None) -> bool:
     Fails closed on a missing header and on an unset ``JWT_HMAC_KEY`` — an
     empty key would otherwise derive a token anyone can compute. Outside local
     dev the key is already required at boot (``assert_security_settings``).
+
+    Non-ASCII is rejected before the comparison: Starlette decodes headers as
+    latin-1, and ``compare_digest`` raises TypeError on a str holding a
+    codepoint above U+007F. Unhandled that turns an unauthenticated request on
+    a publicly reachable route into a 500 rather than a 403. The token is hex,
+    so no legitimate value is excluded.
     """
-    if not presented or not get_settings().JWT_HMAC_KEY:
+    if not presented or not presented.isascii():
+        return False
+    if not get_settings().JWT_HMAC_KEY:
         return False
     return hmac.compare_digest(presented, internal_auth_token())
