@@ -61,22 +61,7 @@ Instruments already exist; nothing new is needed.
 
 - [ ] Run `make perf-load PERF_CLASSES=CsvUploadUser PERF_USERS=20` and
       `PERF_CLASSES=PlanUser PERF_USERS=40` against dev, then split queue
-      from work over the job rows of that window:
-
-      ```sql
-          SELECT job_type,
-                 count(*),
-                 percentile_cont(0.5) WITHIN GROUP (
-                   ORDER BY extract(epoch FROM started_at - created_at)) AS queue_p50,
-                 percentile_cont(0.5) WITHIN GROUP (
-                   ORDER BY extract(epoch FROM finished_at - started_at)) AS work_p50,
-                 percentile_cont(0.95) WITHIN GROUP (
-                   ORDER BY extract(epoch FROM finished_at - created_at)) AS total_p95
-          FROM data_ingestion_jobs
-          WHERE created_at > now() - interval '1 hour'
-          GROUP BY job_type ORDER BY total_p95 DESC;
-          ```
-
+      from work over the job rows of that window (query below).
 - [ ] Read the `Row-loop profile` and `Recalc profile` lines from the same
       run (`base_csv_provider._log_row_loop_profile`,
       `emission_recalculation.py:263-274`) — they already break per-entry
@@ -88,6 +73,23 @@ Instruments already exist; nothing new is needed.
 - [ ] Record all three in this plan before writing code. **If a
       hypothesis is wrong, the matching phase below is rewritten, not
       implemented.**
+
+Queue vs work, per job type, over the run window:
+
+```sql
+SELECT job_type,
+       count(*),
+       percentile_cont(0.5) WITHIN GROUP (
+         ORDER BY extract(epoch FROM started_at - created_at)) AS queue_p50,
+       percentile_cont(0.5) WITHIN GROUP (
+         ORDER BY extract(epoch FROM finished_at - started_at)) AS work_p50,
+       percentile_cont(0.95) WITHIN GROUP (
+         ORDER BY extract(epoch FROM finished_at - created_at)) AS total_p95
+FROM data_ingestion_jobs
+WHERE created_at > now() - interval '1 hour'
+GROUP BY job_type
+ORDER BY total_p95 DESC;
+```
 
 ## Phase A — the dedup drop (correctness; blocks the baseline)
 
@@ -120,11 +122,13 @@ Two consequences for this plan:
    comparable.
 
 - [ ] Narrow the dedup to what it was meant to collapse: whole-slice
-      recalcs. Add `AND (meta -> 'config' -> 'carbon_report_module_ids')
-    IS NULL` to the `uq_emission_recalc_active` partial-index predicate
-      (generated migration, `make db-revision`), and pass
-      `dedup_config=None` for module-scoped chains. Scoped recalcs touch
-      disjoint row sets — they never needed collapsing.
+      recalcs. Extend the `uq_emission_recalc_active` partial-index
+      predicate with a "no module scope in `meta.config`" clause,
+      and pass `dedup_config=None` for module-scoped chains. The index is
+      declared in model metadata
+      (`models/data_ingestion.py:407-424`), so `make db-revision`
+      autogenerates the change — no hand-authored migration. Scoped
+      recalcs touch disjoint row sets — they never needed collapsing.
 - [ ] Regression test (pytest, Postgres fixture — SQLite cannot express
       the partial index): two module-scoped `csv_ingest` parents for the
       same `(module, det, year)` and different modules both chain a live
@@ -195,25 +199,38 @@ module. A 5-year PlanUser flow is that, five times, in one job holding one
 of four slots.
 
 - [ ] **C1 — copy without a Python round trip.** `prefill_module_from_
-    reference` reads every source row into memory, rebuilds a dict per
+reference` reads every source row into memory, rebuilds a dict per
       row and bulk-inserts it back (`:729-761`). Replace with one
       `INSERT INTO data_entries (...) SELECT ...` per (module, plan year),
       building the JSON `data` server-side (`data || jsonb_build_object(
-    'percentage_of_reference_year', 100, 'source_data_entry_id', id)`).
+'percentage_of_reference_year', 100, 'source_data_entry_id', id)`).
       Rows stop crossing the wire; the delete-then-insert shape and its
       idempotency are unchanged.
-- [ ] **C2 — do not re-price what was copied at 100%** (measurement-gated,
-      biggest win if it holds). `resolve_factor_year`
-      (`utils/factor_year.py:11-37`) returns the reference year for a plan
-      year and its own year for the reference Calculator report — the same
-      year — so a 100% snapshot copy has the same inputs as its source.
-      Where that holds, `data_entry_emissions` can be copied set-based
-      from the source entries instead of recomputed. Covered set is
-      **prefilled percentage-based types only**: plain-copy modules
-      recompute from row data, headcount aggregates many member rows into
-      one grid row, derived types are generated. Gate: a test that
-      computes both ways on a fixture and asserts identical rows. If it
-      does not hold exactly, drop C2 — no approximations.
+- [ ] **C2 — do not re-price what was copied at 100%** (biggest win).
+      The "recompute" for a prefilled copy is not a computation:
+      `_get_percentage_override_kg`
+      (`services/data_entry_emission_service.py:144-200`) reads the
+      **source entry's persisted per-leaf `kg_co2eq`**, scales it by
+      `percentage_of_reference_year` and carries the source's
+      `primary_factor_id` (#2050 F3). The sums come from
+      `_sum_leaves_by_source`, grouped by the source entry alone — no
+      cross-plan aggregation; `unit_id` is only an ownership gate, and a
+      prefill copies from its own unit's Calculator report. Factor years
+      agree too (`utils/factor_year.py:11-37`: the plan year resolves to
+      its reference year, the reference report to its own). So at 100% the
+      plan row's leaves _are_ the source's leaves, and re-deriving them
+      through Python is the whole cost. Replace with
+      `INSERT INTO data_entry_emissions (...) SELECT ...` joined on
+      `source_data_entry_id`.
+      Covered set is **prefilled percentage-based types only**: plain-copy
+      modules recompute from row data, headcount aggregates many member
+      rows into one grid row (no source id), derived types are generated.
+      Gate — the copy must reproduce `prepare_create` exactly, including
+      any rollup row it writes alongside the leaves: a test computing both
+      ways and asserting identical `data_entry_emissions`, with two plans
+      on the same unit pointing at the same `source_data_entry_id` as the
+      negative control. If it does not hold exactly, drop C2 — no
+      approximations.
 - [ ] **C3 — one job per report only if C1/C2 miss the gate.** More
       parallel jobs cost connections and DB CPU; splitting is the fallback
       lever, not the first one.
@@ -331,6 +348,9 @@ PERF_USERS=50` worst-endpoint p95 no worse than the #2529 baseline —
 2. Worker split (`worker.enabled=true`, `replicaCount: 2`) — ops change,
    needs your call and a dev deploy before the gate run is meaningful.
 3. C2 (copying emissions for 100% snapshot rows) is the difference
-   between "prefill is 3x faster" and "prefill is 10x faster", and it is
-   the only item here that could be subtly wrong. Worth the equivalence
-   test, or leave prefill re-pricing everything?
+   between "prefill is 3x faster" and "prefill is 10x faster". The code
+   says the copy is exact — the override path already just re-reads the
+   source's persisted leaves — so the only risk left is whether
+   `prepare_create` writes anything beyond those leaves (a rollup row)
+   that the SQL copy would miss. Is the equivalence test enough for you,
+   or do you want C2 held until C1 alone is measured?
