@@ -151,3 +151,18 @@ def test_unset_forwarded_allow_ips_boots(monkeypatch):
     """
     monkeypatch.delenv("FORWARDED_ALLOW_IPS", raising=False)
     assert_proxy_trust_settings()  # must not raise
+
+
+@pytest.mark.parametrize("wildcard", ["0.0.0.0/0", "::/0", "10.20.0.0/16,0.0.0.0/0"])
+def test_a_zero_prefix_network_refuses_to_boot(monkeypatch, wildcard):
+    """The second spelling of "trust everything", and the one a guard that
+    only greps for '*' would wave through.
+
+    uvicorn sets ``always_trust`` on '*' alone, so ``0.0.0.0/0`` takes the
+    other path: every address is a trusted network, the reverse walk finds no
+    untrusted hop, and ``get_trusted_client_address`` falls through to the
+    same client-chosen leftmost element. Same forgery, different config.
+    """
+    monkeypatch.setenv("FORWARDED_ALLOW_IPS", wildcard)
+    with pytest.raises(RuntimeError, match="FORWARDED_ALLOW_IPS"):
+        assert_proxy_trust_settings()

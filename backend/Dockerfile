@@ -94,6 +94,6 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
 # True. The knob that decides whether a proxy header is believed is
 # FORWARDED_ALLOW_IPS, which lives in the deployment env (openshift-app-config,
 # overlays/{env}) and defaults to 127.0.0.1 here — i.e. trust nothing locally.
-# Never "*": that makes X-Forwarded-For client-forgeable (#2530), and
-# app.main.assert_proxy_trust_settings refuses to boot with it.
+# Never "*" and never a /0 network: both make X-Forwarded-For client-forgeable
+# (#2530), and app.main.assert_proxy_trust_settings refuses to boot on either.
 CMD ["sh", "-c", "exec opentelemetry-instrument uvicorn app.main:app --host $HOST --port $PORT --workers $WORKERS --proxy-headers  \"$@\""]
