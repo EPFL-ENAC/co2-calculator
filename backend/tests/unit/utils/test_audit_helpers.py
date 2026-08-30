@@ -40,11 +40,16 @@ def test_role_category_mapping_is_populated():
 # ── extract_ip_address ────────────────────────────────────────────────────────
 
 
-def test_extract_ip_address_from_forwarded_for():
+def test_extract_ip_address_ignores_forged_forwarded_for():
+    """Regression (#2530): the OpenShift router *appends* to X-Forwarded-For,
+    so a client sending its own header owns the first element. The audit trail
+    must record the peer uvicorn saw, not a value the caller picked.
+    """
     request = MagicMock()
     request.headers = {"X-Forwarded-For": "1.2.3.4, 5.6.7.8"}
-    request.client = None
-    assert extract_ip_address(request) == "1.2.3.4"
+    request.client = MagicMock()
+    request.client.host = "9.8.7.6"
+    assert extract_ip_address(request) == "9.8.7.6"
 
 
 def test_extract_ip_address_from_client():
@@ -56,8 +61,9 @@ def test_extract_ip_address_from_client():
 
 
 def test_extract_ip_address_returns_unknown_when_no_client():
+    """No peer means no attributable IP — a forged header must not fill the gap."""
     request = MagicMock()
-    request.headers = {}
+    request.headers = {"X-Forwarded-For": "1.2.3.4"}
     request.client = None
     assert extract_ip_address(request) == "unknown"
 
