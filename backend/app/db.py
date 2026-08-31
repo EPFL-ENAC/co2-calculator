@@ -1,6 +1,7 @@
 """Database configuration and session management."""
 
 import json
+import logging
 from collections.abc import AsyncGenerator, Iterable
 
 from opentelemetry.metrics import CallbackOptions, Observation, get_meter
@@ -71,6 +72,14 @@ class InstrumentedQueuePool(AsyncAdaptedQueuePool):
         except SQLAlchemyTimeoutError:
             _pool_timeouts.add(1)
             raise
+
+
+# SQLAlchemy names a pool's logger after the pool class's module, so the
+# #2572 subclass silently moved it from ``sqlalchemy.pool.impl.*`` (outside
+# the app logging config, never seen) to ``app.db.*`` -- and dev runs
+# LOG_LEVEL=DEBUG, which turned every checkout into six log lines. Pin the
+# logger at INFO: warnings still flow, the per-checkout diary does not.
+logging.getLogger(f"{__name__}.{InstrumentedQueuePool.__name__}").setLevel(logging.INFO)
 
 
 def connect_failure_sqlstate(error: BaseException) -> str:

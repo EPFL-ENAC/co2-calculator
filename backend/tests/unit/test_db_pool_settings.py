@@ -8,6 +8,7 @@ real engine at import time from whatever ``DB_URL`` is in the test
 environment) or mocking ``create_async_engine`` through a module reload.
 """
 
+import logging
 from types import SimpleNamespace
 
 import psycopg
@@ -340,3 +341,14 @@ def test_failed_pre_ping_is_not_a_connect_failure(monkeypatch):
     count_connect_failure(context)
 
     assert counter.calls == []
+
+
+def test_pool_logger_does_not_inherit_app_debug_level():
+    """The #2572 subclass moved SQLAlchemy's pool logger into the app.db.*
+    namespace, where dev's LOG_LEVEL=DEBUG turned every checkout into six
+    log lines. Pinned at INFO: warnings still flow, the diary does not.
+    """
+    pool_logger = logging.getLogger("app.db.InstrumentedQueuePool")
+
+    assert not pool_logger.isEnabledFor(logging.DEBUG)
+    assert pool_logger.isEnabledFor(logging.WARNING)
