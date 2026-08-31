@@ -85,7 +85,10 @@ alter role app set idle_session_timeout='30min';
 
 Postgres then probes idle clients and reaps dead-pod backends in ~3 min
 instead of ~2 h. `pool_pre_ping=True` (already on) absorbs the reconnects.
-**Not applied to stage or prod** — see "Open".
+Applied to **all three** environments the same day — stage forced the issue
+by locking its own pods out. Note `ALTER ROLE ... SET` only takes effect for
+**new** sessions: connections already open keep the OS defaults and have to
+age out (or be terminated) once.
 
 ## Steps
 
@@ -113,9 +116,10 @@ instead of ~2 h. `pool_pre_ping=True` (already on) absorbs the reconnects.
       first assumed). The old "total pool capacity" series was
       `sum(state="size")` — the _configured_ pool_size, i.e. `pods x 15`,
       which read a healthy 60 while the server was full.
-- [ ] Replicate the role GUCs on stage and prod once dev has been through a
-      few rollouts with the fix. **Stage needed them on the same day** — a
-      network blip orphaned its entire pool and locked its own pods out.
+- [x] Role GUCs on stage and prod. Not deferred after all: a network blip
+      orphaned stage's entire pool the same day and locked its own pods out
+      (`/healthz` 200, `/ready` 503, indefinitely) until its idle backends
+      were terminated by hand.
 - [ ] Ask the DBaaS team for `max_connections=200` (or PgBouncer) on all three
       instances. 100 leaves no room to scale the backend past 3 replicas.
 
@@ -124,8 +128,9 @@ instead of ~2 h. `pool_pre_ping=True` (already on) absorbs the reconnects.
 - **The worker Deployment renders `worker.env`, not `backend.env`** (see the
   note in `backend-worker-deployment.yaml`), so dev's `DB_POOL_SIZE: "5"` must
   be set in both maps or the worker keeps the code default of 10.
-- **Dev connection behaviour is now non-representative of stage/prod** until
-  the GUCs are either replicated or removed.
+- **The role GUCs exist in no repo.** They were applied by hand on all three
+  instances; a DBaaS instance rebuild or restore drops them silently. Re-check
+  with `select rolconfig from pg_roles where rolname='app'`.
 - Two `pods` rows survived their pods (last heartbeat 06:52 and 07:36), which
   means those teardowns did not complete — either an ungraceful kill, or
   `_delete_pod_row` failing because the DB was already refusing connections.
