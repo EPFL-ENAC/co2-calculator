@@ -62,6 +62,22 @@ async def _resolve_room(
     return await BuildingRoomService(session).get_room(room_name=room_name)
 
 
+_KNOWN_ROOM_NAMES_INFO_KEY = "buildings_known_room_names"
+
+
+async def _known_room_names(session: Any) -> set[str]:
+    """All known room names, loaded once per session and cached on
+    ``session.info`` — the CSV provider calls ``enrich_csv_row`` once per row,
+    and rooms CSVs are mostly distinct names, so per-name lookups can't be
+    memoized away; the full set is one cheap names-only query.
+    """
+    names = session.info.get(_KNOWN_ROOM_NAMES_INFO_KEY)
+    if names is None:
+        names = await BuildingRoomService(session).get_room_names()
+        session.info[_KNOWN_ROOM_NAMES_INFO_KEY] = names
+    return names
+
+
 async def _reject_unknown_room(data: dict, session: Any) -> tuple[dict, str | None]:
     """CSV-time reference check shared by the rooms and embodied-energy
     handlers (#2253).
@@ -74,8 +90,7 @@ async def _reject_unknown_room(data: dict, session: Any) -> tuple[dict, str | No
     room_name = data.get("room_name")
     if not room_name:
         return data, "Missing room_name"
-    room = await BuildingRoomService(session).get_room(room_name=room_name)
-    if room is None:
+    if room_name not in await _known_room_names(session):
         return data, (
             f"Room {room_name!r} not found in the building rooms reference — "
             "fix the room_name or upload the building rooms reference CSV first"
