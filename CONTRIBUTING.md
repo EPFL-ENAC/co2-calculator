@@ -8,7 +8,8 @@ to get you started quickly.
 New contributors follow this workflow:
 
 1. Create or pick an issue describing your fix/feature
-2. Branch from `dev`: `git checkout -b issue-123-feature-name`
+2. Branch from `dev`: `git checkout -b feat/123-feature-name` (prefix matches
+   the issue's label — see [branch prefixes](docs/src/contributing/project-board.md#labels))
 3. Code with tests and documentation
 4. Run `make ci` to validate locally
 5. Push and create PR to `dev`
