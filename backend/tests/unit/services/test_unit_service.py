@@ -1,9 +1,9 @@
 """Unit tests for unit service."""
 
 import pytest
+from fastapi import HTTPException
 
-from app.models.unit import Unit
-from app.models.user import GlobalScope, Role, RoleName, User
+from app.models.user import GlobalScope, Role, RoleName, UnitScope, User
 from app.services.unit_service import UnitService
 
 
@@ -119,29 +119,6 @@ class TestBuildPolicyInput:
         assert len(input_data["user"]["roles"]) == 1
         assert "resource" not in input_data
 
-    def test_build_policy_input_with_unit(self):
-        """Test building policy input with unit context."""
-        user = User(
-            id="test-user",
-            email="test@example.com",
-            display_name="Test User",
-            provider="test",
-        )
-        user.roles = [Role(role=RoleName.CO2_USER_STD, on=GlobalScope())]
-
-        unit = Unit(
-            id="test-unit",
-            name="Test Unit",
-        )
-
-        service = UnitService(session=None)
-        input_data = service._build_policy_input(user, "update", unit)
-
-        assert input_data["action"] == "update"
-        assert input_data["resource_type"] == "unit"
-        assert "resource" in input_data
-        assert input_data["resource"]["id"] == "test-unit"
-
     def test_build_policy_input_different_actions(self):
         """Test building policy input for different actions."""
         user = User(
@@ -171,3 +148,103 @@ class TestBuildPolicyInput:
         input_data = service._build_policy_input(user, "read")
 
         assert input_data["user"]["roles"] == []
+
+
+class TestGetByIdReadPolicy:
+    """Regression tests for #2379 — GET /units/{id} must enforce a real read
+    policy instead of the legacy allow-all stub.
+
+    The stub made the workspace guard's unit probe (#2369) authorize nothing:
+    any authenticated user got 200 for any unit id, and refusals surfaced one
+    call later at the workspace boundary — the #2570 incident. get_by_id now
+    delegates to require_unit_access, the workspace boundary's own enforcer,
+    so probe and workspace call cannot drift.
+    """
+
+    async def test_non_member_without_global_scope_is_refused(
+        self, db_session, make_unit, make_user
+    ):
+        """The #2570 trace shape: an existing unit, a user whose roles are
+        scoped elsewhere — 403, where the allow-all stub returned 200.
+        """
+        unit = await make_unit(db_session, level=4, institutional_id="CF-TARGET")
+        user = await make_user(db_session)
+        user.roles = [
+            Role(
+                role=RoleName.CO2_USER_PRINCIPAL,
+                on=UnitScope(institutional_id="CF-ELSEWHERE"),
+            )
+        ]
+
+        with pytest.raises(HTTPException) as exc:
+            await UnitService(session=db_session).get_by_id(unit.id, user)
+
+        assert exc.value.status_code == 403
+
+    async def test_member_by_unit_scoped_role_reads_the_unit(
+        self, db_session, make_unit, make_user
+    ):
+        unit = await make_unit(db_session, level=4, institutional_id="CF-MINE")
+        user = await make_user(db_session)
+        user.roles = [
+            Role(role=RoleName.CO2_USER_STD, on=UnitScope(institutional_id="CF-MINE"))
+        ]
+
+        result = await UnitService(session=db_session).get_by_id(unit.id, user)
+
+        assert result.id == unit.id
+
+    async def test_global_scope_reads_a_unit_without_any_membership(
+        self, db_session, make_unit, make_user
+    ):
+        """#2369's acceptance criterion: a superadmin opens any unit."""
+        unit = await make_unit(db_session, level=4, institutional_id="CF-OTHER")
+        user = await make_user(db_session)
+        user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
+
+        result = await UnitService(session=db_session).get_by_id(unit.id, user)
+
+        assert result.id == unit.id
+
+    async def test_global_scope_still_gets_404_for_a_missing_id(
+        self, db_session, make_user
+    ):
+        """require_unit_access lets global scope through before its own None
+        check — the explicit 404 ahead of it is load-bearing, not decor.
+        """
+        user = await make_user(db_session)
+        user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
+
+        with pytest.raises(HTTPException) as exc:
+            await UnitService(session=db_session).get_by_id(999_999, user)
+
+        assert exc.value.status_code == 404
+
+
+class TestGetUserUnitsNoTruncation:
+    """Regression test for #2379 part 2 — the membership list came back capped
+    at limit=100, silently truncating the session bootstrap and the stats
+    accessible-unit filter for users with more memberships.
+    """
+
+    async def test_a_user_with_101_memberships_gets_all_of_them(
+        self,
+        db_session,
+        make_unit,
+        make_user,
+        make_unit_user,
+        mock_unit_service_policy_allow,
+    ):
+        user = await make_user(db_session)
+        for _ in range(101):
+            unit = await make_unit(db_session, level=4)
+            await make_unit_user(
+                db_session,
+                unit_id=unit.id,
+                user_id=user.id,
+                role=RoleName.CO2_USER_STD,
+            )
+
+        result = await UnitService(session=db_session).get_user_units(user)
+
+        assert len(result) == 101
