@@ -212,16 +212,9 @@ class CO2User(HttpUser):
         self._report_ids: dict[tuple[int, int], int] = {}
 
     def _list_all_units(self) -> list[dict]:
-        units: list[dict] = []
-        skip = 0
-        while True:
-            page = self.client.get(
-                f"/v1/units?skip={skip}&limit=1000", name="/v1/units"
-            ).json()
-            units.extend(page)
-            if len(page) < 1000:
-                return units
-            skip += 1000
+        # #2379 removed skip/limit from this endpoint: the list is bounded by
+        # the caller's membership rows, so one GET returns everything.
+        return self.client.get("/v1/units", name="/v1/units").json()
 
     def pick_unit(self) -> int:
         return random.choice(self.unit_ids)  # nosec B311

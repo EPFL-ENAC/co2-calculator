@@ -303,7 +303,6 @@ async def query_policy(policy_name: str, input_data: dict) -> dict:
     Supports multiple policy types:
     - "authz/permission/check": Permission-based authorization
     - "authz/resource/list": Resource listing with filters
-    - "authz/resource/read": Resource access check
     - "authz/resource/access": Resource-level access for edit/delete operations
     - "authz/unit/list": Unit listing with filters
     - "authz/data/list": Data filtering based on user scope

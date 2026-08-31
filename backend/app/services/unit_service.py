@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.core.policy import query_policy
+from app.core.policy import query_policy, require_unit_access
 from app.core.role_priority import role_priority_case
 from app.models.unit import Unit
 from app.models.unit_user import UnitUser
@@ -26,36 +26,20 @@ class UnitService:
         self.session = session
         self.unit_repo = UnitRepository(session)
 
-    def _build_policy_input(
-        self, user: User, action: str, unit: Unit | None = None
-    ) -> dict:
-        """Build OPA input data from user and unit context.
+    def _build_policy_input(self, user: User, action: str) -> dict:
+        """Build OPA input data from user context.
 
-        Args:
-            user: Current user
-            action: Action to authorize (read, create, update, delete)
-            unit: Optional unit being accessed
-
-        Returns:
-            input dictionary for policy engine
+        The per-unit resource branch left with get_by_id's policy call
+        (#2379) — get_user_units is the only remaining consumer.
         """
-        input_data = {
+        return {
             "action": action,
             "resource_type": "unit",
             "user": {"id": user.id, "email": user.email, "roles": user.roles or []},
             "filters": {},
         }
 
-        if unit:
-            input_data["resource"] = {
-                "id": unit.id,
-            }
-
-        return input_data
-
-    async def get_user_units(
-        self, user: User, skip: int = 0, limit: int = 100
-    ) -> list[dict]:
+    async def get_user_units(self, user: User) -> list[dict]:
         """List units with policy authorization and enriched user data.
 
         This orchestrates:
@@ -121,8 +105,11 @@ class UnitService:
             else:
                 query = query.where(Unit.id == unit_ids)
 
+        # #2379: no offset/limit. The join bounds the result by the user's
+        # own membership rows — a limit here silently truncated the session
+        # bootstrap and the stats accessible-unit filter past 100 units.
         role_case = role_priority_case(UnitUser.role)
-        query = query.order_by(role_case).offset(skip).limit(limit)
+        query = query.order_by(role_case)
 
         result = await self.session.exec(query)
         rows = result.all()
@@ -157,54 +144,28 @@ class UnitService:
         return UnitRead.model_validate(unit)
 
     async def get_by_id(self, id: int, user: User) -> Unit:
-        """Get a unit by ID with authorization.
+        """Get a unit by ID, refusing users with no qualifying role.
 
-        Args:
-            unit_id: Unit ID
-            user: Current user
-
-        Returns:
-            Unit if authorized
+        #2379: this used to ask query_policy("authz/resource/read"), whose
+        legacy fallback allowed everyone — the workspace guard's probe
+        (#2369) authorized nothing, and refusals surfaced one call later at
+        the workspace boundary (#2570). Reusing require_unit_access — the
+        workspace boundary's own enforcer — makes the probe predict that
+        call by construction; two rules cannot drift.
 
         Raises:
-            HTTPException: If resource not found or access denied
+            HTTPException 404: unknown id. Kept ahead of the access check —
+                require_unit_access lets global-scope roles through before
+                its own None check, so a superadmin probing a deleted id
+                would otherwise get a phantom success.
+            HTTPException 403: no global- or unit-scoped role for this unit.
         """
-        # Get unit from repository
         unit = await self.unit_repo.get_by_id(id)
         if not unit:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found"
             )
-
-        # Build policy input with unit context
-        input_data = self._build_policy_input(user, "read", unit)
-
-        # Query policy for authorization
-        decision = await query_policy("authz/resource/read", input_data)
-        logger.info(
-            "Policy read decision requested",
-            extra={
-                "user_id": user.id,
-                "action": "get_unit",
-                "unit_id": sanitize(id),
-            },
-        )
-
-        if not decision.get("allow", False):
-            reason = decision.get("reason", "Access denied")
-            logger.warning(
-                "OPA denied resource read",
-                extra={
-                    "user_id": sanitize(user.id),
-                    "unit_id": sanitize(id),
-                    "reason": sanitize(reason),
-                },
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Not authorized to access this resource: {reason}",
-            )
-
+        require_unit_access(user, unit)
         return unit
 
     async def upsert(self, unit_data: Unit) -> Unit:

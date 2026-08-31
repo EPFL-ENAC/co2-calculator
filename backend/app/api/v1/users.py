@@ -7,7 +7,7 @@ User information is available via GET /v1/session endpoint.
 This file is kept for potential future internal user management needs.
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -26,10 +26,6 @@ router = APIRouter()
 
 @router.get("/units", response_model=list[UnitWithUserRole])
 async def list_user_units(
-    skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(
-        100, ge=1, le=1000, description="Maximum number of records to return"
-    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -46,7 +42,7 @@ async def list_user_units(
     - Unit membership
     - Unit visibility
     """
-    units = await UnitService(db).get_user_units(current_user, skip=skip, limit=limit)
+    units = await UnitService(db).get_user_units(current_user)
     logger.info(
         "User requested unit list",
         extra={"user_id": sanitize(current_user.id), "count": len(units)},
