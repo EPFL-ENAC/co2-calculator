@@ -80,6 +80,9 @@ be true for any of our projects belongs upstream in the kit, not here.
 
 ## Workflow
 
+- Work is tracked on [project 40](https://github.com/orgs/EPFL-ENAC/projects/40) —
+  statuses, priorities, sprints and labels are documented in
+  [`project-board.md`](./project-board.md).
 - PRs target `dev`. Releases flow `dev` → `stage` → `main`. Never delete or
   force-push `dev`, `stage`, or `main`.
 - Pipeline-related work merges into `fix/pipeline-debug`, not `dev`, until
