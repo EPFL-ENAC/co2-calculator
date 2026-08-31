@@ -728,6 +728,13 @@ async def get_submodule(
     limit: int = Query(default=100, le=1000, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
     sort_order: str = Query(default="asc", description="Sort order: 'asc' or 'desc'"),
+    sort_values: list[str] | None = Query(
+        default=None,
+        description=(
+            "Explicit value order for sort_by, for columns whose display "
+            "labels are localized client-side"
+        ),
+    ),
     filter: str | None = Query(
         default=None, description="Filter string to search in name or display_name"
     ),
@@ -799,6 +806,7 @@ async def get_submodule(
             offset=offset,
             sort_by=sort_by,
             sort_order=sort_order,
+            sort_values=sort_values,
             filter=filter,
             institutional_id_filter=institutional_id_filter,
             exclude_planner_snapshots=exclude_planner_snapshots,

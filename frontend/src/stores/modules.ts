@@ -370,6 +370,7 @@ export const useModuleStore = defineStore('modules', () => {
         sortBy?: string;
         descending?: boolean;
         rowsNumber?: number;
+        sortValues?: string[];
       }
     >; // key: submodule ID
     loadedSubmodules: Record<string, boolean>; // key: submodule ID
@@ -627,6 +628,9 @@ export const useModuleStore = defineStore('modules', () => {
           pagination.descending ? 'desc' : 'asc',
         );
       }
+      pagination.sortValues?.forEach((value) =>
+        queryParams.append('sort_values', value),
+      );
       const filterTerm = state.filterTermSubmodule[submoduleType];
       if (filterTerm && filterTerm.trim().length > 0) {
         queryParams.append('filter', filterTerm.trim());
@@ -645,6 +649,7 @@ export const useModuleStore = defineStore('modules', () => {
         sortBy: pagination.sortBy, // SortBy in the API
         descending: pagination.descending, // sortOrder in the API
         rowsPerPage: pagination.rowsPerPage,
+        sortValues: pagination.sortValues,
       };
 
       state.loadedSubmodules[submoduleType] = true;

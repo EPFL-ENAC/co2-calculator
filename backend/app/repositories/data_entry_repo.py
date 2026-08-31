@@ -5,7 +5,7 @@ from typing import Any
 
 from psycopg.types.json import Json
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import Select, and_, asc, desc, func, or_
+from sqlalchemy import Select, and_, asc, case, desc, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import aliased
@@ -688,10 +688,26 @@ class DataEntryRepository:
             .scalar_subquery()
         )
 
-    def _apply_sort(self, statement, sort_by: str, sort_order: str, sort_map: dict):
+    def _apply_sort(
+        self,
+        statement,
+        sort_by: str,
+        sort_order: str,
+        sort_map: dict,
+        sort_values: list[str] | None = None,
+    ):
         sort_expr = sort_map.get(sort_by)
         if sort_expr is None:
             raise UnknownSortField(f"Cannot sort by unknown field: {sort_by}")
+        if sort_values:
+            # Kind labels are localized client-side, so their alphabetical
+            # order only exists in the caller's locale — it arrives as an
+            # explicit value order; values outside the list sort last.
+            sort_expr = case(
+                {value: index for index, value in enumerate(sort_values)},
+                value=sort_expr,
+                else_=len(sort_values),
+            )
         if sort_order.lower() == "asc":
             return statement.order_by(asc(sort_expr))
         else:
@@ -737,6 +753,7 @@ class DataEntryRepository:
         filter: str | None,
         exclude_planner_snapshots: bool,
         is_equipment_entry: bool,
+        sort_values: list[str] | None = None,
     ) -> list[int] | None:
         """Resolve the page's entry ids with an entries-only query (#2404).
 
@@ -770,7 +787,9 @@ class DataEntryRepository:
         page_q, _ = self._apply_name_filter(page_q, filter, filter_map)
         if is_equipment_entry:
             page_q = page_q.order_by(_equipment_usage_priority())
-        page_q = self._apply_sort(page_q, sort_by, sort_order, dict(handler.sort_map))
+        page_q = self._apply_sort(
+            page_q, sort_by, sort_order, dict(handler.sort_map), sort_values
+        )
         page_q = page_q.offset(offset).limit(limit)
         ids = (await self.session.execute(page_q)).scalars().all()
         return [int(i) for i in ids]
@@ -932,6 +951,7 @@ class DataEntryRepository:
         offset: int,
         sort_by: str,
         sort_order: str,
+        sort_values: list[str] | None = None,
         filter: str | None = None,
         institutional_id_filter: str | None = None,
         exclude_planner_snapshots: bool = False,
@@ -998,6 +1018,7 @@ class DataEntryRepository:
                 offset=offset,
                 sort_by=sort_by,
                 sort_order=sort_order,
+                sort_values=sort_values,
                 filter=filter,
                 exclude_planner_snapshots=exclude_planner_snapshots,
                 is_equipment_entry=is_equipment_entry,
@@ -1336,7 +1357,9 @@ class DataEntryRepository:
             # shared with the page-first ids query, which must order the same.
             statement = statement.order_by(_equipment_usage_priority())
 
-        statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
+        statement = self._apply_sort(
+            statement, sort_by, sort_order, sort_map, sort_values
+        )
 
         if page_entry_ids is None:
             statement = statement.offset(offset).limit(limit)

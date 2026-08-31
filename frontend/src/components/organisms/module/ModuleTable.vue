@@ -551,7 +551,7 @@ import {
   type ModuleTableAccess,
 } from '@/utils/module-table-access';
 
-const { t: $t, te: $te } = useI18n();
+const { t: $t, te: $te, locale } = useI18n();
 
 const $q = useQuasar();
 const authStore = useAuthStore();
@@ -1285,6 +1285,23 @@ const taxonomyKindLabelMap = computed<Record<string, string>>(() => {
     }
   });
   return map;
+});
+
+// Kind labels are localized client-side, so their alphabetical order only
+// exists here: sorting a kind column sends the backend this explicit value
+// order. Oversized taxonomies (purchase holds ~10k kinds) keep the raw-name
+// sort — the list would not fit in a query string.
+const KIND_SORT_VALUES_MAX = 200;
+const kindSortValues = computed<string[]>(() => {
+  const children =
+    moduleStore.state.taxonomySubmodule[props.submoduleType]?.children ?? [];
+  if (!children.length || children.length > KIND_SORT_VALUES_MAX) return [];
+  const labels = taxonomyKindLabelMap.value;
+  return children
+    .map((node) => node.name)
+    .sort((a, b) =>
+      (labels[a] ?? a).localeCompare(labels[b] ?? b, locale.value),
+    );
 });
 
 const inlineOptionsMap = computed<
@@ -2076,8 +2093,14 @@ async function onRequest(request: {
   const sortChanged =
     newSortBy &&
     (newSortBy !== currentSortBy || newSortOrder !== currentSortOrder);
-  moduleStore.state.paginationSubmodule[props.submoduleType] =
-    request.pagination;
+  const sortedCol = qCols.value.find((c) => c.name === newSortBy);
+  moduleStore.state.paginationSubmodule[props.submoduleType] = {
+    ...request.pagination,
+    sortValues:
+      sortedCol?.optionsId === 'kind' && kindSortValues.value.length > 0
+        ? kindSortValues.value
+        : undefined,
+  };
 
   moduleStore.state.filterTermSubmodule[props.submoduleType] =
     request.filter || '';
