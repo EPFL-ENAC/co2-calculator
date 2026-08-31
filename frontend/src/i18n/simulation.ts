@@ -80,8 +80,8 @@ export default {
     fr: 'Empreinte carbone totale',
   },
   simulation_explore_page_results_download_title: {
-    en: 'Your exploration report',
-    fr: "Votre rapport de l'exploration",
+    en: '',
+    fr: "",
   },
   simulation_explore_page_results_download_button: {
     en: 'Download report',
@@ -168,8 +168,8 @@ export default {
     fr: 'Empreinte carbone effective',
   },
   planner_results_download_title: {
-    en: 'Your project report',
-    fr: 'Votre rapport de projet',
+    en: '',
+    fr: '',
   },
   planner_results_download_button: {
     en: 'Download report',
@@ -208,8 +208,8 @@ export default {
     fr: 'Visible par tous les membres du laboratoire',
   },
   planner_share_with_lab_disabled_hint: {
-    en: 'A project detailed per year stays private to its creator.',
-    fr: 'Un projet détaillé par année reste privé, visible par son créateur uniquement.',
+    en: 'For data protection reasons, it is not possible to share the annual breakdown of a project.',
+    fr: 'Pour des raisons de protections des données personnelles, il n’est pas possible de partager le détail par année d’un projet.',
   },
   planner_grant_proposal_label: {
     en: 'Grant proposal',
@@ -220,8 +220,8 @@ export default {
     fr: 'Demande de financement',
   },
   planner_sections_hint: {
-    en: 'Add a Grant proposal section covering the whole project, detailed sections for each year, or both.',
-    fr: 'Ajoutez une section Demande de financement couvrant tout le projet, des sections détaillées pour chaque année, ou les deux.',
+    en: 'Add a grant proposal section covering the whole project, detailed sections for each year, or both.',
+    fr: 'Ajoutez une section demande de financement couvrant tout le projet, des sections détaillées pour chaque année, ou les deux.',
   },
   planner_project_grant_title: {
     en: 'Grant proposal',
@@ -240,8 +240,8 @@ export default {
     fr: 'Créer les sections du projet',
   },
   planner_generate_sections_hint: {
-    en: 'Creates the selected sections: one editable section per year between the start and end year for a project detailed per year, plus the grant proposal section when the project is a grant proposal.',
-    fr: 'Crée les sections sélectionnées : une section modifiable par année entre les années de début et de fin pour un projet détaillé par année, ainsi que la section Demande de financement si le projet est une demande de financement.',
+    en: '',
+    fr: '',
   },
   planner_sections_generated: {
     en: 'Project sections updated',
