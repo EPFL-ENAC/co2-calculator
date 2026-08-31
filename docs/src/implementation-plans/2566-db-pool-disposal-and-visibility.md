@@ -97,17 +97,16 @@ age out (or be terminated) once.
 - [x] Regression test: the lifespan swaps in a fresh pool object
       (`backend/tests/unit/test_lifespan_shutdown.py`). Verified failing with
       the line removed, passing with it.
-- [ ] `DB_POOL_SIZE: "5"` in the deploy repo's **dev** values (`backend.env`
-      **and** `worker.env`). Not in this repo — `helm/values.yaml` carries only
-      a comment saying why, since a chart default would reach stage and prod.
+- [x] `DB_POOL_SIZE` 15 → **8** in `backend.env` **and** `worker.env`, in all
+      three overlays — EPFL-ENAC/openshift-app-config#31, merged. Not in this
+      repo: `helm/values.yaml` carries only a comment saying why, since a chart
+      default reaches every environment. 8 + 5 caps a 6-pod rollout at 78 of 97
+      usable slots (backend HPAs cap at 3, worker has none).
 - [x] `checked_in` in `read_pool_state` (`backend/app/db.py`) + updated
       assertion in `test_db_pool_settings.py`.
 - [x] `db.server.connections` observable gauge fed by
       `_refresh_server_connection_count` (`backend/app/tasks/_pod_heartbeat.py`),
       with tests for the sqlite guard and the before-first-tick silence.
-- [ ] Grafana: plot `checked_in + checked_out` instead of the capacity ceiling,
-      add `db.server.connections` with an alert at 80% of `max_connections`.
-      Dashboard lives outside this repo.
 - [x] TCP keepalives in the engine's `connect_args` (`backend/app/db.py`),
       pinned by a test.
 - [x] Grafana: `total open (checked_in + checked_out)` and a server-side
@@ -116,12 +115,20 @@ age out (or be terminated) once.
       first assumed). The old "total pool capacity" series was
       `sum(state="size")` — the _configured_ pool_size, i.e. `pods x 15`,
       which read a healthy 60 while the server was full.
+- [ ] **Alert at 80% of `max_connections`** on `db_server_connections` — the
+      one piece of the observability work still missing, and the only rule that
+      would have paged for either outage. Proposed as `DbServerConnectionsHigh`
+      on EPFL-ENAC/openshift-app-config#30, whose existing
+      `DbPoolSaturationHigh` measures _per-pod_ saturation and so sat at ~20%
+      through both of them.
 - [x] Role GUCs on stage and prod. Not deferred after all: a network blip
       orphaned stage's entire pool the same day and locked its own pods out
       (`/healthz` 200, `/ready` 503, indefinitely) until its idle backends
       were terminated by hand.
-- [ ] Ask the DBaaS team for `max_connections=200` (or PgBouncer) on all three
-      instances. 100 leaves no room to scale the backend past 3 replicas.
+- [x] DBaaS request raised for `max_connections=200` (or PgBouncer) on all
+      three instances: 100 leaves no room to scale the backend past 3 replicas,
+      and the role-level keepalives are hand-applied state the DBaaS team should
+      own rather than us.
 
 ## Open
 
