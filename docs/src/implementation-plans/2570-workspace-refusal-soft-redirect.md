@@ -138,7 +138,7 @@ through a redirect chain, so it is identical on the second bounce and the tenth.
       `/unauthorized`.
 - [x] `make lint` and `make type-check` green.
 - [x] Ran the integration suite (`npx playwright test
-    tests/integration/workspace-refused-unit.spec.ts`) against a real
+tests/integration/workspace-refused-unit.spec.ts`) against a real
       `quasar build` + `vite preview`. Against a build without the bounce
       guard: 1 passed, 1 failed, stuck on the original URL for the full 15s
       timeout. With it: 2 passed in 2.3s.

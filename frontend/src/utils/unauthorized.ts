@@ -13,9 +13,7 @@ import { UNAUTHORIZED_ROUTE_NAME } from '@/router/routeNames';
  * resolver would pick, so redirecting there again would just bounce (#2570).
  */
 export type NoWorkspaceReason =
-  | 'no-unit'
-  | 'no-open-year'
-  | 'workspace-refused';
+  'no-unit' | 'no-open-year' | 'workspace-refused';
 
 /**
  * Where to send a user when no workspace can be resolved: /unauthorized, tagged
