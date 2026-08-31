@@ -266,7 +266,6 @@ async function onValueChange(val: string | number | null) {
   display: flex;
   align-items: center;
   height: 2.5rem;
-  padding-left: tokens.$spacing-sm;
   color: tokens.$table-color-disabled;
   cursor: default;
 }
