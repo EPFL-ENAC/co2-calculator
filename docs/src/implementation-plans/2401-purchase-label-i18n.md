@@ -139,6 +139,17 @@ Frontend: `api/taxonomies.ts` sends `lang=<short locale>` derived from
 cache key gained the locale too, so a language switch mid-session doesn't
 serve a minute-old tree in the wrong language.
 
+Found live-testing (2026-08-31): a third taxonomy call site,
+`stores/modules.ts` `getSubmoduleTaxonomy` (the single-entry path
+`ModuleTable` uses when one submodule expands), hand-built its URL inside
+the store with only `?year=` and never sent `lang` — so the table's
+labels stayed English while the batch path localized fine. Now routed
+through `getDataEntryTaxonomy`; pinned by the CT regression test
+`tests/unit/taxonomy-lang.spec.ts` (`fr-CH` locale → `lang=fr` on the
+request). Note the table _rows_ endpoint intentionally keeps raw stored
+values in every locale — `lang` there only widens `filter=` matching
+(#2516); display labels come from the taxonomy.
+
 **No Vue component changes.** `ModuleForm.vue`, `ModuleInlineSelect.vue`,
 `ModuleTable.vue`, and `PrintModuleTable.vue` already fall through
 `translation_key`/`$te(opt.value)` (both dead, per the audit above) to

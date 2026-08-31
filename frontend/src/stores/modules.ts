@@ -2,7 +2,10 @@ import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref } from 'vue';
 import { MODULES, Module } from '@/constant/modules';
 import { api } from '@/api/http';
-import { getModuleDataEntriesTaxonomies } from '@/api/taxonomies';
+import {
+  getDataEntryTaxonomy,
+  getModuleDataEntriesTaxonomies,
+} from '@/api/taxonomies';
 import { i18n } from '@/boot/i18n';
 import {
   MODULE_STATES,
@@ -702,11 +705,11 @@ export const useModuleStore = defineStore('modules', () => {
     state.error = null;
     state.taxonomySubmodule[submoduleType] = null;
     try {
-      const taxonomy = (await api
-        .get(
-          `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}?year=${encodeURIComponent(year)}`,
-        )
-        .json()) as TaxonomyNode;
+      const taxonomy = await getDataEntryTaxonomy(
+        moduleType,
+        submoduleType,
+        year,
+      );
       state.taxonomySubmodule[submoduleType] = markRaw(taxonomy);
     } catch (err: unknown) {
       if (err instanceof Error) {
