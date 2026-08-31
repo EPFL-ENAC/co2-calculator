@@ -140,3 +140,36 @@ async def test_kind_label_field_shape_translates_by_label_field_not_code():
     node = taxonomy.children[0]
     assert node.name == "1902"  # identity stays the code
     assert node.label == "SCITAS-GE (FR)"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("lang", ["en", "fr"])
+async def test_kind_label_field_blank_falls_back_to_code(lang: str):
+    """Live-testing 500 (#2401): real purchase factor rows carry a code with
+    a blank description. The label field being present-but-blank must fall
+    back to the code (what pre-#2401 users saw), not build a `label=None`
+    node that fails TaxonomyNode validation with a 500 — in every lang.
+    """
+    det = DataEntryTypeEnum.research_facilities
+    handler = BaseModuleHandler.get_by_type(det)
+    factors = [
+        SimpleNamespace(
+            classification={
+                "researchfacility_id": "95121800",
+                "researchfacility_name": None,
+            },
+            values={"use_unit": "CHF", "total_use": 1},
+        ),
+        SimpleNamespace(
+            classification={
+                "researchfacility_id": "44120001",
+                "researchfacility_name": "",
+            },
+            values={"use_unit": "CHF", "total_use": 1},
+        ),
+    ]
+    service = _service(factors, translations={})
+
+    taxonomy = await service.get_taxonomy(handler, det, 2025, lang=lang)
+
+    assert [c.label for c in taxonomy.children] == ["95121800", "44120001"]

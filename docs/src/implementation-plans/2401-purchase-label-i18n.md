@@ -150,6 +150,15 @@ request). Note the table _rows_ endpoint intentionally keeps raw stored
 values in every locale — `lang` there only widens `filter=` matching
 (#2516); display labels come from the taxonomy.
 
+Also found live-testing: the purchase taxonomy 500'd (every lang) on the
+81 real factor rows whose `purchase_institutional_description` is blank —
+`classification.get(label_field, kind_value)` only defaults on a _missing_
+key, so a present-but-`None` description built a `label=None` node and
+failed `TaxonomyNode` validation. Both label-field branches now fall back
+to the code explicitly when the label is blank (what pre-#2401 users saw
+for those rows); regression test parametrized over en/fr in
+`tests/unit/services/test_classification_translation_labels.py`.
+
 **No Vue component changes.** `ModuleForm.vue`, `ModuleInlineSelect.vue`,
 `ModuleTable.vue`, and `PrintModuleTable.vue` already fall through
 `translation_key`/`$te(opt.value)` (both dead, per the audit above) to

@@ -186,9 +186,12 @@ class ModuleHandlerService:
                     handler.kind_label_field
                     and handler.kind_label_field in classification
                 ):
-                    english_label = classification.get(
-                        handler.kind_label_field, kind_value
-                    )
+                    # The label field can be present but blank (real purchase
+                    # codes ship without a description) — the code is then the
+                    # only text there is.
+                    english_label = classification.get(handler.kind_label_field)
+                    if english_label is None or english_label == "":
+                        english_label = kind_value
                     label = translations.get(
                         (handler.kind_label_field, english_label), english_label
                     )
@@ -221,9 +224,10 @@ class ModuleHandlerService:
                 handler.subkind_label_field
                 and handler.subkind_label_field in classification
             ):
-                english_subkind_label = classification.get(
-                    handler.subkind_label_field, subkind_value
-                )
+                # Same blank-label fallback as the kind branch above.
+                english_subkind_label = classification.get(handler.subkind_label_field)
+                if english_subkind_label is None or english_subkind_label == "":
+                    english_subkind_label = subkind_value
                 subkind_label = translations.get(
                     (handler.subkind_label_field, english_subkind_label),
                     english_subkind_label,
