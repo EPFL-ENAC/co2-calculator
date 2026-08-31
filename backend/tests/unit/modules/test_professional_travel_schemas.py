@@ -20,7 +20,10 @@ from app.modules.professional_travel.emissions import (
     PLANE_CABIN_MAP,
     TRAIN_CLASS_MAP,
 )
-from app.modules.professional_travel.factors import TravelPlaneFactorCreate
+from app.modules.professional_travel.factors import (
+    TravelPlaneFactorCreate,
+    TravelTrainFactorCreate,
+)
 
 _PLANE_META = {
     "data_entry_type_id": 1,
@@ -159,4 +162,71 @@ def test_plane_factor_create_rejects_classes_outside_cabin_map(
     with pytest.raises(ValidationError, match="cabin class"):
         TravelPlaneFactorCreate.model_validate(
             {**_PLANE_FACTOR, "cabin_class": cabin_class}
+        )
+
+
+# ---------------------------------------------------------------------------
+# Factor-side join-key normalization (#1489)
+# ---------------------------------------------------------------------------
+
+
+def _plane_factor_payload(**overrides):
+    payload = {
+        "emission_type_id": 1,
+        "data_entry_type_id": 1,
+        "category": "short_haul",
+        "cabin_class": " Economy ",
+        "ef_kg_co2eq_per_km": 0.2,
+        "rfi_adjustment": 1.0,
+        "min_distance": 0.0,
+        "max_distance": 1500.0,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_plane_factor_cabin_class_normalized() -> None:
+    factor = TravelPlaneFactorCreate.model_validate(_plane_factor_payload())
+    assert factor.cabin_class == "economy"
+
+
+def test_plane_factor_unknown_cabin_class_rejected() -> None:
+    with pytest.raises(ValidationError, match="Invalid cabin class"):
+        TravelPlaneFactorCreate.model_validate(
+            _plane_factor_payload(cabin_class="first")
+        )
+
+
+def _train_factor_payload(**overrides):
+    payload = {
+        "emission_type_id": 1,
+        "data_entry_type_id": 2,
+        "country_code": "fr",
+        "ef_kg_co2eq_per_km": 0.01,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_train_factor_country_code_uppercased() -> None:
+    factor = TravelTrainFactorCreate.model_validate(_train_factor_payload())
+    assert factor.country_code == "FR"
+
+
+def test_train_factor_row_sentinel_kept() -> None:
+    factor = TravelTrainFactorCreate.model_validate(
+        _train_factor_payload(country_code="row")
+    )
+    assert factor.country_code == "RoW"
+
+
+def test_train_factor_malformed_country_code_rejected() -> None:
+    with pytest.raises(ValidationError, match="ISO 3166-1 alpha-2"):
+        TravelTrainFactorCreate.model_validate(_train_factor_payload(country_code="f1"))
+
+
+def test_train_create_unknown_cabin_class_rejected() -> None:
+    with pytest.raises(ValidationError):
+        ProfessionalTravelTrainHandlerCreate.model_validate(
+            {**_TRAIN_META, "user_institutional_id": "123456", "cabin_class": "economy"}
         )

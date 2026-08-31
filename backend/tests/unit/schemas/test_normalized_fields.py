@@ -93,6 +93,17 @@ def test_required_aliases_reject_whitespace_only(field):
         _Aliases(**{field: "   "})
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("country", 42), ("identifier", True), ("optional_key", 42)],
+)
+def test_non_string_inputs_pass_through_and_fail_type_check(field, value):
+    # The before-validators leave non-strings untouched so pydantic's own
+    # str type error surfaces instead of a confusing normalization error.
+    with pytest.raises(ValidationError, match="valid string"):
+        _Aliases(**{field: value})
+
+
 # ===================== normalized value reaches ``data`` =====================
 
 

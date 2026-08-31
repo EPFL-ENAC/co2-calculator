@@ -7,6 +7,7 @@ from app.modules.purchase import (
     PurchaseCommonFactorCreate,
     PurchaseHandlerUpdate,
 )
+from app.modules.purchase.factors import PurchaseCommonFactorUpdate
 
 
 def _factor_payload(**overrides):
@@ -102,3 +103,30 @@ def test_update_valid_institutional_code_accepted():
         _update_payload(purchase_institutional_code="51100000")
     )
     assert dto.purchase_institutional_code == "51100000"
+
+
+# ---------------------------------------------------------------------------
+# Factor currency vocabulary (#1489): before the shared types, factor currency
+# had no membership check at all — any string ingested.
+# ---------------------------------------------------------------------------
+
+
+def test_factor_currency_normalized_then_vocabulary_checked():
+    factor = PurchaseCommonFactorCreate.model_validate(
+        _factor_payload(currency=" CHF ")
+    )
+    assert factor.currency == "chf"
+
+
+def test_factor_unknown_currency_rejected():
+    with pytest.raises(ValidationError, match="Currency must be one of"):
+        PurchaseCommonFactorCreate.model_validate(_factor_payload(currency="btc"))
+
+
+def test_factor_update_currency_vocabulary():
+    assert PurchaseCommonFactorUpdate.model_validate({}).currency is None
+    assert PurchaseCommonFactorUpdate.model_validate({"currency": "USD"}).currency == (
+        "usd"
+    )
+    with pytest.raises(ValidationError, match="Currency must be one of"):
+        PurchaseCommonFactorUpdate.model_validate({"currency": "btc"})
