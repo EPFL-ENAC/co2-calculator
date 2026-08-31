@@ -37,7 +37,8 @@ For deployment triggers and validation requirements, see
 Follow this step-by-step workflow for all changes:
 
 1. **Create issue** - Describe feature or bug with acceptance criteria
-2. **Branch from dev** - `git checkout dev && git checkout -b issue-123-feature`
+2. **Branch from dev** - `git checkout dev && git checkout -b feat/123-feature`
+   (prefix matches the issue's label — see [branch prefixes](../contributing/project-board.md#labels))
 3. **Develop locally** - Code, test, document
 4. **Run CI checks** - `make ci` must pass before pushing
 5. **Push and PR** - Create pull request targeting `dev`
@@ -192,7 +193,7 @@ Sprint cycle:
 
 1. Create feature request issue with acceptance criteria
 2. Wait for triage and Definition of Ready
-3. Branch from `dev`: `git checkout -b issue-456-new-feature`
+3. Branch from `dev`: `git checkout -b feat/456-new-feature`
 4. Implement with tests and docs
 5. Run `make ci` locally
 6. Push and create PR to `dev`
@@ -202,7 +203,7 @@ Sprint cycle:
 ### Fixing a Bug
 
 1. Create bug report with reproduction steps
-2. Branch from `dev`: `git checkout -b issue-789-fix-bug`
+2. Branch from `dev`: `git checkout -b fix/789-fix-bug`
 3. Add test that reproduces bug
 4. Fix issue and verify test passes
 5. Run `make ci` locally
@@ -212,7 +213,7 @@ Sprint cycle:
 ### Updating Documentation
 
 1. Create docs issue describing update needed
-2. Branch from `dev`: `git checkout -b issue-101-update-docs`
+2. Branch from `dev`: `git checkout -b docs/101-update-docs`
 3. Update documentation files
 4. Preview changes locally
 5. Push and create PR to `dev`
