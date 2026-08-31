@@ -218,9 +218,15 @@ const EPFL_FOOTPRINT_CATEGORY_ALIASES: Record<string, string> = {
   'professional trips': 'professional_travel',
 };
 
+function canonicalCategoryKey(categoryKey: string): string {
+  return EPFL_FOOTPRINT_CATEGORY_ALIASES[categoryKey] ?? categoryKey;
+}
+
 function categoryColor(categoryKey: string): string {
-  const key = EPFL_FOOTPRINT_CATEGORY_ALIASES[categoryKey] ?? categoryKey;
-  return CHART_CATEGORY_COLOR_SCHEMES.value[key] ?? '#CFD4EE';
+  return (
+    CHART_CATEGORY_COLOR_SCHEMES.value[canonicalCategoryKey(categoryKey)] ??
+    '#CFD4EE'
+  );
 }
 
 function categoryLabel(categoryKey: string): string {
@@ -272,7 +278,7 @@ function tooltipAxisValueToYearLabel(rawAxisValue: unknown): string {
 
 function tooltipSortIndex(seriesName: string): number {
   const idx = TOOLTIP_CATEGORY_ORDER.indexOf(
-    seriesName as (typeof TOOLTIP_CATEGORY_ORDER)[number],
+    canonicalCategoryKey(seriesName) as (typeof TOOLTIP_CATEGORY_ORDER)[number],
   );
   return idx === -1 ? 999 : idx;
 }
@@ -469,12 +475,9 @@ const epflSeriesData = computed<EpflSeriesPayload | null>(() => {
   const baselineIdx = Math.max(0, years.value.indexOf(baselineYear));
   const lastIdx = years.value.length - 1;
 
-  const categoryKeys = [
-    ...TOOLTIP_CATEGORY_ORDER.filter((k) => baselineByCat[k] != null),
-    ...Object.keys(baselineByCat).filter(
-      (k) => !TOOLTIP_CATEGORY_ORDER.includes(k as never),
-    ),
-  ].filter(isCategoryModuleActive);
+  const categoryKeys = Object.keys(baselineByCat)
+    .filter(isCategoryModuleActive)
+    .sort((a, b) => tooltipSortIndex(a) - tooltipSortIndex(b));
 
   const totalColor = accentColorHex.value ?? colors.value.cobalt.darker;
   const totalLineData = [
