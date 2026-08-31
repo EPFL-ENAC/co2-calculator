@@ -157,8 +157,18 @@ export const useWorkspaceStore = defineStore(
       try {
         carbonReportsLoading.value = true;
         carbonReportsError.value = null;
+        // 403/404 are expected here, exactly as they are for getUnit above
+        // (#2570). `GET units/{id}` answering 200 means the user may READ the
+        // unit, not that they may open its workspace — this call is the real
+        // authorization boundary, and the guard handles a refusal by
+        // redirecting to the landing resolver. Without skipErrorCodes the
+        // afterResponse hook in api/http.ts treats it as a page-access denial
+        // and wins the race with a toast + hard location.replace to
+        // /unauthorized, so the guard's soft redirect never runs.
         const data = (await api
-          .get(`workspace/${unitId}/${year}/home`)
+          .get(`workspace/${unitId}/${year}/home`, {
+            skipErrorCodes: [403, 404],
+          })
           .json()) as WorkspaceHomePayload;
         selectedCarbonReport.value = {
           id: data.carbon_report_id,
