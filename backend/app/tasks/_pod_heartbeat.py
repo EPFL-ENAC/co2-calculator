@@ -29,16 +29,25 @@ kill the heartbeat (mirrors ``_pipeline_reconciler``).
 """
 
 import asyncio
+from collections.abc import Iterable
 from datetime import UTC, datetime
 
+from opentelemetry.metrics import CallbackOptions, Observation, get_meter
 from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.db import SessionLocal
+from app.db import SessionLocal, engine
 from app.tasks._pod_id import POD_ID, POD_IP
 
 logger = get_logger(__name__)
+
+# Total backends on the Postgres *server*, refreshed on each heartbeat tick.
+# #2566: connections left behind by a pod that died ungracefully outlive the
+# pod, so no pod-local pool gauge can ever see them -- this is the only
+# in-app signal that does. Every pod reports the same server-wide number:
+# aggregate with max(), never sum().
+_server_connections: int | None = None
 
 
 async def _upsert_pod_row(*, started_at: datetime) -> None:
@@ -117,6 +126,35 @@ async def _delete_pod_row() -> None:
         logger.exception("pod heartbeat: shutdown delete failed for %s", POD_ID)
 
 
+async def _refresh_server_connection_count() -> None:
+    """Cache ``count(*)`` over ``pg_stat_activity`` for the OTel gauge.
+
+    Postgres-only: sqlite (local, tests) has no such view, and the gauge
+    reports nothing there rather than the loop failing every tick.
+    """
+    global _server_connections
+    if engine.dialect.name != "postgresql":
+        return
+    async with SessionLocal() as session:
+        result = await session.execute(text("SELECT count(*) FROM pg_stat_activity"))
+        _server_connections = result.scalar_one()
+
+
+def _server_connections_callback(options: CallbackOptions) -> Iterable[Observation]:
+    """Report the cached server-wide count; silent until the first tick."""
+    if _server_connections is None:
+        return
+    yield Observation(_server_connections)
+
+
+get_meter(__name__).create_observable_gauge(
+    "db.server.connections",
+    callbacks=[_server_connections_callback],
+    unit="{connection}",
+    description="Backends open on the Postgres server, all clients",
+)
+
+
 async def pod_heartbeat_loop() -> None:
     """Run the heartbeat writer on the configured cadence forever.
 
@@ -132,6 +170,7 @@ async def pod_heartbeat_loop() -> None:
     # workers view immediately, not ``interval`` seconds later.
     try:
         await _upsert_pod_row(started_at=started_at)
+        await _refresh_server_connection_count()
         logger.info(
             "pod heartbeat: registered pod_id=%s git_sha=%s version=%s",
             POD_ID,
@@ -144,6 +183,7 @@ async def pod_heartbeat_loop() -> None:
         try:
             await asyncio.sleep(interval)
             await _upsert_pod_row(started_at=started_at)
+            await _refresh_server_connection_count()
         except asyncio.CancelledError:
             await _delete_pod_row()
             raise

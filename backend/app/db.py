@@ -74,11 +74,17 @@ def read_pool_state(pool: Pool) -> dict[str, int] | None:
     ``size()``/``overflow()``; ``NullPool``/``StaticPool`` (sqlite, tests)
     don't -- there's no pool to observe there, so this returns ``None``
     rather than raising.
+
+    ``checked_in`` is what makes the numbers comparable to
+    ``max_connections`` (#2566): ``checked_out`` alone reads as healthy
+    (13 fleet-wide) while ``checked_in + checked_out`` -- the sockets
+    actually open against Postgres -- is what fills the server.
     """
     if not isinstance(pool, QueuePool):
         return None
     return {
         "checked_out": pool.checkedout(),
+        "checked_in": pool.checkedin(),
         "size": pool.size(),
         "overflow": pool.overflow(),
     }

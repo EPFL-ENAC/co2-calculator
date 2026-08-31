@@ -61,12 +61,21 @@ def test_read_pool_state_reads_queuepool_live_counts():
     """#2050 Track I1a: the OTel gauge callback's data source. QueuePool
     is the only pool type in production (Postgres) -- checked_out/size/
     overflow must come back as the pool's real, live numbers.
+
+    ``checked_in`` joined them in #2566: ``checked_in + checked_out`` is
+    the count that fills the server's ``max_connections``, and it was the
+    series missing from the dashboard during that incident.
     """
     pool = QueuePool(creator=lambda: None, pool_size=15, max_overflow=5)
 
     state = read_pool_state(pool)
 
-    assert state == {"checked_out": 0, "size": 15, "overflow": -15}
+    assert state == {
+        "checked_out": 0,
+        "checked_in": 0,
+        "size": 15,
+        "overflow": -15,
+    }
 
 
 def test_read_pool_state_none_for_non_queuepool():

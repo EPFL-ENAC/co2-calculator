@@ -40,6 +40,13 @@ Documented in `env.example` next to the poller block.
 
 Fleet math: 3 replicas x 20 max (pool_size + overflow) = 60 connections peak vs Postgres default `max_connections=100`. Per pod: <=4 jobs x 2 conns = 8 reserved for background work, >=12 remain for HTTP.
 
+> **Superseded numbers (#2566, 2026-08-31):** the fleet math below assumed
+> connections are released when a pod exits. They were not — `engine.dispose()`
+> was never called, so each terminated pod orphaned its pool for ~2 h and dev
+> hit `max_connections`. `DB_POOL_SIZE` is now `5` in `helm/values.yaml`, sized
+> from measured peak `checked_out` (~4/pod). See
+> [2566](./2566-db-pool-disposal-and-visibility.md).
+
 ### 3. Ops note: no PgBouncer (with a revisit trigger)
 
 Direct connections fit comfortably at 2-3 replicas. PgBouncer adds a hop, and its transaction-pooling mode sits badly with long recalc transactions. Revisit when `replicas x (pool_size + overflow)` approaches ~80% of `max_connections` — roughly 4+ replicas at these defaults, or sooner on a managed-PG tier with a small `max_connections`.

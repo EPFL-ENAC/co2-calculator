@@ -55,6 +55,17 @@ backend:
     POLLER_INTERVAL_SECONDS: "2" # Seconds between poller sweeps
     POLLER_BATCH_LIMIT: "100" # Max NOT_STARTED jobs dispatched per sweep
     STALE_JOB_TIMEOUT_MINUTES: "5" # RUNNING jobs whose heartbeat is older than this are auto-recovered
+    # #2566: sized from measurement, not from the code default (10). Peak
+    # `checked_out` on dev is ~4 per pod, 13 fleet-wide — every pooled
+    # connection above that is an idle socket held against the server's
+    # `max_connections` (100 on the DBaaS tier) for the pod's whole life.
+    # DB_MAX_OVERFLOW (10) still absorbs bursts to 15/pod; overflow
+    # connections are closed on return rather than parked.
+    # Raise this in an environment override if
+    # `db.pool.connections{state="checked_out"}` regularly sits above 5.
+    # NOTE: the worker Deployment renders `worker.env`, not `backend.env` —
+    # set the same key there in the deploy repo's values.
+    DB_POOL_SIZE: "5"
     INGEST_COPY_BATCH_SIZE: "50000" # Rows per COPY batch for bulk CSV data_entries ingest
     ELASTICSEARCH_TIMEOUT: "30" # Key in the existing secret for Elasticsearch timeout
     ELASTICSEARCH_MAX_RETRIES: "3" # Key in the existing secret for Elasticsearch max retries
