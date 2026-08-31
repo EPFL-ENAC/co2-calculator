@@ -7,6 +7,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.schemas.fields import ClassificationKey, OptionalClassificationKey
 
 
 def _validate_non_negative_float(v: float | None, field_name: str) -> float | None:
@@ -39,18 +40,18 @@ class _ProcessEmissionsFactorValidationMixin:
 class ProcessEmissionsFactorCreate(
     _ProcessEmissionsFactorValidationMixin, FactorCreate
 ):
-    category: str
-    subcategory: str | None = None
-    unit: str
+    category: ClassificationKey
+    subcategory: OptionalClassificationKey = None
+    unit: ClassificationKey
     ef_kg_co2eq_per_unit: float
 
 
 class ProcessEmissionsFactorUpdate(
     _ProcessEmissionsFactorValidationMixin, FactorUpdate
 ):
-    category: str | None = None
-    subcategory: str | None = None
-    unit: str | None = None
+    category: ClassificationKey | None = None
+    subcategory: OptionalClassificationKey = None
+    unit: ClassificationKey | None = None
     ef_kg_co2eq_per_unit: float | None = None
 
 

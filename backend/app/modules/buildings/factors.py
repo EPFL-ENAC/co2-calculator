@@ -9,6 +9,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.schemas.fields import ClassificationKey
 
 
 def _validate_non_negative_float(v: float | None, field_name: str) -> float | None:
@@ -86,7 +87,7 @@ class _BuildingsFactorValidationMixin:
 
 
 class BuildingBaseFactor:
-    building_name: str
+    building_name: ClassificationKey
     room_type: str
     heating_kwh_per_square_meter: float
     cooling_kwh_per_square_meter: float
@@ -150,16 +151,16 @@ class EnergyCombustionFactorCreate(
     _EnergyCombustionFactorValidationMixin, FactorCreate
 ):
     # data_entry_type: str #only for upload in datamanagement
-    unit: str
-    name: str
+    unit: ClassificationKey
+    name: ClassificationKey
     ef_kg_co2eq_per_unit: float
 
 
 class EnergyCombustionFactorUpdate(
     _EnergyCombustionFactorValidationMixin, FactorUpdate
 ):
-    unit: str | None = None
-    name: str | None = None
+    unit: ClassificationKey | None = None
+    name: ClassificationKey | None = None
     ef_kg_co2eq_per_unit: float | None = None
 
 
@@ -188,8 +189,8 @@ class EnergyCombustionFactorHandler(BaseFactorHandler):
 
 
 class BuildingEmbodiedEnergyFactorCreate(FactorCreate):
-    building_name: str
-    category: str
+    building_name: ClassificationKey
+    category: ClassificationKey
     ef_kgco2eq_per_m2: float
 
     @field_validator("ef_kgco2eq_per_m2", mode="after")
@@ -201,8 +202,8 @@ class BuildingEmbodiedEnergyFactorCreate(FactorCreate):
 
 
 class BuildingEmbodiedEnergyFactorUpdate(FactorUpdate):
-    building_name: str | None = None
-    category: str | None = None
+    building_name: ClassificationKey | None = None
+    category: ClassificationKey | None = None
     ef_kgco2eq_per_m2: float | None = None
 
     @field_validator("ef_kgco2eq_per_m2", mode="after")

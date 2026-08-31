@@ -9,6 +9,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.schemas.fields import ClassificationKey, CurrencyCode
 
 
 def _validate_non_negative_float(v: float | None, field_name: str) -> float | None:
@@ -48,17 +49,15 @@ class _ExternalCloudFactorValidationMixin:
             "eur",
             "usd",
         ]
-        if not v:
-            raise ValueError("")
-        if v.lower() not in valid_currencies:
+        if v not in valid_currencies:
             raise ValueError("Invalid currency")
         return v
 
 
 class ExternalCloudBaseFactor:
-    service_type: str
-    provider: str
-    currency: str
+    service_type: ClassificationKey
+    provider: ClassificationKey
+    currency: CurrencyCode
     ef_kg_co2eq_per_currency: float
 
 
@@ -103,8 +102,8 @@ class ExternalAIFactorResponse(FactorResponseGen):
 
 
 class ExternalAIFactorCreate(FactorCreate):
-    provider: str
-    usage_type: str
+    provider: ClassificationKey
+    usage_type: ClassificationKey
     ef_kg_co2eq_per_request: float
 
     @field_validator("ef_kg_co2eq_per_request", mode="after")
@@ -116,8 +115,8 @@ class ExternalAIFactorCreate(FactorCreate):
 
 
 class ExternalAIFactorUpdate(FactorUpdate):
-    provider: str | None = None
-    usage_type: str | None = None
+    provider: ClassificationKey | None = None
+    usage_type: ClassificationKey | None = None
     ef_kg_co2eq_per_request: float | None = None
 
     @field_validator("ef_kg_co2eq_per_request", mode="after")

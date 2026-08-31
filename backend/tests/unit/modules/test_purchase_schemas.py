@@ -31,7 +31,9 @@ def test_factor_average_row_without_additional_code_is_valid():
     factor = PurchaseCommonFactorCreate.model_validate(
         _factor_payload(purchase_additional_code="")
     )
-    assert factor.purchase_additional_code == ""
+    # #1489: blank normalizes to None — the same absent-code representation
+    # the CSV provider stores in classification, so both paths agree.
+    assert factor.purchase_additional_code is None
 
 
 @pytest.mark.parametrize("bad_code", ["", "   "])

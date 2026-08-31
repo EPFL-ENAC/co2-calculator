@@ -8,6 +8,12 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.schemas.fields import (
+    ClassificationKey,
+    CurrencyCode,
+    OptionalClassificationKey,
+)
+from app.utils.currencies import SUPPORTED_CURRENCIES
 
 ## PURCHASE FACTOR HANDLERS
 
@@ -18,7 +24,7 @@ purchase_additional_value_fields: list[str] = ["ef_kg_co2eq_per_kg"]
 
 
 class PurchaseCentralizedFactorCreate(FactorCreate):
-    name: str
+    name: ClassificationKey
     ef_kg_co2eq_per_kg: float
 
     @field_validator("ef_kg_co2eq_per_kg", mode="after")
@@ -30,7 +36,7 @@ class PurchaseCentralizedFactorCreate(FactorCreate):
 
 
 class PurchaseCentralizedFactorUpdate(FactorUpdate):
-    name: str | None = None
+    name: ClassificationKey | None = None
     ef_kg_co2eq_per_kg: float | None = None
 
     @field_validator("ef_kg_co2eq_per_kg", mode="after")
@@ -75,10 +81,10 @@ purchase_common_value_fields: list[str] = [
 
 
 class PurchaseCommonFactorCreate(FactorCreate):
-    currency: str
-    purchase_institutional_code: str
+    currency: CurrencyCode
+    purchase_institutional_code: ClassificationKey
     translation_key: str | None = None
-    purchase_additional_code: str | None = None
+    purchase_additional_code: OptionalClassificationKey = None
     ef_kg_co2eq_per_currency: float
     # purchase_category: str  # only for upload Mandatory (checked in csv upload)
     # purchase_category is the routing column (picks the correct data_entry_type).
@@ -93,23 +99,38 @@ class PurchaseCommonFactorCreate(FactorCreate):
             raise ValueError("ef_kg_co2eq_per_currency must be non-negative")
         return v
 
-    @field_validator("purchase_institutional_code", mode="after")
+    # purchase_institutional_code is always present on factors: the
+    # additional-code-less rows are the per-institutional-code averages, so a
+    # factor without an institutional code could never be matched —
+    # ClassificationKey's min_length enforces it.
+
+    @field_validator("currency", mode="after")
     @classmethod
-    def validate_institutional_code(cls, v: str) -> str:
-        # Always present on factors: the additional-code-less rows are the
-        # per-institutional-code averages, so a factor without an
-        # institutional code could never be matched.
-        if not v.strip():
-            raise ValueError("purchase_institutional_code must not be empty")
+    def validate_currency(cls, v: str) -> str:
+        # Same vocabulary the entry side accepts — a factor in a currency no
+        # entry can carry would be unreachable.
+        if v not in SUPPORTED_CURRENCIES:
+            allowed = ", ".join(sorted(SUPPORTED_CURRENCIES))
+            raise ValueError(f"Currency must be one of: {allowed}")
         return v
 
 
 class PurchaseCommonFactorUpdate(FactorUpdate):
-    purchase_institutional_code: str | None = None
-    purchase_additional_code: str | None = None
-    currency: str | None = None
+    purchase_institutional_code: ClassificationKey | None = None
+    purchase_additional_code: OptionalClassificationKey = None
+    currency: CurrencyCode | None = None
     ef_kg_co2eq_per_currency: float | None = None
     translation_key: str | None = None
+
+    @field_validator("currency", mode="after")
+    @classmethod
+    def validate_currency(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if v not in SUPPORTED_CURRENCIES:
+            allowed = ", ".join(sorted(SUPPORTED_CURRENCIES))
+            raise ValueError(f"Currency must be one of: {allowed}")
+        return v
 
 
 class PurchaseCommonFactorResponse(FactorResponseGen):

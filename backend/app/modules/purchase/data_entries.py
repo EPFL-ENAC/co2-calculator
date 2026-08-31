@@ -1,11 +1,16 @@
 from typing import Any
 
-from pydantic import ValidationInfo, field_validator, model_validator
+from pydantic import field_validator, model_validator
 
 from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponseGen,
     DataEntryUpdate,
+)
+from app.schemas.fields import (
+    ClassificationKey,
+    CurrencyCode,
+    OptionalClassificationKey,
 )
 from app.utils.currencies import SUPPORTED_CURRENCIES
 
@@ -31,36 +36,28 @@ class PurchaseCentralizedHandlerResponse(DataEntryResponseGen):
 
 
 class PurchaseHandlerCreate(DataEntryCreate):
-    name: str
-
-    @field_validator("name", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
-
+    name: ClassificationKey
     supplier: str | None = None
     quantity: float | None = None
     total_spent_amount: float
-    currency: str | None = None  # doc say mandatory, but with default -> optional
-    purchase_institutional_code: str
+    currency: CurrencyCode | None = None  # doc say mandatory, but with default
+    purchase_institutional_code: ClassificationKey
     purchase_institutional_description: str | None = None
-    purchase_additional_code: str | None = None
+    purchase_additional_code: OptionalClassificationKey = None
     note: str | None = None
     # __kg_co2eq_override__ is used to override the kg_co2eq calculation
 
     @model_validator(mode="before")
     @classmethod
     def ensure_default_currency(cls, data: Any) -> Any:
-        """Ensure default currency is applied when input has null or empty currency."""
+        """Apply the default currency when input has null or blank currency."""
         if isinstance(data, dict):
             currency = data.get("currency")
-            # Apply default when currency is None, empty string, or whitespace-only
             if currency is None or (
                 isinstance(currency, str) and currency.strip() == ""
             ):
-                data["currency"] = "chf"
+                # Copy: mutating the caller's dict leaks the default upstream.
+                return {**data, "currency": "chf"}
         return data
 
     @field_validator("quantity", mode="after")
@@ -79,40 +76,23 @@ class PurchaseHandlerCreate(DataEntryCreate):
             raise ValueError("Total spend amount must be non-negative")
         return v
 
-    @field_validator("purchase_institutional_code", mode="after")
-    @classmethod
-    def validate_purchase_institutional_code(cls, v: str) -> str:
-        if len(v) < 1:
-            raise ValueError(
-                "Purchase institutional code must be at least 1 character long"
-            )
-        return v
-
     @field_validator("currency", mode="after")
     @classmethod
     def validate_currency(cls, v: str | None) -> str:
         if v is None:
             return "chf"
-        normalized_v = v.strip().lower()
-        if normalized_v not in SUPPORTED_CURRENCIES:
+        if v not in SUPPORTED_CURRENCIES:
             allowed = ", ".join(sorted(SUPPORTED_CURRENCIES))
             raise ValueError(f"Currency must be one of: {allowed}")
-        return normalized_v
+        return v
 
 
 class PurchaseCentralizedHandlerCreate(DataEntryCreate):
-    name: str
-    unit: str
+    name: ClassificationKey
+    unit: ClassificationKey
     annual_consumption: float
     coef_to_kg: float
     note: str | None = None
-
-    @field_validator("name", "unit", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     @field_validator("annual_consumption", "coef_to_kg", mode="after")
     @classmethod
@@ -123,21 +103,16 @@ class PurchaseCentralizedHandlerCreate(DataEntryCreate):
 
 
 class PurchaseHandlerUpdate(DataEntryUpdate):
-    name: str | None = None
-
-    @field_validator("name", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
-        if v is not None and not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
-
+    name: ClassificationKey | None = None
     supplier: str | None = None
     quantity: float | None = None
     total_spent_amount: float | None = None
-    currency: str | None = None
-    purchase_institutional_code: str | None = None
-    purchase_additional_code: str | None = None
+    currency: CurrencyCode | None = None
+    # ClassificationKey (not Optional…): a blank/whitespace code provided on
+    # purpose must fail loudly rather than silently resolving to no factor
+    # further down the pipeline; None stays the key-absent PATCH default.
+    purchase_institutional_code: ClassificationKey | None = None
+    purchase_additional_code: OptionalClassificationKey = None
     note: str | None = None
 
     @field_validator("quantity", mode="after")
@@ -163,11 +138,10 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
     def validate_currency(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        normalized_v = v.strip().lower()
-        if normalized_v not in SUPPORTED_CURRENCIES:
+        if v not in SUPPORTED_CURRENCIES:
             allowed = ", ".join(sorted(SUPPORTED_CURRENCIES))
             raise ValueError(f"Currency must be one of: {allowed}")
-        return normalized_v
+        return v
 
     @model_validator(mode="before")
     @classmethod
@@ -189,33 +163,13 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
                 raise ValueError("purchase_institutional_code cannot be null")
         return values
 
-    @field_validator("purchase_institutional_code", mode="after")
-    @classmethod
-    def validate_purchase_institutional_code(cls, v: str | None) -> str | None:
-        # None here can only be the key-absent default (explicit null is
-        # rejected in the before-validator above); a blank/whitespace value
-        # provided on purpose must fail loudly here rather than silently
-        # resolving to no factor further down the pipeline.
-        if v is None:
-            return v
-        if not v.strip():
-            raise ValueError("purchase_institutional_code cannot be empty")
-        return v
-
 
 class PurchaseCentralizedHandlerUpdate(DataEntryUpdate):
-    name: str | None = None
-    unit: str | None = None
+    name: ClassificationKey | None = None
+    unit: ClassificationKey | None = None
     annual_consumption: float | None = None
     coef_to_kg: float | None = None
     note: str | None = None
-
-    @field_validator("name", "unit", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
-        if v is not None and not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     @field_validator("annual_consumption", "coef_to_kg", mode="after")
     @classmethod

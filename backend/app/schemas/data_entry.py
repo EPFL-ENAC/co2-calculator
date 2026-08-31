@@ -72,6 +72,28 @@ class DataEntryPayloadMixin(BaseModel):
             values = _coerce(values)
         return values
 
+    @model_validator(mode="after")
+    def sync_validated_fields_into_data(self) -> DataEntryPayloadMixin:
+        # ``unflatten_payload`` copies the RAW payload into ``data`` before
+        # field validators run, so without this the normalized value lives
+        # only on the typed field while the raw one gets persisted — and
+        # factor resolution joins on ``data`` (#1489). Only keys already in
+        # ``data`` are overwritten: absent keys keep PATCH semantics.
+        data = getattr(self, "data", None)
+        if not isinstance(data, dict):
+            return self
+        synced = [
+            name
+            for name in type(self).model_fields
+            if name != "data" and name not in DATA_ENTRY_META_FIELDS and name in data
+        ]
+        if not synced:
+            return self
+        dumped = self.model_dump(mode="json", include=set(synced))
+        for name in synced:
+            data[name] = dumped[name]
+        return self
+
 
 class DataEntryCreate(DataEntryPayloadMixin, DataEntryBase):
     """Base factor schema."""
