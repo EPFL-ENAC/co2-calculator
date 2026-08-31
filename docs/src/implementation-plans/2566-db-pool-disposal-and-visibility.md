@@ -63,6 +63,14 @@ ever see them**.
    reports the same server-wide number: **aggregate with `max()`, never
    `sum()`**.
 
+5. **TCP keepalives in `connect_args`** — psycopg leaves them off, so a pod
+   whose server vanished mid-connection waits out the OS default (~2 h) rather
+   than failing. Stage proved it on the same day: the cluster restarted the
+   network underneath, every pooled socket became a black hole, and probes
+   timed out instead of erroring. 30 s idle + 3 probes 10 s apart caps that at
+   ~60 s. Client half only — the server reaps its own orphans via the role
+   GUCs below.
+
 ### Ungraceful shutdown is not covered by any of the above
 
 A pod killed by OOM, by SIGKILL past the grace period, or by node loss never
@@ -97,8 +105,19 @@ instead of ~2 h. `pool_pre_ping=True` (already on) absorbs the reconnects.
 - [ ] Grafana: plot `checked_in + checked_out` instead of the capacity ceiling,
       add `db.server.connections` with an alert at 80% of `max_connections`.
       Dashboard lives outside this repo.
+- [x] TCP keepalives in the engine's `connect_args` (`backend/app/db.py`),
+      pinned by a test.
+- [x] Grafana: `total open (checked_in + checked_out)` and a server-side
+      `db.server.connections` series, in all three environments' dashboard
+      ConfigMaps (they live in `openshift-app-config`, not outside git as
+      first assumed). The old "total pool capacity" series was
+      `sum(state="size")` — the _configured_ pool_size, i.e. `pods x 15`,
+      which read a healthy 60 while the server was full.
 - [ ] Replicate the role GUCs on stage and prod once dev has been through a
-      few rollouts with the fix.
+      few rollouts with the fix. **Stage needed them on the same day** — a
+      network blip orphaned its entire pool and locked its own pods out.
+- [ ] Ask the DBaaS team for `max_connections=200` (or PgBouncer) on all three
+      instances. 100 leaves no room to scale the backend past 3 replicas.
 
 ## Open
 

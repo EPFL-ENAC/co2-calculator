@@ -57,11 +57,25 @@ if (
 # Use the modified url for the engine
 final_db_url = url.render_as_string(hide_password=False)
 
+# #2566: without these a pod cannot tell a dead server from an idle one.
+# When the cluster restarted the network under stage's established
+# connections, every pooled socket became a black hole and probes timed out
+# instead of failing -- the OS default is ~2h before the kernel gives up.
+# Probing every 30s means a pod notices in ~60s and reconnects. This is the
+# client half only; the server reaps its own orphans via the role's
+# tcp_keepalives_* (applied on the DB, not here).
+_PG_KEEPALIVES = {
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 3,
+}
+
 engine = create_async_engine(
     final_db_url,  # This has the actual password
     pool_pre_ping=True,  # Verify connections before using them
     # echo=settings.DEBUG,  # Log SQL queries in debug mode
-    connect_args={"check_same_thread": False} if is_sqlite else {},
+    connect_args={"check_same_thread": False} if is_sqlite else _PG_KEEPALIVES,
     json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
     **_pool_kwargs(settings, is_sqlite),
 )

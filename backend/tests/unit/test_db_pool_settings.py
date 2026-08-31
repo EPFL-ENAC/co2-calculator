@@ -11,7 +11,7 @@ environment) or mocking ``create_async_engine`` through a module reload.
 from sqlalchemy.pool import NullPool, QueuePool
 
 from app.core.config import Settings
-from app.db import _pool_kwargs, read_pool_state
+from app.db import _PG_KEEPALIVES, _pool_kwargs, read_pool_state
 
 
 def test_pool_kwargs_passes_settings_through_for_postgres():
@@ -85,3 +85,16 @@ def test_read_pool_state_none_for_non_queuepool():
     pool = NullPool(creator=lambda: None)
 
     assert read_pool_state(pool) is None
+
+
+def test_postgres_connect_args_enable_tcp_keepalives():
+    """#2566: psycopg leaves keepalives off, so a pod whose server vanished
+    mid-connection waits out the OS default (~2h) instead of failing. These
+    four settings cap that at roughly 60s: idle 30s, then 3 probes 10s apart.
+    """
+    assert _PG_KEEPALIVES == {
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 3,
+    }
