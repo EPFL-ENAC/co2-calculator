@@ -1,16 +1,16 @@
-﻿name,supplier,quantity,total_spent_amount,currency,purchase_institutional_code,purchase_institutional_description,purchase_additional_code,note
-#Instructions:
-#1) Enter a descriptive name for the IT equipment (e.g., 'Laptop Dell XPS 15', 'Monitor LG 27-inch').
-#2) Optionally enter the supplier name.
-#3) Optionally enter the quantity purchased.
-#4) Enter the total amount spent on this purchase.
-#5) Specify the currency (CHF, EUR, USD, etc.). If not specified, CHF is used by default.
-#6) Enter the institutional purchase code (e.g., UNSPSC code) that identifies the product category.
-#7) Optionally add the institutional description of the purchase.
-#8) Optionally add the NACRES code in the additional code column for more detailed categorization.
-#9) For detailed guidance, consult the documentation section: Modules specification - Purchases
-#Important: every line starting with # is an instruction. The importer ignores them, so you can leave them in the file.
-Laptop Computer,Dell,5,4500,chf,43232100,Notebook computers,,
-Desktop Computer,HP,3,2400,chf,43211300,Personal computers,,
-Monitor,LG,8,2000,chf,43212100,Monitors,,
-Printer,Canon,1,800,chf,43223300,Printers,,
+﻿name,supplier,quantity,total_spent_amount,currency,purchase_institutional_code,purchase_additional_code,purchase_institutional_description,note
+# Instructions:,,,,,,,,
+# 1) Enter a descriptive name for the IT equipment (e.g. 'Laptop Dell XPS 15' 'Monitor LG 27-inch').,,,,,,,,
+# 2) Optionally enter the supplier name.,,,,,,,,
+# 3) Optionally enter the quantity purchased.,,,,,,,,
+# 4) Enter the total amount spent on this purchase.,,,,,,,,
+# 5) Specify the currency (CHF EUR USD etc.). If not specified CHF is used by default.,,,,,,,,
+# 6) Enter the institutional purchase code (e.g. UNSPSC code) that identifies the product category.,,,,,,,,
+# 7) Optionally add the institutional description of the purchase.,,,,,,,,
+# 8) Optionally add the NACRES code in the additional code column for more detailed categorization.,,,,,,,,
+# 9) For detailed guidance consult the documentation section: Modules specification - Purchases,,,,,,,,
+# 10) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,,,,,,
+"Base;Ã‰cran incurvÃ©Â DellÂ UltraSharpÂ 49, U",Dell SA,4.0,3567.3,chf,43211500,AB03,,
+"Digitec USB-C - USB-C (0.25Â m, USB 3.2 G",Digitec Galaxus AG,1.0,10.71,chf,43211600,IA23,,
+"Delock DVI â€” HDMI (Typ A) (2Â m, DVI, HDM",Digitec Galaxus AG,5.0,33.95,chf,43211600,IA24,,
+MBP 14 Silver/M5 10-core CPU + 10-core G,Art Computer SA,1.0,1471.82,chf,43211500,IA11,,

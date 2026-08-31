@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 2026
-last_updated: 2026-08-24
+last_updated: 2026-09-01
 title: "CSV templates: inline instructions as # comment lines"
 summary: "The data manager delivered a new template pack (SharePoint _DATA_INPUT/templates, 2026-08-24) that carries filling instructions as ordinary CSV rows, plus three defects that fail on upload: two files in latin-1, US-format example dates, and four filenames the app does not serve. Teach the shared reader to skip #-prefixed lines, then ship the pack with the instructions rewritten as comments and the defects fixed."
 ---
@@ -63,20 +63,40 @@ prose in a semicolon file cannot sway the detected delimiter.
 - [x] Regression test walking every shipped template through the real
       reader (`tests/unit/test_shipped_csv_templates.py`). It fails on all
       three defects above, which is how they were found.
+- [x] Replace with the re-delivered pack (SharePoint
+      `_DATA_INPUT/templates_2026-08-27`). It fixes the encoding (UTF-8 +
+      BOM everywhere), the dates, the `#` prefixes and one of the four
+      filenames at the source.
 - [ ] Test round with the data owners, then close #2026.
 
-## Divergences from the delivered pack
+## Divergences from the delivered pack (2026-08-27 re-delivery)
 
-Our copy is not byte-identical to SharePoint. Kept deliberately, and
-reported on the issue so the next regeneration folds them in:
+The first pack's date/encoding/`#` rewrites are now fixed at the source.
+Our copy still differs from SharePoint on these points, kept deliberately
+and reported on the issue so the next regeneration folds them in:
 
-- Dates rewritten to ISO (`12/1/2025` → `2025-12-01`); the M/D reading is
-  confirmed by `11/15` and `10/20` and matches the previous template.
-- `travel_trains` and `headcount` re-encoded from cp1252; non-breaking
-  spaces normalised to spaces.
+- Three renames the app requires: `equipment_it` → `equipment_IT`,
+  `purchases_scientific_equipment` → `purchases_scientificequipment`,
+  `purchases_centralized` → `purchases_additional`.
+- `processemissions` line 5 arrived quote-wrapped (`"# 3) ..."""`), so the
+  comment stripper saw `"` first and the line leaked as a data row.
+  Unquoted it.
+- Both `researchfacilities` files dropped `kg_co2eq` from the header but
+  every data row kept its trailing empty field. The importer filters extra
+  columns, but the width test is strict on purpose; trimmed.
 - The closing "delete all these instructions lines" instruction now reads
   that `#` lines are ignored and can stay.
 - Instruction numbering renumbered (the pack skips 7 in `travel_planes`).
+
+## Open question (equipment factors)
+
+The re-delivered equipment templates re-categorize the catalog: scientific
+goes 138 → 161 classes, it 25 → 22, other 7 → 23 (Autoclaves, Photocopy
+machines, Kitchen… moved to other; Lab Freezer moved to scientific). The
+factor lookup is scoped per submodule and equipment requires a factor per
+row, so those rows fail with "no matching factor" unless a re-categorized
+equipment factors file is uploaded too — asked on #2026. Shipping the
+templates as delivered is safe either way: the failure is loud, not silent.
 
 ## Out of scope
 

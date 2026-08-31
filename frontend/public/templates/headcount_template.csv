@@ -1,15 +1,15 @@
 ﻿name,sius_code,user_institutional_id,fte,note
-#Instructions:
-#1) Fill one line per member you want to add with their name.
-#2) Fill the information on the SIUS code of the person (the corresponding categories are given in the note). An explanation for the SIUS code can be found in the documentation, under the tab: Module specifications - Headcount.
-#3) Insert the institutional id (SCIPER) of the person in the column user_institution_id.
-#4) Insert the fte as a decimal number from 0 to 1. 1 corresponds to a person working full time for the whole year, 0.5 corresponding to a person working at 50% the full year, or full time but only for 6 months.
-#Important: every line starting with # is an instruction. The importer ignores them, so you can leave them in the file.
+# Instructions: ,,,,
+# 1) Fill one line per member you want to add with their name. ,,,,
+# 2) Fill the information on the SIUS code of the person (the corresponding categories are given in the note). An explanation for the SIUS code can be found in the documentation under the tab: Module specifications - Headcount. ,,,,
+# 3) Insert the institutional id (SCIPER) of the person in the column user_institution_id.,,,,
+# 4) Insert the fte as a decimal number from 0 to 1. 1 corresponds to a person working full time for the whole year 0.5 corresponding to a person working at 50% the full year or full time but only for 6 months. ,,,,
+# 5) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,,
 Elena Rossi,51,123456,1,Professors
-Rajesh Patel,52,234567,1,Other teaching staff
-Agnieszka Kowalczyk,53,456789,1,Scientific collaborators
+Rajesh Patel,52,234567,1,Other teaching staff
+Agnieszka Kowalczyk,53,456789,1,Scientific collaborators
 Sophie Martin,54,567890,0.3,Scientific and doctoral assistants
-Daniel Schmidt,56,678901,0.1,Managerial staff
+Daniel Schmidt,56,678901,0.1,Managerial staff
 Maria Ana Sofia Santos,57,789012,0.8,Administrative staff
 Chen Ming,58,890123,1,Support staff
-Lucas Weber,59,901234,1,Operational staff
+Lucas Weber,59,901234,1,Operational staff

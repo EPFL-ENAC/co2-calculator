@@ -1,33 +1,33 @@
-﻿equipment_id,name,equipment_class,sub_class,active_usage_hours_per_week,standby_usage_hours_per_week,note,kg_co2eq
-#Instructions:
-#1) For each piece of equipment, provide a unique identifier (e.g., inventory number).
-#2) Enter the equipment name (e.g., 'Coffee machine', 'Refrigerator', 'Hand dryer').
-#3) Select the appropriate equipment class from the list (e.g., Kitchen freezer, Photocopier, Special furniture, etc.).
-#4) Enter the sub-class if applicable (optional).
-#5) Specify active usage hours per week (hours when the equipment is actively in use, 0-168).
-#6) Specify standby usage hours per week (hours when on standby, 0-168). Note: active + standby must inferior or equal to 168.
-#7) If you know the CO2 equivalent, enter it in kg_co2eq. Otherwise, leave empty for automatic calculation.
-#8) For detailed guidance, consult the documentation section: Modules specification - Equipment
-#Important: every line starting with # is an instruction. The importer ignores them, so you can leave them in the file.
-A000000,,Autoclaves,Bench top autoclaves,12,156,,
-A000001,,Autoclaves,Autoclaves (150 L),12,156,,
-A000002,,Kitchen freezer,,168,0,,
-A000003,,Kitchen oven,,12,156,,
-A000004,,Hoods,,12,156,,
-A000005,,CPG mobile equipment,CPG ventilation motors,12,156,,
-A000006,,CPG mobile equipment,Other CPG mobile equipment,12,156,,
-A000007,,CPG fixed equipment,,12,156,,
-A000008,,Other infrastructure equipment,Distillation equipment,12,156,,
-A000009,,Other infrastructure equipment,Washers,12,156,,
-A000010,,Vehicles,,12,156,,
-A000011,,Camipro,,12,156,,
-A000012,,Cleaning equipment,,12,156,,
-A000013,,Other stewardship equipment,,12,156,,
-A000014,,Chairs,,12,156,,
-A000015,,Tables,,12,156,,
-A000016,,Special furniture,,12,156,,
-A000017,,Kitchen,,12,156,,
-A000018,,Other furniture equipment,,12,156,,
-A000019,,Reprography equipment,,12,156,,
-A000020,,Photocopy machines,,12,156,,
-A000021,,Other reprography equipment,,12,156,,
+﻿equipment_class,sub_class,equipment_id,name,active_usage_hours_per_week,standby_usage_hours_per_week,note
+# Instructions:,,,,,,
+# 1) Select the appropriate equipment class from the list (e.g. Kitchen freezer - Photocopier - Special furniture - etc.).,,,,,,
+# 2) Enter the sub-class if applicable (optional).,,,,,,
+# 3) For each piece of equipment provide a unique identifier (e.g. inventory number).,,,,,,
+# 4) Enter the equipment name (e.g. 'Coffee machine' - 'Refrigerator' - 'Hand dryer').,,,,,,
+# 5) Specify active usage hours per week (hours when the equipment is actively in use: 0-168).,,,,,,
+# 6) Specify standby usage hours per week (hours when on standby: 0-168). Note: active + standby must inferior or equal to 168.,,,,,,
+# 7) For detailed guidance consult the documentation section: Modules specification - Equipment,,,,,,
+# 8) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,,,,
+Autoclaves,Bench top autoclaves,,,,,
+Autoclaves,Autoclaves (150 L),,,,,
+Kitchen freezer,,,,,,
+Kitchen oven,,,,,,
+Hoods,,,,,,
+CPG mobile equipment,CPG ventilation motors,,,,,
+CPG mobile equipment,Other CPG mobile equipment,,,,,
+CPG fixed equipment,,,,,,
+Other infrastructure equipment,Distillation equipment,,,,,
+Other infrastructure equipment,Washers,,,,,
+Vehicles,,,,,,
+Camipro,,,,,,
+Cleaning equipment,,,,,,
+Other stewardship equipment,,,,,,
+Chairs,,,,,,
+Tables,,,,,,
+Special furniture,,,,,,
+Kitchen,,,,,,
+Works of art,,,,,,
+Other furniture equipment,,,,,,
+Reprography equipment,,,,,,
+Photocopy machines,,,,,,
+Other reprography equipment,,,,,,
