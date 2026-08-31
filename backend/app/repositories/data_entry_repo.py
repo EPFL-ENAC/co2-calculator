@@ -15,6 +15,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.models.building_room import BuildingRoom
 from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.classification_translation import (
+    DEFAULT_LANG,
+    ClassificationTranslation,
+    normalize_lang,
+)
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
@@ -604,7 +609,59 @@ class DataEntryRepository:
 
         return aggregation
 
-    def _apply_name_filter(self, statement, filter: str | None, filter_map: dict):
+    def _translatable_filter_fields(self, handler: Any, filter_map: dict) -> set[str]:
+        """``filter_map`` keys the search should also match by translated label (#2401).
+
+        Only the *self-labeling* shape (a handler's ``kind_field``/
+        ``subkind_field`` whose own value is filtered directly, e.g.
+        equipment's ``equipment_class``) is safe here: the translation
+        table's ``value`` for that field name IS the column being
+        searched, so ``IN (SELECT value ...)`` matches directly. A
+        ``kind_label_field`` shape (purchase: the searched column is an
+        opaque code, the translated text lives on a *different* column)
+        would need a join through ``factors.classification`` to map a
+        translated description back to its code — out of scope here; #2401
+        follow-up. Harmless to include unconditionally: a field that never
+        got a ``_fr`` CSV column simply has no translation rows, so its
+        subquery matches nothing extra.
+        """
+        if handler is None:
+            return set()
+        candidates = {handler.kind_field, handler.subkind_field}
+        return {f for f in candidates if f and f in filter_map}
+
+    def _filter_conditions(
+        self,
+        filter_map: dict,
+        filter_pattern: str,
+        handler: Any,
+        lang: str,
+    ) -> list:
+        """OR-able conditions for one filter pattern: raw ``ILIKE`` on every
+        mapped column, plus (for translatable fields, non-English locales)
+        a match against the column's translated label (#2401 / #2516).
+        """
+        conditions = [
+            filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
+        ]
+        if lang != DEFAULT_LANG:
+            for field_name in self._translatable_filter_fields(handler, filter_map):
+                translated_values = select(col(ClassificationTranslation.value)).where(
+                    col(ClassificationTranslation.field_name) == field_name,
+                    col(ClassificationTranslation.lang) == lang,
+                    col(ClassificationTranslation.label).ilike(filter_pattern),
+                )
+                conditions.append(filter_map[field_name].in_(translated_values))
+        return conditions
+
+    def _apply_name_filter(
+        self,
+        statement,
+        filter: str | None,
+        filter_map: dict,
+        handler: Any = None,
+        lang: str = DEFAULT_LANG,
+    ):
         """Applies a filter to the given SQLAlchemy statement using the
         caller-prepared (possibly lateral-adapted) filter_map.
         """
@@ -620,10 +677,9 @@ class DataEntryRepository:
 
         if filter:
             filter_pattern = f"%{filter}%"
-            # Build OR conditions for all filter fields
-            conditions = [
-                filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
-            ]
+            conditions = self._filter_conditions(
+                filter_map, filter_pattern, handler, lang
+            )
             statement = statement.where(or_(*conditions))
         return statement, filter_pattern
 
@@ -737,6 +793,7 @@ class DataEntryRepository:
         filter: str | None,
         exclude_planner_snapshots: bool,
         is_equipment_entry: bool,
+        lang: str = DEFAULT_LANG,
     ) -> list[int] | None:
         """Resolve the page's entry ids with an entries-only query (#2404).
 
@@ -767,7 +824,9 @@ class DataEntryRepository:
         if handler_default:
             page_q = page_q.where(*handler_default)
         filter_map = dict(getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP)
-        page_q, _ = self._apply_name_filter(page_q, filter, filter_map)
+        page_q, _ = self._apply_name_filter(
+            page_q, filter, filter_map, handler=handler, lang=lang
+        )
         if is_equipment_entry:
             page_q = page_q.order_by(_equipment_usage_priority())
         page_q = self._apply_sort(page_q, sort_by, sort_order, dict(handler.sort_map))
@@ -936,7 +995,9 @@ class DataEntryRepository:
         institutional_id_filter: str | None = None,
         exclude_planner_snapshots: bool = False,
         factor_year: int | None = None,
+        lang: str = DEFAULT_LANG,
     ) -> SubmoduleResponse:
+        lang = normalize_lang(lang)
         is_travel_entry = data_entry_type_id in (
             DataEntryTypeEnum.plane.value,
             DataEntryTypeEnum.train.value,
@@ -1001,6 +1062,7 @@ class DataEntryRepository:
                 filter=filter,
                 exclude_planner_snapshots=exclude_planner_snapshots,
                 is_equipment_entry=is_equipment_entry,
+                lang=lang,
             )
 
         # The entries this page can possibly show. Both aggregation subqueries
@@ -1295,7 +1357,7 @@ class DataEntryRepository:
                 filter_map[f"{prefix}_municipality"] = loc.municipality
                 filter_map[f"{prefix}_keywords"] = loc.keywords
         statement, filter_pattern = self._apply_name_filter(
-            statement, filter, filter_map
+            statement, filter, filter_map, handler=handler, lang=lang
         )
 
         sort_map = dict(
@@ -1385,9 +1447,9 @@ class DataEntryRepository:
                     count_stmt = count_stmt.join(target, onclause, isouter=True)
             for target, onclause in count_location_joins:
                 count_stmt = count_stmt.join(target, onclause, isouter=True)
-            conditions = [
-                filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
-            ]
+            conditions = self._filter_conditions(
+                filter_map, filter_pattern, handler, lang
+            )
             count_stmt = count_stmt.where(or_(*conditions))
         total_items = (await self.session.execute(count_stmt)).scalar_one()
         rows = result.all()

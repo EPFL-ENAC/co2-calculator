@@ -843,3 +843,65 @@ async def test_process_row_persists_dto_normalized_values(monkeypatch):
         factor_service=factor_service,
     )
     assert error is not None and "bad currency" in error
+
+
+# --------------------------------------------------------------------------
+# #2401 — generic `<field>_<lang>` CSV translation columns
+# --------------------------------------------------------------------------
+
+
+def test_collect_translations_picks_up_fr_suffix_column():
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+    )
+    row = {
+        "equipment_class": "Engine",
+        "equipment_class_fr": "Moteurs",
+        "sub_class": "Large Motor/Generator",
+        "sub_class_fr": " Gros moteur/Générateur ",
+    }
+    classification = {
+        "equipment_class": "Engine",
+        "sub_class": "Large Motor/Generator",
+    }
+
+    provider._collect_translations(row, classification)
+
+    assert provider._collected_translations == {
+        ("equipment_class", "Engine", "fr"): "Moteurs",
+        ("sub_class", "Large Motor/Generator", "fr"): "Gros moteur/Générateur",
+    }
+
+
+def test_collect_translations_skips_blank_or_missing_fr_cell():
+    """Empty cell or missing column = no translation for this row (#2401
+    team decision: fall back to English, don't raise).
+    """
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+    )
+    row = {
+        "equipment_class": "Engine",  # no equipment_class_fr column at all
+        "sub_class": "Large Motor/Generator",
+        "sub_class_fr": "   ",  # present but blank
+    }
+    classification = {
+        "equipment_class": "Engine",
+        "sub_class": "Large Motor/Generator",
+    }
+
+    provider._collect_translations(row, classification)
+
+    assert provider._collected_translations == {}
+
+
+def test_collect_translations_skips_null_classification_value():
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+    )
+    row = {"sub_class_fr": "Gros moteur/Générateur"}
+    classification = {"equipment_class": "Engine", "sub_class": None}
+
+    provider._collect_translations(row, classification)
+
+    assert provider._collected_translations == {}

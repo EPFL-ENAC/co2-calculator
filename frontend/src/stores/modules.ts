@@ -3,6 +3,7 @@ import { computed, markRaw, reactive, ref } from 'vue';
 import { MODULES, Module } from '@/constant/modules';
 import { api } from '@/api/http';
 import { getModuleDataEntriesTaxonomies } from '@/api/taxonomies';
+import { i18n } from '@/boot/i18n';
 import {
   MODULE_STATES,
   ModuleState,
@@ -617,6 +618,9 @@ export const useModuleStore = defineStore('modules', () => {
       const queryParams = new URLSearchParams({
         page: String(pagination.page),
         limit: String(pagination.rowsPerPage),
+        // Search matches a translated label too (#2401/#2516), e.g.
+        // lang=fr 'serveur' matches an equipment_class stored as 'server'.
+        lang: i18n.global.locale.value.split('-')[0],
       });
       if (pagination.sortBy) {
         queryParams.append('sort_by', pagination.sortBy);

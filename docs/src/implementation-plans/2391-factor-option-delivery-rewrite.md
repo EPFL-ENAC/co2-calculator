@@ -90,8 +90,14 @@ mutable during preparation and immutable after — which is what lets decision
   exception to the unified lookup path.
 - ~~ETag derivation~~ — settled with decision 2: content hash of the built
   tree (no ingestion-timestamp column exists to use instead).
-- Purchase label i18n schema — parked on #2401 (team decision), blocks
-  decision 4.
+- ~~Purchase label i18n schema~~ — settled 2026-08-31: proposition 2
+  (translation table), `classification_translations(field_name, value,
+  lang) -> label`. Delivered generically (any handler's
+  `classification_fields`) against equipment first, per
+  `docs/src/implementation-plans/2401-purchase-label-i18n.md`. Purchase
+  itself still needs `kind_label_field = purchase_institutional_description`
+  plus its own `_en`/`_fr` ingestion columns before decision 4 can proceed —
+  the label-resolution side is ready, the ingestion side is not.
 - Exact per-module migration order (equipment last — it carries the
   values-prefill edge case).
 

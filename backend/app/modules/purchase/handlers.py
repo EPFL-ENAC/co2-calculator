@@ -38,6 +38,12 @@ class PurchaseModuleHandler(BaseModuleHandler):
     # factor key when present: it overrides the institutional-code match.
     kind_field_override: str | None = "purchase_additional_code"
     subkind_field: str | None = ""
+    # The code is opaque (a UNSPSC code); the human-readable label comes
+    # from this classification field instead of `to_label(kind_value)`
+    # (#2401 decision 4). Bilingual via the same `_fr`-suffix CSV
+    # convention equipment uses, keyed on this field name rather than the
+    # code (see ModuleHandlerService.get_taxonomy_with_etag).
+    kind_label_field: str | None = "purchase_institutional_description"
     # Required non-empty on create; update rejects present-but-blank/null
     # (key-absent means "not updating"). CSV omits the key entirely when the
     # cell is empty, so entries can still lack it — matching stays optional.

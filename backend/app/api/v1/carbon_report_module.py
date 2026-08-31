@@ -731,6 +731,15 @@ async def get_submodule(
     filter: str | None = Query(
         default=None, description="Filter string to search in name or display_name"
     ),
+    lang: str = Query(
+        default="en",
+        description=(
+            "Locale for the search filter (#2401/#2516): a translatable "
+            "field also matches its translated label, e.g. lang=fr "
+            "'serveur' matches equipment_class_fr='serveur' (stored "
+            "equipment_class='server')."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -803,6 +812,7 @@ async def get_submodule(
             institutional_id_filter=institutional_id_filter,
             exclude_planner_snapshots=exclude_planner_snapshots,
             factor_year=factor_year,
+            lang=lang,
         )
     except UnknownSortField as exc:
         # Only this one: sort_by comes straight from the query string, so an

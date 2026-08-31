@@ -1,0 +1,54 @@
+"""Repository for classification label translations (#2401)."""
+
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlmodel import col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models.classification_translation import ClassificationTranslation
+
+
+class ClassificationTranslationRepository:
+    """CRUD for ``classification_translations``.
+
+    Volume is small (per-module classification values, not per-year factor
+    rows), so a plain VALUES upsert is enough — no COPY staging needed,
+    unlike ``FactorRepository.upsert_factors``.
+    """
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def upsert(self, translations: list[ClassificationTranslation]) -> None:
+        """Insert-or-update by the ``(field_name, value, lang)`` PK.
+
+        Idempotent: re-ingesting the same CSV re-upserts identical rows.
+        """
+        if not translations:
+            return
+        payload = [t.model_dump() for t in translations]
+        stmt = pg_insert(ClassificationTranslation).values(payload)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["field_name", "value", "lang"],
+            set_={"label": stmt.excluded["label"]},
+        )
+        await self.session.execute(stmt)
+
+    async def get_labels(
+        self, field_names: set[str], lang: str
+    ) -> dict[tuple[str, str], str]:
+        """All ``(field_name, value) -> label`` pairs for one language.
+
+        One query per taxonomy tree build (called before the per-row loop),
+        never per node.
+        """
+        if not field_names:
+            return {}
+        rows = (
+            await self.session.exec(
+                select(ClassificationTranslation).where(
+                    col(ClassificationTranslation.field_name).in_(field_names),
+                    col(ClassificationTranslation.lang) == lang,
+                )
+            )
+        ).all()
+        return {(row.field_name, row.value): row.label for row in rows}

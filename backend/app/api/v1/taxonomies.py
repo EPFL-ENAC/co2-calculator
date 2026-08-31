@@ -55,6 +55,7 @@ async def get_taxonomy_for_data_entry_type(
     response: Response,
     data_entry_type: DataEntryTypeEnum,
     year: int,
+    lang: str,
     db: AsyncSession,
     current_user: User,
 ) -> TaxonomyCacheEntry:
@@ -74,7 +75,9 @@ async def get_taxonomy_for_data_entry_type(
     # module's form for any unit member.
     handler = BaseModuleHandler.get_by_type(data_entry_type)
     handler_service = ModuleHandlerService(db)
-    entry = await handler_service.get_taxonomy_with_etag(handler, data_entry_type, year)
+    entry = await handler_service.get_taxonomy_with_etag(
+        handler, data_entry_type, year, lang
+    )
     started = await _is_year_started_cached(db, year, current_user.provider)
     response.headers["Cache-Control"] = _cache_control_for(started)
     return entry
@@ -85,6 +88,7 @@ async def _resolve_module_data_entry_taxonomy(
     module: str,
     data_entry: str,
     year: int,
+    lang: str,
     db: AsyncSession,
     current_user: User,
 ) -> TaxonomyCacheEntry:
@@ -110,7 +114,7 @@ async def _resolve_module_data_entry_taxonomy(
             detail=f"Data entry type {data_entry} does not belong to module {module}",
         )
     return await get_taxonomy_for_data_entry_type(
-        response, data_entry_type, year, db, current_user
+        response, data_entry_type, year, lang, db, current_user
     )
 
 
@@ -152,6 +156,10 @@ async def get_taxonomies_for_module_data_entries(
         default_factory=lambda: datetime.now().year,
         description="Year for which to retrieve the taxonomy",
     ),
+    lang: str = Query(
+        default="en",
+        description="Locale for classification labels (#2401), e.g. 'fr'",
+    ),
     if_none_match: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -180,7 +188,7 @@ async def get_taxonomies_for_module_data_entries(
     for entry in entries:
         try:
             cache_entry = await _resolve_module_data_entry_taxonomy(
-                response, module, entry, year, db, current_user
+                response, module, entry, year, lang, db, current_user
             )
         except HTTPException:
             raise
@@ -223,6 +231,10 @@ async def get_taxonomy_for_module_data_entry(
         default_factory=lambda: datetime.now().year,
         description="Year for which to retrieve the taxonomy",
     ),
+    lang: str = Query(
+        default="en",
+        description="Locale for classification labels (#2401), e.g. 'fr'",
+    ),
     if_none_match: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -233,7 +245,7 @@ async def get_taxonomy_for_module_data_entry(
     tree is serialized to JSON (#2391 decision 2).
     """
     cache_entry = await _resolve_module_data_entry_taxonomy(
-        response, module, data_entry, year, db, current_user
+        response, module, data_entry, year, lang, db, current_user
     )
     response.headers["ETag"] = cache_entry.etag
     if if_none_match == cache_entry.etag:
