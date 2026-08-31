@@ -81,7 +81,7 @@ export default {
   },
   simulation_explore_page_results_download_title: {
     en: '',
-    fr: "",
+    fr: '',
   },
   simulation_explore_page_results_download_button: {
     en: 'Download report',
