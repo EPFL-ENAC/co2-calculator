@@ -616,14 +616,13 @@ class DataEntryRepository:
         ``subkind_field`` whose own value is filtered directly, e.g.
         equipment's ``equipment_class``) is safe here: the translation
         table's ``value`` for that field name IS the column being
-        searched, so ``IN (SELECT value ...)`` matches directly. A
+        searched, so ``IN (SELECT value ...)`` matches directly. The
         ``kind_label_field`` shape (purchase: the searched column is an
-        opaque code, the translated text lives on a *different* column)
-        would need a join through ``factors.classification`` to map a
-        translated description back to its code — out of scope here; #2401
-        follow-up. Harmless to include unconditionally: a field that never
-        got a ``_fr`` CSV column simply has no translation rows, so its
-        subquery matches nothing extra.
+        opaque code, the text lives on a *different* column) is handled
+        separately in ``_filter_conditions`` via a hop through
+        ``factors.classification``. Harmless to include unconditionally: a
+        field that never got a ``_fr`` CSV column simply has no translation
+        rows, so its subquery matches nothing extra.
         """
         if handler is None:
             return set()
@@ -652,6 +651,39 @@ class DataEntryRepository:
                     col(ClassificationTranslation.label).ilike(filter_pattern),
                 )
                 conditions.append(filter_map[field_name].in_(translated_values))
+
+        # Code + label-field shape (purchase): the filtered column holds an
+        # opaque code; the text users actually see (and search) is the
+        # factor's label field — matched in English directly, in other
+        # locales via the translation table — so hop through
+        # ``factors.classification`` to map matching text back to its codes.
+        # Deliberately unscoped by det/year: only this module's factors
+        # carry the label key, so other rows can't match — scope it here if
+        # it ever shows up in profiles.
+        label_shaped: list[tuple[str, str]] = []
+        if handler is not None:
+            label_shaped = [
+                (code_field, label_field)
+                for code_field, label_field in (
+                    (handler.kind_field, handler.kind_label_field),
+                    (handler.subkind_field, handler.subkind_label_field),
+                )
+                if code_field and label_field and code_field in filter_map
+            ]
+        for code_field, label_field in label_shaped:
+            factor_label = Factor.classification[label_field].as_string()
+            label_matches = factor_label.ilike(filter_pattern)
+            if lang != DEFAULT_LANG:
+                translated_labels = select(col(ClassificationTranslation.value)).where(
+                    col(ClassificationTranslation.field_name) == label_field,
+                    col(ClassificationTranslation.lang) == lang,
+                    col(ClassificationTranslation.label).ilike(filter_pattern),
+                )
+                label_matches = or_(label_matches, factor_label.in_(translated_labels))
+            matching_codes = select(
+                Factor.classification[code_field].as_string()
+            ).where(label_matches)
+            conditions.append(filter_map[code_field].in_(matching_codes))
         return conditions
 
     def _apply_name_filter(

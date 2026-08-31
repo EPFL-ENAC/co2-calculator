@@ -106,13 +106,19 @@ French because the filter only ever `ILIKE`d the stored English value).
 AND lang=... AND label ILIKE :pattern)` per translatable `filter_map`
 column, alongside the existing raw-column `ILIKE` (never replacing it —
 an English term must keep matching regardless of locale, which is also
-the fallback for a value with no translation row). Scoped to the
-self-labeling shape only (`kind_field`/`subkind_field` — equipment's
-`equipment_class`/`sub_class`): the code + label-field shape (purchase's
-`purchase_institutional_code`) would need a join through
-`factors.classification` to map a translated description back to its
-code, which this PR doesn't add — searching purchase by a translated
-description is a follow-up, tracked below. Threaded through
+the fallback for a value with no translation row). Both handler shapes
+are covered. The self-labeling shape (`kind_field`/`subkind_field` —
+equipment's `equipment_class`/`sub_class`) matches the translated-label
+subquery directly on the filtered column. The code + label-field shape
+(purchase — added 2026-08-31 after live testing, initially deferred) hops
+through `factors.classification`: the filtered column holds an opaque
+code, so the condition is `code IN (SELECT the factor's code WHERE its
+description ILIKEs the term — English — OR its description IN the
+translated-label subquery — request locale)`. That also makes the
+_English_ description searchable, which never worked either (the
+description isn't stored on the entry). The factor subquery is
+deliberately unscoped by det/year — only the module's own factors carry
+the label key; scope it if it ever shows up in profiles. Threaded through
 `get_submodule` (new `lang` query param) -> `DataEntryService.
 get_submodule_data` -> `DataEntryRepository.get_submodule_data`, all three
 call sites that build filter conditions (`_page_first_entry_ids`, the main
@@ -191,12 +197,6 @@ Fixing the label at the source fixes every consumer for free.
   needed, only an operator uploading a CSV with the suffixed column. Not
   exercised by a test here since no such CSV exists yet; the equipment
   tests cover the identical code path.
-- **Purchase search by translated description** (`filter=ordinateur&lang=fr`
-  matching a row whose `purchase_institutional_code` resolves to an
-  English description containing "computer"): needs a join through
-  `factors.classification` the search filter doesn't have — see the
-  "Search filter" section above. Today it silently matches nothing extra
-  for purchase (safe, not wrong), same as before this PR.
 - **Alphabetical sort by localized label** (`get_taxonomy_with_etag` builds
   children in factor-row order, unsorted) — possibly the actual mechanism
   behind #2505 ("Alphabetic sort" bug), not requested on this issue; noted
@@ -251,6 +251,11 @@ with a local `DB_URL` active for that reason (it would wipe the local
       `DataEntryService`/`DataEntryRepository.get_submodule_data`; one
       shared `_filter_conditions` helper used by all three query sites
       (page-first ids, main statement, count)
+- [x] Purchase search by description (2026-08-31, was deferred; done after
+      live testing): the code + label-field shape hops through
+      `factors.classification`, matching the English description and the
+      translated label; regression tests in
+      `tests/unit/repositories/test_submodule_filter_translation.py`
 - [x] Unit tests: CSV collection (blank cell, missing column, null
       classification value), taxonomy label resolution (English skips the
       query, French translates, untranslated falls back, `fr-CH`

@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.classification_translation import ClassificationTranslation
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
+from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DataEntryRepository
 
@@ -136,3 +137,129 @@ async def test_english_locale_does_not_match_other_languages_label(
 
     assert response.items == []
     assert response.summary.total_items == 0
+
+
+def _purchase_entry(module_id: int, name: str, code: str) -> DataEntry:
+    return DataEntry(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.other_purchases,
+        status=DataEntryStatusEnum.PENDING,
+        data={
+            "name": name,
+            "supplier": "supplier-1",
+            "quantity": 1,
+            "total_spent_amount": 10.0,
+            "currency": "chf",
+            "purchase_institutional_code": code,
+        },
+        year=2025,
+    )
+
+
+async def _seed_purchase_module(db_session: AsyncSession) -> int:
+    """Purchase's code + label-field shape: the entry stores only the opaque
+    UNSPSC code; the searchable text (English description, French label)
+    lives on the factor / translation table.
+    """
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.purchase.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            _purchase_entry(module.id, "travel adapter", "27112700"),
+            _purchase_entry(module.id, "mounting strips", "44121600"),
+            Factor(
+                emission_type_id=8,
+                data_entry_type_id=DataEntryTypeEnum.other_purchases.value,
+                year=2025,
+                classification={
+                    "purchase_institutional_code": "27112700",
+                    "purchase_institutional_description": "Power tools",
+                },
+                values={},
+            ),
+            Factor(
+                emission_type_id=8,
+                data_entry_type_id=DataEntryTypeEnum.other_purchases.value,
+                year=2025,
+                classification={
+                    "purchase_institutional_code": "44121600",
+                    "purchase_institutional_description": "Adhesives",
+                },
+                values={},
+            ),
+            ClassificationTranslation(
+                field_name="purchase_institutional_description",
+                value="Power tools",
+                lang="fr",
+                label="Outils électriques",
+            ),
+        ]
+    )
+    await db_session.commit()
+    return module.id
+
+
+async def _filter_purchase(
+    db_session: AsyncSession, module_id: int, filter: str, lang: str
+) -> list[str]:
+    repo = DataEntryRepository(db_session)
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.other_purchases.value,
+        limit=100,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+        filter=filter,
+        lang=lang,
+    )
+    return [item.purchase_institutional_code for item in response.items]
+
+
+@pytest.mark.asyncio
+async def test_french_filter_matches_code_via_translated_description(
+    db_session: AsyncSession,
+):
+    """#2401 follow-up: `filter=outils&lang=fr` finds the row whose stored
+    code resolves (through the factor's description) to a description whose
+    French label contains "outils".
+    """
+    module_id = await _seed_purchase_module(db_session)
+
+    codes = await _filter_purchase(db_session, module_id, "outils", "fr")
+
+    assert codes == ["27112700"]
+
+
+@pytest.mark.asyncio
+async def test_english_filter_matches_code_via_description(
+    db_session: AsyncSession,
+):
+    """The same hop must work in English: the description isn't stored on
+    the entry either, only on the factor.
+    """
+    module_id = await _seed_purchase_module(db_session)
+
+    codes = await _filter_purchase(db_session, module_id, "power tools", "en")
+
+    assert codes == ["27112700"]
+
+
+@pytest.mark.asyncio
+async def test_english_locale_does_not_match_french_description_label(
+    db_session: AsyncSession,
+):
+    module_id = await _seed_purchase_module(db_session)
+
+    codes = await _filter_purchase(db_session, module_id, "outils", "en")
+
+    assert codes == []
