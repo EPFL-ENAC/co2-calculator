@@ -467,6 +467,7 @@ _TRIMMED_CSV_FIXTURES: dict[tuple[str, str], str] = {
     # Unit 3 — buildings (energy combustion + rooms)
     ("buildings_energycombustions", "data"): "building_energycombustions_smoke.csv",
     ("building_rooms", "data"): "building_rooms_smoke.csv",
+    ("building_rooms", "unknown_room"): "building_rooms_unknown_room.csv",
 }
 
 # Flat-seed fallback map.  Keys mirror the spec's ``(module, kind)``;

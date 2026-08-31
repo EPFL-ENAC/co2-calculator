@@ -11,7 +11,8 @@ from app.core.data_entry_permissions import (
 )
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -53,6 +54,13 @@ class CarbonReportModuleWorkflow:
         submodule the backoffice had switched off. Plan and grant reports are
         exempt: their rows are the user's own scenario, not calculator data
         entry, and the switch is a calculator-side control.
+
+        Every report (Calculator included) carries a ``carbon_project_id``
+        (unit_sync provisions the Calculator project up front, #2487), so the
+        discriminator has to be the project's type, not its presence —
+        mirrors ``check_module_permission_for_report``
+        (``app/core/policy.py``). A missing/unresolvable project doesn't
+        exempt: fail closed, same as an ordinary Calculator report.
         """
         if is_policy_exempt(data_entry_type):
             return
@@ -65,7 +73,12 @@ class CarbonReportModuleWorkflow:
                 detail="CARBON_REPORT_NOT_FOUND",
             )
         if report.carbon_project_id is not None:
-            return
+            project = await self.session.get(CarbonProject, report.carbon_project_id)
+            is_calculator = project is None or (
+                project.carbon_report_type == CarbonReportType.CALCULATOR
+            )
+            if not is_calculator:
+                return
         if await is_submodule_inputs_deactivated(
             self.session,
             report.year,

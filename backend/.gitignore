@@ -72,3 +72,7 @@ dmypy.json
 
 files_storage/
 coverage.xml
+
+# Load-test artifacts (#2295)
+tests/performance/reports/
+tests/performance/dumps/

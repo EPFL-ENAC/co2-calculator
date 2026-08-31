@@ -136,6 +136,9 @@ def _wire(
 
     mock_project = MagicMock()
     mock_project.carbon_report_type = carbon_report_type
+    # Explore ownership (#2461) compares created_by to the caller; wire the
+    # caller as owner so these tests keep exercising the module gate itself.
+    mock_project.created_by = user.id
 
     async def mock_db_get(model, key):
         if model is CarbonProject:

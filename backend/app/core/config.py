@@ -93,11 +93,14 @@ class Settings(BaseSettings):
         ),
     )
     DB_POOL_TIMEOUT: int = Field(
-        default=30,
+        default=5,
         ge=1,
         description=(
             "Seconds a request waits for a pooled connection before "
-            "raising QueuePool timeout (ignored for sqlite)."
+            "raising QueuePool timeout (ignored for sqlite). 5 rather "
+            "than SQLAlchemy's 30 (#2572): waiting that long is already a "
+            "failed request, and 30s of spinner before the error tells a "
+            "user nothing 5s did not."
         ),
     )
 

@@ -298,7 +298,12 @@ async def test_headcount_member_post_statement_budget(
 # walks a progressive fallback chain (B1..B4) and _fetch_factors memoizes it
 # only when the caller passes a factor_query_cache, which every bulk path
 # does and no interactive path did.
-STATEMENT_BUDGET = 16
+#
+# 16 → 18 (2026-08-29, #2456): the inputs-deactivated guard was dead code for
+# Calculator reports; keying it off the project's type costs one
+# carbon_projects get plus the year_configuration check it exists for, which
+# now actually runs. Reason recorded in plan 2050 (Ratchet raises).
+STATEMENT_BUDGET = 18
 # One per emission leaf is the ceiling worth defending: factor resolution
 # must not scale with the fallback chain's depth.
 FACTOR_LOOKUP_BUDGET = 1

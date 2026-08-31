@@ -9,7 +9,7 @@ import {
   type ReportStats,
 } from '@/utils/emissionStatsAdapter';
 import { useSimulatorPlansStore } from '@/stores/simulatorPlans';
-import { useWorkspaceStore } from '@/stores/workspace';
+import { useWorkspaceStore, unitSlug } from '@/stores/workspace';
 import {
   useYearConfigStore,
   type YearConfigurationResponse,
@@ -21,6 +21,27 @@ import {
   resolveCarbonProject,
 } from '@/constant/carbon-project';
 import { DEFAULT_ROUTE_NAME, WORKSPACE_ROUTE_NAME } from '@/router/routeNames';
+import { resolveNoWorkspaceRoute } from '@/utils/unauthorized';
+import { pickDefaultYear } from './redirectToDefaultRoute';
+
+/**
+ * True when the route that just failed is exactly what the landing resolver
+ * would pick — `units[0]` plus the newest open year.
+ *
+ * That resolver is deterministic, so redirecting there after failing on its own
+ * pick is a guaranteed round trip straight back here, and the next one, and the
+ * next (#2570). Before the refusal was made soft, the HTTP layer's hard
+ * redirect to /unauthorized hid this by terminating the navigation outright.
+ */
+function isLandingResolverPick(to: RouteLocationNormalized): boolean {
+  const defaultUnit = useWorkspaceStore().units[0];
+  const startedYears = useYearConfigStore().startedYears;
+  if (!defaultUnit || startedYears.size === 0) return false;
+  return (
+    unitSlug(defaultUnit) === to.params.unit &&
+    String(pickDefaultYear(startedYears)) === String(to.params.year)
+  );
+}
 
 async function validateUnit() {
   const workspaceStore = useWorkspaceStore();
@@ -45,6 +66,10 @@ async function validateUnit() {
   // the landing resolver
   workspaceStore.setUnit(null);
   workspaceStore.setYear(null);
+  // Drop the persisted selection too, not just the derived state: it is what
+  // survives a reload, and a unit the user cannot enter must not be handed
+  // back to them as "where you were" (#2570).
+  workspaceStore.setSelectedParams(null);
   return false;
 }
 
@@ -122,6 +147,16 @@ export async function loadWorkspaceFromRoute(to: RouteLocationNormalized) {
   // proceed into Home/Module/Results with the timeline, year-config, and
   // module stores never hydrated.
   if (!response || !carbonReportId) {
+    // Reached with a *valid* unit whose workspace was refused — the #2570
+    // case, where the unit probe answers 200 (allow-all stub, #2379) and the
+    // workspace call 403s. validateUnit() cleared nothing in that path, so
+    // clear here too or the refused unit stays persisted.
+    workspaceStore.setSelectedParams(null);
+    // Bounded to one attempt: the landing resolver cannot rescue a user whose
+    // own default workspace is the one that failed.
+    if (isLandingResolverPick(to)) {
+      return resolveNoWorkspaceRoute('workspace-refused');
+    }
     return {
       name: DEFAULT_ROUTE_NAME,
       params: {

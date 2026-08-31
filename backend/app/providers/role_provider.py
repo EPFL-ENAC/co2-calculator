@@ -53,6 +53,10 @@ class RoleProvider(ABC):
     """
 
     type: UserProvider = UserProvider.DEFAULT
+    # Whether roles can be re-fetched out-of-band (no request context).
+    # False means the DB is the source of truth between logins and
+    # background sync must skip — not treat "nothing fetched" as "no roles".
+    supports_background_sync: bool = True
 
     def map_api_user(self, user_raw: dict) -> User:
         """Map a raw API user dict to User field values."""
@@ -121,6 +125,10 @@ class JwtClaimsRoleProvider(RoleProvider):
     """
 
     type: UserProvider = UserProvider.DEFAULT
+    # Roles come from login-time JWT claims; there is nothing to re-fetch in
+    # a background task. Without this flag, sync read get_user_by_user_id's
+    # empty dict as "user has zero roles now" and silently wiped roles_raw.
+    supports_background_sync: bool = False
 
     async def get_user_by_user_id(self, user_id: str) -> dict[str, Any]:
         """Not implemented for JwtClaimsRoleProvider."""

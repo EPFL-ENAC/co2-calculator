@@ -31,36 +31,39 @@ async def insert_year_configurations(conn):
     # `configuration_completed` is TIMESTAMPTZ. Pass them as distinct
     # parameters so asyncpg can deduce each type unambiguously.
     now_naive = now_tz.replace(tzinfo=None)
-    provider = UserProvider.DEFAULT.name
+    # Year listings are scoped to the caller's provider; TEST covers the
+    # login-test users the locust suite (#2295) authenticates as.
+    providers = [UserProvider.DEFAULT.name, UserProvider.TEST.name]
 
-    for year in YEARS:
-        await conn.execute(
-            """
-            INSERT INTO year_configuration (
+    for provider in providers:
+        for year in YEARS:
+            await conn.execute(
+                """
+                INSERT INTO year_configuration (
+                    year,
+                    provider,
+                    is_started,
+                    configuration_completed,
+                    config,
+                    updated_at
+                )
+                VALUES (
+                    $1,
+                    $2::user_provider_enum,
+                    TRUE,
+                    $3::timestamptz,
+                    '{}'::jsonb,
+                    $4::timestamp
+                )
+                ON CONFLICT (year, provider) DO NOTHING
+                """,
                 year,
                 provider,
-                is_started,
-                configuration_completed,
-                config,
-                updated_at
+                now_tz,
+                now_naive,
             )
-            VALUES (
-                $1,
-                $2::user_provider_enum,
-                TRUE,
-                $3::timestamptz,
-                '{}'::jsonb,
-                $4::timestamp
-            )
-            ON CONFLICT (year, provider) DO NOTHING
-            """,
-            year,
-            provider,
-            now_tz,
-            now_naive,
-        )
 
-    print(f"✓ Year configurations ready for {YEARS} (provider={provider})")
+    print(f"✓ Year configurations ready for {YEARS} (providers={providers})")
 
 
 async def main():

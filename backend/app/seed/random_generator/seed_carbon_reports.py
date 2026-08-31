@@ -12,6 +12,7 @@ Idempotent.
 """
 
 import asyncio
+import os
 import random
 
 import asyncpg
@@ -20,7 +21,8 @@ from app.core.config import get_settings
 from app.core.constants import ModuleStatus
 from app.models.module_type import ALL_MODULE_TYPE_IDS
 
-YEARS = [2023, 2024, 2025]
+# SEED_YEARS="2021 2022 2023 2024 2025" overrides for load-test backdrops (#2295).
+YEARS = [int(y) for y in os.environ.get("SEED_YEARS", "2023 2024 2025").split()]
 
 
 # ============================================================
@@ -55,7 +57,9 @@ async def insert_carbon_projects(conn):
 
     start_year = min(YEARS)
     end_year = max(YEARS)
-    records = [(u_id, "Calculator", start_year, end_year, False) for u_id in unit_ids]
+    # Viewable by members: standard users (OwnScope) can read their unit's
+    # results/home — the realistic mixed-role read scenario (#2295).
+    records = [(u_id, "Calculator", start_year, end_year, True) for u_id in unit_ids]
 
     await conn.execute("""
         CREATE TEMP TABLE tmp_carbon_projects (
@@ -84,7 +88,9 @@ async def insert_carbon_projects(conn):
             end_year,
             is_viewable_by_unit_members
         FROM tmp_carbon_projects
-        ON CONFLICT (unit_id, carbon_report_type) DO NOTHING
+        ON CONFLICT (unit_id, carbon_report_type)
+            WHERE carbon_report_type = 'Calculator'::carbon_report_type_enum
+            DO NOTHING
     """)
 
     rows = await conn.fetch(
@@ -103,9 +109,10 @@ async def insert_carbon_reports(conn, unit_to_project):
     print(f"Creating carbon reports for {len(unit_to_project)} units...")
 
     # `overall_status` is NOT NULL and its default lives on the SQLModel field,
-    # not on the column — a raw INSERT must supply it.
+    # not on the column — a raw INSERT must supply it. Same for `is_grant`,
+    # which is part of uq_carbon_reports_project_year.
     records = [
-        (year, unit_id, project_id, ModuleStatus.NOT_STARTED.value)
+        (year, unit_id, project_id, ModuleStatus.NOT_STARTED.value, False)
         for unit_id, project_id in unit_to_project.items()
         for year in YEARS
     ]
@@ -115,17 +122,20 @@ async def insert_carbon_reports(conn, unit_to_project):
             year INTEGER,
             unit_id INTEGER,
             carbon_project_id INTEGER,
-            overall_status INTEGER
+            overall_status INTEGER,
+            is_grant BOOLEAN
         ) ON COMMIT DROP
     """)
 
     await conn.copy_records_to_table("tmp_carbon_reports", records=records)
 
     inserted = await conn.fetch("""
-        INSERT INTO carbon_reports (year, unit_id, carbon_project_id, overall_status)
-        SELECT year, unit_id, carbon_project_id, overall_status
+        INSERT INTO carbon_reports (
+            year, unit_id, carbon_project_id, overall_status, is_grant
+        )
+        SELECT year, unit_id, carbon_project_id, overall_status, is_grant
         FROM tmp_carbon_reports
-        ON CONFLICT (carbon_project_id, year) DO NOTHING
+        ON CONFLICT (carbon_project_id, year, is_grant) DO NOTHING
         RETURNING id
     """)
 

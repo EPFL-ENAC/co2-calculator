@@ -122,6 +122,7 @@ nav:
       - Emission Type Resolution: backend/emission-type-resolution.md
       - CSV seed formats: backend/csv-seed-formats.md
       - "CSV column inventory": backend/csv-seed-formats/inventory.md
+      - Load Testing: backend/load-testing.md
 
   - Frontend:
       - Overview: frontend/01-overview.md

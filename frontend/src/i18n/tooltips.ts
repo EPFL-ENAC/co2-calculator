@@ -685,8 +685,8 @@ export default {
   // Calculator keeps the `module-…` texts further up in this file.
 
   'planner-project-info-section-title': {
-    en: 'Select whether you want to estimate a project carbon footprint in line with a grant application and/ or for a past, ongoing, or future project.',
-    fr: "Sélectionnez si vous voulez estimer l'empreinte d'un projet en lien avec une demande de financement et/ou pour un projet passé, en cours, ou futur.",
+    en: 'Select whether you want to estimate a project carbon footprint in line with a grant application and/ or for each year of a project.',
+    fr: "Sélectionnez si vous voulez estimer l'empreinte d'un projet en lien avec une demande de financement et/ou pour chaque année d’un projet",
   },
 
   'planner-grant-proposal-title': {
@@ -695,8 +695,8 @@ export default {
   },
 
   'planner-grant-section-title': {
-    en: "Start completing the modules to obtain the carbon footprint estimate for a research project, as required by funding agencies. Please contact co2calculator{'@'}epfl.ch if the agencies ask you for information that you cannot find here.",
-    fr: "Commencez à remplir les sections afin d'obtenir l'estimation de l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter co2calculator{'@'}epfl.ch si les agences vous demandent des informations que vous ne retrouvez pas ici.",
+    en: "Start completing the modules to obtain the carbon footprint estimate for a research project, as required by funding agencies. Please contact co2calculator{'@'}epfl.ch if you do not find necessary information here.",
+    fr: "Commencez à remplir les sections afin d'obtenir l'estimation de l'empreinte carbone d'un projet de recherche. Merci de contacter co2calculator{'@'}epfl.ch, si vous ne retrouvez pas ici les informations qui vous sont nécessaires",
   },
 
   'planner-grant-module-headcount-title': {
@@ -718,13 +718,13 @@ export default {
     fr: "Ce module permet d'estimer les émissions de gaz à effet de serre liées à vos procédures expérimentales et aux fuites d’équipements dans le cadre de votre projet, par exemple : l'utilisation de CO₂ dans les protocoles de laboratoire, les fuites de SF₆ lors de la gravure, les fuites de gaz fluorés des systèmes de réfrigération, ou l’évaporation d’éthers fluorés pendant la manipulation des échantillons (Scope 1).",
   },
   'planner-grant-module-process-emissions-submodule-process_emissions': {
-    en: 'Please note that the budget associated with your unit’s process emissions is, in most cases, zero. Indeed, these emissions are either included in your purchases, in which case the corresponding budget should be allocated to the purchases category, or funded by central services, in which case they do not fall within your unit scope.',
-    fr: 'Veuillez noter que le budget associé aux émissions de procédés de votre unité est, dans la plupart des cas, égal à zéro. En effet, ces émissions sont soit incluses dans vos achats, et leur budget doit alors être comptabilisé dans cette catégorie, soit financées par les services centraux, auquel cas elles ne font pas partie du périmètre de votre unité.',
+    en: 'Please note that the budget associated with your unit’s process emissions is, in most cases, zero. In fact, these expenses are either included in your purchases and must therefore be recorded under that category, or they are included in purchases made by central services, in which case they do not fall within the scope of your unit.',
+    fr: 'Veuillez noter que le budget associé aux émissions de procédés de votre unité est, dans la plupart des cas, égal à zéro. En effet, ces émissions sont soit incluses dans vos achats et donc doivent être comptabilisées dans cette catégories, soit incluses dans les achats faits par les services centraux auquel cas elles ne font pas parties du périmètre de votre unité.',
   },
 
   'planner-grant-module-buildings-title': {
     en: 'This module allows you to estimate the carbon footprint associated with buildings if your unit uses a decentralized energy source (emissions from energy combustion) (Scope 1), as well as those associated with the rooms (Scope 2: heating, cooling, ventilation, and lighting) specific to your project.',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée aux Bâtiments dans le cas où votre unité utilise une source d'énergie non-centralisée (émissions de combustion d'énergie) (Scope 1) ainsi que celles liées aux locaux (Scope 2: chauffage, climatisation, ventilation et éclairage) spécifique à votre projet.",
+    fr: "Ce module permet d'estimer l'empreinte carbone liée aux Bâtiments dans le cas où votre unité utilise une source d'énergie non-centralisée (Scope 1: émissions de combustion d'énergie) ainsi que celles liées aux locaux (Scope 2: chauffage, climatisation, ventilation et éclairage) spécifique à votre projet.",
   },
   'planner-grant-module-buildings-submodule-building': {
     en: 'Please specify the use of each room in the table to estimate its carbon footprint as part of your project (Scope 2). You can enter the percentage of the reference year or manually add a room.',
@@ -826,8 +826,8 @@ export default {
   // data of that year.
 
   'planner-year-section-title': {
-    en: 'View and complete the estimated carbon impact data by project year here. This data comes from the CO₂ calculator.\n\nIf you would like to grant access to this space to other members of your unit, please assign them the Primary User role in the EPFL accreditation system: https://accred.epfl.ch/.',
-    fr: "Retrouvez et complétez ici les données d'impact carbone estimé par année de projet. Ces données remontent de l'espace calculateur CO₂.\n\n Si vous voulez donner accès à cet espace à d'autres membres de votre unité, veuillez les accréditer comme Utilisateur Principal dans https://accred.epfl.ch/.",
+    en: "Review and complete your project’s annual carbon impact data estimation. This data comes from the CO₂ calculator when the selected year's estimation is completed. You can also fill out the sections manually using forward-looking estimates.\n\n For another person to access this section, they must be accredited as a primary user.",
+    fr: "Retrouvez et complétez ici les données d'impact carbone estimé par année de projet. Ces données remontent de l'espace calculateur CO₂ si l’année sélectionnée a été complétée mais vous pouvez également remplir les sections de manière prospective.\n\n Pour qu’une autre personne puisse avoir accès à cette section, il ou elle doit être accréditée comme utilisateur ou utilisatrice principale.",
   },
 
   'planner-year-module-headcount-title': {

@@ -183,7 +183,7 @@ export default {
     fr: 'Vous êtes utilisateur·rice principal·e',
   },
   co2_calculator_access_principal_body: {
-    en: 'You have access to all active modules. Certain data contains personal and research-related information: please handle it securely and responsibly. If relevant, the head of unit can delegate this role to  memebers of their unit via {provider}.',
+    en: 'You have access to all active modules. Certain data contains personal and research-related information: please handle it securely and responsibly. If relevant, the head of unit can delegate this role to  members of their unit via {provider}.',
     fr: "Vous avez accès à l'ensemble des modules. Certaines données incluent des informations personnelles et liées aux activités de recherche : merci de les traiter de manière sécurisée et responsable. Si besoin, la personne responsable d'unité peut déléguer ce droit via {provider}.",
   },
   co2_calculator_access_cta_standard: {
@@ -221,12 +221,12 @@ export default {
     fr: "Bonjour {name},\n\nJe souhaiterais obtenir un accès principal au Calculateur CO₂ pour l'unité {unit}, afin de pouvoir consulter et modifier tous les modules.\n\nMerci !",
   },
   co2_project_planner_title: {
-    en: 'CO₂ Project Planner',
+    en: 'CO₂ Project planner',
     fr: 'Planificateur de projet CO₂',
   },
   co2_project_planner_description: {
-    en: 'The CO₂ Project Planner, which is accessible after completing the CO₂ calculator, enables you to estimate the carbon footprint of various projects – whether for funding applications or for past, current or future projects – based on the results from the previous year.',
-    fr: `Le Planificateur de projet CO₂, accessible après avoir complété le calculateur CO₂, permet d'estimer l'empreinte carbone de  différents projets, que ce soient pour des demandes de financement ou des projets passés, en cours ou futurs, en s’appuyant sur les résultats obtenus l’année précédente.`,
+    en: 'The CO₂ Project Planner enables you to estimate the carbon footprint of various projects – whether for funding applications or for past, current or future projects – based on the results from the CO₂ calculator.',
+    fr: `Le Planificateur de projet CO₂ permet d'estimer l'empreinte carbone de  différents projets, que ce soient pour des demandes de financement ou des projets passés, en cours ou futurs, en s’appuyant sur les données remontant du calculateur CO₂`,
   },
   co2_project_planner_btn: {
     en: 'Start a project',

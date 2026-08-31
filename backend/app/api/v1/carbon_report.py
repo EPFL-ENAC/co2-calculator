@@ -9,11 +9,13 @@ from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.policy import (
+    require_explore_ownership,
     require_module_unit_scope,
     require_plan_scope_for_report,
     require_unit_access,
 )
 from app.db import SessionLocal
+from app.models.carbon_project import CarbonProject
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import (
@@ -222,6 +224,9 @@ async def get_carbon_report(
         raise HTTPException(status_code=404, detail="Carbon report not found")
     unit = await db.get(Unit, report.unit_id)
     require_unit_access(current_user, unit)
+    if report.carbon_project_id is not None:
+        project = await db.get(CarbonProject, report.carbon_project_id)
+        require_explore_ownership(current_user, project)
     return report
 
 
