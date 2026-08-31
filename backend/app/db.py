@@ -4,10 +4,18 @@ import json
 from collections.abc import AsyncGenerator, Iterable
 
 from opentelemetry.metrics import CallbackOptions, Observation, get_meter
+from sqlalchemy import event
+from sqlalchemy.engine import ExceptionContext
 from sqlalchemy.engine.url import URL, make_url
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
-from sqlalchemy.pool import Pool, QueuePool
+from sqlalchemy.pool import (
+    AsyncAdaptedQueuePool,
+    Pool,
+    PoolProxiedConnection,
+    QueuePool,
+)
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -16,17 +24,101 @@ from app.core.config import Settings, get_settings
 
 settings = get_settings()
 
+# #2572: both DB failure modes were only ever inferred from gauge
+# thresholds, so a burst that started and recovered inside the alert window
+# never fired. Counters make ``increase(...) > 0`` possible instead.
+_pool_timeouts = get_meter(__name__).create_counter(
+    "db.pool.timeouts",
+    unit="{timeout}",
+    description=(
+        "Pool checkouts that gave up waiting for a free connection -- the "
+        "pod-local, recoverable failure mode."
+    ),
+)
+
+_connect_failures = get_meter(__name__).create_counter(
+    "db.connect.failures",
+    unit="{failure}",
+    description=(
+        "Failed attempts to establish a DB connection, by SQLSTATE. 53300 "
+        "(too_many_connections) is the server-wide outage mode."
+    ),
+)
+
+# Postgres answers "the server is full" (SQLSTATE 53300) with four
+# different messages, depending on which limit was reached.
+_TOO_MANY_CONNECTIONS_MESSAGES = (
+    "too many clients already",
+    "remaining connection slots are reserved",
+    "too many connections for role",
+    "too many connections for database",
+)
+
+
+class InstrumentedQueuePool(AsyncAdaptedQueuePool):
+    """Count pool checkout timeouts (#2572).
+
+    ``handle_error`` is the obvious hook and does not work: a checkout
+    timeout never reaches the DBAPI, so no listener on that event ever
+    sees one. ``Pool.connect()`` is the single call every checkout makes,
+    so it counts exactly one timeout per timed-out request -- unlike
+    ``_do_get``, which re-enters itself on the overflow path.
+    """
+
+    def connect(self) -> PoolProxiedConnection:
+        try:
+            return super().connect()
+        except SQLAlchemyTimeoutError:
+            _pool_timeouts.add(1)
+            raise
+
+
+def connect_failure_sqlstate(error: BaseException) -> str:
+    """Label a failed connection attempt for ``db.connect.failures``.
+
+    psycopg drops the SQLSTATE on connection-*establishment* errors: the
+    server's ErrorResponse survives only as message text, so the outage
+    mode has to be recognised from that. Unrecognised failures are still
+    counted, as ``unknown``, rather than dropped.
+    """
+    sqlstate = getattr(error, "sqlstate", None)
+    if sqlstate is not None:
+        return str(sqlstate)
+    message = str(error)
+    if any(marker in message for marker in _TOO_MANY_CONNECTIONS_MESSAGES):
+        return "53300"
+    return "unknown"
+
+
+def count_connect_failure(context: ExceptionContext) -> None:
+    """``handle_error`` fires for every DBAPI error, so narrow it twice.
+
+    An error carrying a connection is a query failing, not a connection
+    refused. A failed ``pool_pre_ping`` is the pool healing itself: since
+    #2566 the server reaps idle backends after 30 min, so every such
+    checkout raises here and then reconnects and succeeds. Counting those
+    would tick this counter all day on a healthy pod. When the reconnect
+    *also* fails, that attempt fires its own event with ``is_pre_ping``
+    false -- which is the one worth counting.
+    """
+    if context.connection is not None or context.is_pre_ping:
+        return
+    label = connect_failure_sqlstate(context.original_exception)
+    _connect_failures.add(1, {"sqlstate": label})
+
 
 def _pool_kwargs(settings: Settings, is_sqlite: bool) -> dict:
-    """Explicit QueuePool sizing for ``create_async_engine`` (#1723).
+    """Explicit QueuePool sizing and class for ``create_async_engine``.
 
     Skipped for sqlite: its dialect uses ``NullPool``/``StaticPool``,
     neither of which accepts ``pool_size``/``max_overflow``/
-    ``pool_timeout`` — passing them raises ``TypeError``.
+    ``pool_timeout`` — passing them raises ``TypeError`` (#1723). That
+    same guard is what keeps the timeout counter a no-op there (#2572).
     """
     if is_sqlite:
         return {}
     return {
+        "poolclass": InstrumentedQueuePool,
         "pool_size": settings.DB_POOL_SIZE,
         "max_overflow": settings.DB_MAX_OVERFLOW,
         "pool_timeout": settings.DB_POOL_TIMEOUT,
@@ -106,6 +198,11 @@ engine = create_async_engine(
     json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
     **_pool_kwargs(settings, is_sqlite),
 )
+
+# Sqlite has no server to run out of connections, and no SQLSTATE to label
+# a failure with -- mirror the sqlite guard the pool kwargs already use.
+if not is_sqlite:
+    event.listen(engine.sync_engine, "handle_error", count_connect_failure)
 
 
 def read_pool_state(pool: Pool) -> dict[str, int] | None:
