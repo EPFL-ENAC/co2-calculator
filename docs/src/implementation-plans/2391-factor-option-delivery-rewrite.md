@@ -92,7 +92,7 @@ mutable during preparation and immutable after — which is what lets decision
   tree (no ingestion-timestamp column exists to use instead).
 - ~~Purchase label i18n schema~~ — settled 2026-08-31: proposition 2
   (translation table), `classification_translations(field_name, value,
-  lang) -> label`. Delivered generically (any handler's
+lang) -> label`. Delivered generically (any handler's
   `classification_fields`) against equipment first, per
   `docs/src/implementation-plans/2401-purchase-label-i18n.md`. Purchase
   itself still needs `kind_label_field = purchase_institutional_description`

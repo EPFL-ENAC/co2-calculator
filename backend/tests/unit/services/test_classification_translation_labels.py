@@ -30,6 +30,7 @@ def _clear_taxonomy_cache():
     yield
     taxonomy_cache.clear()
 
+
 _EQUIPMENT_FACTORS = [
     SimpleNamespace(
         classification={"equipment_class": "Engine", "sub_class": None},
