@@ -50,14 +50,29 @@ class TestProvenanceOf:
     @pytest.mark.parametrize(
         "source",
         [
-            DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value,
             DataEntrySourceEnum.CSV_MODULE_UNIT_SPECIFIC.value,
-            DataEntrySourceEnum.API_MODULE_PER_YEAR.value,
             DataEntrySourceEnum.API_MODULE_UNIT_SPECIFIC.value,
+        ],
+    )
+    def test_unit_specific_ingest_is_user(self, source):
+        """#2453: a CSV/API upload INTO ONE'S OWN module (the job carries
+        carbon_report_module_id → EntityType.MODULE_UNIT_SPECIFIC) is the
+        operator's own data uploaded in bulk — same edit/delete rights as
+        typing the rows in by hand. Only backoffice per-year ingests lock.
+        Regression: Process Emissions CSV rows were uneditable and
+        undeletable for the operator who uploaded them.
+        """
+        assert provenance_of(source) == Provenance.USER
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value,
+            DataEntrySourceEnum.API_MODULE_PER_YEAR.value,
             DataEntrySourceEnum.EXTERNAL_INTEGRATION.value,
         ],
     )
-    def test_any_ingestion_source_is_imported(self, source):
+    def test_backoffice_per_year_ingest_is_imported(self, source):
         assert provenance_of(source) == Provenance.IMPORTED
 
 

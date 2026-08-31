@@ -62,6 +62,42 @@ async def _resolve_room(
     return await BuildingRoomService(session).get_room(room_name=room_name)
 
 
+_KNOWN_ROOM_NAMES_INFO_KEY = "buildings_known_room_names"
+
+
+async def _known_room_names(session: Any) -> set[str]:
+    """All known room names, loaded once per session and cached on
+    ``session.info`` — the CSV provider calls ``enrich_csv_row`` once per row,
+    and rooms CSVs are mostly distinct names, so per-name lookups can't be
+    memoized away; the full set is one cheap names-only query.
+    """
+    names = session.info.get(_KNOWN_ROOM_NAMES_INFO_KEY)
+    if names is None:
+        names = await BuildingRoomService(session).get_room_names()
+        session.info[_KNOWN_ROOM_NAMES_INFO_KEY] = names
+    return names
+
+
+async def _reject_unknown_room(data: dict, session: Any) -> tuple[dict, str | None]:
+    """CSV-time reference check shared by the rooms and embodied-energy
+    handlers (#2253).
+
+    A room absent from the ``BuildingRoom`` ref-data resolves to no surface
+    at compute time, so the entry would persist and silently contribute zero
+    — reject the row instead, mirroring the data→factor and train-station
+    (#1186) checks.
+    """
+    room_name = data.get("room_name")
+    if not room_name:
+        return data, "Missing room_name"
+    if room_name not in await _known_room_names(session):
+        return data, (
+            f"Room {room_name!r} not found in the building rooms reference — "
+            "fix the room_name or upload the building rooms reference CSV first"
+        )
+    return data, None
+
+
 class BuildingRoomModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.buildings
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.building
@@ -72,6 +108,10 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
 
     kind_field: str = "building_name"
     subkind_field: str = "room_type"
+    # A room belongs to exactly one building: a building change clears
+    # room_name (with the subkind room_type) and the row goes incomplete
+    # — no emission rows until a room of the new building is picked (#2501).
+    kind_dependent_fields: tuple[str, ...] = ("room_name",)
     require_subkind_for_factor = False
     require_factor_to_match = False
 
@@ -110,6 +150,13 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         year: int | None = None,
     ) -> dict:
         return await _prefetch_rooms(entries, session)
+
+    async def enrich_csv_row(
+        self,
+        data: dict,
+        session: Any,
+    ) -> tuple[dict, str | None]:
+        return await _reject_unknown_room(data, session)
 
     async def pre_compute(
         self, data_entry: Any, session: Any, *, slice_cache: dict | None = None
@@ -365,6 +412,13 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
         year: int | None = None,
     ) -> dict:
         return await _prefetch_rooms(entries, session)
+
+    async def enrich_csv_row(
+        self,
+        data: dict,
+        session: Any,
+    ) -> tuple[dict, str | None]:
+        return await _reject_unknown_room(data, session)
 
     async def pre_compute(
         self, data_entry: Any, session: Any, *, slice_cache: dict | None = None

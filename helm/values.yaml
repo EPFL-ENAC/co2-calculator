@@ -55,6 +55,14 @@ backend:
     POLLER_INTERVAL_SECONDS: "2" # Seconds between poller sweeps
     POLLER_BATCH_LIMIT: "100" # Max NOT_STARTED jobs dispatched per sweep
     STALE_JOB_TIMEOUT_MINUTES: "5" # RUNNING jobs whose heartbeat is older than this are auto-recovered
+    # #2566: DB_POOL_SIZE is deliberately NOT set here. The chart default
+    # would reach every environment, and 5 is sized from dev measurement
+    # only (peak `checked_out` ~4/pod, 13 fleet-wide) — prod concurrency is
+    # unmeasured, and too small a pool trades idle sockets for per-checkout
+    # connect churn. Set it per environment in the deploy repo's values
+    # (dev: "5"), in BOTH `backend.env` and `worker.env` — the worker
+    # Deployment renders `worker.env`, not `backend.env`. The code default
+    # (10, app/core/config.py) stands everywhere else.
     INGEST_COPY_BATCH_SIZE: "50000" # Rows per COPY batch for bulk CSV data_entries ingest
     ELASTICSEARCH_TIMEOUT: "30" # Key in the existing secret for Elasticsearch timeout
     ELASTICSEARCH_MAX_RETRIES: "3" # Key in the existing secret for Elasticsearch max retries

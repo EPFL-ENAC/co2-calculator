@@ -96,6 +96,15 @@ COPY data_entries (
 """
 
 
+class UnknownSortField(ValueError):
+    """Raised when ``sort_by`` names a column the submodule cannot sort on.
+
+    Its own type (not a bare ValueError) so the route can turn *this* into a
+    400 without also swallowing pydantic's ValidationError — which subclasses
+    ValueError and signals corrupt stored data, i.e. a real 500.
+    """
+
+
 class DataEntryRepository:
     """Repository for data entry database operations."""
 
@@ -682,7 +691,7 @@ class DataEntryRepository:
     def _apply_sort(self, statement, sort_by: str, sort_order: str, sort_map: dict):
         sort_expr = sort_map.get(sort_by)
         if sort_expr is None:
-            raise ValueError(f"Cannot sort by unknown field: {sort_by}")
+            raise UnknownSortField(f"Cannot sort by unknown field: {sort_by}")
         if sort_order.lower() == "asc":
             return statement.order_by(asc(sort_expr))
         else:

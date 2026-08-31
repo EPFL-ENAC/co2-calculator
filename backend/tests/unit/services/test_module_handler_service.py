@@ -138,6 +138,50 @@ def test_clear_no_existing_data_is_noop():
     assert result == {"kind": "new", "subkind": "s"}
 
 
+def test_clear_building_change_clears_room_name_and_room_type():
+    # #2501: the real buildings handler declares room_name as
+    # kind-dependent — a building change with no new room in the request
+    # nulls room_name alongside the subkind (room_type), so the row goes
+    # incomplete instead of keeping the old building's room.
+    handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum.building)
+    existing = {
+        "building_name": "ALO",
+        "room_name": "ALO 123",
+        "room_type": "office",
+    }
+    payload = {**existing, "building_name": "BCH"}
+    result = ModuleHandlerService.clear_dependent_fields_on_kind_change(
+        handler,
+        payload,
+        item_data={"building_name": "BCH"},
+        existing_data=existing,
+    )
+    assert result["room_name"] is None
+    assert result["room_type"] is None
+
+
+def test_clear_building_change_keeps_room_supplied_in_request():
+    handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum.building)
+    item_data = {
+        "building_name": "BCH",
+        "room_name": "BCH 1234",
+        "room_type": "laboratories",
+    }
+    existing = {
+        "building_name": "ALO",
+        "room_name": "ALO 123",
+        "room_type": "office",
+    }
+    result = ModuleHandlerService.clear_dependent_fields_on_kind_change(
+        handler,
+        {**existing, **item_data},
+        item_data=item_data,
+        existing_data=existing,
+    )
+    assert result["room_name"] == "BCH 1234"
+    assert result["room_type"] == "laboratories"
+
+
 # ── get_taxonomy ─────────────────────────────────────────────
 
 

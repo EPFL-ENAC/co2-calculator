@@ -80,7 +80,7 @@ async def test_the_2026_incident_is_a_warning_naming_the_year():
     transformed = await provider.transform_data(rows)
     assert transformed == []
 
-    outcome = await provider._finalize_empty_transform(len(rows))
+    outcome = await provider._finalize_empty_transform(rows)
 
     assert outcome["result"] is IngestionResult.WARNING
     assert outcome["state"] is IngestionState.FINISHED
@@ -105,7 +105,7 @@ async def test_an_anomalous_filter_still_fails_loudly():
     assert await provider.transform_data(rows) == []
 
     with pytest.raises(ValueError) as exc_info:
-        await provider._finalize_empty_transform(len(rows))
+        await provider._finalize_empty_transform(rows)
 
     message = str(exc_info.value)
     assert "9484 row(s) have a positive SUM(amount)" in message
@@ -122,7 +122,45 @@ async def test_a_mix_of_routine_and_anomalous_still_fails():
     assert await provider.transform_data(rows) == []
 
     with pytest.raises(ValueError, match="positive"):
-        await provider._finalize_empty_transform(len(rows))
+        await provider._finalize_empty_transform(rows)
+
+
+@pytest.mark.asyncio
+async def test_client_type_casing_drift_raises_instead_of_wiping_data():
+    """#2457 — if Tableau starts sending "Interne" instead of "INTERNE",
+    every row is dropped under the "client_type" reason. A name-only check
+    would call that routine and wipe the year. No raw row still says
+    "INTERNE", so the field/value no longer matches what we expect: raise,
+    delete nothing.
+    """
+    provider = _provider(2026)
+    rows = [_row(client_type="Interne", date_iso="20260301") for _ in range(500)]
+
+    assert await provider.transform_data(rows) == []
+
+    with pytest.raises(ValueError, match="contact the Tableau team"):
+        await provider._finalize_empty_transform(rows)
+
+    provider._delete_existing_api_entries.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_date_format_drift_raises_instead_of_wiping_data():
+    """#2457 — if date_iso stops being YYYYMMDD (e.g. Tableau switches to
+    DD/MM/YYYY), every row is dropped under the "year" reason. A name-only
+    check would call that routine and wipe the year. None of the internal
+    rows has a plausible 4-digit year prefix, so the date field's format no
+    longer matches what we expect: raise, delete nothing.
+    """
+    provider = _provider(2026)
+    rows = [_row(date_iso="01/03/2026") for _ in range(500)]
+
+    assert await provider.transform_data(rows) == []
+
+    with pytest.raises(ValueError, match="contact the Tableau team"):
+        await provider._finalize_empty_transform(rows)
+
+    provider._delete_existing_api_entries.assert_not_called()
 
 
 @pytest.mark.asyncio

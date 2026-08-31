@@ -141,6 +141,10 @@ class ModuleHandler(Protocol[T]):
     # kind_field fallback match (those rows are implicit averages).
     kind_field_override: str | None = None
     subkind_field: str | None = None
+    # Data-dict keys whose values only make sense under the current kind
+    # (e.g. a room belongs to one building) — cleared on kind change like
+    # the subkind.
+    kind_dependent_fields: tuple[str, ...] = ()
     kind_label_field: str | None = None
     subkind_label_field: str | None = None
     taxonomy_meta_fields: tuple[str, ...] = ()
@@ -239,6 +243,12 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # (e.g. "sub_class"). Used together with kind_field for a more precise
     # factor match. None means the module has no sub-classification.
     subkind_field: str | None = None
+    # Data-dict keys whose stored values only make sense under the current
+    # kind (e.g. buildings' room_name: a room belongs to one building).
+    # Cleared alongside the subkind when the kind changes and the request
+    # does not supply new values — the row becomes incomplete rather than
+    # silently keeping cross-kind data.
+    kind_dependent_fields: tuple[str, ...] = ()
     # Display label override for kind_field shown in the UI/response
     # (e.g. "Equipment class"). Falls back to kind_field when None.
     kind_label_field: str | None = None

@@ -152,6 +152,94 @@ async def test_get_carbon_report_not_found():
         module.CarbonReportService = original
 
 
+def _explore_report_db(report_type, created_by, unit=None):
+    """DB stub returning a fixed report's project by CarbonProject, else unit."""
+    from app.models.carbon_project import CarbonProject
+
+    project = MagicMock()
+    project.carbon_report_type = report_type
+    project.created_by = created_by
+    unit = unit if unit is not None else MagicMock()
+
+    async def _get(model, key):
+        if model is CarbonProject:
+            return project
+        return unit
+
+    db = _db()
+    db.get = AsyncMock(side_effect=_get)
+    return db
+
+
+@pytest.mark.asyncio
+async def test_get_carbon_report_denies_non_creator_explore_by_id():
+    """#2461: a same-unit colleague cannot GET another user's Explore sandbox."""
+    from app.models.carbon_report import CarbonReportType
+
+    report = MagicMock()
+    report.carbon_project_id = 7
+    report.unit_id = 1
+    db = _explore_report_db(CarbonReportType.SIMULATOR_EXPLORE, created_by=1)
+    svc = MagicMock()
+    svc.get = AsyncMock(return_value=report)
+    current_user = MagicMock(id=2)
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: svc
+    try:
+        with patch.object(module, "require_unit_access"):
+            with pytest.raises(HTTPException) as exc:
+                await module.get_carbon_report(7, db, current_user)
+        assert exc.value.status_code == 404
+    finally:
+        module.CarbonReportService = original
+
+
+@pytest.mark.asyncio
+async def test_get_carbon_report_allows_creator_explore_by_id():
+    from app.models.carbon_report import CarbonReportType
+
+    report = MagicMock()
+    report.carbon_project_id = 7
+    report.unit_id = 1
+    db = _explore_report_db(CarbonReportType.SIMULATOR_EXPLORE, created_by=1)
+    svc = MagicMock()
+    svc.get = AsyncMock(return_value=report)
+    current_user = MagicMock(id=1)
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: svc
+    try:
+        with patch.object(module, "require_unit_access"):
+            result = await module.get_carbon_report(7, db, current_user)
+        assert result is report
+    finally:
+        module.CarbonReportService = original
+
+
+@pytest.mark.asyncio
+async def test_get_carbon_report_plan_report_ignores_creator_mismatch():
+    """SIMULATOR_PLAN must stay unaffected by the #2461 Explore ownership gate."""
+    from app.models.carbon_report import CarbonReportType
+
+    report = MagicMock()
+    report.carbon_project_id = 7
+    report.unit_id = 1
+    db = _explore_report_db(CarbonReportType.SIMULATOR_PLAN, created_by=1)
+    svc = MagicMock()
+    svc.get = AsyncMock(return_value=report)
+    current_user = MagicMock(id=2)
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: svc
+    try:
+        with patch.object(module, "require_unit_access"):
+            result = await module.get_carbon_report(7, db, current_user)
+        assert result is report
+    finally:
+        module.CarbonReportService = original
+
+
 # ── list_carbon_report_modules ────────────────────────────────────────────────
 
 
@@ -429,28 +517,102 @@ async def test_get_simulator_explore_null_last_updated_schedules_refresh():
         module.CarbonReportService = original
 
 
-# ── create_simulator_explore_carbon_report ────────────────────────────────────
+# ── put_simulator_explore_carbon_report (#2487) ────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_create_simulator_explore_commits_and_returns():
-    """POST creates explore report and commits."""
+async def test_put_simulator_explore_creates_when_missing():
+    """PUT is idempotent: missing sandbox → workflow creates it, no refresh."""
     db = _db()
+    fresh_ts = int(datetime.now(UTC).timestamp())
     new_report = MagicMock()
-    svc = MagicMock()
-    svc.create_explore = AsyncMock(return_value=new_report)
+    new_report.id = 55
+    new_report.last_updated = fresh_ts
+    workflow = MagicMock()
+    workflow.ensure = AsyncMock(return_value=new_report)
 
-    original = module.CarbonReportService
-    module.CarbonReportService = lambda db: svc
+    background_tasks = MagicMock()
+    background_tasks.add_task = MagicMock()
+
+    original = module.ExploreProvisioningWorkflow
+    module.ExploreProvisioningWorkflow = lambda db: workflow
     try:
         with (
             patch.object(module, "require_unit_access"),
             patch.object(module, "require_module_unit_scope"),
         ):
-            result = await module.create_simulator_explore_carbon_report(
-                1, 2024, db, _user()
+            result = await module.put_simulator_explore_carbon_report(
+                1, 2024, background_tasks, db, _user()
             )
         assert result == new_report
-        db.commit.assert_awaited_once()
+        workflow.ensure.assert_awaited_once()
+        background_tasks.add_task.assert_not_called()
     finally:
-        module.CarbonReportService = original
+        module.ExploreProvisioningWorkflow = original
+
+
+@pytest.mark.asyncio
+async def test_put_simulator_explore_returns_existing_without_recreating():
+    """PUT is idempotent: an existing, fresh sandbox is returned as-is."""
+    db = _db()
+    fresh_ts = int(datetime.now(UTC).timestamp())
+    existing = MagicMock()
+    existing.id = 42
+    existing.last_updated = fresh_ts
+    workflow = MagicMock()
+    workflow.ensure = AsyncMock(return_value=existing)
+
+    background_tasks = MagicMock()
+    background_tasks.add_task = MagicMock()
+
+    original = module.ExploreProvisioningWorkflow
+    module.ExploreProvisioningWorkflow = lambda db: workflow
+    try:
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
+            result = await module.put_simulator_explore_carbon_report(
+                1, 2024, background_tasks, db, _user()
+            )
+        assert result == existing
+        background_tasks.add_task.assert_not_called()
+    finally:
+        module.ExploreProvisioningWorkflow = original
+
+
+@pytest.mark.asyncio
+async def test_put_simulator_explore_schedules_refresh_when_stale():
+    """A stale existing sandbox is returned immediately; refresh is queued."""
+    db = _db()
+    stale_ts = int(datetime.now(UTC).timestamp()) - (25 * 60 * 60)
+    existing = MagicMock()
+    existing.id = 99
+    existing.last_updated = stale_ts
+    workflow = MagicMock()
+    workflow.ensure = AsyncMock(return_value=existing)
+
+    background_tasks = MagicMock()
+    background_tasks.add_task = MagicMock()
+
+    original = module.ExploreProvisioningWorkflow
+    module.ExploreProvisioningWorkflow = lambda db: workflow
+    user = _user()
+    try:
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
+            result = await module.put_simulator_explore_carbon_report(
+                1, 2024, background_tasks, db, user
+            )
+        assert result == existing
+        background_tasks.add_task.assert_called_once_with(
+            module._refresh_explore_background,
+            unit_id=1,
+            old_report_id=99,
+            reference_year=2024,
+            created_by=user.id,
+        )
+    finally:
+        module.ExploreProvisioningWorkflow = original

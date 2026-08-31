@@ -1,7 +1,7 @@
 ---
 name: "🔧 Task"
 about: "Technical or structural work that may group multiple features or enable future work"
-title: "[Task]: "
+title: "[TASK]() "
 labels:
   - enhancement
   - triage

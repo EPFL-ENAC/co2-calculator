@@ -1,10 +1,14 @@
 ---
-status: in-progress
+status: delivered
 issue: 462
-last_updated: 2026-05-26
+last_updated: 2026-08-28
 ---
 
 # PDF Export for Backoffice Reporting — Implementation Plan
+
+> Re-flipped `in-progress` → `delivered` (#2469): `ReportExport.vue` wires
+> `downloadPDF()`, and both `ReportingPrintPage.vue` and
+> `BackofficeResultsPrintPage.vue` exist and are implemented as designed.
 
 Issue: #462 — `feat/462-backoffice-reporting-pdf-exports-of-reports`
 

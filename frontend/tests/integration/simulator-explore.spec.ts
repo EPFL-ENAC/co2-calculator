@@ -1154,10 +1154,10 @@ test.describe('Explorer — Simulation results', () => {
     await report.waitForLoadState();
     expect(report.url()).toMatch(/\/en\/10\/2024\/simulation\/explore\/print$/);
     await expect(
-      report.getByRole('heading', { name: 'CO₂ Simulator - Exploration' }),
+      report.getByRole('heading', { name: 'CO₂ Explorer' }),
     ).toBeVisible({ timeout: 15000 });
     await expect(
-      report.getByText('Simulation carbon footprint 2024').first(),
+      report.getByText('Exploration carbon footprint 2024').first(),
     ).toBeVisible();
     expect(
       plainNumber(

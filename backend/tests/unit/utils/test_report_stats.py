@@ -7,6 +7,8 @@ the cross-report merge used by backoffice views (``merge_report_stats``).
 
 from types import SimpleNamespace
 
+import pytest
+
 from app.core.constants import ModuleStatus
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions.registry import (
@@ -122,6 +124,33 @@ def test_report_stats_merge_and_validation():
     assert report["validated_total"] == 187.0 + 25.0
     assert report["it"]["categories"]["equipment_it"] == 1000.0
     assert abs(report["per_fte"]["buildings_room"] - 30.0 / 10 / 1000) < 1e-12
+
+
+def test_it_share_divides_by_all_validated_buckets():
+    """#2441: dividing by the IT source modules alone read ~100% IT share."""
+    modules = _modules()
+    modules[2].status = ModuleStatus.VALIDATED
+    report = _build_report_stats(modules)
+    # 1000 kg of IT over every validated bucket (1212 kg), not over the IT
+    # source modules alone (1000 kg).
+    assert report["it"]["percentage_of_validated_total"] == pytest.approx(
+        1000.0 / 1212.0 * 100.0
+    )
+
+
+def test_it_share_is_zero_while_no_it_source_is_validated():
+    report = _build_report_stats(_modules())
+    assert report["it"]["percentage_of_validated_total"] == 0.0
+
+
+def test_merged_reports_keep_the_it_share_denominator():
+    modules = _modules()
+    modules[2].status = ModuleStatus.VALIDATED
+    report = _build_report_stats(modules)
+    merged = merge_report_stats([report, report])
+    assert merged["it"]["percentage_of_validated_total"] == pytest.approx(
+        1000.0 / 1212.0 * 100.0
+    )
 
 
 def test_simulator_reports_treat_all_modules_as_validated():

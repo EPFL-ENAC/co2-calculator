@@ -54,12 +54,13 @@ class CarbonProject(CarbonProjectBase, table=True):
     __tablename__ = "carbon_projects"
 
     __table_args__ = (
-        # Three partial unique indexes. ddl_if gates them to Postgres: the
+        # Two partial unique indexes. ddl_if gates them to Postgres: the
         # SQLite unit-test schema is intentionally unconstrained here.
         # One Calculator project per unit; one Simulator_Explore project per
         # (unit_id, created_by) so each user's Explorer sandbox is private
-        # (#2293); a unit may hold multiple Simulator_Plan projects, unique
-        # per (unit_id, name) since the name is a URL identifier.
+        # (#2293). Simulator_Plan names are NOT unique (#2445): the plan id
+        # is the identity (routes use it), the name is display metadata —
+        # an uncommitted name-index conflict once blocked creates for 82 s.
         Index(
             "uq_carbon_projects_unit_type_calculator",
             "unit_id",
@@ -73,13 +74,6 @@ class CarbonProject(CarbonProjectBase, table=True):
             "created_by",
             unique=True,
             postgresql_where=text("carbon_report_type = 'Simulator_Explore'"),
-        ).ddl_if(dialect="postgresql"),
-        Index(
-            "uq_carbon_projects_unit_plan_name",
-            "unit_id",
-            "name",
-            unique=True,
-            postgresql_where=text("carbon_report_type = 'Simulator_Plan'"),
         ).ddl_if(dialect="postgresql"),
     )
 

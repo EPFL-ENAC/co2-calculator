@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 951
-last_updated: 2026-08-24
+last_updated: 2026-08-28
 title: "Edit rights per permissions on each dataset — hardcoded provenance-keyed data-entry permissions"
 summary: "Enforce, per module/submodule, which fields of BackOffice-imported rows vs user-added rows may be edited and whether a row is deletable — keyed on DataEntry.source provenance, matrix hardcoded in code (no DB table, no backoffice UI), enforced in the module mutation workflow and surfaced to the frontend via a per-submodule policy object."
 ---
@@ -207,6 +207,15 @@ reach these routes (layer 1), "concerns only user principal and user
 standard" is satisfied without duplicating role logic.
 
 ### Provenance derivation
+
+> **Amended by #2453 (2026-08-28)** — see
+> [`2453-unit-specific-uploads-are-user-owned.md`](./2453-unit-specific-uploads-are-user-owned.md).
+> The bucketing below read "manual vs uploaded"; the line is actually
+> **per-year vs unit-specific**. A CSV/API upload into one's OWN module
+> (`*_MODULE_UNIT_SPECIFIC`) is the operator's own data and resolves to
+> `USER`. Only backoffice per-year ingests lock. The shipped set is
+> `{USER_MANUAL, CSV_MODULE_UNIT_SPECIFIC, API_MODULE_UNIT_SPECIFIC,
+PLANNER_SNAPSHOT}`.
 
 ```python
 class Provenance(str, Enum):

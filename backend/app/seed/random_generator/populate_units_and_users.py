@@ -13,6 +13,7 @@ in seed_data_entries to hit the target volume.
 
 import asyncio
 import json
+import os
 import random
 
 import asyncpg
@@ -20,12 +21,15 @@ from faker import Faker
 
 from app.core.config import get_settings
 from app.models.user import RoleName, UserProvider
+from app.providers.test_fixtures import TEST_LEAF_UNIT_IIDS
 
 # 500 units × 3 years × 8 module_types × ~67 entries/module ≈ 804k data_entry rows
 # (see seed_data_entries.ENTRIES_PER_MODULE). Keep NUM_USERS between
 # 3 × NUM_UNITS and 15 × NUM_UNITS so distribute_users converges.
-NUM_UNITS = 500
-NUM_USERS = 4000
+# SEED_NUM_UNITS overrides for load-test backdrops (#2295); users follow at
+# 8×units unless SEED_NUM_USERS pins them.
+NUM_UNITS = int(os.environ.get("SEED_NUM_UNITS", "500"))
+NUM_USERS = int(os.environ.get("SEED_NUM_USERS", str(8 * NUM_UNITS)))
 
 USER_ROLES = [
     RoleName.CO2_USER_STD,
@@ -58,7 +62,10 @@ async def get_asyncpg_connection():
 # ============================================================
 
 
-SEEDED_UNIT_LEVEL = 5  # leaf level (lab/team).
+# Level 4 = the leaf labs the workspace surfaces (#930's Unit.level == 4
+# filter in get_user_units); level 5 predates that filter and made seeded
+# units invisible in unit listings.
+SEEDED_UNIT_LEVEL = 4
 
 
 def generate_units():
@@ -68,6 +75,11 @@ def generate_units():
         institutional_code = f"U{i:05d}"
         # cf-style id; RoleScope.institutional_id matches this column.
         institutional_id = f"CF{i:05d}"
+        # The first seeded units take the TEST fixture leaf iids so the
+        # login-test principal/standard roles (scoped to those iids) own
+        # ceiling-loaded units — required for the #2295 role ladder.
+        if i < len(TEST_LEAF_UNIT_IIDS):
+            institutional_id = TEST_LEAF_UNIT_IIDS[i]
         rows.append(
             (
                 institutional_code,
@@ -118,10 +130,22 @@ async def insert_units(conn, rows):
             provider::user_provider_enum,
             TRUE
         FROM tmp_units
+        ON CONFLICT (institutional_id) DO NOTHING
         RETURNING id, institutional_id
     """)
 
-    return {r["institutional_id"]: r["id"] for r in unit_ids}
+    inserted = {r["institutional_id"]: r["id"] for r in unit_ids}
+    # The first units take the TEST fixture iids, which app.seed
+    # .seed_fake_user_unit may already own — DO NOTHING skips those, so read
+    # their ids back rather than dying or silently dropping them.
+    missing = [row[1] for row in rows if row[1] not in inserted]
+    if missing:
+        existing = await conn.fetch(
+            "SELECT id, institutional_id FROM units WHERE institutional_id = ANY($1)",
+            missing,
+        )
+        inserted.update({r["institutional_id"]: r["id"] for r in existing})
+    return inserted
 
 
 # ============================================================
@@ -173,6 +197,12 @@ def generate_users(unit_map):
 
             role = random.choice(USER_ROLES)  # nosec B311
 
+            # Role.on is a discriminated union on "kind" — mirror the shapes
+            # TEST_ROLES uses: standard=OwnScope, principal=UnitScope.
+            scope_kind = "own"
+            if role == RoleName.CO2_USER_PRINCIPAL:
+                scope_kind = "unit"
+
             user_rows.append(
                 (
                     institutional_id,
@@ -184,7 +214,10 @@ def generate_users(unit_map):
                         [
                             {
                                 "role": role.value,
-                                "on": {"institutional_id": unit_iid},
+                                "on": {
+                                    "kind": scope_kind,
+                                    "institutional_id": unit_iid,
+                                },
                             }
                         ]
                     ),
@@ -204,12 +237,15 @@ def generate_users(unit_map):
         user_counter += 1
 
         if role == RoleName.CO2_SUPERADMIN:
-            roles_raw = [{"role": role.value, "on": {"scope": "global"}}]
+            roles_raw = [{"role": role.value, "on": {"kind": "global"}}]
         else:
             roles_raw = [
                 {
                     "role": role.value,
-                    "on": {"affiliation": random.choice(["SB", "STI", "IC", "SV"])},  # nosec B311
+                    "on": {
+                        "kind": "affiliation",
+                        "affiliation": random.choice(["SB", "STI", "IC", "SV"]),  # nosec B311
+                    },
                 }
             ]
 

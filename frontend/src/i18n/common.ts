@@ -14,8 +14,8 @@ export default {
     fr: 'Doit être un nombre entier',
   },
   validation_max_decimals: {
-    en: 'Must have at most {max} decimal place',
-    fr: 'Doit avoir maximum {max} décimale',
+    en: 'Must have at most {count} decimal place | Must have at most {count} decimal places',
+    fr: 'Doit avoir maximum {count} décimale | Doit avoir maximum {count} décimales',
   },
   logo_alt: {
     en: 'Logo EPFL',
@@ -574,5 +574,13 @@ export default {
   reload: {
     en: 'Reload',
     fr: 'Recharger',
+  },
+  later: {
+    en: 'Later',
+    fr: 'Plus tard',
+  },
+  module_options_load_error: {
+    en: 'Options could not be loaded. Try again later.',
+    fr: 'Impossible de charger les options. Réessayez plus tard.',
   },
 };

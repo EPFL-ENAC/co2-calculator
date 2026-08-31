@@ -40,6 +40,13 @@ async def trigger_role_sync_for_user(
             # Get role provider
             role_provider = get_role_provider(user.provider)
 
+            if not role_provider.supports_background_sync:
+                logger.debug(
+                    "Role provider has no out-of-band source; skipping sync",
+                    extra={"user_id": user_id, "provider": str(user.provider)},
+                )
+                return
+
             # Sync roles – provider fetch happens inside service, behind TTL gate
             sync_service = RoleSyncService(session)
             try:

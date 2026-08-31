@@ -36,8 +36,17 @@ test('branchOf: PLANNER_SNAPSHOT (6) is user', () => {
   expect(branchOf(6)).toBe('user');
 });
 
-test('branchOf: any ingestion source is imported', () => {
-  for (const source of [1, 2, 3, 4, 5]) {
+// #2453: an upload into one's OWN module (CSV 2 / API 4) is the operator's
+// own data — same rights as manual entry. Only backoffice per-year ingests
+// (1, 3, 5) lock.
+test('branchOf: unit-specific ingestion source is user', () => {
+  for (const source of [2, 4]) {
+    expect(branchOf(source)).toBe('user');
+  }
+});
+
+test('branchOf: backoffice per-year ingestion source is imported', () => {
+  for (const source of [1, 3, 5]) {
     expect(branchOf(source)).toBe('imported');
   }
 });

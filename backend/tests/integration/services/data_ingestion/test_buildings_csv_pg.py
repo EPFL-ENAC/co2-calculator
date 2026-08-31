@@ -85,7 +85,7 @@ Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -109,6 +109,7 @@ from app.models.unit import Unit
 from app.modules.emissions import EmissionType
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.services.data_ingestion.csv_providers import ModulePerYearCSVProvider
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
 from .conftest import (
@@ -862,5 +863,114 @@ async def test_building_rooms_csv_ingest_drives_chain(pg_dsn):
     recalc = next(c for c in children if c.job_type == "emission_recalc")
     assert recalc.data_entry_type_id == int(DataEntryTypeEnum.building)
     assert recalc.module_type_id == int(ModuleTypeEnum.buildings)
+
+    await engine.dispose()
+
+
+# ── 8. building/rooms CSV unknown-room rejection (#2253) ───────────────
+
+
+def _make_fake_files_store_factory(csv_bytes: bytes):
+    """``make_files_store`` replacement returning an in-memory fake, so the
+    real provider parses ``csv_bytes`` without touching disk.  Same shape as
+    ``test_csv_ingest_matrix_pg.py``'s helper — the rooms DET is not in that
+    matrix (its formula needs the ``BuildingRoom`` ref-data lookup), which is
+    why the real-provider rejection path is driven here instead.
+    """
+    fake = MagicMock()
+    fake.move_file = AsyncMock(return_value=True)
+    fake.get_file = AsyncMock(return_value=(csv_bytes, "text/csv"))
+    fake.file_exists = AsyncMock(return_value=True)
+
+    def _factory():
+        return fake
+
+    return _factory
+
+
+@pytest.mark.asyncio
+async def test_building_rooms_csv_unknown_room_is_rejected_as_row_error(pg_dsn):
+    """#2253 end-to-end: a rooms CSV row whose ``room_name`` is absent from
+    the ``building_rooms`` reference is a hard row error.  The known-room row
+    persists, the unknown-room row does not, and the parent reports WARNING
+    (partial success) rather than SUCCESS — previously the row persisted and
+    silently contributed zero emissions.
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with Sf() as s:
+        seeded = await seeded_year_with_units(s, year=2025, n_units=1)
+        s.add(
+            BuildingRoom(
+                building_location="ECUBLENS",
+                building_name="BC",
+                room_name="BC-150",
+                room_type="office",
+                room_surface_square_meter=10.0,
+            )
+        )
+        await s.commit()
+
+    target_unit = seeded.units[0]
+    target_crm = seeded.modules_by_unit_and_type[
+        (target_unit.id, int(ModuleTypeEnum.buildings))
+    ]
+
+    template = csv_fixture_path("building_rooms", "unknown_room").read_text(
+        encoding="utf-8"
+    )
+    csv_bytes = template.format(
+        unit_institutional_id=target_unit.institutional_id
+    ).encode("utf-8")
+
+    with patch(
+        "app.services.data_ingestion.base_csv_provider.make_files_store",
+        side_effect=_make_fake_files_store_factory(csv_bytes),
+    ):
+        parent, _ = await dispatch_csv_and_wait(
+            session_factory=Sf,
+            file_path="tmp/building_rooms_unknown_room.csv",
+            target_type=TargetType.DATA_ENTRIES,
+            module_type_id=int(ModuleTypeEnum.buildings),
+            data_entry_type_id=int(DataEntryTypeEnum.building),
+            year=2025,
+            ingestion_method=IngestionMethod.csv,
+            provider_class=ModulePerYearCSVProvider,
+        )
+
+    assert parent.state == IngestionState.FINISHED, (
+        f"parent did not finish: state={parent.state} status={parent.status_message!r}"
+    )
+    assert parent.result == IngestionResult.WARNING, (
+        f"1 known + 1 unknown room must be partial success (WARNING); "
+        f"got {parent.result}: {parent.status_message!r}"
+    )
+
+    async with Sf() as s:
+        rows = (
+            (
+                await s.execute(
+                    select(DataEntry).where(
+                        col(DataEntry.carbon_report_module_id) == target_crm.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        # The ingest chain derives one embodied-energy companion per
+        # persisted building entry, so scope the count to the rooms DET.
+        room_rows = [
+            r for r in rows if r.data_entry_type_id == DataEntryTypeEnum.building.value
+        ]
+        assert len(room_rows) == 1, (
+            f"only the known-room row may persist; got "
+            f"{[r.data.get('room_name') for r in room_rows]}"
+        )
+        assert room_rows[0].data.get("room_name") == "BC-150"
+        assert not any(r.data.get("room_name") == "ZZ-999" for r in rows), (
+            "the unknown-room row leaked into the module's entries"
+        )
 
     await engine.dispose()

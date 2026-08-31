@@ -183,6 +183,7 @@ $table-action-delete-hover-bg: rgba(
 ) !default;
 $table-field-hover-bg: rgb(0 0 0 / 4%) !default;
 $table-inline-icon-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+$table-inline-field-padding-x: opt.$tokens-spacing-12 !default;
 
 // Chart Tooltip
 $chart-tooltip-min-width: opt.$tokens-chart-tooltip-min-width !default;

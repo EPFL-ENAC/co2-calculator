@@ -8,7 +8,8 @@ to get you started quickly.
 New contributors follow this workflow:
 
 1. Create or pick an issue describing your fix/feature
-2. Branch from `dev`: `git checkout -b issue-123-feature-name`
+2. Branch from `dev`: `git checkout -b feat/123-feature-name` (prefix matches
+   the issue's label — see [branch prefixes](docs/src/contributing/project-board.md#labels))
 3. Code with tests and documentation
 4. Run `make ci` to validate locally
 5. Push and create PR to `dev`
@@ -36,6 +37,41 @@ cd frontend && make dev  # Frontend on :9000
 ```
 
 See detailed setup in [backend](backend/README.md) and [frontend](frontend/README.md) README files.
+
+## Issue Convention
+
+Issues are opened from a [template](.github/ISSUE_TEMPLATE/) — blank issues are
+disabled. Titles follow one shape:
+
+```
+[PREFIX](Scope) Issue description
+```
+
+`Scope` is what the issue is about — the module or the tool, e.g. `Equipment`,
+`Travel`, `Results`, `BackOffice`, `CI`. The template prefills the prefix and
+the empty parentheses; fill in the scope and write the description after them.
+
+| Prefix    | Use for                                     | Template                  |
+| --------- | ------------------------------------------- | ------------------------- |
+| `[BUG]`   | Something isn't working                     | `bug_report.yaml`         |
+| `[FEAT]`  | Feature requests, and the spec that follows | `feature.yaml`, `feat.md` |
+| `[PERF]`  | Performance improvements                    | `performance.yaml`        |
+| `[SPECS]` | Specification work                          | `specs.md`                |
+| `[TASK]`  | Standalone chores                           | `task.md`                 |
+
+Two templates share `[FEAT]` on purpose: `feature.yaml` is the light form for
+anyone requesting a feature, `feat.md` is the fuller internal spec with an
+implementation plan and success criteria. Pick whichever fits what you know.
+
+A workflow appends the issue number on open, so a finished title reads
+`[BUG](Equipment) Other equipment shows the wrong example (#2518)`. Don't add
+the number by hand — [append-issue-number.yml](.github/workflows/append-issue-number.yml)
+does it, and skips titles that already end in `(#<number>)`.
+
+These conventions apply to new issues; existing titles are left as they are.
+
+The issue's type label also sets your branch prefix — see
+[branch prefixes](docs/src/contributing/project-board.md#labels).
 
 ## Commit Convention
 

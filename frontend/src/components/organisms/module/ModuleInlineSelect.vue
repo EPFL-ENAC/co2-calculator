@@ -5,7 +5,7 @@
       v-else
       :model-value="model"
       :options="currentOptions"
-      :loading="isClass ? loadingClasses : loadingSubclasses"
+      :loading="isLoading"
       :disable="props.disable"
       :title="props.hint ? $t(props.hint) : undefined"
       hide-bottom-space
@@ -16,12 +16,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, toRef } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useEquipmentClassOptions } from '@/composables/useEquipmentClassOptions';
 import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
 import type { Module, ConditionalSubmoduleProps } from '@/constant/modules';
+import { MODULES, SUBMODULE_BUILDINGS_TYPES } from '@/constant/modules';
 import { useModuleStore } from '@/stores/modules';
+import { useBuildingRoomStore } from '@/stores/building_rooms';
+import type { BuildingRoom } from '@/api/building_rooms';
+import {
+  buildingRoomOptions as mapBuildingRoomOptions,
+  buildingRoomPatchPayload,
+} from '@/utils/buildingRoomInline';
 import { sortByOrder } from '@/utils/options';
 import { resolveFactorYear } from '@/utils/factor-year';
 
@@ -93,6 +100,48 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
     factorYear,
   );
 
+// Buildings room rows: the factor taxonomy's subkinds are room *types*, so
+// the Local column must instead offer the ref-data rooms of the row's
+// current building (#2501) — same source as the form dialog.
+const isBuildingsRoom = computed(
+  () =>
+    props.moduleType === MODULES.Buildings &&
+    props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building,
+);
+const buildingRoomStore = useBuildingRoomStore();
+const buildingRooms = ref<BuildingRoom[]>([]);
+const loadingRooms = ref(false);
+let roomsRequestId = 0;
+
+watch(
+  () =>
+    isBuildingsRoom.value && isSubClass.value && kindFieldId.value
+      ? props.row[kindFieldId.value]
+      : null,
+  async (building) => {
+    if (!building || typeof building !== 'string') {
+      buildingRooms.value = [];
+      return;
+    }
+    const requestId = ++roomsRequestId;
+    loadingRooms.value = true;
+    try {
+      const rooms = await buildingRoomStore.fetchRooms(building);
+      if (requestId !== roomsRequestId) return;
+      buildingRooms.value = rooms;
+    } catch {
+      if (requestId === roomsRequestId) buildingRooms.value = [];
+    } finally {
+      if (requestId === roomsRequestId) loadingRooms.value = false;
+    }
+  },
+  { immediate: true },
+);
+
+const buildingRoomOptions = computed(() =>
+  mapBuildingRoomOptions(buildingRooms.value),
+);
+
 const classOptions = computed(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = dynamicOptions['kind'] ?? [];
@@ -149,15 +198,23 @@ const subClassOptions = computed(() => {
   });
 });
 
-const currentOptions = computed(() =>
-  isClass.value ? classOptions.value : subClassOptions.value,
-);
+const currentOptions = computed(() => {
+  if (isBuildingsRoom.value && isSubClass.value) {
+    return buildingRoomOptions.value;
+  }
+  return isClass.value ? classOptions.value : subClassOptions.value;
+});
+
+const isLoading = computed(() => {
+  if (isBuildingsRoom.value && isSubClass.value) return loadingRooms.value;
+  return isClass.value ? loadingClasses.value : loadingSubclasses.value;
+});
 
 const showPlaceholder = computed(
   () =>
     isSubClass.value &&
-    !loadingSubclasses.value &&
-    subClassOptions.value.length === 0 &&
+    !isLoading.value &&
+    currentOptions.value.length === 0 &&
     !model.value,
 );
 
@@ -177,9 +234,14 @@ async function onValueChange(val: string | number | null) {
   const idNum = Number(props.row.id);
   if (!Number.isFinite(idNum)) return;
 
-  const payload: Record<string, string | number | boolean | null> = {
+  let payload: Record<string, string | number | boolean | null> = {
     [props.fieldId]: val,
   };
+  // Picking a room also carries its ref-data room_type (the form dialog's
+  // autofill) — without it the row would keep the old room's type (#2501).
+  if (isBuildingsRoom.value && isSubClass.value) {
+    payload = buildingRoomPatchPayload(val, buildingRooms.value);
+  }
 
   await moduleStore.patchItem(
     props.moduleType as Module,
@@ -204,7 +266,6 @@ async function onValueChange(val: string | number | null) {
   display: flex;
   align-items: center;
   height: 2.5rem;
-  padding-left: tokens.$spacing-sm;
   color: tokens.$table-color-disabled;
   cursor: default;
 }

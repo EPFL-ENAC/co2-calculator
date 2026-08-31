@@ -1,7 +1,7 @@
 ---
 name: "✨ Feature"
 about: "Develop a user-facing or functional slice ready for review."
-title: "[FEAT]: "
+title: "[FEAT]() "
 labels:
   - enhancement
   - triage

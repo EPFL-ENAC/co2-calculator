@@ -1,12 +1,16 @@
 ---
-status: delivered
+status: in-progress
 issue: 1557
-last_updated: 2026-07-16
+last_updated: 2026-08-28
 title: "ModuleTable.vue decomposition"
 summary: "Break the ~2017-line shared Calculator/planner data-entry table into composables + sub-components, each under the repo's 500-line limit, with no behavior change."
 ---
 
 # ModuleTable.vue decomposition
+
+> Re-flipped `delivered` → `in-progress` (#2469): none of the named
+> deliverables exist and `ModuleTable.vue` is still 2517 lines; the actual
+> decomposition work is tracked at #899.
 
 Follow-up to [#1557](1557-planner-frontend-followups.md) — this fleshes out the
 "`ModuleTable.vue` decomposition" section (A) into an ordered, shippable

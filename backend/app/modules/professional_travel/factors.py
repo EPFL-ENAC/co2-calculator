@@ -2,6 +2,7 @@ from pydantic import ValidationInfo, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.modules.emissions import EmissionType
+from app.modules.professional_travel.emissions import PLANE_CABIN_MAP
 from app.schemas.factor import (
     BaseFactorHandler,
     FactorCreate,
@@ -44,14 +45,9 @@ class _TravelPlaneBaseValidationMixin:
     @field_validator("cabin_class", mode="after")
     @classmethod
     def validate_cabin_class(cls, v: str) -> str:
-        valid_cabin_classes = [
-            "economy",
-            "business",
-            "first",
-        ]
         if not v:
             raise ValueError("Cabin class is required")
-        if v not in valid_cabin_classes:
+        if v not in PLANE_CABIN_MAP:
             raise ValueError("Invalid cabin class")
         return v
 

@@ -481,7 +481,7 @@ const moduleCategoryRows = computed(() => {
 
 const topClassBreakdownData = computed(() => {
   if (!supportsTopClassBreakdown.value) return undefined;
-  const data = moduleStore.state.topClassBreakdown;
+  const data = moduleStore.state.topClassBreakdown[props.type];
   if (!data?.length) return undefined;
   return data as Array<{
     name: string;
