@@ -376,7 +376,7 @@ export const useModuleStore = defineStore('modules', () => {
     travelStatsByClass: Array<Record<string, unknown>>;
     loadingTravelStatsByClass: boolean;
     errorTravelStatsByClass: string | null;
-    topClassBreakdown: Array<Record<string, unknown>>;
+    topClassBreakdown: Record<string, Array<Record<string, unknown>>>; // key: module id
     loadingTopClassBreakdown: boolean;
     errorTopClassBreakdown: string | null;
     tripsMap: TripsMapResponse | null;
@@ -408,7 +408,7 @@ export const useModuleStore = defineStore('modules', () => {
     travelStatsByClass: [],
     loadingTravelStatsByClass: false,
     errorTravelStatsByClass: null,
-    topClassBreakdown: [],
+    topClassBreakdown: reactive({}),
     loadingTopClassBreakdown: false,
     errorTopClassBreakdown: null,
     tripsMap: null,
@@ -1086,35 +1086,68 @@ export const useModuleStore = defineStore('modules', () => {
     await getProfessionalTravelTripsMap(unit, year, true);
   }
 
+  // Keyed by module id: the Results print page shows several top-class
+  // modules' charts at once, so each module keeps its own data, cache key
+  // and in-flight request.
+  const topClassBreakdownCacheKey = reactive<Record<string, string>>({});
+  const topClassBreakdownInFlight = new Map<string, Promise<void>>();
+
+  function makeTopClassCacheKey(
+    unit: number,
+    year: string,
+    combineUnitIds: number[],
+  ): string {
+    const combined = [...combineUnitIds].sort((a, b) => a - b).join(',');
+    return `${unit}|${year}|${combined}|${carbonProject.value}`;
+  }
+
   async function getTopClassBreakdown(
     unit: number,
     year: string,
     moduleId: string,
     combineUnitIds: number[] = [],
   ) {
+    const cacheKey = makeTopClassCacheKey(unit, year, combineUnitIds);
+    if (
+      topClassBreakdownCacheKey[moduleId] === cacheKey &&
+      state.topClassBreakdown[moduleId] !== undefined
+    )
+      return;
+    const inFlightKey = `${moduleId}|${cacheKey}`;
+    const inFlight = topClassBreakdownInFlight.get(inFlightKey);
+    if (inFlight) return inFlight;
+
     state.loadingTopClassBreakdown = true;
     state.errorTopClassBreakdown = null;
-    state.topClassBreakdown = [];
+    state.topClassBreakdown[moduleId] = [];
+    const request = (async () => {
+      try {
+        const basePath = `${await modulePath(moduleId as Module, unit, year)}/top-class-breakdown`;
+        const searchParams = new URLSearchParams();
+        for (const id of combineUnitIds) {
+          searchParams.append('combine_unit_ids', String(id));
+        }
+        const query = searchParams.toString();
+        const path = query ? `${basePath}?${query}` : basePath;
+        const data = await api.get(path).json<Array<Record<string, unknown>>>();
+        state.topClassBreakdown[moduleId] = data;
+        topClassBreakdownCacheKey[moduleId] = cacheKey;
+      } catch (err: unknown) {
+        state.errorTopClassBreakdown =
+          err instanceof Error
+            ? (err.message ?? 'Unknown error')
+            : 'Unknown error';
+        state.topClassBreakdown[moduleId] = [];
+        delete topClassBreakdownCacheKey[moduleId];
+      } finally {
+        state.loadingTopClassBreakdown = false;
+      }
+    })();
+    topClassBreakdownInFlight.set(inFlightKey, request);
     try {
-      const basePath = `${await modulePath(moduleId as Module, unit, year)}/top-class-breakdown`;
-      const searchParams = new URLSearchParams();
-      for (const id of combineUnitIds) {
-        searchParams.append('combine_unit_ids', String(id));
-      }
-      const query = searchParams.toString();
-      const path = query ? `${basePath}?${query}` : basePath;
-      const data = await api.get(path).json<Array<Record<string, unknown>>>();
-      state.topClassBreakdown = data;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        state.errorTopClassBreakdown = err.message ?? 'Unknown error';
-        state.topClassBreakdown = [];
-      } else {
-        state.errorTopClassBreakdown = 'Unknown error';
-        state.topClassBreakdown = [];
-      }
+      await request;
     } finally {
-      state.loadingTopClassBreakdown = false;
+      topClassBreakdownInFlight.delete(inFlightKey);
     }
   }
 
@@ -1133,7 +1166,14 @@ export const useModuleStore = defineStore('modules', () => {
     try {
       const path = `${await modulePath(moduleType, unit, year, carbonReportId)}/top-class-breakdown`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
-      state.topClassBreakdown = data;
+      state.topClassBreakdown[moduleType] = data;
+      // Mutations happen on ModulePage (plain-unit view); pointing the key at
+      // the plain-unit params also invalidates any combined-view cache entry.
+      topClassBreakdownCacheKey[moduleType] = makeTopClassCacheKey(
+        unit,
+        year,
+        [],
+      );
     } catch {
       // keep existing data on error — don't blank the chart
     }
@@ -1177,6 +1217,12 @@ export const useModuleStore = defineStore('modules', () => {
 
   function invalidateEmissionBreakdown() {
     emissionBreakdownCacheKey.value = null;
+  }
+
+  function invalidateTopClassBreakdown() {
+    for (const key of Object.keys(topClassBreakdownCacheKey)) {
+      delete topClassBreakdownCacheKey[key];
+    }
   }
 
   /**
@@ -1383,6 +1429,7 @@ export const useModuleStore = defineStore('modules', () => {
     getEmissionBreakdown,
     getMultiYearReportStats,
     invalidateEmissionBreakdown,
+    invalidateTopClassBreakdown,
     setEmissionBreakdown,
     refreshEmissionBreakdownIfNeeded,
     getItBreakdown,

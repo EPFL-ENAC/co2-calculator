@@ -192,6 +192,7 @@ watch(
     if (done && !wasDone) {
       getData();
       void moduleStore.refreshEmissionBreakdownIfNeeded();
+      moduleStore.invalidateTopClassBreakdown();
     }
   },
 );
