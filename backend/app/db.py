@@ -91,10 +91,17 @@ def connect_failure_sqlstate(error: BaseException) -> str:
 
 
 def count_connect_failure(context: ExceptionContext) -> None:
-    """``handle_error`` fires for every DBAPI error, so narrow it: only an
-    error raised before any connection exists is a connection failure.
+    """``handle_error`` fires for every DBAPI error, so narrow it twice.
+
+    An error carrying a connection is a query failing, not a connection
+    refused. A failed ``pool_pre_ping`` is the pool healing itself: since
+    #2566 the server reaps idle backends after 30 min, so every such
+    checkout raises here and then reconnects and succeeds. Counting those
+    would tick this counter all day on a healthy pod. When the reconnect
+    *also* fails, that attempt fires its own event with ``is_pre_ping``
+    false -- which is the one worth counting.
     """
-    if context.connection is not None:
+    if context.connection is not None or context.is_pre_ping:
         return
     label = connect_failure_sqlstate(context.original_exception)
     _connect_failures.add(1, {"sqlstate": label})

@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 import psycopg
 import pytest
+from sqlalchemy.engine import ExceptionContext
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlalchemy.pool import NullPool, QueuePool
 from sqlalchemy.util import greenlet_spawn
@@ -278,6 +279,7 @@ def test_connect_failure_counted_with_its_sqlstate_label(monkeypatch):
     counter = _RecordingCounter()
     context = SimpleNamespace(
         connection=None,
+        is_pre_ping=False,
         original_exception=psycopg.OperationalError(
             "connection failed: FATAL:  sorry, too many clients already"
         ),
@@ -297,7 +299,40 @@ def test_query_errors_are_not_counted_as_connect_failures(monkeypatch):
     counter = _RecordingCounter()
     context = SimpleNamespace(
         connection=object(),
+        is_pre_ping=False,
         original_exception=psycopg.errors.DivisionByZero("division by zero"),
+    )
+
+    monkeypatch.setattr(db, "_connect_failures", counter)
+
+    count_connect_failure(context)
+
+    assert counter.calls == []
+
+
+def test_failed_pre_ping_is_not_a_connect_failure(monkeypatch):
+    """The pool healing itself, not the server refusing connections: since
+    #2566 the DB reaps idle backends after 30 min, so pre-ping fails and
+    then reconnects and serves the request. Verified against a live engine
+    (pool_pre_ping=True, pooled backend terminated server-side): the event
+    arrives with connection=None and sqlstate 57P01, and the checkout that
+    follows it succeeds. Counting it would tick this counter all day on a
+    healthy pod and make ``increase(...) > 0`` alerting useless.
+
+    The stub context below defines ``is_pre_ping`` itself, so it cannot
+    notice the attribute going away upstream -- hence the first assertion,
+    for the same reason ``_max_overflow`` is pinned above. It reads the
+    annotations because SQLAlchemy declares the field without a value.
+    """
+    assert "is_pre_ping" in ExceptionContext.__annotations__
+
+    counter = _RecordingCounter()
+    context = SimpleNamespace(
+        connection=None,
+        is_pre_ping=True,
+        original_exception=psycopg.errors.AdminShutdown(
+            "terminating connection due to administrator command"
+        ),
     )
 
     monkeypatch.setattr(db, "_connect_failures", counter)

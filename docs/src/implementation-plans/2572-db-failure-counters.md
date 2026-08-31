@@ -44,13 +44,40 @@ It reaches the engine through `_pool_kwargs`, which already returns `{}` for
 sqlite. That is what makes the counter a no-op under `NullPool`/`StaticPool`,
 for free and in the same place as the existing guard.
 
-### `db.connect.failures` — `handle_error`, narrowed to `connection is None`
+### `db.connect.failures` — `handle_error`, narrowed twice
 
 `handle_error` _does_ fire for connect failures, and its `ExceptionContext`
-discriminates cleanly. Verified on a live engine:
+discriminates. Verified on a live engine:
 
 - connect failure (closed port) → `context.connection is None`
 - query error (`select 1/0`) → `context.connection` is the `Connection`
+
+`connection is None` alone is **not** enough, and this is the trap in this
+change. The real engine sets `pool_pre_ping=True`, and since #2566 the DB reaps
+idle backends after 30 min — so a stale pooled socket is routine. Verified with
+`pool_pre_ping=True` and the pooled backend terminated server-side:
+
+```
+handle_error: connection=None is_pre_ping=True orig=AdminShutdown sqlstate='57P01'
+second checkout succeeded, select 1 -> 1
+```
+
+That is the pool healing itself, and the request that follows succeeds.
+Counting it would tick the counter all day on a healthy pod and make
+`increase(...) > 0` useless — the exact alert this change exists to enable.
+
+Skipping `is_pre_ping` costs nothing during a real outage: when the reconnect
+also fails, that attempt fires **its own** event with `is_pre_ping` false.
+Verified by killing the pooled backend and setting `connection limit 0` on the
+role in the same breath — the #2566 shape:
+
+```
+connection=None is_pre_ping=True  orig=AdminShutdown     sqlstate='57P01'   <- skipped
+connection=None is_pre_ping=False orig=OperationalError  ...too many connections for role...
+```
+
+Driven through the shipped listener, that scenario counts
+`[(1, {'sqlstate': '53300'})]`, and the healthy reconnect counts nothing.
 
 The listener is registered only when the engine is not sqlite, mirroring
 `_connect_args` / `_pool_kwargs`.
@@ -94,7 +121,8 @@ ever waits.
 - [x] `InstrumentedQueuePool` + `db.pool.timeouts` counter (`backend/app/db.py`),
       wired through `_pool_kwargs` so sqlite skips it.
 - [x] `count_connect_failure` + `db.connect.failures` counter, registered as a
-      `handle_error` listener on `engine.sync_engine` for non-sqlite only.
+      `handle_error` listener on `engine.sync_engine` for non-sqlite only, and
+      narrowed on both `context.connection` and `context.is_pre_ping`.
 - [x] `connect_failure_sqlstate` with the four 53300 messages and the `unknown`
       bucket.
 - [x] `DB_POOL_TIMEOUT` default 30 → 5 (`backend/app/core/config.py`), with
@@ -104,8 +132,9 @@ ever waits.
       timeout driven through `greenlet_spawn` (the async engine's own wrapper
       around every pool call), a successful checkout that must _not_ count, the
       four 53300 messages, the `unknown` fallback, a real `sqlstate` winning
-      over the message, and `handle_error` on an open connection not counting.
-      Both counter tests verified failing with the increments removed.
+      over the message, and `handle_error` neither on an open connection nor on
+      a failed pre-ping counting. All three verified failing with the code they
+      cover removed.
 - [ ] **Prometheus rules.** `DbPoolTimeouts` and `DbConnectionsRefused` on
       `increase(...) > 0` live in EPFL-ENAC/openshift-app-config
       (`overlays/*/monitoring/specific-namespace-alerts.yaml`) and are a
@@ -122,9 +151,14 @@ ever waits.
   local 53300, but the end-to-end path (server full → counter → Prometheus)
   will only be confirmed by the next incident, or by deliberately squeezing
   dev's `max_connections`.
-- **Nothing counts a pool timeout that is retried and succeeds** — there is no
-  such retry today, but if one is ever added the counter starts measuring
-  something other than failed requests.
+- **Neither counter counts a failure that is retried and succeeds.** For
+  connections that is deliberate — `pool_pre_ping` recovery is excluded by
+  design. For timeouts there is no retry today, but if one is ever added the
+  counter stops measuring failed requests.
+- **`DB_POOL_TIMEOUT` may be pinned in the deploy repo.** #2566 sets
+  `DB_POOL_SIZE` explicitly in dev's `backend.env` **and** `worker.env`; if
+  `DB_POOL_TIMEOUT` is set in either, this default change is a no-op there.
+  Check both maps when the alert-rules PR lands.
 
 ## Related
 
