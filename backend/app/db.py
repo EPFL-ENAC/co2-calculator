@@ -4,7 +4,7 @@ import json
 from collections.abc import AsyncGenerator, Iterable
 
 from opentelemetry.metrics import CallbackOptions, Observation, get_meter
-from sqlalchemy.engine.url import make_url
+from sqlalchemy.engine.url import URL, make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import Pool, QueuePool
@@ -33,35 +33,76 @@ def _pool_kwargs(settings: Settings, is_sqlite: bool) -> dict:
     }
 
 
+def _normalize_url(raw: str) -> tuple[URL, bool]:
+    """Pick the async driver for ``DB_URL``, and report which backend it is.
+
+    Extracted for the same reason as ``_pool_kwargs``: the sqlite flag
+    selects both the pool kwargs and the connect args, and it has to be
+    assertable without building a real engine from the ambient environment.
+    """
+    url = make_url(raw)
+    # Backend name, not drivername: the default DB_URL is already
+    # "sqlite+aiosqlite://", which the old ``== "sqlite"`` test missed -- so
+    # sqlite silently took the Postgres branch and got handed libpq's
+    # connect args (#2566).
+    is_sqlite = url.get_backend_name() == "sqlite"
+    if is_sqlite and not url.drivername.endswith("+aiosqlite"):
+        # Add async driver for SQLite
+        url = url.set(drivername="sqlite+aiosqlite")
+
+    if (
+        url.drivername == "postgresql"
+        or url.drivername == "postgres"
+        or url.drivername == "postgresql+psycopg"
+    ) and not url.drivername.endswith("+asyncpg"):
+        # Preserve existing query params and add async_fallback
+        existing_query = dict(url.query)
+        existing_query["async_fallback"] = "true"
+        url = url.set(drivername="postgresql+psycopg", query=existing_query)
+    return url, is_sqlite
+
+
 if settings.DB_URL is None:
     raise ValueError("DB_URL must be set")
-url = make_url(settings.DB_URL)
-is_sqlite = False
-if (
-    url.drivername == "sqlite" or url.drivername == "sqlite3"
-) and not url.drivername.endswith("+aiosqlite"):
-    # Add async driver for SQLite
-    url = url.set(drivername="sqlite+aiosqlite")
-    is_sqlite = True
-
-if (
-    url.drivername == "postgresql"
-    or url.drivername == "postgres"
-    or url.drivername == "postgresql+psycopg"
-) and not url.drivername.endswith("+asyncpg"):
-    # Preserve existing query params and add async_fallback
-    existing_query = dict(url.query)
-    existing_query["async_fallback"] = "true"
-    url = url.set(drivername="postgresql+psycopg", query=existing_query)
+url, is_sqlite = _normalize_url(settings.DB_URL)
 
 # Use the modified url for the engine
 final_db_url = url.render_as_string(hide_password=False)
+
+# #2566: without these a pod cannot tell a dead server from an idle one.
+# When the cluster restarted the network under stage's established
+# connections, every pooled socket became a black hole and probes timed out
+# instead of failing -- the OS default is ~2h before the kernel gives up.
+# Probing every 30s means a pod notices in ~60s and reconnects. This is the
+# client half only; the server reaps its own orphans via the role's
+# tcp_keepalives_* (applied on the DB, not here).
+_PG_KEEPALIVES = {
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 3,
+}
+
+
+def _connect_args(is_sqlite: bool) -> dict:
+    """Driver-specific connect kwargs. Extracted for the same reason as
+    ``_pool_kwargs``: assertable without building a real engine.
+
+    These are not interchangeable -- aiosqlite raises ``TypeError:
+    Connection() got an unexpected keyword argument 'keepalives'`` on the
+    Postgres set, and sqlite3's ``check_same_thread`` is meaningless to
+    libpq.
+    """
+    if is_sqlite:
+        return {"check_same_thread": False}
+    return dict(_PG_KEEPALIVES)
+
 
 engine = create_async_engine(
     final_db_url,  # This has the actual password
     pool_pre_ping=True,  # Verify connections before using them
     # echo=settings.DEBUG,  # Log SQL queries in debug mode
-    connect_args={"check_same_thread": False} if is_sqlite else {},
+    connect_args=_connect_args(is_sqlite),
     json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
     **_pool_kwargs(settings, is_sqlite),
 )
@@ -74,11 +115,17 @@ def read_pool_state(pool: Pool) -> dict[str, int] | None:
     ``size()``/``overflow()``; ``NullPool``/``StaticPool`` (sqlite, tests)
     don't -- there's no pool to observe there, so this returns ``None``
     rather than raising.
+
+    ``checked_in`` is what makes the numbers comparable to
+    ``max_connections`` (#2566): ``checked_out`` alone reads as healthy
+    (13 fleet-wide) while ``checked_in + checked_out`` -- the sockets
+    actually open against Postgres -- is what fills the server.
     """
     if not isinstance(pool, QueuePool):
         return None
     return {
         "checked_out": pool.checkedout(),
+        "checked_in": pool.checkedin(),
         "size": pool.size(),
         "overflow": pool.overflow(),
     }

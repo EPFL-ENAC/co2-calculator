@@ -20,6 +20,7 @@ from app.core.exceptions import (
 )
 from app.core.logging import get_logger, setup_logging
 from app.core.request_origin import RequestOriginMiddleware
+from app.db import engine
 from app.tasks._db_health import DBHealthState, get_db_health_state, is_fresh
 
 # Setup logging
@@ -241,6 +242,13 @@ async def lifespan(app: FastAPI):
             await event_loop_lag_task
         except asyncio.CancelledError:
             logger.info("Event-loop lag probe cancelled successfully")
+
+    # Last, after every loop above has stopped using it (#2566): close the
+    # pool while the pod still has a network. Without this the process exits
+    # with up to DB_POOL_SIZE sockets open, and behind the cluster's SNAT the
+    # FIN never reaches Postgres — which then holds those orphaned backends
+    # until TCP keepalives expire, ~10-20 slots per rollout for hours.
+    await engine.dispose()
 
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 
