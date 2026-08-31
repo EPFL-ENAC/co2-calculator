@@ -28,7 +28,7 @@ const creating = ref(false);
 const confirmDelete = ref(false);
 const planToDelete = ref<SimulatorPlan | null>(null);
 
-const ROWS_PER_PAGE = 10;
+const ROWS_PER_PAGE = 5;
 const pagination = ref({ rowsPerPage: ROWS_PER_PAGE });
 
 function formatPlanDate(dateString: string | null): string {
@@ -163,7 +163,7 @@ onMounted(() => {
         :loading="plansStore.loading"
         row-key="id"
         :hide-pagination="plansStore.plans.length <= ROWS_PER_PAGE"
-        :rows-per-page-options="[10, 25, 50]"
+        :rows-per-page-options="[5, 10, 25, 50]"
         :no-data-label="$t('common_no_items')"
         :rows-per-page-label="$t('rows_per_page')"
       >
