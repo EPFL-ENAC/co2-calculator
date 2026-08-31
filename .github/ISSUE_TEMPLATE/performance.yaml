@@ -1,7 +1,7 @@
 ---
 name: 🐌 Performance Issue
 description: Report slow loading, freezing, or other performance problems
-title: "[Performance]: "
+title: "[PERF]() "
 labels: ["performance", "needs-triage"]
 body:
   - type: markdown
