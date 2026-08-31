@@ -1,7 +1,7 @@
 --- 
 name: "📌 Specs"
 about: "Clarify a product or functional need before breaking it into features or tasks."
-title: "[SPECS]: "
+title: "[SPECS]() "
 labels:
   - enhancement
   - triage
