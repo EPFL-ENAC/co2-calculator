@@ -7,8 +7,15 @@
  */
 import { UNAUTHORIZED_ROUTE_NAME } from '@/router/routeNames';
 
-/** Why a workspace can't be resolved: no assigned unit, or no globally-open year. */
-export type NoWorkspaceReason = 'no-unit' | 'no-open-year';
+/**
+ * Why a workspace can't be resolved: no assigned unit, no globally-open year,
+ * or — `workspace-refused` — the backend refused the one workspace the landing
+ * resolver would pick, so redirecting there again would just bounce (#2570).
+ */
+export type NoWorkspaceReason =
+  | 'no-unit'
+  | 'no-open-year'
+  | 'workspace-refused';
 
 /**
  * Where to send a user when no workspace can be resolved: /unauthorized, tagged
@@ -31,6 +38,7 @@ export function resolveNoWorkspaceRoute(reason: NoWorkspaceReason) {
 const REASON_MESSAGE_KEYS: Record<NoWorkspaceReason, string> = {
   'no-unit': 'unauthorized_no_unit_message',
   'no-open-year': 'unauthorized_no_open_year_message',
+  'workspace-refused': 'unauthorized_workspace_refused_message',
 };
 
 function isNoWorkspaceReason(reason: string): reason is NoWorkspaceReason {

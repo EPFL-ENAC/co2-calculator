@@ -27,6 +27,25 @@ import {
   EXPECTED_URL_PATTERN,
 } from './setup/workspace-refused-unit-mocks';
 
+/**
+ * Second failure mode, and the reason the fix above is not sufficient on its
+ * own: the guard's soft redirect targets the landing resolver, and
+ * `redirectToDefaultRoute` picks `workspaceStore.units[0]` deterministically.
+ * If THAT unit's workspace also fails — 403, or a 200 carrying
+ * `carbon_report_id: null`, which lands in the same `!response ||
+ * !carbonReportId` branch — the resolver hands back the same unit and the
+ * guard redirects again. Unbounded.
+ *
+ * Note this is NOT reachable through a stale localStorage selection:
+ * `redirectToDefaultRoute` never reads `selectedParams`. A stale selection
+ * costs one wasted round trip and then resolves. The bounce needs the default
+ * unit itself to be unusable.
+ *
+ * Before #2570 this was masked: the 403 hard-redirected to /unauthorized from
+ * the HTTP layer, which was a dead end but terminated. Making the refusal soft
+ * is what exposes it.
+ */
+
 test.describe('workspace guard — a refused unit redirects, never /unauthorized (#2570)', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
@@ -69,5 +88,36 @@ test.describe('workspace guard — a refused unit redirects, never /unauthorized
       localStorage.getItem('workspaceLocalStorage'),
     );
     expect(persisted ?? '').not.toContain('996');
+  });
+
+  test('a user whose own default unit is also refused lands somewhere terminal instead of bouncing', async ({
+    page,
+  }) => {
+    const consoleErrors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+
+    const { ownUnitHomeCalls } = await mockRefusedWorkspaceBackend(page, {
+      refuseOwnUnit: true,
+    });
+
+    await page.goto(STALE_WORKSPACE_URL);
+
+    // The app must settle. /unauthorized is the honest destination: the user
+    // has no workspace they can open, and that is a state to show, not to
+    // retry.
+    await expect(page).toHaveURL(/unauthorized/, { timeout: 15000 });
+
+    // The guard may try the resolver's pick once. Trying it repeatedly is the
+    // bug: the resolver is deterministic, so every retry asks the same
+    // question and gets the same answer.
+    expect(ownUnitHomeCalls()).toBeLessThanOrEqual(2);
+
+    // vue-router aborts a redirect cycle with this, which is what an
+    // unbounded bounce looks like from the outside.
+    expect(
+      consoleErrors.filter((e) => /infinite redirection/i.test(e)),
+    ).toHaveLength(0);
   });
 });

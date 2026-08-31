@@ -98,10 +98,36 @@ The `!carbonReportId` branch matters more than the `validateUnit()` one here —
 that is the #2570 path, where the probe answers 200 and the workspace call 403s,
 and it cleared nothing at all.
 
+### The bounce this fix would otherwise introduce
+
+Making the refusal soft exposes a second defect that the hard redirect was
+hiding. `redirectToDefaultRoute` picks `workspaceStore.units[0]` and the newest
+open year — deterministically. If _that_ workspace also fails (403, or a 200
+carrying `carbon_report_id: null`, which lands in the same `!response ||
+!carbonReportId` branch), the guard redirects to the resolver, the resolver hands
+back the same route, and it cycles.
+
+Observed, against a build carrying the two fixes above but not this one: the app
+does not visibly bounce — vue-router aborts the cycle and it **sits on the
+original URL rendering nothing**, which is worse than a redirect loop because
+there is nothing to see.
+
+Bounded with a stateless check: the resolver's pick is knowable from inside the
+guard, so `isLandingResolverPick(to)` asks "is the place I would send you the
+place that just failed?" and returns `/unauthorized?reason=workspace-refused`
+instead. No retry counter, no marker in the query string, no state to keep in
+sync.
+
+`from` cannot be used for this: vue-router keeps `from` as the _original_ route
+through a redirect chain, so it is identical on the second bounce and the tenth.
+
 ## Steps
 
 - [x] `skipErrorCodes: [403, 404]` on the workspace-home request
       (`frontend/src/stores/workspace.ts`).
+- [x] Bound the redirect to one attempt (`isLandingResolverPick` in
+      `router/guards/workspaceGuard.ts`) + new `workspace-refused` reason in
+      `utils/unauthorized.ts` and its i18n message (en + fr, single file).
 - [x] Clear the persisted `selectedParams` on both refusal paths
       (`router/guards/workspaceGuard.ts`); `setSelectedParams` now accepts
       `null`. Asserted in the regression test by reading
@@ -111,8 +137,11 @@ and it cleared nothing at all.
       the app lands on the user's own unit, shows no toast, and never reaches
       `/unauthorized`.
 - [x] `make lint` and `make type-check` green.
-- [ ] Run the integration suite. Not executed here — it needs a production
-      build and the `npm run preview` webServer. `npm run test:e2e -- workspace-refused-unit`.
+- [x] Ran the integration suite (`npx playwright test
+    tests/integration/workspace-refused-unit.spec.ts`) against a real
+      `quasar build` + `vite preview`. Against a build without the bounce
+      guard: 1 passed, 1 failed, stuck on the original URL for the full 15s
+      timeout. With it: 2 passed in 2.3s.
 
 ## Open
 

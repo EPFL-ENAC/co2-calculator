@@ -70,10 +70,24 @@ function buildConfiguredYears() {
 
 export interface RefusedWorkspaceBackend {
   requests: Array<{ method: string; url: string }>;
+  /** How many times the app asked for unit 10's workspace. >2 means it bounced. */
+  ownUnitHomeCalls: () => number;
+}
+
+export interface RefusedWorkspaceOptions {
+  /**
+   * Refuse the user's OWN unit too. The landing resolver picks
+   * `workspaceStore.units[0]` deterministically, so if that unit's workspace
+   * also fails, the guard redirects back to the resolver, which picks the same
+   * unit again — an unbounded bounce. Note this cannot be reached through
+   * localStorage: `redirectToDefaultRoute` never reads `selectedParams`.
+   */
+  refuseOwnUnit?: boolean;
 }
 
 export async function mockRefusedWorkspaceBackend(
   page: Page,
+  options: RefusedWorkspaceOptions = {},
 ): Promise<RefusedWorkspaceBackend> {
   const requests: Array<{ method: string; url: string }> = [];
 
@@ -122,9 +136,19 @@ export async function mockRefusedWorkspaceBackend(
     }),
   );
 
-  // The user's own unit — where the guard's soft redirect must land.
-  await page.route(/.*\/api\/v1\/workspace\/10\/2025\/home$/, (route) =>
-    route.fulfill({
+  // The user's own unit — where the guard's soft redirect must land, unless
+  // the test is exercising the bounce (refuseOwnUnit).
+  await page.route(/.*\/api\/v1\/workspace\/10\/2025\/home$/, (route) => {
+    if (options.refuseOwnUnit) {
+      return route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          detail: 'Permission denied: workspace.read required',
+        }),
+      });
+    }
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
@@ -132,8 +156,8 @@ export async function mockRefusedWorkspaceBackend(
         year_config: null,
         stats: buildReportStats(),
       }),
-    }),
-  );
+    });
+  });
 
   // Session — authGuard calls bootstrap(). Registered LAST = evaluated first.
   // The membership list holds ONLY unit 10: unit 996 is deliberately absent,
@@ -153,5 +177,9 @@ export async function mockRefusedWorkspaceBackend(
     return route.continue();
   });
 
-  return { requests };
+  return {
+    requests,
+    ownUnitHomeCalls: () =>
+      requests.filter((r) => r.url.includes('/workspace/10/2025/home')).length,
+  };
 }
