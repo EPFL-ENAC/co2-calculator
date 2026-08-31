@@ -79,15 +79,33 @@ reproduces this, with or without a database drop.
 Add `skipErrorCodes: [403, 404]` to the `fetchWorkspaceHome` request. One line;
 every other piece of the recovery path already exists and is already correct.
 
-Deliberately **not** done: clearing the persisted `selectedParams` on refusal.
-The redirect re-enters `loadWorkspaceFromRoute`, which overwrites them from the
-new route, so the stale value self-heals on the next successful load. Clearing
-it would be a second mechanism for an outcome the first already guarantees.
+Also clear the persisted `selectedParams` on both refusal paths.
+
+The first version of this plan argued against it — "the redirect re-enters
+`loadWorkspaceFromRoute`, which overwrites them from the new route, so the stale
+value self-heals". That reasoning only covered the **derived** state.
+`validateUnit()`'s failure branch already clears `selectedUnit` and
+`selectedYear`, but `selectedParams` is the one field that is _persisted_
+(`workspaceLocalStorage`) — and it was left pointing at the refused unit.
+
+`ErrorNotFound.vue` reads it back for its "home" link, on a page where no guard
+runs to refresh it. So the stale selection survives a reload and sends the user
+straight back to the unit they cannot enter. Clearing it is not a second
+mechanism: it is finishing the one that already exists, in the same two
+branches.
+
+The `!carbonReportId` branch matters more than the `validateUnit()` one here —
+that is the #2570 path, where the probe answers 200 and the workspace call 403s,
+and it cleared nothing at all.
 
 ## Steps
 
 - [x] `skipErrorCodes: [403, 404]` on the workspace-home request
       (`frontend/src/stores/workspace.ts`).
+- [x] Clear the persisted `selectedParams` on both refusal paths
+      (`router/guards/workspaceGuard.ts`); `setSelectedParams` now accepts
+      `null`. Asserted in the regression test by reading
+      `workspaceLocalStorage` back after the redirect.
 - [x] Regression test: `frontend/tests/integration/workspace-refused-unit.spec.ts` + `setup/workspace-refused-unit-mocks.ts`. Mocks the exact asymmetry from
       the trace — `units/996` 200, `workspace/996/2025/home` 403 — and asserts
       the app lands on the user's own unit, shows no toast, and never reaches
