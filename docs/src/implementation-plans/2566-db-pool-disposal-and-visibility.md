@@ -109,6 +109,11 @@ age out (or be terminated) once.
       with tests for the sqlite guard and the before-first-tick silence.
 - [x] TCP keepalives in the engine's `connect_args` (`backend/app/db.py`),
       pinned by a test.
+- [x] `max_overflow` in `read_pool_state` (#2569) so the saturation panel's
+      denominator is `size + max_overflow` instead of a `+ 5` hardcoded in a
+      Grafana query in another repo. Reads SQLAlchemy's private
+      `_max_overflow`, pinned by an assertion so a rename fails in CI rather
+      than silently in a dashboard.
 - [x] Grafana: `total open (checked_in + checked_out)` and a server-side
       `db.server.connections` series, in all three environments' dashboard
       ConfigMaps (they live in `openshift-app-config`, not outside git as
