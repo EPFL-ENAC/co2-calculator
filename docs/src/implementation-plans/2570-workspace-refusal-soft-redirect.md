@@ -31,8 +31,24 @@ on 1905. They should have landed in 1953.
 
 `validateUnit()` (`router/guards/workspaceGuard.ts`) probes the backend for a
 unit outside the membership list (#2369) via `GET units/{id}`, which answers
-**200** — reading a unit is not permission to open its workspace. The real
-boundary is `GET workspace/{unit}/{year}/home`, one call later.
+**200 — for everyone**. Not because reading a unit is a lesser permission than
+entering it, but because `authz/resource/read` is still the legacy allow-all
+stub (#2379):
+
+```python
+# Legacy/fallback: For resource and unit policies, return basic allow
+"allow": True if filters is not None else True,  # Default allow for now
+```
+
+So the probe authorizes nothing, and #2369's "the backend decides" delegation is
+currently vacuous. Every non-member unit reaches `GET
+workspace/{unit}/{year}/home` — the only call on this path that actually
+enforces anything, via `require_unit_access`.
+
+#2379 predicted this exact incident when it was filed on 2026-08-26:
+
+> the first workspace data call (`require_unit_access`) 403s non-members —
+> **visible refusal via the global 403 handling**, not a silent wrong page
 
 That call, `fetchWorkspaceHome` in `stores/workspace.ts`, was issued **without
 `skipErrorCodes`**. The `afterResponse` hook in `api/http.ts` therefore treated
@@ -91,5 +107,11 @@ it would be a second mechanism for an outcome the first already guarantees.
 
 ## Related
 
-- [#2369](./2369-superadmin-unit-workspace-access.md) — added the backend probe this
-  builds on; fixed `getUnit`, missed `fetchWorkspaceHome`.
+- [#2369](./2369-superadmin-unit-workspace-access.md) — added the backend probe
+  this builds on; fixed `getUnit`, missed `fetchWorkspaceHome`.
+- #2379 — the allow-all read stub that makes the probe answer 200 for everyone,
+  and the `users/units` `limit=100` truncation. Fixing its part 1 turns the
+  probe into real authorization, so refusals move one call earlier onto the
+  `getUnit` path that #2369 already handles. This fix stays necessary either
+  way: it is what makes a refusal on the workspace call a soft redirect rather
+  than a dead end.
