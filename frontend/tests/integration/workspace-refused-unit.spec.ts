@@ -60,5 +60,14 @@ test.describe('workspace guard — a refused unit redirects, never /unauthorized
     expect(
       requests.some((r) => r.url.includes('/workspace/996/2025/home')),
     ).toBe(true);
+
+    // The refused unit must not survive as "where you were": it is the only
+    // persisted field, and ErrorNotFound's home link reads it back on a page
+    // where no guard runs to refresh it. After the redirect it holds the unit
+    // the user actually landed on, never 996.
+    const persisted = await page.evaluate(() =>
+      localStorage.getItem('workspaceLocalStorage'),
+    );
+    expect(persisted ?? '').not.toContain('996');
   });
 });

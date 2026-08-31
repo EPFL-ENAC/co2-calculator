@@ -230,7 +230,11 @@ export const useWorkspaceStore = defineStore(
       selectedYear.value = year;
     }
 
-    function setSelectedParams(params: SelectedParams) {
+    // Nullable: this is the only persisted field (workspaceLocalStorage), so
+    // the guard clears it on refusal rather than leaving a unit the user
+    // cannot enter to be read back by ErrorNotFound's home link on a page
+    // where no guard runs to refresh it (#2570).
+    function setSelectedParams(params: SelectedParams | null) {
       selectedParams.value = params;
     }
     const availableYears = computed(() => {

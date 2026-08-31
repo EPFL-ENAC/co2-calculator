@@ -45,6 +45,10 @@ async function validateUnit() {
   // the landing resolver
   workspaceStore.setUnit(null);
   workspaceStore.setYear(null);
+  // Drop the persisted selection too, not just the derived state: it is what
+  // survives a reload, and a unit the user cannot enter must not be handed
+  // back to them as "where you were" (#2570).
+  workspaceStore.setSelectedParams(null);
   return false;
 }
 
@@ -122,6 +126,11 @@ export async function loadWorkspaceFromRoute(to: RouteLocationNormalized) {
   // proceed into Home/Module/Results with the timeline, year-config, and
   // module stores never hydrated.
   if (!response || !carbonReportId) {
+    // Reached with a *valid* unit whose workspace was refused — the #2570
+    // case, where the unit probe answers 200 (allow-all stub, #2379) and the
+    // workspace call 403s. validateUnit() cleared nothing in that path, so
+    // clear here too or the refused unit stays persisted.
+    workspaceStore.setSelectedParams(null);
     return {
       name: DEFAULT_ROUTE_NAME,
       params: {
