@@ -197,11 +197,10 @@ The i18n index globs the folder, so both locales dropped them together.
   thing) — verifying `$te(opt.value)` isn't live for some _other_ module
   first (e.g. emission-taxonomy enum values like `domestic_waste`) is real
   work on its own.
-- **Purchase server-side typeahead** (#2391 decision 4's remaining job):
-  the form/inline select still loads the full taxonomy for its options —
-  paginated + searchable options are the follow-up that finally stops
-  shipping the ~17.7k-node purchase tree anywhere (the table no longer
-  needs it, see row-level labels above). Lives in #2391's plan, not here.
+- ~~**Purchase server-side typeahead**~~ — delivered later the same day on
+  this same branch after the maintainer pulled it in: see #2391's plan
+  (decision 4) for the record. Purchase pages no longer download the
+  taxonomy tree anywhere.
 - **Headcount** (`sius_code_name`/`_fr`, per charlottegiseleweil's list):
   headcount's handlers set `kind_field = None` — they never go through
   `get_taxonomy_with_etag` at all; `sius_code` labels are consumed

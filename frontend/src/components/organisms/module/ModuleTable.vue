@@ -1271,6 +1271,14 @@ const qCols = computed<TableViewColumn[]>(() => {
   return baseCols;
 });
 
+// #2391 decision 4: a submodule whose kind options are server-searched
+// (`optionsSearch`) never needs the taxonomy tree on the table page —
+// display labels ride each row (#2401) and the form searches per
+// keystroke. Purchase's tree is ~17k nodes; skipping it is the point.
+const kindOptionsServerSearched = computed(() =>
+  (props.moduleFields ?? []).some((f) => f.optionsSearch),
+);
+
 const taxonomyKindLabelMap = computed<Record<string, string>>(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType];
   const map: Record<string, string> = {};
@@ -2130,11 +2138,13 @@ watch(
           year: String(props.year),
           carbonReportId: props.carbonReportId,
         });
-        moduleStore.getSubmoduleTaxonomy(
-          props.moduleType,
-          props.submoduleType,
-          String(props.year),
-        );
+        if (!kindOptionsServerSearched.value) {
+          moduleStore.getSubmoduleTaxonomy(
+            props.moduleType,
+            props.submoduleType,
+            String(props.year),
+          );
+        }
       }
     }
   },
@@ -2159,11 +2169,13 @@ onMounted(async () => {
       year: String(props.year),
       carbonReportId: props.carbonReportId,
     });
-    moduleStore.getSubmoduleTaxonomy(
-      props.moduleType,
-      props.submoduleType,
-      String(props.year),
-    );
+    if (!kindOptionsServerSearched.value) {
+      moduleStore.getSubmoduleTaxonomy(
+        props.moduleType,
+        props.submoduleType,
+        String(props.year),
+      );
+    }
   }
 
   // For professional travel, pre-load headcount members to resolve traveler names

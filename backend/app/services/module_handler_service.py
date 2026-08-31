@@ -21,7 +21,8 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.repositories.classification_translation_repo import (
     ClassificationTranslationRepository,
 )
-from app.schemas.taxonomy import TaxonomyNode
+from app.repositories.factor_repo import FactorRepository
+from app.schemas.taxonomy import FactorOption, TaxonomyNode
 from app.services.factor_service import FactorService
 
 if TYPE_CHECKING:
@@ -83,6 +84,59 @@ class ModuleHandlerService:
             if field not in item_data:
                 update_payload[field] = None
         return update_payload
+
+    async def search_factor_options(
+        self,
+        handler: ModuleHandler,
+        data_entry_type: DataEntryTypeEnum,
+        year: int,
+        query: str,
+        lang: str,
+        limit: int,
+    ) -> list[FactorOption]:
+        """Server-side typeahead over one det's classification values
+        (#2391 decision 4).
+
+        Matches the stored value, the English text, and its translated
+        label; each option's label resolves like the taxonomy builder does
+        (translated -> English text -> bare value). Deliberately uncached:
+        the endpoint exists so clients stop downloading a whole tree.
+        """
+        kind_field = handler.kind_field
+        if kind_field is None:
+            raise ValueError(
+                f"{data_entry_type} has no searchable classification field"
+            )
+        lang = normalize_lang(lang)
+        rows = await FactorRepository(self.session).search_classification_options(
+            data_entry_type,
+            year,
+            kind_field,
+            handler.kind_label_field,
+            query,
+            lang,
+            limit,
+        )
+        translations: dict[str, str] = {}
+        if lang != DEFAULT_LANG:
+            texts = [text for _, text in rows if text]
+            translations = await self.translation_repo.get_labels_for_values(
+                handler.kind_label_field or kind_field, texts, lang
+            )
+        options: list[FactorOption] = []
+        seen: set[str] = set()
+        for value, english_text in rows:
+            # The same value can sit on several factor rows (purchase keeps
+            # one row per additional code) — first hit wins, order is the
+            # repo's relevance order.
+            if value in seen:
+                continue
+            seen.add(value)
+            english = english_text if english_text else value
+            options.append(
+                FactorOption(name=value, label=translations.get(english, english))
+            )
+        return options
 
     async def get_taxonomy(
         self,

@@ -583,4 +583,8 @@ export default {
     en: 'Options could not be loaded. Try again later.',
     fr: 'Impossible de charger les options. Réessayez plus tard.',
   },
+  common_type_to_search: {
+    en: 'Type at least 2 characters to search',
+    fr: 'Tapez au moins 2 caractères pour rechercher',
+  },
 };

@@ -43,6 +43,39 @@ export async function getModuleDataEntriesTaxonomies(
  * `factors/{det}/class-subclass-map` and `factors/{det}/list`, which shipped
  * every emission coefficient alongside the names.
  */
+export interface FactorOption {
+  /** Stored classification value the form submits (purchase: UNSPSC code). */
+  name: string;
+  /** Request-locale display text. */
+  label: string;
+}
+
+/**
+ * Server-side typeahead over one data entry type's classification options
+ * (#2391 decision 4) — for option lists too large to ship as a taxonomy
+ * tree. Matches the stored value, the English label text, and its
+ * translated label; `query` needs at least 2 characters.
+ */
+export async function searchDataEntryOptions(
+  moduleType: string,
+  dataEntry: string,
+  query: string,
+  year: number | string,
+  limit = 50,
+): Promise<FactorOption[]> {
+  const searchParams = new URLSearchParams({
+    query,
+    year: String(year),
+    lang: currentLang(),
+    limit: String(limit),
+  });
+  return api
+    .get(
+      `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(dataEntry)}/options?${searchParams.toString()}`,
+    )
+    .json<FactorOption[]>();
+}
+
 export async function getDataEntryTaxonomy(
   moduleType: string,
   dataEntry: string,

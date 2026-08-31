@@ -33,6 +33,28 @@ class ClassificationTranslationRepository:
         )
         await self.session.execute(stmt)
 
+    async def get_labels_for_values(
+        self, field_name: str, values: list[str], lang: str
+    ) -> dict[str, str]:
+        """``value -> label`` for one field and one page of values.
+
+        Narrow variant of ``get_labels`` for callers that must not pull a
+        whole field's rows (purchase holds ~17k) — #2391 decision 4's
+        typeahead resolves labels for at most one response page.
+        """
+        if not values:
+            return {}
+        rows = (
+            await self.session.exec(
+                select(ClassificationTranslation).where(
+                    col(ClassificationTranslation.field_name) == field_name,
+                    col(ClassificationTranslation.lang) == lang,
+                    col(ClassificationTranslation.value).in_(values),
+                )
+            )
+        ).all()
+        return {row.value: row.label for row in rows}
+
     async def get_labels(
         self, field_names: set[str], lang: str
     ) -> dict[tuple[str, str], str]:

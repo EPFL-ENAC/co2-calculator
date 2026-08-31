@@ -166,6 +166,30 @@
                   @update:model-value="(val) => (form[inp.id] = val)"
                 />
               </template>
+              <!-- #2391 decision 4: an option list too large to ship as a
+                   taxonomy tree (purchase: ~17k UNSPSC codes) searches the
+                   server per keystroke instead. -->
+              <ServerSearchSelectField
+                v-else-if="inp.optionsSearch"
+                :model-value="form[inp.id]"
+                :module-type="String(moduleType)"
+                :submodule-type="String(submoduleType)"
+                :year="factorYear"
+                :initial-option="initialSearchOption(inp)"
+                :label="
+                  $t(`${inp.labelKey || inp.label}`, {
+                    submoduleTitle: $t(`${moduleType}-${submoduleType}`),
+                  })
+                "
+                :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
+                :hint="inp.hint ? $t(inp.hint) : null"
+                :error="!!errors[inp.id]"
+                :error-message="errors[inp.id]"
+                :readonly="isReadOnly(inp)"
+                :disable="inp.disable"
+                :icon="inp.icon"
+                @update:model-value="(val) => (form[inp.id] = val)"
+              />
               <!-- Long option lists: purchases run to thousands of UNSPSC
                    codes, research facilities to ~90 platforms and growing.
                    Both need type-ahead and a loading state; a plain QSelect
@@ -336,6 +360,7 @@ import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from '@/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from '@/components/molecules/NoteDialog.vue';
+import ServerSearchSelectField from '@/components/molecules/ServerSearchSelectField.vue';
 import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
 import HeadcountMemberSelect from '@/components/organisms/module/HeadcountMemberSelect.vue';
 import { calculateDistance } from '@/api/locations';
@@ -686,7 +711,11 @@ const errors = reactive<Record<string, string | null>>({});
 const fieldInteraction = createFieldInteractionTracker();
 
 const kindFieldId = computed(() => {
-  const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
+  // An `optionsSearch` kind field gets its options from the typeahead
+  // endpoint, never from the taxonomy tree (#2391 decision 4).
+  const kindField = visibleFields.value.find(
+    (f) => f.optionsId === 'kind' && !f.optionsSearch,
+  );
   return kindField ? kindField.id : null;
 });
 
@@ -698,9 +727,24 @@ const subkindFieldId = computed(() => {
 });
 
 const kindLabelField = computed(() => {
-  const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
+  const kindField = visibleFields.value.find(
+    (f) => f.optionsId === 'kind' && !f.optionsSearch,
+  );
   return kindField?.optionsLabelField ?? null;
 });
+
+function initialSearchOption(
+  inp: ModuleField,
+): { value: string; label: string } | null {
+  const value = props.rowData?.[inp.id];
+  if (typeof value !== 'string' || value === '') return null;
+  // #2401: the row payload carries the backend-resolved display label per
+  // classification field — the only label source once no tree is fetched.
+  const labels = (props.rowData as Record<string, unknown> | null)?.[
+    'labels'
+  ] as Record<string, string> | null | undefined;
+  return { value, label: labels?.[inp.id] ?? value };
+}
 
 // Factor fields populated on class/subclass selection. Each id must match a
 // key in the factor /values response.
@@ -741,6 +785,9 @@ const {
     classFieldId: kindFieldId.value ?? undefined,
     subClassFieldId: subkindFieldId.value ?? undefined,
     classLabelField: kindLabelField.value ?? undefined,
+    skipClassOptions: visibleFields.value.some(
+      (f) => f.optionsId === 'kind' && f.optionsSearch,
+    ),
     fetchFactorValuesOnChange: true,
     valueFieldIds: factorValueFieldIds,
     defaultValueFieldIds: factorDefaultFieldIds,

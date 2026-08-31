@@ -11,7 +11,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import get_module_type_for_data_entry_type
 from app.models.user import User, UserProvider
 from app.schemas.data_entry import BaseModuleHandler
-from app.schemas.taxonomy import TaxonomyNode
+from app.schemas.taxonomy import FactorOption, TaxonomyNode
 from app.services.module_handler_service import ModuleHandlerService
 from app.services.year_config_service import is_year_started
 
@@ -97,6 +97,18 @@ async def _resolve_module_data_entry_taxonomy(
     Shared by the single-entry and batch routes so both stay one source
     of truth for the module/data-entry validation.
     """
+    data_entry_type = _resolve_data_entry_type(module, data_entry)
+    return await get_taxonomy_for_data_entry_type(
+        response, data_entry_type, year, lang, db, current_user
+    )
+
+
+def _resolve_data_entry_type(module: str, data_entry: str) -> DataEntryTypeEnum:
+    """Path params -> validated data entry type, 404/400 on mismatch.
+
+    Shared by the taxonomy routes and the options typeahead so all of them
+    stay one source of truth for the module/data-entry validation.
+    """
     data_entry_name = data_entry.replace("-", "_")
     data_entry_type = (
         DataEntryTypeEnum[data_entry_name]
@@ -113,9 +125,7 @@ async def _resolve_module_data_entry_taxonomy(
             status_code=400,
             detail=f"Data entry type {data_entry} does not belong to module {module}",
         )
-    return await get_taxonomy_for_data_entry_type(
-        response, data_entry_type, year, lang, db, current_user
-    )
+    return data_entry_type
 
 
 def _not_modified(response: Response) -> Response:
@@ -251,3 +261,52 @@ async def get_taxonomy_for_module_data_entry(
     if if_none_match == cache_entry.etag:
         return _not_modified(response)
     return cache_entry.tree
+
+
+@router.get(
+    "/module/{module}/{data_entry}/options",
+    response_model=list[FactorOption],
+)
+async def search_module_data_entry_options(
+    module: str,
+    data_entry: str,
+    query: str = Query(
+        ...,
+        min_length=2,
+        description=(
+            "Search term (min 2 chars); matches the stored value, the "
+            "English label text, and its translated label"
+        ),
+    ),
+    year: int = Query(
+        default_factory=lambda: datetime.now().year,
+        description="Year whose factors to search",
+    ),
+    lang: str = Query(
+        default="en",
+        description="Locale for option labels and matching (#2401), e.g. 'fr'",
+    ),
+    limit: int = Query(20, ge=1, le=100, description="Maximum options returned"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[FactorOption]:
+    """Server-side typeahead for one data entry's classification options
+    (#2391 decision 4, the shape of ``locations/search``).
+
+    Exists for handlers whose option list is too large to ship as a
+    taxonomy tree (purchase: ~17k codes) but works for any handler with a
+    kind field. Uncached on purpose — responses vary per keystroke, and
+    the point of the endpoint is that clients stop downloading the tree.
+    Authentication is the only gate, same as the taxonomy routes above.
+    """
+    data_entry_type = _resolve_data_entry_type(module, data_entry)
+    handler = BaseModuleHandler.get_by_type(data_entry_type)
+    if handler.kind_field is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Data entry type {data_entry} has no searchable classification",
+        )
+    handler_service = ModuleHandlerService(db)
+    return await handler_service.search_factor_options(
+        handler, data_entry_type, year, query, lang, limit
+    )
