@@ -120,6 +120,18 @@ def read_pool_state(pool: Pool) -> dict[str, int] | None:
     ``max_connections`` (#2566): ``checked_out`` alone reads as healthy
     (13 fleet-wide) while ``checked_in + checked_out`` -- the sockets
     actually open against Postgres -- is what fills the server.
+
+    ``max_overflow`` completes the pod's real ceiling, ``size +
+    max_overflow``. Without it the saturation panel and its alert have to
+    hardcode DB_MAX_OVERFLOW, which lives in a different repo
+    (openshift-app-config) -- and a change on either side would silently
+    move the denominator. ``overflow()`` is not that number: it is
+    ``_overflow``, a *count* of connections created beyond ``size``,
+    initialised to ``-pool_size``.
+
+    ``_max_overflow`` is private API. The test below pins it against a
+    hand-built QueuePool, so a rename upstream fails loudly here rather
+    than quietly wrong in a dashboard.
     """
     if not isinstance(pool, QueuePool):
         return None
@@ -127,6 +139,7 @@ def read_pool_state(pool: Pool) -> dict[str, int] | None:
         "checked_out": pool.checkedout(),
         "checked_in": pool.checkedin(),
         "size": pool.size(),
+        "max_overflow": pool._max_overflow,
         "overflow": pool.overflow(),
     }
 

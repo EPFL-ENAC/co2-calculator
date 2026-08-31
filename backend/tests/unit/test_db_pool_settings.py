@@ -65,6 +65,12 @@ def test_read_pool_state_reads_queuepool_live_counts():
     ``checked_in`` joined them in #2566: ``checked_in + checked_out`` is
     the count that fills the server's ``max_connections``, and it was the
     series missing from the dashboard during that incident.
+
+    So did ``max_overflow``, which reads SQLAlchemy's private
+    ``_max_overflow``: this assertion is what makes a rename upstream fail
+    here instead of silently moving a dashboard's denominator. Note
+    ``overflow`` is NOT that limit -- it starts at ``-pool_size`` and
+    counts connections created beyond ``size``.
     """
     pool = QueuePool(creator=lambda: None, pool_size=15, max_overflow=5)
 
@@ -74,6 +80,7 @@ def test_read_pool_state_reads_queuepool_live_counts():
         "checked_out": 0,
         "checked_in": 0,
         "size": 15,
+        "max_overflow": 5,
         "overflow": -15,
     }
 
