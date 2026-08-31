@@ -1,5 +1,5 @@
 ---
-status: in-review
+status: in-progress
 issue: 1489
 last_updated: 2026-08-31
 title: "Factor/entry join-key normalization"
