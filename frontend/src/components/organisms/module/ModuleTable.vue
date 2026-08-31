@@ -503,6 +503,7 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from '@/stores/modules';
 import { useFactorsStore } from '@/stores/factors';
+import { kindCellLabel } from '@/utils/classificationLabels';
 import { resolveFactorYear } from '@/utils/factor-year';
 import { useYearConfigStore } from '@/stores/yearConfig';
 import { useAuthStore } from '@/stores/auth';
@@ -1393,9 +1394,15 @@ function renderCell(
     const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
     return $te(key) ? $t(key) : val;
   }
-  // Factor-sourced kind/subkind: look up label from taxonomy
+  // Factor-sourced kind/subkind: the row's backend-resolved label first
+  // (#2401), then the taxonomy label map, then the stored value
   if (col.optionsId === 'kind' && typeof val === 'string') {
-    return taxonomyKindLabelMap.value[val] ?? val;
+    return kindCellLabel(
+      row['labels'] as unknown as Record<string, string> | null | undefined,
+      col.field,
+      taxonomyKindLabelMap.value,
+      val,
+    );
   }
   if (typeof val === 'string') return val;
   if (typeof val === 'number') {

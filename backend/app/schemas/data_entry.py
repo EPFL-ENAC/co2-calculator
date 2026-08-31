@@ -95,6 +95,11 @@ class DataEntryResponse(DataEntryBase):
     # app.core.data_entry_permissions). Not module-specific, so it belongs on
     # the generic response, unlike DataEntryResponseGen's own copy below.
     source: int | None = None
+    # #2401: request-locale display labels per classification field (e.g.
+    # {"purchase_institutional_code": "Outils électriques"}). The stored
+    # value stays the row's identity; this is presentation only. Absent when
+    # nothing differs from the stored value.
+    labels: dict[str, str] | None = None
 
 
 class DataEntryResponseGen(DataEntryBase):
@@ -102,6 +107,8 @@ class DataEntryResponseGen(DataEntryBase):
 
     id: int
     source: int | None = None
+    # #2401: see DataEntryResponse.labels above.
+    labels: dict[str, str] | None = None
     note: str | None = None
     # Planner snapshot rows only: the source (reference-year) entry's emissions,
     # i.e. the 100% baseline the "% of reference year" slider scales from. Null

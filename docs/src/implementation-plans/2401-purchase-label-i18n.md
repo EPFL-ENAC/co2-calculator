@@ -165,11 +165,29 @@ to the code explicitly when the label is blank (what pre-#2401 users saw
 for those rows); regression test parametrized over en/fr in
 `tests/unit/services/test_classification_translation_labels.py`.
 
-**No Vue component changes.** `ModuleForm.vue`, `ModuleInlineSelect.vue`,
-`ModuleTable.vue`, and `PrintModuleTable.vue` already fall through
-`translation_key`/`$te(opt.value)` (both dead, per the audit above) to
-`taxoOptNode.label` — the exact field the backend now serves localized.
-Fixing the label at the source fixes every consumer for free.
+**Row-level labels (2026-08-31, maintainer decision).** Live testing
+surfaced that the table's display path was still frontend-owned for
+purchase: `ModuleTable`'s label map prefers `$te(<code>)` — the 89k-line
+`purchase_factors.ts` — over the backend's `node.label`, and feeding it at
+all means fetching the ~17.7k-node purchase taxonomy per table view. The
+taxonomy is for _form options_ (its actual job); table rows now carry
+their own display text instead: every submodule item gains an optional
+`labels: {field: label}` map (`DataEntryRepository._row_labels`), built
+per page from the already-joined resolved factor (code + label-field
+shape: translated description, English description, or bare code — same
+fallback chain as the taxonomy builder) plus one batched
+translation-table query for self-labeling fields (`labels` present only
+when a translation row exists; English self-labeling rows need nothing).
+`ModuleTable` renders `row.labels[field] ?? taxonomyMap[value] ?? value`
+(`utils/classificationLabels.ts`); `PrintModuleTable` keeps its map (it
+falls through to the backend-localized `node.label`).
+
+**`equipment_factors.ts` and `purchase_factors.ts` are deleted.** The
+equipment file was dead (audit above) and its content now lives in the
+uploaded CSV's `_fr` columns; the purchase file is superseded — table
+cells read `row.labels`, and form/inline selects fall through the (now
+always-missing) `$te` check to the backend-localized `taxoOptNode.label`.
+The i18n index globs the folder, so both locales dropped them together.
 
 ## Deliberately out of scope here
 
@@ -179,11 +197,11 @@ Fixing the label at the source fixes every consumer for free.
   thing) — verifying `$te(opt.value)` isn't live for some _other_ module
   first (e.g. emission-taxonomy enum values like `domestic_waste`) is real
   work on its own.
-- **`equipment_factors.ts` / `purchase_factors.ts` deletion**: kept.
-  `equipment_factors.ts` is the natural backfill source for the CSV's `_fr`
-  column until an operator re-uploads one; `purchase_factors.ts` deletion
-  is #2391 decision 4's remaining job (the server-side typeahead itself),
-  now that the label plumbing it was blocked on has landed.
+- **Purchase server-side typeahead** (#2391 decision 4's remaining job):
+  the form/inline select still loads the full taxonomy for its options —
+  paginated + searchable options are the follow-up that finally stops
+  shipping the ~17.7k-node purchase tree anywhere (the table no longer
+  needs it, see row-level labels above). Lives in #2391's plan, not here.
 - **Headcount** (`sius_code_name`/`_fr`, per charlottegiseleweil's list):
   headcount's handlers set `kind_field = None` — they never go through
   `get_taxonomy_with_etag` at all; `sius_code` labels are consumed
@@ -256,6 +274,15 @@ with a local `DB_URL` active for that reason (it would wipe the local
       `factors.classification`, matching the English description and the
       translated label; regression tests in
       `tests/unit/repositories/test_submodule_filter_translation.py`
+- [x] Row-level labels (2026-08-31): submodule items carry an optional
+      `labels` map built from the resolved factor + one batched
+      translation query; `ModuleTable` renders it first
+      (`utils/classificationLabels.ts`) — the purchase table no longer
+      depends on the taxonomy for display. Tests in the same repo test
+      file + `frontend/tests/unit/classification-labels.spec.ts`
+- [x] `i18n/equipment_factors.ts` and `i18n/purchase_factors.ts` deleted
+      (2026-08-31) — backend labels supersede both; forms fall through to
+      the backend-localized `taxoOptNode.label`
 - [x] Unit tests: CSV collection (blank cell, missing column, null
       classification value), taxonomy label resolution (English skips the
       query, French translates, untranslated falls back, `fr-CH`

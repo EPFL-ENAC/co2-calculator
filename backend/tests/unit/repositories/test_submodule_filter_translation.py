@@ -176,6 +176,9 @@ async def _seed_purchase_module(db_session: AsyncSession) -> int:
         [
             _purchase_entry(module.id, "travel adapter", "27112700"),
             _purchase_entry(module.id, "mounting strips", "44121600"),
+            # No factor row at all for this code — its only display text is
+            # the code itself.
+            _purchase_entry(module.id, "mystery item", "99999999"),
             Factor(
                 emission_type_id=8,
                 data_entry_type_id=DataEntryTypeEnum.other_purchases.value,
@@ -208,11 +211,11 @@ async def _seed_purchase_module(db_session: AsyncSession) -> int:
     return module.id
 
 
-async def _filter_purchase(
-    db_session: AsyncSession, module_id: int, filter: str, lang: str
-) -> list[str]:
+async def _purchase_response(
+    db_session: AsyncSession, module_id: int, filter: str | None, lang: str
+):
     repo = DataEntryRepository(db_session)
-    response = await repo.get_submodule_data(
+    return await repo.get_submodule_data(
         carbon_report_module_id=module_id,
         data_entry_type_id=DataEntryTypeEnum.other_purchases.value,
         limit=100,
@@ -222,6 +225,12 @@ async def _filter_purchase(
         filter=filter,
         lang=lang,
     )
+
+
+async def _filter_purchase(
+    db_session: AsyncSession, module_id: int, filter: str, lang: str
+) -> list[str]:
+    response = await _purchase_response(db_session, module_id, filter, lang)
     return [item.purchase_institutional_code for item in response.items]
 
 
@@ -263,3 +272,71 @@ async def test_english_locale_does_not_match_french_description_label(
     codes = await _filter_purchase(db_session, module_id, "outils", "en")
 
     assert codes == []
+
+
+@pytest.mark.asyncio
+async def test_rows_carry_localized_labels_for_code_shape(
+    db_session: AsyncSession,
+):
+    """#2401: table rows carry their own display label for the code +
+    label-field shape — French when a translation row exists, the English
+    description otherwise, the bare code when no factor text exists — so
+    the frontend renders without fetching the (huge) purchase taxonomy.
+    """
+    module_id = await _seed_purchase_module(db_session)
+
+    response = await _purchase_response(db_session, module_id, None, "fr")
+
+    labels = {i.purchase_institutional_code: i.labels for i in response.items}
+    assert labels["27112700"] == {"purchase_institutional_code": "Outils électriques"}
+    assert labels["44121600"] == {"purchase_institutional_code": "Adhesives"}
+    assert labels["99999999"] == {"purchase_institutional_code": "99999999"}
+
+
+@pytest.mark.asyncio
+async def test_rows_carry_english_description_labels(db_session: AsyncSession):
+    """lang=en still needs the label on the row: the description lives on
+    the factor, not on the entry.
+    """
+    module_id = await _seed_purchase_module(db_session)
+
+    response = await _purchase_response(db_session, module_id, None, "en")
+
+    labels = {i.purchase_institutional_code: i.labels for i in response.items}
+    assert labels["27112700"] == {"purchase_institutional_code": "Power tools"}
+
+
+@pytest.mark.asyncio
+async def test_self_labeling_rows_labeled_only_when_translated(
+    db_session: AsyncSession,
+):
+    """Self-labeling shape (equipment): the stored value already is the
+    English label, so `labels` appears only where a translation row exists.
+    """
+    module_id = await _seed_equipment_module(db_session)
+    repo = DataEntryRepository(db_session)
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.it.value,
+        limit=100,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+        lang="fr",
+    )
+
+    by_class = {i.equipment_class: i.labels for i in response.items}
+    assert by_class["server"] == {"equipment_class": "serveur"}
+    assert by_class["laptop"] is None
+
+    english = await repo.get_submodule_data(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.it.value,
+        limit=100,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+        lang="en",
+    )
+    assert all(i.labels is None for i in english.items)

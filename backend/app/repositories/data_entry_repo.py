@@ -32,6 +32,9 @@ from app.modules.emissions.registry import (
 from app.modules.headcount.data_entries import OTHER_SIUS_CODE
 from app.modules.professional_travel import MemberEntry
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
+from app.repositories.classification_translation_repo import (
+    ClassificationTranslationRepository,
+)
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import (
     BaseModuleHandler,
@@ -686,6 +689,66 @@ class DataEntryRepository:
             conditions.append(filter_map[code_field].in_(matching_codes))
         return conditions
 
+    async def _page_label_translations(
+        self, handler: Any, lang: str
+    ) -> dict[tuple[str, str], str]:
+        """Translation rows the page's row labels can need (#2401).
+
+        One query per page, never per row. English needs none: the stored
+        value (self-labeling shape) or the resolved factor's label field
+        (code + label-field shape) already is the English text.
+        """
+        if lang == DEFAULT_LANG:
+            return {}
+        field_names = {
+            label_field or code_field
+            for code_field, label_field in (
+                (handler.kind_field, handler.kind_label_field),
+                (handler.subkind_field, handler.subkind_label_field),
+            )
+            if code_field
+        }
+        return await ClassificationTranslationRepository(self.session).get_labels(
+            field_names, lang
+        )
+
+    @staticmethod
+    def _row_labels(
+        handler: Any,
+        data: dict,
+        factor_classification: dict,
+        translations: dict[tuple[str, str], str],
+    ) -> dict[str, str]:
+        """Request-locale display labels for one row's classification values.
+
+        Code + label-field shape (purchase): the text lives on the resolved
+        factor's label field — translated when a row exists, the English
+        description otherwise, the code itself when the factor carries no
+        text (mirrors the taxonomy builder's blank-label fallback).
+        Self-labeling shape: only an actual translation row adds anything —
+        the stored value already is the English label.
+        """
+        labels: dict[str, str] = {}
+        for code_field, label_field in (
+            (handler.kind_field, handler.kind_label_field),
+            (handler.subkind_field, handler.subkind_label_field),
+        ):
+            if not code_field:
+                continue
+            value = data.get(code_field)
+            if value is None or value == "":
+                continue
+            if label_field:
+                english = factor_classification.get(label_field)
+                if english is None or english == "":
+                    english = value
+                labels[code_field] = translations.get((label_field, english), english)
+                continue
+            translated = translations.get((code_field, value))
+            if translated is not None:
+                labels[code_field] = translated
+        return labels
+
     def _apply_name_filter(
         self,
         statement,
@@ -1055,6 +1118,7 @@ class DataEntryRepository:
         )
         is_equipment_entry = data_entry_type_id in EQUIPMENT_DATA_ENTRY_TYPE_IDS
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
+        row_label_translations = await self._page_label_translations(handler, lang)
 
         # Classification-resolved factor in SQL (plan 1661-sql-factor-resolution):
         # used for every handler whose kind lives in entry.data. Travel and
@@ -1589,13 +1653,22 @@ class DataEntryRepository:
                 )
 
             try:
-                items.append(handler.to_response(data_entry, enriched_data))
+                item = handler.to_response(data_entry, enriched_data)
             except ValidationError as exc:
                 raise ValueError(
                     f"data_entry id={data_entry.id} "
                     f"(type={data_entry_type_id}) does not match the "
                     f"response schema"
                 ) from exc
+            row_labels = self._row_labels(
+                handler,
+                data_entry.data,
+                primary_factor_classification,
+                row_label_translations,
+            )
+            if row_labels:
+                item.labels = row_labels
+            items.append(item)
 
         response = SubmoduleResponse(
             id=data_entry_type_id,
