@@ -73,8 +73,8 @@ Si la puissance moyenne (en mode actif ou en veille) de votre équipement est di
     fr: 'ex. : Ordinateur portable, Moniteur',
   },
   [`${MODULES.Equipment}.inputs.name-placeholder-other`]: {
-    en: 'e.g., Freezer, Fridge',
-    fr: 'ex. : Congélateur, Réfrigérateur',
+    en: 'e.g., Vehicles, Kitchen freezer',
+    fr: 'ex. : Véhicules, Congélateur de cuisine',
   },
   [`${MODULES.Equipment}.inputs.class`]: {
     en: 'Class',
