@@ -140,14 +140,34 @@ class UserRepository:
     async def bulk_upsert(self, users: builtins.list[User]) -> UpsertUserResult:
         if not users:
             return UpsertUserResult(created=0, updated=0, total=0, data=[])
-        rows = (await self.session.exec(select(User.institutional_id, User.id))).all()
-        existing: dict[str, int] = {code: uid for code, uid in rows if uid is not None}
+        rows = (
+            await self.session.exec(
+                select(User.institutional_id, User.id, User.roles_raw)
+            )
+        ).all()
+        existing: dict[str, int] = {}
+        stored_roles: dict[str, builtins.list[dict] | None] = {}
+        for code, uid, roles_raw in rows:
+            if uid is None:
+                continue
+            existing[code] = uid
+            stored_roles[code] = roles_raw
 
         created = len(users) - len(existing)
         updated = len(existing)
         merged = []
         for user in users:
             user.id = existing.get(user.institutional_id)
+            if user.roles_raw is None:
+                # A payload carrying no role information must not be read as
+                # "this user has no roles": merge() copies every attribute,
+                # so a None here overwrites the stored roles and zeroes the
+                # user's access (#2531). Unit sync sends exactly such
+                # payloads — `map_api_user` builds `User(**user_raw)` and the
+                # SQLModel constructor silently drops the `roles=` kwarg,
+                # since `roles` is a property over `roles_raw`.
+                # An explicit empty list still clears, as a caller intends.
+                user.roles_raw = stored_roles.get(user.institutional_id)
             result = await self.session.merge(user)
             merged.append(result)
         return UpsertUserResult(

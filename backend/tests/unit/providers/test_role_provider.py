@@ -605,15 +605,20 @@ class TestAccredRoleProvider:
             await provider.get_user_by_user_id(sample_user_id)
 
     @pytest.mark.asyncio
-    async def test_accred_raises_when_every_authorization_is_dropped(
+    async def test_accred_logs_but_does_not_raise_when_all_dropped(
         self, accred_provider, sample_user_id
     ):
         """Pins #2531 hypothesis C: authorizations arrived, none mapped.
 
         The payload below is a plausible Accred schema move (``resource.cf``
         → some new key), which trips the same ``continue`` for every row.
-        Reporting that as "zero roles" would let the caller wipe; it is a
-        contract break and must fail loudly instead.
+
+        It must be logged and it must NOT raise. Login resolves roles through
+        this same call, so raising would turn a user whose only authorization
+        lacks ``cf``/``altname`` — the leading hypothesis for #2531's own 403
+        wave — from "logs in with zero roles" into "locked out behind a 503".
+        Refusing to act on the empty result is ``RoleSyncService``'s job; this
+        layer only has to make the cause visible.
         """
         mock_response = {
             "authorizations": [
@@ -643,8 +648,15 @@ class TestAccredRoleProvider:
             mock_client.get.return_value = mock_response_obj
             mock_client_class.return_value = mock_client
 
-            with pytest.raises(RoleProviderNetworkError):
-                await accred_provider.get_roles_by_user_id(sample_user_id)
+            with patch("app.providers.role_provider.logger") as mock_logger:
+                roles = await accred_provider.get_roles_by_user_id(sample_user_id)
+
+        assert roles == []
+        mock_logger.error.assert_called_once()
+        detail = mock_logger.error.call_args.kwargs["extra"]
+        assert detail["total_authorizations"] == 2
+        # The dropped key is the whole diagnostic: it names the schema move.
+        assert detail["first_resource_keys"] == ["unitcf"]
 
     def test_role_name_prefix_matches_every_role_name(self):
         """Pins #2531: the Accred search filter is derived from RoleName.

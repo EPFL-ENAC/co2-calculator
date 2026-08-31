@@ -39,16 +39,23 @@ class RoleProviderNetworkError(Exception):
     pass
 
 
-def _raise_on_wholesale_drop(
+def _log_wholesale_drop(
     authorizations: list[dict], roles: list[Role], user_id: str
 ) -> None:
-    """Refuse to report "no roles" when every authorization was dropped.
+    """Name the payload when every authorization was dropped.
 
     The mapping loop skips an authorization on four conditions; an Accred
     response-shape change trips them all at once, and "zero roles" then
     reaches the caller as a fact about the user instead of a broken
     contract. The Accred schema has moved before (resource.cf →
-    resource.altname), so name the offending payload and fail (#2531).
+    resource.altname), so log the offending payload's keys (#2531).
+
+    Deliberately does NOT raise. Login calls this same path, so raising
+    would turn a user whose only authorization lacks ``cf``/``altname`` —
+    #2531's own leading hypothesis for the 403 wave — from "logs in with
+    zero roles" into "permanently locked out behind a 503". The protection
+    against acting on the empty result lives in ``RoleSyncService``'s wipe
+    guard; this only has to make the cause visible.
     """
     if roles or not authorizations:
         return
@@ -65,9 +72,6 @@ def _raise_on_wholesale_drop(
             "first_auth_state": first.get("state"),
             "first_resource_keys": sorted(resource.keys()),
         },
-    )
-    raise RoleProviderNetworkError(
-        f"Accred returned {len(authorizations)} authorizations, none usable"
     )
 
 
@@ -666,7 +670,7 @@ class AccredRoleProvider(RoleProvider):
                         )
                     )
 
-            _raise_on_wholesale_drop(authorizations, roles, user_id)
+            _log_wholesale_drop(authorizations, roles, user_id)
 
             logger.info(
                 "Fetched roles from Accred API",
