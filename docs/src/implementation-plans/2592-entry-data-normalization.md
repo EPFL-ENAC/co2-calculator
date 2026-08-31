@@ -50,7 +50,7 @@ Exactly the join keys the shared types normalize, nothing else:
 Non-string values and keys not listed stay untouched. Keys absent from an
 entry are never added.
 
-## Step 1 — read-only audit (no writes)
+## Step 1: read-only audit (no writes)
 
 A script (run with `uv run`, not shipped as an endpoint) that counts, per
 module and per key, how many `data_entries` rows would change, and how
@@ -58,7 +58,7 @@ many of those rows belong to validated entries. Output posted on #2592
 before anything else happens. This tells us the blast radius and gives
 the data manager a chance to veto surprises.
 
-## Step 2 — migration
+## Step 2: migration
 
 One Alembic migration (via `make db-revision`), same shape as
 `09fe9e551783` from #2585:
@@ -80,7 +80,7 @@ In the same PR: delete the defensive `.lower()` in the purchase and
 external cloud compute handlers (they are marked with a comment pointing
 to #2592).
 
-## Step 3 — recompute
+## Step 3: recompute
 
 After deploy, run a recompute scoped to the reports that own at least one
 changed entry (list produced by the migration and stored in the job log).
