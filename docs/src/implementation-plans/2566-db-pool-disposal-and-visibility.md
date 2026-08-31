@@ -48,9 +48,13 @@ ever see them**.
    every loop has stopped using the pool (notably `_pod_heartbeat`'s
    `_delete_pod_row`, which needs a working connection). Closes each socket
    while the pod still has a network.
-2. **`DB_POOL_SIZE: "5"` in `helm/values.yaml`** — measured, not guessed: peak
+2. **`DB_POOL_SIZE: "5"` on dev only** — measured, not guessed: peak
    `checked_out` is ~4/pod. `DB_MAX_OVERFLOW` stays 10, so bursts still reach
    15/pod, and overflow connections are closed on return rather than parked.
+   Deliberately **not** a chart default: this repo's `helm/values.yaml` reaches
+   every environment, and prod concurrency is unmeasured — too small a pool
+   trades idle sockets for per-checkout connect churn. It goes in the deploy
+   repo's dev values, in both `backend.env` and `worker.env`.
 3. **`checked_in` in `read_pool_state`** — `checked_in + checked_out` is the
    count comparable to `max_connections`; it was the missing series.
 4. **`db.server.connections` gauge** — `count(*)` over `pg_stat_activity`,
@@ -82,7 +86,9 @@ instead of ~2 h. `pool_pre_ping=True` (already on) absorbs the reconnects.
 - [x] Regression test: the lifespan swaps in a fresh pool object
       (`backend/tests/unit/test_lifespan_shutdown.py`). Verified failing with
       the line removed, passing with it.
-- [x] `DB_POOL_SIZE: "5"` in `helm/values.yaml` `backend.env`.
+- [ ] `DB_POOL_SIZE: "5"` in the deploy repo's **dev** values (`backend.env`
+      **and** `worker.env`). Not in this repo — `helm/values.yaml` carries only
+      a comment saying why, since a chart default would reach stage and prod.
 - [x] `checked_in` in `read_pool_state` (`backend/app/db.py`) + updated
       assertion in `test_db_pool_settings.py`.
 - [x] `db.server.connections` observable gauge fed by
@@ -97,9 +103,8 @@ instead of ~2 h. `pool_pre_ping=True` (already on) absorbs the reconnects.
 ## Open
 
 - **The worker Deployment renders `worker.env`, not `backend.env`** (see the
-  note in `backend-worker-deployment.yaml`), so `DB_POOL_SIZE: "5"` must also
-  be set in the deploy repo's `worker.env` or the worker keeps the code
-  default of 10.
+  note in `backend-worker-deployment.yaml`), so dev's `DB_POOL_SIZE: "5"` must
+  be set in both maps or the worker keeps the code default of 10.
 - **Dev connection behaviour is now non-representative of stage/prod** until
   the GUCs are either replicated or removed.
 - Two `pods` rows survived their pods (last heartbeat 06:52 and 07:36), which
