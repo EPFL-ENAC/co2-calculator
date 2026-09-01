@@ -33,6 +33,9 @@ class PlannerHeadcountModuleHandler(BaseModuleHandler):
     subkind_field = None
     require_subkind_for_factor = False
     require_factor_to_match = False
+    # Same seeded sius reference labels as the Calculator member handler
+    # (#2401): planner rows search and sort by the label in any locale.
+    translated_code_fields = ("sius_code",)
     filter_map: dict[str, Any] = {
         "sius_code": DataEntry.data["sius_code"].as_string(),
     }

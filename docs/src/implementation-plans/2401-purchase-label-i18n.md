@@ -181,6 +181,48 @@ as_row_error`) is pre-existing on `dev`: its registered fixture
 (3 pre-existing skips). Locust smoke (20 users, ModuleReadUser, dev
 server): no errors, table endpoint p50 140 ms.
 
+## Perf comparison vs the #2295 campaign (2026-09-01)
+
+Full `perf-table-matrix` + four ladder stages against this branch (4
+workers, port 8010, the seeded backdrop now at 8.0M entries vs the
+campaign's 6.3M — every comparison bias runs against this branch):
+
+| stage             | p50 | p95 | p99 |   rps | failures |
+| ----------------- | --: | --: | --: | ----: | -------: |
+| ExplorerRead @50  |  21 |  62 |  96 |  16.7 |    0.03% |
+| ExplorerRead @500 |  10 |  39 |  85 | 165.6 |    0.06% |
+| ModuleRead @50    |  24 | 110 | 300 |  17.8 |    0.03% |
+| ModuleRead @1000  |  24 | 180 | 590 | 354.6 |    0.01% |
+
+Versus #2529's corrected local table (2 workers): rps identical (165.6
+vs 166.4 @500; 354.6 vs 349.7 module@1000), p95s within noise. The
+branch-touched submodule endpoint is the worst-but-in-budget row at p95
+200–210 ms under load, vs the campaign's 170 ms worst — proportional to
+the +27% dataset. Matrix: 1519 combos, median 71 ms; branch-specific
+paths all warm-probe inside the 80 ms budget (purchase fr filter
+71–102 ms, en description hop 60–73 ms, sius label sort 29–73 ms,
+purchase 100-row fr page 44–47 ms ≈ en). **No regression.**
+
+Two findings, neither this branch's: (1) a 12 s cold train sort was a
+cache artifact (87 ms warm); (2) `kg_co2eq` sorts on the purchases
+family run ~2.7 s warm at ANY limit even with the shm fix — the exact
+limit-independent emissions-join cost #2527's comments diagnosed on dev,
+now reproduced locally; it independently validates the
+`carbon_report_module_id`-on-emissions denormalization design written up
+there. Infra note: the local Postgres container predated #2526's
+`shm_size: 1gb` compose fix (64 MB default → 169 `DiskFull` 500s under
+concurrent sorts); recreated 2026-09-01 — anyone else running the perf
+suite locally should check `docker inspect … ShmSize` first.
+
+Searchable-columns audit vs the maintainer's official list (2026-09-01):
+everything matches except two gaps, both fixed — train's `name` column
+was missing from its `filter_map`, and `planner_headcount` lacked
+`translated_code_fields = ("sius_code",)`. One open decision: embodied
+energy's "heating type" isn't a stored entry column (it derives from the
+room factor's `energy_type`), so making it searchable needs the
+factor-hop pattern for a non-kind field + an `energy_type_fr` CSV column
+— parked for the maintainer.
+
 ## Code review round (2026-09-01, `/code-review high`)
 
 Ten verified findings; every correctness one fixed same-day on this
