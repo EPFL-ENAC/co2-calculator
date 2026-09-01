@@ -28,13 +28,14 @@ from dataclasses import dataclass, field
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import event
+from sqlalchemy import event, update
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from app.models.carbon_report import CarbonReportType
+from app.core.constants import ModuleStatus
+from app.models.carbon_report import CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
@@ -214,6 +215,15 @@ def count_statements(engine):
         event.remove(engine.sync_engine, "before_cursor_execute", listener)
 
 
+async def _validate_modules(async_session, report_id):
+    """Prefill only copies from validated reference modules."""
+    await async_session.execute(
+        update(CarbonReportModule)
+        .where(CarbonReportModule.carbon_report_id == report_id)
+        .values(status=ModuleStatus.VALIDATED)
+    )
+
+
 async def _reference_report_with_entries(
     service: SimulatorPlanService,
     async_session,
@@ -242,6 +252,7 @@ async def _reference_report_with_entries(
     report = await service.report_service.create(
         CarbonReportCreate(year=year, unit_id=unit_id, carbon_project_id=project.id)
     )
+    await _validate_modules(async_session, report.id)
     modules = await service.report_service.module_service.list_modules(report.id)
     module = next(
         m for m in modules if m.module_type_id == int(ModuleTypeEnum.process_emissions)
@@ -495,6 +506,7 @@ async def test_percentage_override_cache_matches_uncached_path(async_session, us
         service, async_session, count=5, unit_id=41
     )
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await _validate_modules(async_session, ref_report.id)
 
     plan = await _plan_with_year(service, user, "equiv", year=2027, unit_id=41)
     result = await _set_ref(service, plan.id, 2027, 2024)
@@ -592,6 +604,7 @@ async def test_set_reference_year_defers_prefill_instead_of_running_it(
         service, async_session, count=3, unit_id=91
     )
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await _validate_modules(async_session, ref_report.id)
     plan = await _plan_with_year(service, user, "f4-defer", year=2027, unit_id=91)
 
     out = await service.set_reference_year(plan.id, 2027, 2024)
@@ -629,6 +642,7 @@ async def test_prefill_reports_is_idempotent_on_retry(async_session, user):
         service, async_session, count=3, unit_id=92
     )
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await _validate_modules(async_session, ref_report.id)
     plan = await _plan_with_year(service, user, "f4-retry", year=2027, unit_id=92)
 
     out = await service.set_reference_year(plan.id, 2027, 2024)
@@ -711,6 +725,7 @@ async def test_sync_year_reports_emissions_are_correct(async_session, user):
         service, async_session, count=2, unit_id=74
     )
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await _validate_modules(async_session, ref_report.id)
 
     plan = await service.create_plan(unit_id=74, user=user, name="f2-correct")
     await _update_plan(
@@ -756,6 +771,7 @@ async def test_set_reference_year_produces_correct_emissions_without_prefill_com
         service, async_session, count=2, unit_id=73
     )
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await _validate_modules(async_session, ref_report.id)
 
     plan = await service.create_plan(unit_id=73, user=user, name="tier1-correct")
     await _update_plan(
@@ -803,9 +819,10 @@ async def test_modules_left_empty_by_prefill_still_get_their_stats_refreshed(
     project = await service.report_service._get_project(
         81, CarbonReportType.CALCULATOR
     ) or await service.report_service._create_project(81, CarbonReportType.CALCULATOR)
-    await service.report_service.create(
+    ref_report = await service.report_service.create(
         CarbonReportCreate(year=2024, unit_id=81, carbon_project_id=project.id)
     )
+    await _validate_modules(async_session, ref_report.id)
 
     plan = await service.create_plan(unit_id=81, user=user, name="empty-modules")
     await _update_plan(
@@ -1056,6 +1073,7 @@ async def test_prefill_reference_modules_isolated_statement_count(
             service, async_session, entry_count, unit_id=unit_id
         )
         await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+        await _validate_modules(async_session, ref_report.id)
         plan = await _plan_with_year(
             service, user, f"prefill-{entry_count}", year=2027, unit_id=unit_id
         )
