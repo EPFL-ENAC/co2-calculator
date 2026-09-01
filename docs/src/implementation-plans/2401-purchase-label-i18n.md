@@ -217,11 +217,14 @@ suite locally should check `docker inspect … ShmSize` first.
 Searchable-columns audit vs the maintainer's official list (2026-09-01):
 everything matches except two gaps, both fixed — train's `name` column
 was missing from its `filter_map`, and `planner_headcount` lacked
-`translated_code_fields = ("sius_code",)`. One open decision: embodied
-energy's "heating type" isn't a stored entry column (it derives from the
-room factor's `energy_type`), so making it searchable needs the
-factor-hop pattern for a non-kind field + an `energy_type_fr` CSV column
-— parked for the maintainer.
+`translated_code_fields = ("sius_code",)`. Embodied energy's "heating
+type": the maintainer chose the headcount pattern over a CSV column —
+migration `fd12a7a0946f` seeds `energy_type` (`electric`/`thermal`, the
+validator's full vocabulary) for BOTH languages, English display label
+included. Nothing stores or renders `energy_type` on entries yet (it
+lives on the room factor), so the remaining follow-up is exposing it on
+the embodied rows (via the resolved factor) and declaring it a
+`translated_code_field` there — the labels are ready and waiting.
 
 ## Code review round (2026-09-01, `/code-review high`)
 
