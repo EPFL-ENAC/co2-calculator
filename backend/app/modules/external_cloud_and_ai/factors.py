@@ -2,7 +2,7 @@ from pydantic import ValidationInfo, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
-from app.modules.external_cloud_and_ai.emissions import resolve_ai
+from app.modules.emissions.registry import resolve_factor_emission_type
 from app.schemas.factor import (
     BaseFactorHandler,
     EmissionType,
@@ -144,10 +144,13 @@ class ExternalAIFactorHandler(BaseFactorHandler):
     value_fields: list[str] = ["ef_kg_co2eq_per_request"]
 
     def _prepare_payload(self, payload: dict) -> dict:
-        # Resolve through resolve_ai, the same resolver the ingestion
-        # registry uses: an unknown provider raises a readable
-        # EmissionTypeResolutionError instead of a bare KeyError (#2587).
+        # Go through the #2091 factor funnel instead of indexing the
+        # resolver result by hand: it raises a readable error on an
+        # unknown provider, guards against a resolver returning zero or
+        # several types, and rejects a non-leaf node (#2587).
         prepared = dict(payload)
         if "emission_type_id" not in prepared:
-            prepared["emission_type_id"] = resolve_ai(prepared)[0].value
+            prepared["emission_type_id"] = resolve_factor_emission_type(
+                DataEntryTypeEnum.external_ai, prepared
+            ).value
         return super()._prepare_payload(prepared)
