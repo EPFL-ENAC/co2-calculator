@@ -67,39 +67,36 @@ prose in a semicolon file cannot sway the detected delimiter.
       `_DATA_INPUT/templates_2026-08-27`). It fixes the encoding (UTF-8 +
       BOM everywhere), the dates, the `#` prefixes and one of the four
       filenames at the source.
+- [x] Verify against the final pack (SharePoint
+      `_DATA_INPUT/templates_2026-09-01`). Content-identical to our copy:
+      the source now carries the unquoted `# 3)` line, the trimmed
+      `researchfacilities` columns and every filename, including
+      `purchases_centralized_template.csv` (the data owner is right that
+      the submodule is centralized purchases, so `templateMapping.ts` now
+      points there instead of `purchases_additional_template.csv`).
 - [ ] Test round with the data owners, then close #2026.
 
-## Divergences from the delivered pack (2026-08-27 re-delivery)
+## Divergences from the delivered pack (2026-09-01 delivery)
 
-The first pack's date/encoding/`#` rewrites are now fixed at the source.
-Our copy still differs from SharePoint on these points, kept deliberately
-and reported on the issue so the next regeneration folds them in:
+Everything we reported on the 2026-08-27 pack (quote-wrapped instruction
+line in `processemissions`, leftover empty column in both
+`researchfacilities` files, filenames) is fixed at the source. Only two
+deliberate rewrites of ours remain:
 
-- Two renames the app requires: `equipment_it` → `equipment_IT`,
-  `purchases_scientific_equipment` → `purchases_scientificequipment`.
-  For the third one the data owner is right: the submodule is centralized
-  purchases, so we kept her `purchases_centralized_template.csv` and
-  renamed the file the app serves instead (`templateMapping.ts` pointed
-  at `purchases_additional_template.csv`).
-- `processemissions` line 5 arrived quote-wrapped (`"# 3) ..."""`), so the
-  comment stripper saw `"` first and the line leaked as a data row.
-  Unquoted it.
-- Both `researchfacilities` files dropped `kg_co2eq` from the header but
-  every data row kept its trailing empty field. The importer filters extra
-  columns, but the width test is strict on purpose; trimmed.
 - The closing "delete all these instructions lines" instruction now reads
   that `#` lines are ignored and can stay.
 - Instruction numbering renumbered (the pack skips 7 in `travel_planes`).
 
-## Open question (equipment factors)
+## Equipment factors (resolved)
 
-The re-delivered equipment templates re-categorize the catalog: scientific
-goes 138 → 161 classes, it 25 → 22, other 7 → 23 (Autoclaves, Photocopy
+The templates re-categorize the equipment catalog: scientific goes
+138 → 161 classes, it 25 → 22, other 7 → 23 (Autoclaves, Photocopy
 machines, Kitchen… moved to other; Lab Freezer moved to scientific). The
 factor lookup is scoped per submodule and equipment requires a factor per
-row, so those rows fail with "no matching factor" unless a re-categorized
-equipment factors file is uploaded too — asked on #2026. Shipping the
-templates as delivered is safe either way: the failure is loud, not silent.
+row, so this only works with matching factors. Confirmed on #2026: the
+equipment factors were re-uploaded with the same categories, and the
+truncated `Cellule axiale (biaxiale, triaxiale, etc.` class is cut the
+same way on the factor side, so the exact match holds.
 
 ## Out of scope
 
