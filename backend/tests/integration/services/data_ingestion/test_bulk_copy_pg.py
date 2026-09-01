@@ -15,6 +15,9 @@ from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, DataEntryEmissionRow
+from app.modules.emissions import EmissionType
+from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
 from app.repositories.data_entry_repo import DataEntryRepository
 
 pytestmark = pytest.mark.asyncio
@@ -115,6 +118,98 @@ async def test_bulk_copy_rolls_back_with_session_transaction(
 async def test_bulk_copy_empty_batch_is_noop(psycopg_session):
     repo = DataEntryRepository(psycopg_session)
     assert await repo.bulk_copy([]) == 0
+
+
+async def test_emission_bulk_copy_lands_every_column_in_its_own_place(
+    psycopg_session, make_unit, make_carbon_report, make_carbon_report_module
+):
+    """#2527: the emission COPY is positional.
+
+    ``_EMISSION_COPY_SQL``'s column list and ``write_row``'s tuple must stay
+    in the same order — a mismatch mis-assigns silently rather than raising,
+    and the two new join keys sit at the end of both. Every value here is
+    distinct so a swap cannot pass.
+    """
+    module = await _seed_module(
+        psycopg_session, make_unit, make_carbon_report, make_carbon_report_module
+    )
+    entry = DataEntry(
+        data_entry_type_id=DataEntryTypeEnum.member.value,
+        carbon_report_module_id=module.id,
+        data={"name": "stamped"},
+    )
+    psycopg_session.add(entry)
+    await psycopg_session.commit()
+
+    repo = DataEntryEmissionRepository(psycopg_session)
+    assert (
+        await repo.bulk_copy(
+            [
+                DataEntryEmissionRow(
+                    data_entry_id=entry.id,
+                    emission_type_id=EmissionType.food.value,
+                    primary_factor_id=None,
+                    kg_co2eq=12.5,
+                    additional_value=34.5,
+                    scope=3,
+                    meta={"note": 'tricky\t"chars"\n'},
+                    carbon_report_module_id=module.id,
+                    data_entry_type_id=DataEntryTypeEnum.member.value,
+                )
+            ]
+        )
+        == 1
+    )
+    await psycopg_session.commit()
+
+    row = (
+        (
+            await psycopg_session.execute(
+                select(DataEntryEmission).where(
+                    col(DataEntryEmission.data_entry_id) == entry.id
+                )
+            )
+        )
+        .scalars()
+        .one()
+    )
+    assert row.carbon_report_module_id == module.id
+    assert row.data_entry_type_id == DataEntryTypeEnum.member.value
+    assert row.emission_type_id == EmissionType.food.value
+    assert row.kg_co2eq == 12.5
+    assert row.additional_value == 34.5
+    assert row.scope == 3
+    assert row.meta["note"] == 'tricky\t"chars"\n'
+
+
+async def test_emission_bulk_copy_rejects_unstamped_row(
+    psycopg_session, make_unit, make_carbon_report, make_carbon_report_module
+):
+    """No silent fallback: an unstamped row raises instead of landing in
+    module 0, where it would vanish from every aggregate.
+    """
+    module = await _seed_module(
+        psycopg_session, make_unit, make_carbon_report, make_carbon_report_module
+    )
+    entry = DataEntry(
+        data_entry_type_id=DataEntryTypeEnum.member.value,
+        carbon_report_module_id=module.id,
+        data={"name": "unstamped"},
+    )
+    psycopg_session.add(entry)
+    await psycopg_session.commit()
+
+    repo = DataEntryEmissionRepository(psycopg_session)
+    with pytest.raises(ValueError, match="was not stamped"):
+        await repo.bulk_copy(
+            [
+                DataEntryEmissionRow(
+                    data_entry_id=entry.id,
+                    emission_type_id=EmissionType.food.value,
+                    kg_co2eq=1.0,
+                )
+            ]
+        )
 
 
 async def test_year_delete_replaces_only_matching_source_and_year(

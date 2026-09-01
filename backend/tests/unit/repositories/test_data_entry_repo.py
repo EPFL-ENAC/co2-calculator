@@ -8,7 +8,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions import EmissionType
@@ -18,6 +17,7 @@ from app.schemas.data_entry import DataEntryUpdate
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
     TRAVELER_OTHER_INTERNAL,
 )
+from tests.conftest import make_emission
 
 # ======================================================================
 # CRUD Operation Tests
@@ -1220,13 +1220,13 @@ async def test_get_submodule_data_populates_reference_kg_for_snapshot_rows(
     await db_session.flush()
     db_session.add_all(
         [
-            DataEntryEmission(
-                data_entry_id=source_entry.id,
+            make_emission(
+                source_entry,
                 emission_type_id=EmissionType.process_emissions__co2.value,
                 kg_co2eq=600.0,
             ),
-            DataEntryEmission(
-                data_entry_id=source_entry.id,
+            make_emission(
+                source_entry,
                 emission_type_id=EmissionType.process_emissions__n2o.value,
                 kg_co2eq=400.0,
             ),
@@ -1676,8 +1676,8 @@ async def test_get_submodule_data_travel_not_duplicated_for_multi_role_member(
     await db_session.flush()
     assert travel_entry.id is not None
     db_session.add(
-        DataEntryEmission(
-            data_entry_id=travel_entry.id,
+        make_emission(
+            travel_entry,
             emission_type_id=EmissionType.professional_travel__plane.value,
             kg_co2eq=100.0,
         )
@@ -1920,22 +1920,22 @@ async def test_get_submodule_data_planner_headcount_uses_rollup_total(
     await db_session.flush()
 
     leaves = [
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.food.value,
             kg_co2eq=10.0,
             primary_factor_id=1,
             scope=emission_type_scope(EmissionType.food),
         ),
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.waste.value,
             kg_co2eq=5.0,
             primary_factor_id=1,
             scope=emission_type_scope(EmissionType.waste),
         ),
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.commuting.value,
             kg_co2eq=3.0,
             primary_factor_id=1,
@@ -1945,8 +1945,8 @@ async def test_get_submodule_data_planner_headcount_uses_rollup_total(
         # (DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION already maps planner_headcount
         # -> EmissionType.headcount). Deliberately mismatched vs the leaves'
         # sum/factor — see docstring — to make the test discriminating.
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.headcount.value,
             kg_co2eq=99.0,
             primary_factor_id=42,

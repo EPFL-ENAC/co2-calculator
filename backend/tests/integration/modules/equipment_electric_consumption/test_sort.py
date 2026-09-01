@@ -26,11 +26,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions import EmissionType
 from app.repositories.data_entry_repo import DataEntryRepository
+from tests.conftest import make_emission
 
 
 async def _seed_base(session: AsyncSession) -> CarbonReportModule:
@@ -96,8 +96,8 @@ async def _seed_entry(
 
     if factor is not None:
         session.add(
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=EmissionType.equipment.value,
                 primary_factor_id=factor.id,
                 kg_co2eq=1.0,

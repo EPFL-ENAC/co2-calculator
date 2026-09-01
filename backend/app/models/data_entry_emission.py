@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from sqlalchemy import Float, ForeignKey
+from sqlalchemy import Float, ForeignKey, Index
 from sqlmodel import JSON, TIMESTAMP, Column, Field, Integer, SQLModel
 
 from app.models._field_defaults import default_dict, default_utcnow
@@ -93,6 +93,21 @@ class DataEntryEmissionBase(SQLModel):
             index=True,
         ),
         description="Reference to the source data entry",
+    )
+    # Denormalized join keys (#2527). Copies of the parent entry's module and
+    # type — immutable facts, set at construction, never re-parented — so the
+    # kg_co2eq aggregate can range-scan this table directly instead of probing
+    # it entry-by-entry through data_entries. No ForeignKey on
+    # carbon_report_module_id: deletion already cascades via data_entry_id, and
+    # a per-row constraint check would tax the COPY hot path recalc runs
+    # millions of times. Derived values (kg_co2eq) stay where recalc owns them.
+    carbon_report_module_id: int = Field(
+        nullable=False,
+        description="Denormalized carbon_report_module_id of the source entry",
+    )
+    data_entry_type_id: int = Field(
+        nullable=False,
+        description="Denormalized data_entry_type_id of the source entry",
     )
     # EmissionType value
     emission_type_id: int = Field(
@@ -207,6 +222,28 @@ class DataEntryEmission(DataEntryEmissionBase, table=True):
 
     __tablename__ = "data_entry_emissions"
 
+    __table_args__ = (
+        # #2527: the submodule table's kg_co2eq sort aggregates a whole
+        # module's emissions. Keyed on (module, type, entry) with the four
+        # aggregate-side columns INCLUDEd, that aggregate is one contiguous
+        # index-only range scan instead of ~6 scattered heap pages per entry
+        # (~37,400 buffer pages for 6,000 rows on the dev DB). ``scope`` is
+        # INCLUDEd for the buildings/headcount rollup joins, which filter on
+        # ``scope IS NULL`` and would otherwise visit the heap for it.
+        Index(
+            "ix_dee_module_type_entry",
+            "carbon_report_module_id",
+            "data_entry_type_id",
+            "data_entry_id",
+            postgresql_include=[
+                "kg_co2eq",
+                "emission_type_id",
+                "primary_factor_id",
+                "scope",
+            ],
+        ),
+    )
+
     id: int | None = Field(default=None, primary_key=True, index=True)
 
     def __repr__(self) -> str:
@@ -241,11 +278,25 @@ class DataEntryEmissionRow:
     scope: int | None = None
     meta: dict = field(default_factory=dict)
     computed_at: datetime = field(default_factory=datetime.utcnow)
+    # #2527 join keys, stamped once by ``prepare_create`` right before it
+    # returns. Default ``None`` and not ``0``: a defaulted-away key would
+    # write the row into module 0, where it silently vanishes from every
+    # aggregate — the exact silent fallback this denormalization exists to
+    # remove. Every writer raises instead.
+    carbon_report_module_id: int | None = None
+    data_entry_type_id: int | None = None
 
     def to_orm(self) -> DataEntryEmission:
         """Materialize a real mapped row — only where `session.add()` is needed."""
+        if self.carbon_report_module_id is None or self.data_entry_type_id is None:
+            raise ValueError(
+                f"emission row for data_entry_id={self.data_entry_id!r} was not "
+                "stamped with carbon_report_module_id/data_entry_type_id"
+            )
         return DataEntryEmission(
             data_entry_id=self.data_entry_id,
+            carbon_report_module_id=self.carbon_report_module_id,
+            data_entry_type_id=self.data_entry_type_id,
             emission_type_id=self.emission_type_id,
             primary_factor_id=self.primary_factor_id,
             kg_co2eq=self.kg_co2eq,

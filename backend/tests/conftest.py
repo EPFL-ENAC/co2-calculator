@@ -243,13 +243,37 @@ def make_factor():
     return _make
 
 
+def make_emission(entry: DataEntry, **overrides) -> DataEntryEmission:
+    """Build an unsaved emission carrying ``entry``'s join keys (#2527).
+
+    ``carbon_report_module_id`` / ``data_entry_type_id`` are NOT NULL on
+    ``data_entry_emissions`` and must mirror the parent entry — deriving them
+    here is why no test has to restate them, and why the next one cannot get
+    them wrong. Everything else is passed through explicitly.
+    """
+    return DataEntryEmission(
+        data_entry_id=entry.id,
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=entry.data_entry_type_id,
+        **overrides,
+    )
+
+
 @pytest.fixture
 def make_data_entry_emission():
-    """Factory for DataEntryEmission model instances."""
+    """Factory for DataEntryEmission model instances.
+
+    Every default here is synthetic, including the #2527 join keys — nothing
+    is derived from a real entry. If the test reads back through a
+    module/type-scoped query, use ``make_emission(entry, ...)`` instead, or
+    the row lands outside the scope and the query returns nothing.
+    """
 
     async def _make(session: AsyncSession, **overrides) -> DataEntryEmission:
         defaults = dict(
             data_entry_id=1,
+            carbon_report_module_id=1,
+            data_entry_type_id=DataEntryTypeEnum.member.value,
             emission_type_id=EmissionType.food.value,
             primary_factor_id=None,
             kg_co2eq=100.0,
