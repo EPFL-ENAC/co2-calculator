@@ -737,16 +737,29 @@ class DataEntryRepository:
 
         Scoped to the page's own values on purpose — the per-field variant
         pulled a 17k-entry purchase catalog to label 25 cells. English needs
-        none: the stored value (self-labeling shape) or the resolved
-        factor's label field (code + label-field shape) already is the
-        English text.
+        rows only for translated code fields (their stored value is a code
+        in any locale); the self-labeling and label-field shapes already
+        carry their own English text.
         """
-        if lang == DEFAULT_LANG or not rows:
+        if not rows:
             return {}
         wanted: dict[str, set[str]] = {}
+        code_fields = self._translated_code_fields(handler)
         for row in rows:
             data_entry, _, primary_factor = row[:3]
             classification = primary_factor.classification if primary_factor else {}
+            # Translated code fields carry labels in EVERY language (the
+            # stored value is a code); the value lives on the entry (sius)
+            # or on the resolved factor (energy_type).
+            for field in code_fields:
+                value = data_entry.data.get(field)
+                if value is None or value == "":
+                    value = classification.get(field)
+                if value is None or value == "":
+                    continue
+                wanted.setdefault(field, set()).add(value)
+            if lang == DEFAULT_LANG:
+                continue
             for code_field, label_field in (
                 (handler.kind_field, handler.kind_label_field),
                 (handler.subkind_field, handler.subkind_label_field),
@@ -806,6 +819,17 @@ class DataEntryRepository:
             translated = translations.get((code_field, value))
             if translated is not None:
                 labels[code_field] = translated
+        # Translated code fields label in every language; the value lives
+        # on the entry (sius) or the resolved factor (energy_type).
+        for field in getattr(handler, "translated_code_fields", ()) or ():
+            value = data.get(field)
+            if value is None or value == "":
+                value = factor_classification.get(field)
+            if value is None or value == "":
+                continue
+            label = translations.get((field, value))
+            if label is not None:
+                labels[field] = label
         return labels
 
     def _apply_name_filter(

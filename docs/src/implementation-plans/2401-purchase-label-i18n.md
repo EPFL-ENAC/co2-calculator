@@ -217,14 +217,24 @@ suite locally should check `docker inspect … ShmSize` first.
 Searchable-columns audit vs the maintainer's official list (2026-09-01):
 everything matches except two gaps, both fixed — train's `name` column
 was missing from its `filter_map`, and `planner_headcount` lacked
-`translated_code_fields = ("sius_code",)`. Embodied energy's "heating
-type": the maintainer chose the headcount pattern over a CSV column —
-migration `fd12a7a0946f` seeds `energy_type` (`electric`/`thermal`, the
-validator's full vocabulary) for BOTH languages, English display label
-included. Nothing stores or renders `energy_type` on entries yet (it
-lives on the room factor), so the remaining follow-up is exposing it on
-the embodied rows (via the resolved factor) and declaring it a
-`translated_code_field` there — the labels are ready and waiting.
+`translated_code_fields = ("sius_code",)`. "Heating type"
+(`energy_type`): the maintainer chose the headcount pattern over a CSV
+column — migration `fd12a7a0946f` seeds `electric`/`thermal` (the
+validator's full vocabulary) for BOTH languages — and it is now wired
+end to end on the **rooms** submodule, which is where the data actually
+lives: embodied factors classify by `category` (`new-tech`, `ren-env`,
+…), while `energy_type` sits on the det-30 rooms factors. The rooms
+handler declares `translated_code_fields = ("energy_type",)` with
+filter/sort map entries on the JOINED factor column (the entry never
+stores it — same join the `energy_combustion` handler already uses for
+its coalesced name), and the row-label/page-translation machinery now
+sources translated-code values from the resolved factor's classification
+as well as entry data. Search matches the raw code, the English label
+and the French label; `sort_by=energy_type` orders by the label; rows
+carry `labels.energy_type` in the request locale. Regression tests in
+`test_submodule_filter_translation.py`. Whether the embodied table
+should additionally search its own `category` vocabulary is a separate
+maintainer call.
 
 ## Code review round (2026-09-01, `/code-review high`)
 

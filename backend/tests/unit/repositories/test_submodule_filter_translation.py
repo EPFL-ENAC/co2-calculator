@@ -378,6 +378,139 @@ async def _member_codes(
     return [item.sius_code for item in response.items]
 
 
+async def _seed_rooms_module(db_session: AsyncSession) -> int:
+    """Rooms' heating source (`energy_type`) lives on the resolved det-30
+    factor, never on the entry; labels are seeded reference data for both
+    languages (rows mirror migration fd12a7a0946f).
+    """
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.buildings.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    def _room(name: str, room_type: str) -> DataEntry:
+        return DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.building,
+            status=DataEntryStatusEnum.PENDING,
+            data={
+                "building_name": "AAB",
+                "room_name": name,
+                "room_type": room_type,
+            },
+            year=2025,
+        )
+
+    def _room_factor(room_type: str, energy_type: str) -> Factor:
+        return Factor(
+            emission_type_id=2,
+            data_entry_type_id=DataEntryTypeEnum.building.value,
+            year=2025,
+            classification={
+                "building_name": "AAB",
+                "room_type": room_type,
+                "energy_type": energy_type,
+            },
+            values={},
+        )
+
+    def _energy(value: str, lang: str, label: str) -> ClassificationTranslation:
+        return ClassificationTranslation(
+            field_name="energy_type", value=value, lang=lang, label=label
+        )
+
+    db_session.add_all(
+        [
+            _room("room-a", "office"),
+            _room("room-b", "laboratories"),
+            _room_factor("office", "electric"),
+            _room_factor("laboratories", "thermal"),
+            _energy("electric", "en", "Electric"),
+            _energy("electric", "fr", "Électrique"),
+            _energy("thermal", "en", "Thermal"),
+            _energy("thermal", "fr", "Thermique"),
+        ]
+    )
+    await db_session.commit()
+    return module.id
+
+
+async def _room_rows(
+    db_session: AsyncSession,
+    module_id: int,
+    lang: str,
+    filter: str | None = None,
+    sort_by: str = "id",
+):
+    repo = DataEntryRepository(db_session)
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.building.value,
+        limit=100,
+        offset=0,
+        sort_by=sort_by,
+        sort_order="asc",
+        filter=filter,
+        lang=lang,
+        factor_year=2025,
+    )
+    return response.items
+
+
+@pytest.mark.asyncio
+async def test_energy_type_filter_matches_label_via_the_factor(
+    db_session: AsyncSession,
+):
+    """The filtered column is the JOINED factor's energy_type: the raw
+    code, the English label and the French label all match — one search
+    behavior in every locale, for a value the entry never stores.
+    """
+    module_id = await _seed_rooms_module(db_session)
+
+    # 'lectrique' rather than 'électrique': sqlite's LIKE only case-folds
+    # ASCII, so the label's leading 'É' wouldn't match a lowercase 'é'
+    # here — Postgres ILIKE handles it, covered by the live stack.
+    fr = await _room_rows(db_session, module_id, "fr", filter="lectrique")
+    assert [i.room_name for i in fr] == ["room-a"]
+
+    en = await _room_rows(db_session, module_id, "en", filter="Thermal")
+    assert [i.room_name for i in en] == ["room-b"]
+
+    raw = await _room_rows(db_session, module_id, "en", filter="electric")
+    assert [i.room_name for i in raw] == ["room-a"]
+
+
+@pytest.mark.asyncio
+async def test_energy_type_labels_ride_rooms_rows(db_session: AsyncSession):
+    """Rows carry the seeded label in the request locale even though the
+    value lives only on the resolved factor; sort by energy_type orders
+    by it without error.
+    """
+    module_id = await _seed_rooms_module(db_session)
+
+    # fr asc puts room-b first under sqlite's byte collation ('T' < 'É');
+    # the flip versus the raw-value order (electric < thermal) is exactly
+    # what proves the sort reads the label, not the stored code. Postgres
+    # collates the accent correctly on the live stack.
+    fr = await _room_rows(db_session, module_id, "fr", sort_by="energy_type")
+    assert [(i.room_name, (i.labels or {}).get("energy_type")) for i in fr] == [
+        ("room-b", "Thermique"),
+        ("room-a", "Électrique"),
+    ]
+
+    en = await _room_rows(db_session, module_id, "en", sort_by="energy_type")
+    assert [(i.labels or {}).get("energy_type") for i in en] == [
+        "Electric",
+        "Thermal",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_sius_filter_matches_label_in_both_languages(
     db_session: AsyncSession,
