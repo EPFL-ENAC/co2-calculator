@@ -391,7 +391,7 @@ class SimulatorPlanService:
 
         Destructive: every reference-scoped module of the plan-year is emptied
         and, when a baseline is set, the prefilled ones are rebuilt from it at
-        100% (purchase stays empty) — the percentages,
+        0% (purchase stays empty) — the percentages,
         edits and hand-added rows made under the previous reference year are
         lost. Removing the baseline (``reference_year=None``) empties them
         the same way and leaves the year manual-input. The dialog warns
@@ -692,7 +692,7 @@ class SimulatorPlanService:
 
         Destructive and idempotent: the module's entries are deleted first, then
         the reference year's are copied at ``percentage_of_reference_year =
-        100``. Each copy keeps ``source_data_entry_id`` so the % slider computes
+        0``. Each copy keeps ``source_data_entry_id`` so the % slider computes
         against the live reference entry. Plain-copy modules
         (``PLANNER_PLAIN_COPY_MODULE_TYPES``) skip both fields: their copies are
         ordinary editable entries whose emissions recompute from the row data.
@@ -761,7 +761,7 @@ class SimulatorPlanService:
                 if plain_copy
                 else {
                     **src.data,
-                    "percentage_of_reference_year": 100,
+                    "percentage_of_reference_year": 0,
                     "source_data_entry_id": src.id,
                 },
             }
