@@ -19,11 +19,13 @@ B. Re-running the same job converges instead of duplicating rows, the
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.carbon_report import CarbonReport, CarbonReportType
+from app.core.constants import ModuleStatus
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_ingestion import (
@@ -107,6 +109,11 @@ async def _seed_plan_awaiting_prefill(Sf) -> tuple[int, list[int], int]:
         # The reference year must actually hold computed emissions — that is
         # what a copied row's provenance points at.
         await svc._recalculate_report_emissions(ref)  # noqa: SLF001
+        await session.execute(
+            update(CarbonReportModule)
+            .where(CarbonReportModule.carbon_report_id == ref.id)
+            .values(status=ModuleStatus.VALIDATED)
+        )
 
         plan = await svc.create_plan(unit_id=1, user=user, name="p")
         updated = await svc.update_plan(

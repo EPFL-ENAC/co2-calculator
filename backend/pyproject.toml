@@ -152,7 +152,7 @@ prepend_sys_path = ["."]
 package = true
 
 [tool.uv.sources]
-enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files", tag = "1.2.0" }
+enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files", tag = "1.4.0" }
 
 # timezone to use when rendering the date within the migration file
 # as well as the filename.
