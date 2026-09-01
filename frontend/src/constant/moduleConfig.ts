@@ -81,6 +81,11 @@ export interface ModuleField {
   explorerDefault?: string | number | null;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
+  // Server-side typeahead (#2391 decision 4): options come from the
+  // `taxonomies/module/{module}/{data_entry}/options` search endpoint per
+  // keystroke instead of the full taxonomy tree. For kind fields whose
+  // option list is too large to ship (purchase: ~17k UNSPSC codes).
+  optionsSearch?: boolean;
   // Factor field to label a `kind` select with, when the stored value is an
   // opaque code (research facility ids). Options then come from the factor
   // catalog instead of the class/subclass map, which carries values only.

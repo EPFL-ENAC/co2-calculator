@@ -2,12 +2,14 @@ import re
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from app.models.carbon_report import CarbonReportType
+from app.core.constants import ModuleStatus
+from app.models.carbon_report import CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import GlobalScope, Role, RoleName, User
@@ -572,6 +574,15 @@ async def test_set_reference_year_without_calc_report_is_noop(async_session, use
 # ── prefill_module_from_reference (snapshot copy) ─────────────────────────────
 
 
+async def _validate_modules(async_session, report_id):
+    """Prefill only copies from validated reference modules."""
+    await async_session.execute(
+        update(CarbonReportModule)
+        .where(CarbonReportModule.carbon_report_id == report_id)
+        .values(status=ModuleStatus.VALIDATED)
+    )
+
+
 async def _calculator_report_with_process_entries(service, async_session, year=2024):
     """Calculator report for unit 1 with two process-emissions entries."""
     # #2487: create() no longer self-provisions a missing Calculator
@@ -582,6 +593,7 @@ async def _calculator_report_with_process_entries(service, async_session, year=2
     report = await service.report_service.create(
         CarbonReportCreate(year=year, unit_id=1, carbon_project_id=project.id)
     )
+    await _validate_modules(async_session, report.id)
     modules = await service.report_service.module_service.list_modules(report.id)
     module = next(
         m for m in modules if m.module_type_id == int(ModuleTypeEnum.process_emissions)
@@ -609,7 +621,7 @@ async def _plan_year_report(service, plan_id, year=2027, reference_year=2024):
 
 
 @pytest.mark.asyncio
-async def test_prefill_copies_reference_entries_at_100_percent(async_session, user):
+async def test_prefill_copies_reference_entries_at_0_percent(async_session, user):
     service = SimulatorPlanService(async_session)
     _, _, src_entries = await _calculator_report_with_process_entries(
         service, async_session
@@ -624,7 +636,7 @@ async def test_prefill_copies_reference_entries_at_100_percent(async_session, us
     rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
     assert len(rows) == 2
     assert all(r.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value for r in rows)
-    assert all(r.data["percentage_of_reference_year"] == 100 for r in rows)
+    assert all(r.data["percentage_of_reference_year"] == 0 for r in rows)
     assert {r.data["source_data_entry_id"] for r in rows} == {e.id for e in src_entries}
     # Snapshot keeps the reference quantities.
     assert {r.data["quantity_kg"] for r in rows} == {5.0, 7.0}
@@ -683,6 +695,7 @@ async def _second_calculator_year(service, async_session):
     report = await service.report_service.create(
         CarbonReportCreate(year=2025, unit_id=1, carbon_project_id=project.id)
     )
+    await _validate_modules(async_session, report.id)
     modules = await service.report_service.module_service.list_modules(report.id)
     module = next(
         m for m in modules if m.module_type_id == int(ModuleTypeEnum.process_emissions)
@@ -748,7 +761,7 @@ async def test_switching_back_reprefills_at_100_percent(async_session, user):
 
     rows = await _plan_module_rows(service, async_session, report)
     assert len(rows) == 2
-    assert all(r.data["percentage_of_reference_year"] == 100 for r in rows)
+    assert all(r.data["percentage_of_reference_year"] == 0 for r in rows)
     assert {r.data["quantity_kg"] for r in rows} == {5.0, 7.0}
 
 

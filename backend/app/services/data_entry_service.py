@@ -829,6 +829,7 @@ class DataEntryService:
         institutional_id_filter: str | None = None,
         exclude_planner_snapshots: bool = False,
         factor_year: int | None = None,
+        lang: str = "en",
     ) -> SubmoduleResponse:
         """Get module data for a unit and year.
 
@@ -855,6 +856,7 @@ class DataEntryService:
             institutional_id_filter=institutional_id_filter,
             exclude_planner_snapshots=exclude_planner_snapshots,
             factor_year=factor_year,
+            lang=lang,
         )
         if response is not None:
             response.data_entry_policies = submodule_policies(

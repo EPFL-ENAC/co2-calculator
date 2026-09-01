@@ -48,7 +48,7 @@ const TEMPLATE_MAP: Record<string, string> = {
   [`${MODULES.ExternalCloudAndAI}:${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai}`]:
     'external_ai_template.csv',
   [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.PurchasesCentralized}`]:
-    'purchases_additional_template.csv',
+    'purchases_centralized_template.csv',
 };
 
 // Modules whose submodule determines the template — fall back to a default when no submodule matches

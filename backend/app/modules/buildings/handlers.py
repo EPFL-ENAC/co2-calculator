@@ -114,6 +114,11 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
     kind_dependent_fields: tuple[str, ...] = ("room_name",)
     require_subkind_for_factor = False
     require_factor_to_match = False
+    # The room's heating source lives on the resolved factor, not the
+    # entry; its labels are seeded reference data for both languages
+    # (migration fd12a7a0946f) — search/sort match and order by the label
+    # the user sees, in either locale (#2401, same shape as sius_code).
+    translated_code_fields = ("energy_type",)
 
     sort_map = {
         "id": DataEntry.id,
@@ -124,6 +129,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
             "room_surface_square_meter"
         ].as_float(),
         "room_allocation_ratio": DataEntry.data["room_allocation_ratio"].as_float(),
+        "energy_type": Factor.classification["energy_type"].as_string(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
@@ -131,6 +137,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         "building_name": DataEntry.data["building_name"].as_string(),
         "room_name": DataEntry.data["room_name"].as_string(),
         "room_type": DataEntry.data["room_type"].as_string(),
+        "energy_type": Factor.classification["energy_type"].as_string(),
     }
 
     # Maps each building EmissionType leaf → factor field for kwh/m².

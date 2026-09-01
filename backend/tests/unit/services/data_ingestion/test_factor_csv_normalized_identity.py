@@ -87,4 +87,7 @@ async def test_same_factor_with_casing_noise_keeps_one_identity():
         "purchase_institutional_code": "51100000",
         "purchase_additional_code": None,
         "currency": "chf",
+        # In classification_fields since #2401 (label translation); absent
+        # in the CSV so it stays None.
+        "purchase_institutional_description": None,
     }

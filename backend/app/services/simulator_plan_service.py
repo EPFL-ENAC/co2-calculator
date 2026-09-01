@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
 from app.core.policy import has_global_or_principal_access_for_unit
 from app.models.carbon_project import CarbonProject
@@ -390,7 +391,7 @@ class SimulatorPlanService:
 
         Destructive: every reference-scoped module of the plan-year is emptied
         and, when a baseline is set, the prefilled ones are rebuilt from it at
-        100% (purchase stays empty) — the percentages,
+        0% (purchase stays empty) — the percentages,
         edits and hand-added rows made under the previous reference year are
         lost. Removing the baseline (``reference_year=None``) empties them
         the same way and leaves the year manual-input. The dialog warns
@@ -492,7 +493,9 @@ class SimulatorPlanService:
         year, so its rows do not survive a new baseline (#1920). When the reference year
         has no Calculator report for the unit there is nothing to copy and they stay
         empty —  showing the previous baseline's rows under a new reference year
-        would be a lie.
+        would be a lie. Only validated reference modules feed the copy: a
+        module still not started or in progress is treated like an absent
+        baseline and leaves the plan module empty.
 
         Inserts the copied rows only; the caller computes emissions for the
         whole report in one batched pass right after (both callers do — plan
@@ -533,23 +536,46 @@ class SimulatorPlanService:
                 )
                 if ref_cache is not None:
                     ref_cache.reports[ref_key] = ref_report
+        # One list_modules for the reference side (the plan side is already
+        # `modules`/`will_rebuild` — fetched once) instead of one get_module
+        # per module type on each side — a real get_module call for every
+        # rebuilt type, twice, otherwise (plan #2050 Track E tier 2).
+        ref_modules_by_type: dict[int, CarbonReportModuleRead] = {}
+        if ref_report is not None and ref_report.id is not None:
+            if ref_cache is not None and ref_report.id in ref_cache.modules:
+                ref_modules_by_type = ref_cache.modules[ref_report.id]
+            else:
+                ref_modules_by_type = {
+                    m.module_type_id: m
+                    for m in await self.report_service.module_service.list_modules(
+                        ref_report.id
+                    )
+                }
+                if ref_cache is not None:
+                    ref_cache.modules[ref_report.id] = ref_modules_by_type
         # The grant RF grid starts from the reference year's platform list,
         # not from copied entries (#1980) — left empty for the user's own
-        # selection. Grant travel is planned from scratch too (#2018). Both
-        # stay out of ``will_rebuild`` below, which decides both what gets
-        # prefilled and what the upfront clear must still cover — they
-        # never self-clear (prefill is never called for them), so the
-        # upfront clear is their only chance to empty out.
+        # selection. Grant travel and headcount are planned from scratch too
+        # (#2018, #2120). All three stay out of ``will_rebuild`` below, which
+        # decides both what gets prefilled and what the upfront clear must
+        # still cover — they never self-clear (prefill is never called for
+        # them), so the upfront clear is their only chance to empty out.
+        # Same treatment for a reference module that is not validated: only
+        # validated modules feed the copy, the rest leave the plan module
+        # empty.
         will_rebuild = (
             [
                 m
                 for m in rebuilt
-                if not (
+                if (ref_mod := ref_modules_by_type.get(m.module_type_id)) is not None
+                and ref_mod.status == ModuleStatus.VALIDATED
+                and not (
                     report.is_grant
                     and m.module_type_id
                     in (
                         ModuleTypeEnum.research_facilities,
                         ModuleTypeEnum.professional_travel,
+                        ModuleTypeEnum.headcount,
                     )
                 )
             ]
@@ -574,22 +600,6 @@ class SimulatorPlanService:
                     sorted(cleared)
                 )
             return
-        # One list_modules for the reference side (the plan side is already
-        # `modules`/`will_rebuild`, fetched once above) instead of one
-        # get_module per module type on each side — a real get_module call
-        # for every rebuilt type, twice, otherwise (plan #2050 Track E
-        # tier 2).
-        if ref_cache is not None and ref_report.id in ref_cache.modules:
-            ref_modules_by_type = ref_cache.modules[ref_report.id]
-        else:
-            ref_modules_by_type = {
-                m.module_type_id: m
-                for m in await self.report_service.module_service.list_modules(
-                    ref_report.id
-                )
-            }
-            if ref_cache is not None:
-                ref_cache.modules[ref_report.id] = ref_modules_by_type
         plan_modules_by_type = {m.module_type_id: m for m in will_rebuild}
         emptied: list[int] = []
         for module_type_id in sorted(will_rebuild_ids):
@@ -682,7 +692,7 @@ class SimulatorPlanService:
 
         Destructive and idempotent: the module's entries are deleted first, then
         the reference year's are copied at ``percentage_of_reference_year =
-        100``. Each copy keeps ``source_data_entry_id`` so the % slider computes
+        0``. Each copy keeps ``source_data_entry_id`` so the % slider computes
         against the live reference entry. Plain-copy modules
         (``PLANNER_PLAIN_COPY_MODULE_TYPES``) skip both fields: their copies are
         ordinary editable entries whose emissions recompute from the row data.
@@ -751,7 +761,7 @@ class SimulatorPlanService:
                 if plain_copy
                 else {
                     **src.data,
-                    "percentage_of_reference_year": 100,
+                    "percentage_of_reference_year": 0,
                     "source_data_entry_id": src.id,
                 },
             }

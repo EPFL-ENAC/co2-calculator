@@ -117,6 +117,11 @@ class DataEntryResponse(DataEntryBase):
     # app.core.data_entry_permissions). Not module-specific, so it belongs on
     # the generic response, unlike DataEntryResponseGen's own copy below.
     source: int | None = None
+    # #2401: request-locale display labels per classification field (e.g.
+    # {"purchase_institutional_code": "Outils électriques"}). The stored
+    # value stays the row's identity; this is presentation only. Absent when
+    # nothing differs from the stored value.
+    labels: dict[str, str] | None = None
 
 
 class DataEntryResponseGen(DataEntryBase):
@@ -124,6 +129,8 @@ class DataEntryResponseGen(DataEntryBase):
 
     id: int
     source: int | None = None
+    # #2401: see DataEntryResponse.labels above.
+    labels: dict[str, str] | None = None
     note: str | None = None
     # Planner snapshot rows only: the source (reference-year) entry's emissions,
     # i.e. the 100% baseline the "% of reference year" slider scales from. Null
@@ -170,6 +177,11 @@ class ModuleHandler(Protocol[T]):
     kind_label_field: str | None = None
     subkind_label_field: str | None = None
     taxonomy_meta_fields: tuple[str, ...] = ()
+    # Data-dict fields whose stored value is a code with labels in
+    # classification_translations for EVERY language, English included
+    # (headcount's sius_code, seeded by migration) — search and sort read
+    # the label in any locale, one behavior across languages (#2401).
+    translated_code_fields: tuple[str, ...] = ()
 
     def to_response(
         self,

@@ -68,6 +68,12 @@ erDiagram
     INTEGER unit_id FK
     INTEGER year
   }
+  classification_translations {
+    VARCHAR field_name PK
+    VARCHAR label
+    VARCHAR lang PK
+    VARCHAR value PK
+  }
   connector_connections {
     VARCHAR client_id
     VARCHAR connector

@@ -188,9 +188,38 @@ class EnergyCombustionFactorHandler(BaseFactorHandler):
         return self.response_dto.model_validate(factor.model_dump)
 
 
-class BuildingEmbodiedEnergyFactorCreate(FactorCreate):
+EMBODIED_ENERGY_CATEGORIES = {
+    "new-tech",
+    "new-env",
+    "ren-tech",
+    "ren-env",
+    "demolition",
+}
+
+
+class _EmbodiedEnergyCategoryMixin:
+    # Shared by Create/Update/Response so a bad category is rejected at
+    # import time, not when the stored row is read back (#2586).
+    @field_validator("category", mode="after")
+    @classmethod
+    def validate_category(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v is None:
+            return v
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError(f"{info.field_name} cannot be empty")
+        if stripped not in EMBODIED_ENERGY_CATEGORIES:
+            raise ValueError(
+                f"{info.field_name} must be one of {sorted(EMBODIED_ENERGY_CATEGORIES)}"
+            )
+        return stripped
+
+
+class BuildingEmbodiedEnergyFactorCreate(_EmbodiedEnergyCategoryMixin, FactorCreate):
     building_name: ClassificationKey
-    category: ClassificationKey
+    # Plain str on purpose: the mixin strips and pins the closed vocabulary,
+    # so it already yields the #1489 canonical form with a clearer error.
+    category: str
     ef_kgco2eq_per_m2: float
 
     @field_validator("ef_kgco2eq_per_m2", mode="after")
@@ -201,9 +230,9 @@ class BuildingEmbodiedEnergyFactorCreate(FactorCreate):
         return _validate_non_negative_float(v, info.field_name or "")
 
 
-class BuildingEmbodiedEnergyFactorUpdate(FactorUpdate):
+class BuildingEmbodiedEnergyFactorUpdate(_EmbodiedEnergyCategoryMixin, FactorUpdate):
     building_name: ClassificationKey | None = None
-    category: ClassificationKey | None = None
+    category: str | None = None
     ef_kgco2eq_per_m2: float | None = None
 
     @field_validator("ef_kgco2eq_per_m2", mode="after")
@@ -214,23 +243,12 @@ class BuildingEmbodiedEnergyFactorUpdate(FactorUpdate):
         return _validate_non_negative_float(v, info.field_name or "")
 
 
-class BuildingEmbodiedEnergyFactorResponse(FactorResponseGen):
+class BuildingEmbodiedEnergyFactorResponse(
+    _EmbodiedEnergyCategoryMixin, FactorResponseGen
+):
     building_name: str
     category: str
     ef_kgco2eq_per_m2: float
-
-    @field_validator("category", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        CATEGORY_VALUES = {"new-tech", "new-env", "ren-tech", "ren-env", "demolition"}
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        # should be amongst new-tech, new-env,ren-tech,ren-env,demolition
-        if v.strip() not in CATEGORY_VALUES:
-            raise ValueError(
-                f"{info.field_name} must be one of {sorted(CATEGORY_VALUES)}"
-            )
-        return v.strip()
 
 
 class BuildingEmbodiedEnergyFactorHandler(BaseFactorHandler):

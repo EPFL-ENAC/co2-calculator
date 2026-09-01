@@ -7,6 +7,10 @@ from pydantic import ValidationError
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.models.classification_translation import (
+    TRANSLATABLE_LANGS,
+    ClassificationTranslation,
+)
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     EntityType,
@@ -22,6 +26,9 @@ from app.modules.emissions.taxonomy import EmissionTypeResolutionError
 from app.modules_planner.purchase.derived_factors import (
     PURCHASE_SOURCE_TYPES,
     derive_planner_purchase_factors,
+)
+from app.repositories.classification_translation_repo import (
+    ClassificationTranslationRepository,
 )
 from app.repositories.factor_repo import FactorRepository
 from app.schemas.factor import BaseFactorHandler
@@ -85,6 +92,11 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         # scoped to exactly these ("you replace what you upload"), so a
         # partial module CSV can never wipe sibling dets it didn't carry.
         self._upserted_det_ids: set[int] = set()
+        # (field_name, value, lang) -> label, gathered across every row this
+        # job processes; a dict so a later row's value for the same key wins
+        # (matches the upsert semantics below) without needing a DB round
+        # trip per row. Upserted once, alongside the factor batch (#2401).
+        self._collected_translations: dict[tuple[str, str, str], str] = {}
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -429,6 +441,12 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 if field_name in validated_fields:
                     classification[field_name] = getattr(validated, field_name)
 
+            # Only a row that survived validation may contribute labels —
+            # collecting earlier would upsert a translation for a factor
+            # that never lands. Runs after the normalization above so the
+            # translation keys on the canonical classification value.
+            self._collect_translations(row, classification)
+
             # ``year`` is stored on the dedicated ``Factor.year`` column;
             # do NOT also inject it into ``classification``.  The Plan 310B
             # identity index keys on ``(det, year, emission_type,
@@ -453,6 +471,28 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             error_msg = f"Row processing error: {row_error}"
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, error_msg
+
+    def _collect_translations(
+        self, row: dict[str, str], classification: dict[str, Any]
+    ) -> None:
+        """Pick up ``<field>_<lang>`` columns for the row's classification (#2401).
+
+        Generic over any handler's ``classification_fields`` — e.g.
+        ``equipment_class`` + ``equipment_class_fr`` — so a future module
+        CSV gets translation support for free by adding the suffixed
+        column, no code change here. A missing or blank cell means "no
+        translation for this row"; it is skipped rather than raising (the
+        typeahead falls back to the English label — team decision on #2401).
+        """
+        for field_name, value in classification.items():
+            if not value:
+                continue
+            for lang in TRANSLATABLE_LANGS:
+                label = row.get(f"{field_name}_{lang}")
+                if label and label.strip():
+                    self._collected_translations[(field_name, value, lang)] = (
+                        label.strip()
+                    )
 
     def _resolve_data_entry_type(
         self,
@@ -534,6 +574,27 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         logger.info(f"Upserted {reported} factors in batch of {len(batch)}")
         return reported
 
+    async def _upsert_collected_translations(self) -> None:
+        """Write every ``<field>_<lang>`` label gathered across this job's rows.
+
+        Runs in the same transaction as the factor batch above (both flush
+        on the same commit at the end of ``ingest()``) — a translation
+        never lands without the factors it labels, and vice versa.
+        """
+        if not self._collected_translations:
+            return
+        repo = ClassificationTranslationRepository(self.data_session)
+        await repo.upsert(
+            [
+                ClassificationTranslation(
+                    field_name=field_name, value=value, lang=lang, label=label
+                )
+                for (field_name, value, lang), label in (
+                    self._collected_translations.items()
+                )
+            ]
+        )
+
     def _compute_ingestion_result(self, stats: FactorStatsDict) -> IngestionResult:
         """Compute ingestion result based on success rate.
 
@@ -570,6 +631,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         if batch:
             upserted = await self._upsert_batch(batch, factor_repo)
             stats["factors_upserted"] += upserted
+
+        await self._upsert_collected_translations()
 
         result = self._compute_ingestion_result(stats)
         # Sweep only on full SUCCESS: a partial upload (WARNING) failed to

@@ -1,26 +1,32 @@
-﻿equipment_class,sub_class,equipment_id,name,active_usage_hours_per_week,standby_usage_hours_per_week,note,kg_co2eq
-Servers,,"","","","","",""
-Desktop,,"","","","","",""
-Laptop,,"","","","","",""
-Monitors,,"","","","","",""
-Printers,,"","","","","",""
-Scanners,,"","","","","",""
-Telecom,,"","","","","",""
-Beamer,,"","","","","",""
-Cameras,,"","","","","",""
-HF Microphones,,"","","","","",""
-Videoconferencing,,"","","","","",""
-Hoods,,"","","","","",""
-Kitchen freezer,,"","","","","",""
-Other electrotechnical equip.,,"","","","","",""
-Other IT / telecom  equipment,,"","","","","",""
-Photo camera,,"","","","","",""
-Screens,,"","","","","",""
-Other audiovisual equipment,,"","","","","",""
-Special furniture,,"","","","","",""
-CPG fixed equipment,,"","","","","",""
-Vehicles,,"","","","","",""
-Tablet,,"","","","","",""
-Software,,"","","","","",""
-Network,,"","","","","",""
-Components,,"","","","","",""
+﻿equipment_class,sub_class,equipment_id,name,active_usage_hours_per_week,standby_usage_hours_per_week,note
+# Instructions:,,,,,,
+# 1) Select the appropriate equipment class from the list (e.g. Servers - Desktop - Laptop - etc.).,,,,,,
+# 2) Enter the sub-class if applicable (optional).,,,,,,
+# 3) For each piece of equipment provide a unique identifier (e.g. inventory number).,,,,,,
+# 4) Enter the equipment name (e.g. 'MacBook Pro' 'Dell Monitor').,,,,,,
+# 5) Specify active usage hours per week (hours when the equipment is actively in use: 0-168).,,,,,,
+# 6) Specify standby usage hours per week (hours when on standby: 0-168). Note: active + standby must inferior or equal to 168.,,,,,,
+# 7) For detailed guidance consult the documentation section: Modules specification - Equipment,,,,,,
+# 8) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,,,,
+Servers,,,,,,
+Desktop,,,,,,
+Laptop,,,,,,
+Monitors,,,,,,
+Printers,,,,,,
+Scanners,,,,,,
+Software,,,,,,
+Network,,,,,,
+Components,,,,,,
+Telecom,,,,,,
+Other IT / telecom equipment,,,,,,
+Tablet,,,,,,
+Photo camera,,,,,,
+Beamer,,,,,,
+Cameras,,,,,,
+HF Microphones,,,,,,
+Screens,,,,,,
+Overhead projectors,,,,,,
+Videoconferencing,,,,,,
+Audio,,,,,,
+Video,,,,,,
+Other audiovisual equipment,,,,,,
