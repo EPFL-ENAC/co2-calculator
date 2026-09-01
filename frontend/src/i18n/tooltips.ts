@@ -131,8 +131,8 @@ export default {
 
   // ── Professional Travel ────────────────────────────────────────────────────
   'module-professional-travel-submodule-plane': {
-    en: 'The flights listed in the table are provided by the EPFL Central Travel Agency. If any flights are missing, you can add them manually.',
-    fr: "Les vols affichés dans le tableau proviennent de l'agence de voyage central EPFL. S'il manque des vols, il est possible de les saisir manuellement.",
+    en: 'The flights listed in the table are provided by the EPFL Central Travel Agency. If any flights are missing, you can add them manually and they will appear in the table in beige.',
+    fr: "Les vols affichés dans le tableau proviennent de l'agence de voyage central EPFL. S'il manque des vols, il est possible de les saisir manuellement et ils apparaitront dans le tableau en beige.",
   },
   'module-professional-travel-submodule-train': {
     en: 'Enter your train trips manually, whether they were taken in Switzerland or abroad. ',
