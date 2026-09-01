@@ -19,13 +19,20 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# Cache-Control split by the year lifecycle invariant (#2391 decision 2):
-# once a year is started, its factors never change again, so a browser can
-# hold the response for a full day. A year still in preparation can be
-# re-ingested at any moment and a browser cache is unreachable by the
-# write-time broadcast (#2280), so it keeps a short max-age — the ETag
-# below makes those frequent revalidations cheap 304s either way.
-_CACHE_CONTROL_STARTED = "private, max-age=86400"
+# Cache-Control split by the year lifecycle invariant (#2391 decision 2).
+# A started year's factor STRUCTURE never changes, but since #2401/#2613
+# the payload also carries locale labels, which are data: a seed migration
+# or an operator CSV upload changes them at any time, uncoupled from the
+# year lifecycle — a silent max-age hold left browsers a full day behind
+# (#2614 deploy incident). stale-while-revalidate keeps the zero-latency
+# render (the stale tree paints, a background conditional GET follows) and
+# self-heals on the next view; the ETag is precomputed per cache entry, so
+# that revalidation is a dict lookup returning 304. Browsers without SWR
+# (Safari) degrade to always-revalidate — one cheap 304 per fetch. A year
+# still in preparation can be re-ingested at any moment and a browser
+# cache is unreachable by the write-time broadcast (#2280), so it keeps a
+# short max-age.
+_CACHE_CONTROL_STARTED = "private, max-age=0, stale-while-revalidate=86400"
 _CACHE_CONTROL_PREPARING = "private, max-age=60"
 
 
