@@ -266,7 +266,6 @@ class ModuleHandlerService:
                 kind_node = TaxonomyNode(
                     name=kind_value,
                     label=label,
-                    translation_key=kind_value,
                     meta=_display_meta(handler, factor),
                 )
                 children.append(kind_node)
@@ -303,7 +302,6 @@ class ModuleHandlerService:
                 TaxonomyNode(
                     name=subkind_value,
                     label=subkind_label,
-                    translation_key=subkind_value,
                     # Per-row, not per-kind: an animal facility carries one
                     # metric unit per housing type, so the subkind node must
                     # take its own factor's meta rather than the kind's.

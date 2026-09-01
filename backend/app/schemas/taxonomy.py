@@ -16,7 +16,6 @@ class FactorOption(BaseModel):
 class TaxonomyNode(BaseModel):
     name: str
     label: str
-    translation_key: str | None = None
     # Display metadata copied from the node's factor row, restricted to the
     # fields its handler whitelists in ``taxonomy_meta_fields`` (#2391). Only
     # what a form or table needs to *render* the option — never an emission

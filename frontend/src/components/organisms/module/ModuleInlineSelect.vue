@@ -159,10 +159,6 @@ const classOptions = computed(() => {
       };
     }
     const kindNode = kindNodeMap.get(opt.value);
-    const translationKey = kindNode?.translation_key;
-    if (translationKey && te(translationKey)) {
-      return { value: opt.value, label: t(translationKey) };
-    }
     if (te(opt.value)) {
       return { value: opt.value, label: t(opt.value) };
     }
