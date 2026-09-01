@@ -40,6 +40,7 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.user import User
+from app.modules.buildings import VALID_ROOM_TYPES
 from app.seed.seed_locations import _NATURAL_KEY_EXPR
 from app.services.data_ingestion.base_csv_provider import _validate_file_path
 from app.services.data_ingestion.base_provider import DataIngestionProvider
@@ -520,9 +521,9 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
                     building_location=building_location,
                     building_name=building_name,
                     room_name=room_name,
-                    room_type=(raw.get("room_type") or "").strip() or None,
-                    room_surface_square_meter=_to_float(
-                        raw.get("room_surface_square_meter")
+                    room_type=_validated_room_type(raw.get("room_type")),
+                    room_surface_square_meter=_non_negative_surface(
+                        _to_float(raw.get("room_surface_square_meter"))
                     ),
                 )
             )
@@ -537,6 +538,26 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             "rows_skipped": skipped,
             "rows_inserted": len(rooms),
         }
+
+
+def _validated_room_type(value: Any) -> str | None:
+    """#2588: the entry side already rejects unknown room types, the
+    reference side accepted anything — enforce the same vocabulary here.
+    """
+    room_type = (str(value or "")).strip() or None
+    if room_type is not None and room_type not in VALID_ROOM_TYPES:
+        allowed = sorted(r for r in VALID_ROOM_TYPES if r)
+        raise ValueError(
+            f"Invalid room_type {room_type!r} in reference CSV — "
+            f"expected one of {allowed} (or empty)"
+        )
+    return room_type
+
+
+def _non_negative_surface(value: float | None) -> float | None:
+    if value is not None and value < 0:
+        raise ValueError(f"room_surface_square_meter must be non-negative, got {value}")
+    return value
 
 
 def _to_float(value: Any) -> float | None:
