@@ -2,7 +2,7 @@
 """normalize factor classification join keys
 
 Revision ID: 09fe9e551783
-Revises: 95fe938000d4
+Revises: fd12a7a0946f
 Create Date: 2026-08-31 19:35:18.518772
 
 """
@@ -25,7 +25,7 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "09fe9e551783"  # noqa: F841
-down_revision: str | Sequence[str] | None = "95fe938000d4"  # noqa: F841
+down_revision: str | Sequence[str] | None = "fd12a7a0946f"  # noqa: F841
 branch_labels: str | Sequence[str] | None = None  # noqa: F841
 depends_on: str | Sequence[str] | None = None  # noqa: F841
 
