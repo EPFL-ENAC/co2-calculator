@@ -1,7 +1,7 @@
 ---
-status: in-progress
+status: delivered
 issue: 2391
-last_updated: 2026-08-26
+last_updated: 2026-08-31
 title: "Unify factor/taxonomy option delivery: one per-year endpoint + ETag, purchase typeahead, strip coefficients"
 summary: "Consolidates the seven mechanisms that feed form selects from the factors table onto the #2280 batch taxonomy endpoint (labels only, long-TTL cache + ETag), moves purchase to a server-side typeahead, and deletes the dead routes/constants the audit found. Delivered in slices; this doc tracks all seven decisions across sibling PRs."
 ---
@@ -90,8 +90,14 @@ mutable during preparation and immutable after — which is what lets decision
   exception to the unified lookup path.
 - ~~ETag derivation~~ — settled with decision 2: content hash of the built
   tree (no ingestion-timestamp column exists to use instead).
-- Purchase label i18n schema — parked on #2401 (team decision), blocks
-  decision 4.
+- ~~Purchase label i18n schema~~ — settled 2026-08-31: proposition 2
+  (translation table), `classification_translations(field_name, value,
+lang) -> label`. Delivered generically (any handler's
+  `classification_fields`) against equipment first, per
+  `docs/src/implementation-plans/2401-purchase-label-i18n.md`. Purchase's
+  own side (`kind_label_field = purchase_institutional_description`, the
+  `_fr` ingestion column, row-level labels) shipped on the same branch —
+  decision 4 built directly on it.
 - Exact per-module migration order (equipment last — it carries the
   values-prefill edge case).
 
@@ -139,8 +145,25 @@ mutable during preparation and immutable after — which is what lets decision
       cached `is_year_started` lookup decides which, defaulting to
       not-started (short max-age) when no year-configuration row exists.
       Delivered by PR #<fill in on push>.
-- [ ] **Decision 4** — purchase server-side typeahead; ingest
-      `purchase_institutional_description`; delete `i18n/purchase_factors.ts`.
+- [x] **Decision 4** — purchase server-side typeahead. Delivered by PR
+      #2583 (riding the #2401 branch, which had already shipped the two
+      prerequisites: `purchase_institutional_description` ingestion +
+      `kind_label_field`, and the `i18n/purchase_factors.ts` deletion).
+      New `GET taxonomies/module/{module}/{data_entry}/options` — the
+      shape of `locations/search`: `query` min 2 chars, `limit` ≤ 100,
+      relevance ordering exact → starts-with → contains; matches the
+      stored value, the English label text, and its translated label
+      (#2401 table), labels resolving translated → English → bare code.
+      Generic over both handler shapes, not purchase-only. Frontend: an
+      `optionsSearch` module-config flag (set on
+      `purchase_institutional_code` only) routes the form select to
+      `ServerSearchSelectField` (per-keystroke search, min-2 guard,
+      edit-mode option seeded from the row's backend `labels`), the
+      form's taxonomy fetch is skipped (`skipClassOptions`), and
+      `ModuleTable` stops fetching the tree for `optionsSearch`
+      submodules — purchase pages no longer download the ~17k-node tree
+      anywhere. `purchases_centralized` (tiny factor set) and every
+      other module stay on the taxonomy path.
 - [x] **Decision 6** — generate `enumSubmodule`, room types, cabin classes,
       currencies, SIUS categories from backend enums
       (`make gen-module-constants`, new
@@ -175,8 +198,11 @@ options and the planner's facility rows from it. One consequence worth naming:
 a form's options and the taxonomy relabel can no longer disagree, which is
 exactly what the #2007 bug was.
 
-Decision 4 will set `kind_label_field = purchase_institutional_description` for
-purchase once ingestion lands.
+Decision 4 set `kind_label_field = purchase_institutional_description` for
+purchase (shipped with the #2401 ingestion on the same branch). The one
+decision-5 leftover — untangling the `translation_key` branches in the four
+Vue components — remains parked as its own change (#2396 reasoning), now
+easier since `equipment_factors.ts`/`purchase_factors.ts` are deleted.
 
 ## References
 

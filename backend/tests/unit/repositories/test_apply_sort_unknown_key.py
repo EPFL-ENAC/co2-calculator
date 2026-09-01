@@ -16,7 +16,7 @@ from app.repositories.data_entry_repo import DataEntryRepository, UnknownSortFie
 def test_unknown_sort_key_raises_unknown_sort_field():
     repo = DataEntryRepository.__new__(DataEntryRepository)
     with pytest.raises(UnknownSortField, match="Cannot sort by unknown field"):
-        repo._apply_sort(None, "__nope__", "asc", {"id": object()})
+        repo._apply_sort(None, "__nope__", "asc", {"id": object()}, None, "en")
 
 
 def test_unknown_sort_field_is_narrower_than_pydantic_validation_error():

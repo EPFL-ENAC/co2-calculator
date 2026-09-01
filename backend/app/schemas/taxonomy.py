@@ -1,6 +1,18 @@
 from pydantic import BaseModel
 
 
+class FactorOption(BaseModel):
+    """One typeahead option (#2391 decision 4).
+
+    ``name`` is the stored classification value the form submits (purchase:
+    the UNSPSC code); ``label`` is the request-locale display text — same
+    vocabulary as ``TaxonomyNode``, minus the tree.
+    """
+
+    name: str
+    label: str
+
+
 class TaxonomyNode(BaseModel):
     name: str
     label: str

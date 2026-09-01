@@ -512,10 +512,6 @@ def test_module_top_class_group_field_mapping():
     assert ModuleTypeEnum.purchase in crm._MODULE_TOP_CLASS_GROUP_FIELD
 
 
-def test_module_top_class_label_field_mapping():
-    assert ModuleTypeEnum.purchase in crm._MODULE_TOP_CLASS_LABEL_FIELD
-
-
 # ── get_module: headcount 500 regression ─────────────────────────────────────
 
 

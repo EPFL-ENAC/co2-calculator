@@ -3,14 +3,19 @@
 from psycopg.types.json import Json
 from sqlalchemy import or_, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import col, delete, select
+from sqlmodel import case, col, delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.taxonomy_cache_broadcast import schedule_taxonomy_cache_invalidation
+from app.models.classification_translation import (
+    DEFAULT_LANG,
+    ClassificationTranslation,
+)
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
 from app.schemas.data_entry import BaseModuleHandler
+from app.utils.sql_like import escape_like
 
 # Staging table for the COPY-based factor upsert.  TEMP + per-session:
 # concurrent factor jobs on other connections each get their own.
@@ -475,6 +480,71 @@ class FactorRepository:
         )
         result = await self.session.exec(stmt)
         return list(result.all())
+
+    async def search_classification_options(
+        self,
+        data_entry_type_id: DataEntryTypeEnum,
+        year: int,
+        kind_field: str,
+        label_field: str | None,
+        query: str,
+        lang: str,
+        limit: int,
+    ) -> list[tuple[str, str | None]]:
+        """Matching ``(value, english_text)`` pairs for a typeahead (#2391 d4).
+
+        Matches the stored value, the English text (the label field's column
+        for the code + label-field shape, the value itself otherwise), and —
+        for a non-English locale — the text's translated label. Relevance
+        ordering mirrors ``locations/search``: exact, starts-with, contains.
+        Ranked on the English text; a translated-only match rides the
+        contains tier — revisit if French UX asks for more.
+        """
+        value_col = Factor.classification[kind_field].as_string()
+        text_col = (
+            Factor.classification[label_field].as_string() if label_field else value_col
+        )
+        # LIKE metacharacters in user input must match literally — '100%'
+        # is a real substring of purchase descriptions, not a wildcard.
+        escaped = escape_like(query)
+        pattern = f"%{escaped}%"
+        match = or_(
+            value_col.ilike(pattern, escape="\\"),
+            text_col.ilike(pattern, escape="\\"),
+        )
+        if lang != DEFAULT_LANG:
+            translated = select(col(ClassificationTranslation.value)).where(
+                col(ClassificationTranslation.field_name)
+                == (label_field or kind_field),
+                col(ClassificationTranslation.lang) == lang,
+                col(ClassificationTranslation.label).ilike(pattern, escape="\\"),
+            )
+            match = or_(match, text_col.in_(translated))
+        relevance = case(
+            (func.lower(text_col) == query.lower(), 0),
+            (text_col.ilike(f"{escaped}%", escape="\\"), 1),
+            else_=2,
+        )
+        stmt = (
+            # relevance rides in the select list because Postgres requires
+            # every DISTINCT ORDER BY expression there.
+            select(value_col, text_col, relevance)
+            .where(
+                col(Factor.data_entry_type_id) == data_entry_type_id,
+                col(Factor.year) == year,
+                value_col.is_not(None),
+                match,
+            )
+            .distinct()
+            .order_by(relevance, text_col, value_col)
+            # Overfetch: the caller dedups by value (purchase keeps one
+            # factor row per additional code) and must not be starved by
+            # LIMIT counting pre-dedupe rows. 3x is the assumed ceiling on
+            # duplicate rows per value.
+            .limit(limit * 3)
+        )
+        rows = (await self.session.exec(stmt)).all()
+        return [(row[0], row[1]) for row in rows]
 
     async def list_by_data_entry_type(
         self,

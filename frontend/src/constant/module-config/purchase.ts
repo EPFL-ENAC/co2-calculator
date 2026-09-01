@@ -36,6 +36,7 @@ const purchaseFields: ModuleField[] = [
     id: 'purchase_institutional_code',
     labelKey: `${MODULES.Purchase}.inputs.purchase_institutional_code`,
     optionsId: 'kind',
+    optionsSearch: true,
     type: 'select',
     required: true,
     sortable: true,

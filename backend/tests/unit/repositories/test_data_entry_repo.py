@@ -597,7 +597,13 @@ def test_apply_name_filter_no_filter():
     mock_handler = MagicMock()
 
     result_stmt, filter_pattern = repo._apply_name_filter(
-        mock_statement, None, mock_handler
+        mock_statement,
+        None,
+        {},
+        handler=mock_handler,
+        lang="en",
+        data_entry_type_id=66,
+        factor_year=None,
     )
 
     assert filter_pattern == ""
@@ -612,7 +618,13 @@ def test_apply_name_filter_with_pattern():
     mock_handler.filter_map = DEFAULT_FILTER_MAP
 
     result_stmt, filter_pattern = repo._apply_name_filter(
-        mock_statement, "test", mock_handler
+        mock_statement,
+        "test",
+        dict(DEFAULT_FILTER_MAP),
+        handler=None,
+        lang="en",
+        data_entry_type_id=66,
+        factor_year=None,
     )
 
     assert filter_pattern == "%test%"
@@ -627,7 +639,13 @@ def test_apply_name_filter_max_length():
 
     long_filter = "a" * 150
     result_stmt, filter_pattern = repo._apply_name_filter(
-        mock_statement, long_filter, mock_handler
+        mock_statement,
+        long_filter,
+        dict(DEFAULT_FILTER_MAP),
+        handler=None,
+        lang="en",
+        data_entry_type_id=66,
+        factor_year=None,
     )
 
     # Should be truncated to 100 + 2 for %% = 102
@@ -643,9 +661,57 @@ def test_apply_name_filter_wildcard_only():
 
     for wildcard in ["%", "*", "  "]:
         result_stmt, filter_pattern = repo._apply_name_filter(
-            mock_statement, wildcard, mock_handler
+            mock_statement,
+            wildcard,
+            {},
+            handler=mock_handler,
+            lang="en",
+            data_entry_type_id=66,
+            factor_year=None,
         )
         assert filter_pattern == ""
+
+
+def test_apply_name_filter_escapes_like_metacharacters():
+    """A literal ``%`` searches for itself instead of wildcard-matching.
+
+    Regression (#2401 review): the table filter interpolated the raw term
+    while the typeahead escaped it, so ``100%`` matched every row here and
+    only the literal ones there.
+    """
+    repo = DataEntryRepository(MagicMock())
+
+    _, filter_pattern = repo._apply_name_filter(
+        MagicMock(),
+        "100%_x",
+        dict(DEFAULT_FILTER_MAP),
+        handler=None,
+        lang="en",
+        data_entry_type_id=66,
+        factor_year=None,
+    )
+
+    assert filter_pattern == "%100\\%\\_x%"
+
+
+def test_filter_conditions_render_escape_clause():
+    """Every ``ILIKE`` built from the pattern declares its escape char —
+    without it the backslashes the pattern carries stay literal.
+    """
+    repo = DataEntryRepository(MagicMock())
+
+    conditions = repo._filter_conditions(
+        dict(DEFAULT_FILTER_MAP),
+        "%100\\%%",
+        None,
+        "en",
+        66,
+        None,
+    )
+
+    assert conditions
+    for condition in conditions:
+        assert "ESCAPE" in str(condition.compile())
 
 
 # ======================================================================
