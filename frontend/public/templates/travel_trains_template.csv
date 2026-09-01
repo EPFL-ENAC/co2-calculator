@@ -8,4 +8,4 @@
 # 6) Specify the cabin class: either first or second class.,,,,,,,,
 # 7) For detailed guidance consult the documentation under: Modules specification - Professional travel,,,,,,,,
 # 8) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,,,,,,
-Lausanne,CH,GenÃ¨ve,CH,234567,2025-12-03,1,second,
+Lausanne,CH,Genève,CH,234567,2025-12-03,1,second,

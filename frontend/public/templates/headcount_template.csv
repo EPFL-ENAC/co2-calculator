@@ -2,7 +2,7 @@
 # Instructions: ,,,,
 # 1) Fill one line per member you want to add with their name. ,,,,
 # 2) Fill the information on the SIUS code of the person (the corresponding categories are given in the note). An explanation for the SIUS code can be found in the documentation under the tab: Module specifications - Headcount. ,,,,
-# 3) Insert the institutional id (SCIPER) of the person in the column user_institution_id.,,,,
+# 3) Insert the institutional id (SCIPER) of the person in the column user_institutional_id.,,,,
 # 4) Insert the fte as a decimal number from 0 to 1. 1 corresponds to a person working full time for the whole year 0.5 corresponding to a person working at 50% the full year or full time but only for 6 months. ,,,,
 # 5) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,,
 Elena Rossi,51,123456,1,Professors

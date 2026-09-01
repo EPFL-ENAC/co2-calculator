@@ -51,7 +51,7 @@ from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
-from app.utils.csv_dialect import csv_dict_reader
+from app.utils.csv_dialect import csv_dict_reader, strip_comment_lines
 from app.utils.progress import format_progress
 
 logger = get_logger(__name__)
@@ -930,8 +930,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Process CSV rows
             copy_batch_size = get_settings().INGEST_COPY_BATCH_SIZE
             # Rough row count for progress/ETA (header line excluded); the CSV
-            # text is already in memory, so counting newlines is cheap.
-            total_rows = max(setup_result["csv_text"].count("\n") - 1, 0)
+            # text is already in memory, so counting newlines is cheap. Count
+            # on the comment-stripped text the row loop actually iterates, or
+            # a template full of # instructions reports a total it never hits.
+            total_rows = max(
+                strip_comment_lines(setup_result["csv_text"]).count("\n") - 1, 0
+            )
             self._enter_phase("Parsing rows")
             await self._report(
                 "Parsing rows", processed=0, total=total_rows, stats=stats, force=True

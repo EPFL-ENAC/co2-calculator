@@ -1,5 +1,5 @@
 ﻿building_location,building_name,room_name,room_type,note
-Instructons: ,,,,
+# Instructions:,,,,
 # 1) Optionally enter the location of the campus (ECUBLENS NEUCHATEL SION ETC),,,,
 # 2) Enter the code for the building (AAB AI BS SV etc.),,,,
 # 3) Enter the room name as it appears in EPFL map.,,,,

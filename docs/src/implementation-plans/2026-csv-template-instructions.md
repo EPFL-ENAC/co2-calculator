@@ -80,12 +80,28 @@ prose in a semicolon file cannot sway the detected delimiter.
 
 Everything we reported on the 2026-08-27 pack (quote-wrapped instruction
 line in `processemissions`, leftover empty column in both
-`researchfacilities` files, filenames) is fixed at the source. Only two
-deliberate rewrites of ours remain:
+`researchfacilities` files, filenames) is fixed at the source. Our copy
+still differs on these points, reported so the next pack folds them in:
 
 - The closing "delete all these instructions lines" instruction now reads
   that `#` lines are ignored and can stay.
 - Instruction numbering renumbered (the pack skips 7 in `travel_planes`).
+- Bot review of the PR caught defects our first pass missed (see
+  `docs/code-review/2026-copilot-feedback-*.md` for the triage):
+  - Mojibake (UTF-8 re-encoded through cp1252: `GenÃ¨ve`, `Â°C`, `â€¦`)
+    in `travel_trains`, five `purchases_*` files and
+    `equipment_scientific`, where the broken strings are `sub_class`
+    factor keys the clean factor table would never match. Repaired.
+  - Two instruction rows without their `#`: `building_rooms` line 2
+    (`Instructons:`, also a typo) and the quote-wrapped frequency list in
+    `external_ai`. Both imported as failing data rows. Rewritten as `#`
+    lines.
+  - `headcount` instruction 3 named a column that does not exist
+    (`user_institution_id`); `travel_planes` used `NYC`, a metro code the
+    exact `iata_code` lookup cannot resolve (now `JFK`).
+  - The regression suite now hunts instruction prose and mojibake in data
+    rows, so marker-less instruction lines can't slip through again, and
+    ingestion progress totals count the comment-stripped text.
 
 ## Equipment factors (resolved)
 
