@@ -1,139 +1,171 @@
-﻿equipment_class,sub_class,equipment_id,name,active_usage_hours_per_week,standby_usage_hours_per_week,note,kg_co2eq
-Power supplies,,"","","","","",""
-Amplifiers,,"","","","","",""
-Signal analysis,,"","","","","",""
-Signal generators,,"","","","","",""
-Oscilloscopes,,"","","","","",""
-Agitator / Incubator,Simple agitators/incubators,"","","","","",""
-Agitator / Incubator,Refrigerated incubators,"","","","","",""
-Agitator / Incubator,30 to 37°C incubators,"","","","","",""
-Agitator / Incubator,"Bench agitators (vortex, rockers, platforms, magnetic agitators, thermomixers…)","","","","","",""
-Agitator / Incubator,CO2 incubators,"","","","","",""
-Agitator / Incubator,Climate chambers,"","","","","",""
-Agitator / Incubator,"Water-baths, bead-baths, dry-baths","","","","","",""
-Agitator / Incubator,Agitation heating plates,"","","","","",""
-Centrifugation,Ultra centrifuges,"","","","","",""
-Centrifugation,High-speed floor-standing centrifuges,"","","","","",""
-Centrifugation,Large refrigerated bench top centrifuges,"","","","","",""
-Centrifugation,Large bench top centrifuges,"","","","","",""
-Centrifugation,1.5mL refrigerated bench top centrifuges,"","","","","",""
-Centrifugation,1.5mL bench top centrifuges,"","","","","",""
-Centrifugation,Mini centrifuges,"","","","","",""
-Vacuum chamber,,"","","","","",""
-"Chromatographs (HPLC, etc.)",FPLC,"","","","","",""
-"Chromatographs (HPLC, etc.)",HPLC,"","","","","",""
-Cell counter (FACS),,"","","","","",""
-Cryogenics,,"","","","","",""
-Cryostats,,"","","","","",""
-Cytometer,,"","","","","",""
-Evaporator,Vacuum evaporators,"","","","","",""
-Evaporator,Rotary vacuum evaporators,"","","","","",""
-Drying ovens,,"","","","","",""
-Laminar flow hood,Old 180cm laminar flow hoods (>15yo),"","","","","",""
-Laminar flow hood,Old 120cm laminar flow hoods (>15yo),"","","","","",""
-Laminar flow hood,Recent 180cm laminar flow hoods (<15yo),"","","","","",""
-Laminar flow hood,Recent 150cm laminar flow hoods  (<15yo),"","","","","",""
-Lab ovens,,"","","","","",""
-Lyophilisator,Speed vacuum concentrators,"","","","","",""
-Lyophilisator,Lyophilisator (> 1kW),"","","","","",""
-Microtomes,,"","","","","",""
-PCR / QPCR,PCR,"","","","","",""
-PCR / QPCR,QPCR,"","","","","",""
-Sequencers,,"","","","","",""
-Deposition and engraving systems,,"","","","","",""
-"Other biological, chem. and phys. equip.","Sonicators, homogenizers","","","","","",""
-"Other biological, chem. and phys. equip.","Transfection systems, electroporators, gene pulsers","","","","","",""
-"Other biological, chem. and phys. equip.",Water purifiers,"","","","","",""
-"Other biological, chem. and phys. equip.","Spectrophotometers, fluorimeters, luminometers","","","","","",""
-"Other biological, chem. and phys. equip.",Plate readers,"","","","","",""
-"Other biological, chem. and phys. equip.",Plate washers,"","","","","",""
-"Other biological, chem. and phys. equip.","Imaging systems, geldocs","","","","","",""
-"Other biological, chem. and phys. equip.",Microwaves,"","","","","",""
-"Other biological, chem. and phys. equip.","Refrigerated baths, chillers","","","","","",""
-"Other biological, chem. and phys. equip.",Ultrasound baths,"","","","","",""
-"Other biological, chem. and phys. equip.",Bioruptors,"","","","","",""
-"Other biological, chem. and phys. equip.",Emulsiflexes,"","","","","",""
-"Other biological, chem. and phys. equip.",Crushers,"","","","","",""
-"Other biological, chem. and phys. equip.",Euthanasia boxes,"","","","","",""
-"Other biological, chem. and phys. equip.",Stimulators,"","","","","",""
-"Other biological, chem. and phys. equip.",Pipette pullers,"","","","","",""
-"Other biological, chem. and phys. equip.",UV irradiators,"","","","","",""
-"Other biological, chem. and phys. equip.",Pipetting robots,"","","","","",""
-"Other biological, chem. and phys. equip.",Syringe pumps and injectors,"","","","","",""
-"Other biological, chem. and phys. equip.",Gel dryers,"","","","","",""
-"Other biological, chem. and phys. equip.",O2 concentrator generators,"","","","","",""
-"Other biological, chem. and phys. equip.",Other devices,"","","","","",""
-Milling machine,,"","","","","",""
-Chemical reactors,,"","","","","",""
-Other stewardship equipment,,"","","","","",""
-Other measuring equipment,,"","","","","",""
-Pneumatic tables,,"","","","","",""
-Potentiostat,,"","","","","",""
-Probes,,"","","","","",""
-Laser-scanning microscope,,"","","","","",""
-AFM microscopes,,"","","","","",""
-Optical microscopes,Average confocal microscopes,"","","","","",""
-Optical microscopes,Microscopes with incubation chamber,"","","","","",""
-Optical microscopes,FL microscopes,"","","","","",""
-Optical microscopes,"Simple microscopes, reversed microscopes, and binocular lenses,…","","","","","",""
-Stereo microscopes,,"","","","","",""
-Other microscopy equipment,,"","","","","",""
-Gas analyser,,"","","","","",""
-Scales,,"","","","","",""
-Lab cameras,,"","","","","",""
-Spectrometers,,"","","","","",""
-Diffractometers,,"","","","","",""
-Lasers,,"","","","","",""
-Light sources,Light sources for microscope,"","","","","",""
-Light sources,Insect UV lights,"","","","","",""
-Acoustic,Acoustics,"","","","","",""
-EEG /ECG / EMG,,"","","","","",""
-Micromanipulator,,"","","","","",""
-Coaters,,"","","","","",""
-3D printer,,"","","","","",""
-Driller,,"","","","","",""
-Pumps,Vaccum mechanical pumps (> 500W),"","","","","",""
-Pumps,Vaccum diaphragm pumps (< 500W),"","","","","",""
-Pumps,Laboratory suction pumps (< 100W),"","","","","",""
-Pumps,Peristaltic pumps,"","","","","",""
-Robots,,"","","","","",""
-Autoclaves,Bench top autoclaves,"","","","","",""
-Autoclaves,Autoclaves (150 L),"","","","","",""
-CPG mobile equipment,CPG ventilation motors,"","","","","",""
-CPG mobile equipment,Other CPG mobile equipment,"","","","","",""
-Other infrastructure equipment,Distillation equipment,"","","","","",""
-Other infrastructure equipment,Washers,"","","","","",""
-Acoustics,,"","","","","",""
-Actuators,,"","","","","",""
-Aligner,,"","","","","",""
-Audio,,"","","","","",""
-Calorimeters,,"","","","","",""
-Cleaning equipment,,"","","","","",""
-Compression & traction machines,,"","","","","",""
-Detectors,,"","","","","",""
-Electrochemical analyser,,"","","","","",""
-Electronic microscopes,,"","","","","",""
-Kitchen,,"","","","","",""
-Kitchen oven,,"","","","","",""
-Monochromateurs,,"","","","","",""
-Moteurs,,"","","","","",""
-Multimeters,,"","","","","",""
-Other electrophysiolog. & medical equip.,,"","","","","",""
-Other furniture  equipment,,"","","","","",""
-Other machine tools,,"","","","","",""
-Other mechanical equipment,,"","","","","",""
-Other optical equipment,,"","","","","",""
-Other reprography equipment,,"","","","","",""
-Other scientific equipment,,"","","","","",""
-Overhead projectors,,"","","","","",""
-Photocopy machines,,"","","","","",""
-Press,,"","","","","",""
-RMN,,"","","","","",""
-Reprography equipment,,"","","","","",""
-Saw,,"","","","","",""
-Signal generator,,"","","","","",""
-Tables,,"","","","","",""
-Video,,"","","","","",""
-Voltmeter,,"","","","","",""
-Wattmeter,,"","","","","",""
-Works of art,,"","","","","",""
+﻿equipment_class,sub_class,equipment_id,name,active_usage_hours_per_week,standby_usage_hours_per_week,note
+# Instructions:,,,,,,
+# 1) Select the appropriate equipment class from your institution's inventory (e.g. Evaporator Centrifuge Fume Hood etc. - see list below).,,,,,,
+# 2) Enter the sub-class for more specific categorization if available (see list below). ,,,,,,
+# 3) For each piece of equipment provide a unique identifier (e.g. inventory number).,,,,,,
+# 4) Enter the equipment name descriptively (e.g. 'Evaporator unit 01' 'Centrifuge model X').,,,,,
+# 5) Specify active usage hours per week (hours when equipment is actively operating 0-168).,,,,,,
+# 6) Specify standby usage hours per week (hours when on standby 0-168). Note: active + standby must inferior or equal to 168. ,,,,,,
+# 7) For detailed guidance consult the documentation section: Modules specification - Equipment,,,,,,
+# 8) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,,,
+Power supplies,,,,,,
+Amplifiers,,,,,,
+Signal analysis,,,,,,
+Calorimeters,,,,,,
+"Cellule axiale (biaxiale, triaxiale, etc.",,,,,,
+Signal generator,,,,,,
+Moteurs,Large Motor/Generator,,,,,
+Moteurs,Small Motor/Actuator,,,,,
+Moteurs,Other Motorized Equipment,,,,,
+Multimeters,,,,,,
+Oscilloscopes,,,,,,
+Potentiostat,,,,,,
+Voltmeter,,,,,,
+Wattmeter,,,,,,
+Other electrotechnical equip.,Ultra-Low,,,,,
+Other electrotechnical equip.,Low,,,,,
+Other electrotechnical equip.,Light Instruments,,,,,
+Other electrotechnical equip.,Typical Lab Instruments,,,,,
+Other electrotechnical equip.,Performance & Rack Equipment,,,,,
+Other electrotechnical equip.,Compact Utility Equipment,,,,,
+Other electrotechnical equip.,Mid-Power Systems,,,,,
+Other electrotechnical equip.,Industrial/High-Power System,,,,,
+Coaters,,,,,,
+Milling machine,,,,,,
+3D printer,,,,,,
+Driller,,,,,,
+Press,Arc Welding Power Sources,,,,,
+Press,Electromechanical Press/Test,,,,,
+Press,Hydraulic Presses & Molding,,,,,
+Press,Laboratory Presses & Molding,,,,,
+Press,Non-Arc Welding Systems,,,,,
+Press,Precision Micro-Joining Systems,,,,,
+Press,Welding Positioners & Rotators,,,,,
+Saw,Laboratory Presses & Molding,,,,,
+Saw,Manual/Non-Powered Devices,,,,,
+Saw,Precision/Low-Power Instruments,,,,,
+Saw,Standard Powered Saws,,,,,
+Other machine tools,,,,,,
+Compression & traction machines,Electromechanical Test Machines,,,,,
+Compression & traction machines,High-Force Hydraulic Machines,,,,,
+Compression & traction machines,High-Intensity Lamps/UV,,,,,
+Compression & traction machines,Laboratory Mixers/Mills,,,,,
+Compression & traction machines,Machine Tools,,,,,
+Compression & traction machines,Passive/Non-Powered,,,,,
+Compression & traction machines,Precision Welding/Bonding,,,,,
+Compression & traction machines,Vacuum/Extraction Unit,,,,,
+Pumps,Vaccum mechanical pumps (> 500W),,,,,
+Pumps,Vaccum diaphragm pumps (< 500W),,,,,
+Pumps,Laboratory suction pumps (< 100W),,,,,
+Pumps,Peristaltic pumps,,,,,
+Robots,,,,,,
+Actuators,Electric Robots & Multi-Axis Actuators,,,,,
+Actuators,Hydraulic Actuators & Cylinders,,,,,
+Actuators,Laboratory Automation Devices,,,,,
+Actuators,Laboratory Presses & Molding,,,,,
+Actuators,Mobile & Field Robots (Battery),,,,,
+Actuators,Motion Platforms & Wearables,,,,,
+Actuators,Precision Micro/Nano Positioners,,,,,
+Other mechanical equipment,,,,,,
+Other scientific equipment,,,,,,
+Gas analyser,,,,,,
+Electrochemical analyser,,,,,,
+Scales,,,,,,
+Lab cameras,,,,,,
+Detectors,,,,,,
+Probes,,,,,,
+Spectrometers,,,,,,
+Other measuring equipment,,,,,,
+Laser-scanning microscope,,,,,,
+AFM microscopes,,,,,,
+Electronic microscopes,Microscope Support Equipment,,,,,
+Electronic microscopes,Optical Microscope (Widefield),,,,,
+Electronic microscopes,Scanning Electron Microscope,,,,,
+Electronic microscopes,Scanning Probe Microscope,,,,,
+Electronic microscopes,Transmission Electron Microscope,,,,,
+Optical microscopes,Average confocal microscopes,,,,,
+Optical microscopes,Microscopes with incubation chamber,,,,,
+Optical microscopes,FL microscopes,,,,,
+Optical microscopes,"Simple microscopes, reversed microscopes, and binocular lenses,…",,,,,
+Stereo microscopes,,,,,,
+Pneumatic tables,,,,,,
+Other microscopy equipment,,,,,,
+Diffractometers,,,,,,
+Lasers,,,,,,
+Monochromateurs,,,,,,
+Light sources,Light sources for microscope,,,,,
+Light sources,Insect UV lights,,,,,
+Other optical equipment,,,,,,
+Acoustics,,,,,,
+EEG /ECG / EMG,,,,,,
+Micromanipulator,,,,,,
+Other electrophysiolog. & medical equip.,,,,,,
+Agitator / Incubator,Simple agitators/incubators,,,,,
+Agitator / Incubator,Refrigerated incubators,,,,,
+Agitator / Incubator,30 to 37°C incubators,,,,,
+Agitator / Incubator,"Bench agitators (vortex, rockers, platforms, magnetic agitators, thermomixers…)",,,,,
+Agitator / Incubator,CO2 incubators,,,,,
+Agitator / Incubator,Climate chambers,,,,,
+Agitator / Incubator,"Water-baths, bead-baths, dry-baths",,,,,
+Agitator / Incubator,Agitation heating plates,,,,,
+Aligner,,,,,,
+Centrifugation,Ultra centrifuges,,,,,
+Centrifugation,High-speed floor-standing centrifuges,,,,,
+Centrifugation,Large refrigerated bench top centrifuges,,,,,
+Centrifugation,Large bench top centrifuges,,,,,
+Centrifugation,1.5mL refrigerated bench top centrifuges,,,,,
+Centrifugation,1.5mL bench top centrifuges,,,,,
+Centrifugation,Mini centrifuges,,,,,
+Vacuum chamber,,,,,,
+"Chromatographs (HPLC, etc.)",FPLC,,,,,
+"Chromatographs (HPLC, etc.)",HPLC,,,,,
+Cell counter (FACS),,,,,,
+Cryogenics,,,,,,
+Cryostats,,,,,,
+Cytometer,,,,,,
+Evaporator,Vacuum evaporators,,,,,
+Evaporator,Rotary vacuum evaporators,,,,,
+Drying ovens,,,,,,
+Laminar flow hood,Old 180cm laminar flow hoods (>15yo),,,,,
+Laminar flow hood,Old 120cm laminar flow hoods (>15yo),,,,,
+Laminar flow hood,Recent 180cm laminar flow hoods (<15yo),,,,,
+Laminar flow hood,Recent 150cm laminar flow hoods (<15yo),,,,,
+Lab ovens,,,,,,
+Lyophilisator,Speed vacuum concentrators,,,,,
+Lyophilisator,Lyophilisator (> 1kW),,,,,
+Microtomes,,,,,,
+PCR / QPCR,PCR,,,,,
+PCR / QPCR,QPCR,,,,,
+Chemical reactors,,,,,,
+RMN,,,,,,
+Sequencers,,,,,,
+Deposition and engraving systems,,,,,,
+Lab Freezer / Frigde,Old -80°C freezers (>12yo),,,,,
+Lab Freezer / Frigde,Recent -80°C freezers (<12yo),,,,,
+Lab Freezer / Frigde,Small +4°C or -20°C freezers (< 150L),,,,,
+Lab Freezer / Frigde,Big +4°C or -20°C freezers (> 150L),,,,,
+Lab Freezer / Frigde,"Refrigerated display cabinets (fixed or mobile, 1-2m3)",,,,,
+Lab Freezer / Frigde,Cold rooms (20m2),,,,,
+Lab Freezer / Frigde,Ice machines,,,,,
+"Other biological, chem. and phys. equip.","Sonicators, homogenizers",,,,,
+"Other biological, chem. and phys. equip.","Transfection systems, electroporators, gene pulsers",,,,,
+"Other biological, chem. and phys. equip.",Water purifiers,,,,,
+"Other biological, chem. and phys. equip.","Spectrophotometers, fluorimeters, luminometers",,,,,
+"Other biological, chem. and phys. equip.",Plate readers,,,,,
+"Other biological, chem. and phys. equip.",Plate washers,,,,,
+"Other biological, chem. and phys. equip.","Imaging systems, geldocs",,,,,
+"Other biological, chem. and phys. equip.",Microwaves,,,,,
+"Other biological, chem. and phys. equip.","Refrigerated baths, chillers",,,,,
+"Other biological, chem. and phys. equip.",Ultrasound baths,,,,,
+"Other biological, chem. and phys. equip.",Bioruptors,,,,,
+"Other biological, chem. and phys. equip.",Emulsiflexes,,,,,
+"Other biological, chem. and phys. equip.",Crushers,,,,,
+"Other biological, chem. and phys. equip.",Euthanasia boxes,,,,,
+"Other biological, chem. and phys. equip.",Stimulators,,,,,
+"Other biological, chem. and phys. equip.",Pipette pullers,,,,,
+"Other biological, chem. and phys. equip.",UV irradiators,,,,,
+"Other biological, chem. and phys. equip.",Pipetting robots,,,,,
+"Other biological, chem. and phys. equip.",Syringe pumps and injectors,,,,,
+"Other biological, chem. and phys. equip.",Gel dryers,,,,,
+"Other biological, chem. and phys. equip.",O2 concentrator generators,,,,,
+"Other biological, chem. and phys. equip.",Other devices,,,,,
