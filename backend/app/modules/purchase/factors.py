@@ -76,7 +76,6 @@ purchase_common_classification_fields: list[str] = [
 ]
 purchase_common_value_fields: list[str] = [
     "ef_kg_co2eq_per_currency",
-    "translation_key",
 ]
 
 
@@ -84,7 +83,6 @@ class PurchaseCommonFactorCreate(FactorCreate):
     currency: str
     purchase_institutional_code: str
     purchase_institutional_description: str | None = None
-    translation_key: str | None = None
     purchase_additional_code: str | None = None
     ef_kg_co2eq_per_currency: float
     # purchase_category: str  # only for upload Mandatory (checked in csv upload)
@@ -117,7 +115,6 @@ class PurchaseCommonFactorUpdate(FactorUpdate):
     purchase_additional_code: str | None = None
     currency: str | None = None
     ef_kg_co2eq_per_currency: float | None = None
-    translation_key: str | None = None
 
 
 class PurchaseCommonFactorResponse(FactorResponseGen):
@@ -126,7 +123,6 @@ class PurchaseCommonFactorResponse(FactorResponseGen):
     purchase_additional_code: str | None = None
     currency: str
     ef_kg_co2eq_per_currency: float | None = None
-    translation_key: str | None = None
 
 
 class PurchaseCommonFactorHandler(BaseFactorHandler):

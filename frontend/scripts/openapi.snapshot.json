@@ -240,33 +240,6 @@
         "operationId": "list_user_units_v1_users_units_get",
         "parameters": [
           {
-            "name": "skip",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Number of records to skip",
-              "default": 0,
-              "title": "Skip"
-            },
-            "description": "Number of records to skip"
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "description": "Maximum number of records to return",
-              "default": 100,
-              "title": "Limit"
-            },
-            "description": "Maximum number of records to return"
-          },
-          {
             "name": "auth_token",
             "in": "cookie",
             "required": false,
@@ -1925,6 +1898,18 @@
             }
           },
           {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Locale for segment labels (#2401), e.g. 'fr'",
+              "default": "en",
+              "title": "Lang"
+            },
+            "description": "Locale for segment labels (#2401), e.g. 'fr'"
+          },
+          {
             "name": "auth_token",
             "in": "cookie",
             "required": false,
@@ -2171,6 +2156,18 @@
               "title": "Filter"
             },
             "description": "Filter string to search in name or display_name"
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Locale for the search filter (#2401/#2516): a translatable field also matches its translated label, e.g. lang=fr 'serveur' matches equipment_class_fr='serveur' (stored equipment_class='server').",
+              "default": "en",
+              "title": "Lang"
+            },
+            "description": "Locale for the search filter (#2401/#2516): a translatable field also matches its translated label, e.g. lang=fr 'serveur' matches equipment_class_fr='serveur' (stored equipment_class='server')."
           },
           {
             "name": "auth_token",
@@ -3201,33 +3198,6 @@
         "operationId": "list_units_v1_units_get",
         "parameters": [
           {
-            "name": "skip",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Number of records to skip",
-              "default": 0,
-              "title": "Skip"
-            },
-            "description": "Number of records to skip"
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "description": "Maximum number of records to return",
-              "default": 100,
-              "title": "Limit"
-            },
-            "description": "Maximum number of records to return"
-          },
-          {
             "name": "auth_token",
             "in": "cookie",
             "required": false,
@@ -3481,7 +3451,7 @@
           "taxonomies"
         ],
         "summary": "Get Taxonomies For Module Data Entries",
-        "description": "Batch-fetch taxonomies for several data entry types of one module.\n\nCollapses a report page's ~11 sequential /module/{module}/{data_entry}\nround trips into one call per module (#2049 T6). Each entry still\nresolves through get_taxonomy_for_data_entry_type, so it hits/populates\nthe same (data_entry_type, year) cache a single-entry call would.\n\nAn ``HTTPException`` (bad entry name, entry not in this module) means\nthe request itself is malformed \u2014 that's not one submodule's problem,\nit propagates and fails the whole batch. Any other exception is a\nper-entry runtime failure (e.g. a transient DB hiccup) and must not\nblank every other, already-resolved entry in the batch (#2258\nfollow-up) \u2014 logged loud and the entry is left out of the response\nrather than silently rendered as an empty taxonomy.",
+        "description": "Batch-fetch taxonomies for several data entry types of one module.\n\nCollapses a report page's ~11 sequential /module/{module}/{data_entry}\nround trips into one call per module (#2049 T6). Each entry still\nresolves through get_taxonomy_for_data_entry_type, so it hits/populates\nthe same (data_entry_type, year) cache a single-entry call would.\n\nThe response ETag combines every resolved entry's own ETag (#2391\ndecision 2); a matching `If-None-Match` short-circuits with an empty\n304 before any tree is serialized to JSON.\n\nAn ``HTTPException`` (bad entry name, entry not in this module) means\nthe request itself is malformed \u2014 that's not one submodule's problem,\nit propagates and fails the whole batch. Any other exception is a\nper-entry runtime failure (e.g. a transient DB hiccup) and must not\nblank every other, already-resolved entry in the batch (#2258\nfollow-up) \u2014 logged loud and the entry is left out of the response\nrather than silently rendered as an empty taxonomy.",
         "operationId": "get_taxonomies_for_module_data_entries_v1_taxonomies_module__module__data_entries_get",
         "parameters": [
           {
@@ -3517,6 +3487,34 @@
               "title": "Year"
             },
             "description": "Year for which to retrieve the taxonomy"
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Locale for classification labels (#2401), e.g. 'fr'",
+              "default": "en",
+              "title": "Lang"
+            },
+            "description": "Locale for classification labels (#2401), e.g. 'fr'"
+          },
+          {
+            "name": "if-none-match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-None-Match"
+            }
           },
           {
             "name": "auth_token",
@@ -3562,7 +3560,7 @@
           "taxonomies"
         ],
         "summary": "Get Taxonomy For Module Data Entry",
-        "description": "Get taxonomy for a given module and data entry type.",
+        "description": "Get taxonomy for a given module and data entry type.\n\nA matching `If-None-Match` short-circuits with an empty 304 before the\ntree is serialized to JSON (#2391 decision 2).",
         "operationId": "get_taxonomy_for_module_data_entry_v1_taxonomies_module__module___data_entry__get",
         "parameters": [
           {
@@ -3595,6 +3593,34 @@
             "description": "Year for which to retrieve the taxonomy"
           },
           {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Locale for classification labels (#2401), e.g. 'fr'",
+              "default": "en",
+              "title": "Lang"
+            },
+            "description": "Locale for classification labels (#2401), e.g. 'fr'"
+          },
+          {
+            "name": "if-none-match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-None-Match"
+            }
+          },
+          {
             "name": "auth_token",
             "in": "cookie",
             "required": false,
@@ -3611,6 +3637,120 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaxonomyNode"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/taxonomies/module/{module}/{data_entry}/options": {
+      "get": {
+        "tags": [
+          "taxonomies"
+        ],
+        "summary": "Search Module Data Entry Options",
+        "description": "Server-side typeahead for one data entry's classification options\n(#2391 decision 4, the shape of ``locations/search``).\n\nExists for handlers whose option list is too large to ship as a\ntaxonomy tree (purchase: ~17k codes) but works for any handler with a\nkind field. Uncached on purpose \u2014 responses vary per keystroke, and\nthe point of the endpoint is that clients stop downloading the tree.\nAuthentication is the only gate, same as the taxonomy routes above.",
+        "operationId": "search_module_data_entry_options_v1_taxonomies_module__module___data_entry__options_get",
+        "parameters": [
+          {
+            "name": "module",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Module"
+            }
+          },
+          {
+            "name": "data_entry",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Data Entry"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "description": "Search term (min 2 chars); matches the stored value, the English label text, and its translated label",
+              "title": "Query"
+            },
+            "description": "Search term (min 2 chars); matches the stored value, the English label text, and its translated label"
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Year whose factors to search",
+              "title": "Year"
+            },
+            "description": "Year whose factors to search"
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Locale for option labels and matching (#2401), e.g. 'fr'",
+              "default": "en",
+              "title": "Lang"
+            },
+            "description": "Locale for option labels and matching (#2401), e.g. 'fr'"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum options returned",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Maximum options returned"
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FactorOption"
+                  },
+                  "title": "Response Search Module Data Entry Options V1 Taxonomies Module  Module   Data Entry  Options Get"
                 }
               }
             }
@@ -3858,13 +3998,13 @@
           }
         }
       },
-      "post": {
+      "put": {
         "tags": [
           "carbon-reports"
         ],
-        "summary": "Create Simulator Explore Carbon Report",
-        "description": "Create a new, empty Simulator Explore carbon report.\n\nThe report is created with its modules and no entries \u2014 Simulator Explore is\nnever seeded from the Calculator. Only the Simulator Plan prefills, and only\nfrom the reference year its user picks.",
-        "operationId": "create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___post",
+        "summary": "Put Simulator Explore Carbon Report",
+        "description": "Idempotent Simulator Explore sandbox: create on first call, return\nthe existing one on every call after (#2487).\n\nReplaces the GET(404) + POST pair the frontend used to orchestrate \u2014\ntwo round trips, and the 404-as-control-flow race #2483 had to\nSAVEPOINT-guard. A stale existing sandbox is refreshed in the\nbackground and returned as-is immediately, matching the GET route.",
+        "operationId": "put_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___put",
         "parameters": [
           {
             "name": "unit_id",
@@ -3895,7 +4035,7 @@
           }
         ],
         "responses": {
-          "201": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -4434,7 +4574,7 @@
           "project-plans"
         ],
         "summary": "Create Simulator Plan",
-        "description": "Create a simulator plan; without a name, the next default is assigned.",
+        "description": "Create a simulator plan; without a name, a suffixed default is assigned.\n\nNames are not unique (#2445) \u2014 the plan id is the identity \u2014 so creation\ncannot conflict.",
         "operationId": "create_simulator_plan_v1_project_plans_unit__unit_id___post",
         "parameters": [
           {
@@ -9343,6 +9483,20 @@
               }
             ],
             "title": "Source"
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Labels"
           }
         },
         "type": "object",
@@ -9666,6 +9820,25 @@
         "title": "EntityType",
         "description": "Docstring for EntityType\n\nEnum integer values are part of the persisted ABI: jobs serialise\n``entity_type.value`` into ``DataIngestionJob.meta[\"config\"]`` and\nwe round-trip via ``EntityType(value)``.  Existing rows have\n``MODULE_PER_YEAR=1`` and ``MODULE_UNIT_SPECIFIC=2`` baked in, so\nnew members MUST be appended (don't insert at the front and shift\nthe existing ones \u2014 every historical row would silently deserialise\nto the wrong member).\n\n:var MODULE_PER_YEAR: Description\n:vartype MODULE_PER_YEAR: Literal[1]\n:var MODULE_UNIT_SPECIFIC: Description\n:vartype MODULE_UNIT_SPECIFIC: Literal[2]\n:var GLOBAL_PER_YEAR: Job not scoped to a module\n    (e.g. unit sync, role sync).\n:vartype GLOBAL_PER_YEAR: Literal[3]"
       },
+      "FactorOption": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "label"
+        ],
+        "title": "FactorOption",
+        "description": "One typeahead option (#2391 decision 4).\n\n``name`` is the stored classification value the form submits (purchase:\nthe UNSPSC code); ``label`` is the request-locale display text \u2014 same\nvocabulary as ``TaxonomyNode``, minus the tree."
+      },
       "FileMetadata": {
         "properties": {
           "path": {
@@ -9888,6 +10061,20 @@
               }
             ],
             "title": "Source"
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Labels"
           },
           "note": {
             "anyOf": [
@@ -11237,6 +11424,17 @@
           "min_configurable_year": {
             "type": "integer",
             "title": "Min Configurable Year"
+          },
+          "client_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Ip"
           }
         },
         "type": "object",
@@ -11247,7 +11445,7 @@
           "min_configurable_year"
         ],
         "title": "SessionRead",
-        "description": "Bootstrap payload for ``GET /v1/session``.\n\nBundles everything the frontend needs at app-init in a single call: the\ncurrent user (unchanged ``UserRead`` shape), the units the user can access,\nand the globally-configured years for the workspace year selector. This\ncollapses what used to be three separate calls (``/session`` + ``/users/units``\n+ ``/year-configuration/``) into one.\n\n``min_configurable_year`` is also echoed on the single-year\n``YearConfigurationResponse``, but that one only exists once a row has\nbeen created for the requested year. Bundling it here too gives the\nfrontend a source that doesn't depend on any particular year existing \u2014\ne.g. the backoffice year selector can seed its lower bound even when the\ncurrent real-world year has no ``YearConfiguration`` row yet."
+        "description": "Bootstrap payload for ``GET /v1/session``.\n\nBundles everything the frontend needs at app-init in a single call: the\ncurrent user (unchanged ``UserRead`` shape), the units the user can access,\nand the globally-configured years for the workspace year selector. This\ncollapses what used to be three separate calls (``/session`` + ``/users/units``\n+ ``/year-configuration/``) into one.\n\n``min_configurable_year`` is also echoed on the single-year\n``YearConfigurationResponse``, but that one only exists once a row has\nbeen created for the requested year. Bundling it here too gives the\nfrontend a source that doesn't depend on any particular year existing \u2014\ne.g. the backoffice year selector can seed its lower bound even when the\ncurrent real-world year has no ``YearConfiguration`` row yet.\n\n``client_ip`` is the caller's own address, which the browser cannot\ndiscover on its own \u2014 it is echoed back so the frontend can put a real IP\non its GlitchTip error reports instead of a placeholder. Omitted when the\nASGI server reports no client (``response_model_exclude_none``), never\nfaked."
       },
       "SimulatorPlanCreate": {
         "properties": {
@@ -12107,17 +12305,6 @@
           "label": {
             "type": "string",
             "title": "Label"
-          },
-          "translation_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Translation Key"
           },
           "meta": {
             "anyOf": [

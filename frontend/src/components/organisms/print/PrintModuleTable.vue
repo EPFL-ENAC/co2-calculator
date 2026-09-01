@@ -56,9 +56,7 @@ const taxonomyKindLabels = computed<Record<string, string>>(() => {
   const map: Record<string, string> = {};
   taxo?.children?.forEach((node) => {
     if (node.name && node.label) {
-      if (node.translation_key && te(node.translation_key)) {
-        map[node.name] = t(node.translation_key);
-      } else if (te(node.name)) {
+      if (te(node.name)) {
         map[node.name] = t(node.name);
       } else {
         map[node.name] = node.label;

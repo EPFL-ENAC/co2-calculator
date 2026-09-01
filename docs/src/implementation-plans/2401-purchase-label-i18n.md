@@ -442,12 +442,16 @@ After the round: backend unit 2560 passed, CT 196 passed (chromium) /
 
 ## Deliberately out of scope here
 
-- **`translation_key` machinery** (#2401's "also in scope" section): left
-  wired but inert for equipment. Untangling its four Vue call sites wants
-  its own change + CT test (per the #2391 plan, which deferred the same
-  thing) — verifying `$te(opt.value)` isn't live for some _other_ module
-  first (e.g. emission-taxonomy enum values like `domestic_waste`) is real
-  work on its own.
+- **`translation_key`** — the FIELD is gone (2026-09-01): dropped from
+  `TaxonomyNode`, the ETag serializer, the purchase factor DTOs (the old
+  CSV column nothing read), the four Vue components' first `$te` branch
+  (byte-identical to `$te(name)` since #2396), the frontend type and the
+  openapi snapshot. The `$te(node.name)` branch itself STAYS — it is
+  load-bearing for English display of enum-like values that are real
+  i18n keys (`storage`, `natural_gas`, …). The #2396 endgame is giving
+  those modules seeded en+fr labels (`translated_code_fields`, the
+  sius/energy_type pattern), after which the whole `$te` machinery can
+  go.
 - ~~**Purchase server-side typeahead**~~ — delivered later the same day on
   this same branch after the maintainer pulled it in: see #2391's plan
   (decision 4) for the record. Purchase pages no longer download the
