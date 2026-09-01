@@ -752,8 +752,9 @@ async def test_sync_year_reports_emissions_are_correct(async_session, user):
         rows = await emission_repo.get_by_data_entry_id(e.id)
         assert rows, f"entry {e.id} has no persisted emissions"
         kg_by_quantity[e.data["quantity_kg"]] = sum(r.kg_co2eq for r in rows)
-    # ef_kg_co2eq_per_unit=1.0, copied at 100% → kg_co2eq == quantity.
-    assert kg_by_quantity == {1.0: 1.0, 2.0: 2.0}
+    # Copied at 0% → kg_co2eq == 0 for each entry; if the percentage
+    # override were ignored, the raw quantities (1.0/2.0) would leak through.
+    assert kg_by_quantity == {1.0: 0.0, 2.0: 0.0}
 
 
 @pytest.mark.asyncio
@@ -794,10 +795,10 @@ async def test_set_reference_year_produces_correct_emissions_without_prefill_com
         rows = await emission_repo.get_by_data_entry_id(e.id)
         assert rows, f"entry {e.id} has no persisted emissions"
         kg_by_quantity[e.data["quantity_kg"]] = sum(r.kg_co2eq for r in rows)
-    # ef_kg_co2eq_per_unit=1.0 (see _seed_process_emissions_factor), so
-    # kg_co2eq == quantity for each copied entry (100% of reference) — a
-    # real, non-zero, non-default value, not just "some row exists."
-    assert kg_by_quantity == {1.0: 1.0, 2.0: 2.0}
+    # Entries are copied at 0% of reference, so kg_co2eq == 0 — but the
+    # emission rows must exist, and a recalc that ignored the percentage
+    # override would leak the raw quantities (1.0/2.0) through.
+    assert kg_by_quantity == {1.0: 0.0, 2.0: 0.0}
 
 
 @pytest.mark.asyncio
