@@ -51,17 +51,20 @@ const columns = computed(() =>
   ),
 );
 
+// Kind AND subkind nodes, flattened: vocabulary selects (room_type,
+// sius_code) and subkind columns resolve their labels here too (#2613).
 const taxonomyKindLabels = computed<Record<string, string>>(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submodule.id];
   const map: Record<string, string> = {};
   taxo?.children?.forEach((node) => {
     if (node.name && node.label) {
-      if (te(node.name)) {
-        map[node.name] = t(node.name);
-      } else {
-        map[node.name] = node.label;
-      }
+      map[node.name] = node.label;
     }
+    node.children?.forEach((child) => {
+      if (child.name && child.label) {
+        map[child.name] = child.label;
+      }
+    });
   });
   return map;
 });

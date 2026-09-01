@@ -9,8 +9,7 @@ export interface PrintColumn {
   field: string;
   align: 'left' | 'right' | 'center';
   options?: Array<{ value: string; label: string }>;
-  optionLabelPrefix?: string;
-  optionLabelKey?: string;
+  optionLabelsFromTaxonomy?: boolean;
   optionsId?: string;
 }
 
@@ -89,8 +88,7 @@ export function buildPrintColumns(
           field: f.id,
           align: f.align ?? 'left',
           options: f.options,
-          optionLabelPrefix: f.optionLabelPrefix,
-          optionLabelKey: f.optionLabelKey,
+          optionLabelsFromTaxonomy: f.optionLabelsFromTaxonomy,
           optionsId: f.optionsId,
         });
       });
@@ -147,28 +145,18 @@ export function renderPrintCell(
     })}%`;
   }
 
-  // Label sources are tried in order and only a translatable one wins: the
-  // planner's option lists carry the raw value as their label and rely on
-  // `optionLabelKey`, so an untranslatable option must not short-circuit.
+  // Label sources, in order: i18n-keyed static options (travel cabin
+  // classes), then the backend taxonomy labels — vocabulary selects
+  // (sius_code, room_type) and kind/subkind columns alike (#2613).
   if (typeof val === 'string') {
     const option = col.options?.find((opt) => opt.value === val);
     if (option && ctx.te(option.label)) return ctx.t(option.label);
 
-    if (col.optionLabelPrefix) {
-      const key = val.toLowerCase();
-      if (ctx.te(key)) return ctx.t(key);
-    }
-
-    if (col.optionLabelKey) {
-      const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
-      // The planner borrows Calculator table titles as category labels, and
-      // those carry a "({count})" suffix that means nothing on a value cell.
-      if (ctx.te(key)) {
-        return ctx.t(key, { count: '' }).replace(/\s*\(\s*\)$/, '');
-      }
-    }
-
-    if (col.optionsId === 'kind') {
+    if (
+      col.optionLabelsFromTaxonomy ||
+      col.optionsId === 'kind' ||
+      col.optionsId === 'subkind'
+    ) {
       return ctx.taxonomyKindLabels[val] ?? val;
     }
 

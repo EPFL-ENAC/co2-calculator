@@ -63,6 +63,7 @@
             <PlannerHeadcountRows
               v-if="carbonReportId != null"
               :carbon-report-id="carbonReportId"
+              :year="year"
               :disable="false"
             />
           </template>

@@ -17,7 +17,6 @@
 
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
 import { useEquipmentClassOptions } from '@/composables/useEquipmentClassOptions';
 import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
 import type { Module, ConditionalSubmoduleProps } from '@/constant/modules';
@@ -52,8 +51,6 @@ type CommonProps = {
   row: ModuleRow;
   fieldId: string;
   optionsId: string;
-  optionLabelKey?: string;
-  optionLabelPrefix?: string;
   optionOrder?: string[];
   hint?: string;
   cols: TableViewColumnSubset[];
@@ -71,7 +68,6 @@ type CommonProps = {
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
-const { t, te } = useI18n();
 const factorYear = computed(() =>
   resolveFactorYear(props.factorYear, props.year),
 );
@@ -147,21 +143,9 @@ const classOptions = computed(() => {
   const opts = dynamicOptions['kind'] ?? [];
   // Build O(1) lookup map to avoid O(n²) Array.find() over 10k taxonomy children
   const kindNodeMap = new Map(taxo?.children?.map((c) => [c.name, c]) ?? []);
+  // Labels are backend-resolved on the taxonomy node (#2613).
   const mapped = opts.map((opt) => {
-    if (props.optionLabelKey) {
-      const key = props.optionLabelKey.replace(
-        '{value}',
-        opt.value.toLowerCase(),
-      );
-      return {
-        value: opt.value,
-        label: te(key) ? t(key) : opt.value,
-      };
-    }
     const kindNode = kindNodeMap.get(opt.value);
-    if (te(opt.value)) {
-      return { value: opt.value, label: t(opt.value) };
-    }
     return {
       value: opt.value,
       label: kindNode ? kindNode.label : opt.label || opt.value,
@@ -180,12 +164,6 @@ const subClassOptions = computed(() => {
     });
   });
   return opts.map((opt) => {
-    if (props.optionLabelPrefix) {
-      return {
-        value: opt.value,
-        label: t(opt.value.toLowerCase(), opt.label || opt.value),
-      };
-    }
     const subKindNode = subKindNodeMap.get(opt.value);
     return {
       value: opt.value,

@@ -63,14 +63,6 @@ Notez que si ces activités étaient menées avec des moyens propres à l'unité
     en: "For EPFL's rodent and fish animal facilities, only the animal housing component is considered. The Phenotyping Unit (UDP) and the Transgenesis Platform (TCF) are not included.",
     fr: "Pour l'utilisation des animaleries rongeurs et poissons à l'EPFL, nous ne considérons que la partie hébergement des animaux et pas ce qui concerne l'unité de phénotypage (UDP) et la plateforme de transgénèse (TCF).",
   },
-  [`${MODULES.ResearchFacilities}.type.fish`]: {
-    en: 'Fish',
-    fr: 'Poissons',
-  },
-  [`${MODULES.ResearchFacilities}.type.rodent`]: {
-    en: 'Rodents',
-    fr: 'Rongeurs',
-  },
   [`${MODULES.ResearchFacilities}-title-tooltip-subtext`]: {
     en: 'The methodology used to calculate the carbon footprint of research facilities is documented in the Documentation pages',
     fr: "La méthodologie utilisée pour calculer de l'empreinte carbone des infrastructures de recherche est documentée dans les pages Documentation",

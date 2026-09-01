@@ -58,6 +58,11 @@ def _service(factors: list) -> ModuleHandlerService:
     service = ModuleHandlerService(MagicMock())
     service.factor_service = MagicMock()
     service.factor_service.list_by_data_entry_type = AsyncMock(return_value=factors)
+    # The animal handler's researchfacility_type is a translated code field
+    # (#2613), fetched even for English; none seeded here — labels under
+    # test are the acronym ones, unaffected.
+    service.translation_repo = MagicMock()
+    service.translation_repo.get_labels = AsyncMock(return_value={})
     return service
 
 

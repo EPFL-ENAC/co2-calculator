@@ -40,14 +40,13 @@ const memberFields: ModuleField[] = [
     sortable: true,
     ratio: '1/4',
     icon: 'o_assignment_ind',
-    optionLabelsAreKeys: true,
     columnSize: 'sm',
     editableInline: true,
     // #2254: imported rows may carry the "Other staff" sentinel (-1),
     // which is display-only — not offered in the dropdown options below.
-    // renderCell falls back to this key template when no option matches.
-    optionLabelKey: '{value}',
-
+    // Labels come from the member taxonomy vocabulary (#2613), which
+    // covers the sentinel too.
+    optionLabelsFromTaxonomy: true,
     options: SIUS_CODES.map((value) => ({ value, label: value })),
   },
   {
