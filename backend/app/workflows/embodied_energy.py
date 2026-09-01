@@ -6,9 +6,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.repositories.data_entry_repo import DataEntryRepository
-from app.schemas.carbon_report import CarbonReportModuleRead
 from app.schemas.data_entry import DataEntryResponse
 from app.schemas.user import UserRead
+from app.schemas.write_scope import WriteScope
 from app.services.data_entry_service import DataEntryService
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 
@@ -25,7 +25,7 @@ class EmbodiedEnergyWorkflow:
 
     async def post_create(
         self,
-        carbon_report_module: CarbonReportModuleRead,
+        scope: WriteScope,
         data_entry: DataEntryResponse,
         current_user: UserRead,
         request_context: dict,
@@ -36,12 +36,12 @@ class EmbodiedEnergyWorkflow:
             == DataEntryTypeEnum.building
         ):
             await self._reconcile(
-                carbon_report_module, current_user, request_context, background_tasks
+                scope, current_user, request_context, background_tasks
             )
 
     async def post_update(
         self,
-        carbon_report_module: CarbonReportModuleRead,
+        scope: WriteScope,
         data_entry: DataEntryResponse,
         current_user: UserRead,
         request_context: dict,
@@ -52,12 +52,12 @@ class EmbodiedEnergyWorkflow:
             == DataEntryTypeEnum.building
         ):
             await self._reconcile(
-                carbon_report_module, current_user, request_context, background_tasks
+                scope, current_user, request_context, background_tasks
             )
 
     async def post_delete(
         self,
-        carbon_report_module: CarbonReportModuleRead,
+        scope: WriteScope,
         data_entry_type_id: int,
         current_user: UserRead,
         request_context: dict,
@@ -65,12 +65,12 @@ class EmbodiedEnergyWorkflow:
     ) -> None:
         if DataEntryTypeEnum(data_entry_type_id) == DataEntryTypeEnum.building:
             await self._reconcile(
-                carbon_report_module, current_user, request_context, background_tasks
+                scope, current_user, request_context, background_tasks
             )
 
     async def _reconcile(
         self,
-        carbon_report_module: CarbonReportModuleRead,
+        scope: WriteScope,
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
@@ -83,7 +83,7 @@ class EmbodiedEnergyWorkflow:
         ones created. The companion set is a pure function of the parents.
         """
         entries = await DataEntryRepository(self.session).list_by_module(
-            carbon_report_module.id
+            scope.module.id
         )
         want: Counter[str] = Counter(
             name
@@ -113,17 +113,18 @@ class EmbodiedEnergyWorkflow:
         workflow = CarbonReportModuleWorkflow(self.session)
         for entry_id in surplus_ids:
             await workflow.delete(
-                carbon_report_module=carbon_report_module,
+                carbon_report_module=scope.module,
                 data_entry_id=entry_id,
                 current_user=current_user,
                 request_context=request_context,
                 background_tasks=background_tasks,
+                scope=scope,
             )
         for name, wanted in want.items():
             kept = min(len(companions_by_name.get(name, [])), wanted)
             for _ in range(wanted - kept):
                 await workflow.create(
-                    carbon_report_module=carbon_report_module,
+                    carbon_report_module=scope.module,
                     data_entry_type_id=(
                         DataEntryTypeEnum.building_embodied_energy.value
                     ),
@@ -131,6 +132,7 @@ class EmbodiedEnergyWorkflow:
                     current_user=current_user,
                     request_context=request_context,
                     background_tasks=background_tasks,
+                    scope=scope,
                 )
 
     async def create_derived_entries_for(self, entries: list[DataEntry]) -> int:

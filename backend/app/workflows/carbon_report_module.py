@@ -11,8 +11,7 @@ from app.core.data_entry_permissions import (
 )
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.carbon_project import CarbonProject
-from app.models.carbon_report import CarbonReport, CarbonReportType
+from app.models.carbon_report import CarbonReport
 from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -44,7 +43,7 @@ class CarbonReportModuleWorkflow:
 
     async def _reject_when_inputs_deactivated(
         self,
-        carbon_report_module: CarbonReportModuleRead,
+        scope: WriteScope,
         data_entry_type: DataEntryTypeEnum,
         current_user: UserRead,
     ) -> None:
@@ -55,35 +54,21 @@ class CarbonReportModuleWorkflow:
         exempt: their rows are the user's own scenario, not calculator data
         entry, and the switch is a calculator-side control.
 
-        Every report (Calculator included) carries a ``carbon_project_id``
-        (unit_sync provisions the Calculator project up front, #2487), so the
-        discriminator has to be the project's type, not its presence —
-        mirrors ``check_module_permission_for_report``
-        (``app/core/policy.py``). A missing/unresolvable project doesn't
-        exempt: fail closed, same as an ordinary Calculator report.
+        The exemption discriminator is the project's type, not its presence
+        (#2456: every report carries a ``carbon_project_id`` since #2487).
+        The route already resolved that fact into ``scope.is_simulator``
+        (#2050 J4), so the guard reads no rows — and a report without a
+        project resolves non-simulator, so it stays non-exempt (fail closed).
         """
         if is_policy_exempt(data_entry_type):
             return
-        report = await self.session.get(
-            CarbonReport, carbon_report_module.carbon_report_id
-        )
-        if report is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="CARBON_REPORT_NOT_FOUND",
-            )
-        if report.carbon_project_id is not None:
-            project = await self.session.get(CarbonProject, report.carbon_project_id)
-            is_calculator = project is None or (
-                project.carbon_report_type == CarbonReportType.CALCULATOR
-            )
-            if not is_calculator:
-                return
+        if scope.is_simulator:
+            return
         if await is_submodule_inputs_deactivated(
             self.session,
-            report.year,
+            scope.report.year,
             current_user.provider,
-            ModuleTypeEnum(carbon_report_module.module_type_id),
+            ModuleTypeEnum(scope.module.module_type_id),
             data_entry_type,
         ):
             raise HTTPException(
@@ -209,10 +194,10 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
-        scope: WriteScope | None = None,
+        scope: WriteScope,
     ) -> DataEntryResponse:
         await self._reject_when_inputs_deactivated(
-            carbon_report_module,
+            scope,
             DataEntryTypeEnum(data_entry_type_id),
             current_user,
         )
@@ -372,12 +357,13 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        scope: WriteScope,
     ) -> DataEntryResponse:
         # A note is writable on any row in any state (#951), including rows the
         # backoffice has closed to data entry — annotation is not data entry.
         if not set(item_data) <= ALWAYS_WRITABLE_FIELDS:
             await self._reject_when_inputs_deactivated(
-                carbon_report_module,
+                scope,
                 DataEntryTypeEnum(data_entry_type_id),
                 current_user,
             )
@@ -443,8 +429,8 @@ class CarbonReportModuleWorkflow:
                     carbon_report_module, update_data
                 )
             else:
-                for scope in self._planner_purchase_scopes(update_data):
-                    scope.pop("currency", None)
+                for purchase_scope in self._planner_purchase_scopes(update_data):
+                    purchase_scope.pop("currency", None)
             data_entry_update = DataEntryUpdate(**update_data)
         if current_user.id is None:
             raise HTTPException(
@@ -558,6 +544,7 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        scope: WriteScope,
     ) -> None:
         try:
             entry = await DataEntryService(self.session).get(id=data_entry_id)
@@ -566,9 +553,7 @@ class CarbonReportModuleWorkflow:
                 status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
             ) from e
         data_entry_type = DataEntryTypeEnum(entry.data_entry_type_id)
-        await self._reject_when_inputs_deactivated(
-            carbon_report_module, data_entry_type, current_user
-        )
+        await self._reject_when_inputs_deactivated(scope, data_entry_type, current_user)
         if not is_policy_exempt(data_entry_type) and not can_delete(
             provenance_of(entry.source)
         ):
