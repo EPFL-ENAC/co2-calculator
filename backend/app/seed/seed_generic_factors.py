@@ -243,6 +243,9 @@ async def seed_factors(
 async def seed_all_factors(session: AsyncSession, year: int = DEFAULT_YEAR) -> None:
     """Seed every CSV in ``FACTOR_SEEDS`` for one reference year."""
     for config in FACTOR_SEEDS:
+        if not config.path.is_file():
+            print(f"Skipping factor seed, CSV not found: {config.path.name}")
+            continue
         await seed_factors(session, config, year)
 
 
