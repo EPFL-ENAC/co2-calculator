@@ -6,6 +6,7 @@ import {
   SUBMODULE_HEADCOUNT_TYPES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
   SUBMODULE_PURCHASE_TYPES,
+  SUBMODULE_RESEARCH_FACILITIES_TYPES,
 } from '@/constant/modules';
 import type { AllSubmoduleTypes, Module } from '@/constant/modules';
 
@@ -49,6 +50,13 @@ const TEMPLATE_MAP: Record<string, string> = {
     'external_ai_template.csv',
   [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.PurchasesCentralized}`]:
     'purchases_centralized_template.csv',
+
+  // Both tables show the download button since #2007, but these entries
+  // were missing, so the click did nothing (reported on #2026).
+  [`${MODULES.ResearchFacilities}:${SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities}`]:
+    'researchfacilities_common_template.csv',
+  [`${MODULES.ResearchFacilities}:${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}`]:
+    'researchfacilities_animals_template.csv',
 };
 
 // Modules whose submodule determines the template — fall back to a default when no submodule matches
