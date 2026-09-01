@@ -535,11 +535,11 @@ class SimulatorPlanService:
                     ref_cache.reports[ref_key] = ref_report
         # The grant RF grid starts from the reference year's platform list,
         # not from copied entries (#1980) — left empty for the user's own
-        # selection. Grant travel is planned from scratch too (#2018). Both
-        # stay out of ``will_rebuild`` below, which decides both what gets
-        # prefilled and what the upfront clear must still cover — they
-        # never self-clear (prefill is never called for them), so the
-        # upfront clear is their only chance to empty out.
+        # selection. Grant travel and headcount are planned from scratch too
+        # (#2018, #2120). All three stay out of ``will_rebuild`` below, which
+        # decides both what gets prefilled and what the upfront clear must
+        # still cover — they never self-clear (prefill is never called for
+        # them), so the upfront clear is their only chance to empty out.
         will_rebuild = (
             [
                 m
@@ -550,6 +550,7 @@ class SimulatorPlanService:
                     in (
                         ModuleTypeEnum.research_facilities,
                         ModuleTypeEnum.professional_travel,
+                        ModuleTypeEnum.headcount,
                     )
                 )
             ]
