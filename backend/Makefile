@@ -178,7 +178,7 @@ perf-seed: ## Seed the #2295 load-test backdrop (SEED_NUM_UNITS/SEED_YEARS/SEED_
 .PHONY: perf-load
 perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES="ExplorerReadUser"
 	@mkdir -p $(PERF_REPORT_DIR)
-	@test -s $(PERF_USERS_FILE) || docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc \
+	@test -s $(PERF_USERS_FILE) || psql "$(PERF_DB_URL)" -tAc \
 		"select institutional_id || ' ' || case when roles_raw::text like '%principal%' then 'principal' else 'standard' end from users where institutional_id like 'USR%'" \
 		> $(PERF_USERS_FILE) 2>/dev/null || true
 	@p="$(PERF_HOST)"; p="$${p%%/}"; p="$${p##*:}"; \
@@ -189,7 +189,7 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 		$(PERF_REPORT_DIR)/$(PERF_TAG)_resources.csv & echo $$! > $(PERF_REPORT_DIR)/.sampler.pid;; \
 	esac
 	PERF_USERS_FILE="$(PERF_USERS_FILE)" \
-	PERF_UNIT_IDS="$${PERF_UNIT_IDS:-$$(docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc "select min(id)||'-'||max(id) from units where institutional_code like 'U0%'" 2>/dev/null | tr -d '[:space:]' || true)}" \
+	PERF_UNIT_IDS="$${PERF_UNIT_IDS:-$$(psql "$(PERF_DB_URL)" -tAc "select min(id)||'-'||max(id) from units where institutional_code like 'U0%'" 2>/dev/null | tr -d '[:space:]' || true)}" \
 	PERF_ROLE="$${PERF_ROLE:-calco2.user.principal}" \
 	$(UV) run locust -f tests/performance/locustfile.py $(PERF_CLASSES) \
 		--host $(PERF_HOST) --headless \
@@ -233,7 +233,7 @@ perf-capacity: ## Capacity table: per stage requests/failures/p95 + peak backend
 perf-table-matrix: ## Sweep the table endpoint: every submodule × limit × sort column × order (+filter, deep pages, items, charts)
 	$(UV) run python -m tests.performance.table_matrix \
 		--host $(PERF_HOST) \
-		--user "$${PERF_MATRIX_USER:-$$(docker exec co2-calculator-postgres psql -U co2_user -d co2_calculator -tAc "select u.institutional_id from users u join unit_users uu on uu.user_id=u.id join units un on un.id=uu.unit_id where un.institutional_code='U00000' and u.roles_raw::text like '%principal%' limit 1" 2>/dev/null | tr -d '[:space:]')}"
+		--user "$${PERF_MATRIX_USER:-$$(psql "$(PERF_DB_URL)" -tAc "select u.institutional_id from users u join unit_users uu on uu.user_id=u.id join units un on un.id=uu.unit_id where un.institutional_code='U00000' and u.roles_raw::text like '%principal%' limit 1" 2>/dev/null | tr -d '[:space:]')}"
 
 .PHONY: perf-db-dump
 perf-db-dump: ## Dump the seeded backdrop DB for reuse (PERF_DB_URL override)

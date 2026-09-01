@@ -26,6 +26,28 @@ make perf-report                                         # p95 > 1s table
 Reports land here in `reports/` (gitignored): one `*_stats.csv` + `*.html`
 per stage, `table_matrix.csv` for the matrix.
 
+## `backend/.env`'s `DB_URL` may not be localhost
+
+`DB_URL` may point at a shared platform DB (e.g. `co2-dev.xxxx.epfl.ch`), not
+local compose — real backend/worker pods are already on it. Run in order:
+
+- [ ] `psql "$DB_URL" -tAc "select count(*) from data_entries"` — 0 → seed
+      below; >0 → backdrop already there, skip straight to starting the backend
+- [ ] `SEED_ALLOW_REMOTE=1 make perf-seed` — refuses to run without the flag
+      ("unrecoverable" per `seed_all.py`); if units/reports/factors already
+      exist but `data_entries` was 0, resume with just
+      `SEED_ALLOW_REMOTE=1 uv run python -m app.seed.random_generator.seed_data_entries`
+- [ ] `psql "$DB_URL" -tAc "show max_connections"` and `... "select count(*) from pg_stat_activity"`
+      — pick `--workers` × (`DB_POOL_SIZE`+`DB_MAX_OVERFLOW`) with headroom below the gap
+- [ ] add `RUN_BACKGROUND_POLLER=False` to `.env` — backend won't start
+      against a remote host otherwise (#2220)
+- [ ] `DB_POOL_SIZE=10 DB_MAX_OVERFLOW=5 uv run uvicorn app.main:app --port 8010 --workers 2`
+      (numbers from the connection check above, not compose's `--workers 4`)
+- [ ] `make perf-load PERF_HOST=http://127.0.0.1:8010 PERF_DB_URL=$DB_URL PERF_CLASSES=ExplorerReadUser`
+- [ ] `make perf-table-matrix PERF_HOST=http://127.0.0.1:8010 PERF_DB_URL=$DB_URL`
+- [ ] skip `perf-sweep`'s `PlanUser`/`ExploreCreateUser`/`CsvUploadUser` stages —
+      they'd enqueue real jobs for the live worker pods to execute
+
 ## What's in this folder
 
 | File              | Purpose                                                                                                                                                                  |
