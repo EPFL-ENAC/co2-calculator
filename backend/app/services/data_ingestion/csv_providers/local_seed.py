@@ -198,6 +198,8 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
         if batch:
             await self._upsert_batch(batch, factor_repo)
 
+        await self._upsert_collected_translations()
+
         await self.data_session.flush()
 
         stats["factors_deleted"] = self._seed_deleted_count
