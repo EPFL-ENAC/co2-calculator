@@ -423,17 +423,28 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             # (#1489, audit F-3): ``_convert_value`` keeps the raw string when
             # ``float()`` fails, and untyped fields skip coercion entirely, so
             # without this the validated DTO was discarded and the unvalidated
-            # dict is what reached ``Factor.values``. ``classification`` stays
-            # hand-built on purpose — the Plan 310B identity index keys on
-            # ``classification::text``, so its representation must not change.
+            # dict is what reached ``Factor.values``.
             validated_fields = getattr(type(validated), "model_fields", {})
             for field_name in values:
                 if field_name in validated_fields:
                     values[field_name] = getattr(validated, field_name)
 
+            # Classification takes the DTO-normalized value too (#1489): the
+            # identity index keys on ``classification::text`` and resolution
+            # compares against entry data by exact string equality, so the
+            # canonical form the shared field types produce (strip, lowered
+            # currency, uppered country codes) must be what lands in the
+            # identity — otherwise re-importing the same CSV with different
+            # casing inserts a second row instead of updating. Existing rows
+            # are normalized to the same form by the companion migration.
+            for field_name in classification:
+                if field_name in validated_fields:
+                    classification[field_name] = getattr(validated, field_name)
+
             # Only a row that survived validation may contribute labels —
             # collecting earlier would upsert a translation for a factor
-            # that never lands.
+            # that never lands. Runs after the normalization above so the
+            # translation keys on the canonical classification value.
             self._collect_translations(row, classification)
 
             # ``year`` is stored on the dedicated ``Factor.year`` column;

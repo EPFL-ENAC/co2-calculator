@@ -10,6 +10,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.schemas.fields import ClassificationKey, IdentifierKey
 
 ## RESEARCH FACILITIES FACTOR HANDLERS
 
@@ -27,11 +28,11 @@ research_facilities_common_value_fields: list[str] = [
 
 
 class ResearchFacilitiesCommonFactorCreate(FactorCreate):
-    researchfacility_id: str
-    researchfacility_name: str
+    researchfacility_id: IdentifierKey
+    researchfacility_name: IdentifierKey
     kg_co2eq_sum: float | None = None
     total_use: float
-    use_unit: str
+    use_unit: ClassificationKey
 
     @field_validator("total_use", mode="after")
     @classmethod
@@ -49,9 +50,9 @@ class ResearchFacilitiesCommonFactorCreate(FactorCreate):
 
 
 class ResearchFacilitiesCommonFactorUpdate(FactorUpdate):
-    researchfacility_id: str | None = None
-    researchfacility_name: str | None = None
-    use_unit: str | None = None
+    researchfacility_id: IdentifierKey | None = None
+    researchfacility_name: IdentifierKey | None = None
+    use_unit: ClassificationKey | None = None
     kg_co2eq_sum: float | None = None
     total_use: float | None = None
 
@@ -114,10 +115,10 @@ research_facilities_animal_value_fields: list[str] = [
 
 
 class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
-    researchfacility_id: str
-    researchfacility_name: str
-    researchfacility_type: str
-    use_unit: str
+    researchfacility_id: IdentifierKey
+    researchfacility_name: IdentifierKey
+    researchfacility_type: ClassificationKey
+    use_unit: ClassificationKey
     processemissions_share: float
     building_energycombustions_share: float
     building_rooms_share: float
@@ -131,13 +132,6 @@ class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
     kg_co2eq_sum_purchases_additional: float | None = None
     kg_co2eq_sum_equipments: float | None = None
     total_use: float
-
-    @field_validator("researchfacility_id", mode="before")
-    @classmethod
-    def _validate_researchfacility_id_response(cls, v: object) -> str | None:
-        if v is None:
-            return None
-        return str(v)
 
     @field_validator("total_use", mode="after")
     @classmethod
@@ -178,10 +172,10 @@ class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
 
 
 class ResearchFacilitiesAnimalFactorUpdate(FactorUpdate):
-    researchfacility_id: str | None = None
-    researchfacility_name: str | None = None
-    researchfacility_type: str | None = None
-    use_unit: str | None = None
+    researchfacility_id: IdentifierKey | None = None
+    researchfacility_name: IdentifierKey | None = None
+    researchfacility_type: ClassificationKey | None = None
+    use_unit: ClassificationKey | None = None
     processemissions_share: float | None = None
     building_energycombustions_share: float | None = None
     building_rooms_share: float | None = None
@@ -195,13 +189,6 @@ class ResearchFacilitiesAnimalFactorUpdate(FactorUpdate):
     kg_co2eq_sum_purchases_additional: float | None = None
     kg_co2eq_sum_equipments: float | None = None
     total_use: float | None = None
-
-    @field_validator("researchfacility_id", mode="before")
-    @classmethod
-    def _validate_researchfacility_id_response(cls, v: object) -> str | None:
-        if v is None:
-            return None
-        return str(v)
 
 
 class ResearchFacilitiesAnimalFactorResponse(FactorResponseGen):
