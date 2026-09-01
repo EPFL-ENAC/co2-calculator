@@ -338,7 +338,7 @@ def _drive_member_csv(
             carbon_report_module_id=module_id,
             data=dict(rows_data[row_idx - 1]),
         )
-        return entry, None, None, None
+        return entry, None, None
 
     provider._process_row = fake_process_row
     provider._process_batch = AsyncMock(return_value=len(rows_data))
@@ -595,11 +595,14 @@ async def test_validate_connection_exception():
 
 
 def test_stats_dict_structure():
-    """Test StatsDict has expected structure."""
+    """Test StatsDict has expected structure.
+
+    Issue #996: no per-row factor match is ever computed in the ingestion
+    path, so the counter must not exist rather than always report zero
+    matches.
+    """
     stats: StatsDict = {
         "rows_processed": 0,
-        "rows_with_factors": 0,
-        "rows_without_factors": 0,
         "rows_skipped": 0,
         "batches_processed": 0,
         "row_errors": [],
@@ -608,8 +611,8 @@ def test_stats_dict_structure():
 
     # Verify all keys are present
     assert "rows_processed" in stats
-    assert "rows_with_factors" in stats
-    assert "rows_without_factors" in stats
+    assert "rows_with_factors" not in stats
+    assert "rows_without_factors" not in stats
     assert "rows_skipped" in stats
     assert "batches_processed" in stats
     assert "row_errors" in stats
@@ -714,8 +717,6 @@ def test_copy_batch_size_setting():
 def _build_stats() -> StatsDict:
     return {
         "rows_processed": 0,
-        "rows_with_factors": 0,
-        "rows_without_factors": 0,
         "rows_skipped": 0,
         "batches_processed": 0,
         "row_errors": [],
@@ -765,7 +766,6 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
     (
         data_entry,
         error_msg,
-        result_factor,
         kg_co2eq_override,
     ) = await provider._process_row(
         row,
@@ -777,7 +777,6 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
     )
 
     assert error_msg is None
-    assert result_factor is None  # ingest never resolves a factor
     assert data_entry is not None
     assert data_entry.carbon_report_module_id == 123
     assert "primary_factor_id" not in data_entry.data
@@ -804,7 +803,6 @@ async def test_process_row_missing_unit_mapping_records_error():
     (
         data_entry,
         error_msg,
-        result_factor,
         kg_co2eq_override,
     ) = await provider._process_row(
         row,
@@ -816,7 +814,6 @@ async def test_process_row_missing_unit_mapping_records_error():
     )
 
     assert data_entry is None
-    assert result_factor is None
     assert error_msg is not None
     assert stats["rows_skipped"] == 1
     assert stats["row_errors_count"] == 1
@@ -840,7 +837,6 @@ async def test_process_row_skips_blank_scaffolding_row():
     (
         data_entry,
         error_msg,
-        result_factor,
         kg_co2eq_override,
     ) = await provider._process_row(
         {"amount": "", "note": ""},
@@ -853,7 +849,6 @@ async def test_process_row_skips_blank_scaffolding_row():
 
     assert data_entry is None
     assert error_msg is None
-    assert result_factor is None
     assert kg_co2eq_override is None
     assert stats["rows_skipped"] == 1
     assert stats["row_errors"] == []
@@ -881,7 +876,6 @@ async def test_process_row_validation_error_records_error(monkeypatch):
     (
         data_entry,
         error_msg,
-        result_factor,
         kg_co2eq_override,
     ) = await provider._process_row(
         row,
@@ -893,7 +887,6 @@ async def test_process_row_validation_error_records_error(monkeypatch):
     )
 
     assert data_entry is None
-    assert result_factor is None
     assert stats["rows_skipped"] == 1
 
 
@@ -931,7 +924,6 @@ async def test_process_row_pydantic_validation_error_bad_float():
     (
         data_entry,
         error_msg,
-        result_factor,
         kg_co2eq_override,
     ) = await provider._process_row(
         row,
@@ -984,7 +976,6 @@ async def test_process_row_pydantic_validation_error_bad_date():
     (
         data_entry,
         error_msg,
-        result_factor,
         kg_co2eq_override,
     ) = await provider._process_row(
         row,
@@ -1072,7 +1063,6 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
     (
         data_entry,
         error_msg,
-        _factor,
         kg_co2eq_override,
     ) = await provider._process_row(
         row,
@@ -1143,7 +1133,7 @@ async def test_process_row_with_no_kg_co2eq_returns_none_override():
     row = {"origin_iata": "GVA", "destination_iata": "ZRH"}
     stats = _build_stats()
 
-    data_entry, error_msg, _factor, kg_co2eq_override = await provider._process_row(
+    data_entry, error_msg, kg_co2eq_override = await provider._process_row(
         row,
         row_idx=1,
         setup_result=setup_result,
@@ -1201,7 +1191,7 @@ async def test_process_row_warns_on_unparseable_kg_co2eq(caplog):
     with caplog.at_level(
         logging.WARNING, logger="app.services.data_ingestion.base_csv_provider"
     ):
-        data_entry, error_msg, _factor, kg_co2eq_override = await provider._process_row(
+        data_entry, error_msg, kg_co2eq_override = await provider._process_row(
             row,
             row_idx=7,
             setup_result=setup_result,
@@ -1291,7 +1281,6 @@ async def test_process_row_consumes_dumb_csv_fixture_for_plane():
         (
             data_entry,
             error_msg,
-            _factor,
             kg_co2eq_override,
         ) = await provider._process_row(
             row,
@@ -1475,10 +1464,9 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
 
     # Single call: final summary
     call_args = provider._update_job.call_args
-    assert (
-        call_args.kwargs["status_message"]
-        == "Processed 2 rows: 0 with factors, 0 without factors, 0 skipped"
-    )
+    # Issue #996: the summary no longer claims a factor match count that
+    # nothing in the ingestion path actually computes.
+    assert call_args.kwargs["status_message"] == "Processed 2 rows: 0 skipped"
     assert call_args.kwargs["state"] == IngestionState.FINISHED
     assert call_args.kwargs["result"] == IngestionResult.SUCCESS
     # Issue #1398 — an all-rows-succeeded job stays silent on re-upload.
@@ -1843,8 +1831,6 @@ def _make_stats() -> dict:
     return {
         "rows_processed": 0,
         "rows_skipped": 0,
-        "rows_with_factors": 0,
-        "rows_without_factors": 0,
         "batches_processed": 0,
         "row_errors": [],
         "row_errors_count": 0,

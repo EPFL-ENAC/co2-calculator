@@ -425,7 +425,7 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
         stats: StatsDict,
         max_row_errors: int,
         unit_to_module_map: dict[str, int] | None = None,
-    ) -> tuple[Any, str | None, Any, float | None]:
+    ) -> tuple[Any, str | None, float | None]:
         if self._location_fields:
             row = dict(row)  # shallow copy to avoid mutating original
             location_id_cache = setup_result.get("location_id_cache", {})
