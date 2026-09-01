@@ -14,10 +14,17 @@ prepare-commit-msg:
 # Pre-commit hooks - delegates to Makefiles for single source of truth
 pre-commit:
   commands:
+    # Cheapest check first: the repo is public, so a committed secret is a
+    # published one and no later force-push takes it back.
+    check-secrets:
+      priority: 1
+      run: bash scripts/check-secrets.sh
     # Format and lint staged files only
     format-lint-staged:
+      priority: 2
       run: bash scripts/pre-commit-hook.sh
     type-check:
+      priority: 3
       run: make type-check
 # Pre-push hooks - run comprehensive checks on protected branches only
 pre-push:
