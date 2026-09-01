@@ -108,6 +108,11 @@ class ModuleHandlerService:
                 f"{data_entry_type} has no searchable classification field"
             )
         lang = normalize_lang(lang)
+        query = query.strip()
+        # Below the route's min_length once trimmed: the typeahead contract
+        # is "keep typing", not an error.
+        if len(query) < 2:
+            return []
         rows = await FactorRepository(self.session).search_classification_options(
             data_entry_type,
             year,

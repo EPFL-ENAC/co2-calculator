@@ -51,6 +51,76 @@ test('searches the server per keystroke and emits the picked code', async ({
   await expect(component.getByTestId('selected')).toHaveText('27112700');
 });
 
+test('French locale sends lang=fr on the options request', async ({
+  mount,
+  page,
+}) => {
+  const requested: URL[] = [];
+  await page.route('**/api/v1/taxonomies/**', (route) => {
+    requested.push(new URL(route.request().url()));
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ name: '27112700', label: 'Outils électriques' }]),
+    });
+  });
+
+  const component = await mount(ServerSearchSelectHarness, {
+    props: { ...HARNESS_PROPS, locale: 'fr-CH' },
+  });
+
+  await component.locator('input').fill('outils');
+
+  await expect.poll(() => requested.length).toBe(1);
+  expect(requested[0].searchParams.get('lang')).toBe('fr');
+});
+
+test('edit mode shows the row label with zero requests', async ({
+  mount,
+  page,
+}) => {
+  let requests = 0;
+  await page.route('**/api/v1/**', (route) => {
+    requests += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '[]',
+    });
+  });
+
+  const component = await mount(ServerSearchSelectHarness, {
+    props: {
+      ...HARNESS_PROPS,
+      initialValue: '27112700',
+      initialOption: { value: '27112700', label: 'Outils électriques' },
+    },
+  });
+
+  // `map-options` resolves the label from the seeded option — no fetch.
+  await expect(component.locator('input')).toHaveValue('Outils électriques');
+  expect(requests).toBe(0);
+});
+
+test('a failed lookup surfaces an error instead of a silent blank', async ({
+  mount,
+  page,
+}) => {
+  await page.route('**/api/v1/taxonomies/**', (route) =>
+    route.fulfill({ status: 500, body: 'boom' }),
+  );
+
+  const component = await mount(ServerSearchSelectHarness, {
+    props: HARNESS_PROPS,
+  });
+
+  await component.locator('input').fill('outils');
+
+  await expect(
+    component.getByText('Options could not be loaded. Try again later.'),
+  ).toBeVisible();
+});
+
 test('input below 2 characters never hits the server', async ({
   mount,
   page,

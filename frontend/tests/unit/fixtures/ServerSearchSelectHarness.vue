@@ -1,15 +1,22 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import ServerSearchSelectField from '@/components/molecules/ServerSearchSelectField.vue';
+import { i18n, type MessageLanguages } from '@/boot/i18n';
 
 const props = defineProps<{
   moduleType: string;
   submoduleType: string;
   year: number;
   initialOption?: { value: string; label: string } | null;
+  initialValue?: string | null;
+  locale?: MessageLanguages;
 }>();
 
-const model = ref<string | number | null>(null);
+if (props.locale) {
+  i18n.global.locale.value = props.locale;
+}
+
+const model = ref<string | number | null>(props.initialValue ?? null);
 </script>
 
 <template>

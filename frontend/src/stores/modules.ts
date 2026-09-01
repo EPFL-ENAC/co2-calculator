@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, markRaw, reactive, ref } from 'vue';
+import { computed, markRaw, reactive, ref, watch } from 'vue';
 import { MODULES, Module } from '@/constant/modules';
 import { api } from '@/api/http';
 import {
@@ -598,6 +598,35 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  // #2401: submodule rows carry locale-dependent labels and the search
+  // filter matches per locale, so a language switch must refetch what's
+  // open. Each fetcher records its last args; the locale watcher below
+  // replays them.
+  const lastSubmoduleFetch: Record<
+    string,
+    Parameters<typeof getSubmoduleData>[0]
+  > = {};
+  const lastTaxonomyFetch: Record<
+    string,
+    { moduleType: Module; submoduleType: string; year: string }
+  > = {};
+
+  watch(
+    () => i18n.global.locale.value,
+    () => {
+      for (const params of Object.values(lastSubmoduleFetch)) {
+        if (!state.loadedSubmodules[params.submoduleType]) continue;
+        getSubmoduleData(params);
+      }
+      // Batch-fetched trees replay as single calls: a locale switch is
+      // rare, correctness beats the saved round trips.
+      for (const args of Object.values(lastTaxonomyFetch)) {
+        if (!state.taxonomySubmodule[args.submoduleType]) continue;
+        getSubmoduleTaxonomy(args.moduleType, args.submoduleType, args.year);
+      }
+    },
+  );
+
   async function getSubmoduleData({
     moduleType,
     submoduleType,
@@ -613,6 +642,13 @@ export const useModuleStore = defineStore('modules', () => {
   }) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
+    lastSubmoduleFetch[submoduleType] = {
+      moduleType,
+      submoduleType,
+      unit,
+      year,
+      carbonReportId,
+    };
     state.loadingSubmodule[submoduleType] = true;
     state.errorSubmodule[submoduleType] = null;
     state.dataSubmodule[submoduleType] = null;
@@ -701,6 +737,7 @@ export const useModuleStore = defineStore('modules', () => {
     submoduleType: string,
     year: string,
   ) {
+    lastTaxonomyFetch[submoduleType] = { moduleType, submoduleType, year };
     state.loading = true;
     state.error = null;
     state.taxonomySubmodule[submoduleType] = null;
@@ -740,6 +777,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.error = null;
     for (const submoduleType of submoduleTypes) {
       state.taxonomySubmodule[submoduleType] = null;
+      lastTaxonomyFetch[submoduleType] = { moduleType, submoduleType, year };
     }
     try {
       const taxonomies = await getModuleDataEntriesTaxonomies(

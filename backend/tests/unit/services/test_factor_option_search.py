@@ -158,6 +158,40 @@ async def test_duplicate_codes_collapse_to_one_option(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_query_is_trimmed_before_matching(db_session: AsyncSession):
+    await _seed_purchase_factors(db_session)
+
+    options = await _search(db_session, "  serveur  ", "fr")
+
+    assert [o.name for o in options] == ["43211501"]
+
+
+@pytest.mark.asyncio
+async def test_query_below_min_length_after_trim_returns_empty(
+    db_session: AsyncSession,
+):
+    """' o ' passes the route's raw min_length=2 but is one character of
+    signal — the typeahead contract is an empty list, not a scan.
+    """
+    await _seed_purchase_factors(db_session)
+
+    options = await _search(db_session, " o ", "en")
+
+    assert options == []
+
+
+@pytest.mark.asyncio
+async def test_region_locale_normalizes_to_short_code(db_session: AsyncSession):
+    await _seed_purchase_factors(db_session)
+
+    options = await _search(db_session, "serveur", "fr-CH")
+
+    assert [(o.name, o.label) for o in options] == [
+        ("43211501", "Serveurs informatiques")
+    ]
+
+
+@pytest.mark.asyncio
 async def test_self_labeling_shape_searches_values_and_translations(
     db_session: AsyncSession,
 ):

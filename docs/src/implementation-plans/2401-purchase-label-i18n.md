@@ -165,6 +165,22 @@ to the code explicitly when the label is blank (what pre-#2401 users saw
 for those rows); regression test parametrized over en/fr in
 `tests/unit/services/test_classification_translation_labels.py`.
 
+Third live-testing find (2026-08-31): with a table open, a navbar
+language switch never refetched it — rows kept the previous locale's
+labels until re-expand. The module store now records each submodule's
+last fetch args (rows and taxonomy, batch included) and replays every
+_loaded_ one when the i18n locale changes; CT regression test
+`tests/unit/locale-refetch.spec.ts`.
+
+Suites run 2026-09-01 (local): backend unit 2547 passed; integration
+461 passed / 2 skipped, plus the new `_pg` translation-stack file — the
+one remaining failure (`test_building_rooms_csv_unknown_room_is_rejected_
+as_row_error`) is pre-existing on `dev`: its registered fixture
+`tests/fixtures/csv/building_rooms_unknown_room.csv` was never committed
+(#2253 follow-up, not this branch). Frontend CT 588 passed, e2e passed
+(3 pre-existing skips). Locust smoke (20 users, ModuleReadUser, dev
+server): no errors, table endpoint p50 140 ms.
+
 **Row-level labels (2026-08-31, maintainer decision).** Live testing
 surfaced that the table's display path was still frontend-owned for
 purchase: `ModuleTable`'s label map prefers `$te(<code>)` — the 89k-line
