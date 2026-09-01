@@ -601,9 +601,7 @@ const filteredOptionsMap = computed(() => {
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts.map((o: { label: string; value: string }) => ({
             value: o.value,
-            label: inp.optionLabelPrefix
-              ? $t(o.value.toLowerCase(), o.label)
-              : o.label,
+            label: o.label,
           }))
         : (inp.options?.map((o) => ({
             label: $t(o.label) !== o.label ? $t(o.label) : o.label,
@@ -656,24 +654,17 @@ function getFilteredOptions(
   const taxoNode =
     moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = filteredOptionsMap.value[inp.id] ?? [];
-  // Build O(1) lookup map once per call to avoid O(n²) Array.find() over taxonomy children
-  const taxoChildMap = new Map(
-    taxoNode?.children?.map((c) => [c.name, c]) ?? [],
-  );
+  // Build O(1) lookup map once per call to avoid O(n²) Array.find() over
+  // taxonomy children. Kind AND subkind nodes, flattened: backend labels
+  // cover every factor-sourced value and the static vocabularies
+  // (sius_code, room_type) since #2613.
+  const taxoChildMap = new Map<string, { label: string }>();
+  taxoNode?.children?.forEach((c) => {
+    taxoChildMap.set(c.name, c);
+    c.children?.forEach((sub) => taxoChildMap.set(sub.name, sub));
+  });
   opts.forEach((opt) => {
-    if (inp.optionLabelKey) {
-      const key = inp.optionLabelKey.replace(
-        '{value}',
-        opt.value.toLowerCase(),
-      );
-      opt.label = $te(key) ? $t(key) : opt.value;
-      return;
-    }
     const taxoOptNode = taxoChildMap.get(opt.value);
-    if ($te(opt.value)) {
-      opt.label = $t(opt.value);
-      return;
-    }
     if (taxoOptNode) {
       opt.label = taxoOptNode.label;
     }

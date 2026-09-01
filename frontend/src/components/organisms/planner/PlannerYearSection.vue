@@ -255,6 +255,7 @@
               <planner-headcount-rows
                 :key="factorScopedKey(entry.config.module)"
                 :carbon-report-id="yearData.id"
+                :year="yearData.year"
                 :disable="entry.module?.is_active === false"
               />
             </template>

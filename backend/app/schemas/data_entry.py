@@ -266,6 +266,11 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     kind_label_field: str | None = None
     # Display label override for subkind_field shown in the UI/response.
     subkind_label_field: str | None = None
+    # Classification fields whose stored value is an enum-like code in ANY
+    # locale (sius_code, fuels, room types): their labels live in the
+    # translation table for every language, English included, seeded by
+    # migration rather than CSV (#2401/#2613).
+    translated_code_fields: tuple[str, ...] = ()
     # Factor fields (classification or values) copied onto each taxonomy node's
     # ``meta`` so a form can render the option — e.g. the per-facility metric
     # unit the planner shows as an input suffix (#2391). Display metadata only:

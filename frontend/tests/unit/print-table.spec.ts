@@ -107,24 +107,35 @@ test('renderPrintCell translates option labels', () => {
   expect(renderPrintCell({ name: 'screen' }, col, ctx)).toBe('Screen');
 });
 
-test('renderPrintCell resolves optionLabelKey templates', () => {
-  const ctx = makeContext();
+test('renderPrintCell resolves taxonomy-labeled vocabularies (#2613)', () => {
+  const ctx = makeContext({
+    taxonomyKindLabels: { '51': 'Professors', office: 'Office' },
+  });
+  // Static options carry the raw value as their label (sius_code,
+  // room_type); the backend taxonomy map is the label source.
   const col = makeColumn({
-    optionLabelKey: 'process-emissions.category.{value}',
+    optionLabelsFromTaxonomy: true,
+    options: [{ value: '51', label: '51' }],
   });
 
-  expect(renderPrintCell({ name: 'FUEL' }, col, ctx)).toBe('Fuel');
+  expect(renderPrintCell({ name: '51' }, col, ctx)).toBe('Professors');
+  expect(renderPrintCell({ name: 'office' }, col, ctx)).toBe('Office');
   expect(renderPrintCell({ name: 'unknown' }, col, ctx)).toBe('unknown');
 });
 
-test('renderPrintCell resolves kind values from the taxonomy map', () => {
+test('renderPrintCell resolves kind and subkind values from the taxonomy map', () => {
   const ctx = makeContext({
-    taxonomyKindLabels: { server: 'Server rack' },
+    taxonomyKindLabels: { server: 'Server rack', storage: 'Stockage' },
   });
   const col = makeColumn({ optionsId: 'kind' });
 
   expect(renderPrintCell({ name: 'server' }, col, ctx)).toBe('Server rack');
   expect(renderPrintCell({ name: 'other' }, col, ctx)).toBe('other');
+
+  // Subkind columns (service_type, researchfacility_type) resolve through
+  // the same flattened map since #2613.
+  const subCol = makeColumn({ optionsId: 'subkind' });
+  expect(renderPrintCell({ name: 'storage' }, subCol, ctx)).toBe('Stockage');
 });
 
 test('renderPrintCell appends IATA codes to origin and destination', () => {

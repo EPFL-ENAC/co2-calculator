@@ -105,3 +105,45 @@ async def test_self_labeling_shape_translates_the_value(
     )
 
     assert enriched[0]["children"][0]["label"] == "Moteurs"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("lang", "expected"), [("en", "Rodents"), ("fr-CH", "Rongeurs")]
+)
+async def test_translated_code_shape_labels_english_too(
+    db_session: AsyncSession, lang: str, expected: str
+):
+    """Animal-facility bars group by `researchfacility_type`, a translated
+    code field (#2613): the seeded label applies in EVERY locale, English
+    included — before, English showed the raw `rodent` slug.
+    """
+    db_session.add_all(
+        [
+            ClassificationTranslation(
+                field_name="researchfacility_type",
+                value="rodent",
+                lang="en",
+                label="Rodents",
+            ),
+            ClassificationTranslation(
+                field_name="researchfacility_type",
+                value="rodent",
+                lang="fr",
+                label="Rongeurs",
+            ),
+        ]
+    )
+    await db_session.commit()
+    service = DataEntryEmissionService(db_session)
+
+    breakdown = [{"name": "animals", "children": [{"name": "rodent", "value": 2.0}]}]
+    enriched = await service.enrich_breakdown_with_labels(
+        breakdown=breakdown,
+        data_entry_types=[DataEntryTypeEnum.animal_facilities],
+        group_by_field="researchfacility_type",
+        lang=lang,
+        report_year=YEAR,
+    )
+
+    assert enriched[0]["children"][0]["label"] == expected

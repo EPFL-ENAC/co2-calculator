@@ -216,10 +216,12 @@ class ModuleHandlerService:
         # `purchase_institutional_code` + `kind_label_field ==
         # "purchase_institutional_description"`) keys on the label field
         # instead, since that's where the human-readable text — and its
-        # `_fr` counterpart — actually live.
-        translations: dict[tuple[str, str], str] = {}
+        # `_fr` counterpart — actually live. Translated code fields (fuels,
+        # room types, sius) are enum keys with seeded labels in EVERY
+        # language, so those rows are fetched for English too (#2613).
+        field_names = set(handler.translated_code_fields or ())
         if lang != DEFAULT_LANG:
-            field_names = {
+            field_names |= {
                 f
                 for f in (
                     handler.kind_field,
@@ -229,8 +231,22 @@ class ModuleHandlerService:
                 )
                 if f is not None
             }
+        translations: dict[tuple[str, str], str] = {}
+        if field_names:
             translations = await self.translation_repo.get_labels(field_names, lang)
         children: list[TaxonomyNode] = []
+
+        # A handler with no kind field but with translated code fields
+        # (headcount member, planner_headcount) has no factor-driven tree:
+        # its taxonomy is the seeded vocabulary itself — the sius dropdown
+        # and planner-grid label source (#2613).
+        if handler.kind_field is None and handler.translated_code_fields:
+            vocab_field = handler.translated_code_fields[0]
+            children = [
+                TaxonomyNode(name=value, label=label)
+                for (field, value), label in sorted(translations.items())
+                if field == vocab_field
+            ]
 
         for factor in factors:
             classification = factor.classification or {}

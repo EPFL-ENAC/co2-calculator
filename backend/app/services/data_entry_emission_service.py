@@ -1282,8 +1282,11 @@ class DataEntryEmissionService:
             english_by_name = await self._english_texts_by_code(
                 names, data_entry_types, group_by_field, label_source_field, report_year
             )
+        # Translated code fields (researchfacility_type bars) carry seeded
+        # labels in EVERY language — English display included (#2613).
+        translated_code = label_source_field in (handler.translated_code_fields or ())
         translations: dict[tuple[str, str], str] = {}
-        if lang != DEFAULT_LANG:
+        if lang != DEFAULT_LANG or translated_code:
             texts = [english_by_name.get(name, name) for name in names]
             translations = await translation_repo.get_labels(
                 {label_source_field}, lang, values=texts
