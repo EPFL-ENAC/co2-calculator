@@ -493,7 +493,7 @@ requires-dist = [
     { name = "cryptography", specifier = ">=50.0.1" },
     { name = "elasticsearch", specifier = ">=8.0.0,<9.0.0" },
     { name = "email-validator", specifier = "==2.3.0" },
-    { name = "enacit4r-files", git = "https://github.com/EPFL-ENAC/enacit4r-files?tag=1.2.0" },
+    { name = "enacit4r-files", git = "https://github.com/EPFL-ENAC/enacit4r-files?tag=1.4.0" },
     { name = "fastapi", extras = ["standard"], specifier = "==0.141.1" },
     { name = "haversine", specifier = "==2.9.0" },
     { name = "httpx", specifier = "==0.28.1" },
@@ -716,8 +716,8 @@ wheels = [
 
 [[package]]
 name = "enacit4r-files"
-version = "1.2.0"
-source = { git = "https://github.com/EPFL-ENAC/enacit4r-files?tag=1.2.0#53901d81341d21d41980279e353e22cb14a4200a" }
+version = "1.4.0"
+source = { git = "https://github.com/EPFL-ENAC/enacit4r-files?tag=1.4.0#3521479698661d2acaeba1a33f31347073ce3e0f" }
 dependencies = [
     { name = "aiobotocore" },
     { name = "aiohttp" },
