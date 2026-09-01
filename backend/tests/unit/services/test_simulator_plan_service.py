@@ -2,12 +2,14 @@ import re
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from app.models.carbon_report import CarbonReportType
+from app.core.constants import ModuleStatus
+from app.models.carbon_report import CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import GlobalScope, Role, RoleName, User
@@ -572,6 +574,15 @@ async def test_set_reference_year_without_calc_report_is_noop(async_session, use
 # ── prefill_module_from_reference (snapshot copy) ─────────────────────────────
 
 
+async def _validate_modules(async_session, report_id):
+    """Prefill only copies from validated reference modules."""
+    await async_session.execute(
+        update(CarbonReportModule)
+        .where(CarbonReportModule.carbon_report_id == report_id)
+        .values(status=ModuleStatus.VALIDATED)
+    )
+
+
 async def _calculator_report_with_process_entries(service, async_session, year=2024):
     """Calculator report for unit 1 with two process-emissions entries."""
     # #2487: create() no longer self-provisions a missing Calculator
@@ -582,6 +593,7 @@ async def _calculator_report_with_process_entries(service, async_session, year=2
     report = await service.report_service.create(
         CarbonReportCreate(year=year, unit_id=1, carbon_project_id=project.id)
     )
+    await _validate_modules(async_session, report.id)
     modules = await service.report_service.module_service.list_modules(report.id)
     module = next(
         m for m in modules if m.module_type_id == int(ModuleTypeEnum.process_emissions)
@@ -683,6 +695,7 @@ async def _second_calculator_year(service, async_session):
     report = await service.report_service.create(
         CarbonReportCreate(year=2025, unit_id=1, carbon_project_id=project.id)
     )
+    await _validate_modules(async_session, report.id)
     modules = await service.report_service.module_service.list_modules(report.id)
     module = next(
         m for m in modules if m.module_type_id == int(ModuleTypeEnum.process_emissions)
