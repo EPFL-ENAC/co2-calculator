@@ -621,7 +621,7 @@ async def _plan_year_report(service, plan_id, year=2027, reference_year=2024):
 
 
 @pytest.mark.asyncio
-async def test_prefill_copies_reference_entries_at_100_percent(async_session, user):
+async def test_prefill_copies_reference_entries_at_0_percent(async_session, user):
     service = SimulatorPlanService(async_session)
     _, _, src_entries = await _calculator_report_with_process_entries(
         service, async_session
@@ -636,7 +636,7 @@ async def test_prefill_copies_reference_entries_at_100_percent(async_session, us
     rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
     assert len(rows) == 2
     assert all(r.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value for r in rows)
-    assert all(r.data["percentage_of_reference_year"] == 100 for r in rows)
+    assert all(r.data["percentage_of_reference_year"] == 0 for r in rows)
     assert {r.data["source_data_entry_id"] for r in rows} == {e.id for e in src_entries}
     # Snapshot keeps the reference quantities.
     assert {r.data["quantity_kg"] for r in rows} == {5.0, 7.0}
@@ -761,7 +761,7 @@ async def test_switching_back_reprefills_at_100_percent(async_session, user):
 
     rows = await _plan_module_rows(service, async_session, report)
     assert len(rows) == 2
-    assert all(r.data["percentage_of_reference_year"] == 100 for r in rows)
+    assert all(r.data["percentage_of_reference_year"] == 0 for r in rows)
     assert {r.data["quantity_kg"] for r in rows} == {5.0, 7.0}
 
 

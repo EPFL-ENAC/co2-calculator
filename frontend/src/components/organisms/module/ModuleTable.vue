@@ -1451,7 +1451,7 @@ function getRowId(row: ModuleRow): number | null {
 const percentageDrafts = ref<Record<string, number>>({});
 
 function percentageStored(row: ModuleRow): number {
-  return (row.percentage_of_reference_year as number) ?? 100;
+  return (row.percentage_of_reference_year as number) ?? 0;
 }
 
 function percentageOf(row: ModuleRow): number {

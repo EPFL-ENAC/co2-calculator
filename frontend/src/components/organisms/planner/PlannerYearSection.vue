@@ -651,7 +651,7 @@ function isGrantEquipmentModule(module: Module): boolean {
 // percentage to every prefilled line at once (#1981). View state only, the
 // entries are the same either way.
 const equipmentMode = ref<'per_line' | 'global'>('per_line');
-const globalPercentage = ref(100);
+const globalPercentage = ref(0);
 const appliedGlobalPercentage = ref<number | null>(null);
 const applyingGlobalPercentage = ref(false);
 const equipmentReferenceTotalKg = ref<number | null>(null);
@@ -755,7 +755,7 @@ function equipmentModeControlsDisabled(entry: ModuleEntry): boolean {
 }
 
 // Switching always confirms through the dialog: the confirmed switch resets
-// every line to 100% and clears the abandoned mode's budgets, so the user
+// every line to 0% and clears the abandoned mode's budgets, so the user
 // must see what they are about to lose before it happens.
 async function onEquipmentModeRequest(next: 'per_line' | 'global') {
   if (next === equipmentMode.value || switchingEquipmentMode.value) return;
@@ -790,7 +790,7 @@ async function confirmEquipmentSwitch() {
     await plansStore.setModuleReferencePercentage(
       props.yearData.id,
       entry.module.module_type_id,
-      100,
+      0,
     );
     const budgets = entry.module.budgets ?? {};
     for (const key of abandonedBudgetKeys(equipmentMode.value)) {
@@ -805,8 +805,8 @@ async function confirmEquipmentSwitch() {
     equipmentMode.value = next;
     pendingEquipmentMode.value = null;
     equipmentSwitchDialogOpen.value = false;
-    globalPercentage.value = 100;
-    appliedGlobalPercentage.value = next === 'global' ? 100 : null;
+    globalPercentage.value = 0;
+    appliedGlobalPercentage.value = next === 'global' ? 0 : null;
     await refreshExpandedModule(MODULES.Equipment);
     await plansStore.refreshAggregateIfActive();
     equipmentTableTick.value += 1;
@@ -956,8 +956,8 @@ async function onReferenceYearChange(referenceYear: number | null) {
     referenceYearDialogOpen.value = false;
     emit('collapseAll');
     if (equipmentMode.value === 'global') {
-      globalPercentage.value = 100;
-      appliedGlobalPercentage.value = 100;
+      globalPercentage.value = 0;
+      appliedGlobalPercentage.value = 0;
       try {
         equipmentReferenceTotalKg.value = equipmentReferenceSum(
           await fetchEquipmentSnapshotRows(),
