@@ -98,7 +98,6 @@ def _canonical_taxonomy(node: TaxonomyNode) -> dict:
     return {
         "name": node.name,
         "label": node.label,
-        "translation_key": node.translation_key,
         "meta": node.meta,
         "children": children,
     }

@@ -670,11 +670,6 @@ function getFilteredOptions(
       return;
     }
     const taxoOptNode = taxoChildMap.get(opt.value);
-    const translationKey = taxoOptNode?.translation_key;
-    if (translationKey && $te(translationKey)) {
-      opt.label = $t(translationKey);
-      return;
-    }
     if ($te(opt.value)) {
       opt.label = $t(opt.value);
       return;
