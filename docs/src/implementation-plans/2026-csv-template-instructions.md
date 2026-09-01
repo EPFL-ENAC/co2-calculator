@@ -75,9 +75,12 @@ The first pack's date/encoding/`#` rewrites are now fixed at the source.
 Our copy still differs from SharePoint on these points, kept deliberately
 and reported on the issue so the next regeneration folds them in:
 
-- Three renames the app requires: `equipment_it` → `equipment_IT`,
-  `purchases_scientific_equipment` → `purchases_scientificequipment`,
-  `purchases_centralized` → `purchases_additional`.
+- Two renames the app requires: `equipment_it` → `equipment_IT`,
+  `purchases_scientific_equipment` → `purchases_scientificequipment`.
+  For the third one the data owner is right: the submodule is centralized
+  purchases, so we kept her `purchases_centralized_template.csv` and
+  renamed the file the app serves instead (`templateMapping.ts` pointed
+  at `purchases_additional_template.csv`).
 - `processemissions` line 5 arrived quote-wrapped (`"# 3) ..."""`), so the
   comment stripper saw `"` first and the line leaked as a data row.
   Unquoted it.
