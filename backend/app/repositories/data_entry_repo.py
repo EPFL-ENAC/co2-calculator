@@ -629,10 +629,41 @@ class DataEntryRepository:
         field that never got a ``_fr`` CSV column simply has no translation
         rows, so its subquery matches nothing extra.
         """
+        return {f for f in self._self_labeling_fields(handler) if f in filter_map}
+
+    def _self_labeling_fields(self, handler: Any) -> set[str]:
+        """Classification fields whose own value is the English label — the
+        only fields a translation row can key directly (#2401). A field
+        with a ``*_label_field`` sibling is an opaque code; its text is
+        translated via the factor hop, never by its own value.
+        """
         if handler is None:
             return set()
-        candidates = {handler.kind_field, handler.subkind_field}
-        return {f for f in candidates if f and f in filter_map}
+        fields = set()
+        if handler.kind_field and not handler.kind_label_field:
+            fields.add(handler.kind_field)
+        if handler.subkind_field and not handler.subkind_label_field:
+            fields.add(handler.subkind_field)
+        return fields
+
+    def _localized_sort_expr(self, handler: Any, sort_by: str, sort_expr, lang: str):
+        """Order by the label the user sees (#2401 follow-up): a
+        translatable classification column in a non-English locale sorts
+        by its translated label where a row exists, the stored English
+        value otherwise — so the French table sorts French-alphabetically.
+        """
+        if lang == DEFAULT_LANG or sort_by not in self._self_labeling_fields(handler):
+            return sort_expr
+        translated = (
+            select(col(ClassificationTranslation.label))
+            .where(
+                col(ClassificationTranslation.field_name) == sort_by,
+                col(ClassificationTranslation.lang) == lang,
+                col(ClassificationTranslation.value) == sort_expr,
+            )
+            .scalar_subquery()
+        )
+        return func.coalesce(translated, sort_expr)
 
     def _filter_conditions(
         self,
@@ -875,10 +906,19 @@ class DataEntryRepository:
             .scalar_subquery()
         )
 
-    def _apply_sort(self, statement, sort_by: str, sort_order: str, sort_map: dict):
+    def _apply_sort(
+        self,
+        statement,
+        sort_by: str,
+        sort_order: str,
+        sort_map: dict,
+        handler: Any,
+        lang: str,
+    ):
         sort_expr = sort_map.get(sort_by)
         if sort_expr is None:
             raise UnknownSortField(f"Cannot sort by unknown field: {sort_by}")
+        sort_expr = self._localized_sort_expr(handler, sort_by, sort_expr, lang)
         if sort_order.lower() == "asc":
             return statement.order_by(asc(sort_expr))
         else:
@@ -967,7 +1007,9 @@ class DataEntryRepository:
         )
         if is_equipment_entry:
             page_q = page_q.order_by(_equipment_usage_priority())
-        page_q = self._apply_sort(page_q, sort_by, sort_order, dict(handler.sort_map))
+        page_q = self._apply_sort(
+            page_q, sort_by, sort_order, dict(handler.sort_map), handler, lang
+        )
         page_q = page_q.offset(offset).limit(limit)
         ids = (await self.session.execute(page_q)).scalars().all()
         return [int(i) for i in ids]
@@ -1543,7 +1585,9 @@ class DataEntryRepository:
             # shared with the page-first ids query, which must order the same.
             statement = statement.order_by(_equipment_usage_priority())
 
-        statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
+        statement = self._apply_sort(
+            statement, sort_by, sort_order, sort_map, handler, lang
+        )
 
         if page_entry_ids is None:
             statement = statement.offset(offset).limit(limit)

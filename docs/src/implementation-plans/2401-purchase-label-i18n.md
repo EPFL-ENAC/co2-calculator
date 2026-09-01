@@ -116,9 +116,9 @@ code, so the condition is `code IN (SELECT the factor's code WHERE its
 description ILIKEs the term — English — OR its description IN the
 translated-label subquery — request locale)`. That also makes the
 _English_ description searchable, which never worked either (the
-description isn't stored on the entry). The factor subquery is
-deliberately unscoped by det/year — only the module's own factors carry
-the label key; scope it if it ever shows up in profiles. Threaded through
+description isn't stored on the entry). The factor subquery is scoped by
+det + factor year (review round below: seven purchase dets share these
+fields, and other years' descriptions cross-matched). Threaded through
 `get_submodule` (new `lang` query param) -> `DataEntryService.
 get_submodule_data` -> `DataEntryRepository.get_submodule_data`, all three
 call sites that build filter conditions (`_page_first_entry_ids`, the main
@@ -223,19 +223,88 @@ branch (after the fixes: backend unit 2551 passed, CT 591 passed):
   top-class cache keys); the fr vs fr-CH duplicate cache entries are gone.
 - **Taxonomy cache doubled to 128 entries** for the lang key dimension.
 
-Deliberately deferred: a GIN trigram index on
-`classification_translations.label` (the table holds ~4k rows today — a
-scan is sub-ms; the `locations.keywords` precedent applies when profiles
-say otherwise); `ServerSearchSelectField` stays a sibling of
+Deliberately deferred: `ServerSearchSelectField` stays a sibling of
 `VirtualSelectField` (option sourcing differs; the visual-drift risk is
 accepted); print keeps its taxonomy-map path (the print page still
 batch-fetches trees). The backend label ladder is consolidated into
 `resolve_label_from_field` (taxonomy kind+subkind branches, row labels);
 the typeahead's two-line variant and the frontend's one-line chain stay.
+The review's GIN trigram index was initially deferred, then added on the
+maintainer's call — migration `956c36805397` (hand content on a generated
+skeleton, the `locations.keywords` precedent: autogenerate can't express
+opclasses).
+
+## Localized sort (2026-09-01, maintainer request)
+
+`sort_by` a translatable self-labeling classification column now orders
+by the label the user sees: `_apply_sort` wraps the sort expression in
+`COALESCE((SELECT label FROM classification_translations WHERE
+field/value/lang match), stored_value)` for non-English locales, so the
+French table sorts French-alphabetically. Scoped by
+`_self_labeling_fields` — a field with a `*_label_field` sibling (the
+purchase code) keeps its raw sort: codes sort as codes, and no per-row
+subquery is spent where no translation can exist. The filter's
+translatable-field set now derives from the same helper. Regression test
+in `test_submodule_filter_translation.py` (en/fr order flip).
+
+## Remaining modules' CSVs (2026-09-01, operator INPUT_DATA v2.12.5)
+
+Per the maintainer's field list — backfilled in place, translations taken
+verbatim from the frontend i18n files, blanks where no source exists:
+
+- `building_rooms_factors.csv`: `room_type_fr` 840/840 (office→Bureau,
+  laboratories→Laboratoires, … from `i18n/buildings.ts`).
+- `researchfacilities_animals_factors.csv`: `researchfacility_type_fr`
+  2/2 (fish→Poissons, rodent→Rongeurs). The common RF factors carry no
+  `researchfacility_type` column — untouched by design (its
+  `researchfacility_name` values are proper nouns).
+- `external_clouds_factors.csv`: `service_type_fr` 12/12
+  (storage→Stockage, compute→Calcul).
+- `external_ai_factors.csv`: `usage_type_fr` added **empty** (0/19) —
+  `code`/`image`/`text` have no French source anywhere in the app today;
+  cells left for the team to fill.
+- `processemissions_factors.csv`: `category_fr` 38/62 — the fluorinated
+  families translate; the six long chemical names (`Carbon dioxide
+(CO2)`, `Methane (CH4)`, `Nitrous oxide (N2O)`, `Sulfur hexafluoride
+(SF6)`, `Nitrogen trifluoride (NF3)`, `Hydrofluorocarbons (HFCs)` ×19
+  rows) have only formula-style i18n candidates (CO₂, CH₄, …), left blank
+  rather than guessed. `subcategory_fr` deliberately all blank: every
+  subcategory is a chemical identifier (`HFC-125 (CHF2CF3)`), identical
+  in both languages.
+- `professional_travel`: no `_fr` columns, by team decision.
+
+No backend change was needed for any of these — the self-labeling
+mechanism picks the columns up at upload.
+
+## Headcount / sius_code: recommendation (parked as follow-up)
+
+Facts (verified 2026-09-01): the headcount factor CSVs carry **no**
+`sius_code` at all (`headcount_classification_fields` is
+category/class/subclass/unit); member entries store only the bare code
+(`"57"`, `-1` = other); `sius_code_name` exists nowhere in the codebase —
+all labeling is `i18n/headcount_factor.ts`, keyed by the bare code, with
+complete fr coverage (9 codes); the member table filters/sorts on the raw
+code. So the `sius_code_name`/`_fr` CSV idea has nothing to attach to —
+sius is genuinely **reference data**, not a factor dimension.
+
+Recommendation: a small dedicated issue, not this PR. Seed the 9 codes
+into `classification_translations` under `field_name="sius_code"` — for
+`fr` AND, as the one deliberate exception, `en` rows too (the stored
+value is a code, so unlike every self-labeling field its English label is
+also a lookup; the en path needs a narrow opt-in for such fields).
+Declare the field translatable on the member handler (a
+`translatable_fields` handler attribute the filter/sort/row-label
+machinery reads alongside `_self_labeling_fields`), and switch
+`PlannerHeadcountRows.vue` / the `sius_code` module-config options off
+the i18n file. That rides everything this branch built — French _and_
+English sort/filter/display from one source — for ~9×2 seeded rows plus
+one handler attribute. Until then the i18n file keeps working as today.
 
 **Deploy note:** `classification_translations` ships empty — French
 labels appear once the operator re-uploads the backfilled CSVs
-(equipment + purchases common). English display is unaffected either way.
+(equipment, purchases common, and now buildings / research-facilities
+animals / external clouds+AI / process emissions). English display is
+unaffected either way.
 
 **Row-level labels (2026-08-31, maintainer decision).** Live testing
 surfaced that the table's display path was still frontend-owned for

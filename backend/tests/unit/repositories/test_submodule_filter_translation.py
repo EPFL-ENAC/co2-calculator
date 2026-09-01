@@ -139,6 +139,42 @@ async def test_english_locale_does_not_match_other_languages_label(
     assert response.summary.total_items == 0
 
 
+@pytest.mark.asyncio
+async def test_sort_orders_by_translated_label(db_session: AsyncSession):
+    """#2401 follow-up: a French table sorts French-alphabetically —
+    ``sort_by`` a translatable column orders by the translated label,
+    falling back to the stored English value where no row exists.
+    """
+    module_id = await _seed_equipment_module(db_session)
+    # "laptop" sorts before "server" in English, but its French label
+    # ("zzz ...") sorts after "serveur" — decisive either way.
+    db_session.add(
+        ClassificationTranslation(
+            field_name="equipment_class",
+            value="laptop",
+            lang="fr",
+            label="zzz ordinateur portable",
+        )
+    )
+    await db_session.commit()
+    repo = DataEntryRepository(db_session)
+
+    async def _classes(lang: str) -> list[str]:
+        response = await repo.get_submodule_data(
+            carbon_report_module_id=module_id,
+            data_entry_type_id=DataEntryTypeEnum.it.value,
+            limit=100,
+            offset=0,
+            sort_by="equipment_class",
+            sort_order="asc",
+            lang=lang,
+        )
+        return [item.equipment_class for item in response.items]
+
+    assert await _classes("en") == ["laptop", "server"]
+    assert await _classes("fr") == ["server", "laptop"]
+
+
 def _purchase_entry(module_id: int, name: str, code: str) -> DataEntry:
     return DataEntry(
         carbon_report_module_id=module_id,
