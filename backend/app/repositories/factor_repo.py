@@ -15,6 +15,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.modules.emissions import EmissionType
 from app.schemas.data_entry import BaseModuleHandler
+from app.utils.sql_like import escape_like
 
 # Staging table for the COPY-based factor upsert.  TEMP + per-session:
 # concurrent factor jobs on other connections each get their own.
@@ -73,11 +74,6 @@ _FACTOR_UPSERT_FROM_STAGING = {
                       last_seen_job_id = EXCLUDED.last_seen_job_id
     """,
 }
-
-
-def _escape_like(term: str) -> str:
-    """Escape LIKE metacharacters so user input matches literally."""
-    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class FactorRepository:
@@ -510,7 +506,7 @@ class FactorRepository:
         )
         # LIKE metacharacters in user input must match literally — '100%'
         # is a real substring of purchase descriptions, not a wildcard.
-        escaped = _escape_like(query)
+        escaped = escape_like(query)
         pattern = f"%{escaped}%"
         match = or_(
             value_col.ilike(pattern, escape="\\"),

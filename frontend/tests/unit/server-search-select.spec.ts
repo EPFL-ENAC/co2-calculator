@@ -167,3 +167,52 @@ test('input below 2 characters never hits the server', async ({
   await page.waitForTimeout(600);
   expect(requests).toBe(0);
 });
+
+test('clearing the input below 2 characters drops a stale error', async ({
+  mount,
+  page,
+}) => {
+  await page.route('**/api/v1/taxonomies/**', (route) =>
+    route.fulfill({ status: 500, body: 'boom' }),
+  );
+
+  const component = await mount(ServerSearchSelectHarness, {
+    props: HARNESS_PROPS,
+  });
+
+  const error = component.getByText(
+    'Options could not be loaded. Try again later.',
+  );
+  await component.locator('input').fill('outils');
+  await expect(error).toBeVisible();
+
+  // Below the min-2 guard the failed lookup is history — its error must
+  // not stick to a query that will never be sent.
+  await component.locator('input').fill('o');
+  await expect(error).toBeHidden();
+});
+
+test('the empty dropdown distinguishes "too short" from "no matches"', async ({
+  mount,
+  page,
+}) => {
+  await page.route('**/api/v1/taxonomies/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '[]',
+    }),
+  );
+
+  const component = await mount(ServerSearchSelectHarness, {
+    props: HARNESS_PROPS,
+  });
+
+  await component.locator('input').fill('o');
+  await expect(
+    page.getByText('Type at least 2 characters to search'),
+  ).toBeVisible();
+
+  await component.locator('input').fill('outils');
+  await expect(page.getByText('No matching options')).toBeVisible();
+});

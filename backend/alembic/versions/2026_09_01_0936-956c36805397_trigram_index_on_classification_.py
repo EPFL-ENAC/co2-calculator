@@ -9,8 +9,6 @@ Create Date: 2026-09-01 09:36:18.094264
 
 from collections.abc import Sequence
 
-import sqlalchemy as sa
-
 from alembic import op
 
 __all__ = [
@@ -40,9 +38,10 @@ def upgrade() -> None:
     op.create_index(
         "ix_classification_translations_label_trgm",
         "classification_translations",
-        [sa.text("label gin_trgm_ops")],
+        ["label"],
         unique=False,
         postgresql_using="gin",
+        postgresql_ops={"label": "gin_trgm_ops"},
     )
 
 
@@ -51,4 +50,6 @@ def downgrade() -> None:
     op.drop_index(
         "ix_classification_translations_label_trgm",
         table_name="classification_translations",
+        postgresql_using="gin",
+        postgresql_ops={"label": "gin_trgm_ops"},
     )

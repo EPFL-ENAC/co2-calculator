@@ -587,4 +587,8 @@ export default {
     en: 'Type at least 2 characters to search',
     fr: 'Tapez au moins 2 caractères pour rechercher',
   },
+  common_no_search_results: {
+    en: 'No matching options',
+    fr: 'Aucune option correspondante',
+  },
 };

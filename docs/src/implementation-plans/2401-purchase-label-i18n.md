@@ -54,9 +54,9 @@ Two shapes a handler can carry, both served by the same table and the same
 lookup:
 
 1. **Self-labeling field** (equipment `equipment_class`/`sub_class`,
-   buildings `room_type`, external_cloud_and_ai `usage_type`/`service_type`,
+   buildings `room_type`, external*cloud_and_ai `usage_type`/`service_type`,
    process_emissions `category`/`subcategory`, research_facilities
-   `researchfacility_type`): the classification value itself _is_ the
+   `researchfacility_type`): the classification value itself \_is* the
    English label. Translated by a row keyed on `(kind_field, kind_value)` /
    `(subkind_field, subkind_value)`.
 2. **Code + separate label field** (purchase: `kind_field =
@@ -392,6 +392,53 @@ uploaded CSV's `_fr` columns; the purchase file is superseded — table
 cells read `row.labels`, and form/inline selects fall through the (now
 always-missing) `$te` check to the backend-localized `taxoOptNode.label`.
 The i18n index globs the folder, so both locales dropped them together.
+
+## PR bot-review round (2026-09-01, PR #2583 comment triage)
+
+Six action items from the aggregated bot/CodeQL review; all applied on
+this branch, each correctness one with a regression test that fails
+without the fix.
+
+- **`VirtualSelectField` min-2 early return** — the `< 2 chars` branch
+  left `requestSeq` unbumped and `serverLoading`/`loadError` untouched,
+  so an in-flight request could repopulate options for a dead query and a
+  failed lookup's error stuck after the user cleared input. The branch
+  now retires the in-flight request and clears both flags.
+- **`#no-option` wording split** — the dropdown always said "type at
+  least 2 characters", including after a real query returned zero rows.
+  It now tracks the last trimmed query length and shows
+  `common_no_search_results` (new key, both locales) above the threshold.
+- **CSV translation collection moved after validation** —
+  `_collect_translations` ran before the row's DTO validation, so a
+  rejected row still upserted its `_fr` label. It now runs next to where
+  the `Factor` is built, making the docstring's invariant true.
+- **Trigram migration uses `postgresql_ops`** — `sa.text("label
+gin_trgm_ops")` in the column list replaced by the repo's own
+  `ix_locations_keywords` precedent (`["label"]` +
+  `postgresql_ops={"label": "gin_trgm_ops"}`), on both the create and the
+  drop. Round-tripped locally (`downgrade 42aecc9a8a5b` → `upgrade head`);
+  the emitted DDL is unchanged.
+- **Table filter escapes LIKE metacharacters** — the typeahead escaped
+  them while `_apply_name_filter` interpolated the raw term, so `100%`
+  wildcard-matched in the table and matched literally in the dropdown.
+  `_escape_like` moved to `app/utils/sql_like.escape_like` (shared with
+  `factor_repo`), and every `ilike()` in `_filter_conditions` — raw map
+  conditions, translated-label subqueries, factor hop — now declares
+  `escape="\\"`.
+- **`kindOptionsServerSearched` gated on the kind field** — was
+  `.some((f) => f.optionsSearch)` over all fields, so a future non-kind
+  `optionsSearch` field would have skipped the taxonomy fetch for the
+  whole submodule. Now matches `ModuleForm`:
+  `f.optionsId === 'kind' && f.optionsSearch`.
+- **CodeQL "unnecessary lambda" ×2** (alerts 1342/1343) — `get_db`
+  overridden with `object` directly; `get_current_user` with a named
+  `_stub_user` rather than `MagicMock`, because FastAPI reads the
+  override's signature and `MagicMock(*args, **kw)` would have added
+  `args`/`kw` query params to the endpoint under test.
+
+After the round: backend unit 2560 passed, CT 196 passed (chromium) /
+24 passed across all three browsers for the select spec, `make lint` +
+`make type-check` clean.
 
 ## Deliberately out of scope here
 

@@ -1278,7 +1278,9 @@ const qCols = computed<TableViewColumn[]>(() => {
 // display labels ride each row (#2401) and the form searches per
 // keystroke. Purchase's tree is ~17k nodes; skipping it is the point.
 const kindOptionsServerSearched = computed(() =>
-  (props.moduleFields ?? []).some((f) => f.optionsSearch),
+  (props.moduleFields ?? []).some(
+    (f) => f.optionsId === 'kind' && f.optionsSearch,
+  ),
 );
 
 const taxonomyKindLabelMap = computed<Record<string, string>>(() => {

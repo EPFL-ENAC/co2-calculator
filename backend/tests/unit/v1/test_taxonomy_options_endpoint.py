@@ -20,6 +20,16 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.schemas.taxonomy import FactorOption
 
 
+def _stub_user():
+    """Dependency override for ``get_current_user``.
+
+    A named function, not ``MagicMock`` itself: FastAPI reads the
+    override's signature, and ``MagicMock(*args, **kw)`` would turn those
+    parameters into query params of the endpoint under test.
+    """
+    return MagicMock()
+
+
 @pytest.mark.asyncio
 async def test_unknown_data_entry_404s():
     with pytest.raises(HTTPException) as exc:
@@ -105,8 +115,8 @@ def test_query_below_min_length_422s():
     """FastAPI rejects a 1-char query before the handler runs — the same
     bound the frontend guard mirrors.
     """
-    app.dependency_overrides[get_db] = lambda: object()
-    app.dependency_overrides[get_current_user] = lambda: MagicMock()
+    app.dependency_overrides[get_db] = object
+    app.dependency_overrides[get_current_user] = _stub_user
     try:
         with TestClient(app) as client:
             response = client.get(

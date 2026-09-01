@@ -381,8 +381,6 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                     value.strip() if value and value.strip() else None
                 )
 
-            self._collect_translations(row, classification)
-
             # Build values with type conversion, filtering empty values
             values: dict[str, Any] = {}
             for field_name in handler.value_fields:
@@ -432,6 +430,11 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             for field_name in values:
                 if field_name in validated_fields:
                     values[field_name] = getattr(validated, field_name)
+
+            # Only a row that survived validation may contribute labels —
+            # collecting earlier would upsert a translation for a factor
+            # that never lands.
+            self._collect_translations(row, classification)
 
             # ``year`` is stored on the dedicated ``Factor.year`` column;
             # do NOT also inject it into ``classification``.  The Plan 310B

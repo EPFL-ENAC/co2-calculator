@@ -31,7 +31,11 @@
     <template v-if="onSearch" #no-option>
       <q-item dense>
         <q-item-section class="text-grey">
-          {{ $t('common_type_to_search') }}
+          {{
+            lastQueryLength < 2
+              ? $t('common_type_to_search')
+              : $t('common_no_search_results')
+          }}
         </q-item-section>
       </q-item>
     </template>
@@ -97,6 +101,9 @@ const seeded = (): SelectOption[] =>
 const serverOptions = ref<SelectOption[]>(seeded());
 const serverLoading = ref(false);
 const loadError = ref(false);
+// Drives the `#no-option` wording: the min-2 hint below the threshold, a
+// genuine no-results message once a real query came back empty.
+const lastQueryLength = ref(0);
 // Stale-response guard: only the latest keystroke's outcome may touch the
 // loading/error state — a slow failing request must never paint an error
 // over a newer, successful option list (`update()` guards only options).
@@ -111,8 +118,14 @@ async function filterFn(val: string, update: (cb: () => void) => void) {
     return;
   }
   const query = val.trim();
+  lastQueryLength.value = query.length;
   // Mirrors the backend's min_length=2 — don't send requests it rejects.
+  // Bumping the sequence retires any in-flight request so its outcome
+  // cannot repopulate options, nor leave a stale error, for a dead query.
   if (query.length < 2) {
+    requestSeq++;
+    serverLoading.value = false;
+    loadError.value = false;
     update(() => {
       serverOptions.value = seeded();
     });

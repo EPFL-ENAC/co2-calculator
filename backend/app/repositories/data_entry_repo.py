@@ -42,6 +42,7 @@ from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryUpdate,
 )
+from app.utils.sql_like import escape_like
 
 logger = get_logger(__name__)
 
@@ -674,7 +675,8 @@ class DataEntryRepository:
         hop below.
         """
         conditions = [
-            filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
+            filter_expr.ilike(filter_pattern, escape="\\")
+            for filter_expr in filter_map.values()
         ]
         # Self-labeling fields translate only outside English (their value
         # IS the English label); translated code fields (sius) carry labels
@@ -688,7 +690,7 @@ class DataEntryRepository:
             translated_values = select(col(ClassificationTranslation.value)).where(
                 col(ClassificationTranslation.field_name) == field_name,
                 col(ClassificationTranslation.lang) == lang,
-                col(ClassificationTranslation.label).ilike(filter_pattern),
+                col(ClassificationTranslation.label).ilike(filter_pattern, escape="\\"),
             )
             conditions.append(filter_map[field_name].in_(translated_values))
 
@@ -713,12 +715,14 @@ class DataEntryRepository:
             ]
         for code_field, label_field in label_shaped:
             factor_label = Factor.classification[label_field].as_string()
-            label_matches = factor_label.ilike(filter_pattern)
+            label_matches = factor_label.ilike(filter_pattern, escape="\\")
             if lang != DEFAULT_LANG:
                 translated_labels = select(col(ClassificationTranslation.value)).where(
                     col(ClassificationTranslation.field_name) == label_field,
                     col(ClassificationTranslation.lang) == lang,
-                    col(ClassificationTranslation.label).ilike(filter_pattern),
+                    col(ClassificationTranslation.label).ilike(
+                        filter_pattern, escape="\\"
+                    ),
                 )
                 label_matches = or_(label_matches, factor_label.in_(translated_labels))
             factor_scope = [col(Factor.data_entry_type_id) == data_entry_type_id]
@@ -856,7 +860,9 @@ class DataEntryRepository:
                 filter = None
 
         if filter:
-            filter_pattern = f"%{filter}%"
+            # The term is user input: a literal ``%`` or ``_`` must match
+            # itself, not act as a wildcard (matches the typeahead, #2401).
+            filter_pattern = f"%{escape_like(filter)}%"
             conditions = self._filter_conditions(
                 filter_map,
                 filter_pattern,
