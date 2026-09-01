@@ -1,16 +1,18 @@
 /**
  * Regression test for the "Download CSV template" button (#2026).
  *
- * The button shows on every module table, and its click handler silently
- * returns when getTemplateFileName finds no entry. That is exactly how
- * the research facilities button broke: both submodule tables shipped
- * with #2007, but the template map never got their entries, so the click
- * did nothing and no one saw an error.
+ * The button shows on every module table with the CSV toolbar (top bar
+ * not turned off), and its click handler silently returns when
+ * getTemplateFileName finds no entry. That is exactly how the research
+ * facilities button broke: both submodule tables shipped with #2007, but
+ * the template map never got their entries, so the click did nothing and
+ * no one saw an error.
  *
  * The list below mirrors the submodule tables declared in
- * src/constant/module-config/. Every one of them must resolve to a
- * template file that ships in public/templates. When you add a submodule
- * table, add it here and map its template.
+ * src/constant/module-config/ that show the toolbar. Tables with
+ * `hasTableTopBar: false` (headcount student) have no button and stay
+ * out. When you add a submodule table with the toolbar, add it here and
+ * map its template.
  */
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
