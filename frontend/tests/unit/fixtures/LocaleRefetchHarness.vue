@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue';
 import { useModuleStore } from '@/stores/modules';
+import { useLocaleRefetch } from '@/composables/useLocaleRefetch';
 import { i18n, type MessageLanguages } from '@/boot/i18n';
 import { MODULES } from '@/constant/modules';
 
@@ -18,15 +19,23 @@ watch(
 
 const moduleStore = useModuleStore();
 
-onMounted(async () => {
-  moduleStore.initializeSubmoduleState('other_purchases');
-  await moduleStore.getSubmoduleData({
+function fetchRows() {
+  moduleStore.getSubmoduleData({
     moduleType: MODULES.Purchase,
     submoduleType: 'other_purchases',
     unit: 7,
     year: '2024',
     carbonReportId: 42,
   });
+}
+
+// Mirrors ModuleTable's wiring: the component owning the fetch registers
+// its own refetch with its current args.
+useLocaleRefetch(fetchRows);
+
+onMounted(() => {
+  moduleStore.initializeSubmoduleState('other_purchases');
+  fetchRows();
 });
 </script>
 

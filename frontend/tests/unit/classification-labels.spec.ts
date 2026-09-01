@@ -1,38 +1,37 @@
 /**
  * #2401 — table cells for factor-sourced kind/subkind columns resolve
- * their display label from the row payload first (the backend-localized
- * `labels` map each submodule row now carries), then the taxonomy label
- * map, then the stored value itself. Pins the precedence so purchase's
- * per-row description can never be shadowed by a stale taxonomy map, and
- * rows without labels keep today's fallbacks.
+ * their display label from the taxonomy map first (modules that hold the
+ * tree — research facilities included — keep their pre-#2401 rendering),
+ * then from the row payload's backend-resolved `labels` (purchase, whose
+ * tree is never fetched, so its map is empty), then the stored value.
  */
 
 import { test, expect } from '@playwright/test';
 
 import { kindCellLabel } from '../../src/utils/classificationLabels';
 
-test('row-level backend label wins over the taxonomy map', () => {
+test('the taxonomy label wins while the tree is held', () => {
+  expect(
+    kindCellLabel(
+      { researchfacility_id: 'from-resolved-factor' },
+      'researchfacility_id',
+      { '1902': 'SCITAS-GE' },
+      '1902',
+    ),
+  ).toBe('SCITAS-GE');
+});
+
+test('the row label serves modules with no tree (purchase)', () => {
   expect(
     kindCellLabel(
       { purchase_institutional_code: 'Outils électriques' },
       'purchase_institutional_code',
-      { '27112700': 'from-taxonomy' },
+      {},
       '27112700',
     ),
   ).toBe('Outils électriques');
 });
 
-test('falls back to the taxonomy label map when the row carries none', () => {
-  expect(
-    kindCellLabel(
-      undefined,
-      'equipment_class',
-      { Engine: 'Moteurs' },
-      'Engine',
-    ),
-  ).toBe('Moteurs');
-});
-
-test('falls back to the stored value when nothing translates it', () => {
+test('falls back to the stored value when nothing labels it', () => {
   expect(kindCellLabel(null, 'equipment_class', {}, 'laptop')).toBe('laptop');
 });

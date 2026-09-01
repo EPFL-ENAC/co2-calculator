@@ -2,8 +2,8 @@ import { defineStore } from 'pinia';
 import { computed, markRaw, reactive } from 'vue';
 import { getFactorValues, type ValueFactorResponse } from '@/api/factors';
 import { getDataEntryTaxonomy } from '@/api/taxonomies';
-import { i18n } from '@/boot/i18n';
 import type { AllSubmoduleTypes, TaxonomyNode } from '@/constant/modules';
+import { currentLanguage } from '@/utils/language';
 
 type Option = { label: string; value: string };
 
@@ -71,7 +71,9 @@ export const useFactorsStore = defineStore('factors', () => {
     submodule: AllSubmoduleTypes,
     year: number | string,
   ): string {
-    return `${submodule}:${year}:${i18n.global.locale.value}`;
+    // Short code, not the full locale: the request sends `lang=fr`, so
+    // `fr` and `fr-CH` users must share one cache entry (#2401 review).
+    return `${submodule}:${year}:${currentLanguage()}`;
   }
 
   async function ensureTaxonomy(

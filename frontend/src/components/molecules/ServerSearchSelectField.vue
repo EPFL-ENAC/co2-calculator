@@ -54,8 +54,8 @@ const props = defineProps<{
   modelValue: string | number | null | undefined;
   moduleType: string;
   submoduleType: string;
-  /** Year whose factors to search; null = not resolvable yet, no fetch. */
-  year: number | string | null;
+  /** Year whose factors to search; null/undefined = not resolvable, no fetch. */
+  year?: number | string | null;
   /**
    * Edit mode: the row's current {value, label} so `map-options` can
    * display the backend-resolved label without any option fetch.
@@ -84,15 +84,23 @@ const loadError = ref(false);
 const seeded = (): SelectOption[] =>
   props.initialOption ? [props.initialOption] : [];
 
+// Stale-response guard: only the latest keystroke's outcome may touch the
+// loading/error state — a slow failing request must never paint an error
+// over a newer, successful option list (`update()` guards only options).
+let requestSeq = 0;
+
 async function filterFn(val: string, update: (cb: () => void) => void) {
   const query = val.trim();
   // Mirrors the backend's min_length=2 — don't send requests it rejects.
-  if (query.length < 2 || props.year === null) {
+  // Loose null check on purpose: an edit dialog can resolve no factor
+  // year at all (undefined).
+  if (query.length < 2 || props.year == null) {
     update(() => {
       options.value = seeded();
     });
     return;
   }
+  const seq = ++requestSeq;
   loading.value = true;
   loadError.value = false;
   try {
@@ -102,18 +110,22 @@ async function filterFn(val: string, update: (cb: () => void) => void) {
       query,
       props.year,
     );
+    if (seq !== requestSeq) return;
     update(() => {
       options.value = found.map((o) => ({ value: o.name, label: o.label }));
     });
   } catch {
     // #2498-style: an empty list must be distinguishable from a failed
     // lookup — surface it on the field instead of a silent blank.
+    if (seq !== requestSeq) return;
     update(() => {
       options.value = [];
     });
     loadError.value = true;
   } finally {
-    loading.value = false;
+    if (seq === requestSeq) {
+      loading.value = false;
+    }
   }
 }
 </script>

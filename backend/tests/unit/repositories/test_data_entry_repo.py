@@ -597,7 +597,13 @@ def test_apply_name_filter_no_filter():
     mock_handler = MagicMock()
 
     result_stmt, filter_pattern = repo._apply_name_filter(
-        mock_statement, None, mock_handler
+        mock_statement,
+        None,
+        {},
+        handler=mock_handler,
+        lang="en",
+        data_entry_type_id=66,
+        factor_year=None,
     )
 
     assert filter_pattern == ""
@@ -612,7 +618,13 @@ def test_apply_name_filter_with_pattern():
     mock_handler.filter_map = DEFAULT_FILTER_MAP
 
     result_stmt, filter_pattern = repo._apply_name_filter(
-        mock_statement, "test", mock_handler
+        mock_statement,
+        "test",
+        dict(DEFAULT_FILTER_MAP),
+        handler=None,
+        lang="en",
+        data_entry_type_id=66,
+        factor_year=None,
     )
 
     assert filter_pattern == "%test%"
@@ -627,7 +639,13 @@ def test_apply_name_filter_max_length():
 
     long_filter = "a" * 150
     result_stmt, filter_pattern = repo._apply_name_filter(
-        mock_statement, long_filter, mock_handler
+        mock_statement,
+        long_filter,
+        dict(DEFAULT_FILTER_MAP),
+        handler=None,
+        lang="en",
+        data_entry_type_id=66,
+        factor_year=None,
     )
 
     # Should be truncated to 100 + 2 for %% = 102
@@ -643,7 +661,13 @@ def test_apply_name_filter_wildcard_only():
 
     for wildcard in ["%", "*", "  "]:
         result_stmt, filter_pattern = repo._apply_name_filter(
-            mock_statement, wildcard, mock_handler
+            mock_statement,
+            wildcard,
+            {},
+            handler=mock_handler,
+            lang="en",
+            data_entry_type_id=66,
+            factor_year=None,
         )
         assert filter_pattern == ""
 

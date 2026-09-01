@@ -75,6 +75,11 @@ _FACTOR_UPSERT_FROM_STAGING = {
 }
 
 
+def _escape_like(term: str) -> str:
+    """Escape LIKE metacharacters so user input matches literally."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class FactorRepository:
     """Repository for factor CRUD operations and lookups."""
 
@@ -503,19 +508,25 @@ class FactorRepository:
         text_col = (
             Factor.classification[label_field].as_string() if label_field else value_col
         )
-        pattern = f"%{query}%"
-        match = or_(value_col.ilike(pattern), text_col.ilike(pattern))
+        # LIKE metacharacters in user input must match literally — '100%'
+        # is a real substring of purchase descriptions, not a wildcard.
+        escaped = _escape_like(query)
+        pattern = f"%{escaped}%"
+        match = or_(
+            value_col.ilike(pattern, escape="\\"),
+            text_col.ilike(pattern, escape="\\"),
+        )
         if lang != DEFAULT_LANG:
             translated = select(col(ClassificationTranslation.value)).where(
                 col(ClassificationTranslation.field_name)
                 == (label_field or kind_field),
                 col(ClassificationTranslation.lang) == lang,
-                col(ClassificationTranslation.label).ilike(pattern),
+                col(ClassificationTranslation.label).ilike(pattern, escape="\\"),
             )
             match = or_(match, text_col.in_(translated))
         relevance = case(
             (func.lower(text_col) == query.lower(), 0),
-            (text_col.ilike(f"{query}%"), 1),
+            (text_col.ilike(f"{escaped}%", escape="\\"), 1),
             else_=2,
         )
         stmt = (
@@ -530,7 +541,11 @@ class FactorRepository:
             )
             .distinct()
             .order_by(relevance, text_col, value_col)
-            .limit(limit)
+            # Overfetch: the caller dedups by value (purchase keeps one
+            # factor row per additional code) and must not be starved by
+            # LIMIT counting pre-dedupe rows. 3x is the assumed ceiling on
+            # duplicate rows per value.
+            .limit(limit * 3)
         )
         rows = (await self.session.exec(stmt)).all()
         return [(row[0], row[1]) for row in rows]

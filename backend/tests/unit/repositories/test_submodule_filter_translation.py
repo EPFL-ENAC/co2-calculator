@@ -275,6 +275,69 @@ async def test_english_locale_does_not_match_french_description_label(
 
 
 @pytest.mark.asyncio
+async def test_description_of_other_det_never_matches(db_session: AsyncSession):
+    """Review follow-up: seven purchase dets share these classification
+    fields — the factor hop must only consult THIS det's catalog.
+    """
+    module_id = await _seed_purchase_module(db_session)
+    db_session.add(
+        Factor(
+            emission_type_id=8,
+            data_entry_type_id=DataEntryTypeEnum.it_equipment.value,
+            year=2025,
+            classification={
+                # Same code as a seeded other_purchases entry, but the
+                # matching description lives on another det's factor row.
+                "purchase_institutional_code": "44121600",
+                "purchase_institutional_description": "Power adapters",
+            },
+            values={},
+        )
+    )
+    await db_session.commit()
+
+    codes = await _filter_purchase(db_session, module_id, "power", "en")
+
+    assert codes == ["27112700"]
+
+
+@pytest.mark.asyncio
+async def test_other_years_description_never_matches(db_session: AsyncSession):
+    """A past year's description text must not match rows the current
+    catalog describes differently (factor_year scopes the hop).
+    """
+    module_id = await _seed_purchase_module(db_session)
+    db_session.add(
+        Factor(
+            emission_type_id=8,
+            data_entry_type_id=DataEntryTypeEnum.other_purchases.value,
+            year=2024,
+            classification={
+                "purchase_institutional_code": "44121600",
+                "purchase_institutional_description": "Power strips",
+            },
+            values={},
+        )
+    )
+    await db_session.commit()
+
+    repo = DataEntryRepository(db_session)
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.other_purchases.value,
+        limit=100,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+        filter="power",
+        lang="en",
+        factor_year=2025,
+    )
+
+    assert [i.purchase_institutional_code for i in response.items] == ["27112700"]
+
+
+@pytest.mark.asyncio
 async def test_rows_carry_localized_labels_for_code_shape(
     db_session: AsyncSession,
 ):

@@ -18,6 +18,11 @@ class ClassificationTranslationRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    # Postgres caps one statement at 65,535 bind parameters; at 4 params/row
+    # a job-wide flush must chunk (a purchase catalog can collect >16k
+    # translations). Same reasoning as FactorRepository._upsert_subset.
+    _UPSERT_CHUNK_ROWS = 1000
+
     async def upsert(self, translations: list[ClassificationTranslation]) -> None:
         """Insert-or-update by the ``(field_name, value, lang)`` PK.
 
@@ -26,12 +31,14 @@ class ClassificationTranslationRepository:
         if not translations:
             return
         payload = [t.model_dump() for t in translations]
-        stmt = pg_insert(ClassificationTranslation).values(payload)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["field_name", "value", "lang"],
-            set_={"label": stmt.excluded["label"]},
-        )
-        await self.session.execute(stmt)
+        for start in range(0, len(payload), self._UPSERT_CHUNK_ROWS):
+            chunk = payload[start : start + self._UPSERT_CHUNK_ROWS]
+            stmt = pg_insert(ClassificationTranslation).values(chunk)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["field_name", "value", "lang"],
+                set_={"label": stmt.excluded["label"]},
+            )
+            await self.session.execute(stmt)
 
     async def get_labels_for_values(
         self, field_name: str, values: list[str], lang: str

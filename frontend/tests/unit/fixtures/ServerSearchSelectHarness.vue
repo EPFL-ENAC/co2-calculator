@@ -6,7 +6,7 @@ import { i18n, type MessageLanguages } from '@/boot/i18n';
 const props = defineProps<{
   moduleType: string;
   submoduleType: string;
-  year: number;
+  year?: number;
   initialOption?: { value: string; label: string } | null;
   initialValue?: string | null;
   locale?: MessageLanguages;

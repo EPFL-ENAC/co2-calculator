@@ -16,6 +16,7 @@ from app.core.factor_taxonomy_cache import (
 from app.models.classification_translation import (
     DEFAULT_LANG,
     normalize_lang,
+    resolve_label_from_field,
 )
 from app.models.data_entry import DataEntryTypeEnum
 from app.repositories.classification_translation_repo import (
@@ -133,7 +134,8 @@ class ModuleHandlerService:
         for value, english_text in rows:
             # The same value can sit on several factor rows (purchase keeps
             # one row per additional code) — first hit wins, order is the
-            # repo's relevance order.
+            # repo's relevance order; the repo overfetches so dedupe doesn't
+            # starve the list, and the cap below restores the contract.
             if value in seen:
                 continue
             seen.add(value)
@@ -141,6 +143,8 @@ class ModuleHandlerService:
             options.append(
                 FactorOption(name=value, label=translations.get(english, english))
             )
+            if len(options) == limit:
+                break
         return options
 
     async def get_taxonomy(
@@ -245,14 +249,11 @@ class ModuleHandlerService:
                     handler.kind_label_field
                     and handler.kind_label_field in classification
                 ):
-                    # The label field can be present but blank (real purchase
-                    # codes ship without a description) — the code is then the
-                    # only text there is.
-                    english_label = classification.get(handler.kind_label_field)
-                    if english_label is None or english_label == "":
-                        english_label = kind_value
-                    label = translations.get(
-                        (handler.kind_label_field, english_label), english_label
+                    label = resolve_label_from_field(
+                        handler.kind_label_field,
+                        classification,
+                        kind_value,
+                        translations,
                     )
                 else:
                     label = translations.get(
@@ -283,13 +284,11 @@ class ModuleHandlerService:
                 handler.subkind_label_field
                 and handler.subkind_label_field in classification
             ):
-                # Same blank-label fallback as the kind branch above.
-                english_subkind_label = classification.get(handler.subkind_label_field)
-                if english_subkind_label is None or english_subkind_label == "":
-                    english_subkind_label = subkind_value
-                subkind_label = translations.get(
-                    (handler.subkind_label_field, english_subkind_label),
-                    english_subkind_label,
+                subkind_label = resolve_label_from_field(
+                    handler.subkind_label_field,
+                    classification,
+                    subkind_value,
+                    translations,
                 )
             else:
                 subkind_label = translations.get(

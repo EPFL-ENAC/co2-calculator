@@ -31,6 +31,26 @@ def normalize_lang(lang: str) -> str:
     return short if short in TRANSLATABLE_LANGS else DEFAULT_LANG
 
 
+def resolve_label_from_field(
+    label_field: str,
+    classification: dict,
+    value: str,
+    translations: dict[tuple[str, str], str],
+) -> str:
+    """Label for the code + label-field shape: translated → the English
+    label text → the bare value; a present-but-blank label field counts as
+    absent (real purchase codes ship without a description).
+
+    THE one ladder — the taxonomy builder's kind/subkind branches and the
+    table's row labels resolve through here so they can never drift (a
+    blank-label 500 was patched twice independently before this existed).
+    """
+    english = classification.get(label_field)
+    if english is None or english == "":
+        english = value
+    return translations.get((label_field, english), english)
+
+
 class ClassificationTranslation(SQLModel, table=True):
     """One label for one classification field's value, in one language.
 

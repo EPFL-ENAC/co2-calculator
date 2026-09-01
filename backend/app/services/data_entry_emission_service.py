@@ -6,6 +6,10 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
+from app.models.classification_translation import (
+    DEFAULT_LANG,
+    normalize_lang,
+)
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -23,6 +27,9 @@ from app.modules.emissions.registry import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     emission_type_scope,
     resolve_emission_types,
+)
+from app.repositories.classification_translation_repo import (
+    ClassificationTranslationRepository,
 )
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
@@ -1212,51 +1219,83 @@ class DataEntryEmissionService:
             emission_type_ids=emission_type_ids,
         )
 
-    async def enrich_breakdown_with_factor_labels(
+    async def _english_texts_by_code(
+        self,
+        codes: set[str],
+        data_entry_types: list[DataEntryTypeEnum],
+        group_by_field: str,
+        label_field: str,
+        report_year: int | None,
+    ) -> dict[str, str]:
+        """``code -> English label text`` off the factor catalog (#2401)."""
+        conditions = [
+            col(Factor.data_entry_type_id).in_([det.value for det in data_entry_types]),
+            Factor.classification[group_by_field].as_string().in_(list(codes)),
+        ]
+        if report_year is not None:
+            conditions.append(col(Factor.year) == report_year)
+        stmt = (
+            select(
+                Factor.classification[group_by_field].as_string().label("code"),
+                Factor.classification[label_field].as_string().label("text"),
+            )
+            .where(*conditions)
+            .distinct()
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return {row.code: row.text for row in rows if row.code and row.text}
+
+    async def enrich_breakdown_with_labels(
         self,
         breakdown: list[dict],
         data_entry_types: list[DataEntryTypeEnum],
         group_by_field: str,
-        factor_label_field: str,
+        lang: str,
+        report_year: int | None = None,
     ) -> list[dict]:
-        """Add a ``translation_key`` field to each non-rest child in breakdown.
+        """Attach a request-locale display ``label`` to every non-rest child.
 
-        Looks up ``Factor.values[factor_label_field]`` for each unique
-        ``group_by_field`` code and attaches it to the child dict so the
-        frontend can resolve the human-readable label via i18n.
+        Mirrors the taxonomy builder's two shapes (#2401): when the group
+        field is the handler's kind field and a ``kind_label_field`` exists
+        (purchase), the English text lives on the factor and is looked up
+        per code; otherwise the child's name is itself the English label
+        (equipment classes, facility names) and only a translation row
+        changes it. The chart renders this field — never a frontend i18n
+        table (#2391 decision 4 deleted those).
         """
-        codes = {
+        lang = normalize_lang(lang)
+        names = {
             child["name"]
             for group in breakdown
             for child in group.get("children", [])
             if child.get("name") != "rest"
         }
-        if not codes:
+        if not names:
             return breakdown
 
-        stmt = (
-            select(
-                Factor.classification[group_by_field].as_string().label("code"),
-                Factor.values[factor_label_field].as_string().label("label"),
+        handler = BaseModuleHandler.get_by_type(data_entry_types[0])
+        translation_repo = ClassificationTranslationRepository(self.session)
+        english_by_name: dict[str, str] = {}
+        label_source_field = group_by_field
+        if handler.kind_label_field and group_by_field == handler.kind_field:
+            label_source_field = handler.kind_label_field
+            english_by_name = await self._english_texts_by_code(
+                names, data_entry_types, group_by_field, label_source_field, report_year
             )
-            .where(
-                col(Factor.data_entry_type_id).in_(
-                    [det.value for det in data_entry_types]
-                ),
-                Factor.classification[group_by_field].as_string().in_(list(codes)),
+        translations: dict[str, str] = {}
+        if lang != DEFAULT_LANG:
+            texts = [english_by_name.get(name, name) for name in names]
+            translations = await translation_repo.get_labels_for_values(
+                label_source_field, texts, lang
             )
-            .distinct()
-        )
-        rows = (await self.session.execute(stmt)).all()
-        code_to_label: dict[str, str] = {
-            row.code: row.label for row in rows if row.code and row.label
-        }
 
         for group in breakdown:
             for child in group.get("children", []):
-                label = code_to_label.get(child.get("name", ""))
-                if label:
-                    child["translation_key"] = label
+                name = child.get("name", "")
+                if name == "rest":
+                    continue
+                english = english_by_name.get(name, name)
+                child["label"] = translations.get(english, english)
 
         return breakdown
 

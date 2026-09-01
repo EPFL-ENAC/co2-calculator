@@ -375,6 +375,9 @@
           :row-data="editRowData"
           :submodule-type="submoduleType"
           :module-type="moduleType"
+          :unit-id="unitId"
+          :year="year"
+          :factor-year="factorYear"
           @submit="onFormSubmit"
           @edit="editDialogOpen = false"
         />
@@ -503,6 +506,7 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from '@/stores/modules';
 import { useFactorsStore } from '@/stores/factors';
+import { useLocaleRefetch } from '@/composables/useLocaleRefetch';
 import { kindCellLabel } from '@/utils/classificationLabels';
 import { resolveFactorYear } from '@/utils/factor-year';
 import { useYearConfigStore } from '@/stores/yearConfig';
@@ -2150,6 +2154,27 @@ watch(
   },
   { immediate: true },
 );
+
+// #2401: rows, search matching and taxonomy labels are all
+// locale-dependent — refetch this open submodule when the user switches
+// language, with the exact props currently in hand.
+useLocaleRefetch(() => {
+  if (!moduleStore.state.expandedSubmodules[props.submoduleType]) return;
+  moduleStore.getSubmoduleData({
+    submoduleType: props.submoduleType,
+    moduleType: props.moduleType,
+    unit: props.unitId,
+    year: String(props.year),
+    carbonReportId: props.carbonReportId,
+  });
+  if (!kindOptionsServerSearched.value) {
+    moduleStore.getSubmoduleTaxonomy(
+      props.moduleType,
+      props.submoduleType,
+      String(props.year),
+    );
+  }
+});
 
 watch(
   () => moduleStore.state.dataSubmodule[props.submoduleType],

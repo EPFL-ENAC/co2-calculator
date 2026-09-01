@@ -121,6 +121,29 @@ test('a failed lookup surfaces an error instead of a silent blank', async ({
   ).toBeVisible();
 });
 
+test('an unresolved year (edit dialog) never hits the server', async ({
+  mount,
+  page,
+}) => {
+  let requests = 0;
+  await page.route('**/api/v1/taxonomies/**', (route) => {
+    requests += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '[]',
+    });
+  });
+
+  const component = await mount(ServerSearchSelectHarness, {
+    props: { moduleType: 'purchase', submoduleType: 'other_purchases' },
+  });
+
+  await component.locator('input').fill('outils');
+  await page.waitForTimeout(600);
+  expect(requests).toBe(0);
+});
+
 test('input below 2 characters never hits the server', async ({
   mount,
   page,

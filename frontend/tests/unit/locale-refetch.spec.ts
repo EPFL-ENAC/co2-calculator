@@ -2,8 +2,8 @@
  * #2401 live-testing bug — with a submodule table open, switching the
  * navbar language never refetched it, so rows kept the previous locale's
  * labels (and the search filter kept matching the old language) until a
- * re-expand. The module store now records each submodule's last fetch
- * args and replays every *loaded* submodule when the i18n locale changes.
+ * re-expand. `useLocaleRefetch` re-runs the owning component's fetch —
+ * with its own current args — whenever the i18n locale changes.
  */
 
 import { test, expect } from '@playwright/experimental-ct-vue';

@@ -158,6 +158,22 @@ async def test_duplicate_codes_collapse_to_one_option(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_like_metacharacters_match_literally(db_session: AsyncSession):
+    """'100%' is a real substring of purchase descriptions, not a wildcard
+    — and '_' must not act as any-character (review follow-up).
+    """
+    db_session.add(_purchase_factor("11111111", "100% cotton shirts"))
+    await db_session.commit()
+    await _seed_purchase_factors(db_session)
+
+    options = await _search(db_session, "100%", "en")
+    assert [o.name for o in options] == ["11111111"]
+
+    options = await _search(db_session, "c_tton", "en")
+    assert options == []
+
+
+@pytest.mark.asyncio
 async def test_query_is_trimmed_before_matching(db_session: AsyncSession):
     await _seed_purchase_factors(db_session)
 

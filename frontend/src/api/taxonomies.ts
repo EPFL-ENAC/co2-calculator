@@ -1,16 +1,10 @@
 import { api } from '@/api/http';
-import { i18n } from '@/boot/i18n';
 import type { TaxonomyNode } from '@/constant/modules';
-
-/**
- * Current locale as the short code the backend's translation table stores
- * (#2401): `'fr-CH'` -> `'fr'`. Normalized again server-side, but sending
- * the short code here means the taxonomy cache (frontend and backend) is
- * keyed on the same value the request actually needs.
- */
-function currentLang(): string {
-  return i18n.global.locale.value.split('-')[0];
-}
+// The one locale normalizer (#2401 review): `'fr-CH'` -> `'fr'`, the short
+// code the backend's translation table stores. Normalized again
+// server-side; sending the short code keeps request and caches keyed on
+// the same value.
+import { currentLanguage } from '@/utils/language';
 
 /**
  * Batch-fetch taxonomies for several data entry types of one module.
@@ -25,7 +19,7 @@ export async function getModuleDataEntriesTaxonomies(
   entries: string[],
   year: string,
 ): Promise<Record<string, TaxonomyNode>> {
-  const searchParams = new URLSearchParams({ year, lang: currentLang() });
+  const searchParams = new URLSearchParams({ year, lang: currentLanguage() });
   for (const entry of entries) {
     searchParams.append('entries', entry);
   }
@@ -66,7 +60,7 @@ export async function searchDataEntryOptions(
   const searchParams = new URLSearchParams({
     query,
     year: String(year),
-    lang: currentLang(),
+    lang: currentLanguage(),
     limit: String(limit),
   });
   return api
@@ -83,7 +77,7 @@ export async function getDataEntryTaxonomy(
 ): Promise<TaxonomyNode> {
   const searchParams = new URLSearchParams({
     year: String(year),
-    lang: currentLang(),
+    lang: currentLanguage(),
   });
   return api
     .get(

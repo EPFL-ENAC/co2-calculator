@@ -181,6 +181,62 @@ as_row_error`) is pre-existing on `dev`: its registered fixture
 (3 pre-existing skips). Locust smoke (20 users, ModuleReadUser, dev
 server): no errors, table endpoint p50 140 ms.
 
+## Code review round (2026-09-01, `/code-review high`)
+
+Ten verified findings; every correctness one fixed same-day on this
+branch (after the fixes: backend unit 2551 passed, CT 591 passed):
+
+- **Translation upsert chunked at 1000 rows** — one multi-VALUES INSERT
+  hit psycopg's 65,535 bind-param cap past ~16k rows and rolled back the
+  whole ingest; same chunking rationale as `FactorRepository`.
+- **Results breakdown chart labels** — the deleted `purchase_factors.ts`
+  was still the chart's only label source (`$te(<code>)`), so purchase
+  segments rendered bare codes in both locales. The
+  `top-class-breakdown` endpoint now resolves a request-locale `label`
+  per child (`enrich_breakdown_with_labels`, replacing the never-read
+  `Factor.values["translation_key"]` enrichment, which never populated
+  for purchase); the chart renders that field, `lang` rides the request
+  and the store cache key. Bonus: equipment charts localize now too.
+- **Filter factor hop scoped by det + factor year** — seven purchase dets
+  share `purchase_institutional_code`/`description` and other years'
+  descriptions cross-matched; the "only this module's factors" comment
+  was wrong. Regression tests for both dimensions.
+- **Page labels are page-scoped** — `_page_label_translations` now runs
+  after the page materializes and fetches only the page's values
+  (`get_labels_for_values`), not a field's whole 17k-row catalog per page.
+- **research_facilities display preserved** — `kindCellLabel` prefers the
+  taxonomy map while the tree is held (RF renders exactly as before);
+  row labels serve treeless modules (purchase, whose map is empty).
+- **Edit dialog typeahead** — `ModuleTable`'s edit `<module-form>` never
+  passed `year`/`factorYear`/`unitId`, so the purchase edit form's search
+  422'd on `year=undefined`; props now passed, the component guards
+  `== null`, and a stale failing request can no longer paint an error
+  over a newer successful list (request-sequence guard).
+- **Typeahead correctness** — LIKE metacharacters escape (`100%` matches
+  literally), and the repo overfetches 3x before the service dedups by
+  value so `limit` can't starve the option list.
+- **Locale refetch reworked** — the store no longer replays remembered
+  args (stale across navigation, batch fan-out); `useLocaleRefetch` in
+  `ModuleTable` re-runs the fetch with the props in hand.
+- **One locale normalizer** — `utils/language.currentLanguage()`
+  everywhere (`api/taxonomies`, `stores/modules`, the factors and
+  top-class cache keys); the fr vs fr-CH duplicate cache entries are gone.
+- **Taxonomy cache doubled to 128 entries** for the lang key dimension.
+
+Deliberately deferred: a GIN trigram index on
+`classification_translations.label` (the table holds ~4k rows today — a
+scan is sub-ms; the `locations.keywords` precedent applies when profiles
+say otherwise); `ServerSearchSelectField` stays a sibling of
+`VirtualSelectField` (option sourcing differs; the visual-drift risk is
+accepted); print keeps its taxonomy-map path (the print page still
+batch-fetches trees). The backend label ladder is consolidated into
+`resolve_label_from_field` (taxonomy kind+subkind branches, row labels);
+the typeahead's two-line variant and the frontend's one-line chain stay.
+
+**Deploy note:** `classification_translations` ships empty — French
+labels appear once the operator re-uploads the backfilled CSVs
+(equipment + purchases common). English display is unaffected either way.
+
 **Row-level labels (2026-08-31, maintainer decision).** Live testing
 surfaced that the table's display path was still frontend-owned for
 purchase: `ModuleTable`'s label map prefers `$te(<code>)` — the 89k-line

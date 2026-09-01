@@ -419,12 +419,6 @@ _MODULE_TOP_CLASS_GROUP_FIELD: dict[ModuleTypeEnum, str] = {
     ModuleTypeEnum.research_facilities: "researchfacility_name",
 }
 
-# Maps module type → Factor.values JSON field to use as the segment label
-# in the top-class breakdown response (looked up from the Factor table).
-_MODULE_TOP_CLASS_LABEL_FIELD: dict[ModuleTypeEnum, str] = {
-    ModuleTypeEnum.purchase: "translation_key",
-}
-
 # Per data-entry-type overrides of the group field. Animal facility bars
 # segment by facility type (rodent / fish) rather than by facility name.
 # Centralized purchases carry no institutional code — their factor key is
@@ -462,6 +456,10 @@ async def get_top_class_breakdown(
     carbon_report_id: int,
     module_id: str,
     combine_unit_ids: list[int] = Query(default_factory=list),
+    lang: str = Query(
+        default="en",
+        description="Locale for segment labels (#2401), e.g. 'fr'",
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list:
@@ -567,14 +565,13 @@ async def get_top_class_breakdown(
                     group["name"] = name
                 stats.extend(groups)
 
-    factor_tk_field = _MODULE_TOP_CLASS_LABEL_FIELD.get(module_type)
-    if factor_tk_field:
-        stats = await svc.enrich_breakdown_with_factor_labels(
-            breakdown=stats,
-            data_entry_types=data_entry_types,
-            group_by_field=group_field,
-            factor_label_field=factor_tk_field,
-        )
+    stats = await svc.enrich_breakdown_with_labels(
+        breakdown=stats,
+        data_entry_types=data_entry_types,
+        group_by_field=group_field,
+        lang=lang,
+        report_year=int(year),
+    )
 
     return stats
 
