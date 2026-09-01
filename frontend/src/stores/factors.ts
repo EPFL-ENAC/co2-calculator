@@ -3,6 +3,7 @@ import { computed, markRaw, reactive } from 'vue';
 import { getFactorValues, type ValueFactorResponse } from '@/api/factors';
 import { getDataEntryTaxonomy } from '@/api/taxonomies';
 import type { AllSubmoduleTypes, TaxonomyNode } from '@/constant/modules';
+import { currentLanguage } from '@/utils/language';
 
 type Option = { label: string; value: string };
 
@@ -63,11 +64,16 @@ export const useFactorsStore = defineStore('factors', () => {
     return maps;
   });
 
+  // Labels are locale-dependent server-side (#2401); keying the cache on
+  // locale too means a language switch fetches a fresh tree instead of
+  // serving the previous language's labels for up to a minute.
   function cacheKey(
     submodule: AllSubmoduleTypes,
     year: number | string,
   ): string {
-    return `${submodule}:${year}`;
+    // Short code, not the full locale: the request sends `lang=fr`, so
+    // `fr` and `fr-CH` users must share one cache entry (#2401 review).
+    return `${submodule}:${year}:${currentLanguage()}`;
   }
 
   async function ensureTaxonomy(

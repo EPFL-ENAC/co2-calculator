@@ -1,8 +1,33 @@
-﻿equipment_class,sub_class,equipment_id,name,active_usage_hours_per_week,standby_usage_hours_per_week,note,kg_co2eq
-Lab Freezer / Frigde,Old -80°C freezers (>12yo),"","","","","",""
-Lab Freezer / Frigde,Recent -80°C freezers (<12yo),"","","","","",""
-Lab Freezer / Frigde,Small +4°C or -20°C freezers (< 150L),"","","","","",""
-Lab Freezer / Frigde,Big +4°C or -20°C freezers (> 150L),"","","","","",""
-Lab Freezer / Frigde,"Refrigerated display cabinets (fixed or mobile, 1-2m3)","","","","","",""
-Lab Freezer / Frigde,Cold rooms (20m2),"","","","","",""
-Lab Freezer / Frigde,Ice machines,"","","","","",""
+﻿equipment_class,sub_class,equipment_id,name,active_usage_hours_per_week,standby_usage_hours_per_week,note
+# Instructions:,,,,,,
+# 1) Select the appropriate equipment class from the list (e.g. Kitchen freezer - Photocopier - Special furniture - etc.).,,,,,,
+# 2) Enter the sub-class if applicable (optional).,,,,,,
+# 3) For each piece of equipment provide a unique identifier (e.g. inventory number).,,,,,,
+# 4) Enter the equipment name (e.g. 'Coffee machine' - 'Refrigerator' - 'Hand dryer').,,,,,,
+# 5) Specify active usage hours per week (hours when the equipment is actively in use: 0-168).,,,,,,
+# 6) Specify standby usage hours per week (hours when on standby: 0-168). Note: active + standby must inferior or equal to 168.,,,,,,
+# 7) For detailed guidance consult the documentation section: Modules specification - Equipment,,,,,,
+# 8) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,,,,
+Autoclaves,Bench top autoclaves,,,,,
+Autoclaves,Autoclaves (150 L),,,,,
+Kitchen freezer,,,,,,
+Kitchen oven,,,,,,
+Hoods,,,,,,
+CPG mobile equipment,CPG ventilation motors,,,,,
+CPG mobile equipment,Other CPG mobile equipment,,,,,
+CPG fixed equipment,,,,,,
+Other infrastructure equipment,Distillation equipment,,,,,
+Other infrastructure equipment,Washers,,,,,
+Vehicles,,,,,,
+Camipro,,,,,,
+Cleaning equipment,,,,,,
+Other stewardship equipment,,,,,,
+Chairs,,,,,,
+Tables,,,,,,
+Special furniture,,,,,,
+Kitchen,,,,,,
+Works of art,,,,,,
+Other furniture equipment,,,,,,
+Reprography equipment,,,,,,
+Photocopy machines,,,,,,
+Other reprography equipment,,,,,,

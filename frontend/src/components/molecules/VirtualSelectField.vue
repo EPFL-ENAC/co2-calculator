@@ -1,13 +1,15 @@
 <template>
   <q-select
     :model-value="modelValue"
-    :options="filteredOptions"
-    :loading="loading"
+    :options="onSearch ? serverOptions : filteredOptions"
+    :loading="loading || serverLoading"
     :label="label"
     :placeholder="placeholder ?? undefined"
     :hint="hint ?? undefined"
-    :error="error"
-    :error-message="errorMessage ?? undefined"
+    :error="error || loadError"
+    :error-message="
+      loadError ? $t('module_options_load_error') : (errorMessage ?? undefined)
+    "
     :readonly="readonly"
     :disable="disable"
     :hide-bottom-space="hideBottomSpace"
@@ -26,15 +28,44 @@
     <template v-if="icon" #prepend>
       <q-icon :name="icon" color="grey-6" size="xs" />
     </template>
+    <template v-if="onSearch" #no-option>
+      <q-item dense>
+        <q-item-section class="text-grey">
+          {{
+            lastQueryLength < 2
+              ? $t('common_type_to_search')
+              : $t('common_no_search_results')
+          }}
+        </q-item-section>
+      </q-item>
+    </template>
   </q-select>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 
+interface SelectOption {
+  label: string;
+  value: string;
+}
+
 const props = defineProps<{
   modelValue: string | number | null | undefined;
-  options: Array<{ label: string; value: string }>;
+  options?: SelectOption[];
+  /**
+   * Server-search mode (#2391 decision 4): options come from this
+   * callback per keystroke instead of client-filtering `options` — for
+   * option lists too large to ship (purchase: ~17k UNSPSC codes). The
+   * caller owns the request (and any year guard); this component owns
+   * the min-2 guard, debounce, loading/error state and staleness.
+   */
+  onSearch?: (query: string) => Promise<SelectOption[]>;
+  /**
+   * Server-search edit mode: the row's current {value, label} so
+   * `map-options` can display the backend-resolved label with no fetch.
+   */
+  initialOption?: SelectOption | null;
   loading?: boolean;
   label?: string;
   placeholder?: string | null;
@@ -55,18 +86,73 @@ defineEmits<{
 const searchQuery = ref('');
 
 const filteredOptions = computed(() => {
+  const opts = props.options ?? [];
   const q = searchQuery.value.toLowerCase();
-  if (!q) return props.options;
-  return props.options.filter(
+  if (!q) return opts;
+  return opts.filter(
     (o) =>
       o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
   );
 });
 
-function filterFn(val: string, update: (cb: () => void) => void) {
-  update(() => {
-    searchQuery.value = val;
-  });
+const seeded = (): SelectOption[] =>
+  props.initialOption ? [props.initialOption] : [];
+
+const serverOptions = ref<SelectOption[]>(seeded());
+const serverLoading = ref(false);
+const loadError = ref(false);
+// Drives the `#no-option` wording: the min-2 hint below the threshold, a
+// genuine no-results message once a real query came back empty.
+const lastQueryLength = ref(0);
+// Stale-response guard: only the latest keystroke's outcome may touch the
+// loading/error state — a slow failing request must never paint an error
+// over a newer, successful option list (`update()` guards only options).
+let requestSeq = 0;
+
+async function filterFn(val: string, update: (cb: () => void) => void) {
+  const search = props.onSearch;
+  if (!search) {
+    update(() => {
+      searchQuery.value = val;
+    });
+    return;
+  }
+  const query = val.trim();
+  lastQueryLength.value = query.length;
+  // Mirrors the backend's min_length=2 — don't send requests it rejects.
+  // Bumping the sequence retires any in-flight request so its outcome
+  // cannot repopulate options, nor leave a stale error, for a dead query.
+  if (query.length < 2) {
+    requestSeq++;
+    serverLoading.value = false;
+    loadError.value = false;
+    update(() => {
+      serverOptions.value = seeded();
+    });
+    return;
+  }
+  const seq = ++requestSeq;
+  serverLoading.value = true;
+  loadError.value = false;
+  try {
+    const found = await search(query);
+    if (seq !== requestSeq) return;
+    update(() => {
+      serverOptions.value = found;
+    });
+  } catch {
+    // #2498-style: an empty list must be distinguishable from a failed
+    // lookup — surface it on the field instead of a silent blank.
+    if (seq !== requestSeq) return;
+    update(() => {
+      serverOptions.value = [];
+    });
+    loadError.value = true;
+  } finally {
+    if (seq === requestSeq) {
+      serverLoading.value = false;
+    }
+  }
 }
 </script>
 

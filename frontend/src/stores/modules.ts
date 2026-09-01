@@ -2,7 +2,11 @@ import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref } from 'vue';
 import { MODULES, Module } from '@/constant/modules';
 import { api } from '@/api/http';
-import { getModuleDataEntriesTaxonomies } from '@/api/taxonomies';
+import {
+  getDataEntryTaxonomy,
+  getModuleDataEntriesTaxonomies,
+} from '@/api/taxonomies';
+import { currentLanguage } from '@/utils/language';
 import {
   MODULE_STATES,
   ModuleState,
@@ -617,6 +621,9 @@ export const useModuleStore = defineStore('modules', () => {
       const queryParams = new URLSearchParams({
         page: String(pagination.page),
         limit: String(pagination.rowsPerPage),
+        // Search matches a translated label too (#2401/#2516), e.g.
+        // lang=fr 'serveur' matches an equipment_class stored as 'server'.
+        lang: currentLanguage(),
       });
       if (pagination.sortBy) {
         queryParams.append('sort_by', pagination.sortBy);
@@ -698,11 +705,11 @@ export const useModuleStore = defineStore('modules', () => {
     state.error = null;
     state.taxonomySubmodule[submoduleType] = null;
     try {
-      const taxonomy = (await api
-        .get(
-          `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}?year=${encodeURIComponent(year)}`,
-        )
-        .json()) as TaxonomyNode;
+      const taxonomy = await getDataEntryTaxonomy(
+        moduleType,
+        submoduleType,
+        year,
+      );
       state.taxonomySubmodule[submoduleType] = markRaw(taxonomy);
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -1098,7 +1105,9 @@ export const useModuleStore = defineStore('modules', () => {
     combineUnitIds: number[],
   ): string {
     const combined = [...combineUnitIds].sort((a, b) => a - b).join(',');
-    return `${unit}|${year}|${combined}|${carbonProject.value}`;
+    // Segment labels are locale-dependent server-side (#2401) — a language
+    // switch must miss the cache and refetch.
+    return `${unit}|${year}|${combined}|${carbonProject.value}|${currentLanguage()}`;
   }
 
   async function getTopClassBreakdown(
@@ -1127,6 +1136,8 @@ export const useModuleStore = defineStore('modules', () => {
         for (const id of combineUnitIds) {
           searchParams.append('combine_unit_ids', String(id));
         }
+        // Segment labels resolve server-side per locale (#2401).
+        searchParams.append('lang', currentLanguage());
         const query = searchParams.toString();
         const path = query ? `${basePath}?${query}` : basePath;
         const data = await api.get(path).json<Array<Record<string, unknown>>>();
@@ -1164,7 +1175,7 @@ export const useModuleStore = defineStore('modules', () => {
     ];
     if (!(TOP_CLASS_MODULES as Module[]).includes(moduleType)) return;
     try {
-      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}/top-class-breakdown`;
+      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}/top-class-breakdown?lang=${currentLanguage()}`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.topClassBreakdown[moduleType] = data;
       // Mutations happen on ModulePage (plain-unit view); pointing the key at

@@ -49,7 +49,9 @@ const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 export interface TopClassBreakdownItem {
   name: string;
   value: number;
-  children: Array<{ name: string; value: number; translation_key?: string }>;
+  // `label` is the backend-resolved, request-locale display text (#2401) —
+  // the deleted factor i18n dictionaries are not a label source any more.
+  children: Array<{ name: string; value: number; label?: string }>;
 }
 
 const props = defineProps<{
@@ -188,7 +190,7 @@ const chartData = computed(() => {
         // Use a numeric suffix to guarantee unique, parseable segment keys
         const segKey = `_tcb_${segCounter++}`;
         segmentKeysSet.add(segKey);
-        segmentLabelOverrides.set(segKey, child.name);
+        segmentLabelOverrides.set(segKey, child.label ?? child.name);
         barData[segKey] = child.value / 1000.0; // kg → tonnes
       }
       bars.push(barData);

@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
+from opentelemetry import trace
 from sqlalchemy.engine import make_url
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -540,6 +541,19 @@ async def ready():
                 "database_status": state.status if state else "unknown",
                 "db_error": state.error if state else None,
             },
+        )
+        # A /ready trace is otherwise a single 1.5ms span with no cause:
+        # this endpoint does zero I/O by design (#2049), so the failing
+        # work lives in the uninstrumented background loop and never joins
+        # the trace. Attach the cached verdict so the span answers "why".
+        # No-op when tracing is off (non-recording span). Internal-only
+        # telemetry, unlike the response body, so db_error may ride along.
+        trace.get_current_span().set_attributes(
+            {
+                "db.health.status": state.status if state else "unknown",
+                "db.health.error": (state.error if state else None) or "",
+                "db.health.latency_ms": state.latency_ms if state else -1.0,
+            }
         )
 
     # db_error stays in the log above — returning it would leak stack

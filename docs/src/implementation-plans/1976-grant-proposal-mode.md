@@ -130,7 +130,8 @@ Grant section renders **before** (not instead of) the year sections.
   budget field and rows — once it holds at least one platform.
 - Grant reports skip the RF snapshot-prefill on reference-year changes
   (entries are still cleared so baselines never mix); year reports keep
-  prefilling.
+  prefilling. Travel (#2018) and headcount (#2120 conformity spec: no
+  remontée in grants for any user) are skipped the same way.
 - The metric is fixed by the platform's factor: offering a free metric
   choice would need multi-unit factors (backoffice change) since the
   formula requires an exact `use_unit` match — deferred with #1980's

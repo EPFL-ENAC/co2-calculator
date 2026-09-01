@@ -935,6 +935,10 @@ export interface paths {
          *     resolves through get_taxonomy_for_data_entry_type, so it hits/populates
          *     the same (data_entry_type, year) cache a single-entry call would.
          *
+         *     The response ETag combines every resolved entry's own ETag (#2391
+         *     decision 2); a matching `If-None-Match` short-circuits with an empty
+         *     304 before any tree is serialized to JSON.
+         *
          *     An ``HTTPException`` (bad entry name, entry not in this module) means
          *     the request itself is malformed — that's not one submodule's problem,
          *     it propagates and fails the whole batch. Any other exception is a
@@ -962,8 +966,38 @@ export interface paths {
         /**
          * Get Taxonomy For Module Data Entry
          * @description Get taxonomy for a given module and data entry type.
+         *
+         *     A matching `If-None-Match` short-circuits with an empty 304 before the
+         *     tree is serialized to JSON (#2391 decision 2).
          */
         get: operations["get_taxonomy_for_module_data_entry_v1_taxonomies_module__module___data_entry__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/taxonomies/module/{module}/{data_entry}/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Module Data Entry Options
+         * @description Server-side typeahead for one data entry's classification options
+         *     (#2391 decision 4, the shape of ``locations/search``).
+         *
+         *     Exists for handlers whose option list is too large to ship as a
+         *     taxonomy tree (purchase: ~17k codes) but works for any handler with a
+         *     kind field. Uncached on purpose — responses vary per keystroke, and
+         *     the point of the endpoint is that clients stop downloading the tree.
+         *     Authentication is the only gate, same as the taxonomy routes above.
+         */
+        get: operations["search_module_data_entry_options_v1_taxonomies_module__module___data_entry__options_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1049,16 +1083,18 @@ export interface paths {
          *     report is returned immediately so the user is not blocked.
          */
         get: operations["get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___get"];
-        put?: never;
         /**
-         * Create Simulator Explore Carbon Report
-         * @description Create a new, empty Simulator Explore carbon report.
+         * Put Simulator Explore Carbon Report
+         * @description Idempotent Simulator Explore sandbox: create on first call, return
+         *     the existing one on every call after (#2487).
          *
-         *     The report is created with its modules and no entries — Simulator Explore is
-         *     never seeded from the Calculator. Only the Simulator Plan prefills, and only
-         *     from the reference year its user picks.
+         *     Replaces the GET(404) + POST pair the frontend used to orchestrate —
+         *     two round trips, and the 404-as-control-flow race #2483 had to
+         *     SAVEPOINT-guard. A stale existing sandbox is refreshed in the
+         *     background and returned as-is immediately, matching the GET route.
          */
-        post: operations["create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___post"];
+        put: operations["put_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1242,7 +1278,10 @@ export interface paths {
         put?: never;
         /**
          * Create Simulator Plan
-         * @description Create a simulator plan; without a name, the next default is assigned.
+         * @description Create a simulator plan; without a name, a suffixed default is assigned.
+         *
+         *     Names are not unique (#2445) — the plan id is the identity — so creation
+         *     cannot conflict.
          */
         post: operations["create_simulator_plan_v1_project_plans_unit__unit_id___post"];
         delete?: never;
@@ -3153,6 +3192,10 @@ export interface components {
             id: number;
             /** Source */
             source?: number | null;
+            /** Labels */
+            labels?: {
+                [key: string]: string;
+            } | null;
         };
         /**
          * DataEntryStatusEnum
@@ -3300,6 +3343,20 @@ export interface components {
          */
         EntityType: 1 | 2 | 3;
         /**
+         * FactorOption
+         * @description One typeahead option (#2391 decision 4).
+         *
+         *     ``name`` is the stored classification value the form submits (purchase:
+         *     the UNSPSC code); ``label`` is the request-locale display text — same
+         *     vocabulary as ``TaxonomyNode``, minus the tree.
+         */
+        FactorOption: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+        };
+        /**
          * FileMetadata
          * @description Metadata for uploaded files.
          */
@@ -3385,6 +3442,10 @@ export interface components {
             id: number;
             /** Source */
             source?: number | null;
+            /** Labels */
+            labels?: {
+                [key: string]: string;
+            } | null;
             /** Note */
             note?: string | null;
             /** Reference Kg Co2Eq */
@@ -3966,6 +4027,12 @@ export interface components {
          *     frontend a source that doesn't depend on any particular year existing —
          *     e.g. the backoffice year selector can seed its lower bound even when the
          *     current real-world year has no ``YearConfiguration`` row yet.
+         *
+         *     ``client_ip`` is the caller's own address, which the browser cannot
+         *     discover on its own — it is echoed back so the frontend can put a real IP
+         *     on its GlitchTip error reports instead of a placeholder. Omitted when the
+         *     ASGI server reports no client (``response_model_exclude_none``), never
+         *     faked.
          */
         SessionRead: {
             user: components["schemas"]["UserRead"];
@@ -3975,6 +4042,8 @@ export interface components {
             configured_years: components["schemas"]["YearConfigurationListItem"][];
             /** Min Configurable Year */
             min_configurable_year: number;
+            /** Client Ip */
+            client_ip?: string | null;
         };
         /**
          * SimulatorPlanCreate
@@ -4936,12 +5005,7 @@ export interface operations {
     };
     list_user_units_v1_users_units_get: {
         parameters: {
-            query?: {
-                /** @description Number of records to skip */
-                skip?: number;
-                /** @description Maximum number of records to return */
-                limit?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: {
@@ -5504,6 +5568,8 @@ export interface operations {
         parameters: {
             query?: {
                 combine_unit_ids?: number[];
+                /** @description Locale for segment labels (#2401), e.g. 'fr' */
+                lang?: string;
             };
             header?: never;
             path: {
@@ -5615,6 +5681,8 @@ export interface operations {
                 sort_order?: string;
                 /** @description Filter string to search in name or display_name */
                 filter?: string | null;
+                /** @description Locale for the search filter (#2401/#2516): a translatable field also matches its translated label, e.g. lang=fr 'serveur' matches equipment_class_fr='serveur' (stored equipment_class='server'). */
+                lang?: string;
             };
             header?: never;
             path: {
@@ -6133,12 +6201,7 @@ export interface operations {
     };
     list_units_v1_units_get: {
         parameters: {
-            query?: {
-                /** @description Number of records to skip */
-                skip?: number;
-                /** @description Maximum number of records to return */
-                limit?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: {
@@ -6281,8 +6344,12 @@ export interface operations {
                 entries: string[];
                 /** @description Year for which to retrieve the taxonomy */
                 year?: number;
+                /** @description Locale for classification labels (#2401), e.g. 'fr' */
+                lang?: string;
             };
-            header?: never;
+            header?: {
+                "if-none-match"?: string | null;
+            };
             path: {
                 module: string;
             };
@@ -6319,6 +6386,53 @@ export interface operations {
             query?: {
                 /** @description Year for which to retrieve the taxonomy */
                 year?: number;
+                /** @description Locale for classification labels (#2401), e.g. 'fr' */
+                lang?: string;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path: {
+                module: string;
+                data_entry: string;
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyNode"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_module_data_entry_options_v1_taxonomies_module__module___data_entry__options_get: {
+        parameters: {
+            query: {
+                /** @description Search term (min 2 chars); matches the stored value, the English label text, and its translated label */
+                query: string;
+                /** @description Year whose factors to search */
+                year?: number;
+                /** @description Locale for option labels and matching (#2401), e.g. 'fr' */
+                lang?: string;
+                /** @description Maximum options returned */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -6337,7 +6451,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaxonomyNode"];
+                    "application/json": components["schemas"]["FactorOption"][];
                 };
             };
             /** @description Validation Error */
@@ -6487,7 +6601,7 @@ export interface operations {
             };
         };
     };
-    create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___post: {
+    put_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___put: {
         parameters: {
             query?: never;
             header?: never;
@@ -6502,7 +6616,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

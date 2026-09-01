@@ -375,6 +375,9 @@
           :row-data="editRowData"
           :submodule-type="submoduleType"
           :module-type="moduleType"
+          :unit-id="unitId"
+          :year="year"
+          :factor-year="factorYear"
           @submit="onFormSubmit"
           @edit="editDialogOpen = false"
         />
@@ -551,7 +554,7 @@ import {
   type ModuleTableAccess,
 } from '@/utils/module-table-access';
 
-const { t: $t, te: $te } = useI18n();
+const { t: $t, te: $te, locale } = useI18n();
 
 const $q = useQuasar();
 const authStore = useAuthStore();
@@ -1270,6 +1273,16 @@ const qCols = computed<TableViewColumn[]>(() => {
   return baseCols;
 });
 
+// #2391 decision 4: a submodule whose kind options are server-searched
+// (`optionsSearch`) never needs the taxonomy tree on the table page —
+// display labels ride each row (#2401) and the form searches per
+// keystroke. Purchase's tree is ~17k nodes; skipping it is the point.
+const kindOptionsServerSearched = computed(() =>
+  (props.moduleFields ?? []).some(
+    (f) => f.optionsId === 'kind' && f.optionsSearch,
+  ),
+);
+
 const taxonomyKindLabelMap = computed<Record<string, string>>(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType];
   const map: Record<string, string> = {};
@@ -1393,9 +1406,14 @@ function renderCell(
     const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
     return $te(key) ? $t(key) : val;
   }
-  // Factor-sourced kind/subkind: look up label from taxonomy
+  // Factor-sourced kind/subkind. Precedence pin (#2401): taxonomy label
+  // while the tree is held (research facilities keep their pre-#2401
+  // rendering), the row's backend-resolved label for treeless modules
+  // (purchase — its map is empty), stored value as the English fallback.
   if (col.optionsId === 'kind' && typeof val === 'string') {
-    return taxonomyKindLabelMap.value[val] ?? val;
+    const rowLabels = row['labels'] as unknown as
+      Record<string, string> | null | undefined;
+    return taxonomyKindLabelMap.value[val] ?? rowLabels?.[col.field] ?? val;
   }
   if (typeof val === 'string') return val;
   if (typeof val === 'number') {
@@ -1433,7 +1451,7 @@ function getRowId(row: ModuleRow): number | null {
 const percentageDrafts = ref<Record<string, number>>({});
 
 function percentageStored(row: ModuleRow): number {
-  return (row.percentage_of_reference_year as number) ?? 100;
+  return (row.percentage_of_reference_year as number) ?? 0;
 }
 
 function percentageOf(row: ModuleRow): number {
@@ -2123,16 +2141,39 @@ watch(
           year: String(props.year),
           carbonReportId: props.carbonReportId,
         });
-        moduleStore.getSubmoduleTaxonomy(
-          props.moduleType,
-          props.submoduleType,
-          String(props.year),
-        );
+        if (!kindOptionsServerSearched.value) {
+          moduleStore.getSubmoduleTaxonomy(
+            props.moduleType,
+            props.submoduleType,
+            String(props.year),
+          );
+        }
       }
     }
   },
   { immediate: true },
 );
+
+// #2401: rows, search matching and taxonomy labels are all
+// locale-dependent — refetch this open submodule when the user switches
+// language, with the exact props currently in hand.
+watch(locale, () => {
+  if (!moduleStore.state.expandedSubmodules[props.submoduleType]) return;
+  moduleStore.getSubmoduleData({
+    submoduleType: props.submoduleType,
+    moduleType: props.moduleType,
+    unit: props.unitId,
+    year: String(props.year),
+    carbonReportId: props.carbonReportId,
+  });
+  if (!kindOptionsServerSearched.value) {
+    moduleStore.getSubmoduleTaxonomy(
+      props.moduleType,
+      props.submoduleType,
+      String(props.year),
+    );
+  }
+});
 
 watch(
   () => moduleStore.state.dataSubmodule[props.submoduleType],
@@ -2152,11 +2193,13 @@ onMounted(async () => {
       year: String(props.year),
       carbonReportId: props.carbonReportId,
     });
-    moduleStore.getSubmoduleTaxonomy(
-      props.moduleType,
-      props.submoduleType,
-      String(props.year),
-    );
+    if (!kindOptionsServerSearched.value) {
+      moduleStore.getSubmoduleTaxonomy(
+        props.moduleType,
+        props.submoduleType,
+        String(props.year),
+      );
+    }
   }
 
   // For professional travel, pre-load headcount members to resolve traveler names

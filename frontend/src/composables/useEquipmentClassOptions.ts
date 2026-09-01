@@ -9,6 +9,10 @@ interface FieldConfig {
   // identifiers of the fields in the entity record (real value we want to use)
   classFieldId?: string;
   subClassFieldId?: string;
+  // #2391 decision 4: the kind field is a server-side typeahead
+  // (`optionsSearch` in module config) — never fetch the taxonomy tree for
+  // its options (purchase's is ~17k nodes).
+  skipClassOptions?: boolean;
   // Set when the class value itself is an opaque code (research facility ids):
   // the select then shows the taxonomy node's server-side label instead of the
   // stored value (#2007). Which factor field backs that label is the module
@@ -82,6 +86,7 @@ export function useEquipmentClassOptions<
   }
 
   async function loadClassOptions() {
+    if (config.skipClassOptions) return;
     const sub = submoduleType.value;
     // `year` is required by the taxonomy endpoint (factors are year-scoped);
     // without it the request 422s.

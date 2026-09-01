@@ -61,7 +61,7 @@ def _mock_get_taxonomy_with_etag():
         taxonomies_mod.ModuleHandlerService,
         "get_taxonomy_with_etag",
         new=AsyncMock(
-            side_effect=lambda handler, data_entry_type, year: _fake_entry(
+            side_effect=lambda handler, data_entry_type, year, lang="en": _fake_entry(
                 data_entry_type
             )
         ),
@@ -320,7 +320,7 @@ async def test_batch_endpoint_isolates_a_per_entry_runtime_failure():
     fake_db = AsyncMock()
     fake_user = MagicMock()
 
-    async def _flaky_get_taxonomy_with_etag(handler, data_entry_type, year):
+    async def _flaky_get_taxonomy_with_etag(handler, data_entry_type, year, lang="en"):
         if data_entry_type.name == "it":
             raise RuntimeError("transient DB hiccup")
         return _fake_entry(data_entry_type)

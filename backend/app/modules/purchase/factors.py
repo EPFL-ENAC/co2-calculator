@@ -67,6 +67,12 @@ purchase_common_classification_fields: list[str] = [
     "purchase_institutional_code",
     "purchase_additional_code",
     "currency",
+    # English display label for the UNSPSC code above (#2401 decision 4):
+    # the code itself is opaque, so the taxonomy label comes from this
+    # field via PurchaseModuleHandler.kind_label_field, not from
+    # `to_label(purchase_institutional_code)`. A `_fr` suffix column
+    # translates it through the same generic mechanism equipment uses.
+    "purchase_institutional_description",
 ]
 purchase_common_value_fields: list[str] = [
     "ef_kg_co2eq_per_currency",
@@ -77,6 +83,7 @@ purchase_common_value_fields: list[str] = [
 class PurchaseCommonFactorCreate(FactorCreate):
     currency: str
     purchase_institutional_code: str
+    purchase_institutional_description: str | None = None
     translation_key: str | None = None
     purchase_additional_code: str | None = None
     ef_kg_co2eq_per_currency: float
@@ -106,6 +113,7 @@ class PurchaseCommonFactorCreate(FactorCreate):
 
 class PurchaseCommonFactorUpdate(FactorUpdate):
     purchase_institutional_code: str | None = None
+    purchase_institutional_description: str | None = None
     purchase_additional_code: str | None = None
     currency: str | None = None
     ef_kg_co2eq_per_currency: float | None = None
@@ -114,6 +122,7 @@ class PurchaseCommonFactorUpdate(FactorUpdate):
 
 class PurchaseCommonFactorResponse(FactorResponseGen):
     purchase_institutional_code: str
+    purchase_institutional_description: str | None = None
     purchase_additional_code: str | None = None
     currency: str
     ef_kg_co2eq_per_currency: float | None = None
