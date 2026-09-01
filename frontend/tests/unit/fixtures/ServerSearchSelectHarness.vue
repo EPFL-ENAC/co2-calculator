@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import ServerSearchSelectField from '@/components/molecules/ServerSearchSelectField.vue';
+import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
+import { searchDataEntryOptions } from '@/api/taxonomies';
 import { i18n, type MessageLanguages } from '@/boot/i18n';
 
 const props = defineProps<{
@@ -17,14 +18,25 @@ if (props.locale) {
 }
 
 const model = ref<string | number | null>(props.initialValue ?? null);
+
+// Mirrors ModuleForm's `searchClassificationOptions` callback, year guard
+// included — the specs pin the request shape end to end through it.
+async function onSearch(query: string) {
+  if (props.year == null) return [];
+  const found = await searchDataEntryOptions(
+    props.moduleType,
+    props.submoduleType,
+    query,
+    props.year,
+  );
+  return found.map((o) => ({ value: o.name, label: o.label }));
+}
 </script>
 
 <template>
-  <ServerSearchSelectField
+  <VirtualSelectField
     v-model="model"
-    :module-type="props.moduleType"
-    :submodule-type="props.submoduleType"
-    :year="props.year"
+    :on-search="onSearch"
     :initial-option="props.initialOption ?? null"
     label="code"
   />

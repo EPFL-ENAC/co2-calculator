@@ -1282,11 +1282,11 @@ class DataEntryEmissionService:
             english_by_name = await self._english_texts_by_code(
                 names, data_entry_types, group_by_field, label_source_field, report_year
             )
-        translations: dict[str, str] = {}
+        translations: dict[tuple[str, str], str] = {}
         if lang != DEFAULT_LANG:
             texts = [english_by_name.get(name, name) for name in names]
-            translations = await translation_repo.get_labels_for_values(
-                label_source_field, texts, lang
+            translations = await translation_repo.get_labels(
+                {label_source_field}, lang, values=texts
             )
 
         for group in breakdown:
@@ -1295,7 +1295,9 @@ class DataEntryEmissionService:
                 if name == "rest":
                     continue
                 english = english_by_name.get(name, name)
-                child["label"] = translations.get(english, english)
+                child["label"] = translations.get(
+                    (label_source_field, english), english
+                )
 
         return breakdown
 

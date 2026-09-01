@@ -614,23 +614,6 @@ class DataEntryRepository:
 
         return aggregation
 
-    def _translatable_filter_fields(self, handler: Any, filter_map: dict) -> set[str]:
-        """``filter_map`` keys the search should also match by translated label (#2401).
-
-        Only the *self-labeling* shape (a handler's ``kind_field``/
-        ``subkind_field`` whose own value is filtered directly, e.g.
-        equipment's ``equipment_class``) is safe here: the translation
-        table's ``value`` for that field name IS the column being
-        searched, so ``IN (SELECT value ...)`` matches directly. The
-        ``kind_label_field`` shape (purchase: the searched column is an
-        opaque code, the text lives on a *different* column) is handled
-        separately in ``_filter_conditions`` via a hop through
-        ``factors.classification``. Harmless to include unconditionally: a
-        field that never got a ``_fr`` CSV column simply has no translation
-        rows, so its subquery matches nothing extra.
-        """
-        return {f for f in self._self_labeling_fields(handler) if f in filter_map}
-
     def _self_labeling_fields(self, handler: Any) -> set[str]:
         """Classification fields whose own value is the English label — the
         only fields a translation row can key directly (#2401). A field
@@ -646,13 +629,23 @@ class DataEntryRepository:
             fields.add(handler.subkind_field)
         return fields
 
+    def _translated_code_fields(self, handler: Any) -> set[str]:
+        """Handler-declared code fields whose labels live in the translation
+        table for every language, English included (sius_code: the stored
+        value is a code in any locale — seeded by migration, not CSV).
+        """
+        return set(getattr(handler, "translated_code_fields", ()) or ())
+
     def _localized_sort_expr(self, handler: Any, sort_by: str, sort_expr, lang: str):
         """Order by the label the user sees (#2401 follow-up): a
         translatable classification column in a non-English locale sorts
         by its translated label where a row exists, the stored English
         value otherwise — so the French table sorts French-alphabetically.
         """
-        if lang == DEFAULT_LANG or sort_by not in self._self_labeling_fields(handler):
+        translatable = self._translated_code_fields(handler)
+        if lang != DEFAULT_LANG:
+            translatable = translatable | self._self_labeling_fields(handler)
+        if sort_by not in translatable:
             return sort_expr
         translated = (
             select(col(ClassificationTranslation.label))
@@ -683,14 +676,21 @@ class DataEntryRepository:
         conditions = [
             filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
         ]
+        # Self-labeling fields translate only outside English (their value
+        # IS the English label); translated code fields (sius) carry labels
+        # for every language, English included — one search behavior across
+        # locales. The code + label-field shape hops through factors below
+        # instead. No rows for a field = no-op.
+        translatable = self._translated_code_fields(handler)
         if lang != DEFAULT_LANG:
-            for field_name in self._translatable_filter_fields(handler, filter_map):
-                translated_values = select(col(ClassificationTranslation.value)).where(
-                    col(ClassificationTranslation.field_name) == field_name,
-                    col(ClassificationTranslation.lang) == lang,
-                    col(ClassificationTranslation.label).ilike(filter_pattern),
-                )
-                conditions.append(filter_map[field_name].in_(translated_values))
+            translatable = translatable | self._self_labeling_fields(handler)
+        for field_name in translatable & filter_map.keys():
+            translated_values = select(col(ClassificationTranslation.value)).where(
+                col(ClassificationTranslation.field_name) == field_name,
+                col(ClassificationTranslation.lang) == lang,
+                col(ClassificationTranslation.label).ilike(filter_pattern),
+            )
+            conditions.append(filter_map[field_name].in_(translated_values))
 
         # Code + label-field shape (purchase): the filtered column holds an
         # opaque code; the text users actually see (and search) is the
@@ -763,15 +763,14 @@ class DataEntryRepository:
                     wanted.setdefault(label_field, set()).add(english)
                     continue
                 wanted.setdefault(code_field, set()).add(value)
-        translations: dict[tuple[str, str], str] = {}
-        translation_repo = ClassificationTranslationRepository(self.session)
-        for field_name, values in wanted.items():
-            labels = await translation_repo.get_labels_for_values(
-                field_name, list(values), lang
-            )
-            for value, label in labels.items():
-                translations[(field_name, value)] = label
-        return translations
+        if not wanted:
+            return {}
+        # One bounded query for the whole page; a value overlapping two
+        # fields over-fetches a row harmlessly — keys stay exact.
+        all_values = sorted({v for vs in wanted.values() for v in vs})
+        return await ClassificationTranslationRepository(self.session).get_labels(
+            set(wanted), lang, values=all_values
+        )
 
     @staticmethod
     def _row_labels(

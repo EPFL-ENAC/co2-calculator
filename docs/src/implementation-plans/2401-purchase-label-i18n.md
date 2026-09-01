@@ -223,16 +223,23 @@ branch (after the fixes: backend unit 2551 passed, CT 591 passed):
   top-class cache keys); the fr vs fr-CH duplicate cache entries are gone.
 - **Taxonomy cache doubled to 128 entries** for the lang key dimension.
 
-Deliberately deferred: `ServerSearchSelectField` stays a sibling of
-`VirtualSelectField` (option sourcing differs; the visual-drift risk is
-accepted); print keeps its taxonomy-map path (the print page still
-batch-fetches trees). The backend label ladder is consolidated into
+Deliberately deferred: print keeps its taxonomy-map path (the print page
+still batch-fetches trees). The backend label ladder is consolidated into
 `resolve_label_from_field` (taxonomy kind+subkind branches, row labels);
 the typeahead's two-line variant and the frontend's one-line chain stay.
 The review's GIN trigram index was initially deferred, then added on the
 maintainer's call — migration `956c36805397` (hand content on a generated
 skeleton, the `locations.keywords` precedent: autogenerate can't express
 opclasses).
+
+Ponytail pass (2026-09-01, cuts applied with the test seams kept):
+`ServerSearchSelectField` folded into `VirtualSelectField` as an optional
+`onSearch` prop (the caller owns the request + year guard, the component
+owns min-2/debounce/loading/error/staleness); `useLocaleRefetch` and
+`kindCellLabel` inlined at their single call sites (the CT harnesses
+mirror the inline forms, specs unchanged); the two translation-repo
+fetchers merged into one `get_labels(field_names, lang, values=None)`;
+the api client's unused `limit` parameter hardcoded. Net ≈ −180 lines.
 
 ## Localized sort (2026-09-01, maintainer request)
 
@@ -276,29 +283,30 @@ verbatim from the frontend i18n files, blanks where no source exists:
 No backend change was needed for any of these — the self-labeling
 mechanism picks the columns up at upload.
 
-## Headcount / sius_code: recommendation (parked as follow-up)
+## Headcount / sius_code (delivered 2026-09-01, maintainer decision)
 
-Facts (verified 2026-09-01): the headcount factor CSVs carry **no**
-`sius_code` at all (`headcount_classification_fields` is
-category/class/subclass/unit); member entries store only the bare code
-(`"57"`, `-1` = other); `sius_code_name` exists nowhere in the codebase —
-all labeling is `i18n/headcount_factor.ts`, keyed by the bare code, with
-complete fr coverage (9 codes); the member table filters/sorts on the raw
-code. So the `sius_code_name`/`_fr` CSV idea has nothing to attach to —
-sius is genuinely **reference data**, not a factor dimension.
+Facts first (verified): the headcount factor CSVs carry **no** `sius_code`
+at all (`headcount_classification_fields` is category/class/subclass/unit);
+member entries store only the bare code (`"57"`, `-1` = other);
+`sius_code_name` exists nowhere in the codebase — all labeling was
+`i18n/headcount_factor.ts`, keyed by the bare code. So the
+`sius_code_name`/`_fr` CSV idea had nothing to attach to — sius is
+genuinely **reference data**, not a factor dimension.
 
-Recommendation: a small dedicated issue, not this PR. Seed the 9 codes
-into `classification_translations` under `field_name="sius_code"` — for
-`fr` AND, as the one deliberate exception, `en` rows too (the stored
-value is a code, so unlike every self-labeling field its English label is
-also a lookup; the en path needs a narrow opt-in for such fields).
-Declare the field translatable on the member handler (a
-`translatable_fields` handler attribute the filter/sort/row-label
-machinery reads alongside `_self_labeling_fields`), and switch
-`PlannerHeadcountRows.vue` / the `sius_code` module-config options off
-the i18n file. That rides everything this branch built — French _and_
-English sort/filter/display from one source — for ~9×2 seeded rows plus
-one handler attribute. Until then the i18n file keeps working as today.
+Shipped shape (the maintainer chose backend-first, hard-coded): data
+migration `3b5609f893f4` seeds the 9 codes into
+`classification_translations` under `field_name="sius_code"` — for `fr`
+AND, as the one deliberate exception, `en` rows too: the stored value is
+a code in any locale, so unlike self-labeling fields its English label is
+also a lookup. The member handler declares
+`translated_code_fields = ("sius_code",)`, which the filter and sort read
+in EVERY language — one search behavior across locales: `filter=
+enseignant&lang=fr` and `filter=administrative&lang=en` both match, the
+raw code keeps matching, and `sort_by=sius_code` orders by the label the
+user sees (regression tests cover all of it). Labels mirror
+`headcount_factor.ts` verbatim; table **display** stays `$t(<code>)` for
+now (identical strings) — switching display + planner rows to backend
+labels and deleting `headcount_factor.ts` is the one remaining follow-up.
 
 **Deploy note:** `classification_translations` ships empty — French
 labels appear once the operator re-uploads the backfilled CSVs

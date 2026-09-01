@@ -40,44 +40,30 @@ class ClassificationTranslationRepository:
             )
             await self.session.execute(stmt)
 
-    async def get_labels_for_values(
-        self, field_name: str, values: list[str], lang: str
-    ) -> dict[str, str]:
-        """``value -> label`` for one field and one page of values.
-
-        Narrow variant of ``get_labels`` for callers that must not pull a
-        whole field's rows (purchase holds ~17k) — #2391 decision 4's
-        typeahead resolves labels for at most one response page.
-        """
-        if not values:
-            return {}
-        rows = (
-            await self.session.exec(
-                select(ClassificationTranslation).where(
-                    col(ClassificationTranslation.field_name) == field_name,
-                    col(ClassificationTranslation.lang) == lang,
-                    col(ClassificationTranslation.value).in_(values),
-                )
-            )
-        ).all()
-        return {row.value: row.label for row in rows}
-
     async def get_labels(
-        self, field_names: set[str], lang: str
+        self,
+        field_names: set[str],
+        lang: str,
+        values: list[str] | None = None,
     ) -> dict[tuple[str, str], str]:
-        """All ``(field_name, value) -> label`` pairs for one language.
+        """``(field_name, value) -> label`` pairs for one language.
 
-        One query per taxonomy tree build (called before the per-row loop),
-        never per node.
+        One query per consumer, never per row/node. ``values`` bounds the
+        fetch to the caller's own keys — mandatory in spirit for callers
+        labeling a page or a typeahead response (purchase's field holds
+        ~17k rows); the taxonomy tree builder alone reads a whole field.
         """
-        if not field_names:
+        if not field_names or values == []:
             return {}
+        conditions = [
+            col(ClassificationTranslation.field_name).in_(field_names),
+            col(ClassificationTranslation.lang) == lang,
+        ]
+        if values is not None:
+            conditions.append(col(ClassificationTranslation.value).in_(values))
         rows = (
             await self.session.exec(
-                select(ClassificationTranslation).where(
-                    col(ClassificationTranslation.field_name).in_(field_names),
-                    col(ClassificationTranslation.lang) == lang,
-                )
+                select(ClassificationTranslation).where(*conditions)
             )
         ).all()
         return {(row.field_name, row.value): row.label for row in rows}

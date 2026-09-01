@@ -310,6 +310,106 @@ async def test_english_locale_does_not_match_french_description_label(
     assert codes == []
 
 
+async def _seed_headcount_module(db_session: AsyncSession) -> int:
+    """Sius labels are seeded reference data (en AND fr — the stored value
+    is a code in any locale); rows mirror migration 3b5609f893f4.
+    """
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    def _member(name: str, sius_code: str) -> DataEntry:
+        return DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.member,
+            status=DataEntryStatusEnum.PENDING,
+            data={"name": name, "sius_code": sius_code, "fte": 1.0},
+            year=2025,
+        )
+
+    def _sius(value: str, lang: str, label: str) -> ClassificationTranslation:
+        return ClassificationTranslation(
+            field_name="sius_code", value=value, lang=lang, label=label
+        )
+
+    db_session.add_all(
+        [
+            _member("member-prof", "51"),
+            _member("member-admin", "57"),
+            _sius("51", "en", "Professors"),
+            _sius(
+                "51",
+                "fr",
+                "Enseignant·e·s habilité·e·s à diriger une unité organisationnelle",
+            ),
+            _sius("57", "en", "Administrative staff"),
+            _sius("57", "fr", "Personnel administratif"),
+        ]
+    )
+    await db_session.commit()
+    return module.id
+
+
+async def _member_codes(
+    db_session: AsyncSession,
+    module_id: int,
+    lang: str,
+    filter: str | None = None,
+    sort_by: str = "id",
+) -> list[str]:
+    repo = DataEntryRepository(db_session)
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.member.value,
+        limit=100,
+        offset=0,
+        sort_by=sort_by,
+        sort_order="asc",
+        filter=filter,
+        lang=lang,
+    )
+    return [item.sius_code for item in response.items]
+
+
+@pytest.mark.asyncio
+async def test_sius_filter_matches_label_in_both_languages(
+    db_session: AsyncSession,
+):
+    """Sius is a `translated_code_field`: the label subquery applies in
+    EVERY language — one search behavior, English included.
+    """
+    module_id = await _seed_headcount_module(db_session)
+
+    assert await _member_codes(db_session, module_id, "fr", "enseignant") == ["51"]
+    assert await _member_codes(db_session, module_id, "en", "administrative") == ["57"]
+    # The raw code keeps matching regardless of locale.
+    assert await _member_codes(db_session, module_id, "en", "57") == ["57"]
+
+
+@pytest.mark.asyncio
+async def test_sius_sort_orders_by_label_per_language(db_session: AsyncSession):
+    """En asc: Administrative(57) < Professors(51); fr asc: Enseignant(51)
+    < Personnel administratif(57) — a raw-code sort would never flip.
+    """
+    module_id = await _seed_headcount_module(db_session)
+
+    assert await _member_codes(db_session, module_id, "en", sort_by="sius_code") == [
+        "57",
+        "51",
+    ]
+    assert await _member_codes(db_session, module_id, "fr", sort_by="sius_code") == [
+        "51",
+        "57",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_description_of_other_det_never_matches(db_session: AsyncSession):
     """Review follow-up: seven purchase dets share these classification

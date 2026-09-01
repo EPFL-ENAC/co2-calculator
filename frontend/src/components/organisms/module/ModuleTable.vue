@@ -506,8 +506,6 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from '@/stores/modules';
 import { useFactorsStore } from '@/stores/factors';
-import { useLocaleRefetch } from '@/composables/useLocaleRefetch';
-import { kindCellLabel } from '@/utils/classificationLabels';
 import { resolveFactorYear } from '@/utils/factor-year';
 import { useYearConfigStore } from '@/stores/yearConfig';
 import { useAuthStore } from '@/stores/auth';
@@ -556,7 +554,7 @@ import {
   type ModuleTableAccess,
 } from '@/utils/module-table-access';
 
-const { t: $t, te: $te } = useI18n();
+const { t: $t, te: $te, locale } = useI18n();
 
 const $q = useQuasar();
 const authStore = useAuthStore();
@@ -1406,15 +1404,14 @@ function renderCell(
     const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
     return $te(key) ? $t(key) : val;
   }
-  // Factor-sourced kind/subkind: the row's backend-resolved label first
-  // (#2401), then the taxonomy label map, then the stored value
+  // Factor-sourced kind/subkind. Precedence pin (#2401): taxonomy label
+  // while the tree is held (research facilities keep their pre-#2401
+  // rendering), the row's backend-resolved label for treeless modules
+  // (purchase — its map is empty), stored value as the English fallback.
   if (col.optionsId === 'kind' && typeof val === 'string') {
-    return kindCellLabel(
-      row['labels'] as unknown as Record<string, string> | null | undefined,
-      col.field,
-      taxonomyKindLabelMap.value,
-      val,
-    );
+    const rowLabels = row['labels'] as unknown as
+      Record<string, string> | null | undefined;
+    return taxonomyKindLabelMap.value[val] ?? rowLabels?.[col.field] ?? val;
   }
   if (typeof val === 'string') return val;
   if (typeof val === 'number') {
@@ -2158,7 +2155,7 @@ watch(
 // #2401: rows, search matching and taxonomy labels are all
 // locale-dependent — refetch this open submodule when the user switches
 // language, with the exact props currently in hand.
-useLocaleRefetch(() => {
+watch(locale, () => {
   if (!moduleStore.state.expandedSubmodules[props.submoduleType]) return;
   moduleStore.getSubmoduleData({
     submoduleType: props.submoduleType,

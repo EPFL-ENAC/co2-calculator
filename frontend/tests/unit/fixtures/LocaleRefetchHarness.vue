@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue';
 import { useModuleStore } from '@/stores/modules';
-import { useLocaleRefetch } from '@/composables/useLocaleRefetch';
 import { i18n, type MessageLanguages } from '@/boot/i18n';
 import { MODULES } from '@/constant/modules';
 
@@ -29,9 +28,9 @@ function fetchRows() {
   });
 }
 
-// Mirrors ModuleTable's wiring: the component owning the fetch registers
-// its own refetch with its current args.
-useLocaleRefetch(fetchRows);
+// Mirrors ModuleTable's wiring: the component owning the fetch watches
+// the locale and re-runs its own fetch with its current args.
+watch(() => i18n.global.locale.value, fetchRows);
 
 onMounted(() => {
   moduleStore.initializeSubmoduleState('other_purchases');

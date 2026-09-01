@@ -169,12 +169,10 @@
               <!-- #2391 decision 4: an option list too large to ship as a
                    taxonomy tree (purchase: ~17k UNSPSC codes) searches the
                    server per keystroke instead. -->
-              <ServerSearchSelectField
+              <VirtualSelectField
                 v-else-if="inp.optionsSearch"
                 :model-value="form[inp.id]"
-                :module-type="String(moduleType)"
-                :submodule-type="String(submoduleType)"
-                :year="factorYear"
+                :on-search="searchClassificationOptions"
                 :initial-option="initialSearchOption(inp)"
                 :label="
                   $t(`${inp.labelKey || inp.label}`, {
@@ -360,8 +358,8 @@ import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from '@/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from '@/components/molecules/NoteDialog.vue';
-import ServerSearchSelectField from '@/components/molecules/ServerSearchSelectField.vue';
 import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
+import { searchDataEntryOptions } from '@/api/taxonomies';
 import HeadcountMemberSelect from '@/components/organisms/module/HeadcountMemberSelect.vue';
 import { calculateDistance } from '@/api/locations';
 import { useEquipmentClassOptions } from '@/composables/useEquipmentClassOptions';
@@ -732,6 +730,20 @@ const kindLabelField = computed(() => {
   );
   return kindField?.optionsLabelField ?? null;
 });
+
+async function searchClassificationOptions(
+  query: string,
+): Promise<Array<{ value: string; label: string }>> {
+  // An edit dialog may resolve no factor year at all — nothing to search.
+  if (factorYear.value == null) return [];
+  const found = await searchDataEntryOptions(
+    String(props.moduleType),
+    String(props.submoduleType),
+    query,
+    factorYear.value,
+  );
+  return found.map((o) => ({ value: o.name, label: o.label }));
+}
 
 function initialSearchOption(
   inp: ModuleField,

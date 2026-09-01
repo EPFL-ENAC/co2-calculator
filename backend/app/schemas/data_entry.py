@@ -155,6 +155,11 @@ class ModuleHandler(Protocol[T]):
     kind_label_field: str | None = None
     subkind_label_field: str | None = None
     taxonomy_meta_fields: tuple[str, ...] = ()
+    # Data-dict fields whose stored value is a code with labels in
+    # classification_translations for EVERY language, English included
+    # (headcount's sius_code, seeded by migration) — search and sort read
+    # the label in any locale, one behavior across languages (#2401).
+    translated_code_fields: tuple[str, ...] = ()
 
     def to_response(
         self,

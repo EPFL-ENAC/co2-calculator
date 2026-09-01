@@ -123,11 +123,12 @@ class ModuleHandlerService:
             lang,
             limit,
         )
-        translations: dict[str, str] = {}
+        lookup_field = handler.kind_label_field or kind_field
+        translations: dict[tuple[str, str], str] = {}
         if lang != DEFAULT_LANG:
             texts = [text for _, text in rows if text]
-            translations = await self.translation_repo.get_labels_for_values(
-                handler.kind_label_field or kind_field, texts, lang
+            translations = await self.translation_repo.get_labels(
+                {lookup_field}, lang, values=texts
             )
         options: list[FactorOption] = []
         seen: set[str] = set()
@@ -141,7 +142,10 @@ class ModuleHandlerService:
             seen.add(value)
             english = english_text if english_text else value
             options.append(
-                FactorOption(name=value, label=translations.get(english, english))
+                FactorOption(
+                    name=value,
+                    label=translations.get((lookup_field, english), english),
+                )
             )
             if len(options) == limit:
                 break

@@ -28,6 +28,9 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
     require_subkind_for_factor = False
     require_factor_to_match = False
     default_where: list = []
+    # sius labels are seeded reference data (en + fr) — search/sort match
+    # and order by the label the user sees, in either language (#2401).
+    translated_code_fields = ("sius_code",)
     filter_map: dict[str, Any] = {
         "name": DataEntry.data["name"].as_string(),
         "sius_code": DataEntry.data["sius_code"].as_string(),

@@ -55,13 +55,12 @@ export async function searchDataEntryOptions(
   dataEntry: string,
   query: string,
   year: number | string,
-  limit = 50,
 ): Promise<FactorOption[]> {
   const searchParams = new URLSearchParams({
     query,
     year: String(year),
     lang: currentLanguage(),
-    limit: String(limit),
+    limit: '50',
   });
   return api
     .get(

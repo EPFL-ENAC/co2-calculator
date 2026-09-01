@@ -45,7 +45,8 @@ beforeMount(async ({ app }) => {
   app.component('QSeparator', QSeparator);
   app.component('QExpansionItem', QExpansionItem);
   app.component('QIcon', QIcon);
-  // ServerSearchSelectField (#2391 decision 4) renders these three.
+  // VirtualSelectField (server-search mode, #2391 decision 4) renders
+  // these three.
   app.component('QItem', QItem);
   app.component('QItemSection', QItemSection);
   app.component('QSelect', QSelect);
