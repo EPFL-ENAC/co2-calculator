@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 2401
-last_updated: 2026-08-31
+last_updated: 2026-09-01
 title: "Classification label i18n: translation table + generic CSV convention, equipment + purchase"
 summary: "Adds a (field_name, value, lang) translation table (proposition 2) fed by a generic <field>_<lang> CSV column convention, wires the taxonomy tree builder AND the submodule search filter (#2516) to serve/match localized labels per request. Ships against equipment and purchase; other modules (buildings, headcount, research_facilities, external_cloud_and_ai, process_emissions — per charlottegiseleweil's field list on the issue) pick it up by adding the suffixed CSV column, no further backend code change for the self-labeling shape."
 ---
@@ -350,23 +350,19 @@ The i18n index globs the folder, so both locales dropped them together.
   this same branch after the maintainer pulled it in: see #2391's plan
   (decision 4) for the record. Purchase pages no longer download the
   taxonomy tree anywhere.
-- **Headcount** (`sius_code_name`/`_fr`, per charlottegiseleweil's list):
-  headcount's handlers set `kind_field = None` — they never go through
-  `get_taxonomy_with_etag` at all; `sius_code` labels are consumed
-  directly by `PlannerHeadcountRows.vue` off `i18n/headcount_factor.ts`.
-  Bringing headcount onto this table needs that component switched to a
-  DB-backed lookup, not just a CSV column — separate follow-up.
-- **buildings/research_facilities/external_cloud_and_ai/process_emissions**
-  `_fr` columns (per charlottegiseleweil's list): the self-labeling-shape
-  mechanism already supports every one of them (their `kind_field`/
-  `subkind_field` values match the columns she listed) — no code change
-  needed, only an operator uploading a CSV with the suffixed column. Not
-  exercised by a test here since no such CSV exists yet; the equipment
-  tests cover the identical code path.
-- **Alphabetical sort by localized label** (`get_taxonomy_with_etag` builds
-  children in factor-row order, unsorted) — possibly the actual mechanism
-  behind #2505 ("Alphabetic sort" bug), not requested on this issue; noted
-  for whoever picks that one up.
+- ~~**Headcount** (`sius_code_name`/`_fr`)~~ — delivered 2026-09-01 via
+  the seeded-reference-data shape instead (migration `3b5609f893f4` +
+  `translated_code_fields`): see the dedicated Headcount section below.
+  Only the display switch off `i18n/headcount_factor.ts` remains.
+- ~~**buildings/research_facilities/external_cloud_and_ai/process_emissions**
+  `_fr` columns~~ — CSVs backfilled 2026-09-01 in the operator INPUT_DATA
+  folder (see "Remaining modules' CSVs" below); the self-labeling
+  mechanism needs no code change, upload activates them.
+- **Alphabetical ordering of the taxonomy TREE's children**
+  (`get_taxonomy_with_etag` builds them in factor-row order, unsorted) —
+  possibly the actual mechanism behind #2505 ("Alphabetic sort" bug); not
+  requested here. Distinct from the delivered table `sort_by` (see
+  "Localized sort" below), which orders rows, not form options.
 
 ## Verification (2026-08-31, local Docker session)
 

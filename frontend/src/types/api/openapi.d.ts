@@ -5568,6 +5568,8 @@ export interface operations {
         parameters: {
             query?: {
                 combine_unit_ids?: number[];
+                /** @description Locale for segment labels (#2401), e.g. 'fr' */
+                lang?: string;
             };
             header?: never;
             path: {
