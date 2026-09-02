@@ -623,7 +623,7 @@ export default {
     en: 'Low effort: improve tracking of processes. Middle of the road: replace high emission processes with low-emission processes. High effort: convert activities to closed-loop systems. Ambitious: systemically eliminate high emission processes.',
     fr: 'Faible effort : améliorer le suivi et le réemploi des procédés. Voie intermédiaire : remplacer les procédés émetteurs par des alternatives moins émettrices. Effort élevé : favoriser les systèmes en boucle fermée. Ambitieux : éliminer systématiquement les procédés fortement émetteurs.',
   },
-  'results-reduction-buildings_energy_combustion': { 
+  'results-reduction-buildings_energy_combustion': {
     en: 'Low effort: reduce avoidable thermal-energy consumption. Middle of the road: progressively replace fossil-based heating with sustainable alternatives. High effort: widespread transition toward low-carbon heat sources. Ambitious: eliminate all fossil heating for sustainable energy sources.',
     fr: 'Faible effort : réduire les consommations thermiques évitables. Voie intermédiaire : remplacer progressivement le chauffage fossile par des alternatives durables. Effort élevé : généraliser les sources de chaleur bas-carbone. Ambitieux : éliminer le chauffage fossile au profit de sources d’énergie durables.',
   },
@@ -635,15 +635,15 @@ export default {
     en: 'Low effort: switching off unused equipment. Middle of the road: increase equipment sharing. High effort : managing energy-intensive equipment. Ambitious: equipment use is shared and reduced to essential across the institution.',
     fr: "Faible effort : éteindre les équipements inutilisés. Voie intermédiaire : augmenter le partage des équipements. Effort élevé : mieux gérer les équipements énergivores. Ambitieux : mutualiser et réduire à l'essentiel les équipements à l’échelle de l’institution.",
   },
-  'results-reduction-external_cloud_and_ai': { 
+  'results-reduction-external_cloud_and_ai': {
     en: 'Low effort: avoid unnecessary storage, computations and repeated AI requests. Middle of the road: introduce institutional guidelines for cloud storage and AI use. High effort: high-compute projects go through approval processes. Ambitious: strict carbon/energy budgets for cloud use per institution.',
     fr: 'Faible effort : éviter le stockage, les opérations et les requêtes IA inutiles. Voie intermédiaire : introduire des directives institutionnelles pour le cloud et l’IA. Effort élevé : soumettre les projets à forte puissance de calcul à une procédure d’approbation. Ambitieux : imposer des budgets carbone/énergie stricts pour l’usage du cloud à l’échelle institutionnelle.',
   },
-  'results-reduction-professional_travel': { 
+  'results-reduction-professional_travel': {
     en: 'Low effort: prioritize one representative per team for intercontinental conferences. Middle of the road: replace short stays with videoconferencing and prioritize trains rides < 8 hours. High effort: flights are limited to essential long-distance missions, most European travel is by rail. Ambitious: each unit operates within a strict annual travel-carbon budget.',
     fr: 'Faible effort : privilégier un représentant par équipe pour les conférences intercontinentales. Voie intermédiaire : remplacer les courts séjours par la visioconférence et privilégier le train pour les trajets < 8 h. Effort élevé : limiter les vols aux missions essentielles de longue distance, privilégier le train en Europe. Ambitieux : attribuer à chaque unité un budget carbone annuel strict pour les déplacements.',
   },
-  'results-reduction-purchases': { 
+  'results-reduction-purchases': {
     en: 'Low effort: purchasing lower-impact alternatives. Middle of the road: Policies favoring strong supplier, goods and services sustainable criteria. High effort: demand reduction as part of the institution strategy. Ambitious: only essential demand and intra/inter-institutional circularity.',
     fr: 'Faible effort : privilégier des alternatives à faible impact. Voie intermédiaire : renforcer les critères de durabilité pour les fournisseurs, biens et services. Effort élevé : intégrer la réduction des achats à la stratégie institutionnelle. Ambitieux : limiter les achats aux besoins essentiels et favoriser la circularité intra/interinstitutionnelle.',
   },
