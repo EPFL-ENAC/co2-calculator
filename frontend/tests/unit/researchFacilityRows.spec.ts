@@ -75,6 +75,23 @@ test('a node without a metric is not a selectable row', () => {
   ).toEqual([]);
 });
 
+test('each housing type row carries its request-locale label, not just the code', () => {
+  // Regression: PlannerResearchFacilityRows rendered
+  // `t('research-facilities.type.' + facilityType)` directly — a key that was
+  // never seeded, so vue-i18n printed the literal missing key to the user.
+  // The row must carry the taxonomy child's label instead of just its code.
+  const rows = buildResearchFacilityRows('animal_facilities', ANIMAL_TREE);
+  expect(rows.map((r) => [r.facilityType, r.facilityTypeLabel])).toEqual([
+    ['rodent', 'Rodent'],
+    ['fish', 'Fish'],
+  ]);
+});
+
+test('a flat facility node (no housing type) has no type label either', () => {
+  const [row] = buildResearchFacilityRows('research-facilities', COMMON_TREE);
+  expect(row).toMatchObject({ facilityType: null, facilityTypeLabel: null });
+});
+
 test('rows start unselected and empty — entries bind afterwards', () => {
   const [row] = buildResearchFacilityRows('research-facilities', COMMON_TREE);
   expect(row).toMatchObject({
