@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2539
 last_updated: 2026-09-02
 summary: "Give role sync a real deprovisioning story: two-strikes
