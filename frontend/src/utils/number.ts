@@ -13,6 +13,8 @@
  * @returns Formatted number string
  */
 import { i18n } from '@/boot/i18n';
+import { moduleInputDecimals } from '@/constant/input-decimals';
+import { MODULES } from '@/constant/modules';
 
 const defaultNumberValue = '–';
 export function nOrDash(
@@ -68,7 +70,10 @@ export function formatKgCO2(value: number | string | null | undefined): string {
 
 export function formatFTE(value: number | string | null | undefined): string {
   return nOrDash(value, {
-    options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+    options: {
+      minimumFractionDigits: moduleInputDecimals(MODULES.Headcount),
+      maximumFractionDigits: moduleInputDecimals(MODULES.Headcount),
+    },
   });
 }
 

@@ -32,6 +32,17 @@ class ModuleTypeEnum(IntEnum):
 
 ALL_MODULE_TYPE_IDS = [mt for mt in ModuleTypeEnum]
 
+DEFAULT_INPUT_DECIMALS = 2
+
+MODULE_INPUT_DECIMALS: dict[ModuleTypeEnum, int] = {
+    ModuleTypeEnum.headcount: 1,
+}
+
+
+def module_input_decimals(module_type: ModuleTypeEnum) -> int:
+    return MODULE_INPUT_DECIMALS.get(module_type, DEFAULT_INPUT_DECIMALS)
+
+
 TOTAL_MODULE_TYPES = len(ModuleTypeEnum)
 DEFAULT_COMPLETION_PROGRESS = f"0/{TOTAL_MODULE_TYPES}"
 

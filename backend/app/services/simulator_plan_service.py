@@ -29,6 +29,7 @@ from app.models.module_type import (
     PLANNER_PREFILLED_MODULE_TYPES,
     PLANNER_REFERENCE_SCOPED_MODULE_TYPES,
     ModuleTypeEnum,
+    module_input_decimals,
 )
 from app.models.unit import Unit
 from app.models.user import User
@@ -823,6 +824,7 @@ class SimulatorPlanService:
         entry_repo = DataEntryRepository(self.session)
         await entry_repo.bulk_delete_by_modules([plan_module.id])
 
+        decimals = module_input_decimals(ModuleTypeEnum.headcount)
         fte_by_code: dict[str, float] = {}
         for src in await self._reference_entries(ref_module.id, ref_cache):
             if src.data_entry_type_id == DataEntryTypeEnum.member:
@@ -856,10 +858,10 @@ class SimulatorPlanService:
                 "created_by_id": None,
                 "created_at": datetime.now(UTC),
                 "updated_at": datetime.now(UTC),
-                "data": {"sius_code": code, "fte": round(fte, 1)},
+                "data": {"sius_code": code, "fte": round(fte, decimals)},
             }
             for code, fte in sorted(fte_by_code.items())
-            if round(fte, 1) > 0
+            if round(fte, decimals) > 0
         ]
         rows = await self._bulk_insert_entries(row_dicts)
         # An empty result is reported to the caller (see
