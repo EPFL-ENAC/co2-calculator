@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
+from app.core.internal_auth import INTERNAL_AUTH_HEADER, internal_auth_ok
 from app.core.taxonomy_cache_broadcast import (
     INTERNAL_CACHE_CLEAR_PATH,
     broadcast_taxonomy_cache_clear,
@@ -143,3 +144,29 @@ async def test_no_other_live_pods_is_a_no_op(db_session, monkeypatch):
     await broadcast_taxonomy_cache_clear(db_session)
 
     post_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_sends_the_internal_token_the_endpoint_accepts(db_session, monkeypatch):
+    """The two halves of the #2530 gate must agree.
+
+    ``_clear_remote`` swallows every failure into a warning, so a sender that
+    forgot the header would look exactly like a healthy broadcast while every
+    POST 403s and caches went stale for a full TTL. Asserting that what the
+    sender puts on the wire is what the receiver accepts is what catches that.
+    """
+    await _add_pod(db_session, POD_ID, pod_ip="10.0.0.1")
+    await _add_pod(db_session, "other-pod", pod_ip="10.0.0.2")
+
+    sent: list[dict] = []
+
+    async def fake_post(self, url, *args, **kwargs):
+        sent.append(kwargs.get("headers") or {})
+        return _FakeResponse()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+
+    await broadcast_taxonomy_cache_clear(db_session)
+
+    assert len(sent) == 1
+    assert internal_auth_ok(sent[0].get(INTERNAL_AUTH_HEADER))

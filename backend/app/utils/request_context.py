@@ -12,10 +12,19 @@ logger = get_logger(__name__)
 
 
 def extract_ip_address(request: Request) -> str:
-    """Extract client IP address from request.
+    """Extract the client IP address the server actually saw.
 
-    Prioritizes X-Forwarded-For header (for proxy/load balancer scenarios)
-    then falls back to direct client host.
+    Reads ``scope["client"]``, never ``X-Forwarded-For``. The OpenShift HAProxy
+    router *appends* to XFF (``set-forwarded-headers`` defaults to ``append``),
+    so the header's first element is whatever the client chose to send — an
+    audit trail keyed on it records an attacker-supplied string.
+
+    ``scope["client"]`` is what uvicorn resolved. Every deployed environment
+    sets ``FORWARDED_ALLOW_IPS`` (openshift-app-config, ``overlays/{env}``) and
+    uvicorn's ``proxy_headers`` defaults to True, so this is the end user's
+    address, walked in from the *right* of the proxy chain past each trusted
+    hop — never the client-supplied first element. ``GET /v1/session``
+    documents the same reasoning.
 
     Args:
         request: FastAPI Request object
@@ -23,14 +32,6 @@ def extract_ip_address(request: Request) -> str:
     Returns:
         IP address as string, or "unknown" if unavailable
     """
-    # Check X-Forwarded-For header first (handles proxies/load balancers)
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        # X-Forwarded-For can contain multiple IPs (client, proxy1, proxy2, ...)
-        # Take the first one (original client)
-        return forwarded_for.split(",")[0].strip()
-
-    # Fall back to direct client IP
     if request.client and request.client.host:
         return request.client.host
 
