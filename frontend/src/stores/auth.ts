@@ -188,6 +188,20 @@ export const useAuthStore = defineStore('auth', () => {
   });
 
   /**
+   * Replace the cached permissions with a freshly computed set.
+   *
+   * `bootstrap()` snapshots them once per session, but the backend recomputes
+   * them from `roles_raw` on every request: an ACCRED role change mid-session
+   * would otherwise keep affordances enabled until a hard reload, and the call
+   * behind them would 403 (#2607). The workspace guard feeds this from the
+   * home aggregate it already fetches on every run — no extra XHR.
+   */
+  function setPermissions(next: FlatUserPermissions): void {
+    if (!user.value) return;
+    user.value = { ...user.value, permissions: next };
+  }
+
+  /**
    * Check if current user has a specific permission.
    *
    * @param path The permission path to check (e.g., 'modules.headcount')
@@ -309,6 +323,7 @@ export const useAuthStore = defineStore('auth', () => {
     login_test,
     logout,
     isAuthenticated,
+    setPermissions,
     hasUserPermission,
     hasUserModulePermission,
     hasUserCanValidateModuleStatus,

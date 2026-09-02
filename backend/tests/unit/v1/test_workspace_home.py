@@ -122,3 +122,32 @@ async def test_project_plans_are_filtered_by_plan_policy(monkeypatch):
 
     assert [p.id for p in response.project_plans] == [1, 2]
     assert "can_manage" not in SimulatorPlanRead.model_fields
+
+
+@pytest.mark.asyncio
+async def test_payload_carries_freshly_computed_permissions(monkeypatch):
+    # Regression (#2607): the SPA snapshots permissions at login, so the guard
+    # refreshes them from this payload. Recomputed per request from roles_raw,
+    # never echoed back from the frontend.
+    from app.models.user import OwnScope, Role, RoleName, User
+
+    db = _db()
+    unit = MagicMock()
+    unit.institutional_id = "0184"
+    db.get = AsyncMock(return_value=unit)
+    _patch_common(monkeypatch, existing_report=_report())
+
+    plan_service = MagicMock()
+    plan_service.list_plans = AsyncMock(return_value=[])
+    monkeypatch.setattr(wh_module, "SimulatorPlanService", lambda _db: plan_service)
+    user = User(id=2, institutional_id="2", email="2@x")
+    user.roles = [
+        Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="0184"))
+    ]
+
+    response = await wh_module.get_workspace_home(
+        unit_id=1, year=2025, db=db, current_user=user
+    )
+
+    assert response.permissions == user.calculate_permissions()
+    assert response.permissions["planner.plans/0184/own"] == ["view", "edit", "delete"]
