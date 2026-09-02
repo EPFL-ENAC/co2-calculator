@@ -1,4 +1,4 @@
-## [1.4.8](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.3...v1.4.8) (2026-09-02)
+## [1.4.9](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.3...v1.4.9) (2026-09-02)
 
 
 ### Bug Fixes
@@ -52,6 +52,7 @@
 * **frontend:** resolve two pre-existing e2e failures ([#2497](https://github.com/EPFL-ENAC/co2-calculator/issues/2497), [#2498](https://github.com/EPFL-ENAC/co2-calculator/issues/2498)) ([648311e](https://github.com/EPFL-ENAC/co2-calculator/commit/648311e0d56e6dcb988de49f2aa9b7d96f6d103e)), closes [pre-#2391](https://github.com/pre-/issues/2391) [#2391](https://github.com/EPFL-ENAC/co2-calculator/issues/2391) [#2391](https://github.com/EPFL-ENAC/co2-calculator/issues/2391)
 * **grant proposal:** prefill not applied for headcount ([#2120](https://github.com/EPFL-ENAC/co2-calculator/issues/2120)) ([11c959f](https://github.com/EPFL-ENAC/co2-calculator/commit/11c959f964b2e91c6575015abc2b119b30354416))
 * guard defaultReferenceYear() against empty startedYears ([#2357](https://github.com/EPFL-ENAC/co2-calculator/issues/2357)) ([080a8df](https://github.com/EPFL-ENAC/co2-calculator/commit/080a8df2b60121d2a366851413fb8097ee7d9ffb)), closes [#2459](https://github.com/EPFL-ENAC/co2-calculator/issues/2459)
+* **headcount:** resolve SIUS code labels in the headcount bar chart ([23ae66d](https://github.com/EPFL-ENAC/co2-calculator/commit/23ae66dd37d38540e33250d2247239e6f7e958ce)), closes [#2613](https://github.com/EPFL-ENAC/co2-calculator/issues/2613) [#2613](https://github.com/EPFL-ENAC/co2-calculator/issues/2613)
 * **helm:** cover the endpoint-propagation race on backend termination ([951d01c](https://github.com/EPFL-ENAC/co2-calculator/commit/951d01c7b8f2385e7a2ef7615e9fced079c8fcd1)), closes [#2567](https://github.com/EPFL-ENAC/co2-calculator/issues/2567)
 * **helm:** derive backend/worker rollout strategy from replica floor ([366a766](https://github.com/EPFL-ENAC/co2-calculator/commit/366a7667f679367621976e599918720d5e52e6c3)), closes [#2050](https://github.com/EPFL-ENAC/co2-calculator/issues/2050)
 * **helm:** derive frontend/docs rollout strategy from replica floor too ([8c048f9](https://github.com/EPFL-ENAC/co2-calculator/commit/8c048f9a42612773a983172fd944278f0ab281e8)), closes [#2638](https://github.com/EPFL-ENAC/co2-calculator/issues/2638)
