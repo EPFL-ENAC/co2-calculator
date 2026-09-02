@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
@@ -18,7 +18,11 @@ import { useEchartsTooltip } from '@/components/charts/results/useEchartsTooltip
 
 import { colors } from '@/constant/charts';
 import { MODULES } from '@/constant/modules';
-import { getHeadcountChartKeys } from '@/utils/headcountChart';
+import {
+  getHeadcountChartKeys,
+  resolveHeadcountCategoryLabel,
+} from '@/utils/headcountChart';
+import { getDataEntryTaxonomy } from '@/api/taxonomies';
 
 use([
   CanvasRenderer,
@@ -30,7 +34,7 @@ use([
   GraphicComponent,
 ]);
 
-const { t, te } = useI18n();
+const { t, locale } = useI18n();
 const chartRef = ref<InstanceType<typeof VChart>>();
 const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
 
@@ -44,9 +48,11 @@ const onChartReady = async () => {
 const props = withDefaults(
   defineProps<{
     stats?: Record<string, number>;
+    year?: number | string | null;
   }>(),
   {
     stats: () => ({}),
+    year: null,
   },
 );
 const OVERRIDE = false;
@@ -65,6 +71,44 @@ const colorMap: Record<string, string> = {
 };
 
 const chartKeys = computed(() => getHeadcountChartKeys(props.stats));
+
+// SIUS code -> request-locale label, from the member taxonomy vocabulary
+// (#2613, same source ModuleTable/ModuleForm use). The chart fetches its
+// own copy: unlike the table it also renders on the Results page, where
+// the member submodule taxonomy may never have been loaded.
+const suisLabels = ref<Record<string, string>>({});
+
+async function loadSuisLabels() {
+  if (!props.year) return;
+  try {
+    const taxonomy = await getDataEntryTaxonomy(
+      MODULES.Headcount,
+      'member',
+      props.year,
+    );
+    const map: Record<string, string> = {};
+    taxonomy.children?.forEach((node) => {
+      if (node.name && node.label) map[node.name] = node.label;
+    });
+    suisLabels.value = map;
+  } catch {
+    // Chart stays usable with bare codes; labels arrive on next load.
+  }
+}
+
+// Locale-dependent, like the vocabulary itself (same pattern as ModuleTable).
+watch(locale, loadSuisLabels);
+watch(() => props.year, loadSuisLabels);
+onMounted(loadSuisLabels);
+
+// Students have no SIUS code — they keep the module's own i18n label.
+function categoryLabel(key: string): string {
+  return resolveHeadcountCategoryLabel(
+    key,
+    suisLabels.value,
+    t(`${MODULES.Headcount}-student-table-title`),
+  );
+}
 
 const chartOptions = computed<EChartsOption>(() => {
   const keys = chartKeys.value;
@@ -112,7 +156,7 @@ const chartOptions = computed<EChartsOption>(() => {
     dataset: {
       dimensions: ['category', 'value'],
       source: keys.map((key) => ({
-        category: te(key) ? t(key) : key,
+        category: categoryLabel(key),
         value: Math.round((props.stats?.[key] ?? 0) * 10) / 10,
       })),
     },

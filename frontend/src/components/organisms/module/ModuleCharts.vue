@@ -19,6 +19,7 @@
         <headCountBarChart
           v-if="headcountChartKeys.length"
           :stats="moduleStore?.state?.data?.stats"
+          :year="workspaceStore.selectedYear"
         />
         <chart-empty-state v-else />
       </div>
