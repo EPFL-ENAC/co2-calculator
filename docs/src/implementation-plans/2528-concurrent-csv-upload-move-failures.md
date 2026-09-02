@@ -5,19 +5,21 @@ last_updated: 2026-09-02
 summary: "The reported 56%-at-20-parallel rate is void — an artifact of
   a split file store in the reporter's own test topology, not S3
   concurrency (see Correction below). What survives: the move is an
-  unretried copy_object+delete_object, and the enacit4r-files 1.2.0 tag
-  bump left the app's two backends signalling failure differently
-  (S3 raises, local returns False) with dead code on the S3 side.
-  Plan: bounded idempotent retry at the single choke point handling both
-  signals, shipped now; client-pool sizing and retry-mode tuning
-  deferred until a clean concurrency measurement exists."
+  unretried copy_object+delete_object. The enacit4r-files tag has since
+  moved to 1.4.0, which already aligned the two backends (both now
+  raise on failure) — the app's dead falsy-return branch just hasn't
+  been removed yet. Plan: catch the shared exception and retry at the
+  single choke point, shipped now; client-pool sizing and retry-mode
+  tuning deferred until a clean concurrency measurement exists."
 ---
 
 # Concurrent CSV upload move failures (#2528)
 
-**Goal:** no `Error moving file` reaches a user, and the app's move
-handles both signals its two file-store backends can send on failure
-(fact 4) instead of silently trusting one and dead-coding the other.
+**Goal:** no `Error moving file` reaches a user — the move retries a
+transient failure instead of making the job terminal on the first one,
+and the app's dead falsy-return branch (fact 4, a leftover from before
+`enacit4r-files` 1.4.0 aligned both backends on raising) is removed
+rather than left as unreachable code.
 
 Found by the #2295 load suite (PR #2526). Read
 [`2295-load-tests-locust.md`](./2295-load-tests-locust.md) for the
@@ -69,7 +71,7 @@ One CSV upload flow crosses these:
 | read                         | `files_store.get_file(processing_path)`                                                              | get_object                                             |
 | archive                      | `_move_to_processed`                                                                                 | head_object, copy_object, delete_object, + sidecar     |
 
-The move itself lands in `enacit4r-files` 1.2.0 (`enacit4r_files/services/s3.py`),
+The move itself lands in `enacit4r-files` 1.4.0 (`enacit4r_files/services/s3.py`),
 pinned by tag in `backend/pyproject.toml`.
 
 ## Evidence: what is proven from the code
@@ -102,37 +104,41 @@ pinned by tag in `backend/pyproject.toml`.
    `attempts = 1`**. That is not evidence against a retry bug; it is
    evidence there is no retry at all.
 
-4. **The dependency's two stores now disagree, and the app follows
-   neither.** `_move_to_processing` reads
-   `if not await self.files_store.move_file(...)` and builds a message
-   from `_diagnose_move_failure` on a falsy return. In the pinned 1.2.0:
+4. **Update (2026-09-02): the contract drift is already fixed
+   upstream — the app just hasn't caught up.** `backend/pyproject.toml`
+   now pins `enacit4r-files` **1.4.0** (bumped from the 1.2.0 this plan
+   was written against). Verified straight from the installed package
+   (`.venv/lib/python3.14/site-packages/enacit4r_files/services/`):
 
-   | Store                       | On failure                                               |
-   | --------------------------- | -------------------------------------------------------- |
-   | `S3FilesStore.move_file`    | **raises `S3Error`**, original chained (their #24)       |
-   | `LocalFilesStore.move_file` | still `except Exception: logging.error(…); return False` |
+   | Store                       | On failure at 1.2.0 (plan's original basis)        | On failure at 1.4.0 (now pinned)                                                                                                                      |
+   | --------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `S3FilesStore.move_file`    | raises `S3Error`                                   | still raises `S3Error`                                                                                                                                |
+   | `LocalFilesStore.move_file` | `except Exception: logging.error(…); return False` | **now raises `FilesStoreError`**, chained; docstring: _"Matches S3FilesStore.move_file (#24) so a caller can handle both backends with one `except`"_ |
 
-   So the falsy-return branch and `_diagnose_move_failure` are **dead
-   code on S3** — confirmed by the issue reporting the dependency's
-   `S3Error` wording rather than the app's own "Failed to move file from
-   …" — while remaining the **only** failure signal on local. A fix that
-   only catches, or only tests the return value, is broken on one of the
-   two stores. **Both must be handled.**
+   `S3Error(FilesStoreError)` — one `except FilesStoreError` catches
+   both. **Neither backend returns `False` on failure any more.** That
+   makes `_move_to_processing`'s `if not await self.files_store.move_file(...)`
+   fully dead on both backends, not just S3 — a failing move raises
+   straight out of that `if`'s own `await`, so the
+   `raise Exception("Failed to move file from …")` line and
+   `_diagnose_move_failure` never execute in practice today. The raw
+   dependency exception is what actually propagates, matching fact 1.
 
-   This is the wider finding behind #2528: the tag bump to 1.2.0 changed
-   the S3 contract from return-`False` to raise, and nothing on the app
-   side was updated to match — not the code, not the tests, and not the
-   comments. `base_provider._diagnose_move_failure`'s docstring and
-   `tests/unit/services/data_ingestion/test_base_provider.py:111` both
-   still describe the dependency as swallowing the exception and
-   returning a bare `False` (#2220), which is now true of only the local
-   store. The missing retry is one symptom of that drift.
+   This **resolves Open Question 5** below: the upstream tag bump is
+   itself the alignment — nothing further needs opening in
+   `enacit4r-files`. What's left is app-side catch-up:
+   `_diagnose_move_failure`'s docstring and `test_base_provider.py:111`
+   still describe a backend that returns bare `False`, which is true of
+   neither store now, and the falsy-return branch is dead weight rather
+   than a defense. **Step 1 is revised accordingly**: catch
+   `FilesStoreError` and retry — there is no falsy-return path left to
+   handle alongside it.
 
 5. **One S3 client per job, never closed.** `make_files_store()` builds a
    fresh `S3Service`; `base_csv_provider`, `base_factor_csv_provider`,
    `base_reduction_objective_csv_provider` and
    `csv_providers/reference_data` each call it lazily **per provider
-   instance**, so every ingestion job constructs its own client. 1.2.0
+   instance**, so every ingestion job constructs its own client. 1.4.0
    keeps that client alive for the life of the `S3Service` (its docstring
    says "Call close() on application shutdown") and nothing in the app
    ever calls `close()`. Every finished job leaves an aiobotocore client
@@ -227,12 +233,13 @@ kubectl --context svc1751d-co2-calculator-dev/… -n svc1751d-co2-calculator-dev
 
 **Scope decision (maintainer, PR #2535, 2026-08-30T11:49Z):** "Fix the
 `enacit4r-files` contract drift app-side now, and upstream too... Keep
-the plan; drop the priority until a clean measurement exists." Read
-against the Correction above, that means: **Step 1 ships now** — it is
-the contract-drift fix (fact 4, handling both signals) and is correct
-regardless of what any concurrency measurement eventually shows. **Steps
-2 and 3 are deferred** — both were sized and ordered against the void
-56% run (pool sizing against an assumed connection-exhaustion rate,
+the plan; drop the priority until a clean measurement exists." The
+upstream half is done (fact 4, revised — 1.4.0). Read against the
+Correction above, the app-side half means: **Step 1 ships now** — catch
+the now-shared exception, remove the dead falsy-return branch, retry —
+correct regardless of what any concurrency measurement eventually shows.
+**Steps 2 and 3 are deferred** — both were sized and ordered against the
+void 56% run (pool sizing against an assumed connection-exhaustion rate,
 "ship Step 3 first" against an assumed throttling signal); revisit them
 once a clean-topology measurement exists to size against.
 
@@ -242,19 +249,20 @@ once a clean-topology measurement exists to size against.
 four CSV providers route through it, so this is one guard instead of
 four.
 
-- **A failed attempt is either a raised exception (S3) or a falsy return
-  (local)** — fact 4. The helper treats both as the same retryable
-  failure. Do **not** delete the falsy-return branch: on the local store
-  it is still the only failure signal, and dropping it would let a failed
-  move fall through to `get_file(processing_path)` on a file that is not
-  there — a silent fallback introduced by a fix whose whole point is
-  removing silent failure. `_diagnose_move_failure` stays for the same
-  reason: on local, the dependency swallows the exception, so that probe
-  is the only detail available.
-- Catch `Exception` from the destination probe too: in 1.2.0
-  `path_exists` correctly raises on anything that is not a 404 (a
-  permission or transport fault is not "the file is absent"), so a
-  transport fault can surface on either call.
+- **Both backends raise on failure at 1.4.0** (fact 4, revised) —
+  `S3Error` or `FilesStoreError`, and `S3Error(FilesStoreError)`, so one
+  `except FilesStoreError` catches both. **Delete the falsy-return
+  branch and its `if not await move_file(...)` check** — it is dead code
+  on both stores now, not a defense to preserve. Wrap the call in
+  `try/except FilesStoreError` instead. `_diagnose_move_failure` moves
+  into that `except` block: it still adds detail ("source already gone"
+  vs "still present") that the raised exception's message alone may not
+  spell out, so it survives as a diagnostic on the exception path, not as
+  the trigger for detecting failure.
+- Catch `FilesStoreError` from the destination probe too: `path_exists`
+  correctly raises on anything that is not a 404 (a permission or
+  transport fault is not "the file is absent"), so a transport fault can
+  surface on either call.
 - Re-check `file_exists(processing_path)` at the top of every attempt.
   That check already exists from #1559 and is what makes the retry
   idempotent — a copy that succeeded before the connection dropped is
@@ -270,8 +278,11 @@ Keep the helper under 40 lines and 2 nesting levels; imports at top.
 
 **Scope this brings with it** (so the estimate is honest): the two stale
 docstrings from fact 4, plus the existing tests that pin the old
-single-shot behaviour and will need rewriting rather than just extending
-— `test_base_provider.py` (lines 103, 122, 134, 183, 198, all
+single-shot, falsy-return behaviour and will need rewriting — not just
+extending, and not just re-pointed at a retry — since the scenario they
+mock (`move_file` returning `False`) can no longer happen on either
+backend at 1.4.0 and must become `side_effect=FilesStoreError(...)`:
+`test_base_provider.py` (lines 103, 122, 134, 183, 198, all
 `move_file = AsyncMock(return_value=False)`),
 `test_base_factor_csv_provider.py::test_finalize_and_commit_move_file_failure`,
 and `test_base_csv_provider.py` around line 1418. They must keep
@@ -326,14 +337,14 @@ Deterministic, in CI — `backend/tests/unit/services/data_ingestion/test_base_p
 mirroring the #1559 tests already there. Patch `asyncio.sleep` so the
 backoff costs nothing.
 
-| Test                                     | Setup                                                               | Fails today because                                                                                            |
-| ---------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `…retries_transient_storage_error`       | `file_exists` → False; `move_file` `side_effect=[S3Error(…), True]` | the first exception propagates; there is no retry (S3 contract)                                                |
-| `…retries_falsy_move_return`             | `move_file` `side_effect=[False, True]`                             | a falsy return fails the job on the first try (local-store contract — the half a catch-only fix would break)   |
-| `…raises_after_exhausting_retries`       | `move_file` always raises                                           | (guards the fix: the error must still escape — no silent fallback — and the attempt count must be bounded)     |
-| `…rechecks_destination_between_attempts` | `move_file` raises once, then `file_exists` → True                  | asserts `move_file` awaited exactly once: idempotency must hold _across_ retries, not just across job attempts |
-| `…retries_when_existence_probe_fails`    | `file_exists` `side_effect=[S3Error(…), False]`                     | a probe fault must be retried, never misread as "destination absent"                                           |
-| `…providers_share_one_files_store`       | assert `provider.files_store is` the process singleton              | each provider builds its own `S3Service` today                                                                 |
+| Test                                     | Setup                                                               | Fails today because                                                                                                               |
+| ---------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `…retries_transient_storage_error`       | `file_exists` → False; `move_file` `side_effect=[S3Error(…), True]` | the first exception propagates; there is no retry                                                                                 |
+| `…retries_local_store_error`             | `move_file` `side_effect=[FilesStoreError(…), True]`                | same as above via the base exception class — guards against an `except S3Error` that misses `LocalFilesStore`'s `FilesStoreError` |
+| `…raises_after_exhausting_retries`       | `move_file` always raises                                           | (guards the fix: the error must still escape — no silent fallback — and the attempt count must be bounded)                        |
+| `…rechecks_destination_between_attempts` | `move_file` raises once, then `file_exists` → True                  | asserts `move_file` awaited exactly once: idempotency must hold _across_ retries, not just across job attempts                    |
+| `…retries_when_existence_probe_fails`    | `file_exists` `side_effect=[S3Error(…), False]`                     | a probe fault must be retried, never misread as "destination absent"                                                              |
+| `…providers_share_one_files_store`       | assert `provider.files_store is` the process singleton              | each provider builds its own `S3Service` today                                                                                    |
 
 Acceptance gate for Step 1 is the six unit tests above (CI, deterministic).
 The load-test acceptance gate below is for **Steps 2/3, once they are
@@ -363,10 +374,9 @@ smoke.
 1. **Ship Step 1 now** (contract-drift fix, maintainer-approved). CI
    gate only — no perf-load run needed to ship this, since it is correct
    independent of any concurrency rate.
-2. **Open the upstream `enacit4r-files` PR** aligning the two backends'
-   `move_file` contract (Open Question 5) — the maintainer has said they
-   will do this; track it here rather than leave it silently assumed
-   done.
+2. ~~Open the upstream `enacit4r-files` PR~~ **Done** — the pin is at
+   1.4.0 and the two backends' `move_file` contracts already agree
+   (Open Question 5).
 3. **Get a clean concurrency measurement** (topology fixed, per the
    Correction) before reviving Steps 2/3. Re-run 5-user, then 20-user.
 4. If the clean run still shows meaningful S3-path failures, ship
@@ -395,12 +405,12 @@ smoke.
 4. `close()` on the `FilesStore` base upstream (cleaner, needs a tag
    bump), or an `isinstance` discriminator in the lifespan (no dependency
    change)? Only matters once Step 2 is un-deferred.
-5. **Answered (maintainer, PR #2535, 2026-08-30T11:49Z):** align the
-   divergent `move_file` contract upstream in `enacit4r-files`, in
-   addition to handling both signals app-side (Step 1). No upstream PR
-   exists yet as of 2026-09-02 (checked `EPFL-ENAC/enacit4r-files` open
-   PRs/issues) — the maintainer said they would open it; track that here
-   rather than assume it is done.
+5. **Done.** The maintainer's PR #2535 comment asked for the divergent
+   `move_file` contract to be aligned upstream, and it has been: the pin
+   moved to `enacit4r-files` 1.4.0, where `LocalFilesStore.move_file` now
+   raises `FilesStoreError` to match `S3FilesStore.move_file`'s
+   `S3Error` (fact 4, revised above). Nothing further to open upstream —
+   Step 1 just needs to catch the now-shared base exception.
 6. Do the `tmp/` GC and "recover a move-failed job without re-upload"
    ship here, or as follow-up issues? Still open. Also still open: the
    3/378 local-store failures (0.8%) have no diagnosis yet — see "The one
