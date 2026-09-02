@@ -48,7 +48,10 @@ from app.services.data_entry_emission_service import (
     DataEntryEmissionService,
 )
 from app.services.data_entry_service import DataEntryService
-from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.services.data_ingestion.csv_ingestion_provider import (
+    CSVIngestionProvider,
+    _validate_file_path,
+)
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 from app.utils.csv_dialect import csv_dict_reader, strip_comment_lines
@@ -78,29 +81,6 @@ def _is_blank_data_row(row: dict[str, str], required_columns: set[str]) -> bool:
     if not required_columns:
         return False
     return all(not (row.get(col) or "").strip() for col in required_columns)
-
-
-def _validate_file_path(file_path: str) -> None:
-    """Validate file_path to prevent directory traversal attacks.
-    File should come from files_store and start with expected prefixes.
-    """
-    if not file_path:
-        raise ValueError("file_path cannot be empty")
-
-    # Prevent directory traversal
-    if ".." in file_path:
-        raise ValueError("Invalid file_path: directory traversal not allowed")
-
-    # Normalize path and check for absolute paths
-    if file_path.startswith("/"):
-        raise ValueError("Invalid file_path: absolute paths not allowed")
-
-    # Only allow files from tmp/ or similar temporary upload directories
-    allowed_prefixes = ("tmp/", "uploads/", "temporary/")
-    if not any(file_path.startswith(prefix) for prefix in allowed_prefixes):
-        raise ValueError(
-            f"Invalid file_path: must start with one of {allowed_prefixes}"
-        )
 
 
 class StatsDict(TypedDict):
@@ -186,7 +166,7 @@ def _guard_factors_required(
     )
 
 
-class BaseCSVProvider(DataIngestionProvider, ABC):
+class BaseCSVProvider(CSVIngestionProvider, ABC):
     """Base class for CSV data ingestion providers"""
 
     def __init__(
@@ -1127,18 +1107,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             extra_metadata={},
         )
 
-        # Move file from source path to processing/
-        tmp_path = self.source_file_path
-        if not tmp_path:
-            raise ValueError("Missing file_path in config")
-        _validate_file_path(tmp_path)  # Extra safety check
-        processing_path = await self._move_to_processing(tmp_path)
-        filename = processing_path.split("/")[-1]
-
-        # Download and decode CSV content
-        logger.info(f"Downloading CSV from {processing_path}")
-        file_content, mime_type = await self.files_store.get_file(processing_path)
-        csv_text = file_content.decode("utf-8-sig")
+        csv_text, processing_path, filename = await self._download_and_decode_csv(
+            self.source_file_path
+        )
 
         # Load handlers and factors (entity-specific)
         logger.info(f"Loading handlers and factors for {self.__class__.__name__}")
