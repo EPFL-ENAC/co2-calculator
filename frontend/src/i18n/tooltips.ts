@@ -250,32 +250,32 @@ export default {
 
   // ── Purchases ──────────────────────────────────────────────────────────────
   'module-purchase-submodule-scientific_equipment-form': {
-    en: 'Please add any missing scientific equipment purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory.',
-    fr: "Veuillez ajouter les achats d'équipements scientifiques manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires.",
+    en: 'Please add any missing scientific equipment purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory. If you use a CSV, check the column headers: purchase_institutional_code corresponds to UNSPSC description, and purchase_additional_code corresponds to NACRES code. For more information, please refer to the documentation: Modules specification.',
+    fr: "Veuillez ajouter les achats d'équipements scientifiques manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires. Si vous utilisez un CSV, vérifiez les en-têtes de colonnes : purchase_institutional_code correspond à UNSPSC description, et purchase_additional_code correspond à NACRES code. Pour plus d’informations, consultez la documentation : Spécifications des modules.",
   },
   'module-purchase-submodule-it_equipment-form': {
-    en: 'Please add any missing IT equipment purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory.',
-    fr: "Veuillez ajouter les achats d'équipements IT manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires.",
+    en: 'Please add any missing IT equipment purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory. If you use a CSV, check the column headers: purchase_institutional_code corresponds to UNSPSC description, and purchase_additional_code corresponds to NACRES code. For more information, please refer to the documentation: Modules specification.',
+    fr: "Veuillez ajouter les achats d'équipements IT manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires. Si vous utilisez un CSV, vérifiez les en-têtes de colonnes : purchase_institutional_code correspond à UNSPSC description, et purchase_additional_code correspond à NACRES code. Pour plus d’informations, consultez la documentation : Spécifications des modules.",
   },
   'module-purchase-submodule-consumable_accessories-form': {
-    en: 'Please add any missing consumables & accessories purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory.',
-    fr: "Veuillez ajouter les achats de consommables et accessoires manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires.",
+    en: 'Please add any missing consumables & accessories purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory. If you use a CSV, check the column headers: purchase_institutional_code corresponds to UNSPSC description, and purchase_additional_code corresponds to NACRES code. For more information, please refer to the documentation: Modules specification.',
+    fr: "Veuillez ajouter les achats de consommables et accessoires manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires. Si vous utilisez un CSV, vérifiez les en-têtes de colonnes : purchase_institutional_code correspond à UNSPSC description, et purchase_additional_code correspond à NACRES code. Pour plus d’informations, consultez la documentation : Spécifications des modules.",
   },
   'module-purchase-submodule-biological_chemical_gaseous_product-form': {
-    en: 'Please add any missing biological, chemical & gaseous products purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory.',
-    fr: "Veuillez ajouter les achats de produits biologiques chimiques et gazeux manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires.",
+    en: 'Please add any missing biological, chemical & gaseous products purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory. If you use a CSV, check the column headers: purchase_institutional_code corresponds to UNSPSC description, and purchase_additional_code corresponds to NACRES code. For more information, please refer to the documentation: Modules specification.',
+    fr: "Veuillez ajouter les achats de produits biologiques chimiques et gazeux manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires. Si vous utilisez un CSV, vérifiez les en-têtes de colonnes : purchase_institutional_code correspond à UNSPSC description, et purchase_additional_code correspond à NACRES code. Pour plus d’informations, consultez la documentation : Spécifications des modules.",
   },
   'module-purchase-submodule-services-form': {
-    en: 'Please add any missing services purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory.',
-    fr: "Veuillez ajouter les achats de services manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires.",
+    en: 'Please add any missing services purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory. If you use a CSV, check the column headers: purchase_institutional_code corresponds to UNSPSC description, and purchase_additional_code corresponds to NACRES code. For more information, please refer to the documentation: Modules specification.',
+    fr: "Veuillez ajouter les achats de services manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires. Si vous utilisez un CSV, vérifiez les en-têtes de colonnes : purchase_institutional_code correspond à UNSPSC description, et purchase_additional_code correspond à NACRES code. Pour plus d’informations, consultez la documentation : Spécifications des modules.",
   },
   'module-purchase-submodule-vehicles-form': {
-    en: "Please add any missing vehicle-related purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory. Enter any vehicle-related purchases paid with unit's credit card here (e.g. fuel, car rentals, tolls, parking, or vehicle maintenance).",
-    fr: "Veuillez ajouter les achats liés aux véhicules manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires. Veuillez ajouter tous les achats liés aux véhicules réglés avec la carte de crédit de l'unité (ex. le carburant, les locations de voiture, les péages, les frais de stationnement ou l'entretien des véhicules.",
+    en: "Please add any missing vehicle-related purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory. Enter any vehicle-related purchases paid with unit's credit card here (e.g. fuel, car rentals, tolls, parking, or vehicle maintenance). If you use a CSV, check the column headers: purchase_institutional_code corresponds to UNSPSC description, and purchase_additional_code corresponds to NACRES code. For more information, please refer to the documentation: Modules specification.",
+    fr: "Veuillez ajouter les achats liés aux véhicules manquants dans la liste ci-dessus. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires. Veuillez ajouter tous les achats liés aux véhicules réglés avec la carte de crédit de l'unité (ex. le carburant, les locations de voiture, les péages, les frais de stationnement ou l'entretien des véhicules. Si vous utilisez un CSV, vérifiez les en-têtes de colonnes : purchase_institutional_code correspond à UNSPSC description, et purchase_additional_code correspond à NACRES code. Pour plus d’informations, consultez la documentation : Spécifications des modules.",
   },
   'module-purchase-submodule-other_purchases-form': {
-    en: 'Please add any missing other purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory.',
-    fr: "Veuillez ajouter les achats d'autre articles manquants. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires.",
+    en: 'Please add any missing other purchases to the list above. The item description, UNSPSC category (typology), and total amount spent are mandatory. If you use a CSV, check the column headers: purchase_institutional_code corresponds to UNSPSC description, and purchase_additional_code corresponds to NACRES code. For more information, please refer to the documentation: Modules specification.',
+    fr: "Veuillez ajouter les achats d'autre articles manquants. La description de l'article, la catégorie UNSPSC (typologie) et le montant total dépensé sont obligatoires. Si vous utilisez un CSV, vérifiez les en-têtes de colonnes : purchase_institutional_code correspond à UNSPSC description, et purchase_additional_code correspond à NACRES code. Pour plus d’informations, consultez la documentation : Spécifications des modules.",
   },
   'module-purchase-submodule-purchases_centralized-form': {
     en: 'For the liquid nitrogen, if you know your consumption in litres, convert using the following factor - 1 litre = 0.81kg (density of liquid nitrogen at boiling point).',
@@ -525,8 +525,8 @@ export default {
     fr: '',
   },
   'module-buildings-charts': {
-    en: '',
-    fr: '',
+    en: 'The centralized heating category represents the fossil fuels consumed for centralized heating at the building level. This information is captured directly in the room information and therefore does not need to be entered manually by the user.',
+    fr: 'La catégorie chauffage centralisé représente les combustibles fossiles consommés pour le chauffage centralisé à l’échelle du bâtiment. Ces informations sont directement renseignées dans les données relatives aux locaux et ne doivent donc pas être saisies manuellement par l’utilisateur.',
   },
   'module-equipment-charts': {
     en: '',
