@@ -17,8 +17,6 @@ from app.services.data_ingestion.csv_providers.module_per_year import (
 def _build_stats():
     return {
         "rows_processed": 0,
-        "rows_with_factors": 0,
-        "rows_without_factors": 0,
         "rows_skipped": 0,
         "batches_processed": 0,
         "row_errors": [],
