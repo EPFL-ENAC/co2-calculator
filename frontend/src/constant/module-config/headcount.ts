@@ -3,6 +3,10 @@ import { MODULES, MODULES_THRESHOLD_TYPES } from '@/constant/modules';
 import { formatFTE } from '@/utils/number';
 import type { Module } from '@/constant/modules';
 import { SIUS_CODES } from '@/types/module-lookups.gen';
+import {
+  moduleInputDecimals,
+  moduleInputStep,
+} from '@/constant/input-decimals';
 
 // Define an icon map to convert string keys to SVG icons
 import {
@@ -65,8 +69,8 @@ const memberFields: ModuleField[] = [
     required: true,
     min: 0,
     max: 1,
-    step: 0.1,
-    maxDecimals: 1,
+    step: moduleInputStep(MODULES.Headcount),
+    maxDecimals: moduleInputDecimals(MODULES.Headcount),
     sortable: false,
     ratio: '1/4',
     icon: 'o_timer',
@@ -86,8 +90,8 @@ const studentFields: ModuleField[] = [
     type: 'number',
     required: true,
     min: 0,
-    step: 0.1,
-    maxDecimals: 1,
+    step: moduleInputStep(MODULES.Headcount),
+    maxDecimals: moduleInputDecimals(MODULES.Headcount),
     sortable: true,
     ratio: '12/12',
     icon: iconMap['o_timer'],

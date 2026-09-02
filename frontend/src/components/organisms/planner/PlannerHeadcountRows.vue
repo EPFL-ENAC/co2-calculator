@@ -21,8 +21,9 @@
         dense
         hide-bottom-space
         min="0"
-        step="0.5"
+        :step="fteStep"
         input-class="text-right"
+        :rules="fteRules"
         :disable="disable || savingCode === row.sius_code"
         :loading="savingCode === row.sius_code"
         @blur="save(row)"
@@ -39,6 +40,11 @@ import { useI18n } from 'vue-i18n';
 
 import { api } from '@/api/http';
 import { getDataEntryTaxonomy } from '@/api/taxonomies';
+import {
+  moduleInputDecimals,
+  moduleInputStep,
+  roundModuleInput,
+} from '@/constant/input-decimals';
 import { MODULES } from '@/constant/modules';
 import {
   PLANNER_HEADCOUNT_CODES as HEADCOUNT_CODES,
@@ -46,6 +52,7 @@ import {
   plannerHeadcountRowLabel,
 } from '@/constant/planner-headcount';
 import { useModuleStore } from '@/stores/modules';
+import { getNumericRules } from '@/utils/numeric-rules';
 
 interface HeadcountRow {
   sius_code: string;
@@ -77,6 +84,11 @@ const rows = ref<HeadcountRow[]>(
   })),
 );
 const savingCode = ref<string | null>(null);
+const fteStep = moduleInputStep(MODULES.Headcount);
+const fteRules = getNumericRules(
+  { min: 0, maxDecimals: moduleInputDecimals(MODULES.Headcount) },
+  t,
+);
 
 // SIUS code → request-locale label, from the planner_headcount taxonomy
 // vocabulary (#2613). The students row has no code and keeps its i18n key.
@@ -120,7 +132,10 @@ async function load() {
       const item = byCode.get(code);
       return {
         sius_code: code,
-        fte: item?.fte ?? null,
+        fte:
+          item?.fte == null
+            ? null
+            : roundModuleInput(MODULES.Headcount, item.fte),
         entryId: item?.id ?? null,
       };
     });
@@ -134,6 +149,7 @@ async function save(row: HeadcountRow) {
     typeof row.fte === 'number' && !Number.isNaN(row.fte) ? row.fte : null;
   // Nothing to persist: still-empty row.
   if (fte === null && row.entryId === null) return;
+  if (fteRules.some((rule) => rule(fte) !== true)) return;
   savingCode.value = row.sius_code;
   try {
     if (row.entryId === null) {
