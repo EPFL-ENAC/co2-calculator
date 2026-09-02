@@ -28,7 +28,7 @@ export default {
     en: `This module helps you estimate the carbon footprint of your equipment (scientific, IT, etc.) based on power consumption in active and standby modes. Total estimated consumption per equipment is converted into carbon footprint using the official Swiss electricity mix emission factor.
 
 Please complete the following columns:
-- Sub-category: Select the sub-category for equipment where this field is required.
+- Sub-class: Select the sub-class for equipment where this field is required. Orange lines indicate that the user must select the appropriate sub-class from the drop-down list to estimate the carbon footprint.
 - Active and standby usage: Enter or update the weekly usage hours for each item of equipment. A conservative estimate (avoiding underestimation) is recommended to save time.
 
 This list is based on an export from your unit’s official inventory. If you notice any discrepancies, please correct them in the dedicated inventory application.
@@ -37,8 +37,8 @@ If the average power (in active or standby mode) of your equipment differs from 
     fr: `Ce module vous aide à estimer l'empreinte carbone liée à la consommation électrique de vos équipements (scientifiques, IT, etc.) en usage actif et standby. La consommation totale par équipment estimée à partir de vos saisies est convertie en empreinte carbone selon le facteur d'émission officiel du mix électrique suisse.
 
 Veuillez compléter les colonnes suivantes :
-- Sous-classe : choisissez la sous-classe pour les équipements où cette information est demandée.
-- Usage actif et usage standby : veuillez indiquer ou mettre à jour les heures d'utilisation de chaque équipement par semaine. Une estimation conservatrice (sans sous-estimer) est recommandée afin de limiter le temps consacré à cette tâche.
+- Sous-classe : choisissez la sous-classe pour les équipements où cette information est demandée. Les lignes en orange indiquent que l’utilisateur doit sélectionner la sous-classe appropriée dans la liste déroulante afin d’estimer l’empreinte carbone.
+- Usage actif et usage standby : Saisissez ou mettez à jour les heures d'utilisation de chaque équipement par semaine. Une estimation conservatrice (sans sous-estimer) est recommandée afin de limiter le temps consacré à cette tâche.
 
 La liste s'appuie sur une extraction de l'inventaire officiel contrôlé par votre unité. Si vous constatez des écarts, merci de les corriger dans l'application d'inventaire dédiée.
 
