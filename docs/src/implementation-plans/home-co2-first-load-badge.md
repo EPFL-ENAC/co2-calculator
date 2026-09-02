@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 673
-last_updated: 2026-08-27
+last_updated: 2026-09-02
 summary: Build-time CO₂ first-load badge in the homepage calculator header
 ---
 
@@ -29,7 +29,8 @@ homepage, computed once at build time. No Lighthouse involvement; the nightly
 ## Shipped
 
 - `frontend/scripts/inject-co2.mjs` — post-build: gzips (level 9) index.html +
-  referenced first-load assets, sums bytes, injects an idempotent
+  referenced first-load assets, adds the raw size of every woff2 font those
+  preload or reference (woff2 is already compressed), sums bytes, injects an idempotent
   `<meta name="co2-first-load" content="{mg}|{kb}">`, logs a one-line report.
   Missing referenced asset or missing `</head>` throws.
 - `frontend/quasar.config.js` — `build.afterBuild` runs
@@ -54,8 +55,11 @@ homepage, computed once at build time. No Lighthouse involvement; the nightly
 
 ## Caveats
 
-- Counts only what index.html references (entry + preloads + CSS); excludes
-  `injectEnv.js`, fonts, and the lazily-loaded route chunks. The HomePage
+- Counts what index.html references (entry + preloads + CSS) plus the woff2
+  fonts preloaded from index.html or declared in the first-load CSS (Suisse
+  Intl ×3, Material Icons, Material Icons Outlined); excludes `injectEnv.js`
+  and the lazily-loaded route chunks. The HomePage
   route's own lazy chunk is small; adding it later means also summing
   `HomePage-[hash].{js,css}`.
-- At delivery: 653.6 KB gzipped across 47 files → ≈130 mg CO₂ per first load.
+- With fonts (2026-09-02): 574.9 KB across 47 files + 5 fonts (328.9 KB of
+  which are fonts) → ≈114 mg CO₂ per first load.
