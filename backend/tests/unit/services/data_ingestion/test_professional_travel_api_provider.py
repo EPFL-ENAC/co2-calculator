@@ -295,8 +295,6 @@ class TestRecordRowError:
     def test_records_error_within_limit(self):
         stats = {
             "rows_processed": 0,
-            "rows_with_factors": 0,
-            "rows_without_factors": 0,
             "rows_skipped": 0,
             "rows_missing_centre_financier": 0,
             "row_errors": [],
@@ -310,8 +308,6 @@ class TestRecordRowError:
     def test_respects_max_row_errors(self):
         stats = {
             "rows_processed": 0,
-            "rows_with_factors": 0,
-            "rows_without_factors": 0,
             "rows_skipped": 0,
             "rows_missing_centre_financier": 0,
             "row_errors": [{"row": i, "reason": "x"} for i in range(10)],
@@ -321,6 +317,26 @@ class TestRecordRowError:
         # Count increments but list doesn't grow beyond max
         assert stats["row_errors_count"] == 11
         assert len(stats["row_errors"]) == 10
+
+
+# ---------------------------------------------------------------------------
+# _success_status_message
+# ---------------------------------------------------------------------------
+
+
+class TestSuccessStatusMessage:
+    def test_summary_does_not_claim_a_factor_count(self):
+        """Issue #996 follow-up: rows_with_factors/rows_without_factors were
+        declared and initialized but never incremented anywhere in the
+        Tableau ingestion path — the summary must not report them.
+        """
+        p = _make_provider()
+        stats = {"rows_processed": 12, "rows_skipped": 2}
+
+        message = p._success_status_message(stats)
+
+        assert message == "Processed 12 records: 2 skipped"
+        assert "factor" not in message
 
 
 # ---------------------------------------------------------------------------

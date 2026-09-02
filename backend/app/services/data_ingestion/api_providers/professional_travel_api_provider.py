@@ -184,8 +184,6 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
     def _success_status_message(self, stats: StatsDict) -> str:
         return (
             f"Processed {stats['rows_processed']} records: "
-            f"{stats['rows_with_factors']} with factors, "
-            f"{stats['rows_without_factors']} without factors, "
             f"{stats['rows_skipped']} skipped"
         )
 

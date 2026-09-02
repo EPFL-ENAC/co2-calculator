@@ -70,9 +70,7 @@ Response:
   "status_message": "Job finished",
   "meta": {
     "rows_processed": 150,
-    "rows_skipped": 5,
-    "rows_with_factors": 145,
-    "rows_without_factors": 5
+    "rows_skipped": 5
   }
 }
 ```

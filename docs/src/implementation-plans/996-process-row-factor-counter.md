@@ -1,8 +1,8 @@
 ---
 status: delivered
 issue: "996"
-last_updated: 2026-09-01
-summary: BaseCSVProvider._process_row hardcodes the factor tuple slot to None; dropping the unreliable rows_with_factors/rows_without_factors counter (Option C) rather than inventing a signal that doesn't exist yet.
+last_updated: 2026-09-02
+summary: BaseCSVProvider._process_row hardcodes the factor tuple slot to None; dropping the unreliable rows_with_factors/rows_without_factors counter (Option C) rather than inventing a signal that doesn't exist yet — and the same dead counter in the Tableau API-ingestion hierarchy, folded into this PR at Guilbert's request.
 ---
 
 # 996 — `_process_row` factor counter always reports `rows_without_factors`
@@ -143,3 +143,35 @@ from the removed keys, no leftover reference in the summary string).
       fail against the pre-fix code (RED) before the production change
       (GREEN). Full `tests/unit/services/data_ingestion/` suite (305 tests)
       passes; `make lint` clean.
+
+## 2026-09-02 — folded in the identical Tableau-provider counter
+
+Guilbert asked to fix the related-but-out-of-scope finding
+(`api_providers/base_tableau_api_provider.py`) in this same PR rather than as
+a separate follow-up issue. Investigation confirmed the same conclusion as
+the CSV path, more starkly: `rows_with_factors`/`rows_without_factors` are
+declared on `StatsDict` and zeroed in `_init_stats()`, but grepping every
+`stats[...]` mutation in `base_tableau_api_provider.py` and
+`professional_travel_api_provider.py` turns up no increment site at all —
+the per-record loop (`_inject_module_ids`) only ever resolves
+`carbon_report_module_id`, never a factor. Applied the same Option C:
+
+- [x] `base_tableau_api_provider.py`: removed the two keys from `StatsDict`
+      and `_init_stats()`.
+- [x] `professional_travel_api_provider.py`: removed the two `f"... with/without
+factors ..."` fragments from `_success_status_message` (the only
+      subclass that referenced them; `headcount_members_api_provider.py` and
+      `research_facilities_api_provider.py` never did).
+- [x] `test_professional_travel_api_provider.py`: updated the two
+      `TestRecordRowError` stats literals; added
+      `TestSuccessStatusMessage.test_summary_does_not_claim_a_factor_count`
+      as a real regression test (calls the production method, not a
+      self-contained literal) — confirmed RED against the pre-fix message,
+      GREEN after.
+- [x] `docs/src/frontend/data-management/api-and-troubleshooting.md`: the SSE
+      payload example still showed `rows_with_factors`/`rows_without_factors`
+      — corrected. (Left `docs/src/implementation-plans/1398-...md` alone: a
+      `status: delivered` historical plan quoting the code as it stood at
+      delivery time, not a live contract.)
+- Full `tests/unit/services/data_ingestion/` suite (306 tests) passes;
+  `make lint` / `make type-check` clean.
