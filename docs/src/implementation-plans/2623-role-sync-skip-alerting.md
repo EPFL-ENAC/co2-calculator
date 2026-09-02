@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2623
 last_updated: 2026-09-02
 summary: "Count role sync's suspicious-empty and provider-unavailable
