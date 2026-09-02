@@ -856,10 +856,10 @@ class SimulatorPlanService:
                 "created_by_id": None,
                 "created_at": datetime.now(UTC),
                 "updated_at": datetime.now(UTC),
-                "data": {"sius_code": code, "fte": fte},
+                "data": {"sius_code": code, "fte": round(fte, 1)},
             }
             for code, fte in sorted(fte_by_code.items())
-            if fte > 0
+            if round(fte, 1) > 0
         ]
         rows = await self._bulk_insert_entries(row_dicts)
         # An empty result is reported to the caller (see

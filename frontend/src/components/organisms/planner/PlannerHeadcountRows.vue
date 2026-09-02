@@ -21,8 +21,9 @@
         dense
         hide-bottom-space
         min="0"
-        step="0.5"
+        step="0.1"
         input-class="text-right"
+        :rules="fteRules"
         :disable="disable || savingCode === row.sius_code"
         :loading="savingCode === row.sius_code"
         @blur="save(row)"
@@ -46,6 +47,7 @@ import {
   plannerHeadcountRowLabel,
 } from '@/constant/planner-headcount';
 import { useModuleStore } from '@/stores/modules';
+import { getNumericRules } from '@/utils/numeric-rules';
 
 interface HeadcountRow {
   sius_code: string;
@@ -77,6 +79,7 @@ const rows = ref<HeadcountRow[]>(
   })),
 );
 const savingCode = ref<string | null>(null);
+const fteRules = getNumericRules({ min: 0, maxDecimals: 1 }, t);
 
 // SIUS code → request-locale label, from the planner_headcount taxonomy
 // vocabulary (#2613). The students row has no code and keeps its i18n key.
@@ -120,7 +123,7 @@ async function load() {
       const item = byCode.get(code);
       return {
         sius_code: code,
-        fte: item?.fte ?? null,
+        fte: item?.fte == null ? null : Math.round(item.fte * 10) / 10,
         entryId: item?.id ?? null,
       };
     });
@@ -134,6 +137,7 @@ async function save(row: HeadcountRow) {
     typeof row.fte === 'number' && !Number.isNaN(row.fte) ? row.fte : null;
   // Nothing to persist: still-empty row.
   if (fte === null && row.entryId === null) return;
+  if (fteRules.some((rule) => rule(fte) !== true)) return;
   savingCode.value = row.sius_code;
   try {
     if (row.entryId === null) {
