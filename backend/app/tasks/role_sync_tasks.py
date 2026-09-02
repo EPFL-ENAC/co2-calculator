@@ -1,5 +1,6 @@
 """Background tasks for role synchronization."""
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.providers.role_provider import get_role_provider
@@ -7,6 +8,7 @@ from app.services.role_sync_service import RoleSyncService
 from app.services.user_service import UserService
 
 logger = get_logger(__name__)
+settings = get_settings()
 
 
 async def trigger_role_sync_for_user(
@@ -50,7 +52,9 @@ async def trigger_role_sync_for_user(
             # Sync roles – provider fetch happens inside service, behind TTL
             # gate. The service reports why it ended (applied / skipped) rather
             # than raising; it never writes on a skip.
-            sync_service = RoleSyncService(session)
+            sync_service = RoleSyncService(
+                session, sync_ttl_minutes=settings.ROLE_SYNC_TTL_MINUTES
+            )
             result = await sync_service.sync_user_roles(
                 user_id, role_provider, force=force
             )

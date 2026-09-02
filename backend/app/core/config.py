@@ -355,6 +355,15 @@ class Settings(BaseSettings):
     # refresh keeps a working day usable while still capping idle sessions.
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     REFRESH_TOKEN_EXPIRE_HOURS: int = 24
+    # How long RoleSyncService trusts a stored role set before re-checking the
+    # provider (#2539). Was a hardcoded 15-minute constructor default with no
+    # env knob; POST /v1/session only refreshes reactively on a 401, so a
+    # refresh is already spaced by ACCESS_TOKEN_EXPIRE_MINUTES — always well
+    # above 15 min in every configured environment. 1h keeps a mid-session
+    # role grant landing the same session without re-hitting Accred on every
+    # 401. Also the base unit for the two-strikes deprovisioning window
+    # (2x this) in RoleSyncService._handle_suspicious_empty.
+    ROLE_SYNC_TTL_MINUTES: int = 60
     # Frontend URL for redirects
     FRONTEND_URL: str = Field(
         default="http://localhost:9000",

@@ -230,6 +230,7 @@ erDiagram
     DATETIME last_login
     DATETIME last_roles_sync_at
     VARCHAR provider
+    DATETIME roles_empty_since
     JSON roles_raw
   }
   year_configuration {
