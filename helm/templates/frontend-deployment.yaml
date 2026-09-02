@@ -8,11 +8,23 @@ metadata:
 spec:
   revisionHistoryLimit: 2
 
+  {{- $minReplicas := .Values.frontend.replicaCount }}
+  {{- if .Values.frontend.autoscaling.enabled }}
+  {{- $minReplicas = .Values.frontend.autoscaling.minReplicas }}
+  {{- end }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
+      # Same rationale as backend (#2050 A2): a 1-replica floor can't
+      # survive maxUnavailable without a full outage window. Derived from
+      # the replica floor so it can't drift out of sync with it.
+      {{- if le (int $minReplicas) 1 }}
+      maxSurge: 1
+      maxUnavailable: 0
+      {{- else }}
       maxSurge: 0
       maxUnavailable: 1
+      {{- end }}
 
   {{- if not .Values.frontend.autoscaling.enabled }}
   replicas: {{ .Values.frontend.replicaCount }}

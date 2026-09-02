@@ -164,7 +164,9 @@ class ProfessionalTravelTrainHandlerCreate(
         return v
 
 
-class ProfessionalTravelPlaneHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
+class ProfessionalTravelPlaneHandlerUpdate(
+    PlaneCabinClassValidationMixin, DepartureDateMixin, DataEntryUpdate
+):
     # traveler_name: Optional[str] = None
     # traveler_id: Optional[int] = None
     origin_iata: str | None = None
@@ -182,7 +184,9 @@ class ProfessionalTravelPlaneHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
         return v
 
 
-class ProfessionalTravelTrainHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
+class ProfessionalTravelTrainHandlerUpdate(
+    TrainCabinClassValidationMixin, DepartureDateMixin, DataEntryUpdate
+):
     # traveler_name: Optional[str] = None
     # traveler_id: Optional[int] = None
     origin_name: str | None = None
