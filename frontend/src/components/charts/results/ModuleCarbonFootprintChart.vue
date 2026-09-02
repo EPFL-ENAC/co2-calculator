@@ -10,6 +10,7 @@ import {
   colors,
   getChartSubcategoryColor,
   getModuleForCategoryKey,
+  isHiddenResultsCategory,
   RESULTS_CATEGORY_LABEL_KEYS,
   ADDITIONAL_DATA_ICON,
 } from '@/constant/charts';
@@ -737,20 +738,20 @@ const datasetSource = computed(() => {
     allData = [...baseData, ...additionalData];
   }
 
-  // Drop categories whose module is deactivated in the backoffice config —
-  // they shouldn't render at all (not even greyed out). Skipped when the
-  // caller has no single-year config loaded (see enforceModuleActivation).
-  if (props.enforceModuleActivation) {
-    allData = allData.filter((item) => {
-      const rawKey = String(
-        item.category_key ??
-          labelToKey.value[String(item.category ?? '')] ??
-          item.category ??
-          '',
-      );
-      return isCategoryModuleActive(rawKey);
-    });
-  }
+  // Drop hidden categories, plus categories whose module is deactivated in
+  // the backoffice config — they shouldn't render at all (not even greyed
+  // out). The activation part is skipped when the caller has no single-year
+  // config loaded (see enforceModuleActivation).
+  allData = allData.filter((item) => {
+    const rawKey = String(
+      item.category_key ??
+        labelToKey.value[String(item.category ?? '')] ??
+        item.category ??
+        '',
+    );
+    if (isHiddenResultsCategory(rawKey)) return false;
+    return !props.enforceModuleActivation || isCategoryModuleActive(rawKey);
+  });
 
   if (props.activeCategoriesOnly) {
     allData = allData.filter((item) =>
