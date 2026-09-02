@@ -388,7 +388,7 @@ app = FastAPI(
     Users are assigned one or more of these roles. Permissions are calculated
     from role assignments:
 
-    * **calco2.user.std** - Basic user with own-scope access
+    * **calco2.user.standard** - Basic user with own-scope access
     * **calco2.user.principal** - Unit-level manager with unit-scope access
     * **calco2.backoffice.metier** - Backoffice administrator with reporting and
       data access
