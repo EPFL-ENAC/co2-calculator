@@ -58,6 +58,7 @@ from app.tasks._background import fire_and_forget_or_defer_to_poller
 from app.tasks.runner import run_job
 from app.tasks.unit_sync_tasks import SyncUnitRequest
 from app.utils.datetime_utc import as_utc
+from app.utils.permissions import has_permission
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.utils.scoping import (
     can_view_module_flow,
@@ -1306,6 +1307,20 @@ async def job_stream_by_id(
         if existing is not None:
             # TODO(#459): tighten when sub-perimeter scoping ships
             await _check_job_scope(existing, current_user, session, action="view")
+            # #1764 — _check_job_scope no-ops on jobs it can't narrow to a
+            # unit (MODULE_PER_YEAR and friends); this stream ships the
+            # job's full raw meta, so those need the same backoffice gate
+            # POST /sync/dispatch's global-dispatch path already requires.
+            institutional_id = await _institutional_id_for_job(existing, session)
+            if institutional_id is None and not has_permission(
+                current_user.calculate_permissions(),
+                "backoffice.configuration",
+                "view",
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Permission denied",
+                )
 
     async def event_generator():
         last_status = None
