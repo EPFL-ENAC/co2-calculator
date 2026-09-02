@@ -4354,8 +4354,6 @@ export interface components {
             name: string;
             /** Label */
             label: string;
-            /** Translation Key */
-            translation_key?: string | null;
             /** Meta */
             meta?: {
                 [key: string]: unknown;

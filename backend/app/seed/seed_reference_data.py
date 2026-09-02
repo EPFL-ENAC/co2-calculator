@@ -167,6 +167,9 @@ async def seed_all_reference_data(
 ) -> None:
     """Ingest every CSV in ``REFERENCE_SEEDS``."""
     for config in REFERENCE_SEEDS:
+        if not config.path.is_file():
+            print(f"Skipping reference seed, CSV not found: {config.path.name}")
+            continue
         await seed_reference_data_file(session, config, year)
 
 

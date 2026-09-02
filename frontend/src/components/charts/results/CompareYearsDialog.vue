@@ -9,6 +9,7 @@ import {
   RESULTS_CATEGORY_ORDER,
   RESULTS_CATEGORY_LABEL_KEYS,
   CHART_CATEGORY_COLOR_SCHEMES,
+  isHiddenResultsCategory,
 } from '@/constant/charts';
 import {
   defaultSelectedYears,
@@ -41,6 +42,10 @@ const { t } = useI18n();
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
+
+const COMPARE_CATEGORY_ORDER = RESULTS_CATEGORY_ORDER.filter(
+  (key) => !isHiddenResultsCategory(key),
+);
 
 function readCssVarHex(name: string): string | null {
   try {
@@ -95,7 +100,7 @@ async function load() {
     selectedYears.value = defaultSelectedYears(res.years);
     selectedCategories.value = presentCategories(
       res.years,
-      RESULTS_CATEGORY_ORDER,
+      COMPARE_CATEGORY_ORDER,
     );
     selectedScopes.value = [...SCOPE_KEYS];
   } catch (err: unknown) {
@@ -118,7 +123,7 @@ const yearOptions = computed(() =>
 );
 
 const categoryOptions = computed(() =>
-  presentCategories(data.value?.years ?? [], RESULTS_CATEGORY_ORDER).map(
+  presentCategories(data.value?.years ?? [], COMPARE_CATEGORY_ORDER).map(
     (key) => ({
       value: key,
       label: t(
@@ -148,7 +153,7 @@ const scopeOptions = computed(() =>
 );
 
 const moduleSeries = computed<CompareYearsSeries[]>(() =>
-  RESULTS_CATEGORY_ORDER.filter((key) =>
+  COMPARE_CATEGORY_ORDER.filter((key) =>
     selectedCategories.value.includes(key),
   ).map((key) => ({
     key,

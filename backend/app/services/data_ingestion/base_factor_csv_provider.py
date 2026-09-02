@@ -35,9 +35,11 @@ from app.schemas.factor import BaseFactorHandler
 from app.seed.seed_helper import get_factor_emission_type_id
 from app.services.data_ingestion.base_csv_provider import (
     _format_pydantic_validation_error,
+)
+from app.services.data_ingestion.csv_ingestion_provider import (
+    CSVIngestionProvider,
     _validate_file_path,
 )
-from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.factor_service import FactorService
 from app.utils.csv_dialect import csv_dict_reader
 
@@ -66,7 +68,7 @@ def _get_required_columns_from_handler(handler: Any) -> set[str]:
     return handler.required_columns
 
 
-class BaseFactorCSVProvider(DataIngestionProvider, ABC):
+class BaseFactorCSVProvider(CSVIngestionProvider, ABC):
     """Base class for CSV factor ingestion providers."""
 
     def __init__(
@@ -277,16 +279,9 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             )
         await self.data_session.flush()
 
-        tmp_path = self.source_file_path
-        if not tmp_path:
-            raise ValueError("Missing file_path in config")
-        _validate_file_path(tmp_path)
-        processing_path = await self._move_to_processing(tmp_path)
-        filename = processing_path.split("/")[-1]
-
-        logger.info(f"Downloading CSV from {processing_path}")
-        file_content, mime_type = await self.files_store.get_file(processing_path)
-        csv_text = file_content.decode("utf-8")
+        csv_text, processing_path, filename = await self._download_and_decode_csv(
+            self.source_file_path
+        )
 
         entity_setup = await self._setup_handlers_and_context()
         handlers = entity_setup["handlers"]

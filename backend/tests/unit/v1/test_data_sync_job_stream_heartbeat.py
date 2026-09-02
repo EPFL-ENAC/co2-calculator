@@ -19,7 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import app.api.v1.data_sync as data_sync_module
-from app.models.data_ingestion import IngestionState
+from app.models.data_ingestion import EntityType, IngestionState
 
 
 class _FakeJob:
@@ -30,6 +30,8 @@ class _FakeJob:
 
     id = 1
     module_type_id = None  # _check_job_scope no-ops on this
+    entity_type = EntityType.GLOBAL_PER_YEAR  # e.g. unit_sync -- not unit-scoped
+    entity_id = None
     target_type = "module"
     year = 2025
     state = IngestionState.RUNNING

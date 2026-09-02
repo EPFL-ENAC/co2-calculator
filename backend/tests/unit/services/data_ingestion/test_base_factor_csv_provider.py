@@ -436,6 +436,36 @@ def test_validate_csv_headers_strict_missing_expected():
 
 
 @pytest.mark.asyncio
+async def test_setup_and_validate_strips_utf8_bom():
+    """A BOM-prefixed CSV (#6523) must not glue ﻿ onto the first header,
+    or every row's category-field lookup silently breaks.
+    """
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "job_id": 1, "year": 2024},
+        data_session=MagicMock(),
+    )
+    provider.data_session.flush = AsyncMock()
+    provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
+    provider._files_store.move_file = AsyncMock(return_value=True)
+    provider._files_store.get_file = AsyncMock(
+        return_value=(b"\xef\xbb\xbfequipment_category,val\nscientific,1\n", "text/csv")
+    )
+    provider._setup_handlers_and_context = AsyncMock(
+        return_value={
+            "handlers": [],
+            "expected_columns": set(),
+            "required_columns": set(),
+            "valid_entry_types": [],
+        }
+    )
+
+    setup_result = await provider._setup_and_validate()
+
+    assert setup_result["csv_text"].startswith("equipment_category")
+
+
+@pytest.mark.asyncio
 async def test_finalize_and_commit_move_file_failure():
     provider = ConcreteFactorProvider(
         {"file_path": "tmp/test.csv", "job_id": 1, "year": 2024},

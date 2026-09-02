@@ -4,6 +4,7 @@ import { ref, computed } from 'vue';
 import { api } from '@/api/http';
 import { putExploreCarbonReport } from '@/api/carbon_reports';
 import type { SimulatorPlan } from '@/stores/simulatorPlans';
+import type { FlatUserPermissions } from '@/utils/permission';
 import { useModuleStore } from '@/stores/modules';
 import { CARBON_PROJECT } from '@/constant/carbon-project';
 
@@ -75,6 +76,8 @@ export interface WorkspaceHomePayload {
   module_states: { module_type_id: number; status: number }[];
   /** The unit's visible Simulator Plans with their totals, for the home table. */
   project_plans: SimulatorPlan[];
+  /** Freshly computed permissions, fanned out to the auth store by the guard. */
+  permissions?: FlatUserPermissions;
 }
 
 export const useWorkspaceStore = defineStore(

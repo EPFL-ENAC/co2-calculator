@@ -64,8 +64,6 @@ export interface JobUpdatePayload {
     row_errors_count?: number;
     rows_processed?: number;
     rows_skipped?: number;
-    rows_with_factors?: number;
-    rows_without_factors?: number;
     // Issue #1591 — factor-recompute stats (``BaseFactorUpdateProvider``).
     // Deliberately typed as a count only, not ``error_details``: those
     // per-row entries can name a Unit/CarbonReport belonging to a

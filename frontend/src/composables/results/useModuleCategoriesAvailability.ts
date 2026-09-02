@@ -2,7 +2,10 @@ import { computed } from 'vue';
 import { useYearConfigStore } from '@/stores/yearConfig';
 import { MODULES } from '@/constant/modules';
 import { BUILDING_EMBODIED_ENERGY_SUBMODULE_KEY } from '@/constant/backoffice-module-config';
-import { getModuleForCategoryKey } from '@/constant/charts';
+import {
+  getModuleForCategoryKey,
+  isHiddenResultsCategory,
+} from '@/constant/charts';
 import { CATEGORY_TO_SUBMODULE } from '@/composables/useModuleIconColors';
 
 // commuting/food/waste are derived slices of Headcount, embodied_energy of
@@ -35,6 +38,9 @@ export function useModuleCategoriesAvailability() {
   );
   const buildingEmbodiedEnergyActive = computed(
     () =>
+      ADDITIONAL_BUILDINGS_CATEGORY_KEYS.some(
+        (key) => !isHiddenResultsCategory(key),
+      ) &&
       yearConfigStore.isModuleVisible(MODULES.Buildings) &&
       yearConfigStore.isSubmoduleVisible(
         MODULES.Buildings,
@@ -52,6 +58,7 @@ export function useModuleCategoriesAvailability() {
   // disappears when its owning submodule (e.g. Buildings' energy_combustion)
   // is deactivated, not just its parent module.
   function isCategoryModuleActive(categoryKey: string): boolean {
+    if (isHiddenResultsCategory(categoryKey)) return false;
     if (ADDITIONAL_HEADCOUNT_CATEGORY_KEYS.includes(categoryKey)) {
       return headcountActive.value;
     }

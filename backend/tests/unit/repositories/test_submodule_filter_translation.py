@@ -672,3 +672,142 @@ async def test_self_labeling_rows_labeled_only_when_translated(
         lang="en",
     )
     assert all(i.labels is None for i in english.items)
+
+
+async def _seed_energy_module(db_session: AsyncSession) -> int:
+    """Fuel names are enum keys labeled by the #2613 seed in BOTH languages
+    (rows mirror migration 7bff78de3264): 'Natural gas' never matched the
+    stored `natural_gas` before, in any locale.
+    """
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.buildings.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    def _entry(fuel: str) -> DataEntry:
+        return DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.energy_combustion,
+            status=DataEntryStatusEnum.PENDING,
+            data={"name": fuel, "quantity": 10},
+            year=2025,
+        )
+
+    def _fuel(value: str, lang: str, label: str) -> ClassificationTranslation:
+        return ClassificationTranslation(
+            field_name="name", value=value, lang=lang, label=label
+        )
+
+    db_session.add_all(
+        [
+            _entry("natural_gas"),
+            _entry("heating_oil"),
+            _fuel("natural_gas", "en", "Natural gas"),
+            _fuel("natural_gas", "fr", "Gaz naturel"),
+            _fuel("heating_oil", "en", "Heating oil"),
+            _fuel("heating_oil", "fr", "Mazout"),
+        ]
+    )
+    await db_session.commit()
+    return module.id
+
+
+async def _fuel_rows(
+    db_session: AsyncSession,
+    module_id: int,
+    lang: str,
+    filter: str | None = None,
+    sort_by: str = "id",
+):
+    repo = DataEntryRepository(db_session)
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module_id,
+        data_entry_type_id=DataEntryTypeEnum.energy_combustion.value,
+        limit=100,
+        offset=0,
+        sort_by=sort_by,
+        sort_order="asc",
+        filter=filter,
+        lang=lang,
+        factor_year=2025,
+    )
+    return response.items
+
+
+@pytest.mark.asyncio
+async def test_fuel_filter_matches_label_in_both_languages(
+    db_session: AsyncSession,
+):
+    """`name` is a `translated_code_field` (#2613): the space in
+    'Natural gas' proves the label subquery matched, not the raw
+    ILIKE on `natural_gas` — English included.
+    """
+    module_id = await _seed_energy_module(db_session)
+
+    en = await _fuel_rows(db_session, module_id, "en", filter="Natural gas")
+    assert [i.name for i in en] == ["natural_gas"]
+
+    fr = await _fuel_rows(db_session, module_id, "fr", filter="Mazout")
+    assert [i.name for i in fr] == ["heating_oil"]
+
+    raw = await _fuel_rows(db_session, module_id, "fr", filter="natural_gas")
+    assert [i.name for i in raw] == ["natural_gas"]
+
+
+@pytest.mark.asyncio
+async def test_fuel_sort_and_labels_per_language(db_session: AsyncSession):
+    """En asc: Heating oil < Natural gas; fr asc: Gaz naturel < Mazout —
+    the flip proves the sort reads the label. Rows carry the label in the
+    request locale, English included.
+    """
+    module_id = await _seed_energy_module(db_session)
+
+    en = await _fuel_rows(db_session, module_id, "en", sort_by="name")
+    assert [(i.name, (i.labels or {}).get("name")) for i in en] == [
+        ("heating_oil", "Heating oil"),
+        ("natural_gas", "Natural gas"),
+    ]
+
+    fr = await _fuel_rows(db_session, module_id, "fr", sort_by="name")
+    assert [(i.labels or {}).get("name") for i in fr] == [
+        "Gaz naturel",
+        "Mazout",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_room_type_filter_and_labels(db_session: AsyncSession):
+    """room_type joined the translated-code shape in #2613: the French
+    label matches the filter and rides the row's labels.
+    """
+    module_id = await _seed_rooms_module(db_session)
+    db_session.add_all(
+        [
+            ClassificationTranslation(
+                field_name="room_type", value="office", lang="en", label="Office"
+            ),
+            ClassificationTranslation(
+                field_name="room_type", value="office", lang="fr", label="Bureau"
+            ),
+            ClassificationTranslation(
+                field_name="room_type",
+                value="laboratories",
+                lang="fr",
+                label="Laboratoires",
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    fr = await _room_rows(db_session, module_id, "fr", filter="Bureau")
+    assert [i.room_name for i in fr] == ["room-a"]
+
+    rows = await _room_rows(db_session, module_id, "fr")
+    labels = {i.room_name: (i.labels or {}).get("room_type") for i in rows}
+    assert labels == {"room-a": "Bureau", "room-b": "Laboratoires"}

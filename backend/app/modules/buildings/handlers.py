@@ -118,7 +118,9 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
     # entry; its labels are seeded reference data for both languages
     # (migration fd12a7a0946f) — search/sort match and order by the label
     # the user sees, in either locale (#2401, same shape as sius_code).
-    translated_code_fields = ("energy_type",)
+    # room_type values are backend lookup keys (#173), labeled by the
+    # #2613 seed — English included ("office" renders "Office").
+    translated_code_fields = ("energy_type", "room_type")
 
     sort_map = {
         "id": DataEntry.id,
@@ -314,6 +316,9 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
     kind_field: str = "name"
     subkind_field: str | None = None
     require_subkind_for_factor = False
+    # Fuel names are enum keys (natural_gas, …) labeled by the #2613 seed
+    # in both languages — sius_code shape, English display included.
+    translated_code_fields = ("name",)
 
     sort_map = {
         "id": DataEntry.id,

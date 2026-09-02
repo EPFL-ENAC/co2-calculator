@@ -173,3 +173,54 @@ async def test_kind_label_field_blank_falls_back_to_code(lang: str):
     taxonomy = await service.get_taxonomy(handler, det, 2025, lang=lang)
 
     assert [c.label for c in taxonomy.children] == ["95121800", "44120001"]
+
+
+_ENERGY_FACTORS = [
+    SimpleNamespace(
+        classification={"name": "natural_gas", "unit": "kWh"},
+        values={},
+    ),
+]
+
+
+@pytest.mark.asyncio
+async def test_translated_code_field_fetches_labels_for_english():
+    """Fuels are enum keys (#2613): the English tree label comes from the
+    seeded translation row, not from the slug.
+    """
+    det = DataEntryTypeEnum.energy_combustion
+    handler = BaseModuleHandler.get_by_type(det)
+    service = _service(
+        _ENERGY_FACTORS,
+        translations={("name", "natural_gas"): "Natural gas"},
+    )
+
+    taxonomy = await service.get_taxonomy(handler, det, 2025, lang="en")
+
+    service.translation_repo.get_labels.assert_awaited_once_with({"name"}, "en")
+    assert taxonomy.children[0].name == "natural_gas"
+    assert taxonomy.children[0].label == "Natural gas"
+
+
+@pytest.mark.asyncio
+async def test_code_only_handler_serves_vocabulary_children():
+    """A handler with no kind field but with translated code fields
+    (headcount member) has no factor tree: its taxonomy is the seeded
+    vocabulary — the sius dropdown/planner label source (#2613).
+    """
+    det = DataEntryTypeEnum.member
+    handler = BaseModuleHandler.get_by_type(det)
+    service = _service(
+        [],
+        translations={
+            ("sius_code", "57"): "Administrative staff",
+            ("sius_code", "51"): "Professors",
+        },
+    )
+
+    taxonomy = await service.get_taxonomy(handler, det, 2025, lang="en")
+
+    assert [(c.name, c.label) for c in taxonomy.children] == [
+        ("51", "Professors"),
+        ("57", "Administrative staff"),
+    ]

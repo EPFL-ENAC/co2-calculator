@@ -41,8 +41,10 @@ from app.models.data_ingestion import (
 )
 from app.models.user import User
 from app.seed.seed_locations import _NATURAL_KEY_EXPR
-from app.services.data_ingestion.base_csv_provider import _validate_file_path
-from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.services.data_ingestion.csv_ingestion_provider import (
+    CSVIngestionProvider,
+    _validate_file_path,
+)
 from app.utils.csv_dialect import csv_dict_reader
 
 logger = get_logger(__name__)
@@ -74,7 +76,7 @@ BUILDING_ROOMS_EXPECTED_COLUMNS = BUILDING_ROOMS_REQUIRED_COLUMNS | {
 }
 
 
-class ReferenceDataCSVProvider(DataIngestionProvider):
+class ReferenceDataCSVProvider(CSVIngestionProvider):
     """CSV provider for reference data (locations, building rooms).
 
     Routed by ``(module_type_id, csv, REFERENCE_DATA, MODULE_PER_YEAR)``;
@@ -156,7 +158,9 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             )
 
             det = self._resolve_data_entry_type()
-            csv_text, processing_path, filename = await self._stage_file()
+            csv_text, processing_path, filename = await self._download_and_decode_csv(
+                self.source_file_path
+            )
 
             if det in (DataEntryTypeEnum.plane, DataEntryTypeEnum.train):
                 stats = await self._ingest_locations(csv_text, det)
@@ -219,18 +223,6 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
                 "data_entry_type_id is required for reference data ingestion"
             )
         return DataEntryTypeEnum(int(self.data_entry_type_id))
-
-    async def _stage_file(self) -> tuple[str, str, str]:
-        """Move the uploaded file from tmp/ → processing/ and read its bytes."""
-        if not self.source_file_path:
-            raise ValueError("Missing file_path in config")
-        _validate_file_path(self.source_file_path)
-        processing_path = await self._move_to_processing(self.source_file_path)
-        filename = processing_path.split("/")[-1]
-
-        file_content, _ = await self.files_store.get_file(processing_path)
-        csv_text = file_content.decode("utf-8")
-        return csv_text, processing_path, filename
 
     @staticmethod
     def _validate_headers(

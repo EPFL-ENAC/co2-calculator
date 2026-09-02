@@ -116,4 +116,7 @@ Deleted: `plan_is_visible_to`, `plan_can_manage`, `require_plan_access`,
 - `tests/unit/v1/test_workspace_home.py`: home payload filtered by the
   policy and free of `can_manage`.
 - `frontend/tests/unit/planner-delete-permission.spec.ts`: `canDeletePlan`
-  for global, unit, own (creator / non-creator), no key, no unit.
+  for global, unit, own (creator / non-creator), no key, no unit. Listed
+  here but never committed with this plan — the file was added by
+  [#2607](2607-planner-delete-gate-mirror.md), which also fixed the
+  unit-breadth branch it left untested.

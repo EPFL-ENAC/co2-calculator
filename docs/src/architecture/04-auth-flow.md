@@ -124,6 +124,45 @@ falling back to `JwtClaimsRoleProvider`. F11/F12 hardened claim parsing:
 malformed `RoleName` entries and unknown scope types are skipped with a
 warning rather than aborting the login.
 
+### 6a. Background role sync
+
+`POST /v1/session` (token refresh) fires a `BackgroundTask` —
+`trigger_role_sync_for_user` — that re-checks the role provider so a
+long-lived session eventually picks up role changes without forcing a
+logout. Login itself resolves roles synchronously on the critical path and
+is unaffected by any of this — see [#2531](https://github.com/EPFL-ENAC/co2-calculator/issues/2531)
+and its
+[plan](../implementation-plans/2531-role-sync-empty-response-wipe.md) for
+the failure this replaced (an empty provider response was written as
+`user.roles = []`, silently — the 403 wave).
+
+`RoleSyncService.sync_user_roles`:
+
+- **TTL gate** (`settings.ROLE_SYNC_TTL_MINUTES`, default 60) — skips the
+  provider call entirely if synced within the window. Not a security
+  boundary; `ACCESS_TOKEN_EXPIRE_MINUTES` and `REFRESH_TOKEN_EXPIRE_HOURS`
+  are. This is a debounce so a burst of near-simultaneous calls (multiple
+  tabs 401ing together) doesn't all re-hit the provider.
+- **An empty response never wipes on its own.** `roles_empty_since` is
+  stamped on the first empty result and cleared on any non-empty one. A
+  _second_ empty result, confirmed `2 * ROLE_SYNC_TTL_MINUTES` after the
+  first, is what a genuine revocation looks like — that one applies for
+  real. See [#2539](https://github.com/EPFL-ENAC/co2-calculator/issues/2539)
+  for the design.
+- **Backoff on every skip outcome** (TTL debounce aside) — the network-error
+  and suspicious-empty paths both stamp `last_roles_sync_at`, so a repeated
+  failure waits one TTL period before the next attempt instead of retrying
+  on every call.
+- **`force=True`** bypasses both the TTL gate and the suspicious-empty
+  guard — reachable only from the admin `POST /v1/users/{user_id}/revoke-roles`
+  endpoint (`backoffice.users.edit`), never from the automatic
+  `/v1/session` path. It re-runs the provider check right now and applies
+  whatever comes back, including empty — it does not invent a revocation
+  the provider doesn't confirm.
+- Every skip outcome is counted via an OTel counter
+  (`role_sync.skipped` → `role_sync_skipped_total{outcome=...}`) — see
+  [#2623](https://github.com/EPFL-ENAC/co2-calculator/issues/2623).
+
 ## 7. Security gotchas
 
 - **`COOKIE_SECURE` env var** — defaults to `True` (correct for prod

@@ -120,7 +120,8 @@ async def seed_reduction_objectives(
 
     for category, source in CSV_BY_CATEGORY.items():
         if not source.is_file():
-            raise FileNotFoundError(f"Reduction-objective CSV not found: {source}")
+            print(f"Skipping {category} objectives, CSV not found: {source.name}")
+            continue
         # Raises ValueError(list[str]) on a bad header or any bad row.
         rows = validate_reduction_objective_csv(source.read_bytes(), category)
         config_key = CONFIG_KEY_BY_CATEGORY[category]

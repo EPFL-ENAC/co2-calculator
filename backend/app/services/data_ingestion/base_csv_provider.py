@@ -48,7 +48,10 @@ from app.services.data_entry_emission_service import (
     DataEntryEmissionService,
 )
 from app.services.data_entry_service import DataEntryService
-from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.services.data_ingestion.csv_ingestion_provider import (
+    CSVIngestionProvider,
+    _validate_file_path,
+)
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 from app.utils.csv_dialect import csv_dict_reader, strip_comment_lines
@@ -80,35 +83,10 @@ def _is_blank_data_row(row: dict[str, str], required_columns: set[str]) -> bool:
     return all(not (row.get(col) or "").strip() for col in required_columns)
 
 
-def _validate_file_path(file_path: str) -> None:
-    """Validate file_path to prevent directory traversal attacks.
-    File should come from files_store and start with expected prefixes.
-    """
-    if not file_path:
-        raise ValueError("file_path cannot be empty")
-
-    # Prevent directory traversal
-    if ".." in file_path:
-        raise ValueError("Invalid file_path: directory traversal not allowed")
-
-    # Normalize path and check for absolute paths
-    if file_path.startswith("/"):
-        raise ValueError("Invalid file_path: absolute paths not allowed")
-
-    # Only allow files from tmp/ or similar temporary upload directories
-    allowed_prefixes = ("tmp/", "uploads/", "temporary/")
-    if not any(file_path.startswith(prefix) for prefix in allowed_prefixes):
-        raise ValueError(
-            f"Invalid file_path: must start with one of {allowed_prefixes}"
-        )
-
-
 class StatsDict(TypedDict):
     """Type definition for CSV processing statistics"""
 
     rows_processed: int
-    rows_with_factors: int
-    rows_without_factors: int
     rows_skipped: int
     batches_processed: int
     row_errors: list[dict[str, Any]]
@@ -188,7 +166,7 @@ def _guard_factors_required(
     )
 
 
-class BaseCSVProvider(DataIngestionProvider, ABC):
+class BaseCSVProvider(CSVIngestionProvider, ABC):
     """Base class for CSV data ingestion providers"""
 
     def __init__(
@@ -895,8 +873,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             max_row_errors = int(self.config.get("max_row_errors", 100))
             stats: StatsDict = {
                 "rows_processed": 0,
-                "rows_with_factors": 0,
-                "rows_without_factors": 0,
                 "rows_skipped": 0,
                 "batches_processed": 0,
                 "row_errors": [],
@@ -1002,12 +978,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     continue
 
                 # Process single row, returns
-                # (data_entry, error_msg, factor, kg_co2eq_override)
+                # (data_entry, error_msg, kg_co2eq_override)
                 _row_t0 = time.perf_counter()
                 (
                     data_entry,
                     error_msg,
-                    factor,
                     kg_co2eq_override,
                 ) = await self._process_row(
                     row,
@@ -1052,10 +1027,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 # Row processed successfully
                 batch.append(data_entry)
                 batch_kg_co2eq_overrides.append(kg_co2eq_override)
-                if factor:
-                    stats["rows_with_factors"] += 1
-                else:
-                    stats["rows_without_factors"] += 1
                 stats["rows_processed"] += 1
 
                 # Flush when the COPY batch is full
@@ -1136,18 +1107,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             extra_metadata={},
         )
 
-        # Move file from source path to processing/
-        tmp_path = self.source_file_path
-        if not tmp_path:
-            raise ValueError("Missing file_path in config")
-        _validate_file_path(tmp_path)  # Extra safety check
-        processing_path = await self._move_to_processing(tmp_path)
-        filename = processing_path.split("/")[-1]
-
-        # Download and decode CSV content
-        logger.info(f"Downloading CSV from {processing_path}")
-        file_content, mime_type = await self.files_store.get_file(processing_path)
-        csv_text = file_content.decode("utf-8-sig")
+        csv_text, processing_path, filename = await self._download_and_decode_csv(
+            self.source_file_path
+        )
 
         # Load handlers and factors (entity-specific)
         logger.info(f"Loading handlers and factors for {self.__class__.__name__}")
@@ -1194,9 +1156,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         stats: StatsDict,
         max_row_errors: int,
         unit_to_module_map: dict[str, int] | None = None,
-    ) -> tuple[DataEntry | None, str | None, Any | None, float | None]:
+    ) -> tuple[DataEntry | None, str | None, float | None]:
         """Process a single CSV row.
-        Returns (DataEntry, error_msg, factor, kg_co2eq_override) tuple.
+        Returns (DataEntry, error_msg, kg_co2eq_override) tuple.
         If error_msg is not None, row processing failed and error was recorded.
 
         ``kg_co2eq_override`` is carried out-of-band so it never lands in
@@ -1216,7 +1178,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # before stripping blanks into filtered_row.
             if required_columns and _is_blank_data_row(row, required_columns):
                 stats["rows_skipped"] += 1
-                return None, None, None, None
+                return None, None, None
 
             # Extract kg_co2eq override from the raw row (carried out-of-band).
             # Bypasses expected_columns intentionally: not every handler lists
@@ -1252,12 +1214,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 )
 
             if error_msg:
-                return None, error_msg, None, None
+                return None, error_msg, None
 
             if not data_entry_type or not handler:
                 error_msg = "Failed to resolve handler and data_entry_type"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg, None, None
+                return None, error_msg, None
 
             # Resolve carbon_report_module_id
             carbon_report_module_id = None
@@ -1271,7 +1233,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 ):
                     error_msg = "Missing unit_institutional_id in row"
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                    return None, error_msg, None, None
+                    return None, error_msg, None
 
                 unit_institutional_id = str(unit_institutional_id).strip()
 
@@ -1286,7 +1248,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         self._missing_units_logged.add(unit_institutional_id)
                     error_msg = f"Unit '{unit_institutional_id}' not found"
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                    return None, error_msg, None, None
+                    return None, error_msg, None
 
                 carbon_report_module_id = unit_to_module_map.get(unit_institutional_id)
                 if not carbon_report_module_id:
@@ -1295,7 +1257,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         f"institutional_id={unit_institutional_id}"
                     )
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                    return None, error_msg, None, None
+                    return None, error_msg, None
             elif self.carbon_report_module_id:
                 # MODULE_UNIT_SPECIFIC: use pre-configured value
                 carbon_report_module_id = self.carbon_report_module_id
@@ -1303,7 +1265,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 # Neither mapping nor pre-configured value available
                 error_msg = "Missing carbon_report_module_id"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg, None, None
+                return None, error_msg, None
 
             # Validate payload with handler
             payload: dict[str, str | int | None] = dict(filtered_row)
@@ -1316,11 +1278,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             except ValidationError as validation_error:
                 error_msg = _format_pydantic_validation_error(validation_error)
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg, None, None
+                return None, error_msg, None
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg, None, None
+                return None, error_msg, None
 
             # Build DataEntry
             data = dict(validated.data)
@@ -1335,7 +1297,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 )
             if enrich_error is not None:
                 self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
-                return None, enrich_error, None, None
+                return None, enrich_error, None
 
             # Persist the override on the data
             # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so
@@ -1354,13 +1316,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 data=data,
             )
 
-            return data_entry, None, None, kg_co2eq_override
+            return data_entry, None, kg_co2eq_override
 
         except Exception as row_error:
             logger.error(f"Row {row_idx}: Error processing row: {str(row_error)}")
             error_msg = f"Row processing error: {row_error}"
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-            return None, error_msg, None, None
+            return None, error_msg, None
 
     def _compute_ingestion_result(self, stats: StatsDict) -> IngestionResult:
         """Compute ingestion result based on success rate.
@@ -1436,10 +1398,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # both mean at least one row was skipped, and recalculating alone
         # can't bring those rows back (issue #1398).
         status_message = (
-            f"Processed {stats['rows_processed']} rows: "
-            f"{stats['rows_with_factors']} with factors, "
-            f"{stats['rows_without_factors']} without factors, "
-            f"{stats['rows_skipped']} skipped"
+            f"Processed {stats['rows_processed']} rows: {stats['rows_skipped']} skipped"
         )
         if result != IngestionResult.SUCCESS:
             status_message = f"{status_message}. {REUPLOAD_HINT}"

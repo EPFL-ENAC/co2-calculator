@@ -104,12 +104,10 @@ function taxonomyFor(det: number) {
         {
           name: '1321',
           label: 'CPG',
-          translation_key: '1321',
           meta: { use_unit: 'housings' },
           children: ANIMAL_FACTORS.map((f) => ({
             name: f.researchfacility_type,
             label: f.researchfacility_type,
-            translation_key: f.researchfacility_type,
             meta: { use_unit: f.use_unit },
           })),
         },
@@ -122,7 +120,6 @@ function taxonomyFor(det: number) {
     children: COMMON_FACTORS.map((f) => ({
       name: f.researchfacility_id,
       label: f.researchfacility_name,
-      translation_key: f.researchfacility_id,
       meta: { use_unit: f.use_unit },
     })),
   };

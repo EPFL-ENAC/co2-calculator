@@ -15,6 +15,7 @@ import {
   QSeparator,
   QExpansionItem,
   QIcon,
+  QInput,
   QItem,
   QItemSection,
   QSelect,
@@ -51,4 +52,6 @@ beforeMount(async ({ app }) => {
   app.component('QItemSection', QItemSection);
   app.component('QSelect', QSelect);
   app.component('QTooltip', QTooltip);
+  // PlannerHeadcountRows (#2613 vocabulary labels) renders q-input rows.
+  app.component('QInput', QInput);
 });

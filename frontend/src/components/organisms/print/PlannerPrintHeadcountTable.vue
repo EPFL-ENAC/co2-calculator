@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { PlannerHeadcountRow } from '@/utils/plannerHeadcountRows';
-import { plannerHeadcountLabelKey } from '@/constant/planner-headcount';
+import { plannerHeadcountRowLabel } from '@/constant/planner-headcount';
 
 const props = defineProps<{ rows: PlannerHeadcountRow[] }>();
+const { t } = useI18n();
 
 const totalFte = computed(() =>
   props.rows.reduce((sum, row) => sum + row.fte, 0),
@@ -23,7 +25,7 @@ const totalFte = computed(() =>
     </thead>
     <tbody>
       <tr v-for="row in rows" :key="row.sius_code">
-        <td>{{ $t(plannerHeadcountLabelKey(row.sius_code)) }}</td>
+        <td>{{ plannerHeadcountRowLabel(row.sius_code, row.label, t) }}</td>
         <td class="align-right">
           {{ $nOrDash(row.fte, { options: { maximumFractionDigits: 1 } }) }}
         </td>

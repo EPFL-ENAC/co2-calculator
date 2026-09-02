@@ -60,6 +60,7 @@ import { useI18n } from 'vue-i18n';
 
 import {
   CHART_CATEGORY_COLOR_SCALES,
+  isHiddenResultsCategory,
   RESULTS_CATEGORY_LABEL_KEYS,
   RESULTS_SUBCATEGORY_LABEL_KEYS,
 } from '@/constant/charts';
@@ -126,9 +127,11 @@ const ADDITIONAL_CATEGORY_KEYS = [
 ] as const;
 
 const categoryKeys = computed<string[]>(() => {
-  const keys: string[] = showAdditional.value
-    ? [...MAIN_CATEGORY_KEYS, ...ADDITIONAL_CATEGORY_KEYS]
-    : [...MAIN_CATEGORY_KEYS];
+  const keys: string[] = (
+    showAdditional.value
+      ? [...MAIN_CATEGORY_KEYS, ...ADDITIONAL_CATEGORY_KEYS]
+      : [...MAIN_CATEGORY_KEYS]
+  ).filter((key) => !isHiddenResultsCategory(key));
   if (!props.activeCategoriesOnly) return keys;
   const active = new Set([
     ...(props.grantBreakdown?.validated_categories ?? []),

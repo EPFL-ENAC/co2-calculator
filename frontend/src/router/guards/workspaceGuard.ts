@@ -8,6 +8,7 @@ import {
   toEmissionBreakdown,
   type ReportStats,
 } from '@/utils/emissionStatsAdapter';
+import { useAuthStore } from '@/stores/auth';
 import { useSimulatorPlansStore } from '@/stores/simulatorPlans';
 import { useWorkspaceStore, unitSlug } from '@/stores/workspace';
 import {
@@ -139,6 +140,10 @@ export async function loadWorkspaceFromRoute(to: RouteLocationNormalized) {
         ),
       );
       useSimulatorPlansStore().setPlans(data.project_plans ?? []);
+      // Same staleness reason as `configuredYears` above: roles can change
+      // mid-session, and the SPA would keep gating affordances (the planner
+      // delete button) on the login-time snapshot until a hard reload (#2607).
+      if (data.permissions) useAuthStore().setPermissions(data.permissions);
     }
   }
   // then we can retrieve modules

@@ -32,7 +32,12 @@ def _clear_taxonomy_cache():
 @pytest.fixture
 def service():
     session = MagicMock()
-    return ModuleHandlerService(session)
+    svc = ModuleHandlerService(session)
+    # Real handlers may declare translated_code_fields (#2613), which the
+    # builder fetches even for English; nothing is seeded in these tests.
+    svc.translation_repo = MagicMock()
+    svc.translation_repo.get_labels = AsyncMock(return_value={})
+    return svc
 
 
 def _make_handler(kind_field="kind", subkind_field="subkind"):
@@ -41,6 +46,7 @@ def _make_handler(kind_field="kind", subkind_field="subkind"):
         subkind_field=subkind_field,
         kind_label_field=None,
         subkind_label_field=None,
+        translated_code_fields=(),
         taxonomy_meta_fields=(),
         to_label=lambda x: x.capitalize(),
     )
@@ -57,6 +63,7 @@ def _purchase_handler():
         kind_field_override="purchase_additional_code",
         kind_label_field=None,
         subkind_label_field=None,
+        translated_code_fields=(),
         taxonomy_meta_fields=(),
         to_label=lambda x: x.capitalize(),
     )

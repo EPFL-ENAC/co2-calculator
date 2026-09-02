@@ -198,6 +198,8 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
         if batch:
             await self._upsert_batch(batch, factor_repo)
 
+        await self._upsert_collected_translations()
+
         await self.data_session.flush()
 
         stats["factors_deleted"] = self._seed_deleted_count
@@ -423,7 +425,7 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
         stats: StatsDict,
         max_row_errors: int,
         unit_to_module_map: dict[str, int] | None = None,
-    ) -> tuple[Any, str | None, Any, float | None]:
+    ) -> tuple[Any, str | None, float | None]:
         if self._location_fields:
             row = dict(row)  # shallow copy to avoid mutating original
             location_id_cache = setup_result.get("location_id_cache", {})

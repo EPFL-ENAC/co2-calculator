@@ -12,6 +12,8 @@ Policy authorization is only applied to user-initiated API requests,
 not internal system operations like OAuth callbacks or provider synchronization.
 """
 
+from datetime import UTC, datetime
+
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -117,6 +119,15 @@ class UserService:
                 provider=provider,
                 function=function,
             )
+
+        if roles is not None:
+            # These roles come straight from the provider (login), so they are
+            # as fresh as a sync would make them. Without this stamp the TTL
+            # gate is already expired and the next /v1/session re-syncs
+            # immediately — double provider load, and the wipe window reopens
+            # seconds after a user recovers (#2531).
+            user.last_roles_sync_at = datetime.now(UTC)
+
         await self.session.flush()
         return user
 
