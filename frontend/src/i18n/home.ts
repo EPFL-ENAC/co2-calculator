@@ -264,4 +264,12 @@ export default {
     en: 'Only the project creator can delete this project.',
     fr: 'Seul le créateur du projet peut supprimer ce projet.',
   },
+  home_co2_badge_label: {
+    en: '≈ {mg} mg CO₂ / visit',
+    fr: '≈ {mg} mg CO₂ / visite',
+  },
+  home_co2_tooltip: {
+    en: 'Estimated emissions of loading this web app for the first time, based on {kb} KB of compressed data measured at build time. Later visits are served from the cache and transfer almost nothing.',
+    fr: 'Émissions estimées du premier chargement de cette application web, sur la base de {kb} Ko de données compressées mesurées lors de la compilation. Les visites suivantes sont servies depuis le cache et ne transfèrent presque rien.',
+  },
 } as const;

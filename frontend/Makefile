@@ -103,7 +103,8 @@ test: ## Run tests (component + e2e)
 	npm run test:e2e
 
 .PHONY: dev
-dev: ## Start development server
+dev: ## Start development server (builds once first if no CO2-tagged dist exists)
+	@grep -qs 'name="co2-first-load"' dist/spa/index.html || npm run build
 	npm run dev
 
 .PHONY: build

@@ -7,6 +7,7 @@ import { HOME_ROUTE_NAME } from '@/router/routeNames';
 import { pickDefaultYear } from '@/router/guards/redirectToDefaultRoute';
 import { resolveNoWorkspaceRoute } from '@/utils/unauthorized';
 import RoleAccessBadge from '@/components/molecules/RoleAccessBadge.vue';
+import { useCo2FirstLoad } from '@/composables/useCo2FirstLoad';
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
@@ -83,6 +84,10 @@ async function handleUnitChange(unitId: number) {
 const affiliationSegments = computed(
   () => selectedUnit.value?.affiliations ?? [],
 );
+
+// Build-time first-load footprint baked into index.html; null when the meta
+// tag is absent, in which case the badge is not rendered at all.
+const co2FirstLoad = useCo2FirstLoad();
 </script>
 
 <template>
@@ -129,7 +134,21 @@ const affiliationSegments = computed(
         v-if="selectedUnit"
         class="column items-end text-right workspace-selector-bar__user"
       >
-        <RoleAccessBadge />
+        <div class="row items-center no-wrap">
+          <span v-if="co2FirstLoad" class="co2-first-load text-caption">
+            <q-icon name="o_eco" size="14px" class="q-mr-xs" />
+            {{ $t('home_co2_badge_label', { mg: co2FirstLoad.mg }) }}
+            <q-tooltip max-width="280px" :delay="300">
+              {{ $t('home_co2_tooltip', { kb: co2FirstLoad.kb }) }}
+            </q-tooltip>
+          </span>
+          <q-separator
+            v-if="co2FirstLoad"
+            vertical
+            class="co2-first-load__sep"
+          />
+          <RoleAccessBadge />
+        </div>
         <span
           v-if="affiliationSegments.length"
           class="affiliation text-caption"
@@ -164,6 +183,25 @@ const affiliationSegments = computed(
     min-width: 0;
     row-gap: tokens.$spacing-sm;
   }
+}
+
+// Borderless companion to the role pill: plain green text with a leaf icon,
+// separated from the pill by a thin vertical rule.
+.co2-first-load {
+  display: inline-flex;
+  align-items: center;
+  color: tokens.$color-status-success;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: default;
+}
+
+// Rule sits between the caption-sized CO₂ text and the taller role pill, so
+// its height splits the difference between the two.
+.co2-first-load__sep {
+  height: tokens.$spacing-lg;
+  margin: 0 tokens.$spacing-md;
+  align-self: center;
 }
 
 // Affiliation breadcrumb: parent segments greyed, leaf black, with a `›`
