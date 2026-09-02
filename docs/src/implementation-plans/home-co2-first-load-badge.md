@@ -32,9 +32,9 @@ homepage, computed once at build time. No Lighthouse involvement; the nightly
   referenced first-load assets, sums bytes, injects an idempotent
   `<meta name="co2-first-load" content="{mg}|{kb}">`, logs a one-line report.
   Missing referenced asset or missing `</head>` throws.
-- `frontend/package.json` — `build` is now
-  `quasar build && node scripts/inject-co2.mjs`; all CI/Docker builds go
-  through `npm run build`, so deployed builds always carry the meta.
+- `frontend/quasar.config.js` — `build.afterBuild` runs
+  `scripts/inject-co2.mjs`, so every `quasar build` (npm script, Makefile,
+  Docker, CI, or typed directly) carries the meta.
 - `frontend/src/composables/useCo2FirstLoad.ts` — parses the meta tag,
   returns rounded `{ mg, kb }` or `null`.
 - `frontend/src/components/organisms/workspace-selector/WorkspaceSelectorBar.vue`
@@ -48,6 +48,9 @@ homepage, computed once at build time. No Lighthouse involvement; the nightly
   the co2-first-load meta from `dist/spa/index.html` into the dev server's
   HTML, so the badge is also visible under `quasar dev` (with the number from
   the last production build). No dist or no meta → nothing injected.
+- `frontend/Makefile` — `make dev` runs `npm run build` once when
+  `dist/spa/index.html` has no co2-first-load meta, so the badge shows on a
+  fresh checkout without a manual build.
 
 ## Caveats
 

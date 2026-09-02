@@ -16,7 +16,7 @@
     "test-ct": "playwright test -c playwright-ct.config.ts",
     "dev": "quasar dev",
     "preview": "npx vite preview --outDir dist/spa",
-    "build": "quasar build && node scripts/inject-co2.mjs",
+    "build": "quasar build",
     "postinstall": "quasar prepare",
     "mock:auth": "node src/mock/mockauth.js",
     "gen-api-types": "node scripts/gen-api-types.mjs"

@@ -103,6 +103,15 @@ export default defineConfig(function () {
       // },
 
       vueRouterMode: 'history', // available values: 'hash', 'history'
+
+      // Bake the first-load CO₂ meta into dist/spa/index.html on every
+      // production build, whatever command triggered it.
+      afterBuild() {
+        execSync('node scripts/inject-co2.mjs', {
+          cwd: __dirname,
+          stdio: 'inherit',
+        });
+      },
       // vueRouterBase,
       // vueDevtools,
       // vueOptionsAPI: false,
