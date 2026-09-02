@@ -180,6 +180,7 @@
               :unit-id="unitId"
               :year="year"
               :factor-year="factorYear"
+              :carbon-report-id="carbonReportId"
               :disable="isDisabled"
             />
             <component
