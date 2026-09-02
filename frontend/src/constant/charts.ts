@@ -382,6 +382,15 @@ export const RESULTS_CATEGORY_ORDER = [
   'embodied_energy',
 ] as const;
 
+/** Categories kept out of every Results chart, whatever the back-office config says. */
+export const HIDDEN_RESULTS_CATEGORY_KEYS: ReadonlySet<string> = new Set([
+  'embodied_energy',
+]);
+
+export function isHiddenResultsCategory(categoryKey: string): boolean {
+  return HIDDEN_RESULTS_CATEGORY_KEYS.has(categoryKey);
+}
+
 /** Category key → i18n key for consistent Results chart labels. */
 export const RESULTS_CATEGORY_LABEL_KEYS: Record<
   (typeof RESULTS_CATEGORY_ORDER)[number],
