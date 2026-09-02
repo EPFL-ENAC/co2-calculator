@@ -135,6 +135,37 @@ age out (or be terminated) once.
       and the role-level keepalives are hand-applied state the DBaaS team should
       own rather than us.
 
+## Decided: `/ready` keeps gating on the DB verdict (2026-09-02)
+
+The incident review raised a strategy question: `/ready` 503s when the shared
+DB is down, which on 2026-08-31 took every stage pod out of the Service at
+once — raw router 503s, no app-level errors, pods invisible without
+`kubectl`. The docstring's own doctrine ("DB latency is shared state, gating
+readiness on it would take every pod unready at once") argues against gating
+on shared _downness_ too, and the community default is pod-local readiness.
+An alternative was analyzed: startup gates on the DB once, readiness goes
+pod-local (staleness only).
+
+**Kept as-is, deliberately.** Reasoning, so this is not re-litigated:
+
+1. `failureThreshold: 3 × periodSeconds: 10` means a pod goes unready only
+   after 30+ s of sustained DB-down — restarts, blips, and maintenance never
+   trip it. The gate fires only when the DB is genuinely gone.
+2. In that case the app is fully nonfunctional either way; the remaining A/B
+   difference is cosmetic (router 503 vs app JSON 500). What actually hurt on
+   2026-08-31 was hours of invisibility with nothing naming the cause — and
+   that is fixed by alerting (`DbServerConnectionsHigh` at 2 min,
+   `DbServerConnectionSlotsExhausted` naming the FATAL), not by probe
+   semantics.
+3. The pod-local half of the alternative already exists: staleness gating
+   pulled the starved pod during the 13:02 log flood, correctly.
+4. Changing probe semantics is the most incident-prone corner of this app
+   (#2049), and the benefit left after the alerting shipped does not pay for
+   that risk.
+
+Revisit only if a shared-DB outage recurs and the alerts prove insufficient
+to diagnose it quickly — that would falsify point 2.
+
 ## Open
 
 - **The worker Deployment renders `worker.env`, not `backend.env`** (see the
