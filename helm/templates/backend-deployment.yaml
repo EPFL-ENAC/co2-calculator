@@ -9,15 +9,27 @@ metadata:
 spec:
   revisionHistoryLimit: 2
 
+  {{- $minReplicas := .Values.backend.replicaCount }}
+  {{- if .Values.backend.autoscaling.enabled }}
+  {{- $minReplicas = .Values.backend.autoscaling.minReplicas }}
+  {{- end }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      # #2050 A2: maxSurge:0/maxUnavailable:1 made every rollout a
-      # guaranteed outage window on a single-replica deployment (dev) and
-      # a capacity dip on multi-replica ones (stage). A new pod comes up
-      # before an old one leaves instead.
+      # #2050 A2: a 1-replica floor can't survive maxUnavailable - the
+      # only pod would be killed before its replacement is ready, a
+      # guaranteed outage window. 2+ replicas can lose one during
+      # rollout instead of surging past replicaCount, which is what
+      # exhausts compute-resources quota on tight namespaces (dev).
+      # Derived from the replica floor (autoscaling.minReplicas when HPA
+      # is on, else replicaCount) so it can't drift out of sync with it.
+      {{- if le (int $minReplicas) 1 }}
       maxSurge: 1
       maxUnavailable: 0
+      {{- else }}
+      maxSurge: 0
+      maxUnavailable: 1
+      {{- end }}
 
   replicas: {{ .Values.backend.replicaCount }}
   selector:
