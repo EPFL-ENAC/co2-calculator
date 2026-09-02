@@ -62,6 +62,7 @@ type CommonProps = {
    * stays the row's own year: it addresses the entry for the PATCH.
    */
   factorYear?: number | null;
+  carbonReportId?: number;
   disable?: boolean;
 };
 
@@ -224,6 +225,7 @@ async function onValueChange(val: string | number | null) {
     String(props.year),
     idNum,
     payload,
+    props.carbonReportId,
   );
 }
 </script>
