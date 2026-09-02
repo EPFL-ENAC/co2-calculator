@@ -7,7 +7,8 @@ import { HOME_ROUTE_NAME } from '@/router/routeNames';
 import { pickDefaultYear } from '@/router/guards/redirectToDefaultRoute';
 import { resolveNoWorkspaceRoute } from '@/utils/unauthorized';
 import RoleAccessBadge from '@/components/molecules/RoleAccessBadge.vue';
-import { useCo2FirstLoad } from '@/composables/useCo2FirstLoad';
+// TEMPORARILY HIDDEN
+// import { useCo2FirstLoad } from '@/composables/useCo2FirstLoad';
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
@@ -87,7 +88,8 @@ const affiliationSegments = computed(
 
 // Build-time first-load footprint baked into index.html; null when the meta
 // tag is absent, in which case the badge is not rendered at all.
-const co2FirstLoad = useCo2FirstLoad();
+// TEMPORARILY HIDDEN
+// const co2FirstLoad = useCo2FirstLoad();
 </script>
 
 <template>
@@ -135,6 +137,8 @@ const co2FirstLoad = useCo2FirstLoad();
         class="column items-end text-right workspace-selector-bar__user"
       >
         <div class="row items-center no-wrap">
+          <!-- TEMPORARILY HIDDEN -->
+          <!--
           <span v-if="co2FirstLoad" class="co2-first-load text-caption">
             <q-icon name="o_eco" size="14px" class="q-mr-xs" />
             {{ $t('home_co2_badge_label', { mg: co2FirstLoad.mg }) }}
@@ -142,11 +146,13 @@ const co2FirstLoad = useCo2FirstLoad();
               {{ $t('home_co2_tooltip', { kb: co2FirstLoad.kb }) }}
             </q-tooltip>
           </span>
+
           <q-separator
             v-if="co2FirstLoad"
             vertical
             class="co2-first-load__sep"
           />
+           -->
           <RoleAccessBadge />
         </div>
         <span
