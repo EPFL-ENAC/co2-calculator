@@ -387,6 +387,16 @@ class User(UserBase, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=True),
         description="Last timestamp when roles were synced from provider",
     )
+    roles_empty_since: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+        description=(
+            "When the provider first reported zero roles for a user that had "
+            "some (#2539). Cleared on any non-empty result. A second empty "
+            "result this long after the first is believed and applied — see "
+            "RoleSyncService._handle_suspicious_empty."
+        ),
+    )
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"
