@@ -1,37 +1,73 @@
 ---
 status: in-progress
 issue: 2528
-last_updated: 2026-08-30
-summary: "Concurrent CSV uploads fail on the tmp/ to processing/ move
-  (56% at 20 parallel uploaders on S3, 0.8% on the local store).
-  The move is an unretried copy_object+delete_object; any transient S3
-  fault kills the job permanently. Plan: bounded idempotent retry at the
-  single choke point, one shared S3 client per process with a sized pool,
-  and botocore standard retry mode via the chart."
+last_updated: 2026-09-02
+summary: "The reported 56%-at-20-parallel rate is void — an artifact of
+  a split file store in the reporter's own test topology, not S3
+  concurrency (see Correction below). What survives: the move is an
+  unretried copy_object+delete_object, and the enacit4r-files 1.2.0 tag
+  bump left the app's two backends signalling failure differently
+  (S3 raises, local returns False) with dead code on the S3 side.
+  Plan: bounded idempotent retry at the single choke point handling both
+  signals, shipped now; client-pool sizing and retry-mode tuning
+  deferred until a clean concurrency measurement exists."
 ---
 
 # Concurrent CSV upload move failures (#2528)
 
-**Goal:** an upload flow at 20 parallel uploaders against the S3 file
-store fails no more often than against the local store (0.8%), and no
-`Error moving file` reaches a user.
+**Goal:** no `Error moving file` reaches a user, and the app's move
+handles both signals its two file-store backends can send on failure
+(fact 4) instead of silently trusting one and dead-coding the other.
 
 Found by the #2295 load suite (PR #2526). Read
 [`2295-load-tests-locust.md`](./2295-load-tests-locust.md) for the
 harness and [`1559-ingestion-idempotent-tmp-to-processing-move.md`](./1559-ingestion-idempotent-tmp-to-processing-move.md)
 for the existing idempotency guard this plan builds on.
 
+## Correction (2026-09-02): the 56% figure is void
+
+The maintainer's own follow-up (issue #2528 comment, 2026-08-30T11:31Z)
+pulled the actual exception out of `data_ingestion_jobs.meta.status_history`
+for the dev-DB run:
+
+```
+An error occurred (NoSuchKey) when calling the CopyObject operation:
+The specified key does not exist.
+```
+
+`NoSuchKey` is not a transient fault — the source object was never in
+the bucket, because that run's `backend/.env` had `S3_BUCKET` commented
+out (`FILES_STORAGE_PATH=./files_storage` active), so the local backend
+process wrote every `temp-upload` to its own laptop disk while
+`RUN_BACKGROUND_POLLER=False` handed the ingest jobs to the dev pods,
+which correctly looked in S3 and found nothing. The 56% measured a split
+file store, not concurrency, and **retrying the move would not have
+helped** — retrying a copy of a key that does not exist just fails N
+times.
+
+**What this voids:** the 56% number itself, the "70× local/S3 gap" framing
+in H3 below, and Open Questions 1–2 as originally posed (they existed to
+size a rate that turns out not to exist).
+
+**What survives, unaffected by the topology bug:** every finding below
+came from reading the code, not from the 56% run, and none of it depends
+on that number — facts 1, 3, 4, 5, 6, 7, and H1. The **local-store run's
+3/378 failures (0.8%)** are the only measurement left standing, because
+`NoSuchKey`-by-split-store cannot arise when both the upload and the job
+run against the same local disk. That residue is real and still
+unexplained — see "The one open measurement" below.
+
 ## The path, traced
 
 One CSV upload flow crosses these:
 
-| Step | Code | S3 calls |
-| ---- | ---- | -------- |
-| `POST /v1/files/temp-upload` | `backend/app/api/v1/files.py` → `files_store.write_file` into `tmp/<ts>/` | put_object + metadata sidecar |
-| `POST /v1/sync/dispatch` | job row, then `run_job` under the `MAX_CONCURRENT_JOBS=4` semaphore | — |
-| move | `DataIngestionProvider._move_to_processing` (`backend/app/services/data_ingestion/base_provider.py`) | head_object, **copy_object**, delete_object, + sidecar |
-| read | `files_store.get_file(processing_path)` | get_object |
-| archive | `_move_to_processed` | head_object, copy_object, delete_object, + sidecar |
+| Step                         | Code                                                                                                 | S3 calls                                               |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `POST /v1/files/temp-upload` | `backend/app/api/v1/files.py` → `files_store.write_file` into `tmp/<ts>/`                            | put_object + metadata sidecar                          |
+| `POST /v1/sync/dispatch`     | job row, then `run_job` under the `MAX_CONCURRENT_JOBS=4` semaphore                                  | —                                                      |
+| move                         | `DataIngestionProvider._move_to_processing` (`backend/app/services/data_ingestion/base_provider.py`) | head_object, **copy_object**, delete_object, + sidecar |
+| read                         | `files_store.get_file(processing_path)`                                                              | get_object                                             |
+| archive                      | `_move_to_processed`                                                                                 | head_object, copy_object, delete_object, + sidecar     |
 
 The move itself lands in `enacit4r-files` 1.2.0 (`enacit4r_files/services/s3.py`),
 pinned by tag in `backend/pyproject.toml`.
@@ -41,7 +77,7 @@ pinned by tag in `backend/pyproject.toml`.
 1. **The reported message is the dependency's, character for character.**
    `S3FilesStore.move_file` wraps its body in `try/except Exception` and
    does `logging.exception(f"Error moving file from {source_path} to
-   {destination_path}")`, then
+{destination_path}")`, then
    `raise S3Error(f"Error moving file from … to …: {e}") from e`.
    So the failure is an **exception raised inside `S3Service.move_file`**
    — i.e. in `copy_object` or `delete_object`. It is not a falsy return,
@@ -52,8 +88,10 @@ pinned by tag in `backend/pyproject.toml`.
    calls `copy_file()` (`copy_object`) and, only if that returned
    non-`False`, `delete_file()` (`delete_object`) — two network round
    trips, non-atomic. `LocalFilesStore.move_file` is `shutil.move`, a
-   same-filesystem rename with no network at all. That asymmetry is the
-   whole 56% vs 0.8% gap.
+   same-filesystem rename with no network at all. That asymmetry is why
+   the S3 path can fail on a transient network fault where the local path
+   structurally cannot — it is a mechanism, not (per the Correction above)
+   a measured gap.
 
 3. **The app never retries the move.** `_move_to_processing` calls it
    once. The exception propagates through `_setup_and_validate` to
@@ -69,9 +107,9 @@ pinned by tag in `backend/pyproject.toml`.
    `if not await self.files_store.move_file(...)` and builds a message
    from `_diagnose_move_failure` on a falsy return. In the pinned 1.2.0:
 
-   | Store | On failure |
-   | ----- | ---------- |
-   | `S3FilesStore.move_file` | **raises `S3Error`**, original chained (their #24) |
+   | Store                       | On failure                                               |
+   | --------------------------- | -------------------------------------------------------- |
+   | `S3FilesStore.move_file`    | **raises `S3Error`**, original chained (their #24)       |
    | `LocalFilesStore.move_file` | still `except Exception: logging.error(…); return False` |
 
    So the falsy-return branch and `_diagnose_move_failure` are **dead
@@ -117,55 +155,88 @@ pinned by tag in `backend/pyproject.toml`.
 ## Root-cause hypotheses, ranked
 
 **H1 — the move has no retry, so any transient S3 fault is fatal.**
-*Proven* (fact 3), and sufficient on its own to explain the shape: fails
+_Proven_ (fact 3), and sufficient on its own to explain the shape: fails
 at 5 uploaders, worse at 20, near-zero on a store with no network. This
 is the one certain defect, and it is worth fixing whatever turns out to
 be underneath it.
 
 **H2 — client accumulation from never calling `close()`.**
-*Mechanism proven* (fact 5), *magnitude unproven*. At
+_Mechanism proven_ (fact 5), _magnitude untested_ — the 56% run it was
+originally ranked against is void (Correction above), and no clean
+S3-concurrency measurement has replaced it yet. At
 `MAX_CONCURRENT_JOBS=4` × 2–3 replicas and ~18 flows/min the
-accumulation is bounded, and aiohttp closes transports on GC — so this
-fits a failure rate that **climbs over the run** better than a flat 56%.
-If the 20-user failures were spread evenly rather than rising, H2 is not
-the driver.
+accumulation is bounded, and aiohttp closes transports on GC, so this
+mechanism is real but its contribution to any real-world rate is
+unknown until a valid-topology run exists.
 
 **H3 — endpoint-side throttling or connection caps on the S3-compatible
-store.** *Suspected.* Failure rate scaling with concurrency and the ~70×
-local/S3 gap both point at the network path. Whether it is 503/`SlowDown`
-(which botocore `standard` retry mode absorbs by itself) or
-`ClientConnectorError` / `ConnectTimeoutError` (which needs pool sizing)
-cannot be decided from the code.
+store.** _Suspected, untested._ The scaling-with-concurrency signal it
+was ranked on came from the void 56% run — there is currently no
+evidence for or against this beyond the mechanism being plausible for
+any S3-compatible store under load. Whether it would show as
+503/`SlowDown` (which botocore `standard` retry mode absorbs by itself)
+or `ClientConnectorError` / `ConnectTimeoutError` (which needs pool
+sizing) cannot be decided from the code.
 
-**H4 — `tmp/` path collision.** *Weak.* `folder_name` is
-`str(datetime.now(UTC).timestamp()).replace(".", "")`, and `CsvUploadUser`
-picks from a handful of fixed filenames — two uploads in the same
-microsecond with the same name would collide. At ~182 flows the odds are
-tiny, and the symptom would be a few "source no longer exists", not 56%.
+**H4 — `tmp/` path collision.** _Weak, confirmed weak by code._
+`folder_name` is computed once per `POST /temp-upload` request
+(`backend/app/api/v1/files.py:358-360`) as
+`str(datetime.datetime.now(UTC).timestamp()).replace(".", "")` —
+Python's `datetime.now()` carries microsecond resolution, so two
+requests would need to land in the same microsecond _and_ pick the same
+filename. `CsvUploadUser` draws from a handful of fixed filenames, so
+the collision requires both conditions at once. At ~182 flows over 10
+minutes the odds are tiny, and the symptom would be an occasional
+"source no longer exists", not a large fraction of flows.
 
-**H5 — a retry re-moving an already-moved file.** *Falsified* in the
+**H5 — a retry re-moving an already-moved file.** _Falsified_ in the
 issue by `attempts = 1`, and independently by #1559's destination-exists
 check already at the top of `_move_to_processing`.
 
-### The one measurement that reorders this list
+### The one open measurement
 
-`logging.exception` wrote a traceback next to every `Error moving file`
-line. The exception class discriminates H2/H3 and decides whether Step 3
-below is sufficient on its own:
+The only real signal left after the Correction is the local-store run's
+**3/378 failures (0.8%)** — on a store where the split-topology
+`NoSuchKey` cannot arise, so these are genuine `tmp → processing`
+failures. `LocalFilesStore.move_file` returns `False` rather than
+raising, so these three went through the falsy-return branch and
+`_diagnose_move_failure` (fact 4) — that diagnosis string, if the job
+rows still exist, would say more than the code alone can. This session
+has no network path to the dev DB (`co2-dev.postgresql.dbaas.intranet.epfl.ch`
+is unreachable from outside the EPFL intranet) to pull it; whoever has
+intranet + DB access should check `data_ingestion_jobs.meta.status_history`
+for those three rows (if the local run was against the dev DB) or the
+local run's own DB otherwise. Until then this is genuinely open, not
+just unpursued — the plan should not read as if #2528 is closed once
+Step 1 ships.
+
+`logging.exception` also wrote a traceback next to every `Error moving
+file` line in the void 56% run, but that traceback is no longer useful:
+the Correction already identifies the exception (`NoSuchKey`) and its
+cause (split topology), so pulling dev-pod logs for that window would
+just confirm what is already known. **Do not re-run this kubectl
+command** (kept here only so nobody re-derives it independently):
 
 ```bash
 kubectl --context svc1751d-co2-calculator-dev/… -n svc1751d-co2-calculator-dev \
   logs -l app.kubernetes.io/name=co2-calculator-backend --since=48h --tail=-1 \
   | grep -A 20 'Error moving file'
-# repeat for the worker deployment
 ```
-
-Dev-cluster credentials were expired while writing this plan, so this is
-**open**. Nothing below is blocked by it except the sizing numbers.
 
 ## The fix
 
-### Step 1 — bounded idempotent retry at the single choke point
+**Scope decision (maintainer, PR #2535, 2026-08-30T11:49Z):** "Fix the
+`enacit4r-files` contract drift app-side now, and upstream too... Keep
+the plan; drop the priority until a clean measurement exists." Read
+against the Correction above, that means: **Step 1 ships now** — it is
+the contract-drift fix (fact 4, handling both signals) and is correct
+regardless of what any concurrency measurement eventually shows. **Steps
+2 and 3 are deferred** — both were sized and ordered against the void
+56% run (pool sizing against an assumed connection-exhaustion rate,
+"ship Step 3 first" against an assumed throttling signal); revisit them
+once a clean-topology measurement exists to size against.
+
+### Step 1 — bounded idempotent retry at the single choke point (ship now)
 
 `DataIngestionProvider._move_to_processing`, in `base_provider.py`. All
 four CSV providers route through it, so this is one guard instead of
@@ -206,7 +277,7 @@ single-shot behaviour and will need rewriting rather than just extending
 and `test_base_csv_provider.py` around line 1418. They must keep
 asserting that an exhausted retry still fails loudly.
 
-### Step 2 — one `S3Service` per process, with a sized pool (atomic)
+### Step 2 — one `S3Service` per process, with a sized pool (atomic, deferred)
 
 - Replace the four per-provider `make_files_store()` calls with the
   process-wide singleton already in `app/api/v1/files.py`.
@@ -228,20 +299,20 @@ Two wrinkles to settle in review:
   alternative is adding `async def close()` to the `FilesStore` base
   upstream in `enacit4r-files` and bumping the tag. **Maintainer picks.**
 - The three providers use inline `from app.api.v1.files import
-  make_files_store` imports to dodge a circular import (against the
+make_files_store` imports to dodge a circular import (against the
   imports-at-top rule). Importing the singleton has the same problem, so
   either keep the inline import or move `make_files_store` out of
   `api/v1/files.py` into a service module. Prefer the move.
 
-### Step 3 — botocore retry tuning, zero code
+### Step 3 — botocore retry tuning, zero code (deferred)
 
 `enacit4r-files` documents `AWS_RETRY_MODE` / `AWS_MAX_ATTEMPTS` as the
 supported knobs. Set `AWS_RETRY_MODE=standard` and `AWS_MAX_ATTEMPTS=5`
 on the backend and worker deployments in the chart. `standard` mode
 retries a broader, better-defined set (throttling including `SlowDown`,
-5xx, connection errors) than the `legacy` default. **Ship this first** —
-if the traceback shows a `ClientError`, it may absorb H3 on its own, and
-it is a one-line revert.
+5xx, connection errors) than the `legacy` default. Cheap and a one-line
+revert, but there is no longer a traceback or a rate to justify shipping
+it ahead of a measurement — revisit alongside Step 2.
 
 ### Explicitly out of scope
 
@@ -255,55 +326,83 @@ Deterministic, in CI — `backend/tests/unit/services/data_ingestion/test_base_p
 mirroring the #1559 tests already there. Patch `asyncio.sleep` so the
 backoff costs nothing.
 
-| Test | Setup | Fails today because |
-| ---- | ----- | ------------------- |
-| `…retries_transient_storage_error` | `file_exists` → False; `move_file` `side_effect=[S3Error(…), True]` | the first exception propagates; there is no retry (S3 contract) |
-| `…retries_falsy_move_return` | `move_file` `side_effect=[False, True]` | a falsy return fails the job on the first try (local-store contract — the half a catch-only fix would break) |
-| `…raises_after_exhausting_retries` | `move_file` always raises | (guards the fix: the error must still escape — no silent fallback — and the attempt count must be bounded) |
-| `…rechecks_destination_between_attempts` | `move_file` raises once, then `file_exists` → True | asserts `move_file` awaited exactly once: idempotency must hold *across* retries, not just across job attempts |
-| `…retries_when_existence_probe_fails` | `file_exists` `side_effect=[S3Error(…), False]` | a probe fault must be retried, never misread as "destination absent" |
-| `…providers_share_one_files_store` | assert `provider.files_store is` the process singleton | each provider builds its own `S3Service` today |
+| Test                                     | Setup                                                               | Fails today because                                                                                            |
+| ---------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `…retries_transient_storage_error`       | `file_exists` → False; `move_file` `side_effect=[S3Error(…), True]` | the first exception propagates; there is no retry (S3 contract)                                                |
+| `…retries_falsy_move_return`             | `move_file` `side_effect=[False, True]`                             | a falsy return fails the job on the first try (local-store contract — the half a catch-only fix would break)   |
+| `…raises_after_exhausting_retries`       | `move_file` always raises                                           | (guards the fix: the error must still escape — no silent fallback — and the attempt count must be bounded)     |
+| `…rechecks_destination_between_attempts` | `move_file` raises once, then `file_exists` → True                  | asserts `move_file` awaited exactly once: idempotency must hold _across_ retries, not just across job attempts |
+| `…retries_when_existence_probe_fails`    | `file_exists` `side_effect=[S3Error(…), False]`                     | a probe fault must be retried, never misread as "destination absent"                                           |
+| `…providers_share_one_files_store`       | assert `provider.files_store is` the process singleton              | each provider builds its own `S3Service` today                                                                 |
 
-Acceptance gate — manual, against dev + S3, the actual reproduction:
+Acceptance gate for Step 1 is the six unit tests above (CI, deterministic).
+The load-test acceptance gate below is for **Steps 2/3, once they are
+un-deferred** — do not run it to validate Step 1 alone, and do not run
+it at all until the topology is fixed:
 
 ```bash
 make perf-load PERF_CLASSES=CsvUploadUser PERF_USERS=20 PERF_TIME=10m
 ```
 
-Pass = `FLOW csv upload e2e` failure rate ≤ the local-store baseline
-(0.8%) **and** zero `Error moving file` lines in the pod logs for the
-window. Run the 5-user stage first as a cheap smoke.
+**Do not fire this against the current `backend/.env`** — it points at
+the shared dev DB (`co2-dev.postgresql.dbaas.intranet.epfl.ch`), and per
+the Correction above, a run with `S3_BUCKET` commented out reproduces
+the split-topology bug, not a real measurement. Getting a clean number
+first requires one process to both serve `temp-upload` and execute the
+job (poller ON, `S3_BUCKET` actually uncommented, or a run driven
+through a real deployment's public API) — see the maintainer's
+"How to get a real number" note on issue #2528.
+
+Pass, once run cleanly = `FLOW csv upload e2e` failure rate ≤ the
+local-store baseline (0.8%) **and** zero `Error moving file` lines in
+the pod logs for the window. Run the 5-user stage first as a cheap
+smoke.
 
 ## Rollout and verification
 
-1. Ship **Step 3** (chart env) alone. One revert-able release, and it
-   measures how much the retry knob buys on its own. Re-run the 5-user
-   stage.
-2. Ship **Steps 1 + 2**. Re-run 5, then 20.
-3. Watch, before and after: `Error moving file` count, `Unclosed client
-   session` warnings, pod fd count, event-loop lag (already reported by
-   `app/tasks/_event_loop_lag.py`), and GlitchTip for `S3Error`.
-4. Sweep `tmp/` for orphans left by the failed runs and record the count
-   in the issue — it sizes the GC follow-up.
+1. **Ship Step 1 now** (contract-drift fix, maintainer-approved). CI
+   gate only — no perf-load run needed to ship this, since it is correct
+   independent of any concurrency rate.
+2. **Open the upstream `enacit4r-files` PR** aligning the two backends'
+   `move_file` contract (Open Question 5) — the maintainer has said they
+   will do this; track it here rather than leave it silently assumed
+   done.
+3. **Get a clean concurrency measurement** (topology fixed, per the
+   Correction) before reviving Steps 2/3. Re-run 5-user, then 20-user.
+4. If the clean run still shows meaningful S3-path failures, ship
+   **Steps 2 + 3** together (they are sized against each other — see the
+   "ship together" note in Step 2) and watch, before and after:
+   `Error moving file` count, `Unclosed client session` warnings, pod fd
+   count, event-loop lag (`app/tasks/_event_loop_lag.py`), and GlitchTip
+   for `S3Error`.
+5. Sweep `tmp/` for orphans left by any failed runs (including the void
+   56% run and the 3 local failures) and record the count in the issue —
+   it sizes the GC follow-up (Open Question 6).
 
 ## Open questions
 
-1. **The traceback** (blocks the ranking, not the plan): exception class
-   from the dev pods for 2026-08-30 09:05–09:15 UTC. `ClientError` /
-   `SlowDown` → Step 3 may be enough on its own. `ClientConnectorError` /
-   `ConnectTimeoutError` → Steps 1 + 2 are load-bearing.
-2. Were the 20-user failures spread evenly across the 10 minutes, or
-   climbing? Climbing supports H2 (leak); flat argues against it.
+1. ~~The traceback~~ **Answered, and void.** The maintainer pulled it
+   from `meta.status_history`: `NoSuchKey` on `CopyObject`, caused by the
+   split file store, not a transient fault (see Correction). No dev-pod
+   log fetch needed or wanted for this window.
+2. ~~Flat vs climbing~~ **Void.** This existed only to decide between H2
+   and H3 for a 56% rate that does not exist. Revisit only once a clean
+   S3-concurrency run produces a real rate to characterize.
 3. What is the dev S3 endpoint (MinIO / Ceph RGW / AWS), and does it cap
-   connections or request rate per client? That sets
-   `S3_MAX_POOL_CONNECTIONS`.
+   connections or request rate per client? Still relevant for sizing
+   `S3_MAX_POOL_CONNECTIONS` **if** a clean measurement later shows
+   Step 2 is warranted — not urgent before then.
 4. `close()` on the `FilesStore` base upstream (cleaner, needs a tag
    bump), or an `isinstance` discriminator in the lifespan (no dependency
-   change)?
-5. Should the divergent `move_file` contract (fact 4 — S3 raises, local
-   returns `False`) be aligned upstream in `enacit4r-files` in the same
-   tag bump? Handling both app-side is the smaller diff today and is what
-   this plan assumes, but it leaves a dependency whose two backends
-   signal failure differently.
+   change)? Only matters once Step 2 is un-deferred.
+5. **Answered (maintainer, PR #2535, 2026-08-30T11:49Z):** align the
+   divergent `move_file` contract upstream in `enacit4r-files`, in
+   addition to handling both signals app-side (Step 1). No upstream PR
+   exists yet as of 2026-09-02 (checked `EPFL-ENAC/enacit4r-files` open
+   PRs/issues) — the maintainer said they would open it; track that here
+   rather than assume it is done.
 6. Do the `tmp/` GC and "recover a move-failed job without re-upload"
-   ship here, or as follow-up issues?
+   ship here, or as follow-up issues? Still open. Also still open: the
+   3/378 local-store failures (0.8%) have no diagnosis yet — see "The one
+   open measurement" above — so #2528 should stay open even after Step 1
+   ships, not be closed as resolved.
