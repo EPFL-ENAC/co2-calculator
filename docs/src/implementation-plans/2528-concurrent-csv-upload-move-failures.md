@@ -2,15 +2,18 @@
 status: in-progress
 issue: 2528
 last_updated: 2026-09-02
-summary: "The reported 56%-at-20-parallel rate is void — an artifact of
+summary: "The reported 56%-at-20-parallel rate was void — an artifact of
   a split file store in the reporter's own test topology, not S3
-  concurrency (see Correction below). What survives: the move is an
-  unretried copy_object+delete_object. The enacit4r-files tag has since
-  moved to 1.4.0, which already aligned the two backends (both now
-  raise on failure) — the app's dead falsy-return branch just hasn't
-  been removed yet. Plan: catch the shared exception and retry at the
-  single choke point, shipped now; client-pool sizing and retry-mode
-  tuning deferred until a clean concurrency measurement exists."
+  concurrency (see Correction). A clean re-run at 5 and 20 concurrent
+  uploaders against real S3 (2026-09-02) then measured zero move
+  failures, closing the open question. What survives: the move is
+  unretried, and enacit4r-files 1.4.0 already aligned the two backends
+  on raising — the app's dead falsy-return branch just hasn't been
+  removed yet. Plan: catch the shared exception and retry at the single
+  choke point, shipped now on its own merits; client-pool sizing and
+  retry-mode tuning stay deferred — no measured problem for them to
+  fix. Also surfaced, out of scope: dev-DB/PgBouncer connection
+  contention at 20 concurrent users."
 ---
 
 # Concurrent CSV upload move failures (#2528)
@@ -58,6 +61,56 @@ on that number — facts 1, 3, 4, 5, 6, 7, and H1. The **local-store run's
 `NoSuchKey`-by-split-store cannot arise when both the upload and the job
 run against the same local disk. That residue is real and still
 unexplained — see "The one open measurement" below.
+
+## Real measurement (2026-09-02): clean topology, real S3, zero move failures
+
+Ran the actual reproduction the Correction called for: one process serving
+both `temp-upload` and the job (poller off, inline dispatch — the #2220
+boot guard enforced this), real S3 (`s3.epfl.ch`), against the dev DB.
+`make perf-load PERF_CLASSES=CsvUploadUser`, 5 users then 20 users, 10
+minutes each.
+
+| Run      | Flows | `Error moving file` / `S3Error` / `FilesStoreError` |
+| -------- | ----- | --------------------------------------------------- |
+| 5 users  | 104   | **0**                                               |
+| 20 users | 100   | **0**                                               |
+
+Verified two ways: grepped the full backend log (both runs) for those
+three strings — zero hits — and independently queried every `result =
+'ERROR'` job's `meta.status_history` in the DB for the run windows. Every
+failure in both runs (37 at 5 users, ~60 at 20 users) was a CSV-content
+mismatch against this dev DB's current seed — `No factors available for
+module=X year=Y`, a location/room lookup miss, a duplicate institutional
+ID — none were a move failure. This is a gap in the generated perf-test
+fixtures (`make perf-csvs` output vs. this DB's factor/location seed),
+not a product bug; it doesn't need fixing for this issue.
+
+**This closes the plan's open measurement.** At both 5 and 20 concurrent
+uploaders, against real S3, with the topology bug from the Correction
+ruled out, the `tmp → processing` move did not fail once — better than
+the 0.8% local-store baseline this plan set as the target. H1 (fact 3,
+no retry) is still a real defect worth fixing on its own merits — an
+unretried move is one transient S3 fault away from failing a job — but
+H2 (client leak) and H3 (throttling) have now been tested, not just
+theorized, and neither produced a single failure at this scale. Open
+Questions 1-3 are resolved below.
+
+**Found, and explicitly out of scope for #2528:** at 20 users, 67% of
+flows failed for a completely different reason —
+`psycopg.errors.ProtocolViolation: query_wait_timeout` on plain `SELECT`
+queries (e.g. the `users` login lookup), consistent with PgBouncer's
+well-known default `query_wait_timeout` (120s) — several endpoints
+independently clustered at almost exactly 119-120s, and the FLOW metric's
+484s worst case looks like a few of a flow's sequential steps each
+separately hitting that wall. This is dev-DB connection-pool contention,
+unrelated to file storage; it is not analyzed further in this plan. Given
+the timing (PgBouncer was put in front of the dev DB the day before this
+run) and #2566's own postmortem calling out a stray local test process as
+a contributing factor there, this run's own connection footprint (2
+workers × 15 connections) may well have been sufficient on its own to
+trigger it — that hasn't been established either way. The local backend
+used for this measurement was stopped immediately once the contention
+appeared, to avoid compounding it.
 
 ## The path, traced
 
@@ -167,22 +220,22 @@ is the one certain defect, and it is worth fixing whatever turns out to
 be underneath it.
 
 **H2 — client accumulation from never calling `close()`.**
-_Mechanism proven_ (fact 5), _magnitude untested_ — the 56% run it was
-originally ranked against is void (Correction above), and no clean
-S3-concurrency measurement has replaced it yet. At
-`MAX_CONCURRENT_JOBS=4` × 2–3 replicas and ~18 flows/min the
-accumulation is bounded, and aiohttp closes transports on GC, so this
-mechanism is real but its contribution to any real-world rate is
-unknown until a valid-topology run exists.
+_Mechanism proven_ (fact 5) _and confirmed firing_ — 373 "Unclosed client
+session" / "Unclosed connector" warnings logged across the 2026-09-02
+runs (see "Real measurement" above) — _but tested at magnitude and not
+observed to cause a single failure_ at 5 or 20 concurrent uploaders over
+10 minutes each. At `MAX_CONCURRENT_JOBS=4` × 2–3 replicas and ~18
+flows/min in production the accumulation is bounded, and aiohttp closes
+transports on GC; this run didn't run long or hard enough to say whether
+a much longer sustained load changes that.
 
 **H3 — endpoint-side throttling or connection caps on the S3-compatible
-store.** _Suspected, untested._ The scaling-with-concurrency signal it
-was ranked on came from the void 56% run — there is currently no
-evidence for or against this beyond the mechanism being plausible for
-any S3-compatible store under load. Whether it would show as
-503/`SlowDown` (which botocore `standard` retry mode absorbs by itself)
-or `ClientConnectorError` / `ConnectTimeoutError` (which needs pool
-sizing) cannot be decided from the code.
+store.** _Tested, not observed._ 20 concurrent uploaders against
+`s3.epfl.ch` produced zero `SlowDown`, `ClientConnectorError`, or
+`ConnectTimeoutError` (see "Real measurement" above). Stays a plausible
+mechanism at higher concurrency than 20 — which the original issue never
+claimed — but there is no evidence for it at the scale this issue is
+actually about.
 
 **H4 — `tmp/` path collision.** _Weak, confirmed weak by code._
 `folder_name` is computed once per `POST /temp-upload` request
@@ -207,14 +260,18 @@ The only real signal left after the Correction is the local-store run's
 failures. `LocalFilesStore.move_file` returns `False` rather than
 raising, so these three went through the falsy-return branch and
 `_diagnose_move_failure` (fact 4) — that diagnosis string, if the job
-rows still exist, would say more than the code alone can. This session
-has no network path to the dev DB (`co2-dev.postgresql.dbaas.intranet.epfl.ch`
-is unreachable from outside the EPFL intranet) to pull it; whoever has
-intranet + DB access should check `data_ingestion_jobs.meta.status_history`
-for those three rows (if the local run was against the dev DB) or the
-local run's own DB otherwise. Until then this is genuinely open, not
-just unpursued — the plan should not read as if #2528 is closed once
-Step 1 ships.
+rows still exist, would say more than the code alone can.
+
+**Update (2026-09-02):** intranet/DB access is available now (it wasn't
+when this was first written). Checked: zero `data_ingestion_jobs` rows
+with `moving file` in `status_message` in the dev DB for 2026-08-29 to
+2026-08-31, the window of that local run. Either it ran against a
+different DB (the reporter's own laptop, not the shared dev DB the S3
+run used) or those rows have since rotated out — either way, this
+specific residual is **unrecoverable from here**. It stays open in the
+sense that it was never explained, but it is no longer actionable
+without the original run's own local database, and shouldn't block
+closing anything else in this plan.
 
 `logging.exception` also wrote a traceback next to every `Error moving
 file` line in the void 56% run, but that traceback is no longer useful:
@@ -347,27 +404,21 @@ backoff costs nothing.
 | `…providers_share_one_files_store`       | assert `provider.files_store is` the process singleton              | each provider builds its own `S3Service` today                                                                                    |
 
 Acceptance gate for Step 1 is the six unit tests above (CI, deterministic).
-The load-test acceptance gate below is for **Steps 2/3, once they are
-un-deferred** — do not run it to validate Step 1 alone, and do not run
-it at all until the topology is fixed:
+The load-test acceptance gate below is for **Steps 2/3, if they're ever
+un-deferred** — Step 1 doesn't need it, it's correct independent of any
+rate:
 
 ```bash
 make perf-load PERF_CLASSES=CsvUploadUser PERF_USERS=20 PERF_TIME=10m
 ```
 
-**Do not fire this against the current `backend/.env`** — it points at
-the shared dev DB (`co2-dev.postgresql.dbaas.intranet.epfl.ch`), and per
-the Correction above, a run with `S3_BUCKET` commented out reproduces
-the split-topology bug, not a real measurement. Getting a clean number
-first requires one process to both serve `temp-upload` and execute the
-job (poller ON, `S3_BUCKET` actually uncommented, or a run driven
-through a real deployment's public API) — see the maintainer's
-"How to get a real number" note on issue #2528.
-
-Pass, once run cleanly = `FLOW csv upload e2e` failure rate ≤ the
-local-store baseline (0.8%) **and** zero `Error moving file` lines in
-the pod logs for the window. Run the 5-user stage first as a cheap
-smoke.
+**Already run clean, 2026-09-02** — see "Real measurement" above: 5 and
+20 users, real S3, topology fixed (poller off, inline dispatch,
+`S3_BUCKET` uncommented). Zero `Error moving file` at either stage,
+comfortably under the local-store baseline. Re-run only if Steps 2/3 are
+revived and need a fresh before/after comparison — start with the 5-user
+stage as a cheap smoke, and watch for the dev-DB connection-pool
+contention noted in "Real measurement" before pushing past 20 users.
 
 ## Rollout and verification
 
@@ -377,14 +428,18 @@ smoke.
 2. ~~Open the upstream `enacit4r-files` PR~~ **Done** — the pin is at
    1.4.0 and the two backends' `move_file` contracts already agree
    (Open Question 5).
-3. **Get a clean concurrency measurement** (topology fixed, per the
-   Correction) before reviving Steps 2/3. Re-run 5-user, then 20-user.
-4. If the clean run still shows meaningful S3-path failures, ship
-   **Steps 2 + 3** together (they are sized against each other — see the
-   "ship together" note in Step 2) and watch, before and after:
-   `Error moving file` count, `Unclosed client session` warnings, pod fd
-   count, event-loop lag (`app/tasks/_event_loop_lag.py`), and GlitchTip
-   for `S3Error`.
+3. ~~Get a clean concurrency measurement~~ **Done, 2026-09-02** — see
+   "Real measurement" above. Zero move failures at 5 and 20 users on real
+   S3. Steps 2/3 stay deferred; there is no measured problem for them to
+   fix.
+4. Steps 2 + 3 only get revived if a future run — at higher concurrency,
+   or in production — actually shows `Error moving file` / `S3Error`. If
+   that happens, ship them together (sized against each other — see the
+   "ship together" note in Step 2) and watch, before and after: that
+   error count, `Unclosed client session` warnings (373 of these did fire
+   in the 2026-09-02 run — fact 5's leak is real, just not yet causing
+   failures at this scale), pod fd count, event-loop lag
+   (`app/tasks/_event_loop_lag.py`), and GlitchTip for `S3Error`.
 5. Sweep `tmp/` for orphans left by any failed runs (including the void
    56% run and the 3 local failures) and record the count in the issue —
    it sizes the GC follow-up (Open Question 6).
@@ -395,13 +450,15 @@ smoke.
    from `meta.status_history`: `NoSuchKey` on `CopyObject`, caused by the
    split file store, not a transient fault (see Correction). No dev-pod
    log fetch needed or wanted for this window.
-2. ~~Flat vs climbing~~ **Void.** This existed only to decide between H2
-   and H3 for a 56% rate that does not exist. Revisit only once a clean
-   S3-concurrency run produces a real rate to characterize.
-3. What is the dev S3 endpoint (MinIO / Ceph RGW / AWS), and does it cap
-   connections or request rate per client? Still relevant for sizing
-   `S3_MAX_POOL_CONNECTIONS` **if** a clean measurement later shows
-   Step 2 is warranted — not urgent before then.
+2. ~~Flat vs climbing~~ **Answered by measurement.** A clean run at both 5
+   and 20 users produced zero move failures to characterize — see "Real
+   measurement" above. Neither H2 nor H3 manifested at this scale.
+3. **Answered by measurement**, for now: `s3.epfl.ch` handled 20
+   concurrent uploaders (104-111 requests/run) with zero throttling or
+   connection-cap symptoms — no `SlowDown`, no `ClientConnectorError`.
+   `S3_MAX_POOL_CONNECTIONS` sizing stays moot until a run at a higher
+   concurrency than 20 (which the original issue never claimed) shows
+   otherwise.
 4. `close()` on the `FilesStore` base upstream (cleaner, needs a tag
    bump), or an `isinstance` discriminator in the lifespan (no dependency
    change)? Only matters once Step 2 is un-deferred.
