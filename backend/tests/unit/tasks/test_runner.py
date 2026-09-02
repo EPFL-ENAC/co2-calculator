@@ -390,7 +390,7 @@ async def test_run_job_handler_poisons_job_session_still_marks_error():
 
     When a handler raises an exception that left ``job_session`` in a
     PendingRollbackError state (e.g. an uncaught IntegrityError from a
-    chain_job INSERT tripping ``uq_emission_recalc_active``), the
+    chain_job INSERT tripping ``uq_emission_recalc_active_unscoped``), the
     runner must roll back ``job_session`` BEFORE the preempt-check so
     ``get_job_by_id`` / ``finish_job`` can run and the job is durably
     written FINISHED+ERROR.
@@ -444,7 +444,8 @@ async def test_run_job_handler_poisons_job_session_still_marks_error():
         # Simulate an uncaught IntegrityError that poisoned the
         # session — the message mirrors the production stack.
         raise RuntimeError(
-            'duplicate key value violates unique constraint "uq_emission_recalc_active"'
+            "duplicate key value violates unique constraint "
+            '"uq_emission_recalc_active_unscoped"'
         )
 
     with (
@@ -463,7 +464,7 @@ async def test_run_job_handler_poisons_job_session_still_marks_error():
     repo.finish_job.assert_awaited_once()
     _, kwargs = repo.finish_job.call_args
     assert kwargs["result"] == IngestionResult.ERROR
-    assert "uq_emission_recalc_active" in kwargs["status_message"]
+    assert "uq_emission_recalc_active_unscoped" in kwargs["status_message"]
 
 
 # ---------------------------------------------------------------------------
