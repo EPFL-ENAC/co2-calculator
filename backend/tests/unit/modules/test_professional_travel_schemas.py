@@ -13,8 +13,10 @@ from pydantic import ValidationError
 from app.modules.professional_travel.data_entries import (
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelPlaneHandlerResponse,
+    ProfessionalTravelPlaneHandlerUpdate,
     ProfessionalTravelTrainHandlerCreate,
     ProfessionalTravelTrainHandlerResponse,
+    ProfessionalTravelTrainHandlerUpdate,
 )
 from app.modules.professional_travel.emissions import (
     PLANE_CABIN_MAP,
@@ -159,4 +161,55 @@ def test_plane_factor_create_rejects_classes_outside_cabin_map(
     with pytest.raises(ValidationError, match="cabin class"):
         TravelPlaneFactorCreate.model_validate(
             {**_PLANE_FACTOR, "cabin_class": cabin_class}
+        )
+
+
+# Update DTOs never had the cabin-class mixin applied at all (Create-only),
+# so an edit could carry an invalid cabin_class past input validation and
+# only fail later, at emission-calculation time, as an
+# EmissionTypeResolutionError instead of a 422 — same class of gap #2440
+# fixed for Create, just on the other DTO.
+
+_UPDATE_META = {"data_entry_type_id": 1, "carbon_report_module_id": 1, "data": {}}
+
+
+def test_plane_update_omitted_cabin_class_is_untouched() -> None:
+    item = ProfessionalTravelPlaneHandlerUpdate.model_validate(_UPDATE_META)
+    assert item.cabin_class is None
+
+
+@pytest.mark.parametrize("cabin_class", sorted(PLANE_CABIN_MAP))
+def test_plane_update_accepts_each_cabin_map_key(cabin_class: str) -> None:
+    item = ProfessionalTravelPlaneHandlerUpdate.model_validate(
+        {**_UPDATE_META, "cabin_class": cabin_class}
+    )
+    assert item.cabin_class == cabin_class
+
+
+@pytest.mark.parametrize("cabin_class", ["first", "eco", "premium"])
+def test_plane_update_rejects_classes_outside_cabin_map(cabin_class: str) -> None:
+    with pytest.raises(ValidationError, match="cabin class"):
+        ProfessionalTravelPlaneHandlerUpdate.model_validate(
+            {**_UPDATE_META, "cabin_class": cabin_class}
+        )
+
+
+def test_train_update_omitted_cabin_class_is_untouched() -> None:
+    item = ProfessionalTravelTrainHandlerUpdate.model_validate(_UPDATE_META)
+    assert item.cabin_class is None
+
+
+@pytest.mark.parametrize("cabin_class", sorted(TRAIN_CLASS_MAP))
+def test_train_update_accepts_each_class_map_key(cabin_class: str) -> None:
+    item = ProfessionalTravelTrainHandlerUpdate.model_validate(
+        {**_UPDATE_META, "cabin_class": cabin_class}
+    )
+    assert item.cabin_class == cabin_class
+
+
+@pytest.mark.parametrize("cabin_class", ["economy", "business", "third"])
+def test_train_update_rejects_classes_outside_class_map(cabin_class: str) -> None:
+    with pytest.raises(ValidationError, match="cabin class"):
+        ProfessionalTravelTrainHandlerUpdate.model_validate(
+            {**_UPDATE_META, "cabin_class": cabin_class}
         )
