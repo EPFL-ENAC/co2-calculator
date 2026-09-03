@@ -350,7 +350,7 @@ frontend:
     # empty string → src/boot/matomo.ts loads no tracker, so an unconfigured
     # deploy sends nothing. One Matomo site per instance — the real ids are set
     # per-cluster in the ops repo.
-    APP_MATOMO_URL: "https://enac-webanalytics.epfl.ch/"
+    APP_MATOMO_URL: "https://enac-webanalytics.epfl.ch/piwik/"
     APP_MATOMO_SITE_ID: ""
     # Project-planner horizon: bounds for the plan start/end year selects.
     # No code default — unset leaves the year selects empty.

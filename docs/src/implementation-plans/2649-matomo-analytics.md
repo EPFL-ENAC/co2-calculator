@@ -3,7 +3,7 @@ status: in-progress
 issue: 2649
 last_updated: 2026-09-03
 title: "Frontend usage analytics — self-hosted Matomo (ENAC web analytics)"
-summary: "Adds cookieless Matomo page-view tracking to the Quasar SPA, gated on a per-instance site id. Config follows the existing runtime-injection chain (.env.example → quasar.config.js → runtime.ts → entrypoint.sh → Helm), with APP_MATOMO_URL defaulting to https://enac-webanalytics.epfl.ch/ and APP_MATOMO_SITE_ID unset by default so dev/CI/unconfigured deploys stay silent. Tracked URLs are normalized to route patterns so unit acronyms never leave the app."
+summary: "Adds cookieless Matomo page-view tracking to the Quasar SPA, gated on a per-instance site id. Config follows the existing runtime-injection chain (.env.example → quasar.config.js → runtime.ts → entrypoint.sh → Helm), with APP_MATOMO_URL defaulting to https://enac-webanalytics.epfl.ch/piwik/ and APP_MATOMO_SITE_ID unset by default so dev/CI/unconfigured deploys stay silent. Tracked URLs are normalized to route patterns so unit acronyms never leave the app."
 ---
 
 # Frontend usage analytics — self-hosted Matomo
@@ -12,7 +12,7 @@ summary: "Adds cookieless Matomo page-view tracking to the Quasar SPA, gated on 
 
 Issue #2649: we have no usage data — which modules are opened, which pages are
 abandoned, whether the back-office is used at all. We want the ENAC IT4R
-self-hosted, open-source option (Matomo at `https://enac-webanalytics.epfl.ch/`),
+self-hosted, open-source option (Matomo at `https://enac-webanalytics.epfl.ch/piwik/`),
 not a third-party SaaS.
 
 The app ships **one Vite bundle to dev/stage/prod** (`docker/entrypoint.sh` →
@@ -25,10 +25,10 @@ config chain, exactly like `APP_SENTRY_DSN`.
 Two new `APP_*` variables, resolved in `src/config/runtime.ts` with the same
 `injected || import.meta.env || default` cascade as every other value there:
 
-| Variable             | Default                              | Behaviour                                                                    |
-| -------------------- | ------------------------------------ | ---------------------------------------------------------------------------- |
-| `APP_MATOMO_URL`     | `https://enac-webanalytics.epfl.ch/` | Code default (like `APP_MAP_TILE_STYLE_URL`). Trailing slash normalized.     |
-| `APP_MATOMO_SITE_ID` | _(unset)_                            | **The on/off switch.** Empty → no script loaded, no requests (like the DSN). |
+| Variable             | Default                                    | Behaviour                                                                    |
+| -------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- |
+| `APP_MATOMO_URL`     | `https://enac-webanalytics.epfl.ch/piwik/` | Code default (like `APP_MAP_TILE_STYLE_URL`). Trailing slash normalized.     |
+| `APP_MATOMO_SITE_ID` | _(unset)_                                  | **The on/off switch.** Empty → no script loaded, no requests (like the DSN). |
 
 **One Matomo site per instance** (dev / stage / prod each get their own site id
 from the ENAC analytics admin), rather than one site plus an environment
