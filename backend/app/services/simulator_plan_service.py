@@ -51,7 +51,7 @@ from app.schemas.simulator_plan import (
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.factor_resolver import FactorResolver
-from app.utils.factor_year import resolve_factor_year
+from app.utils.factor_year import resolve_factor_year, resolve_factor_year_safe
 from app.utils.report_stats import merge_report_stats
 
 logger = get_logger(__name__)
@@ -668,6 +668,7 @@ class SimulatorPlanService:
         if report.id is None:
             raise ValueError("report must be persisted before use")
         modules = await self.report_service.module_service.list_modules(report.id)
+        factor_year = await resolve_factor_year_safe(self.session, report)
         return SimulatorPlanYearRead(
             id=report.id,
             year=report.year,
@@ -677,6 +678,7 @@ class SimulatorPlanService:
             budget_currency=report.budget_currency,
             stats=report.stats,
             modules=modules,
+            factor_year=factor_year,
         )
 
     async def prefill_module_from_reference(

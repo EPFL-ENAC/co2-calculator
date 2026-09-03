@@ -209,7 +209,7 @@ type CommonProps = {
   unitId: number;
   year: string | number;
   /** Year whose factors the class/subclass options resolve against — see ModuleForm. */
-  factorYear?: number | null;
+  factorYear: number | null;
   /** Plan-year report id; when set, module calls address it directly. */
   carbonReportId?: number;
   /** Planner prefilled: show the reference-kg column + % slider. */
@@ -244,7 +244,6 @@ const props = withDefaults(defineProps<SubModuleSectionProps>(), {
   data: null,
   submoduleType: undefined,
   carbonReportId: undefined,
-  factorYear: undefined,
   showReferenceColumns: undefined,
   projectYearsCount: null,
   percentageLocked: false,

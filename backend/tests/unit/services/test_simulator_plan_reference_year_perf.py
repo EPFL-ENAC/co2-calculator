@@ -25,6 +25,7 @@ import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
@@ -39,7 +40,8 @@ from app.models.carbon_report import CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
-from app.models.user import GlobalScope, Role, RoleName, User
+from app.models.user import GlobalScope, Role, RoleName, User, UserProvider
+from app.models.year_configuration import YearConfiguration
 from app.modules.emissions.taxonomy import EmissionType
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportCreate
@@ -1134,6 +1136,18 @@ async def test_recalculate_report_emissions_scales_for_purchase_module_too(
     plan-year report's own purchase module, and ``_recalculate_report_emissions``
     is called directly rather than through ``set_reference_year``.
     """
+    # No reference year and no Calculator report (#2651): factor pricing
+    # falls through to the N-1/N-2 tail, so it needs a started year — same
+    # shape a real "planning-only" unit would have.
+    user.provider = UserProvider.DEFAULT
+    async_session.add(
+        YearConfiguration(
+            year=datetime.now(UTC).year - 1,
+            provider=UserProvider.DEFAULT,
+            is_started=True,
+        )
+    )
+    await async_session.flush()
     service = SimulatorPlanService(async_session)
 
     async def isolated_recalc(entry_count: int, unit_id: int) -> StatementLog:

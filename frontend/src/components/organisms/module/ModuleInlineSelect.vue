@@ -29,7 +29,6 @@ import {
   buildingRoomPatchPayload,
 } from '@/utils/buildingRoomInline';
 import { sortByOrder } from '@/utils/options';
-import { resolveFactorYear } from '@/utils/factor-year';
 
 const moduleStore = useModuleStore();
 
@@ -57,11 +56,11 @@ type CommonProps = {
   unitId: number;
   year: string | number;
   /**
-   * Year whose factors the class/subclass options come from. See ModuleForm —
-   * the Simulator Plan passes its reference year, `null` when unset. `year`
-   * stays the row's own year: it addresses the entry for the PATCH.
+   * Year whose factors the class/subclass options come from. See ModuleForm.
+   * `null` when unresolvable. `year` stays the row's own year: it addresses
+   * the entry for the PATCH.
    */
-  factorYear?: number | null;
+  factorYear: number | null;
   carbonReportId?: number;
   disable?: boolean;
 };
@@ -69,9 +68,7 @@ type CommonProps = {
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
-const factorYear = computed(() =>
-  resolveFactorYear(props.factorYear, props.year),
-);
+const factorYear = toRef(props, 'factorYear');
 const isClass = computed(() => props.optionsId === 'kind');
 const isSubClass = computed(() => props.optionsId === 'subkind');
 

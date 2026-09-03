@@ -1,12 +1,9 @@
 """Carbon Report API endpoints."""
 
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.policy import (
     require_explore_ownership,
@@ -16,6 +13,7 @@ from app.core.policy import (
 )
 from app.db import SessionLocal
 from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import (
@@ -30,49 +28,49 @@ from app.schemas.carbon_report import (
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
+from app.utils.factor_year import resolve_factor_year_safe
 from app.workflows.explore_provisioning import ExploreProvisioningWorkflow
 
 
-async def _refresh_explore_background(
-    unit_id: int, old_report_id: int, reference_year: int, created_by: int
+async def _explore_report_read(
+    db: AsyncSession, report: CarbonReport | CarbonReportRead
+) -> CarbonReportRead:
+    """Build an Explore response carrying its resolved factor year (#2631)."""
+    factor_year = await resolve_factor_year_safe(db, report)
+    return CarbonReportRead.model_validate(report).model_copy(
+        update={"factor_year": factor_year}
+    )
+
+
+async def _cleanup_old_explore_background(
+    unit_id: int, created_by: int, keep_project_id: int
 ) -> None:
-    """Delete a stale Simulator Explore report and create a fresh one.
+    """Delete the user's other Simulator Explore sandboxes for a unit (#2656).
 
-    Runs as a FastAPI background task after the response has been sent.
-    Opens its own session so the request session lifetime is not a concern.
-    The new report starts empty — Simulator Explore is not seeded from Calculator.
+    Runs as a FastAPI background task right after a fresh sandbox is
+    created and the response has been sent. Opens its own session so the
+    request session lifetime is not a concern. Replaces the old TTL-refresh
+    task: creation and cleanup are now two separate, explicit steps.
+
+    Caught and logged, not re-raised: the response is already sent, so a
+    failure here can only be surfaced through logs. Mirrors the same
+    catch-log-move-on shape as the other background tasks in this codebase
+    (``app/tasks/audit_sync_tasks.py``) — a failed cleanup leaves stale
+    sandboxes behind rather than crashing anything, and the next
+    "start exploration" call sweeps them along with the one from this run.
     """
-    async with SessionLocal() as db:
-        service = CarbonReportService(db)
-        await service.delete(old_report_id)
-        await service.create_explore(
-            unit_id=unit_id, reference_year=reference_year, created_by=created_by
-        )
-        await db.commit()
-
-
-def _schedule_explore_refresh_if_stale(
-    result: CarbonReportRead,
-    *,
-    unit_id: int,
-    reference_year: int,
-    created_by: int,
-    background_tasks: BackgroundTasks,
-) -> None:
-    """Queue ``_refresh_explore_background`` once ``result`` ages past its TTL.
-
-    Shared by the GET route (repeat reads via ``resolveCarbonReportId``) and
-    the PUT route (#2487) so staleness is defined in exactly one place.
-    """
-    now_ts = int(datetime.now(UTC).timestamp())
-    age = now_ts - int(result.last_updated or 0)
-    if result.last_updated is None or age > get_settings().EXPLORE_TTL_SECONDS:
-        background_tasks.add_task(
-            _refresh_explore_background,
-            unit_id=unit_id,
-            old_report_id=result.id,
-            reference_year=reference_year,
-            created_by=created_by,
+    try:
+        async with SessionLocal() as db:
+            service = CarbonReportService(db)
+            await service.delete_old_explore(
+                unit_id=unit_id, created_by=created_by, keep_project_id=keep_project_id
+            )
+            await db.commit()
+    except Exception as exc:
+        logger.error(
+            f"Explore sandbox cleanup failed for unit_id={unit_id} "
+            f"created_by={created_by} keep_project_id={keep_project_id}: {exc}",
+            exc_info=True,
         )
 
 
@@ -126,22 +124,20 @@ async def create_carbon_report(
 
 
 @router.get(
-    "/simulator/explore/unit/{unit_id}/reference-year/{reference_year}/",
+    "/simulator/explore/unit/{unit_id}/",
     response_model=CarbonReportRead,
 )
 async def get_simulator_explore_carbon_report(
     unit_id: int,
-    reference_year: int,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get an existing Simulator Explore carbon report.
+    """Get the user's current Simulator Explore sandbox for a unit.
 
-    If the report has exceeded its TTL (EXPLORE_TTL_SECONDS) a background task
-    is scheduled
-    to delete the stale report and seed a fresh one — the current (stale)
-    report is returned immediately so the user is not blocked.
+    Read-only: no create-fallback (404 if none exists yet), no staleness
+    handling — #2656 removed the year key and the TTL refresh entirely. A
+    sandbox exists only once a POST creates it, and is replaced, not
+    refreshed, by the next POST.
     """
     unit = await db.get(Unit, unit_id)
     require_unit_access(current_user, unit)
@@ -151,43 +147,32 @@ async def get_simulator_explore_carbon_report(
             detail="User ID missing",
         )
     service = CarbonReportService(db)
-    result = await service.get_explore(
-        unit_id=unit_id, reference_year=reference_year, created_by=current_user.id
-    )
+    result = await service.get_explore(unit_id=unit_id, created_by=current_user.id)
     if result is None:
         raise HTTPException(
             status_code=404, detail="Simulator Explore report not found"
         )
-
-    _schedule_explore_refresh_if_stale(
-        result,
-        unit_id=unit_id,
-        reference_year=reference_year,
-        created_by=current_user.id,
-        background_tasks=background_tasks,
-    )
-
-    return result
+    return await _explore_report_read(db, result)
 
 
-@router.put(
-    "/simulator/explore/unit/{unit_id}/reference-year/{reference_year}/",
+@router.post(
+    "/simulator/explore/unit/{unit_id}/",
     response_model=CarbonReportRead,
+    status_code=status.HTTP_201_CREATED,
 )
-async def put_simulator_explore_carbon_report(
+async def create_simulator_explore_carbon_report(
     unit_id: int,
-    reference_year: int,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Idempotent Simulator Explore sandbox: create on first call, return
-    the existing one on every call after (#2487).
+    """Start a new Simulator Explore sandbox (#2656).
 
-    Replaces the GET(404) + POST pair the frontend used to orchestrate —
-    two round trips, and the 404-as-control-flow race #2483 had to
-    SAVEPOINT-guard. A stale existing sandbox is refreshed in the
-    background and returned as-is immediately, matching the GET route.
+    Always creates — no idempotency, no existence check. "Start an
+    exploration" (a page mount or a refresh alike) always gets a brand-new
+    empty sandbox; the caller's other sandboxes for this unit are deleted in
+    the background right after. Replaces the old idempotent PUT (#2487) and
+    the 24h TTL refresh it triggered.
     """
     unit = await db.get(Unit, unit_id)
     require_unit_access(current_user, unit)
@@ -196,19 +181,21 @@ async def put_simulator_explore_carbon_report(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User ID missing",
         )
-    result = await ExploreProvisioningWorkflow(db).ensure(
-        unit_id=unit_id,
-        reference_year=reference_year,
-        created_by=current_user.id,
+    result = await ExploreProvisioningWorkflow(db).create(
+        unit_id=unit_id, created_by=current_user.id
     )
-    _schedule_explore_refresh_if_stale(
-        result,
+    if result.carbon_project_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Explore sandbox created without a project id",
+        )
+    background_tasks.add_task(
+        _cleanup_old_explore_background,
         unit_id=unit_id,
-        reference_year=reference_year,
         created_by=current_user.id,
-        background_tasks=background_tasks,
+        keep_project_id=result.carbon_project_id,
     )
-    return result
+    return await _explore_report_read(db, result)
 
 
 @router.get("/{carbon_report_id}", response_model=CarbonReportRead)

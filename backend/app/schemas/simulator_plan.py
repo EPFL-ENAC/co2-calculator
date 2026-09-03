@@ -123,6 +123,11 @@ class SimulatorPlanYearRead(BaseModel):
     #: for; otherwise the client polls this job before trusting the year's
     #: entries and stats.
     prefill_job_id: int | None = None
+    #: Resolved factor year (#2651): ``reference_year`` when set, else the
+    #: unit's latest Calculator year, else the same N-1/N-2 fallback Explore
+    #: uses. None only when none of those found anything published. Never
+    #: this row's own ``year`` — see ``resolve_factor_year``.
+    factor_year: int | None = None
 
     class Config:
         from_attributes = True

@@ -84,7 +84,9 @@
           {{
             yearData.reference_year
               ? $t('planner_reference_year_rebuild_hint')
-              : $t('planner_reference_year_hint', { year: factorYear })
+              : factorYear != null
+                ? $t('planner_reference_year_hint', { year: factorYear })
+                : $t('planner_reference_year_hint_unavailable')
           }}
         </div>
       </q-card-section>
@@ -524,8 +526,6 @@ const props = defineProps<{
   planId: number;
   yearData: SimulatorPlanYear;
   unitId: number;
-  /** Latest Calculator report year of the unit (factor fallback). */
-  defaultFactorYear: number | null;
   referenceYearOptions: { label: string; value: number }[];
   /** `${year}-${module}` of every expanded module across the page. */
   expandedKeys: string[];
@@ -622,15 +622,11 @@ async function saveBudget() {
 
 const hasReferenceYear = computed(() => props.yearData.reference_year !== null);
 
-// Factor year, mirroring the backend chain (`resolve_factor_year`): the
-// reference year wins, then the unit's latest Calculator report year, then
-// the plan year itself (units without any Calculator report).
-const factorYear = computed(
-  () =>
-    props.yearData.reference_year ??
-    props.defaultFactorYear ??
-    props.yearData.year,
-);
+// Backend-resolved (#2651/#2656): reference year, else the unit's latest
+// Calculator year, else the same N-1/N-2 tail Explore uses — never this
+// row's own (possibly far-future) planning year. See
+// `resolve_factor_year`; not reimplemented here to avoid drift.
+const factorYear = computed(() => props.yearData.factor_year);
 
 const GRID_MODULES: Module[] = [MODULES.Headcount, MODULES.Purchase];
 

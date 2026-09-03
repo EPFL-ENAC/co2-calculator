@@ -335,15 +335,65 @@ test.describe('Explorer — Headcount (Personnel)', () => {
       ['51', 0.8],
       ['student', 1],
     ]);
+  });
+});
+
+test.describe('Explorer — sandbox lifecycle (#2656)', () => {
+  test('provisions the sandbox with a year-agnostic POST, not a PUT keyed by reference-year', async ({
+    page,
+    context,
+  }) => {
+    const backend = await openExplorer(page, context);
+    const provisioning = backend.requests.filter((r) =>
+      r.url.includes('/carbon-reports/simulator/explore/unit/10/'),
+    );
+    expect(provisioning).toHaveLength(1);
+    expect(provisioning[0].method).toBe('POST');
+    expect(provisioning[0].url).not.toContain('reference-year');
+  });
+
+  test('reloading starts a new exploration: prior data does not survive', async ({
+    page,
+    context,
+  }) => {
+    const backend = await openExplorer(page, context);
+
+    // Seed a row through the same endpoint the Headcount form's auto-save
+    // hits — via fetch rather than the form UI, since this suite's DOM
+    // interactions are unrelated to #2656 and shouldn't gate this check.
+    await page.evaluate(async (reportId) => {
+      await fetch(
+        `/api/v1/carbon-reports/${reportId}/modules/headcount/planner_headcount`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sius_code: '51', fte: 0.8 }),
+        },
+      );
+    }, EXPLORER_REPORT_ID);
+    await expect
+      .poll(
+        () =>
+          backend.rows(EXPLORER_REPORT_ID, 'headcount', 'planner_headcount')
+            .length,
+      )
+      .toBe(1);
 
     await page.reload();
     await expect(page.locator('.q-expansion-item').first()).toBeVisible();
-    const again = await openModule(page, 'Headcount');
-    await expect(fteInput(again, 'Scientific collaborators')).toHaveValue(
-      '0.4',
+
+    // A second, independent POST — not a cached/idempotent reuse of the
+    // first — and the row from before the reload is gone: a refresh
+    // always starts a brand-new, empty sandbox (#2656), by design.
+    const provisioning = backend.requests.filter(
+      (r) =>
+        r.method === 'POST' &&
+        r.url.includes('/carbon-reports/simulator/explore/unit/10/'),
     );
-    await expect(fteInput(again, 'Professors')).toHaveValue('0.8');
-    await expect(fteInput(again, 'Students')).toHaveValue('1');
+    expect(provisioning).toHaveLength(2);
+    expect(
+      backend.rows(EXPLORER_REPORT_ID, 'headcount', 'planner_headcount'),
+    ).toHaveLength(0);
   });
 });
 

@@ -34,12 +34,18 @@ export function resolveCarbonProject(
 }
 
 /**
- * The endpoint that resolves unit + year to this project's report id.
+ * The endpoint that resolves unit (+ year, calculator only) to this
+ * project's report id.
  *
  * A plan holds one report per year per plan, so unit/year cannot identify one:
  * planner callers pass the report id and never come here. Reaching this with
  * the planner is a bug, and it throws rather than falling back to the
  * Calculator — that fallback would write plan edits into real Calculator data.
+ *
+ * `year` is ignored for the explorer (#2656): the sandbox is unkeyed by
+ * year now, so callers still pass whatever year is in context (it only
+ * matters for the module store's own report-id cache key) but it never
+ * reaches the URL.
  */
 export function carbonReportLookupPath(
   project: CarbonProject,
@@ -47,12 +53,11 @@ export function carbonReportLookupPath(
   year: number | string,
 ): string {
   const u = encodeURIComponent(unit);
-  const y = encodeURIComponent(year);
   switch (project) {
     case CARBON_PROJECT.explorer:
-      return `carbon-reports/simulator/explore/unit/${u}/reference-year/${y}/`;
+      return `carbon-reports/simulator/explore/unit/${u}/`;
     case CARBON_PROJECT.calculator:
-      return `carbon-reports/unit/${u}/year/${y}/`;
+      return `carbon-reports/unit/${u}/year/${encodeURIComponent(year)}/`;
     case CARBON_PROJECT.planner:
       throw new Error('Planner module calls must pass a carbonReportId');
   }

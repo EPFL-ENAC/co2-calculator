@@ -305,21 +305,19 @@ class ExplorerReadUser(CO2User):
 
     @task(1)
     def explore_read(self):
-        path = (
-            f"/v1/carbon-reports/simulator/explore/unit/{self.pick_unit()}"
-            f"/reference-year/{self.pick_year()}/"
-        )
+        # #2656: no year in the path any more — one sandbox per unit+user.
+        path = f"/v1/carbon-reports/simulator/explore/unit/{self.pick_unit()}/"
         with self.client.get(
             path,
             name="/v1/carbon-reports/simulator/explore/...",
             catch_response=True,
         ) as resp:
             if resp.status_code == 404:
-                # No explore report yet for this (unit, year) — create it
-                # (PUT), like the frontend does on first visit.
+                # No explore sandbox yet — start one (POST), like the
+                # frontend does on first visit.
                 resp.success()
-                self.client.put(
-                    path, name="PUT /v1/carbon-reports/simulator/explore/..."
+                self.client.post(
+                    path, name="POST /v1/carbon-reports/simulator/explore/..."
                 )
 
 
@@ -375,10 +373,10 @@ class ExploreCreateUser(CO2User):
 
     @task
     def create_explore(self):
-        self.client.put(
-            f"/v1/carbon-reports/simulator/explore/unit/{self.pick_unit()}"
-            f"/reference-year/{self.pick_year()}/",
-            name="PUT /v1/carbon-reports/simulator/explore/...",
+        # #2656: POST always creates fresh (no year in the path any more).
+        self.client.post(
+            f"/v1/carbon-reports/simulator/explore/unit/{self.pick_unit()}/",
+            name="POST /v1/carbon-reports/simulator/explore/...",
         )
 
 
