@@ -911,6 +911,16 @@ export async function mockExplorerBackend(
     /.*\/api\/v1\/carbon-reports\/simulator\/explore\/unit\/10\/$/,
     (route) => {
       if (route.request().method() === 'POST') {
+        // A real create always makes a brand-new (empty) sandbox and
+        // deletes the caller's previous ones in the background — the id
+        // stays fixed here (fixture simplicity, nothing in this suite
+        // asserts on report-id churn), but every second-and-later create
+        // must still discard whatever the prior sandbox held.
+        if (exploreReportCreated) {
+          for (const k of [...store.keys()]) {
+            if (k.startsWith(`${EXPLORER_REPORT_ID}/`)) store.delete(k);
+          }
+        }
         exploreReportCreated = true;
         return json(route, MOCK_SIMULATOR_REPORT);
       }
