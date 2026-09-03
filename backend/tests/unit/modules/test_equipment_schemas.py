@@ -292,3 +292,44 @@ def test_equipment_response_accepts_fractional_power_w() -> None:
         }
     )
     assert item.standby_power_w == pytest.approx(2.368421053)
+
+
+def test_equipment_response_new_row_blanks_usage_only() -> None:
+    """A new row keeps its usage inputs empty until entered, but its power
+    columns still show the factor values the emission was computed with.
+    """
+    handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum.it)
+    entry = SimpleNamespace(
+        id=1,
+        data_entry_type_id=DataEntryTypeEnum.it.value,
+        carbon_report_module_id=1,
+        source=None,
+        data={},
+    )
+    factor = {
+        "class": "Laptop",
+        "active_power_w": 30.0,
+        "standby_power_w": 10.0,
+        "active_usage_hours_per_week": 42,
+        "standby_usage_hours_per_week": 126,
+    }
+    new_row = handler.to_response(
+        entry,
+        {
+            "name": "MBP",
+            "equipment_class": "Laptop",
+            "is_new": True,
+            "primary_factor": factor,
+        },
+    )
+    assert new_row.active_usage_hours_per_week is None
+    assert new_row.standby_usage_hours_per_week is None
+    assert new_row.active_power_w == 30.0
+    assert new_row.standby_power_w == 10.0
+
+    old_row = handler.to_response(
+        entry,
+        {"name": "MBP", "equipment_class": "Laptop", "primary_factor": factor},
+    )
+    assert old_row.active_usage_hours_per_week == 42
+    assert old_row.standby_usage_hours_per_week == 126

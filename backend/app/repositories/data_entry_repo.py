@@ -15,7 +15,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.building_room import BuildingRoom
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import (
+    SIMULATOR_REPORT_TYPES,
+    CarbonReport,
+    CarbonReportModule,
+)
 from app.models.classification_translation import (
     DEFAULT_LANG,
     ClassificationTranslation,
@@ -1043,6 +1048,44 @@ class DataEntryRepository:
         ids = (await self.session.execute(page_q)).scalars().all()
         return [int(i) for i in ids]
 
+    @staticmethod
+    def _calculator_equipment_select(*columns: Any, unit_id: int) -> Select:
+        """``columns`` over the unit's Calculator equipment rows only.
+
+        Planner and grant prefill copy the reference year's equipment onto
+        plan rows carrying the same unit, year and ``equipment_id``, so a
+        unit/year filter alone lets a snapshot shadow the Calculator row.
+        Reports without a project (unit-test seeds) count as Calculator.
+        """
+        return (
+            sa_select(*columns)
+            .select_from(DataEntry)
+            .join(
+                CarbonReportModule,
+                col(CarbonReportModule.id) == col(DataEntry.carbon_report_module_id),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReport.id) == col(CarbonReportModule.carbon_report_id),
+            )
+            .outerjoin(
+                CarbonProject,
+                col(CarbonProject.id) == col(CarbonReport.carbon_project_id),
+            )
+            .where(
+                col(DataEntry.unit_id) == unit_id,
+                col(DataEntry.data_entry_type_id).in_(
+                    list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                ),
+                or_(
+                    col(CarbonProject.id).is_(None),
+                    col(CarbonProject.carbon_report_type).not_in(
+                        SIMULATOR_REPORT_TYPES
+                    ),
+                ),
+            )
+        )
+
     async def _prior_equipment_year(
         self, unit_id: int, current_year: int
     ) -> int | None:
@@ -1052,13 +1095,9 @@ class DataEntryRepository:
         """
         prior_year = (
             await self.session.execute(
-                select(func.max(DataEntry.year)).where(
-                    col(DataEntry.unit_id) == unit_id,
-                    col(DataEntry.year) < current_year,
-                    col(DataEntry.data_entry_type_id).in_(
-                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
-                    ),
-                )
+                self._calculator_equipment_select(
+                    func.max(DataEntry.year), unit_id=unit_id
+                ).where(col(DataEntry.year) < current_year)
             )
         ).scalar_one_or_none()
         return int(prior_year) if prior_year is not None else None
@@ -1080,14 +1119,8 @@ class DataEntryRepository:
         rows = (
             (
                 await self.session.execute(
-                    select(equipment_id)
-                    .where(
-                        col(DataEntry.unit_id) == unit_id,
-                        col(DataEntry.year) == prior_year,
-                        col(DataEntry.data_entry_type_id).in_(
-                            list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
-                        ),
-                    )
+                    self._calculator_equipment_select(equipment_id, unit_id=unit_id)
+                    .where(col(DataEntry.year) == prior_year)
                     .distinct()
                 )
             )
@@ -1112,18 +1145,13 @@ class DataEntryRepository:
             return {}
         rows = (
             await self.session.execute(
-                select(
+                self._calculator_equipment_select(
                     DataEntry.data["equipment_id"].as_string(),
                     *(DataEntry.data[field] for field in EQUIPMENT_USAGE_FIELDS),
+                    unit_id=unit_id,
                 )
-                .where(
-                    col(DataEntry.unit_id) == unit_id,
-                    col(DataEntry.year) == prior_year,
-                    col(DataEntry.data_entry_type_id).in_(
-                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
-                    ),
-                )
-                .order_by(col(DataEntry.id))
+                .where(col(DataEntry.year) == prior_year)
+                .order_by(col(DataEntry.updated_at), col(DataEntry.id))
             )
         ).all()
         usage_by_equipment: dict[str, dict] = {}
