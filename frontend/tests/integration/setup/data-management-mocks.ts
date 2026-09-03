@@ -191,7 +191,8 @@ export async function installInitScripts(
     interface FakeSseRegistry {
       sources: Map<string, FakeEventSource>;
       emit: (id: string, payload: unknown) => void;
-      emitError: (id: string) => void;
+      emitError: (id: string, opts?: { fatal?: boolean }) => void;
+      emitOpen: (id: string) => void;
     }
 
     class FakeEventSource extends EventTarget {
@@ -241,10 +242,20 @@ export async function installInitScripts(
         });
         source.dispatchEvent(evt);
       },
-      emitError(id) {
+      // #2654 — mirrors the browser: a transient drop fires ``error``
+      // with ``readyState === CONNECTING`` (auto-retry pending); only a
+      // fatal failure (non-200 response) leaves it ``CLOSED``.
+      emitError(id, opts) {
         const source = this.sources.get(id);
         if (!source) return;
+        source.readyState = opts?.fatal ? 2 : 0;
         source.onerror?.(new Event('error'));
+      },
+      emitOpen(id) {
+        const source = this.sources.get(id);
+        if (!source) return;
+        source.readyState = 1;
+        source.onopen?.(new Event('open'));
       },
     };
 

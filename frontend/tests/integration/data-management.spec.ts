@@ -589,9 +589,23 @@ test.describe('back-office data-management — happy paths', () => {
       )
       .toBe(true);
 
+    // #2654 — a transient drop (browser auto-reconnecting) must not be
+    // reported as lost: the stream stays open and no toast appears.
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).__sse.emitError('9100');
+    });
+    await expect(page.getByText(/connection lost/i)).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        () => (window as any).__sse?.sources.has('9100') === true,
+      ),
+    ).toBe(true);
+
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__sse.emitError('9100', { fatal: true });
     });
 
     await expect(
