@@ -9,7 +9,6 @@ interface ImportMetaEnv {
   readonly APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL: string;
   readonly APP_ROLES_DOC_URL: string;
   readonly APP_EQUIPMENT_POWER_FEEDBACK_EMAIL: string;
-  readonly APP_MATOMO_URL: string;
   readonly APP_MATOMO_SITE_ID: string;
   readonly APP_PLANNER_MIN_YEAR: string;
   readonly APP_PLANNER_MAX_YEAR: string;

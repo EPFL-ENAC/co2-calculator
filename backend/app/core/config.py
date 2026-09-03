@@ -279,6 +279,16 @@ class Settings(BaseSettings):
         ),
     )
 
+    # Matomo analytics upstream (#2649). The frontend never talks to Matomo
+    # directly — content blockers drop matomo.js/matomo.php by filename — so
+    # every hit goes through /api/v1/analytics/*, and this is the only place
+    # the analytics service location is configured. Per-environment override
+    # in the ops repo, like every other URL here.
+    MATOMO_URL: str = Field(
+        default="https://enac-webanalytics.epfl.ch/piwik/",
+        description="Matomo base URL proxied by /api/v1/analytics (https only)",
+    )
+
     # EPFL Accred API Configuration — required whenever ROLE_PROVIDER_TYPE
     # and/or UNIT_PROVIDER_TYPE is 'accred', enforced at app boot by
     # assert_accred_settings (app/main.py), NOT here: Settings is also

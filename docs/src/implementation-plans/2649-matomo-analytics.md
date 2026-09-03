@@ -3,7 +3,7 @@ status: in-progress
 issue: 2649
 last_updated: 2026-09-03
 title: "Frontend usage analytics — self-hosted Matomo (ENAC web analytics)"
-summary: "Adds cookieless Matomo page-view tracking to the Quasar SPA, gated on a per-instance site id. Config follows the existing runtime-injection chain (.env.example → quasar.config.js → runtime.ts → entrypoint.sh → Helm), with APP_MATOMO_URL defaulting to https://enac-webanalytics.epfl.ch/piwik/ and APP_MATOMO_SITE_ID unset by default so dev/CI/unconfigured deploys stay silent. Tracked URLs are normalized to route patterns so unit acronyms never leave the app."
+summary: "Adds cookieless Matomo page-view tracking to the Quasar SPA, gated on a per-instance site id (APP_MATOMO_SITE_ID, empty = off). The browser never calls Matomo directly: content blockers drop matomo.js/matomo.php by filename, so both the tracker and the hits go through a same-origin backend proxy at /api/v1/analytics, which is also the only place the upstream URL (MATOMO_URL) is configured. Tracked URLs mask unit acronyms and record ids positionally, and drop query strings."
 ---
 
 # Frontend usage analytics — self-hosted Matomo
@@ -22,13 +22,19 @@ config chain, exactly like `APP_SENTRY_DSN`.
 
 ## 2. Configuration design
 
-Two new `APP_*` variables, resolved in `src/config/runtime.ts` with the same
-`injected || import.meta.env || default` cascade as every other value there:
+One frontend variable and one backend variable:
 
-| Variable             | Default                                    | Behaviour                                                                    |
-| -------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- |
-| `APP_MATOMO_URL`     | `https://enac-webanalytics.epfl.ch/piwik/` | Code default (like `APP_MAP_TILE_STYLE_URL`). Trailing slash normalized.     |
-| `APP_MATOMO_SITE_ID` | _(unset)_                                  | **The on/off switch.** Empty → no script loaded, no requests (like the DSN). |
+| Variable             | Side     | Default                                    | Behaviour                                                                     |
+| -------------------- | -------- | ------------------------------------------ | ----------------------------------------------------------------------------- |
+| `APP_MATOMO_SITE_ID` | frontend | _(unset)_                                  | **The on/off switch.** Empty → no script loaded, no requests (like the DSN).  |
+| `MATOMO_URL`         | backend  | `https://enac-webanalytics.epfl.ch/piwik/` | Upstream proxied by `/api/v1/analytics`. https only; a bad value 503s loudly. |
+
+The site id is resolved in `src/config/runtime.ts` with the same
+`injected || import.meta.env || default` cascade as every other value there.
+The **upstream URL is backend config**: the browser never addresses Matomo
+directly (§3b), so shipping the Matomo host to the client would be config
+nobody reads — and the service location belongs on the side that is the source
+of truth.
 
 **One Matomo site per instance** (dev / stage / prod each get their own site id
 from the ENAC analytics admin), rather than one site plus an environment
@@ -39,15 +45,17 @@ misconfigured pod is visible in the data rather than silent.
 
 Wiring, mirroring the Sentry chain end to end:
 
-| File                                       | Change                                                                     |
-| ------------------------------------------ | -------------------------------------------------------------------------- |
-| `frontend/.env.example`                    | Both vars, documented, `APP_MATOMO_SITE_ID=` empty → local dev is silent.  |
-| `frontend/quasar.config.js`                | `build.env`: `APP_MATOMO_URL`, `APP_MATOMO_SITE_ID` from `process.env`.    |
-| `frontend/src/env.d.ts`                    | Two `readonly` entries on `ImportMetaEnv`.                                 |
-| `frontend/src/config/runtime.ts`           | `matomoUrl` (with default) and `matomoSiteId` (no default).                |
-| `helm/values.yaml`                         | `frontend.env` placeholders + comment that ops repo sets the real site id. |
-| `docs/src/architecture/05-environments.md` | Both rows in the frontend env table.                                       |
-| `docker/entrypoint.sh`                     | **No change** — it forwards every `APP_*` var generically.                 |
+| File                                         | Change                                                                    |
+| -------------------------------------------- | ------------------------------------------------------------------------- |
+| `frontend/.env.example`                      | `APP_MATOMO_SITE_ID=` empty → local dev is silent.                        |
+| `frontend/quasar.config.js`                  | `build.env`: `APP_MATOMO_SITE_ID` from `process.env`; boot slot `matomo`. |
+| `frontend/src/env.d.ts`                      | One `readonly` entry on `ImportMetaEnv`.                                  |
+| `frontend/src/config/runtime.ts`             | `matomoSiteId` (no default).                                              |
+| `backend/.env.example`, `app/core/config.py` | `MATOMO_URL` setting, documented, https-only.                             |
+| `helm/values.yaml`                           | `frontend.env` site id + `backend.env` `MATOMO_URL`.                      |
+| `docker-compose.yml`                         | Site id on the frontend service; `MATOMO_URL` rides `backend/.env`.       |
+| `docs/src/architecture/05-environments.md`   | Both rows in the env table.                                               |
+| `docker/entrypoint.sh`                       | **No change** — it forwards every `APP_*` var generically.                |
 
 Per-environment values are set in the ops repo (`enack8s-app-config` /
 `openshift-app-config`), same as the Sentry DSN — no rebuild to enable or
@@ -57,22 +65,25 @@ disable analytics on an instance.
 
 **New — `frontend/src/utils/matomo.ts`** (~80 lines, no npm dependency):
 
-- `initMatomo({ url, siteId, environment })` — no-ops without a site id;
-  otherwise seeds `window._paq`, applies the privacy config below, and injects
-  `<script async src="${url}matomo.js">`. Loading Matomo's own `matomo.js` from
-  the configured host (rather than hand-rolling a beacon, as we did for
-  GlitchTip) is deliberate: the tracker is versioned _with the server we point
-  at_, and opt-out / DoNotTrack / heartbeat / link tracking come for free. It is
-  a runtime script from a configured host, not a new package — no dependency
-  decision to defer to the lead.
+- `initMatomo({ siteId, environment })` — no-ops without a site id; otherwise
+  seeds `window._paq`, applies the privacy config below, and injects
+  `<script async src="/api/v1/analytics/js">`. Loading Matomo's own tracker
+  (rather than hand-rolling a beacon, as we did for GlitchTip) is deliberate:
+  it is versioned _with the server we point at_, and opt-out / DoNotTrack /
+  heartbeat / link tracking come for free. It is a runtime script, not a new
+  package — no dependency decision to defer to the lead.
 - `trackPageView({ url, title, referrer })` — pushes onto `_paq`; safe before
   the script loads (that is what the array queue is for). Custom URL _and_
   referrer are absolute: Matomo resolves a relative URL against the tracker's
   own host, which would attribute every intra-SPA navigation to the analytics
-  server. The injected `<script>` carries `referrerPolicy="no-referrer"` so the
-  tracker host never sees an SPA path in the `Referer` header.
+  server. The injected `<script>` carries `referrerPolicy="no-referrer"`:
+  same-origin now, but the tracker has no use for a `Referer` either way.
 - `buildTrackedUrl(route)` — the normalization described in §4. Pure function,
   unit-tested.
+- The proxy paths (`/api/v1/analytics/js`, `…/track`) are a constant here, not
+  config: the browser has exactly one place to talk to. They deliberately
+  mirror `API_BASE_URL` in `src/api/http.ts` without importing it — that module
+  pulls in the ky client and i18n, which the tracker has no business loading.
 
 **New — `frontend/src/boot/matomo.ts`**, added to the boot array in
 `quasar.config.js` after `sentry`:
@@ -83,6 +94,54 @@ disable analytics on an instance.
 - Skips entirely when `window.__LIGHTHOUSE_BYPASS__` is set, so Lighthouse CI
   runs don't inflate the numbers.
 - Errors stay with GlitchTip — nothing about error reporting changes.
+
+## 3b. Same-origin backend proxy
+
+**Why.** Confirmed in the dev deployment: uBlock Origin blocks the tracker.
+`matomo.js` and `matomo.php` are on the default EasyPrivacy/uBlock lists
+matched **by filename on any host**, so self-hosting at EPFL earns no
+exemption. The request is dropped client-side (`ERR_BLOCKED_BY_CLIENT`) while
+the URL itself is perfectly valid. Nothing in our deployment was at fault —
+there is no CSP in `nginx.conf`, the Helm ingress or `index.html`.
+
+**What.** The backend serves both under neutral paths, Matomo's documented
+proxy setup:
+
+| Path                                | Upstream                  | Notes                                                                   |
+| ----------------------------------- | ------------------------- | ----------------------------------------------------------------------- |
+| `GET /api/v1/analytics/js`          | `${MATOMO_URL}matomo.js`  | Cached in-process for 1 h (changes only on a Matomo upgrade) + browser. |
+| `GET\|POST /api/v1/analytics/track` | `${MATOMO_URL}matomo.php` | One hit forwarded per call.                                             |
+
+- **New** — `backend/app/services/analytics_proxy_service.py` (outbound HTTP,
+  script cache, header policy) and `backend/app/api/v1/analytics.py` (thin
+  route: status translation only). No database, so no repo layer.
+- **Public and out of the OpenAPI schema.** The tracker loads on the login page
+  before any session exists, and nothing calls these through the ky client — a
+  `<script>` tag and the tracker's own XHR do — so they would only be noise in
+  the generated frontend types.
+- **Forwarded:** `X-Forwarded-For` (the real client IP), `User-Agent`,
+  `Accept-Language`, the query string and the POST body.
+  **Never forwarded:** cookies and `Authorization` — our session cookie must
+  not reach the analytics server. A hit carrying `token_auth` is refused with a
+  400 rather than relayed: an authenticated write is not something the browser
+  tracker needs, and this endpoint is unauthenticated. Bodies are capped at
+  64 KB so the endpoint can't be used as a general-purpose relay.
+- **Failure is loud**: unreachable upstream → 502, unusable `MATOMO_URL` → 503.
+  Neither is visible to the user (a failed tracker load is silent in the
+  browser), but both show up in logs and monitoring rather than as missing data.
+
+**⚠️ Depends on Matomo trusting the header.** Matomo honours `X-Forwarded-For`
+only when its own config lists it in `proxy_client_headers`. Without that, every
+hit is attributed to the pod's egress IP — and since we track cookieless, where
+the visitor id derives from IP + user agent, all visitors collapse into one.
+Page-view counts stay right; visitor counts do not. **This must be confirmed
+with the ENAC analytics admins when the site ids are requested.**
+
+**Cost.** The frontend pod is no longer the only thing between the browser and
+the tracker: analytics hits now consume a backend request each. They are small
+and infrequent (one per navigation), and an upstream `httpx.AsyncClient` is
+opened per hit — the same pattern as `taxonomy_cache_broadcast`. If volume ever
+justifies it, a shared client is the first optimization.
 
 ## 4. Privacy posture
 
@@ -118,10 +177,11 @@ not something we enable by default here.
 
 ## 5. CSP
 
-`frontend/nginx.conf` sets no `Content-Security-Policy` today, so nothing
-blocks this. Noted here because the security-in-depth work (#89) will add one:
-it must then allow the Matomo host in `script-src`, `img-src` and `connect-src`,
-and the host must come from the same env var rather than being hardcoded.
+`frontend/nginx.conf` sets no `Content-Security-Policy` today, so nothing blocks
+this. Noted here because the security-in-depth work (#89) will add one: with the
+proxy in place the tracker is same-origin, so `'self'` in `script-src`,
+`img-src` and `connect-src` covers it — no Matomo host to allow-list. That is a
+second, smaller reason to proxy.
 
 ## 6. Tests
 
@@ -136,14 +196,23 @@ Playwright CT runner's Node process with no browser harness:
 - `frontend/tests/unit/matomo-init.spec.ts` — no site id → `isTrackingEnabled`
   false and `matomoInitCommands` empty (so no script is injected); with a site id
   → `disableCookies` queued first, tracker URL and site id set, environment
-  dimension sent, `setUserId` never queued, and `trackerScriptSrc` normalizing an
-  endpoint with or without a trailing slash.
+  dimension sent, `setUserId` never queued, and both proxy paths same-origin and
+  free of the `matomo.js`/`matomo.php` filenames that blockers match on.
 - No e2e: integration runs have no site id, so tracking is off by construction —
   which is what the init spec asserts.
 
+Backend — `backend/tests/unit/services/test_analytics_proxy_service.py`, driving
+the service through an `httpx.MockTransport` (no new test dependency): the
+tracker is fetched once and then served from cache; a hit carries the client IP,
+user agent and language but never a cookie or `Authorization`; a POST body is
+forwarded; `token_auth` is refused rather than relayed; an empty or non-https
+`MATOMO_URL` raises rather than silently disabling tracking.
+
 ## 7. Rollout
 
-1. Request three site ids from the ENAC web analytics admins (dev / stage / prod).
+1. Request three site ids from the ENAC web analytics admins (dev / stage / prod),
+   **and confirm their Matomo trusts `X-Forwarded-For`** (`proxy_client_headers`)
+   — without it the proxy attributes every hit to the pod's IP (§3b).
 2. Merge with all instances unset → zero behaviour change, verifiable in prod.
 3. Set the dev site id in the ops repo, confirm hits land and that no unit
    acronym appears in any tracked URL.
@@ -155,3 +224,6 @@ Playwright CT runner's Node process with no browser harness:
   tracked? They are user-initiated today, so the plan tracks them; excluding
   them is a one-line change if the numbers look inflated.
 - Retention on the Matomo side — ENAC default, or a shorter window? Ops call.
+- The proxy recovers blocker-dropped hits, but nothing recovers a user who
+  blocks the _inline_ queue too, or who has JS disabled. Expect the numbers to
+  undercount somewhat; they are trend data, not attendance records.

@@ -146,8 +146,8 @@ services:
       APP_SENTRY_DSN: "${APP_SENTRY_DSN:-}"
       APP_ENVIRONMENT: "${APP_ENVIRONMENT:-compose}"
       # Matomo analytics. Empty site id keeps tracking off, so a compose run
-      # never sends hits to a real Matomo site by accident.
-      APP_MATOMO_URL: "${APP_MATOMO_URL:-}"
+      # never sends hits to a real Matomo site by accident. The Matomo URL is
+      # backend config (MATOMO_URL).
       APP_MATOMO_SITE_ID: "${APP_MATOMO_SITE_ID:-}"
     labels:
       - "traefik.enable=true"

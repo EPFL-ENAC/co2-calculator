@@ -86,14 +86,11 @@ export const runtimeConfig = {
     injected.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL ||
     (hasViteEnv && import.meta.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL) ||
     '',
-  // Matomo (ENAC web analytics). The endpoint has a code default; the site id
-  // is the on/off switch — empty means src/boot/matomo.ts loads no tracker and
-  // sends nothing, so dev, CI and unconfigured pods stay silent. One Matomo
-  // site per instance (dev/stage/prod), set per-pod via /injectEnv.js.
-  matomoUrl:
-    injected.APP_MATOMO_URL ||
-    (hasViteEnv && import.meta.env.APP_MATOMO_URL) ||
-    'https://enac-webanalytics.epfl.ch/piwik/',
+  // Matomo (ENAC web analytics) site id — the on/off switch: empty means
+  // src/boot/matomo.ts loads no tracker and sends nothing, so dev, CI and
+  // unconfigured pods stay silent. One Matomo site per instance (dev/stage/
+  // prod), set per-pod via /injectEnv.js. The Matomo URL itself is backend
+  // config (MATOMO_URL): the browser only ever talks to our own origin.
   matomoSiteId:
     injected.APP_MATOMO_SITE_ID ||
     (hasViteEnv && import.meta.env.APP_MATOMO_SITE_ID) ||

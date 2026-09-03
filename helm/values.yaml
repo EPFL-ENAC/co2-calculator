@@ -46,6 +46,9 @@ backend:
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "http://localhost:3000" # Change to frontend URL in production
     CSRF_ADDITIONAL_ORIGINS: "" # Extra origins for cookie-auth writes (#89); FRONTEND_URL is already allowed
+    # Matomo upstream proxied by /api/v1/analytics (#2649). The browser never
+    # calls Matomo directly — content blockers drop matomo.js by filename.
+    MATOMO_URL: "https://enac-webanalytics.epfl.ch/piwik/"
     ACCRED_AUTHORIZATION_HEALTHCHECK_URL: "https://url-you-want-to-check"
     MIN_CONFIGURABLE_YEAR: "2025" # Earliest year an admin can create a YearConfiguration for
     APP_MIN_REDUCTION_YEAR: "1990" # Earliest reference year for reduction objective goals
@@ -349,8 +352,8 @@ frontend:
     # Matomo analytics (ENAC web analytics). The site id is the on/off switch:
     # empty string → src/boot/matomo.ts loads no tracker, so an unconfigured
     # deploy sends nothing. One Matomo site per instance — the real ids are set
-    # per-cluster in the ops repo.
-    APP_MATOMO_URL: "https://enac-webanalytics.epfl.ch/piwik/"
+    # per-cluster in the ops repo. The Matomo URL is backend config
+    # (MATOMO_URL): hits go through /api/v1/analytics, never to Matomo directly.
     APP_MATOMO_SITE_ID: ""
     # Project-planner horizon: bounds for the plan start/end year selects.
     # No code default — unset leaves the year selects empty.

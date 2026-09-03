@@ -8,7 +8,6 @@ export default defineBoot(({ router }) => {
   if (window.__LIGHTHOUSE_BYPASS__) return;
 
   initMatomo({
-    url: runtimeConfig.matomoUrl,
     siteId: runtimeConfig.matomoSiteId,
     environment: runtimeConfig.environment,
   });

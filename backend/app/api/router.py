@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    analytics,
     audit,
     auth,
     backoffice,
@@ -29,6 +30,9 @@ from app.api.v1 import (
 api_router = APIRouter()
 
 # Include routers
+# Browser-only Matomo proxy (#2649): content blockers drop matomo.js/matomo.php
+# by filename, so the tracker is served from our own origin instead.
+api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(auth.oauth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(auth.session_router, prefix="/session", tags=["session"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])

@@ -150,11 +150,10 @@ export default defineConfig(function () {
         // in runtimeConfig; in production it comes from /injectEnv.js.
         APP_EQUIPMENT_POWER_FEEDBACK_EMAIL:
           process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL || '',
-        // Matomo analytics (see src/utils/matomo.ts). Empty in dev falls back to
-        // the endpoint default in runtimeConfig; the site id has no default, so
-        // an empty value keeps tracking off. In production both come from
-        // /injectEnv.js.
-        APP_MATOMO_URL: process.env.APP_MATOMO_URL || '',
+        // Matomo site id (see src/utils/matomo.ts). No default, so an empty
+        // value keeps tracking off; in production it comes from /injectEnv.js.
+        // The Matomo URL is backend config (MATOMO_URL) — the browser only
+        // talks to our own origin.
         APP_MATOMO_SITE_ID: process.env.APP_MATOMO_SITE_ID || '',
         // Project-planner year horizon (see src/config/runtime.ts). Empty in
         // dev falls back to the defaults in runtimeConfig; in production it

@@ -1,8 +1,13 @@
 // Matomo (web analytics) page-view tracking.
 //
-// Loads Matomo's own tracker from the configured host rather than hand-rolling
-// a beacon: the tracker is versioned with the server we point at, and opt-out,
-// DoNotTrack and link tracking come with it. No npm dependency.
+// Loads Matomo's own tracker rather than hand-rolling a beacon: it is versioned
+// with the server we point at, and opt-out, DoNotTrack and link tracking come
+// with it. No npm dependency.
+//
+// Both the script and the hits go through our own backend (#2649): content
+// blockers drop `matomo.js` and `matomo.php` by filename whatever host serves
+// them, so a direct call to Matomo is blocked in a large share of browsers.
+// The backend holds the upstream URL — see backend/app/api/v1/analytics.py.
 //
 // Tracking is off unless a site id is configured (one Matomo site per
 // instance), so dev, CI and unconfigured pods stay silent.
@@ -20,10 +25,15 @@ declare global {
 }
 
 export interface MatomoConfig {
-  url: string;
   siteId: string;
   environment: string;
 }
+
+// Same-origin proxy paths. Neutral names on purpose — `/analytics/matomo.js`
+// would be blocked exactly like the upstream URL. Mirrors API_BASE_URL in
+// src/api/http.ts; not imported from there because that module pulls in the ky
+// client and i18n, which the tracker has no business loading.
+const PROXY_BASE = '/api/v1/analytics/';
 
 // Carries the instance label (development/stage/production) so a pod pointed at
 // the wrong site id shows up in the data instead of silently mixing in. Must
@@ -42,26 +52,21 @@ export function isTrackingEnabled(config: MatomoConfig): boolean {
   return config.siteId !== '';
 }
 
-function trackerBaseUrl(url: string): string {
-  return url.endsWith('/') ? url : `${url}/`;
-}
-
-export function trackerScriptSrc(url: string): string {
-  return `${trackerBaseUrl(url)}matomo.js`;
+export function trackerScriptSrc(): string {
+  return `${PROXY_BASE}js`;
 }
 
 // The queue seeded before matomo.js loads. Empty when tracking is disabled —
 // callers use that to skip injecting the script at all.
 export function matomoInitCommands(config: MatomoConfig): MatomoCommand[] {
   if (!isTrackingEnabled(config)) return [];
-  const base = trackerBaseUrl(config.url);
   return [
     // Cookieless: no consent banner and no new i18n strings. Unique-visitor
     // counts become approximate; the page-view trends #2649 asks for don't.
     ['disableCookies'],
     ['enableLinkTracking'],
     ['setCustomDimension', ENVIRONMENT_DIMENSION_ID, config.environment],
-    ['setTrackerUrl', `${base}matomo.php`],
+    ['setTrackerUrl', `${PROXY_BASE}track`],
     ['setSiteId', config.siteId],
   ];
 }
@@ -150,10 +155,10 @@ export function initMatomo(config: MatomoConfig): void {
 
   const script = document.createElement('script');
   script.async = true;
-  // The tracker host has no use for a Referer, and the default policy would
-  // hand it our origin — the unmasked SPA path in older browsers.
+  // Same-origin now, but the tracker has no use for a Referer either way, and
+  // the default policy would hand it the unmasked SPA path.
   script.referrerPolicy = 'no-referrer';
-  script.src = trackerScriptSrc(config.url);
+  script.src = trackerScriptSrc();
   document.head.appendChild(script);
   enabled = true;
 }
