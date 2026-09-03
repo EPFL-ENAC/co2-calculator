@@ -160,9 +160,6 @@ export const useBackofficeDataManagement = defineStore(
     const syncJobs = ref<Record<string, DataIngestionJob[]>>({}); // Initialize as empty object
     const currentYear = ref<number | null>(null);
     let sseConnection: EventSource | null = null;
-    // Consecutive transient stream drops tolerated before the stream is
-    // declared lost; the browser retries every ~3s in between.
-    const MAX_SSE_RECONNECT_ATTEMPTS = 5;
 
     // Computed properties
     const syncJobStatuses = computed<SyncJobStatus[]>(() => {
@@ -493,11 +490,6 @@ provider_type
         // 401-refresh/403-redirect interceptor. It relies on same-origin
         // cookies; on token expiry the stream errors and is retried below.
         sseConnection = new EventSource(`/api/v1/sync/jobs/${jobId}/stream`);
-        let consecutiveErrors = 0;
-
-        sseConnection.onopen = () => {
-          consecutiveErrors = 0;
-        };
 
         sseConnection.onmessage = (event: MessageEvent) => {
           try {
@@ -557,15 +549,6 @@ provider_type
         };
 
         sseConnection.onerror = () => {
-          // A transient drop leaves readyState at CONNECTING while the
-          // browser reconnects; the backend replays the job state on the
-          // new connection. Only a fatal close (non-200 response) or a
-          // sustained outage counts as lost.
-          consecutiveErrors += 1;
-          const fatal = sseConnection?.readyState === EventSource.CLOSED;
-          if (!fatal && consecutiveErrors < MAX_SSE_RECONNECT_ATTEMPTS) {
-            return;
-          }
           unsubscribeFromJobUpdates();
           onError?.();
         };
