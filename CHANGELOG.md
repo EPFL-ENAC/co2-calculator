@@ -1,4 +1,4 @@
-## [1.4.9](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.3...v1.4.9) (2026-09-02)
+## [1.4.10](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.3...v1.4.10) (2026-09-03)
 
 
 ### Bug Fixes
@@ -16,6 +16,7 @@
 * **2401:** train name searchable; planner sius labels; perf record ([cf6e15a](https://github.com/EPFL-ENAC/co2-calculator/commit/cf6e15a97e82bfa22f7361a911e58c5b456d75f2)), closes [#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295) [#2527](https://github.com/EPFL-ENAC/co2-calculator/issues/2527)
 * **2613:** let taxonomy label changes reach cached browsers ([#2613](https://github.com/EPFL-ENAC/co2-calculator/issues/2613)) ([4bde357](https://github.com/EPFL-ENAC/co2-calculator/commit/4bde357b097c592b3a6781b500a999d5bd1008ca)), closes [#2583](https://github.com/EPFL-ENAC/co2-calculator/issues/2583)
 * **2619:** planner headcount FTE rounded and capped to one decimal ([#2619](https://github.com/EPFL-ENAC/co2-calculator/issues/2619)) ([45940a3](https://github.com/EPFL-ENAC/co2-calculator/commit/45940a3ccaa9dabd0b418db58e748ff30197e09b)), closes [#2318](https://github.com/EPFL-ENAC/co2-calculator/issues/2318)
+* **analytics:** mask tracked URLs positionally and send absolute referrers ([#2649](https://github.com/EPFL-ENAC/co2-calculator/issues/2649)) ([e437ca8](https://github.com/EPFL-ENAC/co2-calculator/commit/e437ca8997839672dbeee763ce115dcf9301ff5f))
 * **auth:** close the second role-wipe path and stop locking users out ([1ef3c94](https://github.com/EPFL-ENAC/co2-calculator/commit/1ef3c94ed3d432d4023dcc3ef412daa758eeef77))
 * **auth:** stop role sync wiping JWT-claims users; distinct perf VUs ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([27c4a3e](https://github.com/EPFL-ENAC/co2-calculator/commit/27c4a3eaa23df273138d3df352677446704884e7))
 * **auth:** stop role sync wiping roles when the provider returns nothing ([#2531](https://github.com/EPFL-ENAC/co2-calculator/issues/2531)) ([572e885](https://github.com/EPFL-ENAC/co2-calculator/commit/572e8858f7cc6a9e4742d406a0cbf06ea46f6c1a)), closes [#2526](https://github.com/EPFL-ENAC/co2-calculator/issues/2526)
@@ -41,10 +42,14 @@
 * **db:** enable TCP keepalives on Postgres connections ([#2566](https://github.com/EPFL-ENAC/co2-calculator/issues/2566)) ([02b1fc3](https://github.com/EPFL-ENAC/co2-calculator/commit/02b1fc3a41dcb12357f1028a651cb12878ee9286))
 * **db:** keep pool DEBUG chatter out of the app log namespace ([#2572](https://github.com/EPFL-ENAC/co2-calculator/issues/2572)) ([221c4ce](https://github.com/EPFL-ENAC/co2-calculator/commit/221c4ce7405871577c6ab83c3999e6e100e04b8e)), closes [#2573](https://github.com/EPFL-ENAC/co2-calculator/issues/2573)
 * **docs:** re-audit PR [#2326](https://github.com/EPFL-ENAC/co2-calculator/issues/2326) plan-status bulk flip, re-flip 3 false positives ([486f6a8](https://github.com/EPFL-ENAC/co2-calculator/commit/486f6a871c54a7c37218345a15df16c580cd8e30))
+* **docs:** unquoted colon in plan frontmatter summary broke YAML parse ([#2656](https://github.com/EPFL-ENAC/co2-calculator/issues/2656)) ([a331ba5](https://github.com/EPFL-ENAC/co2-calculator/commit/a331ba5a1b2ef8377e80363a86d36d3898fe2a0e))
 * drop the same dead factor counter in the Tableau API-ingestion path ([#996](https://github.com/EPFL-ENAC/co2-calculator/issues/996)) ([3717e3f](https://github.com/EPFL-ENAC/co2-calculator/commit/3717e3fe7b494481ab017289ae96149c55ee389b))
 * drop unreliable rows_with_factors/rows_without_factors CSV ingest counter ([#996](https://github.com/EPFL-ENAC/co2-calculator/issues/996)) ([8f86f05](https://github.com/EPFL-ENAC/co2-calculator/commit/8f86f0574d6c3b93536e598f4b6310b4d6e06376))
 * enforce module activation on Simulation Explorer charts ([#2357](https://github.com/EPFL-ENAC/co2-calculator/issues/2357)) ([630c231](https://github.com/EPFL-ENAC/co2-calculator/commit/630c23195d7050b05e70801c9bb5bd2606432de1)), closes [#2465](https://github.com/EPFL-ENAC/co2-calculator/issues/2465)
 * english typo ([1a0c914](https://github.com/EPFL-ENAC/co2-calculator/commit/1a0c91470f5a955efefbcc5abe1cb4d3adbb73f6))
+* **explorer,planner:** wire the resolved factor year into the UI ([#2656](https://github.com/EPFL-ENAC/co2-calculator/issues/2656), [#2651](https://github.com/EPFL-ENAC/co2-calculator/issues/2651)) ([ace4371](https://github.com/EPFL-ENAC/co2-calculator/commit/ace43713f37977fbc65955073c9bec82182eabda)), closes [utils/factor-year.ts#resolveFactorYear](https://github.com/utils/factor-year.ts/issues/resolveFactorYear)
+* **explorer:** log background cleanup failures, pin the real two-tab race ([#2656](https://github.com/EPFL-ENAC/co2-calculator/issues/2656)) ([c249731](https://github.com/EPFL-ENAC/co2-calculator/commit/c2497319012e13a055a364dfc31940610b7ad974))
+* **explorer:** make simulator explore sandbox year-agnostic ([#2656](https://github.com/EPFL-ENAC/co2-calculator/issues/2656)) ([0a2a47b](https://github.com/EPFL-ENAC/co2-calculator/commit/0a2a47bc052e7f81fd328901d3d22e1b57e2669e))
 * filter per-FTE breakdown by validated buckets ([#2440](https://github.com/EPFL-ENAC/co2-calculator/issues/2440)) ([a1c3cb9](https://github.com/EPFL-ENAC/co2-calculator/commit/a1c3cb90aa507b5e2118c38d9cff090fd7ccb447))
 * french typo ([969a590](https://github.com/EPFL-ENAC/co2-calculator/commit/969a590dcb3d257ec00cd2910730ae30ab6be548))
 * **frontend:** grey home chart icons by access not status ([#2443](https://github.com/EPFL-ENAC/co2-calculator/issues/2443)) ([18f877f](https://github.com/EPFL-ENAC/co2-calculator/commit/18f877fa87d4d17475dfef3b4a41831f0a6e75a4))
@@ -58,6 +63,7 @@
 * **helm:** derive frontend/docs rollout strategy from replica floor too ([8c048f9](https://github.com/EPFL-ENAC/co2-calculator/commit/8c048f9a42612773a983172fd944278f0ab281e8)), closes [#2638](https://github.com/EPFL-ENAC/co2-calculator/issues/2638)
 * **helm:** scope DB_POOL_SIZE to dev instead of the chart default ([#2566](https://github.com/EPFL-ENAC/co2-calculator/issues/2566)) ([d3d2f4e](https://github.com/EPFL-ENAC/co2-calculator/commit/d3d2f4e8cf46245774de7f1b0dc0f894cbb32830))
 * **helm:** stop rendering RUN_BACKGROUND_POLLER twice in Deployment env ([ddedc9a](https://github.com/EPFL-ENAC/co2-calculator/commit/ddedc9ad9457d18c38d0928eca83c9e699ee8076)), closes [openshift-app-config#28](https://github.com/openshift-app-config/issues/28)
+* ignore transient SSE errors for job stream ([#2654](https://github.com/EPFL-ENAC/co2-calculator/issues/2654)) ([8d7f117](https://github.com/EPFL-ENAC/co2-calculator/commit/8d7f1171cb3b6ea44861464d4167938936da0219))
 * increase sticky z-index to 2 ([#2337](https://github.com/EPFL-ENAC/co2-calculator/issues/2337)) ([5a74054](https://github.com/EPFL-ENAC/co2-calculator/commit/5a74054f56fce76ccd86f6c0fffaf79966ba6ee7))
 * let users edit and delete their own CSV/API uploads ([#2453](https://github.com/EPFL-ENAC/co2-calculator/issues/2453)) ([43c02d8](https://github.com/EPFL-ENAC/co2-calculator/commit/43c02d87b8c0771834114781349421c345cfdd0d)), closes [#951](https://github.com/EPFL-ENAC/co2-calculator/issues/951) [#951](https://github.com/EPFL-ENAC/co2-calculator/issues/951)
 * make sync-agent-rules POSIX-safe, pin AGENTS.md fetch to the header SHA ([#2357](https://github.com/EPFL-ENAC/co2-calculator/issues/2357)) ([8651047](https://github.com/EPFL-ENAC/co2-calculator/commit/86510470572a4966aca7c60861067c8f5ff7a070)), closes [#2460](https://github.com/EPFL-ENAC/co2-calculator/issues/2460)
@@ -75,11 +81,13 @@
 * reject unknown rooms and cache room names ([#2253](https://github.com/EPFL-ENAC/co2-calculator/issues/2253)) ([a47816f](https://github.com/EPFL-ENAC/co2-calculator/commit/a47816f035acb0c4adbed4cd20173b899fb5f682))
 * remove stale claude-carbon badge from README ([#2357](https://github.com/EPFL-ENAC/co2-calculator/issues/2357)) ([3ee6d66](https://github.com/EPFL-ENAC/co2-calculator/commit/3ee6d667dc158cb090892c326ee7d588e18be4b4)), closes [#2475](https://github.com/EPFL-ENAC/co2-calculator/issues/2475)
 * **reports:** guard explorer/calculator get-or-create against races ([#2483](https://github.com/EPFL-ENAC/co2-calculator/issues/2483)) ([67b4b3a](https://github.com/EPFL-ENAC/co2-calculator/commit/67b4b3ad6b0a447b24d7184763c642a5889a9a3e))
+* **research-facilities:** resolve animal housing type labels ([88932fa](https://github.com/EPFL-ENAC/co2-calculator/commit/88932faa6661fc74b3a25ee32b858868d208b18c)), closes [#2613](https://github.com/EPFL-ENAC/co2-calculator/issues/2613) [#2613](https://github.com/EPFL-ENAC/co2-calculator/issues/2613)
 * **results:** change uncertainty to confidence labels ([#2112](https://github.com/EPFL-ENAC/co2-calculator/issues/2112)) ([4ec0317](https://github.com/EPFL-ENAC/co2-calculator/commit/4ec03173d9aec3dda766649e11dc1549775f0666))
 * **scripts:** drop invalid plane 'first' cabin class from perf-CSV generator ([#2402](https://github.com/EPFL-ENAC/co2-calculator/issues/2402)) ([20a8351](https://github.com/EPFL-ENAC/co2-calculator/commit/20a8351a9b0fe6e5c20422a7baf4a2dd75deaa6f)), closes [2402/#2440](https://github.com/EPFL-ENAC/co2-calculator/issues/2440)
 * **security:** gate job SSE stream's cross-unit jobs behind backoffice.configuration ([#1764](https://github.com/EPFL-ENAC/co2-calculator/issues/1764)) ([8e47c63](https://github.com/EPFL-ENAC/co2-calculator/commit/8e47c6334c100b43fab9f9bc32a1fe81170e4e40))
 * set prefilled reference percentage to 0 ([#2337](https://github.com/EPFL-ENAC/co2-calculator/issues/2337)) ([495f3f2](https://github.com/EPFL-ENAC/co2-calculator/commit/495f3f2dae96a305824d368971d4913540bb0dfd))
 * stop alerting on stale-chunk deploy noise, block reload prompt ([#2194](https://github.com/EPFL-ENAC/co2-calculator/issues/2194)) ([c5f43a2](https://github.com/EPFL-ENAC/co2-calculator/commit/c5f43a255bdba306bd0143d2adb8bc52455da7cd))
+* **sync:** stop SSE streams pinning a DB connection for their lifetime ([#2654](https://github.com/EPFL-ENAC/co2-calculator/issues/2654)) ([5515ee5](https://github.com/EPFL-ENAC/co2-calculator/commit/5515ee589db338cc912af6ad59a6cfbbe702f91c))
 * **tests:** complete building room row in resolved-factor test ([#2501](https://github.com/EPFL-ENAC/co2-calculator/issues/2501)) ([894c064](https://github.com/EPFL-ENAC/co2-calculator/commit/894c06453ce3afa1a8092692f61297a33da4e3da))
 * **tests:** realign integration suite with [#2456](https://github.com/EPFL-ENAC/co2-calculator/issues/2456)/[#2461](https://github.com/EPFL-ENAC/co2-calculator/issues/2461)/[#2487](https://github.com/EPFL-ENAC/co2-calculator/issues/2487) ([6bb8d28](https://github.com/EPFL-ENAC/co2-calculator/commit/6bb8d284abff637073d0c5609fb126fea7bf424d))
 * **tests:** stub ssl context in Elasticsearch client unit tests ([35fe4ea](https://github.com/EPFL-ENAC/co2-calculator/commit/35fe4ead602ec122f943301d0017112168dcdf3b))
@@ -87,6 +95,8 @@
 * **units:** enforce a real read policy on GET /units/{id} ([#2379](https://github.com/EPFL-ENAC/co2-calculator/issues/2379)) ([98b97c9](https://github.com/EPFL-ENAC/co2-calculator/commit/98b97c9200b37d2747085796f5edb81d366d3fbd)), closes [#2369](https://github.com/EPFL-ENAC/co2-calculator/issues/2369) [#2570](https://github.com/EPFL-ENAC/co2-calculator/issues/2570)
 * update bootstrap-year for input_data ([#2606](https://github.com/EPFL-ENAC/co2-calculator/issues/2606)) ([1a27709](https://github.com/EPFL-ENAC/co2-calculator/commit/1a277093456e39c62da573e7cc071fb81b8e49c8))
 * update Other equipment name placeholder examples ([#2518](https://github.com/EPFL-ENAC/co2-calculator/issues/2518)) ([09383c8](https://github.com/EPFL-ENAC/co2-calculator/commit/09383c8100755e1b5675503f734d609f43291fcc))
+* updated default webanalytics url ([#2649](https://github.com/EPFL-ENAC/co2-calculator/issues/2649)) ([34b7b1a](https://github.com/EPFL-ENAC/co2-calculator/commit/34b7b1a7910945f064eae34d5c6cd060024cd497))
+* updated default webanalytics url in spec and helm ([#2649](https://github.com/EPFL-ENAC/co2-calculator/issues/2649)) ([9d4dc30](https://github.com/EPFL-ENAC/co2-calculator/commit/9d4dc309affdeca65c71c63fa8809c1a8da74104))
 * upsert collected translations in local seed ([#2606](https://github.com/EPFL-ENAC/co2-calculator/issues/2606)) ([5609b63](https://github.com/EPFL-ENAC/co2-calculator/commit/5609b635cddc91f91fc5b5404a91c003d905a244))
 * use emission maps for cabin class validation ([#2440](https://github.com/EPFL-ENAC/co2-calculator/issues/2440)) ([d1c2cba](https://github.com/EPFL-ENAC/co2-calculator/commit/d1c2cba5a122126df3cde08bf47529bfee4ca13a))
 * use vue-i18n plural forms for validation_max_decimals ([#2357](https://github.com/EPFL-ENAC/co2-calculator/issues/2357)) ([c553ea2](https://github.com/EPFL-ENAC/co2-calculator/commit/c553ea26d135810d347b276f2cda6c9c1b8daee2)), closes [#2472](https://github.com/EPFL-ENAC/co2-calculator/issues/2472)
@@ -107,6 +117,7 @@
 * **2613:** backend-owned labels for enum-key classification fields ([#2613](https://github.com/EPFL-ENAC/co2-calculator/issues/2613)) ([a237c56](https://github.com/EPFL-ENAC/co2-calculator/commit/a237c566709a77bcf213b1417fe0414de0659f60))
 * add homepage CO2 first-load badge ([#673](https://github.com/EPFL-ENAC/co2-calculator/issues/673)) ([c0dd941](https://github.com/EPFL-ENAC/co2-calculator/commit/c0dd941272d12c93e04ddf844ba89edd8e96b22a))
 * add per-module input decimals ([#2619](https://github.com/EPFL-ENAC/co2-calculator/issues/2619)) ([c2b109e](https://github.com/EPFL-ENAC/co2-calculator/commit/c2b109e62f8e715b3d4aaf351747be0ef0446214))
+* **analytics:** add configurable Matomo page-view tracking ([#2649](https://github.com/EPFL-ENAC/co2-calculator/issues/2649)) ([7980fa4](https://github.com/EPFL-ENAC/co2-calculator/commit/7980fa49d4a52a73a41f647cdb29499454dbe3dc))
 * **auth:** role sync deprovisioning story - two-strikes, backoff, admin revoke ([#2539](https://github.com/EPFL-ENAC/co2-calculator/issues/2539)) ([c9b414e](https://github.com/EPFL-ENAC/co2-calculator/commit/c9b414e9937d7210d5c6e1bf34168303650f192e)), closes [#2538](https://github.com/EPFL-ENAC/co2-calculator/issues/2538) [#2623](https://github.com/EPFL-ENAC/co2-calculator/issues/2623)
 * auto-append issue number to new issue titles ([5cbd178](https://github.com/EPFL-ENAC/co2-calculator/commit/5cbd17813d635f38cf1f1d25d480c84ceb00cbc4)), closes [#2561](https://github.com/EPFL-ENAC/co2-calculator/issues/2561) [#NNNN](https://github.com/EPFL-ENAC/co2-calculator/issues/NNNN) [#NNNN](https://github.com/EPFL-ENAC/co2-calculator/issues/NNNN)
 * **carbon-reports:** replace explore GET-404-POST with an idempotent PUT ([#2487](https://github.com/EPFL-ENAC/co2-calculator/issues/2487)) ([498b046](https://github.com/EPFL-ENAC/co2-calculator/commit/498b0463e0cf6ff6b09ea2de8727ef5452d6ce71)), closes [2483/#2484](https://github.com/EPFL-ENAC/co2-calculator/issues/2484) [#2483](https://github.com/EPFL-ENAC/co2-calculator/issues/2483)
@@ -128,6 +139,11 @@
 ### Performance Improvements
 
 * **reports:** drop per-object refresh chatter in report/module creation ([#2449](https://github.com/EPFL-ENAC/co2-calculator/issues/2449)) ([6ac01f4](https://github.com/EPFL-ENAC/co2-calculator/commit/6ac01f46c768cab3ff8ddbd9589757cf0e646025))
+
+
+### Reverts
+
+* ignore transient SSE errors for job stream ([#2654](https://github.com/EPFL-ENAC/co2-calculator/issues/2654)) ([b1b54d4](https://github.com/EPFL-ENAC/co2-calculator/commit/b1b54d40f19025fea90128b401b3afb51bdd0885))
 ## [1.4.5](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.3...v1.4.5) (2026-08-31)
 
 
