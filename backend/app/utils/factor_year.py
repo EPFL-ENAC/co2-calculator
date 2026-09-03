@@ -21,11 +21,14 @@ async def resolve_factor_year(
     their baseline year (plan years can be in the future, where no factors
     exist). A plan year without a reference year falls back to the year of
     the unit's most recent Calculator report, so an "en amont" project (no
-    baseline chosen) still computes with real factors. Explore reports
-    (#2656) ignore their own year entirely — it's just the sandbox's
-    creation year, never a year with published factors — and always price
-    against the latest started year instead. Calculator reports, and plans
-    of units without any Calculator report, use their own year.
+    baseline chosen) still computes with real factors. A unit with neither —
+    planning-only, nothing calculated yet — falls through to the same
+    latest-started-year check Explore uses (#2651), never its own arbitrary
+    planning year. Explore reports (#2656) ignore their own year entirely —
+    it's just the sandbox's creation year, never a year with published
+    factors — and always price against the latest started year directly, no
+    reference/Calculator tier to check first. Calculator reports use their
+    own year; it's always a year with published factors by construction.
     """
     if report.reference_year is not None:
         return report.reference_year
@@ -38,25 +41,45 @@ async def resolve_factor_year(
                 ).get_latest_calculator_year(report.unit_id)
                 if latest is not None:
                     return latest
+                return await _resolve_latest_started_year(session, project.created_by)
             if project.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE:
-                return await _resolve_explore_factor_year(session, project.created_by)
+                return await _resolve_latest_started_year(session, project.created_by)
     return report.year
 
 
-async def _resolve_explore_factor_year(
+async def resolve_factor_year_safe(
+    session: AsyncSession, report: CarbonReport | CarbonReportRead
+) -> int | None:
+    """``resolve_factor_year``, but None instead of raising (#2631).
+
+    For read-only responses (Explore's own routes, a Plan year's DTO): "no
+    published factors for either fallback year" is a state the caller must
+    display, not a reason to fail the request that's merely reporting it.
+    """
+    try:
+        return await resolve_factor_year(session, report)
+    except ValueError:
+        return None
+
+
+async def _resolve_latest_started_year(
     session: AsyncSession, created_by: int | None
 ) -> int:
-    """Explore always prices against the latest started year (#2656).
+    """The latest started year as of today, N-1 falling back to N-2.
 
-    Never the sandbox's own year — there's no published factor set for an
-    arbitrary current/future year. Tries last year, falls back to the year
-    before that, and raises rather than silently pricing against nothing.
+    Shared tail for Explore (always) and Plan (once reference year and the
+    unit's own Calculator history are both exhausted) — #2656 / #2651. N is
+    today's calendar year, not any report's own year: a report opened in
+    December 2026 and one opened in January 2027 resolve to different N-1s,
+    by design. Never a project's own year — there's no published factor set
+    for an arbitrary current/future year. Raises rather than silently
+    pricing against nothing.
     """
     if created_by is None:
-        raise ValueError("Explore project has no creator to resolve a provider from")
+        raise ValueError("Project has no creator to resolve a provider from")
     user = await session.get(User, created_by)
     if user is None:
-        raise ValueError(f"Explore project creator {created_by} not found")
+        raise ValueError(f"Project creator {created_by} not found")
     this_year = datetime.now(UTC).year
     for candidate in (this_year - 1, this_year - 2):
         if await is_year_started(session, candidate, user.provider):

@@ -25,6 +25,7 @@
         :modules="modules"
         :unit-id="unitId"
         :year="year"
+        :factor-year="factorYear"
         :carbon-report-id="carbonReportId"
       />
       <q-skeleton
@@ -127,6 +128,11 @@ const unitId = computed(() => workspaceStore.selectedUnit!.id);
 const year = computed(() => workspaceStore.selectedYear!);
 const carbonReportId = computed(
   () => workspaceStore.selectedCarbonReport?.id ?? null,
+);
+// The backend-resolved N-1/N-2 factor year (#2631) — the sandbox's own
+// `year` above is only its creation date and never has published factors.
+const factorYear = computed(
+  () => workspaceStore.selectedCarbonReport?.factor_year ?? null,
 );
 const ready = computed(
   () =>

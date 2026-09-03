@@ -58,6 +58,10 @@ export interface CarbonReport {
   // payload no longer ships it (only full CarbonReport fetches do).
   carbon_project_id?: number;
   stats?: CarbonReportStats | null;
+  // Only Simulator Explore populates this (#2631) — the resolved N-1/N-2
+  // year its dropdowns/typeahead must query, distinct from `year` above
+  // (the sandbox's creation year, never a year with published factors).
+  factor_year?: number | null;
 }
 
 /**

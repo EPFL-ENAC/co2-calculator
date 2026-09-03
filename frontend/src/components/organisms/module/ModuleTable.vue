@@ -505,7 +505,6 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from '@/stores/modules';
 import { useFactorsStore } from '@/stores/factors';
-import { resolveFactorYear } from '@/utils/factor-year';
 import { useYearConfigStore } from '@/stores/yearConfig';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -844,7 +843,7 @@ type CommonProps = {
   unitId: number;
   year: string | number;
   /** Year whose factors the class/subclass options resolve against — see ModuleForm. */
-  factorYear?: number | null;
+  factorYear: number | null;
   /** Plan-year report id; when set, module calls address it directly. */
   carbonReportId?: number;
   /**
@@ -880,7 +879,6 @@ type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
   carbonReportId: undefined,
-  factorYear: undefined,
   showReferenceColumns: false,
   projectYearsCount: null,
   percentageLocked: false,
@@ -1927,7 +1925,7 @@ function isComplete(row: ModuleRow) {
 
     const subclasses =
       useFactorsStore().subclassOptionMapByKey[
-        `${props.submoduleType}:${resolveFactorYear(props.factorYear, props.year)}`
+        `${props.submoduleType}:${props.factorYear}`
       ]?.[String(row.category)];
     if (subclasses?.length) {
       return (

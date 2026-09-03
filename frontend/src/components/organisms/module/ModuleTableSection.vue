@@ -50,7 +50,7 @@ const props = defineProps<{
   unitId: number;
   year: string | number;
   /** Year whose factors the class/subclass options resolve against — see ModuleForm. */
-  factorYear?: number | null;
+  factorYear: number | null;
   disable: boolean;
   /**
    * Plan-year report id. When set (Simulator Plan), module calls address this

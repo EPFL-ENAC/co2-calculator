@@ -55,6 +55,8 @@ export interface SimulatorPlanYear {
   modules: SimulatorPlanModule[];
   /** See {@link SimulatorPlan.prefill_job_id}. */
   prefill_job_id?: number | null;
+  /** Backend-resolved factor year (#2651) — see `resolve_factor_year`. */
+  factor_year: number | null;
 }
 
 export interface SimulatorPlanPrefillStatus {

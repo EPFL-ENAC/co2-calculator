@@ -364,7 +364,6 @@ import HeadcountMemberSelect from '@/components/organisms/module/HeadcountMember
 import { calculateDistance } from '@/api/locations';
 import { useEquipmentClassOptions } from '@/composables/useEquipmentClassOptions';
 import { useBuildingRoomDynamicOptions } from '@/composables/useBuildingRoomDynamicOptions';
-import { resolveFactorYear } from '@/utils/factor-year';
 import {
   DATE_INPUT_MASK,
   isValidCalendarDate,
@@ -411,14 +410,13 @@ const props = withDefaults(
     unitId?: number;
     year?: string | number;
     /**
-     * Year whose factors this form resolves against. The Simulator Plan sets
-     * it to the plan year's reference year — the backend computes emissions
-     * from that year's factors, so the options and seeded values must come
-     * from it too. `null` means a plan year with no reference year picked
-     * yet: nothing is fetched. Omitted in the Calculator, where `year` is the
-     * factor year.
+     * Year whose factors this form resolves against — the backend-resolved
+     * value (`resolve_factor_year`), always passed explicitly by every
+     * caller (no implicit "fall back to `year`" case: an omitted factor
+     * year is a wiring bug, not a Calculator special case). `null` means no
+     * resolvable factor year: nothing is fetched.
      */
-    factorYear?: number | null;
+    factorYear: number | null;
     formDefaults?: Record<string, unknown>;
     moduleColor?: string;
   }>(),
@@ -430,15 +428,12 @@ const props = withDefaults(
     addButtonLabelKey: 'common_add_button',
     unitId: undefined,
     year: undefined,
-    factorYear: undefined,
     formDefaults: undefined,
     moduleColor: undefined,
   },
 );
 
-const factorYear = computed(() =>
-  resolveFactorYear(props.factorYear, props.year),
-);
+const factorYear = computed(() => props.factorYear);
 
 const formTooltipText = computed(() =>
   $t(`module-${props.moduleType}-submodule-${props.submoduleType}-form`),

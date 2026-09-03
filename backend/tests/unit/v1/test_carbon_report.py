@@ -1,5 +1,6 @@
 """Unit tests for carbon_report API endpoints."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -399,12 +400,16 @@ async def test_update_status_value_error_raises_400():
 
 @pytest.mark.asyncio
 async def test_get_simulator_explore_found_returns_it():
-    """Found → return the report. Read-only: no background task, ever."""
+    """Found → return the report (with its resolved factor year, #2631).
+
+    Read-only: no background task, ever.
+    """
     db = _db()
     report = MagicMock()
     report.id = 42
     svc = MagicMock()
     svc.get_explore = AsyncMock(return_value=report)
+    sentinel = MagicMock()
 
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
@@ -412,9 +417,13 @@ async def test_get_simulator_explore_found_returns_it():
         with (
             patch.object(module, "require_unit_access"),
             patch.object(module, "require_module_unit_scope"),
+            patch.object(
+                module, "_explore_report_read", AsyncMock(return_value=sentinel)
+            ) as read_mock,
         ):
             result = await module.get_simulator_explore_carbon_report(1, db, _user())
-        assert result == report
+        assert result == sentinel
+        read_mock.assert_awaited_once_with(db, report)
     finally:
         module.CarbonReportService = original
 
@@ -452,6 +461,7 @@ async def test_create_simulator_explore_always_creates_and_schedules_cleanup():
     new_report.carbon_project_id = 7
     workflow = MagicMock()
     workflow.create = AsyncMock(return_value=new_report)
+    sentinel = MagicMock()
 
     background_tasks = MagicMock()
     background_tasks.add_task = MagicMock()
@@ -463,11 +473,15 @@ async def test_create_simulator_explore_always_creates_and_schedules_cleanup():
         with (
             patch.object(module, "require_unit_access"),
             patch.object(module, "require_module_unit_scope"),
+            patch.object(
+                module, "_explore_report_read", AsyncMock(return_value=sentinel)
+            ) as read_mock,
         ):
             result = await module.create_simulator_explore_carbon_report(
                 1, background_tasks, db, user
             )
-        assert result == new_report
+        assert result == sentinel
+        read_mock.assert_awaited_once_with(db, new_report)
         workflow.create.assert_awaited_once_with(unit_id=1, created_by=user.id)
         background_tasks.add_task.assert_called_once_with(
             module._cleanup_old_explore_background,
@@ -502,3 +516,47 @@ async def test_create_simulator_explore_raises_when_project_id_missing():
         assert exc.value.status_code == 500
     finally:
         module.ExploreProvisioningWorkflow = original
+
+
+# ── _explore_report_read (#2631) ────────────────────────────────────────────────
+
+
+def _explore_report_row(**overrides):
+    fields = {
+        "id": 42,
+        "year": 2026,
+        "reference_year": None,
+        "unit_id": 1,
+        "carbon_project_id": 7,
+        "is_grant": False,
+        "budget": None,
+        "budget_currency": None,
+        "stats": None,
+        "last_updated": None,
+        "completion_progress": None,
+        "overall_status": 0,
+    }
+    fields.update(overrides)
+    return SimpleNamespace(**fields)
+
+
+@pytest.mark.asyncio
+async def test_explore_report_read_carries_resolved_factor_year():
+    report = _explore_report_row()
+    with patch.object(module, "resolve_factor_year_safe", AsyncMock(return_value=2025)):
+        result = await module._explore_report_read(_db(), report)
+    assert result.factor_year == 2025
+    assert result.year == 2026  # creation year untouched, distinct field (#2656)
+
+
+@pytest.mark.asyncio
+async def test_explore_report_read_factor_year_none_when_unresolvable():
+    """No published factors for either fallback year → None, not a 500 (#2631).
+
+    The sandbox itself is real; only its dropdowns have nothing to price
+    against yet.
+    """
+    report = _explore_report_row()
+    with patch.object(module, "resolve_factor_year_safe", AsyncMock(return_value=None)):
+        result = await module._explore_report_read(_db(), report)
+    assert result.factor_year is None

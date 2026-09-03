@@ -3085,6 +3085,8 @@ export interface components {
              * @default 0
              */
             overall_status: number;
+            /** Factor Year */
+            factor_year?: number | null;
         };
         /**
          * CarbonReportReferencePercentageUpdate
@@ -4294,6 +4296,8 @@ export interface components {
             modules: components["schemas"]["CarbonReportModuleRead"][];
             /** Prefill Job Id */
             prefill_job_id?: number | null;
+            /** Factor Year */
+            factor_year?: number | null;
         };
         /**
          * StaleStatsEntry

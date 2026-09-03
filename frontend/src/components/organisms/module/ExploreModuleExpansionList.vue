@@ -51,7 +51,7 @@
             <PlannerResearchFacilityRows
               v-if="carbonReportId != null"
               :carbon-report-id="carbonReportId"
-              :factor-year="year"
+              :factor-year="factorYear"
               hide-budget
               :disable="false"
             />
@@ -86,6 +86,7 @@
                 :error="null"
                 :unit-id="unitId"
                 :year="year"
+                :factor-year="factorYear"
                 :threshold="m.config.threshold || defaultThreshold"
               />
             </div>
@@ -122,6 +123,10 @@ const props = defineProps<{
   modules: ExploreModule[];
   unitId: number;
   year: number;
+  // Resolved N-1/N-2 factor year (#2631) — distinct from `year`, which is
+  // the sandbox's own creation year and never has published factors. Null
+  // when the backend found none for either fallback year.
+  factorYear: number | null;
   carbonReportId: number | null;
 }>();
 

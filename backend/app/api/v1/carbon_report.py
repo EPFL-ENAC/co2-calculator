@@ -13,6 +13,7 @@ from app.core.policy import (
 )
 from app.db import SessionLocal
 from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import (
@@ -27,7 +28,18 @@ from app.schemas.carbon_report import (
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
+from app.utils.factor_year import resolve_factor_year_safe
 from app.workflows.explore_provisioning import ExploreProvisioningWorkflow
+
+
+async def _explore_report_read(
+    db: AsyncSession, report: CarbonReport | CarbonReportRead
+) -> CarbonReportRead:
+    """Build an Explore response carrying its resolved factor year (#2631)."""
+    factor_year = await resolve_factor_year_safe(db, report)
+    return CarbonReportRead.model_validate(report).model_copy(
+        update={"factor_year": factor_year}
+    )
 
 
 async def _cleanup_old_explore_background(
@@ -140,7 +152,7 @@ async def get_simulator_explore_carbon_report(
         raise HTTPException(
             status_code=404, detail="Simulator Explore report not found"
         )
-    return result
+    return await _explore_report_read(db, result)
 
 
 @router.post(
@@ -183,7 +195,7 @@ async def create_simulator_explore_carbon_report(
         created_by=current_user.id,
         keep_project_id=result.carbon_project_id,
     )
-    return result
+    return await _explore_report_read(db, result)
 
 
 @router.get("/{carbon_report_id}", response_model=CarbonReportRead)

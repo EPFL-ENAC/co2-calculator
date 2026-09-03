@@ -3,6 +3,7 @@
     :modules="modules"
     :unit-id="7"
     :year="2024"
+    :factor-year="2023"
     :carbon-report-id="42"
   />
 </template>

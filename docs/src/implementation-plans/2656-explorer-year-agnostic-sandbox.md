@@ -2,7 +2,7 @@
 status: delivered
 issue: 2656
 last_updated: 2026-09-03
-summary: Explorer's Simulator Explore sandbox is no longer keyed by year or refreshed on a 24h TTL. "Start an exploration" (a page mount or refresh alike) always POSTs a brand-new sandbox; the backend deletes the caller's older ones in the background right after. Factor resolution for Explore entries now always uses the latest started year (N-1, fallback N-2, else a loud error) instead of the sandbox's own year.
+summary: Explorer's Simulator Explore sandbox is no longer keyed by year or refreshed on a 24h TTL. "Start an exploration" (a page mount or refresh alike) always POSTs a brand-new sandbox; the backend deletes the caller's older ones in the background right after. Factor resolution for Explore entries now always uses the latest started year (N-1, fallback N-2, else a loud error) instead of the sandbox's own year. Addendum: the resolved factor year is now exposed to the frontend and actually wired into Explorer's/Planner's option lookups (#2631, #2651), and Planner shares the same N-1/N-2 fallback tail instead of pricing against its own arbitrary future year.
 ---
 
 # 2656 — Explorer is not year-agnostic
@@ -209,3 +209,128 @@ in SQLModel metadata) — pruned per the standing rule.
   `this_year - 1` when started, falls back to `this_year - 2`, raises
   naming both years when neither is, and ignores the report's own year
   throughout.
+
+## Addendum (2026-09-03): the resolved factor year wasn't reaching the UI
+
+Live testing surfaced the actual gap: `resolve_factor_year()` was correct,
+but nothing carried its result past the compute path. The Explorer's
+dropdowns/typeahead (`GET taxonomies/module/.../options`) take a raw,
+frontend-supplied `year` query param — entirely independent of
+`resolve_factor_year` — so a fresh sandbox still queried the workspace's own
+year (e.g. `2026`), which has no published factors, exactly the case #2656
+was meant to fix. Separately, `PlannerYearSection.vue` reimplemented its own
+three-tier fallback client-side (`reference_year ?? defaultFactorYear ??
+yearData.year`) instead of consuming a backend value — a "no silent
+fallback"/"backend is source of truth" violation independent of the value
+being wrong, and its own last resort was the same "arbitrary future
+planning year" bug for a planning-only unit with no reference year and no
+Calculator report (#2651).
+
+**Fix shape: expose the resolved year, don't change the shared taxonomy
+endpoints.** Threading a `carbon_report_id` into `search_module_data_entry_options`/
+`get_taxonomy_with_etag` was considered and rejected — those endpoints are
+shared by Calculator and Planner and cached by `year`+`lang`
+(`taxonomy_cache`, per-entry ETags); resolving per-report before the cache
+key breaks its shape, resolving after is incoherent. Instead:
+
+- `CarbonReportRead` gains `factor_year: int | None` (schema-only, no
+  migration) — `year` stays the NOT-NULL creation-year column
+  (`uq_carbon_reports_project_year` sits on it), untouched. Explore's
+  GET/POST routes populate it via a new `_explore_report_read` helper
+  (`app/api/v1/carbon_report.py`) calling `resolve_factor_year_safe`.
+- `SimulatorPlanYearRead` gains the same field, populated in
+  `SimulatorPlanService._year_read`.
+- `resolve_factor_year_safe(session, report)` (`app/utils/factor_year.py`)
+  wraps `resolve_factor_year`, returning `None` instead of raising: "no
+  published factors for either fallback year" is a state a read response
+  must represent, not a reason to fail the request reporting it.
+- Frontend: `workspace.ts`'s `CarbonReport`/`stores/simulatorPlans.ts`'s
+  `SimulatorPlanYear` gain `factor_year`. `SimulationExplorePage.vue` reads
+  `selectedCarbonReport.factor_year` and passes it through
+  `ExploreModuleExpansionList` as a new `factorYear` prop (fixing
+  `PlannerResearchFacilityRows`' `:factor-year="year"` — it was passing the
+  _raw_ year — and adding the missing `:factor-year` on the generic
+  `SubModuleSection` path, which had none at all). `PlannerYearSection.vue`'s
+  local three-tier `factorYear` computed is now `computed(() =>
+props.yearData.factor_year)` — the reimplementation is gone; its
+  now-unused `defaultFactorYear` prop (and `ProjectPlannerPage.vue`'s
+  pass-through of `plan.default_factor_year`) were removed with it.
+
+**Planner's fallback is now DRY with Explore, not a separate "own year"
+tier (#2651).** `_resolve_explore_factor_year` was generalized to
+`_resolve_latest_started_year(session, created_by)`; `resolve_factor_year`'s
+`SIMULATOR_PLAN` branch now calls it once `get_latest_calculator_year`
+returns `None`, instead of falling through to `report.year`. **This changes
+production behavior**, not just adds a field: a planning-only unit (no
+reference year, no Calculator report — #2651's exact repro, e.g. a plan
+section at year 2038) previously priced against its own far-future year;
+it now prices against N-1/N-2 like Explore. Any such plan's stored
+`kg_co2eq` was computed under the old rule and will move on the next
+recalculation. A unit with a Calculator report is unaffected (that tier is
+checked first, unchanged) — this only reaches units with neither a
+reference year nor any Calculator history yet.
+
+**The frontend's `undefined → year` implicit fallback is gone.**
+`utils/factor-year.ts#resolveFactorYear` treated an _omitted_ `factorYear`
+prop as "this is the Calculator, use `year`" — a silent default that any
+new caller could trigger by simply forgetting to wire `factor-year`, with
+no error until its data was visibly wrong. Removed: `factorYear` is now a
+required `number | null` prop (not `?`) on `ModuleForm`, `ModuleTable`,
+`ModuleTableSection`, `ModuleInlineSelect`, `SubModuleSection` — every
+caller, including the Calculator (`ModulePage.vue`), now passes it
+explicitly, and `vue-tsc` fails the build for any component that doesn't.
+`resolveFactorYear` had no remaining reason to exist and was deleted, along
+with the callers' own `resolveFactorYear(props.factorYear, props.year)`
+calls (now just `props.factorYear`).
+
+**Not built here — left as a null-safe empty state, not the #2631 warning
+UX.** When `factor_year` is `null`, `ModuleForm`'s existing `if
+(factorYear.value == null) return []` guard already shows an empty options
+list rather than crashing; `PlannerYearSection.vue` gets one new specific
+string (`planner_reference_year_hint_unavailable`) instead of interpolating
+`year: null`. The full spec in #2631 — "The factors are not available for
+this module... contact Durability to add them" as a first-class warning,
+plus Planner's _settable_ reference year itself falling back to N-1/N-2
+when picked years have no factors — is broader (module-level UX, both
+Planner and Explorer) and stays out of scope here.
+
+### Addendum touch points
+
+- `app/utils/factor_year.py` — `_resolve_explore_factor_year` →
+  `_resolve_latest_started_year` (shared); `SIMULATOR_PLAN` branch falls
+  through to it; new `resolve_factor_year_safe`.
+- `app/api/v1/carbon_report.py` — new `_explore_report_read`.
+- `app/schemas/carbon_report.py`, `app/schemas/simulator_plan.py` —
+  `factor_year: int | None`.
+- `app/services/simulator_plan_service.py` — `_year_read` populates it.
+- Frontend: `stores/workspace.ts`, `stores/simulatorPlans.ts`,
+  `pages/app/SimulationExplorePage.vue`, `pages/app/ModulePage.vue`,
+  `pages/app/ProjectPlannerPage.vue`,
+  `components/organisms/module/ExploreModuleExpansionList.vue`,
+  `SubModuleSection.vue`, `ModuleTable.vue`, `ModuleTableSection.vue`,
+  `ModuleForm.vue`, `ModuleInlineSelect.vue`,
+  `components/organisms/planner/PlannerYearSection.vue`,
+  `utils/factor-year.ts` (`resolveFactorYear` deleted,
+  `factorMountKey` narrowed to `number | null`), `i18n/simulation.ts`.
+  `openapi.d.ts` regenerated.
+
+### Addendum tests
+
+- `tests/unit/utils/test_factor_year.py` — Plan without a Calculator report
+  falls back to N-1/N-2 (both directions) and raises when neither is
+  started; `resolve_factor_year_safe` returns `None` instead of raising for
+  both Explore and Plan; the reference-year and Calculator tiers stay
+  pinned (regression: a Calculator-backed unit must not fall to N-1/N-2
+  even when it's also started).
+- `tests/unit/services/test_simulator_plan_service.py` — `list_plan_years`
+  carries `factor_year` end to end: resolves via the new fallback, and is
+  `None` (not a 500) when nothing resolves.
+- `tests/unit/v1/test_carbon_report.py` — `_explore_report_read` carries
+  the resolved year and is `None`, not an exception, when unresolvable;
+  the GET/POST route tests updated to assert against it instead of the raw
+  service/workflow result.
+- `tests/unit/services/test_simulator_plan_reference_year_perf.py` — one
+  pre-existing test (`..._scales_for_purchase_module_too`) relied on the
+  old "falls back to own year" behavior for a no-reference-year,
+  no-Calculator plan; updated to seed a started year, matching what a real
+  planning-only unit now needs.
