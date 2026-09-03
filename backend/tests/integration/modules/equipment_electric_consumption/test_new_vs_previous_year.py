@@ -27,7 +27,8 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -36,9 +37,28 @@ from app.services.data_entry_service import DataEntryService
 UNIT_ID = 1
 
 
-async def _seed_module(session: AsyncSession, year: int) -> CarbonReportModule:
-    """Seed a CarbonReport + equipment CarbonReportModule for ``year``."""
-    report = CarbonReport(year=year, unit_id=UNIT_ID, overall_status=0)
+async def _seed_module(
+    session: AsyncSession,
+    year: int,
+    report_type: CarbonReportType | None = None,
+) -> CarbonReportModule:
+    """Seed a CarbonReport + equipment CarbonReportModule for ``year``.
+
+    ``report_type`` also seeds the owning CarbonProject, the way a Planner
+    plan year is stored.
+    """
+    project_id = None
+    if report_type is not None:
+        project = CarbonProject(unit_id=UNIT_ID, carbon_report_type=report_type)
+        session.add(project)
+        await session.flush()
+        project_id = project.id
+    report = CarbonReport(
+        year=year,
+        unit_id=UNIT_ID,
+        overall_status=0,
+        carbon_project_id=project_id,
+    )
     session.add(report)
     await session.flush()
 
@@ -303,6 +323,53 @@ async def test_apply_equipment_carry_forward(db_session: AsyncSession):
     assert unmatched.data["active_usage_hours_per_week"] == 3
     assert "standby_usage_hours_per_week" not in unmatched.data
     assert (matched.unit_id, matched.year) == (UNIT_ID, 2025)
+
+
+@pytest.mark.asyncio
+async def test_prior_year_lookups_ignore_plan_snapshots(db_session: AsyncSession):
+    """Planner copies of the prior year share the unit, year and equipment_id
+    of the Calculator rows: they must neither shadow the Calculator usage nor
+    count as prior-year presence, and a plan-only year is not a prior year.
+    """
+    repo = DataEntryRepository(db_session)
+
+    calc_module = await _seed_module(db_session, 2024)
+    await _seed_entry(
+        db_session,
+        calc_module,
+        year=2024,
+        equipment_id="E1",
+        with_usage=False,
+        active_usage=168,
+        standby_usage=0,
+    )
+    plan_module = await _seed_module(
+        db_session, 2024, report_type=CarbonReportType.SIMULATOR_PLAN
+    )
+    await _seed_entry(
+        db_session,
+        plan_module,
+        year=2024,
+        equipment_id="E1",
+        with_usage=False,
+        active_usage=42,
+        standby_usage=126,
+    )
+    await _seed_entry(db_session, plan_module, year=2024, equipment_id="E7")
+    later_plan_module = await _seed_module(
+        db_session, 2025, report_type=CarbonReportType.SIMULATOR_PLAN
+    )
+    await _seed_entry(db_session, later_plan_module, year=2025, equipment_id="E1")
+    await db_session.commit()
+
+    assert await repo.get_prior_year_equipment_usage(UNIT_ID, 2025) == {
+        "E1": {
+            "active_usage_hours_per_week": 168,
+            "standby_usage_hours_per_week": 0,
+        },
+    }
+    assert await repo.get_prior_year_equipment_ids(UNIT_ID, 2025) == {"E1"}
+    assert await repo._prior_equipment_year(UNIT_ID, 2026) == 2024
 
 
 # ---------------------------------------------------------------------------
