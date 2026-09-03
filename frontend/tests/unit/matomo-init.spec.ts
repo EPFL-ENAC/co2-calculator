@@ -11,7 +11,7 @@ import {
   trackerScriptSrc,
 } from '../../src/utils/matomo';
 
-const url = 'https://enac-webanalytics.epfl.ch/';
+const url = 'https://enac-webanalytics.epfl.ch/piwik/';
 
 test('no site id → tracking disabled and nothing queued', () => {
   const config = { url, siteId: '', environment: 'development' };
@@ -29,7 +29,7 @@ test('a site id enables a cookieless tracker for that instance', () => {
   expect(commands[0]).toEqual(['disableCookies']);
   expect(commands).toContainEqual([
     'setTrackerUrl',
-    'https://enac-webanalytics.epfl.ch/matomo.php',
+    'https://enac-webanalytics.epfl.ch/piwik/matomo.php',
   ]);
   expect(commands).toContainEqual(['setSiteId', '42']);
   expect(commands).toContainEqual(['setCustomDimension', 1, 'stage']);
@@ -39,9 +39,9 @@ test('a site id enables a cookieless tracker for that instance', () => {
 
 test('endpoint works with or without a trailing slash', () => {
   expect(trackerScriptSrc(url)).toBe(
-    'https://enac-webanalytics.epfl.ch/matomo.js',
+    'https://enac-webanalytics.epfl.ch/piwik/matomo.js',
   );
-  expect(trackerScriptSrc('https://enac-webanalytics.epfl.ch')).toBe(
-    'https://enac-webanalytics.epfl.ch/matomo.js',
+  expect(trackerScriptSrc('https://enac-webanalytics.epfl.ch/piwik')).toBe(
+    'https://enac-webanalytics.epfl.ch/piwik/matomo.js',
   );
 });

@@ -93,7 +93,7 @@ export const runtimeConfig = {
   matomoUrl:
     injected.APP_MATOMO_URL ||
     (hasViteEnv && import.meta.env.APP_MATOMO_URL) ||
-    'https://enac-webanalytics.epfl.ch/',
+    'https://enac-webanalytics.epfl.ch/piwik/',
   matomoSiteId:
     injected.APP_MATOMO_SITE_ID ||
     (hasViteEnv && import.meta.env.APP_MATOMO_SITE_ID) ||
