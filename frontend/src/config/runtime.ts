@@ -86,6 +86,18 @@ export const runtimeConfig = {
     injected.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL ||
     (hasViteEnv && import.meta.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL) ||
     '',
+  // Matomo (ENAC web analytics). The endpoint has a code default; the site id
+  // is the on/off switch — empty means src/boot/matomo.ts loads no tracker and
+  // sends nothing, so dev, CI and unconfigured pods stay silent. One Matomo
+  // site per instance (dev/stage/prod), set per-pod via /injectEnv.js.
+  matomoUrl:
+    injected.APP_MATOMO_URL ||
+    (hasViteEnv && import.meta.env.APP_MATOMO_URL) ||
+    'https://enac-webanalytics.epfl.ch/',
+  matomoSiteId:
+    injected.APP_MATOMO_SITE_ID ||
+    (hasViteEnv && import.meta.env.APP_MATOMO_SITE_ID) ||
+    '',
   // Project-planner horizon: bounds for the start/end year selects. No code
   // default: values come from APP_PLANNER_MIN_YEAR / APP_PLANNER_MAX_YEAR
   // (/injectEnv.js per-pod, .env.local in dev). Unset resolves to NaN and
