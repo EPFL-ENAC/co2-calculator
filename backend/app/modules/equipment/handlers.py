@@ -146,9 +146,11 @@ class EquipmentModuleHandler(BaseModuleHandler):
         primary_factor = data.get("primary_factor", {})
         is_new = bool(data.get("is_new", False))
 
-        def _displayed_value(field: str) -> float | None:
+        def _displayed_value(
+            field: str, *, blank_when_new: bool = False
+        ) -> float | None:
             entered = data.get(field)
-            if entered is not None or is_new:
+            if entered is not None or (blank_when_new and is_new):
                 return entered
             return primary_factor.get(field)
 
@@ -161,10 +163,10 @@ class EquipmentModuleHandler(BaseModuleHandler):
             "active_power_w": _displayed_value("active_power_w"),
             "standby_power_w": _displayed_value("standby_power_w"),
             "active_usage_hours_per_week": _displayed_value(
-                "active_usage_hours_per_week"
+                "active_usage_hours_per_week", blank_when_new=True
             ),
             "standby_usage_hours_per_week": _displayed_value(
-                "standby_usage_hours_per_week"
+                "standby_usage_hours_per_week", blank_when_new=True
             ),
             "equipment_class": primary_factor.get("class")
             or data.get("equipment_class"),
