@@ -2,7 +2,7 @@
 status: delivered
 issue: 2656
 last_updated: 2026-09-03
-summary: Explorer's Simulator Explore sandbox is no longer keyed by year or refreshed on a 24h TTL. "Start an exploration" (a page mount or refresh alike) always POSTs a brand-new sandbox; the backend deletes the caller's older ones in the background right after. Factor resolution for Explore entries now always uses the latest started year (N-1, fallback N-2, else a loud error) instead of the sandbox's own year. Addendum: the resolved factor year is now exposed to the frontend and actually wired into Explorer's/Planner's option lookups (#2631, #2651), and Planner shares the same N-1/N-2 fallback tail instead of pricing against its own arbitrary future year.
+summary: Explorer's Simulator Explore sandbox is no longer keyed by year or refreshed on a 24h TTL. "Start an exploration" (a page mount or refresh alike) always POSTs a brand-new sandbox; the backend deletes the caller's older ones in the background right after. Factor resolution for Explore entries now always uses the latest started year (N-1, fallback N-2, else a loud error) instead of the sandbox's own year. Addendum — the resolved factor year is now exposed to the frontend and actually wired into Explorer's/Planner's option lookups (#2631, #2651), and Planner shares the same N-1/N-2 fallback tail instead of pricing against its own arbitrary future year.
 ---
 
 # 2656 — Explorer is not year-agnostic
