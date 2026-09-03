@@ -153,6 +153,16 @@ touches the changed call sites. `useProjectPlannerPrintData.ts` (Planner's
 own print page) was checked too and doesn't independently fetch the
 taxonomy tree — no equivalent gap there.
 
+## Addendum: the generic by-id GET also left `factor_year` null
+
+Also spotted live: `GET /carbon-reports/{id}` — a route no frontend code
+path actually calls, but the one general-purpose "fetch this report" GET
+the API exposes — never populated `factor_year` either, unlike the
+dedicated Explore GET/POST. `_explore_report_read` was Explore-specific in
+name only (nothing in its body is), so renamed to `_carbon_report_read` and
+reused here too. Report 40834 (`reference_year: null`) went from
+`factor_year: null` to the correctly-resolved `2025`.
+
 ## Out of scope
 
 Part 2 of #2651 (taxonomy subkind nodes not deduplicated,
