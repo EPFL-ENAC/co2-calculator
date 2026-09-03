@@ -68,7 +68,7 @@ type CommonProps = {
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
-const factorYear = computed(() => props.factorYear);
+const factorYear = toRef(props, 'factorYear');
 const isClass = computed(() => props.optionsId === 'kind');
 const isSubClass = computed(() => props.optionsId === 'subkind');
 

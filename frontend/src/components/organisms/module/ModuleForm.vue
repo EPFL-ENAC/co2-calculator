@@ -433,7 +433,7 @@ const props = withDefaults(
   },
 );
 
-const factorYear = computed(() => props.factorYear);
+const factorYear = toRef(props, 'factorYear');
 
 const formTooltipText = computed(() =>
   $t(`module-${props.moduleType}-submodule-${props.submoduleType}-form`),
