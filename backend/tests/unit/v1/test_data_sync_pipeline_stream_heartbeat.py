@@ -94,9 +94,7 @@ async def test_pipeline_stream_heartbeat_fires_within_15s_not_16(monkeypatch):
     monkeypatch.setattr(data_sync_module.asyncio, "sleep", _instant_sleep)
 
     fake_user = MagicMock()
-    fake_user.calculate_permissions = lambda: {
-        "backoffice.pipeline_operations": ["view"]
-    }
+    fake_user.calculate_permissions = lambda: {"backoffice.configuration": ["view"]}
 
     # Poll 1 emits the real snapshot (last_snapshot starts None) and resets
     # the clock; every poll's 2s sleep then adds to it, including poll 1's
