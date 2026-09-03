@@ -19,7 +19,7 @@ from app.core.config import get_settings
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
-from app.db import get_db
+from app.db import SessionLocal, get_db
 from app.models.user import User, UserProvider
 from app.services.user_service import UserService
 
@@ -205,6 +205,27 @@ async def get_current_user(
     return await resolve_user_by_jwt_payload(
         payload, db, expected_token_type=TOKEN_TYPE_ACCESS
     )
+
+
+async def get_current_user_detached(
+    token: str = Depends(get_jwt_from_cookie),
+) -> User:
+    """``get_current_user`` for endpoints that return a ``StreamingResponse``.
+
+    ``get_current_user`` takes its session from ``get_db``, a ``yield``
+    dependency. FastAPI (>= 0.118) releases request-scoped ``yield``
+    dependencies only after the response has been fully sent, which for a
+    streaming response is the end of the stream -- so every open SSE stream
+    pinned one pooled connection, in an open transaction, for minutes or
+    hours (#2654). This variant resolves the user in its own short-lived
+    session and returns a detached ``User``; the connection is back in the
+    pool before the stream starts.
+    """
+    payload = decode_jwt(token)
+    async with SessionLocal() as db:
+        return await resolve_user_by_jwt_payload(
+            payload, db, expected_token_type=TOKEN_TYPE_ACCESS
+        )
 
 
 async def get_current_active_user(

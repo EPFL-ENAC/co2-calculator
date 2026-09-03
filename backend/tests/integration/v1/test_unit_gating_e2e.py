@@ -99,6 +99,7 @@ def _superadmin() -> Role:
 
 def _wire_user(user) -> None:
     app.dependency_overrides[deps_module.get_current_user] = lambda: user
+    app.dependency_overrides[deps_module.get_current_user_detached] = lambda: user
 
 
 def _wire_db_unit(unit_iid: str, affiliation: str = AFFILIATION) -> None:
