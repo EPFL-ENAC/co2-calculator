@@ -2121,6 +2121,21 @@ async function onRequest(request: {
   }
 }
 
+// Kind/subkind labels come from the taxonomy tree, which is factor-year
+// scoped — not the row's own `year` (#2651: the earlier fix covered the
+// form/inline-select dropdowns via useEquipmentClassOptions, but missed
+// this table-level fetch, which kept requesting the report's own year).
+// Skipped entirely when unresolvable, same as every other factorYear
+// consumer — nothing to fetch, not a request for a made-up year.
+function fetchTaxonomyIfNeeded() {
+  if (kindOptionsServerSearched.value || props.factorYear == null) return;
+  moduleStore.getSubmoduleTaxonomy(
+    props.moduleType,
+    props.submoduleType,
+    String(props.factorYear),
+  );
+}
+
 watch(
   () => moduleStore.state.expandedSubmodules[props.submoduleType],
   (isExpanded, oldValue) => {
@@ -2142,13 +2157,7 @@ watch(
           year: String(props.year),
           carbonReportId: props.carbonReportId,
         });
-        if (!kindOptionsServerSearched.value) {
-          moduleStore.getSubmoduleTaxonomy(
-            props.moduleType,
-            props.submoduleType,
-            String(props.year),
-          );
-        }
+        fetchTaxonomyIfNeeded();
       }
     }
   },
@@ -2167,13 +2176,7 @@ watch(locale, () => {
     year: String(props.year),
     carbonReportId: props.carbonReportId,
   });
-  if (!kindOptionsServerSearched.value) {
-    moduleStore.getSubmoduleTaxonomy(
-      props.moduleType,
-      props.submoduleType,
-      String(props.year),
-    );
-  }
+  fetchTaxonomyIfNeeded();
 });
 
 watch(
@@ -2194,13 +2197,7 @@ onMounted(async () => {
       year: String(props.year),
       carbonReportId: props.carbonReportId,
     });
-    if (!kindOptionsServerSearched.value) {
-      moduleStore.getSubmoduleTaxonomy(
-        props.moduleType,
-        props.submoduleType,
-        String(props.year),
-      );
-    }
+    fetchTaxonomyIfNeeded();
   }
 
   // For professional travel, pre-load headcount members to resolve traveler names

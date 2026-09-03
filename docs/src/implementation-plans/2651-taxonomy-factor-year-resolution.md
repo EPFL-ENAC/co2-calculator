@@ -2,7 +2,7 @@
 status: delivered
 issue: 2651
 last_updated: 2026-09-03
-summary: Planner reports without a reference year no longer resolve their factor year from "the unit's latest Calculator report year" — an ungated tier that could silently land on the current, unpublished year. Removed in favor of the N-1/N-2 fallback #2656 already gave Explore, matching #2631's accepted spec exactly (reference year, then N-1, then N-2). Fixes the taxonomy/options endpoints requesting the wrong year for a Planner section with no reference year set.
+summary: Planner reports without a reference year no longer resolve their factor year from "the unit's latest Calculator report year" — an ungated tier that could silently land on the current, unpublished year. Removed in favor of the N-1/N-2 fallback #2656 already gave Explore, matching #2631's accepted spec exactly (reference year, then N-1, then N-2). Also fixes a second, still-live gap the first round of frontend wiring missed — ModuleTable's own taxonomy-tree fetch (kind/subkind labels) and the Explorer print page's taxonomy batch fetch both still requested the report's own year.
 ---
 
 # 2651 — Planner/Explorer requested the wrong year for taxonomy
@@ -120,6 +120,38 @@ before this fix, `2025` (N-1) after, confirmed via `GET
   `tests/unit/v1/test_carbon_report.py` — full suite re-run, unaffected
   (neither test file asserted on `default_factor_year` by name; grepped
   before removal to confirm).
+
+## Addendum: two frontend call sites the earlier round missed
+
+Live-tested again after the backend fix above: `GET
+/taxonomies/module/buildings/building?year=2051` still fired for report
+40823 — whose `factor_year` was correctly `2025` by then. The earlier
+#2656/#2651 frontend pass fixed every consumer of
+`useEquipmentClassOptions` (the form/inline-select dropdowns), but two more
+call sites independently fetch the taxonomy tree and both still used the
+raw report year:
+
+- **`ModuleTable.vue`** — `getSubmoduleTaxonomy`, called from three
+  near-identical spots (initial expand, locale switch, on-mount-if-already-
+  expanded) to resolve kind/subkind _labels_ for the table's own rows
+  (distinct from the form's dropdown options). All three passed
+  `String(props.year)`. Extracted into one `fetchTaxonomyIfNeeded()` helper
+  — DRYs up the duplication and fixes all three at once — using
+  `props.factorYear`, skipped entirely when `null` (same as every other
+  factorYear consumer).
+- **`useSimulationExplorePrintData.ts`** — the Explorer print page's batched
+  taxonomy fetch (`getSubmoduleTaxonomiesBatch`) used `workspaceStore.selectedYear`
+  directly. Now reads `workspaceStore.selectedCarbonReport?.factor_year`,
+  populated by `initWorkspaceFromRoute()` (which runs first and calls
+  `selectSimulatorExploreCarbonReport`) before `fetchAllData()` uses it.
+
+Checked and confirmed unaffected: `TaxonomyBatchHarness.vue` /
+`TaxonomyLangHarness.vue` (existing component tests) call
+`getSubmoduleTaxonomy`/`getSubmoduleTaxonomiesBatch` directly against the
+store, bypassing `ModuleTable.vue` entirely — neither test's coverage
+touches the changed call sites. `useProjectPlannerPrintData.ts` (Planner's
+own print page) was checked too and doesn't independently fetch the
+taxonomy tree — no equivalent gap there.
 
 ## Out of scope
 

@@ -85,6 +85,9 @@ export function useSimulationExplorePrintData() {
       const unitId = workspaceStore.selectedUnit?.id;
       const year = workspaceStore.selectedYear;
       if (unitId == null || year == null) return;
+      // Resolved N-1/N-2 factor year (#2651) — `year` above is only the
+      // sandbox's creation year, never a year with published factors.
+      const factorYear = workspaceStore.selectedCarbonReport?.factor_year;
 
       const tasks: Promise<unknown>[] = [
         moduleStore.getEmissionBreakdown(carbonReportId, []),
@@ -119,12 +122,12 @@ export function useSimulationExplorePrintData() {
           }
         }
         // One batched call per module instead of one per submodule (#2049 T6).
-        if (taxonomyEntries.length > 0) {
+        if (taxonomyEntries.length > 0 && factorYear != null) {
           tasks.push(
             moduleStore.getSubmoduleTaxonomiesBatch(
               m.type,
               taxonomyEntries,
-              String(year),
+              String(factorYear),
             ),
           );
         }
