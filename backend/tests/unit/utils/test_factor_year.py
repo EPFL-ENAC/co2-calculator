@@ -57,17 +57,6 @@ async def test_reference_year_wins(async_session):
 
 
 @pytest.mark.asyncio
-async def test_plan_without_reference_year_uses_latest_calculator_year(async_session):
-    calculator = await _add_project(async_session, CarbonReportType.CALCULATOR)
-    await _add_report(async_session, calculator, 2023)
-    await _add_report(async_session, calculator, 2025)
-    plan = await _add_project(async_session, CarbonReportType.SIMULATOR_PLAN)
-    report = await _add_report(async_session, plan, 2030)
-
-    assert await resolve_factor_year(async_session, report) == 2025
-
-
-@pytest.mark.asyncio
 async def test_calculator_report_uses_own_year(async_session):
     calculator = await _add_project(async_session, CarbonReportType.CALCULATOR)
     await _add_report(async_session, calculator, 2025)
@@ -77,8 +66,9 @@ async def test_calculator_report_uses_own_year(async_session):
 
 
 # ── Shared tail (#2656/#2651): the latest started year, N-1 falling back to ──
-# ── N-2 — Explore always, Plan once reference year and Calculator history  ──
-# ── are both exhausted. Never a project's own (possibly future) year.     ──
+# ── N-2 — Explore always, Plan once reference year is exhausted. Never a   ──
+# ── project's own (possibly future) year, and never "the unit's latest    ──
+# ── Calculator report year" either — that year can itself be unstarted.   ──
 
 
 async def _add_user(session, provider: UserProvider = UserProvider.DEFAULT):
@@ -148,8 +138,8 @@ async def test_explore_safe_returns_none_instead_of_raising(async_session):
     assert await resolve_factor_year_safe(async_session, report) is None
 
 
-# ── Plan, no reference year, no Calculator report (#2651): falls through to ──
-# ── the same latest-started-year tail as Explore, not its own future year ──
+# ── Plan without a reference year (#2651): falls through to the same       ──
+# ── latest-started-year tail as Explore, not its own future planning year ──
 
 
 @pytest.mark.asyncio
@@ -212,21 +202,44 @@ async def test_plan_safe_returns_none_instead_of_raising(async_session):
 
 
 @pytest.mark.asyncio
-async def test_plan_with_calculator_report_still_wins_over_latest_started_year(
-    async_session,
-):
-    """Regression pin: the Calculator tier must still be checked before the
-    new fallback tail — a unit with real Calculator history keeps using it,
-    even if N-1 also happens to be started.
+async def test_plan_ignores_calculator_report_year_even_when_started(async_session):
+    """Regression pin (#2651, live repro): a unit's Calculator report year
+    is never used as a factor year, confirmed-published or not — only the
+    N-1/N-2 tail is. Before this fix, a unit with a Calculator report for
+    the *current* year (year N, e.g. opening the Calculator this year)
+    made a reference-year-less Plan price against N — an unpublished year
+    — instead of N-1.
     """
     this_year = datetime.now(UTC).year
     user = await _add_user(async_session)
     calculator = await _add_project(async_session, CarbonReportType.CALCULATOR)
-    await _add_report(async_session, calculator, 2025)
+    await _add_report(async_session, calculator, this_year)
     await _add_year_config(async_session, this_year - 1, user.provider, True)
     plan = await _add_project(async_session, CarbonReportType.SIMULATOR_PLAN)
     plan.created_by = user.id
     await async_session.flush()
     report = await _add_report(async_session, plan, 2038)
 
-    assert await resolve_factor_year(async_session, report) == 2025
+    assert await resolve_factor_year(async_session, report) == this_year - 1
+
+
+@pytest.mark.asyncio
+async def test_plan_ignores_calculator_report_year_even_when_it_is_older_and_started(
+    async_session,
+):
+    """A unit's Calculator report from a real, published past year (2023)
+    is still never preferred over the latest started year — the tier no
+    longer exists at all, so N-1 wins even though 2023 is "more real".
+    """
+    this_year = datetime.now(UTC).year
+    user = await _add_user(async_session)
+    calculator = await _add_project(async_session, CarbonReportType.CALCULATOR)
+    await _add_report(async_session, calculator, 2023)
+    await _add_year_config(async_session, 2023, user.provider, True)
+    await _add_year_config(async_session, this_year - 1, user.provider, True)
+    plan = await _add_project(async_session, CarbonReportType.SIMULATOR_PLAN)
+    plan.created_by = user.id
+    await async_session.flush()
+    report = await _add_report(async_session, plan, 2038)
+
+    assert await resolve_factor_year(async_session, report) == this_year - 1

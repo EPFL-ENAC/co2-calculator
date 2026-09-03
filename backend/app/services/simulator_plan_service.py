@@ -95,7 +95,6 @@ def _to_read(
     project: CarbonProject,
     creator_name: str | None,
     total_tonnes_co2eq: float | None = None,
-    default_factor_year: int | None = None,
     *,
     is_grant_proposal: bool = False,
 ) -> SimulatorPlanRead:
@@ -113,7 +112,6 @@ def _to_read(
         created_at=project.created_at,
         creator_name=creator_name,
         total_tonnes_co2eq=total_tonnes_co2eq,
-        default_factor_year=default_factor_year,
     )
 
 
@@ -135,13 +133,11 @@ class SimulatorPlanService:
         totals = await self._totals_by_plan(
             [project.id for project, _, _ in rows if project.id is not None]
         )
-        default_factor_year = await self.repo.get_latest_calculator_year(unit_id)
         return [
             _to_read(
                 project,
                 creator_name,
                 totals.get(project.id or -1),
-                default_factor_year,
                 is_grant_proposal=is_grant_proposal,
             )
             for project, creator_name, is_grant_proposal in rows
@@ -172,9 +168,6 @@ class SimulatorPlanService:
         return _to_read(
             project,
             creator_name,
-            default_factor_year=await self.repo.get_latest_calculator_year(
-                project.unit_id
-            ),
             is_grant_proposal=is_grant_proposal,
         )
 
@@ -199,7 +192,6 @@ class SimulatorPlanService:
         return _to_read(
             project,
             user.display_name,
-            default_factor_year=await self.repo.get_latest_calculator_year(unit_id),
         )
 
     async def update_plan(
@@ -1028,9 +1020,6 @@ class SimulatorPlanService:
         return _to_read(
             copy,
             user.display_name,
-            default_factor_year=await self.repo.get_latest_calculator_year(
-                copy.unit_id
-            ),
             is_grant_proposal=has_grant,
         )
 
@@ -1051,16 +1040,12 @@ class SimulatorPlanService:
 
     async def _read_with_creator(self, project: CarbonProject) -> SimulatorPlanRead:
         """Build a Read DTO resolving the creator display name via the join."""
-        default_factor_year = await self.repo.get_latest_calculator_year(
-            project.unit_id
-        )
         row = await self.repo.get_plan_with_creator(project.id or -1)
         if row is None:
-            return _to_read(project, None, default_factor_year=default_factor_year)
+            return _to_read(project, None)
         refreshed, creator_name, is_grant_proposal = row
         return _to_read(
             refreshed,
             creator_name,
-            default_factor_year=default_factor_year,
             is_grant_proposal=is_grant_proposal,
         )
