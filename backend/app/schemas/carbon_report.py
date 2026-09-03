@@ -31,6 +31,12 @@ class CarbonReportRead(CarbonReportBase):
     last_updated: int | None = None
     completion_progress: str | None = None
     overall_status: int = ModuleStatus.NOT_STARTED
+    # Only populated by the Simulator Explore routes (#2656/#2631): the
+    # resolved N-1/N-2 year Explore's own dropdowns and typeahead must query
+    # against, distinct from `year` (creation metadata). None both when a
+    # caller never sets it (Calculator, Plan) and when Explore itself found
+    # no published factors for either fallback year.
+    factor_year: int | None = None
 
     class Config:
         from_attributes = True

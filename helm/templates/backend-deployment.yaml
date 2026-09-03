@@ -9,15 +9,27 @@ metadata:
 spec:
   revisionHistoryLimit: 2
 
+  {{- $minReplicas := .Values.backend.replicaCount }}
+  {{- if .Values.backend.autoscaling.enabled }}
+  {{- $minReplicas = .Values.backend.autoscaling.minReplicas }}
+  {{- end }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      # #2050 A2: maxSurge:0/maxUnavailable:1 made every rollout a
-      # guaranteed outage window on a single-replica deployment (dev) and
-      # a capacity dip on multi-replica ones (stage). A new pod comes up
-      # before an old one leaves instead.
+      # #2050 A2: a 1-replica floor can't survive maxUnavailable - the
+      # only pod would be killed before its replacement is ready, a
+      # guaranteed outage window. 2+ replicas can lose one during
+      # rollout instead of surging past replicaCount, which is what
+      # exhausts compute-resources quota on tight namespaces (dev).
+      # Derived from the replica floor (autoscaling.minReplicas when HPA
+      # is on, else replicaCount) so it can't drift out of sync with it.
+      {{- if le (int $minReplicas) 1 }}
       maxSurge: 1
       maxUnavailable: 0
+      {{- else }}
+      maxSurge: 0
+      maxUnavailable: 1
+      {{- end }}
 
   replicas: {{ .Values.backend.replicaCount }}
   selector:
@@ -43,6 +55,15 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+
+      # Explicit: 5s preStop + drain + lifespan teardown (loop cancels,
+      # engine.dispose #2567) must fit inside it, or the kubelet SIGKILLs a
+      # pod mid-dispose and recreates the orphaned-connection incident this
+      # chart just finished fixing. The k8s default is 30s; 35 restores the
+      # full 30 for the app after the preStop spends its 5. A request
+      # in-flight longer than that still dies with the pod -- raising this
+      # further only slows every rollout for the rare long upload.
+      terminationGracePeriodSeconds: 35
 
       initContainers:
         {{- if .Values.database.waitForPostgres.enabled }}
@@ -109,6 +130,16 @@ spec:
             - name: DISPATCH_JOBS_INLINE
               value: "false"
             {{- end }}
+          # Endpoint removal propagates to the router asynchronously, but
+          # SIGTERM lands immediately and uvicorn stops accepting at once --
+          # so for a moment the router keeps sending new requests at a pod
+          # that refuses them: sporadic 502s on every rollout, invisible in
+          # app logs because they never reach the app. Keep accepting for 5s
+          # while the router catches up, THEN start the drain.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
           livenessProbe:
             {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
           readinessProbe:

@@ -1,10 +1,21 @@
 from pydantic import BaseModel
 
 
+class FactorOption(BaseModel):
+    """One typeahead option (#2391 decision 4).
+
+    ``name`` is the stored classification value the form submits (purchase:
+    the UNSPSC code); ``label`` is the request-locale display text — same
+    vocabulary as ``TaxonomyNode``, minus the tree.
+    """
+
+    name: str
+    label: str
+
+
 class TaxonomyNode(BaseModel):
     name: str
     label: str
-    translation_key: str | None = None
     # Display metadata copied from the node's factor row, restricted to the
     # fields its handler whitelists in ``taxonomy_meta_fields`` (#2391). Only
     # what a form or table needs to *render* the option — never an emission

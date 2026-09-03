@@ -1,4 +1,8 @@
-from app.utils.csv_dialect import csv_dict_reader, detect_csv_delimiter
+from app.utils.csv_dialect import (
+    csv_dict_reader,
+    detect_csv_delimiter,
+    strip_comment_lines,
+)
 
 
 def test_detect_comma_delimiter():
@@ -80,3 +84,59 @@ def test_csv_dict_reader_forwards_kwargs():
         {"x": "1", "y": "2", "z": "3"},
         {"x": "4", "y": "5", "z": "6"},
     ]
+
+
+def test_csv_dict_reader_skips_comment_lines():
+    text = "a,b\n#1) fill in a\n1,2\n"
+
+    rows = list(csv_dict_reader(text))
+
+    assert rows == [{"a": "1", "b": "2"}]
+
+
+def test_csv_dict_reader_skips_comment_block_above_the_header():
+    text = "#Instructions:\n#1) fill in a\na,b\n1,2\n"
+
+    reader = csv_dict_reader(text)
+
+    assert reader.fieldnames == ["a", "b"]
+    assert list(reader) == [{"a": "1", "b": "2"}]
+
+
+def test_csv_dict_reader_ignores_commas_inside_the_comment_block():
+    # The instruction prose is comma-heavy while the file is
+    # semicolon-separated: stripping must happen before sniffing.
+    text = '#1) enter a, then b, then c\na;b\n"x, y";2\n'
+
+    rows = list(csv_dict_reader(text))
+
+    assert rows == [{"a": "x, y", "b": "2"}]
+
+
+def test_csv_dict_reader_keeps_hash_inside_a_field():
+    text = 'a,b\n"#03 INN 215",2\n'
+
+    rows = list(csv_dict_reader(text))
+
+    assert rows == [{"a": "#03 INN 215", "b": "2"}]
+
+
+def test_csv_dict_reader_keeps_hash_opening_a_line_inside_a_quoted_field():
+    # The '#' opens a physical line but not a record: it is data.
+    text = 'a,b\n"line1\n#line2",2\n'
+
+    rows = list(csv_dict_reader(text))
+
+    assert rows == [{"a": "line1\n#line2", "b": "2"}]
+
+
+def test_strip_comment_lines_preserves_line_endings():
+    text = "a,b\r\n#note\r\n1,2\r\n"
+
+    assert strip_comment_lines(text) == "a,b\r\n1,2\r\n"
+
+
+def test_strip_comment_lines_is_a_noop_without_comments():
+    text = "a,b\n1,2\n"
+
+    assert strip_comment_lines(text) == text

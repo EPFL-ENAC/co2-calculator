@@ -15,6 +15,10 @@ import {
   QSeparator,
   QExpansionItem,
   QIcon,
+  QInput,
+  QItem,
+  QItemSection,
+  QSelect,
   QTooltip,
 } from 'quasar';
 import { i18n } from '@/boot/i18n';
@@ -42,5 +46,12 @@ beforeMount(async ({ app }) => {
   app.component('QSeparator', QSeparator);
   app.component('QExpansionItem', QExpansionItem);
   app.component('QIcon', QIcon);
+  // VirtualSelectField (server-search mode, #2391 decision 4) renders
+  // these three.
+  app.component('QItem', QItem);
+  app.component('QItemSection', QItemSection);
+  app.component('QSelect', QSelect);
   app.component('QTooltip', QTooltip);
+  // PlannerHeadcountRows (#2613 vocabulary labels) renders q-input rows.
+  app.component('QInput', QInput);
 });

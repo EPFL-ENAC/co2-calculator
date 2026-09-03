@@ -1,12 +1,14 @@
 """Background tasks for role synchronization."""
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.providers.role_provider import RoleProviderNetworkError, get_role_provider
+from app.providers.role_provider import get_role_provider
 from app.services.role_sync_service import RoleSyncService
 from app.services.user_service import UserService
 
 logger = get_logger(__name__)
+settings = get_settings()
 
 
 async def trigger_role_sync_for_user(
@@ -47,36 +49,26 @@ async def trigger_role_sync_for_user(
                 )
                 return
 
-            # Sync roles – provider fetch happens inside service, behind TTL gate
-            sync_service = RoleSyncService(session)
-            try:
-                result = await sync_service.sync_user_roles(
-                    user_id, role_provider, force=force
-                )
-            except RoleProviderNetworkError as e:
-                logger.error(
-                    "Role provider unavailable",
-                    extra={"user_id": user_id, "error": str(e)},
-                )
-                return
+            # Sync roles – provider fetch happens inside service, behind TTL
+            # gate. The service reports why it ended (applied / skipped) rather
+            # than raising; it never writes on a skip.
+            sync_service = RoleSyncService(
+                session, sync_ttl_minutes=settings.ROLE_SYNC_TTL_MINUTES
+            )
+            result = await sync_service.sync_user_roles(
+                user_id, role_provider, force=force
+            )
 
-            if result.has_changed:
+            if result.roles_changed:
                 logger.info(
                     "Role sync completed - changes detected",
-                    extra={
-                        "user_id": user_id,
-                        "roles_changed": result.roles_changed,
-                    },
+                    extra={"user_id": user_id, "outcome": result.outcome.value},
                 )
-
-                # Sync units if roles changed
-                if result.roles_changed:
-                    await sync_service.sync_user_units(user_id, result.new_roles)
-
+                await sync_service.sync_user_units(user_id, result.new_roles)
             else:
                 logger.debug(
-                    "Role sync completed - no changes",
-                    extra={"user_id": user_id},
+                    "Role sync completed - no role change applied",
+                    extra={"user_id": user_id, "outcome": result.outcome.value},
                 )
 
         except Exception as e:

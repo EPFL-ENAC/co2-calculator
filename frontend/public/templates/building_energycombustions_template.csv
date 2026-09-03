@@ -1,4 +1,9 @@
 ﻿name,unit,quantity,note
+# Instructions:,,,
+# 1) Among the list below choose the energy sources relevant for your unit and replace the quantity values.,,,
+# 2) Enter the quantity consumed in the specified unit (kWh for energy kg for solid fuels). Replace the default values with your actual data.,,,
+# 3) For detailed guidance on each fuel type and methodology consult the documentation section: Modules specification - Buildings,,,
+# 4) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,
 natural_gas,kWh,1200,
 heating_oil,kWh,800,
 biomethane,kWh,500,

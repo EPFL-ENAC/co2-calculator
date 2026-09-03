@@ -31,11 +31,13 @@ from app.schemas.taxonomy import TaxonomyNode
 # ingestions, while still self-healing from a broadcast a dead or
 # restarting pod never received. Public so tests can assert against it.
 TAXONOMY_CACHE_TTL_SECONDS = 3600.0
-# Bounded by data_entry_type × year combinations actually queried, but that
-# grows over uptime as users browse historical years — cap it so a busy
-# instance can't accumulate one multi-MB tree (det=66 is ~20k rows) per
-# worker process indefinitely.
-_MAX_ENTRIES = 64
+# Bounded by data_entry_type × year × lang combinations actually queried,
+# but that grows over uptime as users browse historical years — cap it so a
+# busy instance can't accumulate one multi-MB tree (det=66 is ~20k rows) per
+# worker process indefinitely. Sized for the language dimension the key
+# gained in #2401: 64 per language, or a locale switch would evict entries a
+# bilingual unit still round-trips between.
+_MAX_ENTRIES = 128
 
 
 class _TTLCache[T]:
@@ -96,7 +98,6 @@ def _canonical_taxonomy(node: TaxonomyNode) -> dict:
     return {
         "name": node.name,
         "label": node.label,
-        "translation_key": node.translation_key,
         "meta": node.meta,
         "children": children,
     }

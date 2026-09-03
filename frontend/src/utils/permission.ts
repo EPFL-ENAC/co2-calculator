@@ -69,9 +69,32 @@ export const MODULE_STATUS_PERMISSION = 'module.status';
  */
 export const PLANNER_PLANS_PERMISSION = 'planner.plans';
 
+/** Breadth at which a planner action is granted, mirroring the backend. */
+type PlanBreadth = 'global' | 'unit' | 'own';
+
 /**
- * Whether the user may delete a plan: `delete` at global or unit breadth,
- * or at own breadth when the plan's `created_by` is the user.
+ * Resolve the breadth of `action` on the planner key, mirroring the backend's
+ * `resolve_module_scope`: bare key > `/<cf>` > `/<cf>/own` > denied.
+ */
+function resolvePlanBreadth(
+  permissions: FlatUserPermissions | null | undefined,
+  institutionalId: string | null | undefined,
+  action: PermissionAction,
+): PlanBreadth | null {
+  if (hasPermission(permissions, PLANNER_PLANS_PERMISSION, action))
+    return 'global';
+  if (!institutionalId) return null;
+  const unitPath = `${PLANNER_PLANS_PERMISSION}/${institutionalId}`;
+  if (hasPermission(permissions, unitPath, action)) return 'unit';
+  if (hasPermission(permissions, `${unitPath}/own`, action)) return 'own';
+  return null;
+}
+
+/**
+ * Whether the user may delete a plan. Mirrors `PlanPolicy.can_delete`: global
+ * breadth deletes any plan, every other breadth is creator-only. Resolving the
+ * breadth first (rather than accepting any `delete` grant) keeps the button in
+ * step with the backend if a role ever gains unit-breadth delete — #2607.
  */
 export function canDeletePlan(
   permissions: FlatUserPermissions | null | undefined,
@@ -79,23 +102,14 @@ export function canDeletePlan(
   userId: number | null | undefined,
   createdBy: number | null | undefined,
 ): boolean {
-  if (
-    hasPermission(
-      permissions,
-      PLANNER_PLANS_PERMISSION,
-      PermissionAction.DELETE,
-    )
-  )
-    return true;
-  if (!institutionalId) return false;
-  const unitPath = `${PLANNER_PLANS_PERMISSION}/${institutionalId}`;
-  if (hasPermission(permissions, unitPath, PermissionAction.DELETE))
-    return true;
-  return (
-    hasPermission(permissions, `${unitPath}/own`, PermissionAction.DELETE) &&
-    userId != null &&
-    createdBy === userId
+  const breadth = resolvePlanBreadth(
+    permissions,
+    institutionalId,
+    PermissionAction.DELETE,
   );
+  if (breadth === 'global') return true;
+  if (breadth === null) return false;
+  return userId != null && createdBy === userId;
 }
 
 /**

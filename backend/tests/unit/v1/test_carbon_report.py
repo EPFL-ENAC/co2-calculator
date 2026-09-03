@@ -1,6 +1,6 @@
 """Unit tests for carbon_report API endpoints."""
 
-from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -395,22 +395,21 @@ async def test_update_status_value_error_raises_400():
         module.CarbonReportModuleService = orig_module
 
 
-# ── get_simulator_explore_carbon_report ───────────────────────────────────────
+# ── get_simulator_explore_carbon_report (#2656) ─────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_get_simulator_explore_found_fresh_no_refresh():
-    """Found, within TTL → return report, no background refresh scheduled."""
+async def test_get_simulator_explore_found_returns_it():
+    """Found → return the report (with its resolved factor year, #2631).
+
+    Read-only: no background task, ever.
+    """
     db = _db()
-    fresh_ts = int(datetime.now(UTC).timestamp())
     report = MagicMock()
     report.id = 42
-    report.last_updated = fresh_ts
     svc = MagicMock()
     svc.get_explore = AsyncMock(return_value=report)
-
-    background_tasks = MagicMock()
-    background_tasks.add_task = MagicMock()
+    sentinel = MagicMock()
 
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
@@ -418,19 +417,20 @@ async def test_get_simulator_explore_found_fresh_no_refresh():
         with (
             patch.object(module, "require_unit_access"),
             patch.object(module, "require_module_unit_scope"),
+            patch.object(
+                module, "_explore_report_read", AsyncMock(return_value=sentinel)
+            ) as read_mock,
         ):
-            result = await module.get_simulator_explore_carbon_report(
-                1, 2024, background_tasks, db, _user()
-            )
-        assert result == report
-        background_tasks.add_task.assert_not_called()
+            result = await module.get_simulator_explore_carbon_report(1, db, _user())
+        assert result == sentinel
+        read_mock.assert_awaited_once_with(db, report)
     finally:
         module.CarbonReportService = original
 
 
 @pytest.mark.asyncio
 async def test_get_simulator_explore_not_found_raises_404():
-    """Missing report → 404."""
+    """Missing report → 404, no create-fallback."""
     db = _db()
     svc = MagicMock()
     svc.get_explore = AsyncMock(return_value=None)
@@ -443,154 +443,25 @@ async def test_get_simulator_explore_not_found_raises_404():
             patch.object(module, "require_module_unit_scope"),
         ):
             with pytest.raises(HTTPException) as exc:
-                await module.get_simulator_explore_carbon_report(
-                    1, 2024, MagicMock(), db, _user()
-                )
+                await module.get_simulator_explore_carbon_report(1, db, _user())
         assert exc.value.status_code == 404
     finally:
         module.CarbonReportService = original
 
 
-@pytest.mark.asyncio
-async def test_get_simulator_explore_expired_schedules_background_refresh():
-    """Stale report (>24 h) → returned immediately, background refresh queued."""
-    db = _db()
-    stale_ts = int(datetime.now(UTC).timestamp()) - (25 * 60 * 60)
-    report = MagicMock()
-    report.id = 99
-    report.last_updated = stale_ts
-    svc = MagicMock()
-    svc.get_explore = AsyncMock(return_value=report)
-
-    background_tasks = MagicMock()
-    background_tasks.add_task = MagicMock()
-
-    original = module.CarbonReportService
-    module.CarbonReportService = lambda db: svc
-    user = _user()
-    try:
-        with (
-            patch.object(module, "require_unit_access"),
-            patch.object(module, "require_module_unit_scope"),
-        ):
-            result = await module.get_simulator_explore_carbon_report(
-                1, 2024, background_tasks, db, user
-            )
-        assert result == report  # stale report returned immediately
-        background_tasks.add_task.assert_called_once_with(
-            module._refresh_explore_background,
-            unit_id=1,
-            old_report_id=99,
-            reference_year=2024,
-            created_by=user.id,
-        )
-    finally:
-        module.CarbonReportService = original
+# ── create_simulator_explore_carbon_report (#2656) ──────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_get_simulator_explore_null_last_updated_schedules_refresh():
-    """last_updated=None (no timestamp) → treated as expired, refresh queued."""
+async def test_create_simulator_explore_always_creates_and_schedules_cleanup():
+    """POST always creates — no existence check — and queues cleanup of the rest."""
     db = _db()
-    report = MagicMock()
-    report.id = 7
-    report.last_updated = None
-    svc = MagicMock()
-    svc.get_explore = AsyncMock(return_value=report)
-
-    background_tasks = MagicMock()
-    background_tasks.add_task = MagicMock()
-
-    original = module.CarbonReportService
-    module.CarbonReportService = lambda db: svc
-    try:
-        with (
-            patch.object(module, "require_unit_access"),
-            patch.object(module, "require_module_unit_scope"),
-        ):
-            result = await module.get_simulator_explore_carbon_report(
-                1, 2024, background_tasks, db, _user()
-            )
-        assert result == report
-        background_tasks.add_task.assert_called_once()
-    finally:
-        module.CarbonReportService = original
-
-
-# ── put_simulator_explore_carbon_report (#2487) ────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_put_simulator_explore_creates_when_missing():
-    """PUT is idempotent: missing sandbox → workflow creates it, no refresh."""
-    db = _db()
-    fresh_ts = int(datetime.now(UTC).timestamp())
     new_report = MagicMock()
     new_report.id = 55
-    new_report.last_updated = fresh_ts
+    new_report.carbon_project_id = 7
     workflow = MagicMock()
-    workflow.ensure = AsyncMock(return_value=new_report)
-
-    background_tasks = MagicMock()
-    background_tasks.add_task = MagicMock()
-
-    original = module.ExploreProvisioningWorkflow
-    module.ExploreProvisioningWorkflow = lambda db: workflow
-    try:
-        with (
-            patch.object(module, "require_unit_access"),
-            patch.object(module, "require_module_unit_scope"),
-        ):
-            result = await module.put_simulator_explore_carbon_report(
-                1, 2024, background_tasks, db, _user()
-            )
-        assert result == new_report
-        workflow.ensure.assert_awaited_once()
-        background_tasks.add_task.assert_not_called()
-    finally:
-        module.ExploreProvisioningWorkflow = original
-
-
-@pytest.mark.asyncio
-async def test_put_simulator_explore_returns_existing_without_recreating():
-    """PUT is idempotent: an existing, fresh sandbox is returned as-is."""
-    db = _db()
-    fresh_ts = int(datetime.now(UTC).timestamp())
-    existing = MagicMock()
-    existing.id = 42
-    existing.last_updated = fresh_ts
-    workflow = MagicMock()
-    workflow.ensure = AsyncMock(return_value=existing)
-
-    background_tasks = MagicMock()
-    background_tasks.add_task = MagicMock()
-
-    original = module.ExploreProvisioningWorkflow
-    module.ExploreProvisioningWorkflow = lambda db: workflow
-    try:
-        with (
-            patch.object(module, "require_unit_access"),
-            patch.object(module, "require_module_unit_scope"),
-        ):
-            result = await module.put_simulator_explore_carbon_report(
-                1, 2024, background_tasks, db, _user()
-            )
-        assert result == existing
-        background_tasks.add_task.assert_not_called()
-    finally:
-        module.ExploreProvisioningWorkflow = original
-
-
-@pytest.mark.asyncio
-async def test_put_simulator_explore_schedules_refresh_when_stale():
-    """A stale existing sandbox is returned immediately; refresh is queued."""
-    db = _db()
-    stale_ts = int(datetime.now(UTC).timestamp()) - (25 * 60 * 60)
-    existing = MagicMock()
-    existing.id = 99
-    existing.last_updated = stale_ts
-    workflow = MagicMock()
-    workflow.ensure = AsyncMock(return_value=existing)
+    workflow.create = AsyncMock(return_value=new_report)
+    sentinel = MagicMock()
 
     background_tasks = MagicMock()
     background_tasks.add_task = MagicMock()
@@ -602,17 +473,90 @@ async def test_put_simulator_explore_schedules_refresh_when_stale():
         with (
             patch.object(module, "require_unit_access"),
             patch.object(module, "require_module_unit_scope"),
+            patch.object(
+                module, "_explore_report_read", AsyncMock(return_value=sentinel)
+            ) as read_mock,
         ):
-            result = await module.put_simulator_explore_carbon_report(
-                1, 2024, background_tasks, db, user
+            result = await module.create_simulator_explore_carbon_report(
+                1, background_tasks, db, user
             )
-        assert result == existing
+        assert result == sentinel
+        read_mock.assert_awaited_once_with(db, new_report)
+        workflow.create.assert_awaited_once_with(unit_id=1, created_by=user.id)
         background_tasks.add_task.assert_called_once_with(
-            module._refresh_explore_background,
+            module._cleanup_old_explore_background,
             unit_id=1,
-            old_report_id=99,
-            reference_year=2024,
             created_by=user.id,
+            keep_project_id=7,
         )
     finally:
         module.ExploreProvisioningWorkflow = original
+
+
+@pytest.mark.asyncio
+async def test_create_simulator_explore_raises_when_project_id_missing():
+    """A created report without a project id is a server bug, not a 404/400."""
+    db = _db()
+    new_report = MagicMock()
+    new_report.carbon_project_id = None
+    workflow = MagicMock()
+    workflow.create = AsyncMock(return_value=new_report)
+
+    original = module.ExploreProvisioningWorkflow
+    module.ExploreProvisioningWorkflow = lambda db: workflow
+    try:
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await module.create_simulator_explore_carbon_report(
+                    1, MagicMock(), db, _user()
+                )
+        assert exc.value.status_code == 500
+    finally:
+        module.ExploreProvisioningWorkflow = original
+
+
+# ── _explore_report_read (#2631) ────────────────────────────────────────────────
+
+
+def _explore_report_row(**overrides):
+    fields = {
+        "id": 42,
+        "year": 2026,
+        "reference_year": None,
+        "unit_id": 1,
+        "carbon_project_id": 7,
+        "is_grant": False,
+        "budget": None,
+        "budget_currency": None,
+        "stats": None,
+        "last_updated": None,
+        "completion_progress": None,
+        "overall_status": 0,
+    }
+    fields.update(overrides)
+    return SimpleNamespace(**fields)
+
+
+@pytest.mark.asyncio
+async def test_explore_report_read_carries_resolved_factor_year():
+    report = _explore_report_row()
+    with patch.object(module, "resolve_factor_year_safe", AsyncMock(return_value=2025)):
+        result = await module._explore_report_read(_db(), report)
+    assert result.factor_year == 2025
+    assert result.year == 2026  # creation year untouched, distinct field (#2656)
+
+
+@pytest.mark.asyncio
+async def test_explore_report_read_factor_year_none_when_unresolvable():
+    """No published factors for either fallback year → None, not a 500 (#2631).
+
+    The sandbox itself is real; only its dropdowns have nothing to price
+    against yet.
+    """
+    report = _explore_report_row()
+    with patch.object(module, "resolve_factor_year_safe", AsyncMock(return_value=None)):
+        result = await module._explore_report_read(_db(), report)
+    assert result.factor_year is None

@@ -21,6 +21,8 @@ export interface RfRow {
   name: string;
   /** Animal facilities only (rodent / fish). */
   facilityType: string | null;
+  /** Request-locale label for `facilityType`, from the taxonomy vocabulary. */
+  facilityTypeLabel: string | null;
   /** The platform's metric — the factor's use unit. */
   metric: string;
   selected: boolean;
@@ -55,9 +57,10 @@ export function buildResearchFacilityRows(
       const leaves = facility.children?.length
         ? facility.children.map((type) => ({
             type: type.name,
+            typeLabel: type.label,
             metric: type.meta?.use_unit,
           }))
-        : [{ type: null, metric: facility.meta?.use_unit }];
+        : [{ type: null, typeLabel: null, metric: facility.meta?.use_unit }];
       return leaves
         .filter((leaf) => typeof leaf.metric === 'string' && leaf.metric !== '')
         .map((leaf) => ({
@@ -66,6 +69,7 @@ export function buildResearchFacilityRows(
           facilityId: facility.name,
           name: facility.label,
           facilityType: leaf.type,
+          facilityTypeLabel: leaf.typeLabel,
           metric: leaf.metric as string,
           selected: false,
           use: null,

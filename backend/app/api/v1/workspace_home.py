@@ -120,6 +120,10 @@ class WorkspaceHomeResponse(BaseModel):
     stats: dict
     module_states: list[dict]
     project_plans: list[SimulatorPlanRead] = []
+    # Recomputed from ``roles_raw`` on every guard run: the SPA snapshots the
+    # permissions at login, so an ACCRED role change would otherwise leave it
+    # gating affordances on a stale payload until a hard reload (#2607).
+    permissions: dict = {}
 
 
 @router.get("/{unit_id}/{year}/home", response_model=WorkspaceHomeResponse)
@@ -167,7 +171,8 @@ async def get_workspace_home(
     ]
 
     plans = await SimulatorPlanService(db).list_plans(unit_id)
-    visible_plans = PlanPolicy.from_unit(current_user, unit).visible(plans)
+    policy = PlanPolicy.from_unit(current_user, unit)
+    visible_plans = policy.visible(plans)
 
     return WorkspaceHomeResponse(
         carbon_report_id=report.id,
@@ -175,4 +180,6 @@ async def get_workspace_home(
         stats=stats,
         module_states=module_states,
         project_plans=visible_plans,
+        # The policy already computed them for this request.
+        permissions=policy.permissions,
     )

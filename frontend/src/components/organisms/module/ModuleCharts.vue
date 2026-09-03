@@ -19,6 +19,7 @@
         <headCountBarChart
           v-if="headcountChartKeys.length"
           :stats="moduleStore?.state?.data?.stats"
+          :year="workspaceStore.selectedYear"
         />
         <chart-empty-state v-else />
       </div>
@@ -172,6 +173,7 @@
 <script setup lang="ts">
 import { computed, inject, ref, watch, type ComputedRef } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { onBeforeRouteUpdate } from 'vue-router';
 import { Module, MODULES } from '@/constant/modules';
 import ChartEmptyState from '@/components/molecules/ChartEmptyState.vue';
 import HeadCountBarChart from '@/components/molecules/HeadCountBarChart.vue';
@@ -359,6 +361,13 @@ function fetchTopClassBreakdownIfNeeded() {
     );
   }
 }
+
+// Segment labels are backend-localized; a language switch must refetch them.
+onBeforeRouteUpdate((to, from) => {
+  if (to.params.language !== from.params.language) {
+    fetchTopClassBreakdownIfNeeded();
+  }
+});
 
 // SCIPER → display name for the unit's headcount roster. The trips-map API
 // ships only the traveler SCIPER; we resolve names here (the same headcount

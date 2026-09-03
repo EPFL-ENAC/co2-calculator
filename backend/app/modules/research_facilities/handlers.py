@@ -149,6 +149,9 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
     kind_label_field: str | None = "researchfacility_name"
     taxonomy_meta_fields: tuple[str, ...] = ("use_unit",)
     require_subkind_for_factor = False
+    # Housing types are enum keys (fish/rodent) labeled by the #2613 seed
+    # in both languages — sius_code shape, English display included.
+    translated_code_fields = ("researchfacility_type",)
 
     sort_map = {
         "id": DataEntry.id,

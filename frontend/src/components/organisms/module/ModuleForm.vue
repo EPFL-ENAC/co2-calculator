@@ -166,6 +166,28 @@
                   @update:model-value="(val) => (form[inp.id] = val)"
                 />
               </template>
+              <!-- #2391 decision 4: an option list too large to ship as a
+                   taxonomy tree (purchase: ~17k UNSPSC codes) searches the
+                   server per keystroke instead. -->
+              <VirtualSelectField
+                v-else-if="inp.optionsSearch"
+                :model-value="form[inp.id]"
+                :on-search="searchClassificationOptions"
+                :initial-option="initialSearchOption(inp)"
+                :label="
+                  $t(`${inp.labelKey || inp.label}`, {
+                    submoduleTitle: $t(`${moduleType}-${submoduleType}`),
+                  })
+                "
+                :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
+                :hint="inp.hint ? $t(inp.hint) : null"
+                :error="!!errors[inp.id]"
+                :error-message="errors[inp.id]"
+                :readonly="isReadOnly(inp)"
+                :disable="inp.disable"
+                :icon="inp.icon"
+                @update:model-value="(val) => (form[inp.id] = val)"
+              />
               <!-- Long option lists: purchases run to thousands of UNSPSC
                    codes, research facilities to ~90 platforms and growing.
                    Both need type-ahead and a loading state; a plain QSelect
@@ -337,11 +359,11 @@ import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from '@/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from '@/components/molecules/NoteDialog.vue';
 import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
+import { searchDataEntryOptions } from '@/api/taxonomies';
 import HeadcountMemberSelect from '@/components/organisms/module/HeadcountMemberSelect.vue';
 import { calculateDistance } from '@/api/locations';
 import { useEquipmentClassOptions } from '@/composables/useEquipmentClassOptions';
 import { useBuildingRoomDynamicOptions } from '@/composables/useBuildingRoomDynamicOptions';
-import { resolveFactorYear } from '@/utils/factor-year';
 import {
   DATE_INPUT_MASK,
   isValidCalendarDate,
@@ -388,14 +410,13 @@ const props = withDefaults(
     unitId?: number;
     year?: string | number;
     /**
-     * Year whose factors this form resolves against. The Simulator Plan sets
-     * it to the plan year's reference year — the backend computes emissions
-     * from that year's factors, so the options and seeded values must come
-     * from it too. `null` means a plan year with no reference year picked
-     * yet: nothing is fetched. Omitted in the Calculator, where `year` is the
-     * factor year.
+     * Year whose factors this form resolves against — the backend-resolved
+     * value (`resolve_factor_year`), always passed explicitly by every
+     * caller (no implicit "fall back to `year`" case: an omitted factor
+     * year is a wiring bug, not a Calculator special case). `null` means no
+     * resolvable factor year: nothing is fetched.
      */
-    factorYear?: number | null;
+    factorYear: number | null;
     formDefaults?: Record<string, unknown>;
     moduleColor?: string;
   }>(),
@@ -407,15 +428,12 @@ const props = withDefaults(
     addButtonLabelKey: 'common_add_button',
     unitId: undefined,
     year: undefined,
-    factorYear: undefined,
     formDefaults: undefined,
     moduleColor: undefined,
   },
 );
 
-const factorYear = computed(() =>
-  resolveFactorYear(props.factorYear, props.year),
-);
+const factorYear = toRef(props, 'factorYear');
 
 const formTooltipText = computed(() =>
   $t(`module-${props.moduleType}-submodule-${props.submoduleType}-form`),
@@ -578,9 +596,7 @@ const filteredOptionsMap = computed(() => {
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts.map((o: { label: string; value: string }) => ({
             value: o.value,
-            label: inp.optionLabelPrefix
-              ? $t(o.value.toLowerCase(), o.label)
-              : o.label,
+            label: o.label,
           }))
         : (inp.options?.map((o) => ({
             label: $t(o.label) !== o.label ? $t(o.label) : o.label,
@@ -633,29 +649,17 @@ function getFilteredOptions(
   const taxoNode =
     moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = filteredOptionsMap.value[inp.id] ?? [];
-  // Build O(1) lookup map once per call to avoid O(n²) Array.find() over taxonomy children
-  const taxoChildMap = new Map(
-    taxoNode?.children?.map((c) => [c.name, c]) ?? [],
-  );
+  // Build O(1) lookup map once per call to avoid O(n²) Array.find() over
+  // taxonomy children. Kind AND subkind nodes, flattened: backend labels
+  // cover every factor-sourced value and the static vocabularies
+  // (sius_code, room_type) since #2613.
+  const taxoChildMap = new Map<string, { label: string }>();
+  taxoNode?.children?.forEach((c) => {
+    taxoChildMap.set(c.name, c);
+    c.children?.forEach((sub) => taxoChildMap.set(sub.name, sub));
+  });
   opts.forEach((opt) => {
-    if (inp.optionLabelKey) {
-      const key = inp.optionLabelKey.replace(
-        '{value}',
-        opt.value.toLowerCase(),
-      );
-      opt.label = $te(key) ? $t(key) : opt.value;
-      return;
-    }
     const taxoOptNode = taxoChildMap.get(opt.value);
-    const translationKey = taxoOptNode?.translation_key;
-    if (translationKey && $te(translationKey)) {
-      opt.label = $t(translationKey);
-      return;
-    }
-    if ($te(opt.value)) {
-      opt.label = $t(opt.value);
-      return;
-    }
     if (taxoOptNode) {
       opt.label = taxoOptNode.label;
     }
@@ -686,7 +690,11 @@ const errors = reactive<Record<string, string | null>>({});
 const fieldInteraction = createFieldInteractionTracker();
 
 const kindFieldId = computed(() => {
-  const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
+  // An `optionsSearch` kind field gets its options from the typeahead
+  // endpoint, never from the taxonomy tree (#2391 decision 4).
+  const kindField = visibleFields.value.find(
+    (f) => f.optionsId === 'kind' && !f.optionsSearch,
+  );
   return kindField ? kindField.id : null;
 });
 
@@ -698,9 +706,38 @@ const subkindFieldId = computed(() => {
 });
 
 const kindLabelField = computed(() => {
-  const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
+  const kindField = visibleFields.value.find(
+    (f) => f.optionsId === 'kind' && !f.optionsSearch,
+  );
   return kindField?.optionsLabelField ?? null;
 });
+
+async function searchClassificationOptions(
+  query: string,
+): Promise<Array<{ value: string; label: string }>> {
+  // An edit dialog may resolve no factor year at all — nothing to search.
+  if (factorYear.value == null) return [];
+  const found = await searchDataEntryOptions(
+    String(props.moduleType),
+    String(props.submoduleType),
+    query,
+    factorYear.value,
+  );
+  return found.map((o) => ({ value: o.name, label: o.label }));
+}
+
+function initialSearchOption(
+  inp: ModuleField,
+): { value: string; label: string } | null {
+  const value = props.rowData?.[inp.id];
+  if (typeof value !== 'string' || value === '') return null;
+  // #2401: the row payload carries the backend-resolved display label per
+  // classification field — the only label source once no tree is fetched.
+  const labels = (props.rowData as Record<string, unknown> | null)?.[
+    'labels'
+  ] as Record<string, string> | null | undefined;
+  return { value, label: labels?.[inp.id] ?? value };
+}
 
 // Factor fields populated on class/subclass selection. Each id must match a
 // key in the factor /values response.
@@ -741,6 +778,9 @@ const {
     classFieldId: kindFieldId.value ?? undefined,
     subClassFieldId: subkindFieldId.value ?? undefined,
     classLabelField: kindLabelField.value ?? undefined,
+    skipClassOptions: visibleFields.value.some(
+      (f) => f.optionsId === 'kind' && f.optionsSearch,
+    ),
     fetchFactorValuesOnChange: true,
     valueFieldIds: factorValueFieldIds,
     defaultValueFieldIds: factorDefaultFieldIds,

@@ -69,9 +69,7 @@
             >
               {{ row.name }}
               <span v-if="row.facilityType" class="text-grey-7">
-                ({{
-                  $t(`${MODULES.ResearchFacilities}.type.${row.facilityType}`)
-                }})
+                ({{ row.facilityTypeLabel ?? row.facilityType }})
               </span>
             </label>
             <div class="planner-rf-table__kg text-body2 text-grey-7">
@@ -209,7 +207,7 @@ function selectedRowsOf(sub: RfSub): RfRow[] {
 
 function optionLabel(row: RfRow): string {
   return row.facilityType
-    ? `${row.name} (${t(`${MODULES.ResearchFacilities}.type.${row.facilityType}`)})`
+    ? `${row.name} (${row.facilityTypeLabel ?? row.facilityType})`
     : row.name;
 }
 

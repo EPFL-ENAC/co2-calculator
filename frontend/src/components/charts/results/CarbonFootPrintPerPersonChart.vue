@@ -11,6 +11,7 @@ import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
   colors,
+  isHiddenResultsCategory,
 } from '@/constant/charts';
 import { useColorblindStore } from '@/stores/colorblind';
 import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
@@ -72,6 +73,7 @@ const isColorblind = computed(() => colorblindStore.enabled);
 const { isCategoryModuleActive } = useModuleCategoriesAvailability();
 
 function isCategoryVisible(categoryKey: string): boolean {
+  if (isHiddenResultsCategory(categoryKey)) return false;
   if (props.enforceModuleActivation) {
     return isCategoryModuleActive(categoryKey);
   }

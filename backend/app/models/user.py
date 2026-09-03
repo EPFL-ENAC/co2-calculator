@@ -23,6 +23,13 @@ class RoleName(str, Enum):
     CO2_SUPERADMIN = "calco2.backoffice.admin"
 
 
+# Accred namespace shared by every RoleName. Derived here so the Accred
+# authorization search filter can never drift from the enum: a rename that
+# misses a member makes the pinning test fail loudly instead of silently
+# matching zero authorizations and zeroing every user's roles (#2531).
+ROLE_NAME_PREFIX = f"{RoleName.CO2_USER_STD.value.split('.')[0]}."
+
+
 class GlobalScope(BaseModel):
     kind: Literal["global"] = "global"
 
@@ -379,6 +386,16 @@ class User(UserBase, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
         description="Last timestamp when roles were synced from provider",
+    )
+    roles_empty_since: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+        description=(
+            "When the provider first reported zero roles for a user that had "
+            "some (#2539). Cleared on any non-empty result. A second empty "
+            "result this long after the first is believed and applied — see "
+            "RoleSyncService._handle_suspicious_empty."
+        ),
     )
 
     def __repr__(self) -> str:

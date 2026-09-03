@@ -1,6 +1,7 @@
 """Data entry repository for database operations."""
 
 import asyncio
+from collections.abc import Sequence
 from typing import Any
 
 from psycopg.types.json import Json
@@ -15,6 +16,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.models.building_room import BuildingRoom
 from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.classification_translation import (
+    DEFAULT_LANG,
+    ClassificationTranslation,
+    normalize_lang,
+    resolve_label_from_field,
+)
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
@@ -27,11 +34,15 @@ from app.modules.emissions.registry import (
 from app.modules.headcount.data_entries import OTHER_SIUS_CODE
 from app.modules.professional_travel import MemberEntry
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
+from app.repositories.classification_translation_repo import (
+    ClassificationTranslationRepository,
+)
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryUpdate,
 )
+from app.utils.sql_like import escape_like
 
 logger = get_logger(__name__)
 
@@ -604,7 +615,237 @@ class DataEntryRepository:
 
         return aggregation
 
-    def _apply_name_filter(self, statement, filter: str | None, filter_map: dict):
+    def _self_labeling_fields(self, handler: Any) -> set[str]:
+        """Classification fields whose own value is the English label — the
+        only fields a translation row can key directly (#2401). A field
+        with a ``*_label_field`` sibling is an opaque code; its text is
+        translated via the factor hop, never by its own value.
+        """
+        if handler is None:
+            return set()
+        fields = set()
+        if handler.kind_field and not handler.kind_label_field:
+            fields.add(handler.kind_field)
+        if handler.subkind_field and not handler.subkind_label_field:
+            fields.add(handler.subkind_field)
+        return fields
+
+    def _translated_code_fields(self, handler: Any) -> set[str]:
+        """Handler-declared code fields whose labels live in the translation
+        table for every language, English included (sius_code: the stored
+        value is a code in any locale — seeded by migration, not CSV).
+        """
+        return set(getattr(handler, "translated_code_fields", ()) or ())
+
+    def _localized_sort_expr(self, handler: Any, sort_by: str, sort_expr, lang: str):
+        """Order by the label the user sees (#2401 follow-up): a
+        translatable classification column in a non-English locale sorts
+        by its translated label where a row exists, the stored English
+        value otherwise — so the French table sorts French-alphabetically.
+        """
+        translatable = self._translated_code_fields(handler)
+        if lang != DEFAULT_LANG:
+            translatable = translatable | self._self_labeling_fields(handler)
+        if sort_by not in translatable:
+            return sort_expr
+        translated = (
+            select(col(ClassificationTranslation.label))
+            .where(
+                col(ClassificationTranslation.field_name) == sort_by,
+                col(ClassificationTranslation.lang) == lang,
+                col(ClassificationTranslation.value) == sort_expr,
+            )
+            .scalar_subquery()
+        )
+        return func.coalesce(translated, sort_expr)
+
+    def _filter_conditions(
+        self,
+        filter_map: dict,
+        filter_pattern: str,
+        handler: Any,
+        lang: str,
+        data_entry_type_id: int,
+        factor_year: int | None,
+    ) -> list:
+        """OR-able conditions for one filter pattern: raw ``ILIKE`` on every
+        mapped column, plus (for translatable fields, non-English locales)
+        a match against the column's translated label (#2401 / #2516).
+        ``data_entry_type_id``/``factor_year`` scope the label-field factor
+        hop below.
+        """
+        conditions = [
+            filter_expr.ilike(filter_pattern, escape="\\")
+            for filter_expr in filter_map.values()
+        ]
+        # Self-labeling fields translate only outside English (their value
+        # IS the English label); translated code fields (sius) carry labels
+        # for every language, English included — one search behavior across
+        # locales. The code + label-field shape hops through factors below
+        # instead. No rows for a field = no-op.
+        translatable = self._translated_code_fields(handler)
+        if lang != DEFAULT_LANG:
+            translatable = translatable | self._self_labeling_fields(handler)
+        for field_name in translatable & filter_map.keys():
+            translated_values = select(col(ClassificationTranslation.value)).where(
+                col(ClassificationTranslation.field_name) == field_name,
+                col(ClassificationTranslation.lang) == lang,
+                col(ClassificationTranslation.label).ilike(filter_pattern, escape="\\"),
+            )
+            conditions.append(filter_map[field_name].in_(translated_values))
+
+        # Code + label-field shape (purchase): the filtered column holds an
+        # opaque code; the text users actually see (and search) is the
+        # factor's label field — matched in English directly, in other
+        # locales via the translation table — so hop through
+        # ``factors.classification`` to map matching text back to its codes.
+        # Scoped by det (seven purchase dets share these classification
+        # fields — an unscoped hop cross-matched between them) and, when the
+        # caller resolved one, by factor year (an old year's description
+        # must not match rows the current catalog describes differently).
+        label_shaped: list[tuple[str, str]] = []
+        if handler is not None:
+            label_shaped = [
+                (code_field, label_field)
+                for code_field, label_field in (
+                    (handler.kind_field, handler.kind_label_field),
+                    (handler.subkind_field, handler.subkind_label_field),
+                )
+                if code_field and label_field and code_field in filter_map
+            ]
+        for code_field, label_field in label_shaped:
+            factor_label = Factor.classification[label_field].as_string()
+            label_matches = factor_label.ilike(filter_pattern, escape="\\")
+            if lang != DEFAULT_LANG:
+                translated_labels = select(col(ClassificationTranslation.value)).where(
+                    col(ClassificationTranslation.field_name) == label_field,
+                    col(ClassificationTranslation.lang) == lang,
+                    col(ClassificationTranslation.label).ilike(
+                        filter_pattern, escape="\\"
+                    ),
+                )
+                label_matches = or_(label_matches, factor_label.in_(translated_labels))
+            factor_scope = [col(Factor.data_entry_type_id) == data_entry_type_id]
+            if factor_year is not None:
+                factor_scope.append(col(Factor.year) == factor_year)
+            matching_codes = select(
+                Factor.classification[code_field].as_string()
+            ).where(*factor_scope, label_matches)
+            conditions.append(filter_map[code_field].in_(matching_codes))
+        return conditions
+
+    async def _page_label_translations(
+        self, handler: Any, lang: str, rows: Sequence[Any]
+    ) -> dict[tuple[str, str], str]:
+        """Translation rows for exactly this page's labels (#2401).
+
+        Scoped to the page's own values on purpose — the per-field variant
+        pulled a 17k-entry purchase catalog to label 25 cells. English needs
+        rows only for translated code fields (their stored value is a code
+        in any locale); the self-labeling and label-field shapes already
+        carry their own English text.
+        """
+        if not rows:
+            return {}
+        wanted: dict[str, set[str]] = {}
+        code_fields = self._translated_code_fields(handler)
+        for row in rows:
+            data_entry, _, primary_factor = row[:3]
+            classification = primary_factor.classification if primary_factor else {}
+            # Translated code fields carry labels in EVERY language (the
+            # stored value is a code); the value lives on the entry (sius)
+            # or on the resolved factor (energy_type).
+            for field in code_fields:
+                value = data_entry.data.get(field)
+                if value is None or value == "":
+                    value = classification.get(field)
+                if value is None or value == "":
+                    continue
+                wanted.setdefault(field, set()).add(value)
+            if lang == DEFAULT_LANG:
+                continue
+            for code_field, label_field in (
+                (handler.kind_field, handler.kind_label_field),
+                (handler.subkind_field, handler.subkind_label_field),
+            ):
+                if not code_field:
+                    continue
+                value = data_entry.data.get(code_field)
+                if value is None or value == "":
+                    continue
+                if label_field:
+                    english = classification.get(label_field)
+                    if english is None or english == "":
+                        english = value
+                    wanted.setdefault(label_field, set()).add(english)
+                    continue
+                wanted.setdefault(code_field, set()).add(value)
+        if not wanted:
+            return {}
+        # One bounded query for the whole page; a value overlapping two
+        # fields over-fetches a row harmlessly — keys stay exact.
+        all_values = sorted({v for vs in wanted.values() for v in vs})
+        return await ClassificationTranslationRepository(self.session).get_labels(
+            set(wanted), lang, values=all_values
+        )
+
+    @staticmethod
+    def _row_labels(
+        handler: Any,
+        data: dict,
+        factor_classification: dict,
+        translations: dict[tuple[str, str], str],
+    ) -> dict[str, str]:
+        """Request-locale display labels for one row's classification values.
+
+        Code + label-field shape (purchase): the text lives on the resolved
+        factor's label field — translated when a row exists, the English
+        description otherwise, the code itself when the factor carries no
+        text (mirrors the taxonomy builder's blank-label fallback).
+        Self-labeling shape: only an actual translation row adds anything —
+        the stored value already is the English label.
+        """
+        labels: dict[str, str] = {}
+        for code_field, label_field in (
+            (handler.kind_field, handler.kind_label_field),
+            (handler.subkind_field, handler.subkind_label_field),
+        ):
+            if not code_field:
+                continue
+            value = data.get(code_field)
+            if value is None or value == "":
+                continue
+            if label_field:
+                labels[code_field] = resolve_label_from_field(
+                    label_field, factor_classification, value, translations
+                )
+                continue
+            translated = translations.get((code_field, value))
+            if translated is not None:
+                labels[code_field] = translated
+        # Translated code fields label in every language; the value lives
+        # on the entry (sius) or the resolved factor (energy_type).
+        for field in getattr(handler, "translated_code_fields", ()) or ():
+            value = data.get(field)
+            if value is None or value == "":
+                value = factor_classification.get(field)
+            if value is None or value == "":
+                continue
+            label = translations.get((field, value))
+            if label is not None:
+                labels[field] = label
+        return labels
+
+    def _apply_name_filter(
+        self,
+        statement,
+        filter: str | None,
+        filter_map: dict,
+        handler: Any,
+        lang: str,
+        data_entry_type_id: int,
+        factor_year: int | None,
+    ):
         """Applies a filter to the given SQLAlchemy statement using the
         caller-prepared (possibly lateral-adapted) filter_map.
         """
@@ -619,11 +860,17 @@ class DataEntryRepository:
                 filter = None
 
         if filter:
-            filter_pattern = f"%{filter}%"
-            # Build OR conditions for all filter fields
-            conditions = [
-                filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
-            ]
+            # The term is user input: a literal ``%`` or ``_`` must match
+            # itself, not act as a wildcard (matches the typeahead, #2401).
+            filter_pattern = f"%{escape_like(filter)}%"
+            conditions = self._filter_conditions(
+                filter_map,
+                filter_pattern,
+                handler,
+                lang,
+                data_entry_type_id,
+                factor_year,
+            )
             statement = statement.where(or_(*conditions))
         return statement, filter_pattern
 
@@ -688,10 +935,19 @@ class DataEntryRepository:
             .scalar_subquery()
         )
 
-    def _apply_sort(self, statement, sort_by: str, sort_order: str, sort_map: dict):
+    def _apply_sort(
+        self,
+        statement,
+        sort_by: str,
+        sort_order: str,
+        sort_map: dict,
+        handler: Any,
+        lang: str,
+    ):
         sort_expr = sort_map.get(sort_by)
         if sort_expr is None:
             raise UnknownSortField(f"Cannot sort by unknown field: {sort_by}")
+        sort_expr = self._localized_sort_expr(handler, sort_by, sort_expr, lang)
         if sort_order.lower() == "asc":
             return statement.order_by(asc(sort_expr))
         else:
@@ -737,6 +993,8 @@ class DataEntryRepository:
         filter: str | None,
         exclude_planner_snapshots: bool,
         is_equipment_entry: bool,
+        lang: str = DEFAULT_LANG,
+        factor_year: int | None = None,
     ) -> list[int] | None:
         """Resolve the page's entry ids with an entries-only query (#2404).
 
@@ -767,10 +1025,20 @@ class DataEntryRepository:
         if handler_default:
             page_q = page_q.where(*handler_default)
         filter_map = dict(getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP)
-        page_q, _ = self._apply_name_filter(page_q, filter, filter_map)
+        page_q, _ = self._apply_name_filter(
+            page_q,
+            filter,
+            filter_map,
+            handler=handler,
+            lang=lang,
+            data_entry_type_id=data_entry_type_id,
+            factor_year=factor_year,
+        )
         if is_equipment_entry:
             page_q = page_q.order_by(_equipment_usage_priority())
-        page_q = self._apply_sort(page_q, sort_by, sort_order, dict(handler.sort_map))
+        page_q = self._apply_sort(
+            page_q, sort_by, sort_order, dict(handler.sort_map), handler, lang
+        )
         page_q = page_q.offset(offset).limit(limit)
         ids = (await self.session.execute(page_q)).scalars().all()
         return [int(i) for i in ids]
@@ -936,7 +1204,9 @@ class DataEntryRepository:
         institutional_id_filter: str | None = None,
         exclude_planner_snapshots: bool = False,
         factor_year: int | None = None,
+        lang: str = DEFAULT_LANG,
     ) -> SubmoduleResponse:
+        lang = normalize_lang(lang)
         is_travel_entry = data_entry_type_id in (
             DataEntryTypeEnum.plane.value,
             DataEntryTypeEnum.train.value,
@@ -1001,6 +1271,8 @@ class DataEntryRepository:
                 filter=filter,
                 exclude_planner_snapshots=exclude_planner_snapshots,
                 is_equipment_entry=is_equipment_entry,
+                factor_year=factor_year,
+                lang=lang,
             )
 
         # The entries this page can possibly show. Both aggregation subqueries
@@ -1295,7 +1567,13 @@ class DataEntryRepository:
                 filter_map[f"{prefix}_municipality"] = loc.municipality
                 filter_map[f"{prefix}_keywords"] = loc.keywords
         statement, filter_pattern = self._apply_name_filter(
-            statement, filter, filter_map
+            statement,
+            filter,
+            filter_map,
+            handler=handler,
+            lang=lang,
+            data_entry_type_id=data_entry_type_id,
+            factor_year=factor_year,
         )
 
         sort_map = dict(
@@ -1336,7 +1614,9 @@ class DataEntryRepository:
             # shared with the page-first ids query, which must order the same.
             statement = statement.order_by(_equipment_usage_priority())
 
-        statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
+        statement = self._apply_sort(
+            statement, sort_by, sort_order, sort_map, handler, lang
+        )
 
         if page_entry_ids is None:
             statement = statement.offset(offset).limit(limit)
@@ -1385,12 +1665,20 @@ class DataEntryRepository:
                     count_stmt = count_stmt.join(target, onclause, isouter=True)
             for target, onclause in count_location_joins:
                 count_stmt = count_stmt.join(target, onclause, isouter=True)
-            conditions = [
-                filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
-            ]
+            conditions = self._filter_conditions(
+                filter_map,
+                filter_pattern,
+                handler,
+                lang,
+                data_entry_type_id,
+                factor_year,
+            )
             count_stmt = count_stmt.where(or_(*conditions))
         total_items = (await self.session.execute(count_stmt)).scalar_one()
         rows = result.all()
+        row_label_translations = await self._page_label_translations(
+            handler, lang, rows
+        )
         count = len(rows)
 
         # Planner snapshot rows carry ``source_data_entry_id`` — the reference-
@@ -1495,13 +1783,22 @@ class DataEntryRepository:
                 )
 
             try:
-                items.append(handler.to_response(data_entry, enriched_data))
+                item = handler.to_response(data_entry, enriched_data)
             except ValidationError as exc:
                 raise ValueError(
                     f"data_entry id={data_entry.id} "
                     f"(type={data_entry_type_id}) does not match the "
                     f"response schema"
                 ) from exc
+            row_labels = self._row_labels(
+                handler,
+                data_entry.data,
+                primary_factor_classification,
+                row_label_translations,
+            )
+            if row_labels:
+                item.labels = row_labels
+            items.append(item)
 
         response = SubmoduleResponse(
             id=data_entry_type_id,

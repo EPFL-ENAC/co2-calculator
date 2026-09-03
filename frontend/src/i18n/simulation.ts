@@ -263,6 +263,13 @@ export default {
     en: 'Optional: select a reference year to prefill the modules below and use its factors. Without one, you enter data manually and factors come from year {year}.',
     fr: "Facultatif : sélectionnez une année de référence pour préremplir les modules ci-dessous et utiliser ses facteurs. Sans année de référence, vous saisissez les données manuellement et les facteurs proviennent de l'année {year}.",
   },
+  // #2651: no reference year, and no year has published factors yet (no
+  // Calculator history to fall back to, and neither of the last two years
+  // is started) — distinct from the above, which always names a year.
+  planner_reference_year_hint_unavailable: {
+    en: 'Optional: select a reference year to prefill the modules below and use its factors. Without one, no factors are available yet for this unit — contact Durability to add them.',
+    fr: "Facultatif : sélectionnez une année de référence pour préremplir les modules ci-dessous et utiliser ses facteurs. Sans année de référence, aucun facteur n'est encore disponible pour cette unité — contactez Durabilité pour les ajouter.",
+  },
   planner_reference_year_error: {
     en: 'Could not set the reference year',
     fr: "Impossible de définir l'année de référence",

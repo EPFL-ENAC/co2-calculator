@@ -81,7 +81,7 @@ export default defineConfig(function () {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['sentry', 'i18n', 'router', 'icons'],
+    boot: ['sentry', 'matomo', 'i18n', 'router', 'icons'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: ['app.scss'],
@@ -103,6 +103,15 @@ export default defineConfig(function () {
       // },
 
       vueRouterMode: 'history', // available values: 'hash', 'history'
+
+      // Bake the first-load CO₂ meta into dist/spa/index.html on every
+      // production build, whatever command triggered it.
+      afterBuild() {
+        execSync('node scripts/inject-co2.mjs', {
+          cwd: __dirname,
+          stdio: 'inherit',
+        });
+      },
       // vueRouterBase,
       // vueDevtools,
       // vueOptionsAPI: false,
@@ -141,6 +150,12 @@ export default defineConfig(function () {
         // in runtimeConfig; in production it comes from /injectEnv.js.
         APP_EQUIPMENT_POWER_FEEDBACK_EMAIL:
           process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL || '',
+        // Matomo analytics (see src/utils/matomo.ts). Empty in dev falls back to
+        // the endpoint default in runtimeConfig; the site id has no default, so
+        // an empty value keeps tracking off. In production both come from
+        // /injectEnv.js.
+        APP_MATOMO_URL: process.env.APP_MATOMO_URL || '',
+        APP_MATOMO_SITE_ID: process.env.APP_MATOMO_SITE_ID || '',
         // Project-planner year horizon (see src/config/runtime.ts). Empty in
         // dev falls back to the defaults in runtimeConfig; in production it
         // comes from /injectEnv.js.
@@ -182,6 +197,24 @@ export default defineConfig(function () {
         ],
       ],
       extendViteConf(viteConf) {
+        // Dev-only: surface the co2-first-load meta from the last production
+        // build so the homepage badge is visible under `quasar dev` too. No
+        // dist or no meta → nothing injected, badge stays hidden.
+        viteConf.plugins = viteConf.plugins || [];
+        viteConf.plugins.push({
+          name: 'co2-first-load-dev',
+          apply: 'serve',
+          transformIndexHtml(html) {
+            const distIndex = path.resolve(__dirname, 'dist/spa/index.html');
+            if (!fs.existsSync(distIndex)) return html;
+            const meta = fs
+              .readFileSync(distIndex, 'utf8')
+              .match(/<meta name="co2-first-load" content="[^"]*">/)?.[0];
+            if (!meta) return html;
+            return html.replace('</head>', `${meta}</head>`);
+          },
+        });
+
         // Remove Quasar's auto-injected CSS
         if (!viteConf.css) viteConf.css = {};
         if (!viteConf.css.preprocessorOptions)

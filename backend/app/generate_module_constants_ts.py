@@ -10,6 +10,10 @@ generates them instead of hand-copying.
 """
 
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.module_type import (
+    DEFAULT_INPUT_DECIMALS,
+    MODULE_INPUT_DECIMALS,
+)
 from app.modules.buildings.data_entries import VALID_ROOM_TYPES
 from app.modules.headcount.data_entries import SIUS_CODE_VALUES
 from app.modules.professional_travel.emissions import (
@@ -44,6 +48,20 @@ def _print_string_array(var_name: str, source_comment: str, values: list[str]) -
     print()
 
 
+def _print_input_decimals() -> None:
+    print(HEADER)
+    print(
+        "// Source: backend/app/models/module_type.py "
+        "(DEFAULT_INPUT_DECIMALS, MODULE_INPUT_DECIMALS)."
+    )
+    print(f"export const DEFAULT_INPUT_DECIMALS = {DEFAULT_INPUT_DECIMALS};")
+    print("export const MODULE_INPUT_DECIMALS: Partial<Record<string, number>> = {")
+    for module_type, decimals in MODULE_INPUT_DECIMALS.items():
+        print(f"  {module_type.name}: {decimals},")
+    print("};")
+    print()
+
+
 def main() -> None:
     _print_data_entry_type_ids()
     _print_string_array(
@@ -72,6 +90,7 @@ def main() -> None:
         "excludes the OTHER_SIUS_CODE display-only sentinel).",
         sorted(SIUS_CODE_VALUES),
     )
+    _print_input_decimals()
 
 
 if __name__ == "__main__":

@@ -201,7 +201,10 @@ def generate_travel_plane(out_dir: Path, count: int, rng: random.Random) -> list
     if len(airports) < 2:
         raise SystemExit("travel_planes_reference.csv yielded no usable IATA codes")
 
-    cabins = ["economy", "business", "first"]
+    # Only business/economy exist for planes — see PLANE_CABIN_MAP in
+    # app/modules/professional_travel/emissions.py (train has first/second,
+    # plane does not; don't conflate the two).
+    cabins = ["economy", "business"]
     rows = []
     for i in range(count):
         origin, destination = rng.sample(airports, 2)

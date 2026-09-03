@@ -313,6 +313,9 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
     response_dto = ProfessionalTravelTrainHandlerResponse
 
     filter_map = {
+        # Official searchable columns (maintainer list, 2026-09-01): the
+        # entry name searches alongside the endpoints.
+        "name": DataEntry.data["name"].as_string(),
         "origin_name": DataEntry.data["origin_name"].as_string(),
         "destination_name": DataEntry.data["destination_name"].as_string(),
     }

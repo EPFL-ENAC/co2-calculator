@@ -3,6 +3,7 @@
 from app.core.security import (
     check_permission,
     get_current_user,
+    get_current_user_detached,
     is_permitted,
 )
 from app.db import get_db
@@ -11,6 +12,7 @@ from app.db import get_db
 __all__ = [
     "get_db",
     "get_current_user",
+    "get_current_user_detached",
     "is_permitted",
     "check_permission",
 ]

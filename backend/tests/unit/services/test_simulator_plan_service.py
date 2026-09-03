@@ -1,16 +1,20 @@
 import re
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from app.models.carbon_report import CarbonReportType
+from app.core.constants import ModuleStatus
+from app.models.carbon_report import CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
-from app.models.user import GlobalScope, Role, RoleName, User
+from app.models.user import GlobalScope, Role, RoleName, User, UserProvider
+from app.models.year_configuration import YearConfiguration
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.simulator_plan import SimulatorPlanUpdate
@@ -319,6 +323,54 @@ async def test_year_range_without_default_leaves_reference_unset(async_session, 
 
 
 @pytest.mark.asyncio
+async def test_year_without_reference_or_calculator_report_uses_latest_started_year(
+    async_session, user
+):
+    """A planning-only unit (#2651): no reference year, no Calculator report
+    for it to fall back to — resolves the same N-1/N-2 tail Explore uses,
+    never the plan's own (possibly far-future) year.
+    """
+    this_year = datetime.now(UTC).year
+    # The `user` fixture doesn't set `provider` explicitly, so it carries the
+    # model field's raw (unvalidated) default instead of the enum member —
+    # harmless in production (every real upsert path requires an explicit
+    # provider), but this test compares against it, so pin it here.
+    user.provider = UserProvider.DEFAULT
+    async_session.add(
+        YearConfiguration(
+            year=this_year - 1, provider=UserProvider.DEFAULT, is_started=True
+        )
+    )
+    await async_session.flush()
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+
+    await _update_plan(
+        service, created.id, SimulatorPlanUpdate(start_year=2038, end_year=2038)
+    )
+    years = await service.list_plan_years(created.id)
+    assert years is not None
+    assert [y.factor_year for y in years] == [this_year - 1]
+
+
+@pytest.mark.asyncio
+async def test_year_without_any_started_year_has_no_factor_year(async_session, user):
+    """Neither reference year, Calculator history, nor N-1/N-2 resolves →
+    `factor_year: None`, not a 500 — the plan year itself still loads fine
+    (#2631), only its dropdowns have nothing to offer.
+    """
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+
+    await _update_plan(
+        service, created.id, SimulatorPlanUpdate(start_year=2038, end_year=2038)
+    )
+    years = await service.list_plan_years(created.id)
+    assert years is not None
+    assert [y.factor_year for y in years] == [None]
+
+
+@pytest.mark.asyncio
 async def test_shrinking_year_range_deletes_out_of_range_reports(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="proj")
@@ -572,6 +624,15 @@ async def test_set_reference_year_without_calc_report_is_noop(async_session, use
 # ── prefill_module_from_reference (snapshot copy) ─────────────────────────────
 
 
+async def _validate_modules(async_session, report_id):
+    """Prefill only copies from validated reference modules."""
+    await async_session.execute(
+        update(CarbonReportModule)
+        .where(CarbonReportModule.carbon_report_id == report_id)
+        .values(status=ModuleStatus.VALIDATED)
+    )
+
+
 async def _calculator_report_with_process_entries(service, async_session, year=2024):
     """Calculator report for unit 1 with two process-emissions entries."""
     # #2487: create() no longer self-provisions a missing Calculator
@@ -582,6 +643,7 @@ async def _calculator_report_with_process_entries(service, async_session, year=2
     report = await service.report_service.create(
         CarbonReportCreate(year=year, unit_id=1, carbon_project_id=project.id)
     )
+    await _validate_modules(async_session, report.id)
     modules = await service.report_service.module_service.list_modules(report.id)
     module = next(
         m for m in modules if m.module_type_id == int(ModuleTypeEnum.process_emissions)
@@ -609,7 +671,7 @@ async def _plan_year_report(service, plan_id, year=2027, reference_year=2024):
 
 
 @pytest.mark.asyncio
-async def test_prefill_copies_reference_entries_at_100_percent(async_session, user):
+async def test_prefill_copies_reference_entries_at_0_percent(async_session, user):
     service = SimulatorPlanService(async_session)
     _, _, src_entries = await _calculator_report_with_process_entries(
         service, async_session
@@ -624,7 +686,7 @@ async def test_prefill_copies_reference_entries_at_100_percent(async_session, us
     rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
     assert len(rows) == 2
     assert all(r.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value for r in rows)
-    assert all(r.data["percentage_of_reference_year"] == 100 for r in rows)
+    assert all(r.data["percentage_of_reference_year"] == 0 for r in rows)
     assert {r.data["source_data_entry_id"] for r in rows} == {e.id for e in src_entries}
     # Snapshot keeps the reference quantities.
     assert {r.data["quantity_kg"] for r in rows} == {5.0, 7.0}
@@ -683,6 +745,7 @@ async def _second_calculator_year(service, async_session):
     report = await service.report_service.create(
         CarbonReportCreate(year=2025, unit_id=1, carbon_project_id=project.id)
     )
+    await _validate_modules(async_session, report.id)
     modules = await service.report_service.module_service.list_modules(report.id)
     module = next(
         m for m in modules if m.module_type_id == int(ModuleTypeEnum.process_emissions)
@@ -748,7 +811,7 @@ async def test_switching_back_reprefills_at_100_percent(async_session, user):
 
     rows = await _plan_module_rows(service, async_session, report)
     assert len(rows) == 2
-    assert all(r.data["percentage_of_reference_year"] == 100 for r in rows)
+    assert all(r.data["percentage_of_reference_year"] == 0 for r in rows)
     assert {r.data["quantity_kg"] for r in rows} == {5.0, 7.0}
 
 

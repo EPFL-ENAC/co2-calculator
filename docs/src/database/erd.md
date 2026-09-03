@@ -68,6 +68,12 @@ erDiagram
     INTEGER unit_id FK
     INTEGER year
   }
+  classification_translations {
+    VARCHAR field_name PK
+    VARCHAR label
+    VARCHAR lang PK
+    VARCHAR value PK
+  }
   connector_connections {
     VARCHAR client_id
     VARCHAR connector
@@ -224,6 +230,7 @@ erDiagram
     DATETIME last_login
     DATETIME last_roles_sync_at
     VARCHAR provider
+    DATETIME roles_empty_since
     JSON roles_raw
   }
   year_configuration {

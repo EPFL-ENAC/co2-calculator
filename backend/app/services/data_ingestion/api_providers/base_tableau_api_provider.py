@@ -43,8 +43,6 @@ class StatsDict(TypedDict):
     """Type definition for travel data processing statistics"""
 
     rows_processed: int
-    rows_with_factors: int
-    rows_without_factors: int
     rows_skipped: int
     rows_missing_centre_financier: int
     row_errors: list[dict[str, Any]]
@@ -850,8 +848,6 @@ class BaseTableauApiProvider(DataIngestionProvider):
     def _init_stats() -> StatsDict:
         return {
             "rows_processed": 0,
-            "rows_with_factors": 0,
-            "rows_without_factors": 0,
             "rows_skipped": 0,
             "rows_missing_centre_financier": 0,
             "row_errors": [],

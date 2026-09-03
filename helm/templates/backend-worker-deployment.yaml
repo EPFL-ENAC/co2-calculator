@@ -20,8 +20,17 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
+      # Same rationale as backend (#2050 A2): a 1-replica floor can't
+      # survive maxUnavailable without a full outage window. Derived
+      # from replicaCount (worker has no HPA) so dev's single worker
+      # keeps the safe surge strategy automatically.
+      {{- if le (int .Values.worker.replicaCount) 1 }}
       maxSurge: 1
       maxUnavailable: 0
+      {{- else }}
+      maxSurge: 0
+      maxUnavailable: 1
+      {{- end }}
 
   replicas: {{ .Values.worker.replicaCount }}
   selector:

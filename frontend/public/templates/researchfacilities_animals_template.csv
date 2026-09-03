@@ -1,2 +1,10 @@
 ﻿researchfacility_id,researchfacility_name,researchfacility_type,use,use_unit,note
-1321,CPG,rodent,258,housings,
+# 1) Enter the ID of the research facility (e.g. cost center of the facility).,,,,,
+# 2) Enter the name of the research facility,,,,,
+# 3) Specify the type of animals housed (e.g. rodent fish),,,,,
+# 4) Enter the usage amount (e.g. number of housings or time units).,,,,,
+# 5) Specify the unit of usage (e.g. 'housings'),,,,,
+# 6) For detailed guidance consult: Modules specification - EPFL research facilities,,,,,
+# 7) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,,,
+1321,CPG,rodent,1500,housings,
+1321,CPG,fish,500,housings,

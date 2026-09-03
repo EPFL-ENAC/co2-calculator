@@ -7,10 +7,10 @@
       :key="row.sius_code"
       class="headcount-table__row row items-center no-wrap"
     >
-      <!-- Canonical SIUS-category labels from i18n/headcount_factor.ts
-           (keyed by the bare code) — same source the Calculator uses. -->
+      <!-- Canonical SIUS-category labels from the planner_headcount taxonomy
+           vocabulary (#2613) — same backend source the Calculator uses. -->
       <label :for="`fte-${row.sius_code}`" class="col text-body2">
-        {{ $t(plannerHeadcountLabelKey(row.sius_code)) }}
+        {{ plannerHeadcountRowLabel(row.sius_code, vocab[row.sius_code], t) }}
       </label>
       <q-input
         :id="`fte-${row.sius_code}`"
@@ -21,8 +21,9 @@
         dense
         hide-bottom-space
         min="0"
-        step="0.5"
+        :step="fteStep"
         input-class="text-right"
+        :rules="fteRules"
         :disable="disable || savingCode === row.sius_code"
         :loading="savingCode === row.sius_code"
         @blur="save(row)"
@@ -33,17 +34,25 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
 import { api } from '@/api/http';
+import { getDataEntryTaxonomy } from '@/api/taxonomies';
+import {
+  moduleInputDecimals,
+  moduleInputStep,
+  roundModuleInput,
+} from '@/constant/input-decimals';
+import { MODULES } from '@/constant/modules';
 import {
   PLANNER_HEADCOUNT_CODES as HEADCOUNT_CODES,
   PLANNER_HEADCOUNT_SUBMODULE,
-  plannerHeadcountLabelKey,
+  plannerHeadcountRowLabel,
 } from '@/constant/planner-headcount';
 import { useModuleStore } from '@/stores/modules';
+import { getNumericRules } from '@/utils/numeric-rules';
 
 interface HeadcountRow {
   sius_code: string;
@@ -59,11 +68,12 @@ interface SubmoduleItem {
 
 const props = defineProps<{
   carbonReportId: number;
+  year: string | number;
   disable: boolean;
 }>();
 
 const $q = useQuasar();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const moduleStore = useModuleStore();
 
 const rows = ref<HeadcountRow[]>(
@@ -74,6 +84,36 @@ const rows = ref<HeadcountRow[]>(
   })),
 );
 const savingCode = ref<string | null>(null);
+const fteStep = moduleInputStep(MODULES.Headcount);
+const fteRules = getNumericRules(
+  { min: 0, maxDecimals: moduleInputDecimals(MODULES.Headcount) },
+  t,
+);
+
+// SIUS code → request-locale label, from the planner_headcount taxonomy
+// vocabulary (#2613). The students row has no code and keeps its i18n key.
+const vocab = ref<Record<string, string>>({});
+
+async function loadVocab() {
+  try {
+    const taxonomy = await getDataEntryTaxonomy(
+      MODULES.Headcount,
+      PLANNER_HEADCOUNT_SUBMODULE,
+      props.year,
+    );
+    const map: Record<string, string> = {};
+    taxonomy.children?.forEach((node) => {
+      if (node.name && node.label) map[node.name] = node.label;
+    });
+    vocab.value = map;
+  } catch {
+    // Grid stays usable with bare codes; labels arrive on the next load.
+  }
+}
+
+// Sanctioned side-effect bridge: the vocabulary is fetched in the request
+// locale, so a language switch refetches it (same pattern as ModuleTable).
+watch(locale, loadVocab);
 
 const basePath = () =>
   `carbon-reports/${props.carbonReportId}/modules/headcount/${PLANNER_HEADCOUNT_SUBMODULE}`;
@@ -92,7 +132,10 @@ async function load() {
       const item = byCode.get(code);
       return {
         sius_code: code,
-        fte: item?.fte ?? null,
+        fte:
+          item?.fte == null
+            ? null
+            : roundModuleInput(MODULES.Headcount, item.fte),
         entryId: item?.id ?? null,
       };
     });
@@ -106,6 +149,7 @@ async function save(row: HeadcountRow) {
     typeof row.fte === 'number' && !Number.isNaN(row.fte) ? row.fte : null;
   // Nothing to persist: still-empty row.
   if (fte === null && row.entryId === null) return;
+  if (fteRules.some((rule) => rule(fte) !== true)) return;
   savingCode.value = row.sius_code;
   try {
     if (row.entryId === null) {
@@ -125,7 +169,10 @@ async function save(row: HeadcountRow) {
   await moduleStore.refreshEmissionBreakdownIfNeeded();
 }
 
-onMounted(load);
+onMounted(() => {
+  void load();
+  void loadVocab();
+});
 </script>
 
 <style scoped lang="scss">

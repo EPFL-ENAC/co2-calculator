@@ -25,20 +25,23 @@ import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import event
+from sqlalchemy import event, update
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from app.models.carbon_report import CarbonReportType
+from app.core.constants import ModuleStatus
+from app.models.carbon_report import CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
-from app.models.user import GlobalScope, Role, RoleName, User
+from app.models.user import GlobalScope, Role, RoleName, User, UserProvider
+from app.models.year_configuration import YearConfiguration
 from app.modules.emissions.taxonomy import EmissionType
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportCreate
@@ -214,6 +217,15 @@ def count_statements(engine):
         event.remove(engine.sync_engine, "before_cursor_execute", listener)
 
 
+async def _validate_modules(async_session, report_id):
+    """Prefill only copies from validated reference modules."""
+    await async_session.execute(
+        update(CarbonReportModule)
+        .where(CarbonReportModule.carbon_report_id == report_id)
+        .values(status=ModuleStatus.VALIDATED)
+    )
+
+
 async def _reference_report_with_entries(
     service: SimulatorPlanService,
     async_session,
@@ -242,6 +254,7 @@ async def _reference_report_with_entries(
     report = await service.report_service.create(
         CarbonReportCreate(year=year, unit_id=unit_id, carbon_project_id=project.id)
     )
+    await _validate_modules(async_session, report.id)
     modules = await service.report_service.module_service.list_modules(report.id)
     module = next(
         m for m in modules if m.module_type_id == int(ModuleTypeEnum.process_emissions)
@@ -495,6 +508,7 @@ async def test_percentage_override_cache_matches_uncached_path(async_session, us
         service, async_session, count=5, unit_id=41
     )
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await _validate_modules(async_session, ref_report.id)
 
     plan = await _plan_with_year(service, user, "equiv", year=2027, unit_id=41)
     result = await _set_ref(service, plan.id, 2027, 2024)
@@ -592,6 +606,7 @@ async def test_set_reference_year_defers_prefill_instead_of_running_it(
         service, async_session, count=3, unit_id=91
     )
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await _validate_modules(async_session, ref_report.id)
     plan = await _plan_with_year(service, user, "f4-defer", year=2027, unit_id=91)
 
     out = await service.set_reference_year(plan.id, 2027, 2024)
@@ -629,6 +644,7 @@ async def test_prefill_reports_is_idempotent_on_retry(async_session, user):
         service, async_session, count=3, unit_id=92
     )
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await _validate_modules(async_session, ref_report.id)
     plan = await _plan_with_year(service, user, "f4-retry", year=2027, unit_id=92)
 
     out = await service.set_reference_year(plan.id, 2027, 2024)
@@ -711,6 +727,7 @@ async def test_sync_year_reports_emissions_are_correct(async_session, user):
         service, async_session, count=2, unit_id=74
     )
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await _validate_modules(async_session, ref_report.id)
 
     plan = await service.create_plan(unit_id=74, user=user, name="f2-correct")
     await _update_plan(
@@ -737,8 +754,9 @@ async def test_sync_year_reports_emissions_are_correct(async_session, user):
         rows = await emission_repo.get_by_data_entry_id(e.id)
         assert rows, f"entry {e.id} has no persisted emissions"
         kg_by_quantity[e.data["quantity_kg"]] = sum(r.kg_co2eq for r in rows)
-    # ef_kg_co2eq_per_unit=1.0, copied at 100% → kg_co2eq == quantity.
-    assert kg_by_quantity == {1.0: 1.0, 2.0: 2.0}
+    # Copied at 0% → kg_co2eq == 0 for each entry; if the percentage
+    # override were ignored, the raw quantities (1.0/2.0) would leak through.
+    assert kg_by_quantity == {1.0: 0.0, 2.0: 0.0}
 
 
 @pytest.mark.asyncio
@@ -756,6 +774,7 @@ async def test_set_reference_year_produces_correct_emissions_without_prefill_com
         service, async_session, count=2, unit_id=73
     )
     await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await _validate_modules(async_session, ref_report.id)
 
     plan = await service.create_plan(unit_id=73, user=user, name="tier1-correct")
     await _update_plan(
@@ -778,10 +797,10 @@ async def test_set_reference_year_produces_correct_emissions_without_prefill_com
         rows = await emission_repo.get_by_data_entry_id(e.id)
         assert rows, f"entry {e.id} has no persisted emissions"
         kg_by_quantity[e.data["quantity_kg"]] = sum(r.kg_co2eq for r in rows)
-    # ef_kg_co2eq_per_unit=1.0 (see _seed_process_emissions_factor), so
-    # kg_co2eq == quantity for each copied entry (100% of reference) — a
-    # real, non-zero, non-default value, not just "some row exists."
-    assert kg_by_quantity == {1.0: 1.0, 2.0: 2.0}
+    # Entries are copied at 0% of reference, so kg_co2eq == 0 — but the
+    # emission rows must exist, and a recalc that ignored the percentage
+    # override would leak the raw quantities (1.0/2.0) through.
+    assert kg_by_quantity == {1.0: 0.0, 2.0: 0.0}
 
 
 @pytest.mark.asyncio
@@ -803,9 +822,10 @@ async def test_modules_left_empty_by_prefill_still_get_their_stats_refreshed(
     project = await service.report_service._get_project(
         81, CarbonReportType.CALCULATOR
     ) or await service.report_service._create_project(81, CarbonReportType.CALCULATOR)
-    await service.report_service.create(
+    ref_report = await service.report_service.create(
         CarbonReportCreate(year=2024, unit_id=81, carbon_project_id=project.id)
     )
+    await _validate_modules(async_session, ref_report.id)
 
     plan = await service.create_plan(unit_id=81, user=user, name="empty-modules")
     await _update_plan(
@@ -1056,6 +1076,7 @@ async def test_prefill_reference_modules_isolated_statement_count(
             service, async_session, entry_count, unit_id=unit_id
         )
         await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+        await _validate_modules(async_session, ref_report.id)
         plan = await _plan_with_year(
             service, user, f"prefill-{entry_count}", year=2027, unit_id=unit_id
         )
@@ -1115,6 +1136,18 @@ async def test_recalculate_report_emissions_scales_for_purchase_module_too(
     plan-year report's own purchase module, and ``_recalculate_report_emissions``
     is called directly rather than through ``set_reference_year``.
     """
+    # No reference year and no Calculator report (#2651): factor pricing
+    # falls through to the N-1/N-2 tail, so it needs a started year — same
+    # shape a real "planning-only" unit would have.
+    user.provider = UserProvider.DEFAULT
+    async_session.add(
+        YearConfiguration(
+            year=datetime.now(UTC).year - 1,
+            provider=UserProvider.DEFAULT,
+            is_started=True,
+        )
+    )
+    await async_session.flush()
     service = SimulatorPlanService(async_session)
 
     async def isolated_recalc(entry_count: int, unit_id: int) -> StatementLog:

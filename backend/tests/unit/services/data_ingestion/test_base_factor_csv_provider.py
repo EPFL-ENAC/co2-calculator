@@ -436,6 +436,36 @@ def test_validate_csv_headers_strict_missing_expected():
 
 
 @pytest.mark.asyncio
+async def test_setup_and_validate_strips_utf8_bom():
+    """A BOM-prefixed CSV (#6523) must not glue ﻿ onto the first header,
+    or every row's category-field lookup silently breaks.
+    """
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "job_id": 1, "year": 2024},
+        data_session=MagicMock(),
+    )
+    provider.data_session.flush = AsyncMock()
+    provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
+    provider._files_store.move_file = AsyncMock(return_value=True)
+    provider._files_store.get_file = AsyncMock(
+        return_value=(b"\xef\xbb\xbfequipment_category,val\nscientific,1\n", "text/csv")
+    )
+    provider._setup_handlers_and_context = AsyncMock(
+        return_value={
+            "handlers": [],
+            "expected_columns": set(),
+            "required_columns": set(),
+            "valid_entry_types": [],
+        }
+    )
+
+    setup_result = await provider._setup_and_validate()
+
+    assert setup_result["csv_text"].startswith("equipment_category")
+
+
+@pytest.mark.asyncio
 async def test_finalize_and_commit_move_file_failure():
     provider = ConcreteFactorProvider(
         {"file_path": "tmp/test.csv", "job_id": 1, "year": 2024},
@@ -843,3 +873,163 @@ async def test_process_row_persists_dto_normalized_values(monkeypatch):
         factor_service=factor_service,
     )
     assert error is not None and "bad currency" in error
+
+
+# --------------------------------------------------------------------------
+# #2401 — generic `<field>_<lang>` CSV translation columns
+# --------------------------------------------------------------------------
+
+
+def test_collect_translations_picks_up_fr_suffix_column():
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+    )
+    row = {
+        "equipment_class": "Engine",
+        "equipment_class_fr": "Moteurs",
+        "sub_class": "Large Motor/Generator",
+        "sub_class_fr": " Gros moteur/Générateur ",
+    }
+    classification = {
+        "equipment_class": "Engine",
+        "sub_class": "Large Motor/Generator",
+    }
+
+    provider._collect_translations(row, classification)
+
+    assert provider._collected_translations == {
+        ("equipment_class", "Engine", "fr"): "Moteurs",
+        ("sub_class", "Large Motor/Generator", "fr"): "Gros moteur/Générateur",
+    }
+
+
+def test_collect_translations_skips_blank_or_missing_fr_cell():
+    """Empty cell or missing column = no translation for this row (#2401
+    team decision: fall back to English, don't raise).
+    """
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+    )
+    row = {
+        "equipment_class": "Engine",  # no equipment_class_fr column at all
+        "sub_class": "Large Motor/Generator",
+        "sub_class_fr": "   ",  # present but blank
+    }
+    classification = {
+        "equipment_class": "Engine",
+        "sub_class": "Large Motor/Generator",
+    }
+
+    provider._collect_translations(row, classification)
+
+    assert provider._collected_translations == {}
+
+
+def test_collect_translations_skips_null_classification_value():
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+    )
+    row = {"sub_class_fr": "Gros moteur/Générateur"}
+    classification = {"equipment_class": "Engine", "sub_class": None}
+
+    provider._collect_translations(row, classification)
+
+    assert provider._collected_translations == {}
+
+
+@pytest.mark.asyncio
+async def test_process_row_rejected_row_contributes_no_translation(monkeypatch):
+    """A row that fails validation upserts no label (#2401 review).
+
+    Collection used to run before validation, so a rejected row still
+    seeded a translation for a factor that never landed.
+    """
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
+    handler.classification_fields = ["kind"]
+    handler.value_fields = []
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
+    )
+
+    handler.validate_create.side_effect = lambda payload: _DummyFactorPayload(
+        co2_factor="abc", date=datetime.date(2026, 1, 1)
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "Engine", "kind_fr": "Moteur"},
+        row_idx=2,
+        setup_result={
+            "handlers": [handler],
+            "expected_columns": {"data_entry_type", "kind"},
+            "valid_entry_types": [DataEntryTypeEnum.member],
+        },
+        stats=_build_stats(),
+        max_row_errors=5,
+        factor_service=MagicMock(),
+    )
+
+    assert factor is None
+    assert error_msg is not None
+    assert provider._collected_translations == {}
+
+
+@pytest.mark.asyncio
+async def test_process_row_accepted_row_collects_translation(monkeypatch):
+    """The other half of the invariant: a row that lands does contribute."""
+    handler_mock = MagicMock()
+    handler_mock.category_field = "data_entry_type"
+    handler_mock.classification_fields = ["kind"]
+    handler_mock.value_fields = []
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "year": 2024, "handlers": [handler_mock]},
+        data_session=MagicMock(),
+    )
+
+    handler = MagicMock()
+    handler.classification_fields = ["kind"]
+    handler.value_fields = []
+    handler.validate_create.return_value = SimpleNamespace(
+        emission_type_id=10,
+        data_entry_type_id=DataEntryTypeEnum.member.value,
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
+    factor_service = MagicMock()
+    factor_service.prepare_create = AsyncMock(return_value=SimpleNamespace(id=1))
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "Engine", "kind_fr": "Moteur"},
+        row_idx=3,
+        setup_result={
+            "handlers": [handler_mock],
+            "expected_columns": {"data_entry_type", "kind"},
+            "valid_entry_types": [DataEntryTypeEnum.member],
+        },
+        stats=_build_stats(),
+        max_row_errors=5,
+        factor_service=factor_service,
+    )
+
+    assert error_msg is None
+    assert factor.id == 1
+    assert provider._collected_translations == {("kind", "Engine", "fr"): "Moteur"}

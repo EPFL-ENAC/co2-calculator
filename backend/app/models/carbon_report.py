@@ -18,7 +18,9 @@ class CarbonReportBase(SQLModel):
     year: int = Field(
         nullable=False,
         description=(
-            "Report year (always set; for Simulator Explore, equals the reference year)"
+            "Report year (always set; for Simulator Explore, the creation "
+            "year only — informational, never used for lookup or factor "
+            "resolution, see #2656)"
         ),
     )
     reference_year: int | None = Field(

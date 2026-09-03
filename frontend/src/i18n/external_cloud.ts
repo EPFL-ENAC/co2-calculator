@@ -122,16 +122,4 @@ Afin d'identifier l'ensemble des usages de votre unité, basez-vous sur les lice
     en: 'You can add data one at a time using the Add button below, or upload several entries at once using a file that follows the template.',
     fr: 'Vous pouvez ajouter les données une par une en utilisant le bouton « Ajouter » ci-dessous, ou importer plusieurs entrées à la fois via un fichier respectant le modèle fourni.',
   },
-  storage: {
-    en: 'Storage',
-    fr: 'Stockage',
-  },
-  compute: {
-    en: 'Compute',
-    fr: 'Calcul',
-  },
-  virtualisation: {
-    en: 'Virtualisation',
-    fr: 'Virtualisation',
-  },
 } as const;

@@ -24,8 +24,10 @@ from app.models.user import User
 from app.models.year_configuration import YearConfiguration
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.year_configuration import BaseReductionObjectiveHandler
-from app.services.data_ingestion.base_csv_provider import _validate_file_path
-from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.services.data_ingestion.csv_ingestion_provider import (
+    CSVIngestionProvider,
+    _validate_file_path,
+)
 from app.utils.csv_dialect import csv_dict_reader
 
 logger = get_logger(__name__)
@@ -38,7 +40,7 @@ class ReductionObjectiveStatsDict(TypedDict):
     row_errors_count: int
 
 
-class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
+class BaseReductionObjectiveCSVProvider(CSVIngestionProvider, ABC):
     """Base class for reduction-objective CSV ingestion.
 
     Unlike factor/data-entry providers that create one DB row per CSV row,
@@ -257,18 +259,9 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
             extra_metadata={},
         )
 
-        # Move file to processing/
-        tmp_path = self.source_file_path
-        if not tmp_path:
-            raise ValueError("Missing file_path in config")
-        _validate_file_path(tmp_path)
-        processing_path = await self._move_to_processing(tmp_path)
-        filename = processing_path.split("/")[-1]
-
-        # Download & decode
-        logger.info(f"Downloading CSV from {processing_path}")
-        file_content, _ = await self.files_store.get_file(processing_path)
-        csv_text = file_content.decode("utf-8-sig")
+        csv_text, processing_path, filename = await self._download_and_decode_csv(
+            self.source_file_path
+        )
 
         # Resolve handler
         handler = self._resolve_handler()

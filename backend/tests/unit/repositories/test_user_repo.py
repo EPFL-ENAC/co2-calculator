@@ -488,3 +488,62 @@ async def test_delete_user_not_found(repo):
     assert result is False
     # delete and flush should not be called
     assert not hasattr(repo.session.delete, "assert_awaited")
+
+
+STORED_ROLES = [{"kind": "unit", "name": "calco2.user.std", "unit_id": 1}]
+
+
+def _upsert_repo(stored_roles):
+    """A repo whose one existing user carries ``stored_roles`` in the DB."""
+    session = MagicMock()
+    rows = MagicMock()
+    rows.all.return_value = [("u1", 7, stored_roles)]
+    session.exec = AsyncMock(return_value=rows)
+    session.merge = AsyncMock(side_effect=lambda user: user)
+    return UserRepository(session)
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_keeps_stored_roles_when_payload_carries_none():
+    """Pins #2531: a payload with no role information must not clear roles.
+
+    Unit sync reaches here through ``map_api_user``, which builds
+    ``User(**user_raw)``; ``roles`` is a property over ``roles_raw``, so the
+    SQLModel constructor drops that kwarg and leaves ``roles_raw`` None.
+    ``merge()`` copies every attribute, so persisting that None overwrote the
+    roles Accred had just resolved and zeroed the user's access — a 403 wave
+    that only a fresh login repaired.
+    """
+    repo = _upsert_repo(STORED_ROLES)
+    incoming = SimpleNamespace(institutional_id="u1", id=None, roles_raw=None)
+
+    result = await repo.bulk_upsert([incoming])
+
+    assert result.data[0].roles_raw == STORED_ROLES
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_still_clears_roles_on_an_explicit_empty_list():
+    """The guard distinguishes "no information" from "no roles".
+
+    An empty list is a caller stating the user has none, and must still apply
+    — otherwise a genuine revocation could never be persisted.
+    """
+    repo = _upsert_repo(STORED_ROLES)
+    incoming = SimpleNamespace(institutional_id="u1", id=None, roles_raw=[])
+
+    result = await repo.bulk_upsert([incoming])
+
+    assert result.data[0].roles_raw == []
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_leaves_a_new_user_without_roles():
+    """A user absent from the DB has nothing to restore, and must stay None."""
+    repo = _upsert_repo(STORED_ROLES)
+    incoming = SimpleNamespace(institutional_id="unknown", id=None, roles_raw=None)
+
+    result = await repo.bulk_upsert([incoming])
+
+    assert result.data[0].roles_raw is None
+    assert result.data[0].id is None

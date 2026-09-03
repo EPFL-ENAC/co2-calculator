@@ -52,12 +52,10 @@ const roomFields: ModuleField[] = [
     // IMPORTANT: these values are backend emission-factor lookup keys.
     // Do not translate or rename without matching backend seed/data updates.
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
-    optionLabelsAreKeys: true,
+    // Labels come from the building taxonomy's room-type subkinds (#2613).
+    optionLabelsFromTaxonomy: true,
     tooltip: 'module-buildings-submodule-building-table-room_type',
-    options: ROOM_TYPES.map((value) => ({
-      value,
-      label: `buildings-room-type-${value}`,
-    })),
+    options: ROOM_TYPES.map((value) => ({ value, label: value })),
   },
   {
     id: 'room_surface_square_meter',

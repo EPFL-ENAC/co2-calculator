@@ -81,12 +81,16 @@ export interface ModuleField {
   explorerDefault?: string | number | null;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
+  // Server-side typeahead (#2391 decision 4): options come from the
+  // `taxonomies/module/{module}/{data_entry}/options` search endpoint per
+  // keystroke instead of the full taxonomy tree. For kind fields whose
+  // option list is too large to ship (purchase: ~17k UNSPSC codes).
+  optionsSearch?: boolean;
   // Factor field to label a `kind` select with, when the stored value is an
   // opaque code (research facility ids). Options then come from the factor
   // catalog instead of the class/subclass map, which carries values only.
   optionsLabelField?: string;
   optionOrder?: string[]; // Explicit ordering of options by value
-  optionLabelKey?: string; // i18n key template; use {value} as placeholder, e.g. 'process-emissions.category.{value}', where {value} matches the normalized option value used by the translation keys
   appendFromFieldId?: string;
   // Flat configuration (preferred): used by both table and form where relevant
   unit?: string;
@@ -130,10 +134,13 @@ export interface ModuleField {
   };
   // When read-only due to readOnlyWhen, display this other field's value from the row
   readOnlyDisplayField?: string;
-  // Whether to translate option labels through i18n
+  // Whether to translate option labels through i18n. Travel cabin classes
+  // only — every factor-sourced label is served by the backend (#2613).
   optionLabelsAreKeys?: boolean;
-  // When set, option values are translated via i18n using the lowercased value as key
-  optionLabelPrefix?: string;
+  // Static-vocabulary select whose labels come from the submodule's loaded
+  // taxonomy tree (backend-translated, kind and subkind nodes flattened):
+  // headcount sius_code, buildings room_type (#2613).
+  optionLabelsFromTaxonomy?: boolean;
 }
 
 export interface Submodule {

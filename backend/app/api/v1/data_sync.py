@@ -20,7 +20,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import db as db_module
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_current_user, get_current_user_detached, get_db
 from app.core.config import get_settings
 from app.core.policy import (
     check_module_permission,
@@ -58,6 +58,7 @@ from app.tasks._background import fire_and_forget_or_defer_to_poller
 from app.tasks.runner import run_job
 from app.tasks.unit_sync_tasks import SyncUnitRequest
 from app.utils.datetime_utc import as_utc
+from app.utils.permissions import has_permission
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.utils.scoping import (
     can_view_module_flow,
@@ -1278,15 +1279,18 @@ async def list_workers(
 async def job_stream_by_id(
     job_id: int,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_detached),
 ):
     """Server-Sent Events endpoint to stream a single job update in real-time.
 
     Polls the database for status changes and sends updates to the client.
     Stream ends when the job is completed, failed, or the client disconnects.
 
-    Session lifetime: a fresh ``SessionLocal()`` is opened per poll iteration
-    and closed before the sleep so we don't pin an asyncpg pool slot for the
+    Session lifetime: no request-scoped session anywhere on this path. The
+    user is resolved by ``get_current_user_detached`` (its session closes
+    before the stream opens -- a ``get_db`` session would be held until the
+    stream ends, #2654), and a fresh ``SessionLocal()`` is opened per poll
+    iteration and closed before the sleep, so no pool slot is pinned for the
     full stream duration (minutes).  ``request.is_disconnected()`` is checked
     at the top of each iteration so client aborts surface immediately rather
     than after the next poll.
@@ -1306,6 +1310,20 @@ async def job_stream_by_id(
         if existing is not None:
             # TODO(#459): tighten when sub-perimeter scoping ships
             await _check_job_scope(existing, current_user, session, action="view")
+            # #1764 — _check_job_scope no-ops on jobs it can't narrow to a
+            # unit (MODULE_PER_YEAR and friends); this stream ships the
+            # job's full raw meta, so those need the same backoffice gate
+            # POST /sync/dispatch's global-dispatch path already requires.
+            institutional_id = await _institutional_id_for_job(existing, session)
+            if institutional_id is None and not has_permission(
+                current_user.calculate_permissions(),
+                "backoffice.configuration",
+                "view",
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Permission denied",
+                )
 
     async def event_generator():
         last_status = None
@@ -1743,11 +1761,13 @@ async def get_pipeline_jobs(
 async def pipeline_stream_by_id(
     pipeline_id: UUID,
     request: Request,
-    current_user: User = Depends(require_module_or_config_view()),
+    current_user: User = Depends(get_current_user_detached),
 ):
     """Server-Sent Events stream for every job sharing a ``pipeline_id``.
 
-    as the read-only ``GET /sync/pipelines/{pipeline_id}`` endpoint.
+    Gated like ``require_module_or_config_view`` but on the detached user
+    dependency: see ``job_stream_by_id`` for why a stream must not hold a
+    ``get_db`` session (#2654).
 
     Plan 310D — the frontend stale-stats UX subscribes here when a module's
     carbon-report response surfaces a ``current_pipeline_id``.  Each tick
@@ -1768,6 +1788,12 @@ async def pipeline_stream_by_id(
     HTTP error rather than a 200-with-empty-body that they'd interpret as
     an aborted connection.
     """
+    if not can_view_module_flow(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied",
+        )
+
     # Up-front 404 + scope check: the existing job-stream endpoint emits a
     # "not found" event in-stream, but for pipeline streams the SSE client
     # cannot tell "pipeline does not exist" from "pipeline exists, no events
@@ -1806,10 +1832,12 @@ async def pipeline_stream_by_id(
             if await request.is_disconnected():
                 break
 
-            # Open a fresh session per poll so the asyncpg pool slot is
-            # released between ticks.  The previous implementation captured
+            # Open a fresh session per poll so the pool slot is released
+            # between ticks.  The previous implementation captured
             # ``Depends(get_db)`` for the entire generator lifetime, pinning
-            # one slot per subscriber for the whole stream (minutes).
+            # one slot per subscriber for the whole stream (minutes) -- and
+            # the auth dependency did the same until #2654, see
+            # ``get_current_user_detached``.
             async with db_module.SessionLocal() as session:
                 repo = DataIngestionRepository(session)
                 jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)

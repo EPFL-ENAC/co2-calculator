@@ -172,8 +172,6 @@
               :row="slotProps.row"
               :field-id="col.field"
               :options-id="col.optionsId"
-              :option-label-key="col.optionLabelKey"
-              :option-label-prefix="col.optionLabelPrefix"
               :option-order="col.optionOrder"
               :cols="qCols"
               :module-type="moduleType"
@@ -182,6 +180,7 @@
               :unit-id="unitId"
               :year="year"
               :factor-year="factorYear"
+              :carbon-report-id="carbonReportId"
               :disable="isDisabled"
             />
             <component
@@ -375,6 +374,9 @@
           :row-data="editRowData"
           :submodule-type="submoduleType"
           :module-type="moduleType"
+          :unit-id="unitId"
+          :year="year"
+          :factor-year="factorYear"
           @submit="onFormSubmit"
           @edit="editDialogOpen = false"
         />
@@ -503,7 +505,6 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from '@/stores/modules';
 import { useFactorsStore } from '@/stores/factors';
-import { resolveFactorYear } from '@/utils/factor-year';
 import { useYearConfigStore } from '@/stores/yearConfig';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -551,7 +552,7 @@ import {
   type ModuleTableAccess,
 } from '@/utils/module-table-access';
 
-const { t: $t, te: $te } = useI18n();
+const { t: $t, te: $te, locale } = useI18n();
 
 const $q = useQuasar();
 const authStore = useAuthStore();
@@ -842,7 +843,7 @@ type CommonProps = {
   unitId: number;
   year: string | number;
   /** Year whose factors the class/subclass options resolve against — see ModuleForm. */
-  factorYear?: number | null;
+  factorYear: number | null;
   /** Plan-year report id; when set, module calls address it directly. */
   carbonReportId?: number;
   /**
@@ -878,7 +879,6 @@ type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
   carbonReportId: undefined,
-  factorYear: undefined,
   showReferenceColumns: false,
   projectYearsCount: null,
   percentageLocked: false,
@@ -1073,7 +1073,6 @@ type TableViewColumn = {
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string;
-  optionLabelKey?: string;
   tooltip?: string;
   type: ModuleField['type'];
   columnSize?: ModuleField['columnSize'];
@@ -1082,7 +1081,7 @@ type TableViewColumn = {
   readOnlyWhen?: ModuleField['readOnlyWhen'];
   readOnlyDisplayField?: string;
   optionLabelsAreKeys?: boolean;
-  optionLabelPrefix?: string;
+  optionLabelsFromTaxonomy?: boolean;
   optionOrder?: string[];
 };
 
@@ -1138,7 +1137,7 @@ const qCols = computed<TableViewColumn[]>(() => {
             readOnlyWhen: f.readOnlyWhen,
             readOnlyDisplayField: f.readOnlyDisplayField,
             optionLabelsAreKeys: f.optionLabelsAreKeys,
-            optionLabelPrefix: f.optionLabelPrefix,
+            optionLabelsFromTaxonomy: f.optionLabelsFromTaxonomy,
             optionOrder: f.optionOrder,
           });
         });
@@ -1167,7 +1166,6 @@ const qCols = computed<TableViewColumn[]>(() => {
           editableInline,
           options,
           optionsId: f.optionsId,
-          optionLabelKey: f.optionLabelKey,
           tooltip,
           type: f.type,
           columnSize: f.columnSize,
@@ -1176,7 +1174,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           readOnlyWhen: f.readOnlyWhen,
           readOnlyDisplayField: f.readOnlyDisplayField,
           optionLabelsAreKeys: f.optionLabelsAreKeys,
-          optionLabelPrefix: f.optionLabelPrefix,
+          optionLabelsFromTaxonomy: f.optionLabelsFromTaxonomy,
           optionOrder: f.optionOrder,
         });
       }
@@ -1270,19 +1268,30 @@ const qCols = computed<TableViewColumn[]>(() => {
   return baseCols;
 });
 
+// #2391 decision 4: a submodule whose kind options are server-searched
+// (`optionsSearch`) never needs the taxonomy tree on the table page —
+// display labels ride each row (#2401) and the form searches per
+// keystroke. Purchase's tree is ~17k nodes; skipping it is the point.
+const kindOptionsServerSearched = computed(() =>
+  (props.moduleFields ?? []).some(
+    (f) => f.optionsId === 'kind' && f.optionsSearch,
+  ),
+);
+
 const taxonomyKindLabelMap = computed<Record<string, string>>(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType];
   const map: Record<string, string> = {};
+  // Kind AND subkind nodes, flattened: static-vocabulary selects
+  // (room_type, sius_code) resolve their labels here too (#2613).
   taxo?.children?.forEach((node) => {
     if (node.name && node.label) {
-      if (node.translation_key && $te(node.translation_key)) {
-        map[node.name] = $t(node.translation_key);
-      } else if ($te(node.name)) {
-        map[node.name] = $t(node.name);
-      } else {
-        map[node.name] = node.label;
-      }
+      map[node.name] = node.label;
     }
+    node.children?.forEach((child) => {
+      if (child.name && child.label) {
+        map[child.name] = child.label;
+      }
+    });
   });
   return map;
 });
@@ -1294,7 +1303,14 @@ const inlineOptionsMap = computed<
   qCols.value.forEach((col) => {
     map[col.name] = (col.options ?? []).map((option) => ({
       ...option,
-      label: $te(option.label) ? $t(option.label) : option.label,
+      // Taxonomy-labeled vocabularies (sius_code, room_type) come from the
+      // backend tree (#2613); the i18n path remains for travel cabin
+      // classes, whose labels are real i18n keys.
+      label: col.optionLabelsFromTaxonomy
+        ? (taxonomyKindLabelMap.value[option.value] ?? option.value)
+        : $te(option.label)
+          ? $t(option.label)
+          : option.label,
     }));
   });
   return map;
@@ -1303,12 +1319,8 @@ const inlineOptionsMap = computed<
 function getInlineOptions(
   col: TableViewColumn,
 ): Array<{ value: string; label: string }> {
-  const inlineOptions = inlineOptionsMap.value[col.name] ?? [];
-  const result = inlineOptions.map((option) => ({
-    ...option,
-    label: $t(option.label),
-  }));
-  return result;
+  // Labels are already resolved in inlineOptionsMap.
+  return inlineOptionsMap.value[col.name] ?? [];
 }
 
 function isRowConditionallyReadOnly(
@@ -1328,8 +1340,7 @@ function renderCell(
     name: string;
     maxColumnWidth?: number;
     options?: Array<{ value: string; label: string }>;
-    optionLabelPrefix?: string;
-    optionLabelKey?: string;
+    optionLabelsFromTaxonomy?: boolean;
     optionsId?: string;
   },
 ) {
@@ -1384,18 +1395,26 @@ function renderCell(
       return option.label;
     }
   }
-  // Factor-sourced options: translate using optionLabelPrefix
-  if (col.optionLabelPrefix && typeof val === 'string') {
-    return $t(val.toLowerCase(), val);
+  // Taxonomy-labeled vocabulary value outside the offered options (the
+  // headcount "-1" sentinel): backend tree, then the row's own label (#2613).
+  if (col.optionLabelsFromTaxonomy && typeof val === 'string') {
+    const rowLabels = row['labels'] as unknown as
+      Record<string, string> | null | undefined;
+    return taxonomyKindLabelMap.value[val] ?? rowLabels?.[col.field] ?? val;
   }
-  // Translate stored values that are i18n keys (e.g. researchfacility_type: fish, rodent)
-  if (col.optionLabelKey && typeof val === 'string') {
-    const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
-    return $te(key) ? $t(key) : val;
-  }
-  // Factor-sourced kind/subkind: look up label from taxonomy
-  if (col.optionsId === 'kind' && typeof val === 'string') {
-    return taxonomyKindLabelMap.value[val] ?? val;
+  // Factor-sourced kind/subkind. Precedence pin (#2401): taxonomy label
+  // while the tree is held (research facilities keep their pre-#2401
+  // rendering), the row's backend-resolved label for treeless modules
+  // (purchase — its map is empty), stored value as the English fallback.
+  // Subkind columns (service_type, researchfacility_type) resolve through
+  // the same flattened map since #2613.
+  if (
+    (col.optionsId === 'kind' || col.optionsId === 'subkind') &&
+    typeof val === 'string'
+  ) {
+    const rowLabels = row['labels'] as unknown as
+      Record<string, string> | null | undefined;
+    return taxonomyKindLabelMap.value[val] ?? rowLabels?.[col.field] ?? val;
   }
   if (typeof val === 'string') return val;
   if (typeof val === 'number') {
@@ -1433,7 +1452,7 @@ function getRowId(row: ModuleRow): number | null {
 const percentageDrafts = ref<Record<string, number>>({});
 
 function percentageStored(row: ModuleRow): number {
-  return (row.percentage_of_reference_year as number) ?? 100;
+  return (row.percentage_of_reference_year as number) ?? 0;
 }
 
 function percentageOf(row: ModuleRow): number {
@@ -1906,7 +1925,7 @@ function isComplete(row: ModuleRow) {
 
     const subclasses =
       useFactorsStore().subclassOptionMapByKey[
-        `${props.submoduleType}:${resolveFactorYear(props.factorYear, props.year)}`
+        `${props.submoduleType}:${props.factorYear}`
       ]?.[String(row.category)];
     if (subclasses?.length) {
       return (
@@ -2123,16 +2142,39 @@ watch(
           year: String(props.year),
           carbonReportId: props.carbonReportId,
         });
-        moduleStore.getSubmoduleTaxonomy(
-          props.moduleType,
-          props.submoduleType,
-          String(props.year),
-        );
+        if (!kindOptionsServerSearched.value) {
+          moduleStore.getSubmoduleTaxonomy(
+            props.moduleType,
+            props.submoduleType,
+            String(props.year),
+          );
+        }
       }
     }
   },
   { immediate: true },
 );
+
+// #2401: rows, search matching and taxonomy labels are all
+// locale-dependent — refetch this open submodule when the user switches
+// language, with the exact props currently in hand.
+watch(locale, () => {
+  if (!moduleStore.state.expandedSubmodules[props.submoduleType]) return;
+  moduleStore.getSubmoduleData({
+    submoduleType: props.submoduleType,
+    moduleType: props.moduleType,
+    unit: props.unitId,
+    year: String(props.year),
+    carbonReportId: props.carbonReportId,
+  });
+  if (!kindOptionsServerSearched.value) {
+    moduleStore.getSubmoduleTaxonomy(
+      props.moduleType,
+      props.submoduleType,
+      String(props.year),
+    );
+  }
+});
 
 watch(
   () => moduleStore.state.dataSubmodule[props.submoduleType],
@@ -2152,11 +2194,13 @@ onMounted(async () => {
       year: String(props.year),
       carbonReportId: props.carbonReportId,
     });
-    moduleStore.getSubmoduleTaxonomy(
-      props.moduleType,
-      props.submoduleType,
-      String(props.year),
-    );
+    if (!kindOptionsServerSearched.value) {
+      moduleStore.getSubmoduleTaxonomy(
+        props.moduleType,
+        props.submoduleType,
+        String(props.year),
+      );
+    }
   }
 
   // For professional travel, pre-load headcount members to resolve traveler names

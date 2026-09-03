@@ -6,7 +6,6 @@ const processEmissionsFields: ModuleField[] = [
   {
     id: 'category',
     optionsId: 'kind',
-    optionLabelKey: `${MODULES.ProcessEmissions}.category.{value}`,
     labelKey: `${MODULES.ProcessEmissions}.inputs.category`,
     type: 'select',
     required: true,

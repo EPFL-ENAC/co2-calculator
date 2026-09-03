@@ -113,7 +113,6 @@ const animalFields: ModuleField[] = [
     type: 'select',
     optionsId: 'subkind',
     inputTypeName: 'QSelect',
-    optionLabelKey: `${MODULES.ResearchFacilities}.type.{value}`,
     required: true,
     editableInline: false,
     // #951: not named in the matrix (Research facilities/Use/Unit only) —

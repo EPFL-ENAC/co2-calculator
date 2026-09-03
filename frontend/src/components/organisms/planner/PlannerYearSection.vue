@@ -84,7 +84,9 @@
           {{
             yearData.reference_year
               ? $t('planner_reference_year_rebuild_hint')
-              : $t('planner_reference_year_hint', { year: factorYear })
+              : factorYear != null
+                ? $t('planner_reference_year_hint', { year: factorYear })
+                : $t('planner_reference_year_hint_unavailable')
           }}
         </div>
       </q-card-section>
@@ -255,6 +257,7 @@
               <planner-headcount-rows
                 :key="factorScopedKey(entry.config.module)"
                 :carbon-report-id="yearData.id"
+                :year="yearData.year"
                 :disable="entry.module?.is_active === false"
               />
             </template>
@@ -523,8 +526,6 @@ const props = defineProps<{
   planId: number;
   yearData: SimulatorPlanYear;
   unitId: number;
-  /** Latest Calculator report year of the unit (factor fallback). */
-  defaultFactorYear: number | null;
   referenceYearOptions: { label: string; value: number }[];
   /** `${year}-${module}` of every expanded module across the page. */
   expandedKeys: string[];
@@ -621,15 +622,11 @@ async function saveBudget() {
 
 const hasReferenceYear = computed(() => props.yearData.reference_year !== null);
 
-// Factor year, mirroring the backend chain (`resolve_factor_year`): the
-// reference year wins, then the unit's latest Calculator report year, then
-// the plan year itself (units without any Calculator report).
-const factorYear = computed(
-  () =>
-    props.yearData.reference_year ??
-    props.defaultFactorYear ??
-    props.yearData.year,
-);
+// Backend-resolved (#2651/#2656): reference year, else the unit's latest
+// Calculator year, else the same N-1/N-2 tail Explore uses — never this
+// row's own (possibly far-future) planning year. See
+// `resolve_factor_year`; not reimplemented here to avoid drift.
+const factorYear = computed(() => props.yearData.factor_year);
 
 const GRID_MODULES: Module[] = [MODULES.Headcount, MODULES.Purchase];
 
@@ -651,7 +648,7 @@ function isGrantEquipmentModule(module: Module): boolean {
 // percentage to every prefilled line at once (#1981). View state only, the
 // entries are the same either way.
 const equipmentMode = ref<'per_line' | 'global'>('per_line');
-const globalPercentage = ref(100);
+const globalPercentage = ref(0);
 const appliedGlobalPercentage = ref<number | null>(null);
 const applyingGlobalPercentage = ref(false);
 const equipmentReferenceTotalKg = ref<number | null>(null);
@@ -755,7 +752,7 @@ function equipmentModeControlsDisabled(entry: ModuleEntry): boolean {
 }
 
 // Switching always confirms through the dialog: the confirmed switch resets
-// every line to 100% and clears the abandoned mode's budgets, so the user
+// every line to 0% and clears the abandoned mode's budgets, so the user
 // must see what they are about to lose before it happens.
 async function onEquipmentModeRequest(next: 'per_line' | 'global') {
   if (next === equipmentMode.value || switchingEquipmentMode.value) return;
@@ -790,7 +787,7 @@ async function confirmEquipmentSwitch() {
     await plansStore.setModuleReferencePercentage(
       props.yearData.id,
       entry.module.module_type_id,
-      100,
+      0,
     );
     const budgets = entry.module.budgets ?? {};
     for (const key of abandonedBudgetKeys(equipmentMode.value)) {
@@ -805,8 +802,8 @@ async function confirmEquipmentSwitch() {
     equipmentMode.value = next;
     pendingEquipmentMode.value = null;
     equipmentSwitchDialogOpen.value = false;
-    globalPercentage.value = 100;
-    appliedGlobalPercentage.value = next === 'global' ? 100 : null;
+    globalPercentage.value = 0;
+    appliedGlobalPercentage.value = next === 'global' ? 0 : null;
     await refreshExpandedModule(MODULES.Equipment);
     await plansStore.refreshAggregateIfActive();
     equipmentTableTick.value += 1;
@@ -956,8 +953,8 @@ async function onReferenceYearChange(referenceYear: number | null) {
     referenceYearDialogOpen.value = false;
     emit('collapseAll');
     if (equipmentMode.value === 'global') {
-      globalPercentage.value = 100;
-      appliedGlobalPercentage.value = 100;
+      globalPercentage.value = 0;
+      appliedGlobalPercentage.value = 0;
       try {
         equipmentReferenceTotalKg.value = equipmentReferenceSum(
           await fetchEquipmentSnapshotRows(),

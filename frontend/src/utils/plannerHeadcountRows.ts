@@ -9,6 +9,8 @@ import { buildModulePath } from '@/utils/modulePath';
 export interface PlannerHeadcountRow {
   sius_code: string;
   fte: number;
+  /** Request-locale SIUS label off the row's backend `labels` (#2613). */
+  label?: string;
 }
 
 export async function fetchPlannerHeadcountRows(
@@ -21,7 +23,13 @@ export async function fetchPlannerHeadcountRows(
         carbonReportId,
       )}/${PLANNER_HEADCOUNT_SUBMODULE}?page=1&limit=100`,
     )
-    .json<{ items: { sius_code?: string; fte?: number | null }[] }>();
+    .json<{
+      items: {
+        sius_code?: string;
+        fte?: number | null;
+        labels?: Record<string, string> | null;
+      }[];
+    }>();
 
   const byCode = new Map(
     response.items
@@ -32,8 +40,11 @@ export async function fetchPlannerHeadcountRows(
   // neither the page list nor the table has to ask again what is filled in.
   const rows: PlannerHeadcountRow[] = [];
   for (const code of PLANNER_HEADCOUNT_CODES) {
-    const fte = byCode.get(code)?.fte;
-    if (fte != null) rows.push({ sius_code: code, fte });
+    const item = byCode.get(code);
+    const fte = item?.fte;
+    if (fte != null) {
+      rows.push({ sius_code: code, fte, label: item?.labels?.sius_code });
+    }
   }
   return rows;
 }

@@ -31,6 +31,9 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
 
     kind_field: str = "provider"
     subkind_field: str = "service_type"
+    # Service types are enum keys (storage/compute) labeled by the #2613
+    # seed in both languages — sius_code shape, English display included.
+    translated_code_fields = ("service_type",)
 
     sort_map = {
         "id": DataEntry.id,

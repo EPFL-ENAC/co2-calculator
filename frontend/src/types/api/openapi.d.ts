@@ -153,6 +153,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/users/{user_id}/revoke-roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke User Roles
+         * @description Force an immediate, authoritative role check for one user (#2539).
+         *
+         *     The declined ``force`` hatch from #2531/#2538, reinstated but reachable
+         *     only here: re-runs the provider check right now (skipping the TTL gate
+         *     and the two-strikes guard) and applies whatever comes back, including
+         *     empty. It does not invent a revocation the provider doesn't confirm —
+         *     if the provider still reports the user's roles, nothing changes.
+         *
+         *     For a `JwtClaimsRoleProvider` user there is no out-of-band source to
+         *     re-check (roles only ever come from the JWT at login), so this 400s
+         *     rather than silently no-op'ing.
+         */
+        post: operations["revoke_user_roles_v1_users__user_id__revoke_roles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/unit/{unit_id}/results": {
         parameters: {
             query?: never;
@@ -935,6 +965,10 @@ export interface paths {
          *     resolves through get_taxonomy_for_data_entry_type, so it hits/populates
          *     the same (data_entry_type, year) cache a single-entry call would.
          *
+         *     The response ETag combines every resolved entry's own ETag (#2391
+         *     decision 2); a matching `If-None-Match` short-circuits with an empty
+         *     304 before any tree is serialized to JSON.
+         *
          *     An ``HTTPException`` (bad entry name, entry not in this module) means
          *     the request itself is malformed — that's not one submodule's problem,
          *     it propagates and fails the whole batch. Any other exception is a
@@ -962,8 +996,38 @@ export interface paths {
         /**
          * Get Taxonomy For Module Data Entry
          * @description Get taxonomy for a given module and data entry type.
+         *
+         *     A matching `If-None-Match` short-circuits with an empty 304 before the
+         *     tree is serialized to JSON (#2391 decision 2).
          */
         get: operations["get_taxonomy_for_module_data_entry_v1_taxonomies_module__module___data_entry__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/taxonomies/module/{module}/{data_entry}/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Module Data Entry Options
+         * @description Server-side typeahead for one data entry's classification options
+         *     (#2391 decision 4, the shape of ``locations/search``).
+         *
+         *     Exists for handlers whose option list is too large to ship as a
+         *     taxonomy tree (purchase: ~17k codes) but works for any handler with a
+         *     kind field. Uncached on purpose — responses vary per keystroke, and
+         *     the point of the endpoint is that clients stop downloading the tree.
+         *     Authentication is the only gate, same as the taxonomy routes above.
+         */
+        get: operations["search_module_data_entry_options_v1_taxonomies_module__module___data_entry__options_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1032,7 +1096,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/carbon-reports/simulator/explore/unit/{unit_id}/reference-year/{reference_year}/": {
+    "/v1/carbon-reports/simulator/explore/unit/{unit_id}/": {
         parameters: {
             query?: never;
             header?: never;
@@ -1041,24 +1105,26 @@ export interface paths {
         };
         /**
          * Get Simulator Explore Carbon Report
-         * @description Get an existing Simulator Explore carbon report.
+         * @description Get the user's current Simulator Explore sandbox for a unit.
          *
-         *     If the report has exceeded its TTL (EXPLORE_TTL_SECONDS) a background task
-         *     is scheduled
-         *     to delete the stale report and seed a fresh one — the current (stale)
-         *     report is returned immediately so the user is not blocked.
+         *     Read-only: no create-fallback (404 if none exists yet), no staleness
+         *     handling — #2656 removed the year key and the TTL refresh entirely. A
+         *     sandbox exists only once a POST creates it, and is replaced, not
+         *     refreshed, by the next POST.
          */
-        get: operations["get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___get"];
+        get: operations["get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id___get"];
         put?: never;
         /**
          * Create Simulator Explore Carbon Report
-         * @description Create a new, empty Simulator Explore carbon report.
+         * @description Start a new Simulator Explore sandbox (#2656).
          *
-         *     The report is created with its modules and no entries — Simulator Explore is
-         *     never seeded from the Calculator. Only the Simulator Plan prefills, and only
-         *     from the reference year its user picks.
+         *     Always creates — no idempotency, no existence check. "Start an
+         *     exploration" (a page mount or a refresh alike) always gets a brand-new
+         *     empty sandbox; the caller's other sandboxes for this unit are deleted in
+         *     the background right after. Replaces the old idempotent PUT (#2487) and
+         *     the 24h TTL refresh it triggered.
          */
-        post: operations["create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___post"];
+        post: operations["create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id___post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1242,7 +1308,10 @@ export interface paths {
         put?: never;
         /**
          * Create Simulator Plan
-         * @description Create a simulator plan; without a name, the next default is assigned.
+         * @description Create a simulator plan; without a name, a suffixed default is assigned.
+         *
+         *     Names are not unique (#2445) — the plan id is the identity — so creation
+         *     cannot conflict.
          */
         post: operations["create_simulator_plan_v1_project_plans_unit__unit_id___post"];
         delete?: never;
@@ -2709,6 +2778,16 @@ export interface components {
             /** Aborted By */
             aborted_by: string;
         };
+        /** AffiliationScope */
+        AffiliationScope: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "affiliation";
+            /** Affiliation */
+            affiliation: string;
+        };
         /**
          * AuditChangeTypeEnum
          * @enum {string}
@@ -3006,6 +3085,8 @@ export interface components {
              * @default 0
              */
             overall_status: number;
+            /** Factor Year */
+            factor_year?: number | null;
         };
         /**
          * CarbonReportReferencePercentageUpdate
@@ -3153,6 +3234,10 @@ export interface components {
             id: number;
             /** Source */
             source?: number | null;
+            /** Labels */
+            labels?: {
+                [key: string]: string;
+            } | null;
         };
         /**
          * DataEntryStatusEnum
@@ -3300,6 +3385,20 @@ export interface components {
          */
         EntityType: 1 | 2 | 3;
         /**
+         * FactorOption
+         * @description One typeahead option (#2391 decision 4).
+         *
+         *     ``name`` is the stored classification value the form submits (purchase:
+         *     the UNSPSC code); ``label`` is the request-locale display text — same
+         *     vocabulary as ``TaxonomyNode``, minus the tree.
+         */
+        FactorOption: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+        };
+        /**
          * FileMetadata
          * @description Metadata for uploaded files.
          */
@@ -3359,6 +3458,14 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** GlobalScope */
+        GlobalScope: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "global";
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -3385,6 +3492,10 @@ export interface components {
             id: number;
             /** Source */
             source?: number | null;
+            /** Labels */
+            labels?: {
+                [key: string]: string;
+            } | null;
             /** Note */
             note?: string | null;
             /** Reference Kg Co2Eq */
@@ -3643,6 +3754,16 @@ export interface components {
          * @enum {integer}
          */
         ModuleTypeEnum: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+        /** OwnScope */
+        OwnScope: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "own";
+            /** Institutional Id */
+            institutional_id: string;
+        };
         /**
          * PaginatedUnitReportingData
          * @description Paginated list of unit reporting data.
@@ -3929,6 +4050,55 @@ export interface components {
             /** Job Ids */
             job_ids: number[];
         };
+        /** Role */
+        Role: {
+            role: components["schemas"]["RoleName"];
+            /** On */
+            on: components["schemas"]["GlobalScope"] | components["schemas"]["UnitScope"] | components["schemas"]["OwnScope"] | components["schemas"]["AffiliationScope"];
+        };
+        /**
+         * RoleName
+         * @enum {string}
+         */
+        RoleName: "calco2.user.standard" | "calco2.user.principal" | "calco2.backoffice.metier" | "calco2.backoffice.admin";
+        /**
+         * RoleSyncOutcome
+         * @description Why a role sync ended the way it did.
+         *
+         *     ``SKIPPED_*`` outcomes never write to the user: the sync could not
+         *     establish what the roles are, so the stored ones stand (#2531).
+         * @enum {string}
+         */
+        RoleSyncOutcome: "applied" | "no_change" | "skipped_ttl" | "skipped_user_not_found" | "skipped_provider_unavailable" | "skipped_suspicious_empty";
+        /**
+         * RoleSyncResult
+         * @description Result of a role synchronization operation.
+         */
+        RoleSyncResult: {
+            /** User Id */
+            user_id: number;
+            outcome: components["schemas"]["RoleSyncOutcome"];
+            /**
+             * Has Changed
+             * @default false
+             */
+            has_changed: boolean;
+            /**
+             * Roles Changed
+             * @default false
+             */
+            roles_changed: boolean;
+            /**
+             * Old Roles
+             * @default []
+             */
+            old_roles: components["schemas"]["Role"][];
+            /**
+             * New Roles
+             * @default []
+             */
+            new_roles: components["schemas"]["Role"][];
+        };
         /**
          * RowPolicy
          * @description #951: edit rights for one data-entry provenance branch.
@@ -3966,6 +4136,12 @@ export interface components {
          *     frontend a source that doesn't depend on any particular year existing —
          *     e.g. the backoffice year selector can seed its lower bound even when the
          *     current real-world year has no ``YearConfiguration`` row yet.
+         *
+         *     ``client_ip`` is the caller's own address, which the browser cannot
+         *     discover on its own — it is echoed back so the frontend can put a real IP
+         *     on its GlitchTip error reports instead of a placeholder. Omitted when the
+         *     ASGI server reports no client (``response_model_exclude_none``), never
+         *     faked.
          */
         SessionRead: {
             user: components["schemas"]["UserRead"];
@@ -3975,6 +4151,8 @@ export interface components {
             configured_years: components["schemas"]["YearConfigurationListItem"][];
             /** Min Configurable Year */
             min_configurable_year: number;
+            /** Client Ip */
+            client_ip?: string | null;
         };
         /**
          * SimulatorPlanCreate
@@ -4118,6 +4296,8 @@ export interface components {
             modules: components["schemas"]["CarbonReportModuleRead"][];
             /** Prefill Job Id */
             prefill_job_id?: number | null;
+            /** Factor Year */
+            factor_year?: number | null;
         };
         /**
          * StaleStatsEntry
@@ -4285,8 +4465,6 @@ export interface components {
             name: string;
             /** Label */
             label: string;
-            /** Translation Key */
-            translation_key?: string | null;
             /** Meta */
             meta?: {
                 [key: string]: unknown;
@@ -4469,6 +4647,16 @@ export interface components {
             /** Completion Progress */
             completion_progress?: string | null;
         };
+        /** UnitScope */
+        UnitScope: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "unit";
+            /** Institutional Id */
+            institutional_id: string;
+        };
         /**
          * UnitWithUserRole
          * @description Schema for unit with current user's role from join.
@@ -4635,6 +4823,13 @@ export interface components {
              * @default []
              */
             project_plans: components["schemas"]["SimulatorPlanRead"][];
+            /**
+             * Permissions
+             * @default {}
+             */
+            permissions: {
+                [key: string]: unknown;
+            };
         };
         /**
          * YearConfigurationCreate
@@ -4936,12 +5131,7 @@ export interface operations {
     };
     list_user_units_v1_users_units_get: {
         parameters: {
-            query?: {
-                /** @description Number of records to skip */
-                skip?: number;
-                /** @description Maximum number of records to return */
-                limit?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: {
@@ -4957,6 +5147,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnitWithUserRole"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_user_roles_v1_users__user_id__revoke_roles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleSyncResult"];
                 };
             };
             /** @description Validation Error */
@@ -5504,6 +5727,8 @@ export interface operations {
         parameters: {
             query?: {
                 combine_unit_ids?: number[];
+                /** @description Locale for segment labels (#2401), e.g. 'fr' */
+                lang?: string;
             };
             header?: never;
             path: {
@@ -5615,6 +5840,8 @@ export interface operations {
                 sort_order?: string;
                 /** @description Filter string to search in name or display_name */
                 filter?: string | null;
+                /** @description Locale for the search filter (#2401/#2516): a translatable field also matches its translated label, e.g. lang=fr 'serveur' matches equipment_class_fr='serveur' (stored equipment_class='server'). */
+                lang?: string;
             };
             header?: never;
             path: {
@@ -6133,12 +6360,7 @@ export interface operations {
     };
     list_units_v1_units_get: {
         parameters: {
-            query?: {
-                /** @description Number of records to skip */
-                skip?: number;
-                /** @description Maximum number of records to return */
-                limit?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: {
@@ -6281,8 +6503,12 @@ export interface operations {
                 entries: string[];
                 /** @description Year for which to retrieve the taxonomy */
                 year?: number;
+                /** @description Locale for classification labels (#2401), e.g. 'fr' */
+                lang?: string;
             };
-            header?: never;
+            header?: {
+                "if-none-match"?: string | null;
+            };
             path: {
                 module: string;
             };
@@ -6319,6 +6545,53 @@ export interface operations {
             query?: {
                 /** @description Year for which to retrieve the taxonomy */
                 year?: number;
+                /** @description Locale for classification labels (#2401), e.g. 'fr' */
+                lang?: string;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path: {
+                module: string;
+                data_entry: string;
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyNode"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_module_data_entry_options_v1_taxonomies_module__module___data_entry__options_get: {
+        parameters: {
+            query: {
+                /** @description Search term (min 2 chars); matches the stored value, the English label text, and its translated label */
+                query: string;
+                /** @description Year whose factors to search */
+                year?: number;
+                /** @description Locale for option labels and matching (#2401), e.g. 'fr' */
+                lang?: string;
+                /** @description Maximum options returned */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -6337,7 +6610,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaxonomyNode"];
+                    "application/json": components["schemas"]["FactorOption"][];
                 };
             };
             /** @description Validation Error */
@@ -6453,13 +6726,12 @@ export interface operations {
             };
         };
     };
-    get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___get: {
+    get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id___get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 unit_id: number;
-                reference_year: number;
             };
             cookie?: {
                 auth_token?: string;
@@ -6487,13 +6759,12 @@ export interface operations {
             };
         };
     };
-    create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___post: {
+    create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id___post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 unit_id: number;
-                reference_year: number;
             };
             cookie?: {
                 auth_token?: string;

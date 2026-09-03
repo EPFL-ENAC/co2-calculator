@@ -11,7 +11,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import get_module_type_for_data_entry_type
 from app.models.user import User, UserProvider
 from app.schemas.data_entry import BaseModuleHandler
-from app.schemas.taxonomy import TaxonomyNode
+from app.schemas.taxonomy import FactorOption, TaxonomyNode
 from app.services.module_handler_service import ModuleHandlerService
 from app.services.year_config_service import is_year_started
 
@@ -19,13 +19,20 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# Cache-Control split by the year lifecycle invariant (#2391 decision 2):
-# once a year is started, its factors never change again, so a browser can
-# hold the response for a full day. A year still in preparation can be
-# re-ingested at any moment and a browser cache is unreachable by the
-# write-time broadcast (#2280), so it keeps a short max-age — the ETag
-# below makes those frequent revalidations cheap 304s either way.
-_CACHE_CONTROL_STARTED = "private, max-age=86400"
+# Cache-Control split by the year lifecycle invariant (#2391 decision 2).
+# A started year's factor STRUCTURE never changes, but since #2401/#2613
+# the payload also carries locale labels, which are data: a seed migration
+# or an operator CSV upload changes them at any time, uncoupled from the
+# year lifecycle — a silent max-age hold left browsers a full day behind
+# (#2614 deploy incident). stale-while-revalidate keeps the zero-latency
+# render (the stale tree paints, a background conditional GET follows) and
+# self-heals on the next view; the ETag is precomputed per cache entry, so
+# that revalidation is a dict lookup returning 304. Browsers without SWR
+# (Safari) degrade to always-revalidate — one cheap 304 per fetch. A year
+# still in preparation can be re-ingested at any moment and a browser
+# cache is unreachable by the write-time broadcast (#2280), so it keeps a
+# short max-age.
+_CACHE_CONTROL_STARTED = "private, max-age=0, stale-while-revalidate=86400"
 _CACHE_CONTROL_PREPARING = "private, max-age=60"
 
 
@@ -55,6 +62,7 @@ async def get_taxonomy_for_data_entry_type(
     response: Response,
     data_entry_type: DataEntryTypeEnum,
     year: int,
+    lang: str,
     db: AsyncSession,
     current_user: User,
 ) -> TaxonomyCacheEntry:
@@ -74,7 +82,9 @@ async def get_taxonomy_for_data_entry_type(
     # module's form for any unit member.
     handler = BaseModuleHandler.get_by_type(data_entry_type)
     handler_service = ModuleHandlerService(db)
-    entry = await handler_service.get_taxonomy_with_etag(handler, data_entry_type, year)
+    entry = await handler_service.get_taxonomy_with_etag(
+        handler, data_entry_type, year, lang
+    )
     started = await _is_year_started_cached(db, year, current_user.provider)
     response.headers["Cache-Control"] = _cache_control_for(started)
     return entry
@@ -85,6 +95,7 @@ async def _resolve_module_data_entry_taxonomy(
     module: str,
     data_entry: str,
     year: int,
+    lang: str,
     db: AsyncSession,
     current_user: User,
 ) -> TaxonomyCacheEntry:
@@ -92,6 +103,18 @@ async def _resolve_module_data_entry_taxonomy(
 
     Shared by the single-entry and batch routes so both stay one source
     of truth for the module/data-entry validation.
+    """
+    data_entry_type = _resolve_data_entry_type(module, data_entry)
+    return await get_taxonomy_for_data_entry_type(
+        response, data_entry_type, year, lang, db, current_user
+    )
+
+
+def _resolve_data_entry_type(module: str, data_entry: str) -> DataEntryTypeEnum:
+    """Path params -> validated data entry type, 404/400 on mismatch.
+
+    Shared by the taxonomy routes and the options typeahead so all of them
+    stay one source of truth for the module/data-entry validation.
     """
     data_entry_name = data_entry.replace("-", "_")
     data_entry_type = (
@@ -109,9 +132,7 @@ async def _resolve_module_data_entry_taxonomy(
             status_code=400,
             detail=f"Data entry type {data_entry} does not belong to module {module}",
         )
-    return await get_taxonomy_for_data_entry_type(
-        response, data_entry_type, year, db, current_user
-    )
+    return data_entry_type
 
 
 def _not_modified(response: Response) -> Response:
@@ -152,6 +173,10 @@ async def get_taxonomies_for_module_data_entries(
         default_factory=lambda: datetime.now().year,
         description="Year for which to retrieve the taxonomy",
     ),
+    lang: str = Query(
+        default="en",
+        description="Locale for classification labels (#2401), e.g. 'fr'",
+    ),
     if_none_match: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -180,7 +205,7 @@ async def get_taxonomies_for_module_data_entries(
     for entry in entries:
         try:
             cache_entry = await _resolve_module_data_entry_taxonomy(
-                response, module, entry, year, db, current_user
+                response, module, entry, year, lang, db, current_user
             )
         except HTTPException:
             raise
@@ -223,6 +248,10 @@ async def get_taxonomy_for_module_data_entry(
         default_factory=lambda: datetime.now().year,
         description="Year for which to retrieve the taxonomy",
     ),
+    lang: str = Query(
+        default="en",
+        description="Locale for classification labels (#2401), e.g. 'fr'",
+    ),
     if_none_match: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -233,9 +262,58 @@ async def get_taxonomy_for_module_data_entry(
     tree is serialized to JSON (#2391 decision 2).
     """
     cache_entry = await _resolve_module_data_entry_taxonomy(
-        response, module, data_entry, year, db, current_user
+        response, module, data_entry, year, lang, db, current_user
     )
     response.headers["ETag"] = cache_entry.etag
     if if_none_match == cache_entry.etag:
         return _not_modified(response)
     return cache_entry.tree
+
+
+@router.get(
+    "/module/{module}/{data_entry}/options",
+    response_model=list[FactorOption],
+)
+async def search_module_data_entry_options(
+    module: str,
+    data_entry: str,
+    query: str = Query(
+        ...,
+        min_length=2,
+        description=(
+            "Search term (min 2 chars); matches the stored value, the "
+            "English label text, and its translated label"
+        ),
+    ),
+    year: int = Query(
+        default_factory=lambda: datetime.now().year,
+        description="Year whose factors to search",
+    ),
+    lang: str = Query(
+        default="en",
+        description="Locale for option labels and matching (#2401), e.g. 'fr'",
+    ),
+    limit: int = Query(20, ge=1, le=100, description="Maximum options returned"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[FactorOption]:
+    """Server-side typeahead for one data entry's classification options
+    (#2391 decision 4, the shape of ``locations/search``).
+
+    Exists for handlers whose option list is too large to ship as a
+    taxonomy tree (purchase: ~17k codes) but works for any handler with a
+    kind field. Uncached on purpose — responses vary per keystroke, and
+    the point of the endpoint is that clients stop downloading the tree.
+    Authentication is the only gate, same as the taxonomy routes above.
+    """
+    data_entry_type = _resolve_data_entry_type(module, data_entry)
+    handler = BaseModuleHandler.get_by_type(data_entry_type)
+    if handler.kind_field is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Data entry type {data_entry} has no searchable classification",
+        )
+    handler_service = ModuleHandlerService(db)
+    return await handler_service.search_factor_options(
+        handler, data_entry_type, year, query, lang, limit
+    )
