@@ -39,13 +39,27 @@ async def _cleanup_old_explore_background(
     created and the response has been sent. Opens its own session so the
     request session lifetime is not a concern. Replaces the old TTL-refresh
     task: creation and cleanup are now two separate, explicit steps.
+
+    Caught and logged, not re-raised: the response is already sent, so a
+    failure here can only be surfaced through logs. Mirrors the same
+    catch-log-move-on shape as the other background tasks in this codebase
+    (``app/tasks/audit_sync_tasks.py``) — a failed cleanup leaves stale
+    sandboxes behind rather than crashing anything, and the next
+    "start exploration" call sweeps them along with the one from this run.
     """
-    async with SessionLocal() as db:
-        service = CarbonReportService(db)
-        await service.delete_old_explore(
-            unit_id=unit_id, created_by=created_by, keep_project_id=keep_project_id
+    try:
+        async with SessionLocal() as db:
+            service = CarbonReportService(db)
+            await service.delete_old_explore(
+                unit_id=unit_id, created_by=created_by, keep_project_id=keep_project_id
+            )
+            await db.commit()
+    except Exception as exc:
+        logger.error(
+            f"Explore sandbox cleanup failed for unit_id={unit_id} "
+            f"created_by={created_by} keep_project_id={keep_project_id}: {exc}",
+            exc_info=True,
         )
-        await db.commit()
 
 
 logger = get_logger(__name__)

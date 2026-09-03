@@ -309,12 +309,15 @@ async def test_delete_old_explore_keeps_only_the_newest(async_session):
 
 @pytest.mark.asyncio
 async def test_delete_old_explore_keeps_newer_creates_untouched(async_session):
-    """A create that races an older cleanup keeps its own sandbox (#2656).
+    """An older cleanup never targets a still-newer create (#2656).
 
     ``delete_old_explore`` only targets projects strictly older than
     ``keep_project_id`` — a project created *after* the one a concurrent
-    cleanup is protecting is never touched, so two near-simultaneous
-    "start exploration" calls can't delete each other's fresh sandbox.
+    cleanup is protecting is never touched. This is the safe half of a
+    two-tab race; see
+    :func:`test_delete_old_explore_deletes_an_older_concurrent_create` for
+    the other half — the newest create always wins, and an *older*
+    concurrent create's own sandbox is not protected.
     """
     service = CarbonReportService(async_session)
     first = await service.create_explore(unit_id=1, created_by=10)
@@ -327,6 +330,36 @@ async def test_delete_old_explore_keeps_newer_creates_untouched(async_session):
         unit_id=1, created_by=10, keep_project_id=first.carbon_project_id
     )
 
+    assert await service.get(second.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_old_explore_deletes_an_older_concurrent_create(async_session):
+    """The newest concurrent create wins; an older one's own sandbox is swept (#2656).
+
+    Two near-simultaneous "start exploration" calls (two tabs) each create
+    a project and schedule their own cleanup. ``first``'s cleanup only
+    removes what predates *it*, so it leaves ``second`` alone (the test
+    above) — but ``second``'s cleanup removes everything older than
+    ``second``, ``first`` included. Net result across both cleanups:
+    exactly one sandbox survives, always the newest — the earlier tab's
+    own active sandbox is gone, the same as any other refresh (#2656: a
+    reload always starts a fresh sandbox and discards the old one; a
+    concurrent second tab is that same rule, applied to two creates
+    instead of one).
+    """
+    service = CarbonReportService(async_session)
+    first = await service.create_explore(unit_id=1, created_by=10)
+    second = await service.create_explore(unit_id=1, created_by=10)
+    assert second.carbon_project_id is not None
+
+    # Cleanup scoped to `second` (as if its own POST scheduled it) deletes
+    # `first`, even though `first` was itself a live sandbox a moment ago.
+    await service.delete_old_explore(
+        unit_id=1, created_by=10, keep_project_id=second.carbon_project_id
+    )
+
+    assert await service.get(first.id) is None
     assert await service.get(second.id) is not None
 
 

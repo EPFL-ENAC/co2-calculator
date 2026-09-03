@@ -105,14 +105,28 @@ off" — that was the accidental (and buggy) behavior of the old GET-404-PUT
 idempotency, never a stated goal.
 
 **Cleanup targets `id < keep_project_id`, not `id != keep_project_id`.**
-Two near-simultaneous "start exploration" calls (a double-click, two tabs)
-each create their own project and each schedule a cleanup naming their own
-project as the one to keep. Deleting "everything else" would let each
-cleanup delete the other's fresh project — depending on timing, both could
-end up deleted. Deleting only what's _older_ than the kept project means
-each cleanup only ever removes projects that existed before it started;
-neither can touch a project created after it. Worst case from a real race
-is two survivors, not zero — self-heals on the next "start exploration."
+Two near-simultaneous "start exploration" calls (two tabs/sessions for the
+same unit+user — there is no button to double-click, this fires from
+`onMounted`) each create their own project and each schedule a cleanup
+naming their own project as the one to keep. Deleting "everything else"
+would let each cleanup delete the _other's_ fresh project — depending on
+timing, both could end up deleted, leaving neither. Deleting only what's
+_older_ than the kept project avoids that specific failure (neither
+cleanup can delete a project created after it), but it does **not** mean
+both survive: the earlier tab's cleanup only removes what predates it, so
+it leaves the later one alone, but the later tab's cleanup removes
+everything older than it — the earlier tab's own project included. Net
+effect across both cleanups: exactly one sandbox survives, always the
+newest, never zero and never two. The earlier tab loses its active
+sandbox the same way a reload does — consistent with the accepted design
+(a reload always starts fresh and discards the old one), just applied to
+a concurrent second tab instead of a single tab's reload. Its next write
+would 404 against a deleted report, same as any other stale-report
+reference; no new frontend handling for this — it's the existing
+generic-error path, not a case this PR needs to special-case.
+Both directions are pinned by
+`test_delete_old_explore_keeps_newer_creates_untouched` and
+`test_delete_old_explore_deletes_an_older_concurrent_create`.
 
 **No more unique index on `(unit_id, created_by)` for Explore projects.**
 It existed (#2293) to keep one sandbox per user; #2656 replaces "one
