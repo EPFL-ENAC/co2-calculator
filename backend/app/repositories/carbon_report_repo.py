@@ -154,20 +154,21 @@ class CarbonReportRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
-    async def get_explore_by_unit_and_reference_year(
+    async def get_latest_explore_by_unit(
         self,
         *,
         unit_id: int,
-        reference_year: int,
         created_by: int,
     ) -> CarbonReport | None:
-        """Get the Simulator Explore report for a unit + reference year.
+        """The user's current Simulator Explore sandbox for a unit, or None.
 
-        Explore sandboxes are private per user (#2293): only the report whose
-        project was created by ``created_by`` is returned. Explore reports
-        store the reference year in the ``year`` field (year is always
-        non-null), and ``uq_carbon_reports_project_year`` guarantees at most
-        one report per project + year.
+        Unkeyed by year (#2656): a "start exploration" POST always makes a
+        new sandbox and schedules the previous ones for background deletion,
+        so normally at most one exists. A lookup that races that cleanup can
+        still see more than one — the newest project (highest id) wins, tied
+        broken by report id for pre-#2656 data (one grandfathered project can
+        still carry several reports, one per year it was opened under, until
+        the next "start exploration" sweeps it).
         """
         statement = (
             select(CarbonReport)
@@ -177,13 +178,43 @@ class CarbonReportRepository:
             )
             .where(
                 CarbonReport.unit_id == unit_id,
-                CarbonReport.year == reference_year,
                 CarbonProject.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE,
                 CarbonProject.created_by == created_by,
             )
+            .order_by(col(CarbonProject.id).desc(), col(CarbonReport.id).desc())
+            .limit(1)
         )
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
+
+    async def list_explore_by_unit_older_than(
+        self,
+        *,
+        unit_id: int,
+        created_by: int,
+        keep_project_id: int,
+    ) -> list[CarbonReport]:
+        """Every Explore report for (unit, created_by) predating ``keep_project_id``.
+
+        Strictly older, not "not this one" (#2656): two near-simultaneous
+        "start exploration" creates each keep their own newest sandbox
+        instead of racing to delete each other's.
+        """
+        statement = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(
+                CarbonReport.unit_id == unit_id,
+                CarbonProject.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE,
+                CarbonProject.created_by == created_by,
+                col(CarbonProject.id) < keep_project_id,
+            )
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
 
     async def update(
         self, carbon_report_id: int, data: CarbonReportUpdate

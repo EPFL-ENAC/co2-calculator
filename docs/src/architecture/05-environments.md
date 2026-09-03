@@ -53,6 +53,8 @@ web replicas; there is no separate Redis/Celery tier (see
 | `OAUTH_ISSUER_URL`                                                                 | OIDC issuer (well-known config appended) | Yes      |
 | `S3_ENDPOINT_HOSTNAME` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | EPFL S3 file storage (else local disk)   | No       |
 | `APP_SENTRY_DSN`                                                                   | GlitchTip/Sentry DSN (frontend errors)   | No       |
+| `APP_MATOMO_URL`                                                                   | Matomo analytics endpoint                | No       |
+| `APP_MATOMO_SITE_ID`                                                               | Matomo site id (empty = tracking off)    | No       |
 | `ENVIRONMENT`                                                                      | Environment name                         | Yes      |
 
 Complete lists live in the `.env.example` files.

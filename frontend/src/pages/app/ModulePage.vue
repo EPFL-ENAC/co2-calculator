@@ -19,6 +19,7 @@
         :error="error"
         :unit-id="workspaceStore.selectedUnit?.id"
         :year="workspaceStore.selectedYear"
+        :factor-year="workspaceStore.selectedYear ?? null"
         :disable="timelineStore.canEdit === false"
       />
       <module-navigation :current-module="currentModuleType" />

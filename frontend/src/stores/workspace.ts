@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
 import { api } from '@/api/http';
-import { putExploreCarbonReport } from '@/api/carbon_reports';
+import { postExploreCarbonReport } from '@/api/carbon_reports';
 import type { SimulatorPlan } from '@/stores/simulatorPlans';
 import type { FlatUserPermissions } from '@/utils/permission';
 import { useModuleStore } from '@/stores/modules';
@@ -58,6 +58,10 @@ export interface CarbonReport {
   // payload no longer ships it (only full CarbonReport fetches do).
   carbon_project_id?: number;
   stats?: CarbonReportStats | null;
+  // Only Simulator Explore populates this (#2631) — the resolved N-1/N-2
+  // year its dropdowns/typeahead must query, distinct from `year` above
+  // (the sandbox's creation year, never a year with published factors).
+  factor_year?: number | null;
 }
 
 /**
@@ -210,9 +214,10 @@ export const useWorkspaceStore = defineStore(
       // Grabbed before the first await: first-time store instantiation reads
       // the active route, which needs a live component context to inject.
       const moduleStore = useModuleStore();
-      // Idempotent PUT (#2487): creates the sandbox on first call, returns
-      // the existing one after. No 404 branch — the backend owns existence.
-      const inv = await putExploreCarbonReport(unitId, referenceYear);
+      // Always creates a fresh sandbox (#2656) — a page mount or refresh
+      // alike starts a new exploration; the backend deletes the caller's
+      // other sandboxes for this unit in the background right after.
+      const inv = await postExploreCarbonReport(unitId, referenceYear);
       selectedCarbonReport.value = inv;
       // Seed the module store's cache so every module component's later
       // resolveCarbonReportId for this unit/year hits cache (#2360 follow-up).

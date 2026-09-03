@@ -346,6 +346,12 @@ frontend:
     APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL: "https://access-management.example.com/about"
     APP_ROLES_DOC_URL: "https://docs.example.com/roles/"
     APP_EQUIPMENT_POWER_FEEDBACK_EMAIL: "test@epfl.ch"
+    # Matomo analytics (ENAC web analytics). The site id is the on/off switch:
+    # empty string → src/boot/matomo.ts loads no tracker, so an unconfigured
+    # deploy sends nothing. One Matomo site per instance — the real ids are set
+    # per-cluster in the ops repo.
+    APP_MATOMO_URL: "https://enac-webanalytics.epfl.ch/piwik/"
+    APP_MATOMO_SITE_ID: ""
     # Project-planner horizon: bounds for the plan start/end year selects.
     # No code default — unset leaves the year selects empty.
     APP_PLANNER_MIN_YEAR: "2016"

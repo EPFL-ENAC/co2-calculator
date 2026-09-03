@@ -904,13 +904,23 @@ export async function mockExplorerBackend(
   });
 
   // ─── Reports / workspace / session ─────────────────────────────────────────
-  // #2487: the store's provisioning call is now an idempotent PUT (creates
-  // on first call, returns the existing report after) — GET stays a plain
-  // read, 404 until PUT has run once (matches the real backend contract).
+  // #2656: the store's provisioning call is now a POST that always creates
+  // (no more year in the path, no idempotency) — GET stays a plain read,
+  // 404 until POST has run once (matches the real backend contract).
   await context.route(
-    /.*\/api\/v1\/carbon-reports\/simulator\/explore\/unit\/10\/reference-year\/2024\//,
+    /.*\/api\/v1\/carbon-reports\/simulator\/explore\/unit\/10\/$/,
     (route) => {
-      if (route.request().method() === 'PUT') {
+      if (route.request().method() === 'POST') {
+        // A real create always makes a brand-new (empty) sandbox and
+        // deletes the caller's previous ones in the background — the id
+        // stays fixed here (fixture simplicity, nothing in this suite
+        // asserts on report-id churn), but every second-and-later create
+        // must still discard whatever the prior sandbox held.
+        if (exploreReportCreated) {
+          for (const k of [...store.keys()]) {
+            if (k.startsWith(`${EXPLORER_REPORT_ID}/`)) store.delete(k);
+          }
+        }
         exploreReportCreated = true;
         return json(route, MOCK_SIMULATOR_REPORT);
       }

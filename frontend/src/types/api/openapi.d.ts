@@ -153,6 +153,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/users/{user_id}/revoke-roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke User Roles
+         * @description Force an immediate, authoritative role check for one user (#2539).
+         *
+         *     The declined ``force`` hatch from #2531/#2538, reinstated but reachable
+         *     only here: re-runs the provider check right now (skipping the TTL gate
+         *     and the two-strikes guard) and applies whatever comes back, including
+         *     empty. It does not invent a revocation the provider doesn't confirm —
+         *     if the provider still reports the user's roles, nothing changes.
+         *
+         *     For a `JwtClaimsRoleProvider` user there is no out-of-band source to
+         *     re-check (roles only ever come from the JWT at login), so this 400s
+         *     rather than silently no-op'ing.
+         */
+        post: operations["revoke_user_roles_v1_users__user_id__revoke_roles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/unit/{unit_id}/results": {
         parameters: {
             query?: never;
@@ -1066,7 +1096,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/carbon-reports/simulator/explore/unit/{unit_id}/reference-year/{reference_year}/": {
+    "/v1/carbon-reports/simulator/explore/unit/{unit_id}/": {
         parameters: {
             query?: never;
             header?: never;
@@ -1075,26 +1105,26 @@ export interface paths {
         };
         /**
          * Get Simulator Explore Carbon Report
-         * @description Get an existing Simulator Explore carbon report.
+         * @description Get the user's current Simulator Explore sandbox for a unit.
          *
-         *     If the report has exceeded its TTL (EXPLORE_TTL_SECONDS) a background task
-         *     is scheduled
-         *     to delete the stale report and seed a fresh one — the current (stale)
-         *     report is returned immediately so the user is not blocked.
+         *     Read-only: no create-fallback (404 if none exists yet), no staleness
+         *     handling — #2656 removed the year key and the TTL refresh entirely. A
+         *     sandbox exists only once a POST creates it, and is replaced, not
+         *     refreshed, by the next POST.
          */
-        get: operations["get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___get"];
+        get: operations["get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id___get"];
+        put?: never;
         /**
-         * Put Simulator Explore Carbon Report
-         * @description Idempotent Simulator Explore sandbox: create on first call, return
-         *     the existing one on every call after (#2487).
+         * Create Simulator Explore Carbon Report
+         * @description Start a new Simulator Explore sandbox (#2656).
          *
-         *     Replaces the GET(404) + POST pair the frontend used to orchestrate —
-         *     two round trips, and the 404-as-control-flow race #2483 had to
-         *     SAVEPOINT-guard. A stale existing sandbox is refreshed in the
-         *     background and returned as-is immediately, matching the GET route.
+         *     Always creates — no idempotency, no existence check. "Start an
+         *     exploration" (a page mount or a refresh alike) always gets a brand-new
+         *     empty sandbox; the caller's other sandboxes for this unit are deleted in
+         *     the background right after. Replaces the old idempotent PUT (#2487) and
+         *     the 24h TTL refresh it triggered.
          */
-        put: operations["put_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___put"];
-        post?: never;
+        post: operations["create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id___post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2748,6 +2778,16 @@ export interface components {
             /** Aborted By */
             aborted_by: string;
         };
+        /** AffiliationScope */
+        AffiliationScope: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "affiliation";
+            /** Affiliation */
+            affiliation: string;
+        };
         /**
          * AuditChangeTypeEnum
          * @enum {string}
@@ -3045,6 +3085,8 @@ export interface components {
              * @default 0
              */
             overall_status: number;
+            /** Factor Year */
+            factor_year?: number | null;
         };
         /**
          * CarbonReportReferencePercentageUpdate
@@ -3416,6 +3458,14 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** GlobalScope */
+        GlobalScope: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "global";
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -3704,6 +3754,16 @@ export interface components {
          * @enum {integer}
          */
         ModuleTypeEnum: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+        /** OwnScope */
+        OwnScope: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "own";
+            /** Institutional Id */
+            institutional_id: string;
+        };
         /**
          * PaginatedUnitReportingData
          * @description Paginated list of unit reporting data.
@@ -3990,6 +4050,55 @@ export interface components {
             /** Job Ids */
             job_ids: number[];
         };
+        /** Role */
+        Role: {
+            role: components["schemas"]["RoleName"];
+            /** On */
+            on: components["schemas"]["GlobalScope"] | components["schemas"]["UnitScope"] | components["schemas"]["OwnScope"] | components["schemas"]["AffiliationScope"];
+        };
+        /**
+         * RoleName
+         * @enum {string}
+         */
+        RoleName: "calco2.user.standard" | "calco2.user.principal" | "calco2.backoffice.metier" | "calco2.backoffice.admin";
+        /**
+         * RoleSyncOutcome
+         * @description Why a role sync ended the way it did.
+         *
+         *     ``SKIPPED_*`` outcomes never write to the user: the sync could not
+         *     establish what the roles are, so the stored ones stand (#2531).
+         * @enum {string}
+         */
+        RoleSyncOutcome: "applied" | "no_change" | "skipped_ttl" | "skipped_user_not_found" | "skipped_provider_unavailable" | "skipped_suspicious_empty";
+        /**
+         * RoleSyncResult
+         * @description Result of a role synchronization operation.
+         */
+        RoleSyncResult: {
+            /** User Id */
+            user_id: number;
+            outcome: components["schemas"]["RoleSyncOutcome"];
+            /**
+             * Has Changed
+             * @default false
+             */
+            has_changed: boolean;
+            /**
+             * Roles Changed
+             * @default false
+             */
+            roles_changed: boolean;
+            /**
+             * Old Roles
+             * @default []
+             */
+            old_roles: components["schemas"]["Role"][];
+            /**
+             * New Roles
+             * @default []
+             */
+            new_roles: components["schemas"]["Role"][];
+        };
         /**
          * RowPolicy
          * @description #951: edit rights for one data-entry provenance branch.
@@ -4187,6 +4296,8 @@ export interface components {
             modules: components["schemas"]["CarbonReportModuleRead"][];
             /** Prefill Job Id */
             prefill_job_id?: number | null;
+            /** Factor Year */
+            factor_year?: number | null;
         };
         /**
          * StaleStatsEntry
@@ -4536,6 +4647,16 @@ export interface components {
             /** Completion Progress */
             completion_progress?: string | null;
         };
+        /** UnitScope */
+        UnitScope: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "unit";
+            /** Institutional Id */
+            institutional_id: string;
+        };
         /**
          * UnitWithUserRole
          * @description Schema for unit with current user's role from join.
@@ -4702,6 +4823,13 @@ export interface components {
              * @default []
              */
             project_plans: components["schemas"]["SimulatorPlanRead"][];
+            /**
+             * Permissions
+             * @default {}
+             */
+            permissions: {
+                [key: string]: unknown;
+            };
         };
         /**
          * YearConfigurationCreate
@@ -5019,6 +5147,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnitWithUserRole"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_user_roles_v1_users__user_id__revoke_roles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleSyncResult"];
                 };
             };
             /** @description Validation Error */
@@ -6565,13 +6726,12 @@ export interface operations {
             };
         };
     };
-    get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___get: {
+    get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id___get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 unit_id: number;
-                reference_year: number;
             };
             cookie?: {
                 auth_token?: string;
@@ -6599,13 +6759,12 @@ export interface operations {
             };
         };
     };
-    put_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___put: {
+    create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id___post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 unit_id: number;
-                reference_year: number;
             };
             cookie?: {
                 auth_token?: string;
@@ -6614,7 +6773,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

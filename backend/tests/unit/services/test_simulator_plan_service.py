@@ -1,4 +1,5 @@
 import re
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
@@ -12,7 +13,8 @@ from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
-from app.models.user import GlobalScope, Role, RoleName, User
+from app.models.user import GlobalScope, Role, RoleName, User, UserProvider
+from app.models.year_configuration import YearConfiguration
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.simulator_plan import SimulatorPlanUpdate
@@ -318,6 +320,54 @@ async def test_year_range_without_default_leaves_reference_unset(async_session, 
     years = await service.list_plan_years(created.id)
     assert years is not None
     assert [y.reference_year for y in years] == [None]
+
+
+@pytest.mark.asyncio
+async def test_year_without_reference_or_calculator_report_uses_latest_started_year(
+    async_session, user
+):
+    """A planning-only unit (#2651): no reference year, no Calculator report
+    for it to fall back to — resolves the same N-1/N-2 tail Explore uses,
+    never the plan's own (possibly far-future) year.
+    """
+    this_year = datetime.now(UTC).year
+    # The `user` fixture doesn't set `provider` explicitly, so it carries the
+    # model field's raw (unvalidated) default instead of the enum member —
+    # harmless in production (every real upsert path requires an explicit
+    # provider), but this test compares against it, so pin it here.
+    user.provider = UserProvider.DEFAULT
+    async_session.add(
+        YearConfiguration(
+            year=this_year - 1, provider=UserProvider.DEFAULT, is_started=True
+        )
+    )
+    await async_session.flush()
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+
+    await _update_plan(
+        service, created.id, SimulatorPlanUpdate(start_year=2038, end_year=2038)
+    )
+    years = await service.list_plan_years(created.id)
+    assert years is not None
+    assert [y.factor_year for y in years] == [this_year - 1]
+
+
+@pytest.mark.asyncio
+async def test_year_without_any_started_year_has_no_factor_year(async_session, user):
+    """Neither reference year, Calculator history, nor N-1/N-2 resolves →
+    `factor_year: None`, not a 500 — the plan year itself still loads fine
+    (#2631), only its dropdowns have nothing to offer.
+    """
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+
+    await _update_plan(
+        service, created.id, SimulatorPlanUpdate(start_year=2038, end_year=2038)
+    )
+    years = await service.list_plan_years(created.id)
+    assert years is not None
+    assert [y.factor_year for y in years] == [None]
 
 
 @pytest.mark.asyncio

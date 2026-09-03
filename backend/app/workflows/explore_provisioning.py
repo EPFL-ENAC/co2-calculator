@@ -1,12 +1,18 @@
-"""Simulator Explore sandbox provisioning workflow (#2487, ADR-014).
+"""Simulator Explore sandbox creation workflow (#2656, ADR-014).
 
-The PUT route's one "does this exist" decision, replacing the GET → 404 →
-POST pair the frontend used to orchestrate — two round trips, and the 404
-used as control flow was exactly what manufactured the race #2483 had to
-SAVEPOINT-guard. Explore's sandbox crosses three aggregates (CarbonProject,
-CarbonReport, CarbonReportModule) via ``CarbonReportService``; per ADR-014
-that makes existence an explicit workflow step, and the workflow — not the
-service — owns the commit for the path that creates one.
+Explore's sandbox crosses three aggregates (CarbonProject, CarbonReport,
+CarbonReportModule) via ``CarbonReportService``; per ADR-014 that makes
+creation an explicit workflow step, and the workflow — not the service —
+owns the commit.
+
+Until #2656 this was ``ensure()``: an idempotent get-or-create (#2487),
+paired with a 24h TTL that refreshed a stale sandbox in place. Both are
+gone. "Start an exploration" always creates a fresh sandbox — a page
+mount/refresh included, so a refresh loses the working data by design —
+and the route that calls :meth:`create` schedules a background task to
+delete the user's other sandboxes for the unit right after. Create and
+delete are now two separate, explicit steps instead of one endpoint
+deciding both.
 """
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -16,29 +22,20 @@ from app.services.carbon_report_service import CarbonReportService
 
 
 class ExploreProvisioningWorkflow:
-    """Ensures a user's Simulator Explore sandbox exists for unit + year."""
+    """Creates a fresh Simulator Explore sandbox for a unit + user."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
         self.report_service = CarbonReportService(session)
 
-    async def ensure(
-        self, *, unit_id: int, reference_year: int, created_by: int
-    ) -> CarbonReportRead:
-        """Idempotent: create the sandbox on first call, return it after.
+    async def create(self, *, unit_id: int, created_by: int) -> CarbonReportRead:
+        """Always creates — no existence check, no reuse.
 
-        ``get_explore``/``create_explore`` are each single-purpose and
-        never commit (services never commit); this is the one place that
-        decides which of them applies, and the one place that commits the
-        create path.
+        ``create_explore`` never commits (services never commit); this is
+        the one place that does, for the one aggregate-crossing create step.
         """
-        existing = await self.report_service.get_explore(
-            unit_id=unit_id, reference_year=reference_year, created_by=created_by
-        )
-        if existing is not None:
-            return existing
         created = await self.report_service.create_explore(
-            unit_id=unit_id, reference_year=reference_year, created_by=created_by
+            unit_id=unit_id, created_by=created_by
         )
         await self.session.commit()
         return created
