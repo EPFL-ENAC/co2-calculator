@@ -66,7 +66,11 @@ disable analytics on an instance.
   a runtime script from a configured host, not a new package — no dependency
   decision to defer to the lead.
 - `trackPageView({ url, title, referrer })` — pushes onto `_paq`; safe before
-  the script loads (that is what the array queue is for).
+  the script loads (that is what the array queue is for). Custom URL _and_
+  referrer are absolute: Matomo resolves a relative URL against the tracker's
+  own host, which would attribute every intra-SPA navigation to the analytics
+  server. The injected `<script>` carries `referrerPolicy="no-referrer"` so the
+  tracker host never sees an SPA path in the `Referer` header.
 - `buildTrackedUrl(route)` — the normalization described in §4. Pure function,
   unit-tested.
 
@@ -90,10 +94,20 @@ Non-negotiables baked into `initMatomo`, not left to server config:
 - **No `setUserId`, no sciper, no email.** Nothing that identifies a person.
 - **URL normalization.** Our paths carry the org unit:
   `/en/ENAC-IT4R/2024/results`. A small unit plus a timestamp is close to
-  identifying, so tracked URLs use the **route pattern** with the unit segment
-  masked — `/:language/_/:year/results` — while language, year and module stay
+  identifying, so every param outside the language/year/module allow-list is
+  replaced by `_` — `/en/_/2024/results` — while language, year and module stay
   (they are the interesting dimensions). Query strings are dropped wholesale
   rather than allow-listed, so a token or filter value can never leak.
+
+  Masking is **positional**: each path segment is judged by the matched route
+  pattern above it, never by comparing it against param values. Value
+  comparison would over-mask (a plan id of `2024` blanks the year segment) and,
+  worse, under-mask — `route.path` keeps percent-encoding while `route.params`
+  is decoded, so a unit needing encoding would sail through unmasked. Splitting
+  the pattern is depth-aware because an inline regex can contain a slash
+  (`:unit([^/]+)`). A segment with no pattern above it (the not-found catch-all)
+  is masked: the failure direction is losing a dimension, never leaking an id.
+
 - `setDocumentTitle` uses the route name, not the rendered title, for the same
   reason (rendered titles can contain unit names).
 - Data stays on EPFL infrastructure; nothing goes to a third party.

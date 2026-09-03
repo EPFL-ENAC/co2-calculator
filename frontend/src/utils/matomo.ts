@@ -66,20 +66,66 @@ export function matomoInitCommands(config: MatomoConfig): MatomoCommand[] {
   ];
 }
 
-// Path with every non-allow-listed param value replaced by `_`. Reads `path`
-// only, so query strings — which can carry tokens or filter values — are
-// dropped wholesale rather than allow-listed.
-export function buildTrackedUrl(route: RouteLocationNormalized): string {
-  const masked = new Set<string>();
-  for (const [name, value] of Object.entries(route.params)) {
-    if (TRACKED_PARAMS.has(name)) continue;
-    for (const part of Array.isArray(value) ? value : [value]) {
-      if (part) masked.add(part);
+// Split a route pattern on its real segment boundaries. A plain `split('/')`
+// would cut inside an inline regex — `:unit([^/]+)` contains a slash — and
+// shift every segment after it out of alignment with the path.
+function splitPattern(pattern: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let depth = 0;
+  for (let i = 0; i < pattern.length; i += 1) {
+    const char = pattern[i];
+    if (char === '\\') {
+      current += char + (pattern[i + 1] ?? '');
+      i += 1;
+      continue;
     }
+    if (char === '(') depth += 1;
+    if (char === ')') depth -= 1;
+    if (char === '/' && depth === 0) {
+      segments.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
   }
+  segments.push(current);
+  return segments;
+}
+
+// The param a pattern segment declares, e.g. `:unit([^/]+)` → `unit`, or
+// undefined for a literal segment. The name ends at the inline regex or a
+// repeat/optional modifier.
+function paramName(patternSegment: string): string | undefined {
+  if (!patternSegment.startsWith(':')) return undefined;
+  const end = patternSegment.search(/[(?+*]/);
+  return end === -1 ? patternSegment.slice(1) : patternSegment.slice(1, end);
+}
+
+// Path with every non-allow-listed param segment replaced by `_`.
+//
+// Masking is positional — each path segment is judged by the matched route
+// pattern above it, never by comparing it to param values. Comparing values
+// would both over-mask (a plan id of 2024 would blank the year segment) and
+// under-mask (`route.path` keeps percent-encoding while `route.params` is
+// decoded, so a unit needing encoding would sail through unmasked).
+//
+// Reads `path` only, so query strings — which can carry tokens or filter
+// values — are dropped wholesale rather than allow-listed. A segment with no
+// pattern above it (the not-found catch-all, or an unmatched route) is masked:
+// the failure direction is losing a dimension, never leaking an identifier.
+export function buildTrackedUrl(route: RouteLocationNormalized): string {
+  const pattern = route.matched.at(-1)?.path ?? '';
+  const patternSegments = splitPattern(pattern);
   return route.path
     .split('/')
-    .map((segment) => (masked.has(segment) ? MASK : segment))
+    .map((segment, index) => {
+      const patternSegment = patternSegments[index];
+      if (patternSegment === undefined) return MASK;
+      const name = paramName(patternSegment);
+      if (name === undefined) return segment;
+      return TRACKED_PARAMS.has(name) ? segment : MASK;
+    })
     .join('/');
 }
 
@@ -104,6 +150,9 @@ export function initMatomo(config: MatomoConfig): void {
 
   const script = document.createElement('script');
   script.async = true;
+  // The tracker host has no use for a Referer, and the default policy would
+  // hand it our origin — the unmasked SPA path in older browsers.
+  script.referrerPolicy = 'no-referrer';
   script.src = trackerScriptSrc(config.url);
   document.head.appendChild(script);
   enabled = true;
@@ -111,11 +160,12 @@ export function initMatomo(config: MatomoConfig): void {
 
 export function trackPageView(route: RouteLocationNormalized): void {
   if (!enabled) return;
-  const url = buildTrackedUrl(route);
+  // Absolute URLs: Matomo groups pages by host and resolves a relative URL —
+  // custom or referrer — against the tracker's own host, which would attribute
+  // every intra-SPA navigation to the analytics server.
+  const url = `${window.location.origin}${buildTrackedUrl(route)}`;
   if (previousUrl) push(['setReferrerUrl', previousUrl]);
-  // Absolute URL: Matomo groups pages by host, and a relative custom URL is
-  // resolved against the tracker's own host.
-  push(['setCustomUrl', `${window.location.origin}${url}`]);
+  push(['setCustomUrl', url]);
   push(['setDocumentTitle', buildTrackedTitle(route)]);
   push(['trackPageView']);
   // Re-scan the freshly rendered view for outbound/download links.
