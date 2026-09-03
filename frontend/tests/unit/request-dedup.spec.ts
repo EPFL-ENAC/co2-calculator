@@ -19,8 +19,9 @@ import RequestDedupHarness from './RequestDedupHarness.vue';
 
 const REPORT_LOOKUP_URL = '**/api/v1/carbon-reports/unit/7/year/2024/';
 const MEMBERS_URL = '**/api/v1/carbon-reports/9/modules/headcount/members';
-const EXPLORE_LOOKUP_URL =
-  '**/api/v1/carbon-reports/simulator/explore/unit/7/reference-year/2024/';
+// #2656: the explorer route dropped its year segment — the lookup is now
+// keyed by unit alone.
+const EXPLORE_LOOKUP_URL = '**/api/v1/carbon-reports/simulator/explore/unit/7/';
 const PLANE_TAXONOMY_URL =
   '**/api/v1/taxonomies/module/professional-travel/plane*';
 // The endpoint PlannerResearchFacilityRows fires twice on mount

@@ -194,7 +194,7 @@ async def test_recompute_report_stats_merges_by_additional_value(async_session):
 async def test_get_explore_returns_none_when_not_found(async_session):
     """get_explore is idempotent: returns None without creating anything."""
     service = CarbonReportService(async_session)
-    result = await service.get_explore(unit_id=1, reference_year=2024, created_by=10)
+    result = await service.get_explore(unit_id=1, created_by=10)
     assert result is None
 
 
@@ -202,8 +202,8 @@ async def test_get_explore_returns_none_when_not_found(async_session):
 async def test_get_explore_is_idempotent_on_empty_db(async_session):
     """Calling get_explore twice on an empty DB still returns None both times."""
     service = CarbonReportService(async_session)
-    first = await service.get_explore(unit_id=1, reference_year=2024, created_by=10)
-    second = await service.get_explore(unit_id=1, reference_year=2024, created_by=10)
+    first = await service.get_explore(unit_id=1, created_by=10)
+    second = await service.get_explore(unit_id=1, created_by=10)
     assert first is None
     assert second is None
 
@@ -212,10 +212,9 @@ async def test_get_explore_is_idempotent_on_empty_db(async_session):
 async def test_create_explore_creates_report_and_modules(async_session):
     """create_explore creates a SIMULATOR_EXPLORE report with all modules."""
     service = CarbonReportService(async_session)
-    result = await service.create_explore(unit_id=1, reference_year=2024, created_by=10)
+    result = await service.create_explore(unit_id=1, created_by=10)
 
     assert result.id is not None
-    assert result.year == 2024
     assert result.unit_id == 1
 
     modules = await service.module_service.list_modules(result.id)
@@ -225,24 +224,45 @@ async def test_create_explore_creates_report_and_modules(async_session):
 
 
 @pytest.mark.asyncio
+async def test_create_explore_always_creates_fresh(async_session):
+    """Every create_explore call makes a brand-new sandbox — no reuse (#2656)."""
+    service = CarbonReportService(async_session)
+    first = await service.create_explore(unit_id=1, created_by=10)
+    second = await service.create_explore(unit_id=1, created_by=10)
+
+    assert first.id != second.id
+    assert first.carbon_project_id != second.carbon_project_id
+
+
+@pytest.mark.asyncio
 async def test_get_explore_returns_existing_report(async_session):
     """get_explore finds the report created by create_explore."""
     service = CarbonReportService(async_session)
-    created = await service.create_explore(
-        unit_id=1, reference_year=2024, created_by=10
-    )
-    fetched = await service.get_explore(unit_id=1, reference_year=2024, created_by=10)
+    created = await service.create_explore(unit_id=1, created_by=10)
+    fetched = await service.get_explore(unit_id=1, created_by=10)
 
     assert fetched is not None
     assert fetched.id == created.id
 
 
 @pytest.mark.asyncio
+async def test_get_explore_returns_the_newest_sandbox(async_session):
+    """get_explore returns the most recently created sandbox (#2656)."""
+    service = CarbonReportService(async_session)
+    await service.create_explore(unit_id=1, created_by=10)
+    second = await service.create_explore(unit_id=1, created_by=10)
+
+    fetched = await service.get_explore(unit_id=1, created_by=10)
+    assert fetched is not None
+    assert fetched.id == second.id
+
+
+@pytest.mark.asyncio
 async def test_get_explore_does_not_cross_units(async_session):
     """get_explore for another unit returns None even if that unit has a report."""
     service = CarbonReportService(async_session)
-    await service.create_explore(unit_id=1, reference_year=2024, created_by=10)
-    result = await service.get_explore(unit_id=2, reference_year=2024, created_by=10)
+    await service.create_explore(unit_id=1, created_by=10)
+    result = await service.get_explore(unit_id=2, created_by=10)
     assert result is None
 
 
@@ -250,31 +270,64 @@ async def test_get_explore_does_not_cross_units(async_session):
 async def test_get_explore_does_not_cross_users(async_session):
     """Explore sandboxes are private per user within the same unit (#2293)."""
     service = CarbonReportService(async_session)
-    first = await service.create_explore(unit_id=1, reference_year=2024, created_by=10)
+    first = await service.create_explore(unit_id=1, created_by=10)
 
-    other = await service.get_explore(unit_id=1, reference_year=2024, created_by=11)
+    other = await service.get_explore(unit_id=1, created_by=11)
     assert other is None
 
-    second = await service.create_explore(unit_id=1, reference_year=2024, created_by=11)
+    second = await service.create_explore(unit_id=1, created_by=11)
     assert second.id != first.id
 
-    fetched_first = await service.get_explore(
-        unit_id=1, reference_year=2024, created_by=10
-    )
-    fetched_second = await service.get_explore(
-        unit_id=1, reference_year=2024, created_by=11
-    )
+    fetched_first = await service.get_explore(unit_id=1, created_by=10)
+    fetched_second = await service.get_explore(unit_id=1, created_by=11)
     assert fetched_first is not None and fetched_first.id == first.id
     assert fetched_second is not None and fetched_second.id == second.id
 
 
 @pytest.mark.asyncio
-async def test_get_explore_does_not_cross_years(async_session):
-    """get_explore for a different year returns None."""
+async def test_delete_old_explore_keeps_only_the_newest(async_session):
+    """delete_old_explore removes every sandbox but keep_project_id (#2656).
+
+    Regression test for #2656: before this fix, switching the Calculator's
+    year made the Explorer look up a different, empty sandbox — the old
+    one's data was still there, just unreachable. Now a fresh sandbox is
+    the *only* one that exists after cleanup, by construction.
+    """
     service = CarbonReportService(async_session)
-    await service.create_explore(unit_id=1, reference_year=2024, created_by=10)
-    result = await service.get_explore(unit_id=1, reference_year=2023, created_by=10)
-    assert result is None
+    old = await service.create_explore(unit_id=1, created_by=10)
+    new = await service.create_explore(unit_id=1, created_by=10)
+    assert new.carbon_project_id is not None
+
+    await service.delete_old_explore(
+        unit_id=1, created_by=10, keep_project_id=new.carbon_project_id
+    )
+
+    assert await service.get(old.id) is None
+    survivor = await service.get_explore(unit_id=1, created_by=10)
+    assert survivor is not None and survivor.id == new.id
+
+
+@pytest.mark.asyncio
+async def test_delete_old_explore_keeps_newer_creates_untouched(async_session):
+    """A create that races an older cleanup keeps its own sandbox (#2656).
+
+    ``delete_old_explore`` only targets projects strictly older than
+    ``keep_project_id`` — a project created *after* the one a concurrent
+    cleanup is protecting is never touched, so two near-simultaneous
+    "start exploration" calls can't delete each other's fresh sandbox.
+    """
+    service = CarbonReportService(async_session)
+    first = await service.create_explore(unit_id=1, created_by=10)
+    second = await service.create_explore(unit_id=1, created_by=10)
+    assert first.carbon_project_id is not None
+
+    # Cleanup scoped to `first` (as if its own POST scheduled it) must not
+    # touch `second`, created after it.
+    await service.delete_old_explore(
+        unit_id=1, created_by=10, keep_project_id=first.carbon_project_id
+    )
+
+    assert await service.get(second.id) is not None
 
 
 # ── ensure_calculator_projects / bulk_upsert (#2487) ───────────────────────────
@@ -550,22 +603,6 @@ def _flaky_first_flush(async_session, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_create_explore_project_race_returns_winner(async_session, monkeypatch):
-    service = CarbonReportService(async_session)
-    winner = CarbonProject(
-        unit_id=1,
-        carbon_report_type=CarbonReportType.SIMULATOR_EXPLORE,
-        created_by=7,
-    )
-    async_session.add(winner)
-    await async_session.flush()
-
-    _flaky_first_flush(async_session, monkeypatch)
-    recovered = await service._create_explore_project(1, 7)
-    assert recovered.id == winner.id
-
-
-@pytest.mark.asyncio
 async def test_create_calculator_project_race_returns_winner(
     async_session, monkeypatch
 ):
@@ -576,21 +613,6 @@ async def test_create_calculator_project_race_returns_winner(
 
     _flaky_first_flush(async_session, monkeypatch)
     recovered = await service._create_project(1, CarbonReportType.CALCULATOR)
-    assert recovered.id == winner.id
-
-
-@pytest.mark.asyncio
-async def test_create_explore_report_race_returns_winner(async_session, monkeypatch):
-    service = CarbonReportService(async_session)
-    winner = await service.create_explore(unit_id=1, reference_year=2025, created_by=7)
-
-    async def losing_insert(_data):
-        raise _duplicate_key_error()
-
-    monkeypatch.setattr(service.repo, "create", losing_insert)
-    recovered = await service.create_explore(
-        unit_id=1, reference_year=2025, created_by=7
-    )
     assert recovered.id == winner.id
 
 

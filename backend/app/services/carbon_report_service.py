@@ -167,10 +167,11 @@ class CarbonReportService:
         Idempotent: never creates or mutates any data.
 
         Must only be called with CALCULATOR: a unit can have many plan
-        projects and one explore project per user, so ``scalar_one_or_none``
-        would raise MultipleResultsFound. Use
+        projects and, since #2656, many explore projects per user too, so
+        ``scalar_one_or_none`` would raise MultipleResultsFound. Use
         :class:`app.services.simulator_plan_service.SimulatorPlanService`
-        for plans and :meth:`_get_explore_project` for explore.
+        for plans; explore has no equivalent lookup any more — it only ever
+        creates (:meth:`_create_explore_project`).
         """
         stmt = select(CarbonProject).where(
             CarbonProject.unit_id == unit_id,
@@ -200,24 +201,15 @@ class CarbonReportService:
             return winner
         return project
 
-    async def _get_explore_project(
-        self, unit_id: int, created_by: int
-    ) -> CarbonProject | None:
-        """Return the user's Simulator Explore project for a unit, or None."""
-        stmt = select(CarbonProject).where(
-            CarbonProject.unit_id == unit_id,
-            CarbonProject.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE,
-            CarbonProject.created_by == created_by,
-        )
-        return (await self.session.execute(stmt)).scalar_one_or_none()
-
     async def _create_explore_project(
         self, unit_id: int, created_by: int
     ) -> CarbonProject:
-        """Create and flush a per-user Simulator Explore project (#2293).
+        """Create and flush a fresh per-user Simulator Explore project.
 
-        Guarded like :meth:`_create_project` (#2483): the frontend's
-        GET → 404 → POST flow makes two tabs race here routinely.
+        No get-or-create guard (#2656): Explore projects are no longer
+        unique per (unit_id, created_by) — every "start exploration" call
+        makes a brand-new one, and the caller deletes the previous ones in
+        the background (:meth:`delete_old_explore`).
         """
         project = CarbonProject(
             unit_id=unit_id,
@@ -225,15 +217,8 @@ class CarbonReportService:
             created_by=created_by,
             created_at=datetime.now(UTC),
         )
-        try:
-            async with self.session.begin_nested():
-                self.session.add(project)
-                await self.session.flush()
-        except IntegrityError:
-            winner = await self._get_explore_project(unit_id, created_by)
-            if winner is None:
-                raise
-            return winner
+        self.session.add(project)
+        await self.session.flush()
         return project
 
     async def ensure_calculator_projects(self, unit_ids: list[int]) -> dict[int, int]:
@@ -300,16 +285,15 @@ class CarbonReportService:
         self,
         *,
         unit_id: int,
-        reference_year: int,
         created_by: int,
     ) -> CarbonReportRead | None:
-        """Return the user's Simulator Explore report for a unit/year, or None.
+        """Return the user's current Simulator Explore sandbox for a unit, or None.
 
-        Explore sandboxes are private per user (#2293).
-        Idempotent: never creates or mutates any data.
+        Explore sandboxes are private per user (#2293) and unkeyed by year
+        (#2656). Idempotent: never creates or mutates any data.
         """
-        existing = await self.repo.get_explore_by_unit_and_reference_year(
-            unit_id=unit_id, reference_year=reference_year, created_by=created_by
+        existing = await self.repo.get_latest_explore_by_unit(
+            unit_id=unit_id, created_by=created_by
         )
         if existing is None:
             return None
@@ -319,42 +303,54 @@ class CarbonReportService:
         self,
         *,
         unit_id: int,
-        reference_year: int,
         created_by: int,
     ) -> CarbonReportRead:
-        """Create a new Simulator Explore report for the given unit, year and user.
+        """Create a brand-new Simulator Explore sandbox (#2656).
 
-        The explore report uses ``year = reference_year`` (year is always non-null).
+        Every call makes a fresh project + report + modules — no reuse, no
+        existence check, so no race to guard against here either. The
+        caller (the route) schedules :meth:`delete_old_explore` right after,
+        so exactly one sandbox survives per (unit, created_by).
         """
-        project = await self._get_explore_project(
-            unit_id, created_by
-        ) or await self._create_explore_project(unit_id, created_by)
-        now_ts = int(datetime.now(UTC).timestamp())
-        try:
-            async with self.session.begin_nested():
-                created = await self.repo.create(
-                    CarbonReportCreate(
-                        unit_id=unit_id,
-                        year=reference_year,
-                        reference_year=None,
-                        carbon_project_id=project.id,
-                    )
-                )
-                created.last_updated = now_ts
-                await self.session.flush()
-        except IntegrityError:
-            # Double-POST race on uq_carbon_reports_project_year (#2483):
-            # the winner already created the report and its modules — return
-            # it as-is instead of surfacing a 500.
-            existing = await self.repo.get_explore_by_unit_and_reference_year(
-                unit_id=unit_id, reference_year=reference_year, created_by=created_by
+        project = await self._create_explore_project(unit_id, created_by)
+        now = datetime.now(UTC)
+        created = await self.repo.create(
+            CarbonReportCreate(
+                unit_id=unit_id,
+                year=now.year,
+                reference_year=None,
+                carbon_project_id=project.id,
             )
-            if existing is None:
-                raise
-            return CarbonReportRead.model_validate(existing)
+        )
+        created.last_updated = int(now.timestamp())
+        await self.session.flush()
         created_read = CarbonReportRead.model_validate(created)
         await self.module_service.create_all_modules_for_report(created_read.id)
         return created_read
+
+    async def delete_old_explore(
+        self, *, unit_id: int, created_by: int, keep_project_id: int
+    ) -> None:
+        """Delete every Explore sandbox for (unit, created_by) but the newest one.
+
+        Runs as a background task right after ``create_explore`` commits
+        (#2656) — replaces the old 24h TTL refresh: creation and cleanup are
+        now two separate, explicit steps instead of one endpoint doing both.
+        """
+        stale_reports = await self.repo.list_explore_by_unit_older_than(
+            unit_id=unit_id, created_by=created_by, keep_project_id=keep_project_id
+        )
+        for report in stale_reports:
+            if report.id is None:
+                raise ValueError("Stale explore report missing id during cleanup")
+            await self.delete(report.id)
+            if report.carbon_project_id is not None:
+                project = await self.session.get(
+                    CarbonProject, report.carbon_project_id
+                )
+                if project is not None:
+                    await self.session.delete(project)
+        await self.session.flush()
 
     async def bulk_upsert(
         self, data: list[CarbonReportCreate]

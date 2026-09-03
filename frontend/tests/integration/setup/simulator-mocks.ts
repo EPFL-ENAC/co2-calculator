@@ -904,13 +904,13 @@ export async function mockExplorerBackend(
   });
 
   // ─── Reports / workspace / session ─────────────────────────────────────────
-  // #2487: the store's provisioning call is now an idempotent PUT (creates
-  // on first call, returns the existing report after) — GET stays a plain
-  // read, 404 until PUT has run once (matches the real backend contract).
+  // #2656: the store's provisioning call is now a POST that always creates
+  // (no more year in the path, no idempotency) — GET stays a plain read,
+  // 404 until POST has run once (matches the real backend contract).
   await context.route(
-    /.*\/api\/v1\/carbon-reports\/simulator\/explore\/unit\/10\/reference-year\/2024\//,
+    /.*\/api\/v1\/carbon-reports\/simulator\/explore\/unit\/10\/$/,
     (route) => {
-      if (route.request().method() === 'PUT') {
+      if (route.request().method() === 'POST') {
         exploreReportCreated = true;
         return json(route, MOCK_SIMULATOR_REPORT);
       }

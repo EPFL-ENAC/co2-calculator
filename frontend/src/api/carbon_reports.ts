@@ -6,15 +6,14 @@ import {
 import type { CarbonReport } from '@/stores/workspace';
 
 /**
- * Idempotent Simulator Explore sandbox (#2487): creates it on the unit/
- * user's first call, returns the existing one on every call after —
- * creating project/report/modules server-side, never a client 404 branch.
+ * Start a new Simulator Explore sandbox (#2656).
  *
- * Replaces the GET(404) + POST pair `workspace.ts` used to orchestrate:
- * two round trips, and the 404-as-control-flow race #2483 had to
- * SAVEPOINT-guard. Call unconditionally; there is no "not found" case.
+ * Always creates a fresh, empty sandbox — no idempotency, no "does this
+ * exist" check. The backend deletes the caller's other sandboxes for this
+ * unit in the background right after, so a page mount/refresh alike always
+ * gets a clean slate; there's no "reuse the existing one" case any more.
  */
-export async function putExploreCarbonReport(
+export async function postExploreCarbonReport(
   unitId: number,
   referenceYear: number,
 ): Promise<CarbonReport> {
@@ -23,5 +22,5 @@ export async function putExploreCarbonReport(
     unitId,
     referenceYear,
   );
-  return api.put(path).json<CarbonReport>();
+  return api.post(path).json<CarbonReport>();
 }
