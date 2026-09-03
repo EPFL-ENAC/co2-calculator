@@ -1857,8 +1857,11 @@ export interface paths {
          *     Polls the database for status changes and sends updates to the client.
          *     Stream ends when the job is completed, failed, or the client disconnects.
          *
-         *     Session lifetime: a fresh ``SessionLocal()`` is opened per poll iteration
-         *     and closed before the sleep so we don't pin an asyncpg pool slot for the
+         *     Session lifetime: no request-scoped session anywhere on this path. The
+         *     user is resolved by ``get_current_user_detached`` (its session closes
+         *     before the stream opens -- a ``get_db`` session would be held until the
+         *     stream ends, #2654), and a fresh ``SessionLocal()`` is opened per poll
+         *     iteration and closed before the sleep, so no pool slot is pinned for the
          *     full stream duration (minutes).  ``request.is_disconnected()`` is checked
          *     at the top of each iteration so client aborts surface immediately rather
          *     than after the next poll.
@@ -2078,7 +2081,9 @@ export interface paths {
          * Pipeline Stream By Id
          * @description Server-Sent Events stream for every job sharing a ``pipeline_id``.
          *
-         *     as the read-only ``GET /sync/pipelines/{pipeline_id}`` endpoint.
+         *     Gated like ``require_module_or_config_view`` but on the detached user
+         *     dependency: see ``job_stream_by_id`` for why a stream must not hold a
+         *     ``get_db`` session (#2654).
          *
          *     Plan 310D — the frontend stale-stats UX subscribes here when a module's
          *     carbon-report response surfaces a ``current_pipeline_id``.  Each tick
@@ -4204,8 +4209,6 @@ export interface components {
              * @default false
              */
             is_grant_proposal: boolean;
-            /** Default Factor Year */
-            default_factor_year?: number | null;
             /** Created By */
             created_by?: number | null;
             /** Created At */

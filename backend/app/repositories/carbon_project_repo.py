@@ -1,6 +1,6 @@
 """Carbon project repository for simulator plan database operations."""
 
-from sqlmodel import col, exists, func, select
+from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -98,25 +98,6 @@ class CarbonProjectRepository:
             .where(
                 col(CarbonReport.unit_id) == unit_id,
                 col(CarbonReport.year) == year,
-                col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR,
-            )
-        )
-        result = await self.session.execute(statement)
-        return result.scalar_one_or_none()
-
-    async def get_latest_calculator_year(self, unit_id: int) -> int | None:
-        """Year of the unit's most recent Calculator report, or None.
-
-        The default factor year of plan years without a reference year.
-        """
-        statement = (
-            select(func.max(col(CarbonReport.year)))
-            .join(
-                CarbonProject,
-                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
-            )
-            .where(
-                col(CarbonReport.unit_id) == unit_id,
                 col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR,
             )
         )

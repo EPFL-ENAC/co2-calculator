@@ -92,7 +92,6 @@ class SimulatorPlanRead(BaseModel):
     end_year: int | None = None
     is_viewable_by_unit_members: bool = False
     is_grant_proposal: bool = False
-    default_factor_year: int | None = None
     created_by: int | None = None
     created_at: datetime | None = None
     creator_name: str | None = None
