@@ -505,6 +505,7 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from '@/stores/modules';
 import { useFactorsStore } from '@/stores/factors';
+import type { ValueFactorResponse } from '@/api/factors';
 import { useYearConfigStore } from '@/stores/yearConfig';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -964,7 +965,16 @@ function getColumnPlaceholder(
   col: TableViewColumn,
 ): string | undefined {
   if (col.type === 'date') return $t('date_format_placeholder');
-  return isRequiredEmptyUsageCell(row, col) ? '—' : undefined;
+  if (!isRequiredEmptyUsageCell(row, col)) return undefined;
+  const values = newRowFactorValues.value[newRowFactorKey(row)];
+  if (values === undefined) {
+    loadNewRowFactorValues(row);
+    return '—';
+  }
+  const suggested = values?.[col.field];
+  return suggested === null || suggested === undefined
+    ? '—'
+    : String(suggested);
 }
 
 function getColumnRules(col: TableViewColumn) {
@@ -1788,6 +1798,36 @@ function isRequiredEmptyUsageCell(
     EQUIPMENT_REQUIRED_USAGE_FIELDS.includes(col.field) &&
     !hasValue(row[col.field])
   );
+}
+
+// The class default the backend computes an incomplete new row's emission
+// with, shown as the empty usage cell's placeholder. Fetched once per
+// class/sub-class the first time such a cell renders.
+const newRowFactorValues = ref<Record<string, ValueFactorResponse>>({});
+const newRowFactorRequests = new Set<string>();
+
+function newRowFactorKey(row: ModuleRow): string {
+  return `${String(row.equipment_class ?? '')}|${String(row.sub_class ?? '')}`;
+}
+
+function loadNewRowFactorValues(row: ModuleRow): void {
+  const key = newRowFactorKey(row);
+  if (newRowFactorRequests.has(key)) return;
+  newRowFactorRequests.add(key);
+  const subClass = row.sub_class;
+  useFactorsStore()
+    .fetchPowerFactor(
+      props.submoduleType,
+      String(row.equipment_class ?? ''),
+      subClass === null || subClass === undefined ? null : String(subClass),
+      props.factorYear ?? props.year,
+    )
+    .then((values) => {
+      newRowFactorValues.value = { ...newRowFactorValues.value, [key]: values };
+    })
+    .catch(() => {
+      newRowFactorValues.value = { ...newRowFactorValues.value, [key]: null };
+    });
 }
 
 // A new equipment only needs the "new" emphasis (badge, row highlight, float to
