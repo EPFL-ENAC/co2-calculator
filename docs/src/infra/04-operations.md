@@ -40,6 +40,7 @@ budget on purpose.
    a GlitchTip event's `trace_id` is expected to match the backend spans
    in Tempo. **Not yet verified end to end**: treat a miss as unconfirmed,
    not as proof the request never reached the backend.
+   Recipes: [Debugging with traces](06-debugging-with-traces.md).
 6. **Pod logs** in the OpenShift console (links below), or:
 
 ```bash

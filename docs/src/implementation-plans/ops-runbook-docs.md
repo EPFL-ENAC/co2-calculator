@@ -33,6 +33,8 @@ else lived in the lead developer's head.
 - `infra/04-operations.md` — what to expect, first ten minutes, links per
   environment, symptom-to-owner map with DSI queues (moved from the
   security page), our-side symptom table, recovery, after the incident.
+- `infra/06-debugging-with-traces.md` — six symptom-driven recipes, each
+  step cited to the plan or issue where it was done.
 - `infra/05-tools-and-access.md` — every tool, what it is for, how to get
   in; the EPFL service account and groups behind the service; onboarding
   steps.
@@ -47,9 +49,10 @@ else lived in the lead developer's head.
 
 ## Follow-ups
 
-- `infra/06-debugging-with-traces.md`: trace-based debugging recipes,
-  reconstructed from plans 2360, 2404, 2449, 2566, 2531, 1958, 2050,
-  2226, 2170, 2145, 2302, 2371, 2372, 2397 and their issues.
+- `infra/06-debugging-with-traces.md` shipped with three UNVERIFIED
+  markers: GlitchTip `trace_id` lookup in Tempo, the `http.status_code`
+  span attribute name, and the log-view pod filter. Verify each once
+  and delete the marker.
 - Which EPFL group feeds the `admin-SVC1751` rolebinding, and what
   `co2-calculator-ops` actually grants. Two groups exist by accident;
   kept both on 2026-09-07 until understood, then merge into one.
