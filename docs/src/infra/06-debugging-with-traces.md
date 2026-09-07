@@ -16,9 +16,11 @@ This is a multi-procedure runbook and runs past the usual page budget.
   `route_class` (`api`, `probe`, `stream`, `upload`, `job`) on server
   spans, so `{ span.route_class = "api" }` works. Sampling is `always_on`
   in all three environments; prod's is temporary, revert by 2026-09-17.
-  Backend traces carry psycopg query spans with `db.statement`; the prod
-  **worker** has no DB spans at all (chart default), so a worker trace
-  shows the job span and nothing under it.
+  Backend traces carry psycopg query spans with `db.statement` in all
+  three environments. Worker traces carry them on **dev and stage only**:
+  the prod worker runs the chart default, so a prod job trace is the job
+  span with nothing under it. Reproduce a slow prod job on stage to see
+  its SQL.
 - **Trace duration is not request duration.** Since #2372 the browser
   keeps one trace id per navigation, so a "trace" spans the whole page
   session. Read **server-span** durations, table type _spans_, never the
@@ -30,7 +32,9 @@ This is a multi-procedure runbook and runs past the usual page budget.
 - **GlitchTip** events carry `contexts.trace.trace_id`. Copy the
   `trace_id`, never the `span_id`, which matches no backend span. Whether
   that `trace_id` finds its backend spans in Tempo is **UNVERIFIED**
-  end to end (before #2372 the answer was "Not Found").
+  end to end. Last attempt, 2026-09-07: an id from a 2026-08-25 event
+  (before #2372 shipped) returned `Not Found`, which proves nothing. Test
+  with an event less than a day old.
 - **Background jobs** are one span named `job <type>` with `job.id`,
   `job.type`, `pipeline.id` ([plan 2371](../implementation-plans/2371-job-runner-otel-span.md)).
   Job types: `aggregation`, `reference_ingest`, `emission_recalc`,
@@ -214,9 +218,16 @@ Trigger: GlitchTip mail or the Teams channel.
    response body, `componentName` and `propsData`, and breadcrumbs of the
    requests before it. #2226 (a 500) and #2360 (a burst of identical
    GETs) were both solved from the event alone.
-2. Copy `contexts.trace.trace_id`. In Tempo, search it directly
-   (**UNVERIFIED**: expected to return the backend spans of that
-   navigation since #2372; report the result on the issue either way).
+2. Copy `contexts.trace.trace_id`. In Tempo, paste the bare 32-hex id as
+   the TraceQL query, or use the spans table with:
+
+   ```text
+   { trace:id = "<trace_id>" && resource.service.name = "backend" }
+   ```
+
+   **UNVERIFIED**: expected to return the backend spans of that
+   navigation since #2372. Report the result on the issue either way.
+
 3. No hit and a status 5xx in the event: fall back to the route and
    timestamp, recipe 2 step 2.
 4. Stack traces are minified: source maps are not uploaded (#1101). Match
