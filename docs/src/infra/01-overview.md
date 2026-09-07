@@ -100,6 +100,21 @@ Trim the Infisical folder, not this page.
   [Disaster Recovery Plan](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/DRP.md)
   (private).
 
+## See also
+
+- [Deployment Topology](../architecture/11-deployment-topology.md),
+  [Environments](../architecture/05-environments.md),
+  [Tech Stack](../architecture/08-tech-stack.md),
+  [Scalability](../architecture/12-scalability.md)
+- [CI/CD Pipeline](../architecture/06-cicd-pipeline.md) and
+  [CI/CD Workflows](../architecture/cicd-workflows.md)
+- [Observability & SLOs](03-observability-slo.md),
+  [Frontend Error Monitoring](../frontend/error-monitoring.md),
+  [OAuth http-callback post-mortem](02-postmortem-oauth-http-redirect.md)
+- Vendor docs: [Kubernetes](https://kubernetes.io/docs/),
+  [Helm](https://helm.sh/docs/), [ArgoCD](https://argo-cd.readthedocs.io/),
+  [Prometheus](https://prometheus.io/docs/)
+
 ## Not here, on purpose
 
 No Jaeger (removed 2026-06-17, traces live in Tempo), no Loki, no
