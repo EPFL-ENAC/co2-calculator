@@ -12,7 +12,7 @@ answering a security questionnaire or an audit.
 | #   | Required document          | Where it lives                                                                                                                                                                                                                                                                                               | State       |
 | --- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
 | 1   | Encryption keys management | [Encryption and Key Management](encryption.md)                                                                                                                                                                                                                                                               | ✅ Complete |
-| 2   | Operating procedures       | [Release runbook](release-runbook.md), [Infra overview](../infra/01-overview.md)                                                                                                                                                                                                                             | ✅ Complete |
+| 2   | Operating procedures       | [Operations](../infra/04-operations.md), [Release runbook](release-runbook.md), [Infra overview](../infra/01-overview.md)                                                                                                                                                                                    | ✅ Complete |
 | 3   | Change management          | [Guardrails § Workflow](../contributing/guardrails.md), [Release management](release-management.md), [Workflow guide](workflow-guide.md)                                                                                                                                                                     | ✅ Complete |
 | 4   | Malicious code detection   | [ADR-014 §1, §2, §6](../architecture-decision-records/014-security-checklist.md) — Dependabot, CodeQL, secret scanning, Trivy                                                                                                                                                                                | ✅ Complete |
 | 5   | Vulnerability monitoring   | [ADR-014 §1, §2](../architecture-decision-records/014-security-checklist.md), [CI/CD workflows](cicd-workflows.md)                                                                                                                                                                                           | ✅ Complete |
@@ -30,7 +30,7 @@ answering a security questionnaire or an audit.
   EPFL DSI's own SLA (see below), but deleted objects are still not
   recoverable at all — that is a decision to take, not code to write.
 - **Object storage support queue** — every other DSI dependency has a
-  named `SI_` queue in the [service map](#service-map-and-dsi-queues);
+  named `SI_` queue in the [service map](../infra/04-operations.md#symptom-to-owner);
   object storage does not. Ask DSI which queue owns SVC1057 and record
   it there, so an incident is not routed by guesswork.
 
@@ -72,93 +72,28 @@ Alert rules and routing live in the private ops repository under
 
 ## Service map and DSI queues
 
-Follow an arrow backwards from the symptom to whoever owns it. Anything
-in the DSI box has its own service number and support queue: **open the
-incident directly in that queue**. A ticket in the wrong queue is
-re-routed by hand and costs hours at the worst possible moment.
-
-```mermaid
-graph TB
-    User([EPFL user · VPN]) -->|HTTPS| Route
-
-    subgraph ours["Our workload — ENAC-IT, no DSI ticket"]
-        Route[OpenShift Route · TLS edge]
-        FE[Frontend · Quasar SPA]
-        BE[Backend · FastAPI + async jobs]
-        Route -->|/| FE
-        Route -->|/api| BE
-        FE -->|XHR + auth cookie| BE
-    end
-
-    subgraph dsi["EPFL DSI — open the ticket in the queue"]
-        K8s[OpenShift / Kubernetes<br/>SVC1219 · SI_KUBERNETES]
-        PG[(PostgreSQL DBaaS<br/>SVC1757 · SI_POSTGRESQL)]
-        S3[(Object storage S3<br/>SVC1057 · queue to confirm)]
-        Entra[(Entra ID / AD<br/>SVC0026 · SI_AD)]
-    end
-
-    subgraph other["Other dependencies — no DSI queue"]
-        Infi[ENAC-IT Infisical<br/>secrets and keys · dev only]
-        Tab[EPFL Tableau<br/>travel + headcount]
-        ECB[European Central Bank<br/>exchange rates]
-        GH[GitHub + Quay<br/>CI, images, GitOps]
-    end
-
-    K8s ==>|hosts| Route
-    GH ==>|ArgoCD sync| K8s
-    K8s -.->|Infisical Operator pulls · dev only| Infi
-    BE -->|SQL| PG
-    BE -->|S3 API · ingestion files| S3
-    BE -->|OIDC code exchange| Entra
-    User -.->|login redirect| Entra
-    BE -->|scheduled pull| Tab
-    BE -->|scheduled pull| ECB
-```
-
-| Dependency                  | Service                               | Queue             | Open a ticket when                                              |
-| --------------------------- | ------------------------------------- | ----------------- | --------------------------------------------------------------- |
-| OpenShift / Kubernetes      | [SVC1219](https://go.epfl.ch/SVC1219) | `SI_KUBERNETES`   | Pods will not schedule, Route down, cluster-wide failure        |
-| PostgreSQL (DBaaS)          | [SVC1757](https://go.epfl.ch/SVC1757) | `SI_POSTGRESQL`   | Database unreachable, restore or point-in-time recovery request |
-| Object storage (S3)         | [SVC1057](https://go.epfl.ch/SVC1057) | **not published** | Bucket unreachable, S3 credentials rejected                     |
-| Entra ID / Active Directory | [SVC0026](https://go.epfl.ch/SVC0026) | `SI_AD`           | Login broken, group or role claims missing                      |
-
-Numbers and queues are as supplied by EPFL DSI and are not verified from
-this repository. The linked service page carries the current service
-manager — read it there rather than trusting a name copied into a doc.
-
-**Object storage has no published `SI_` queue.** Buckets are ordered and
-managed through the VPSI XaaS portal (<https://portal-xaas.epfl.ch>,
-[FAQ](https://inside.epfl.ch/portal-xaas/s3-object-storage-faq/)) — start
-there, or open the incident against SVC1057 itself and let DSI route it.
-Record the queue here once it is known — see
-[What is still open](#what-is-still-open).
-
-Infisical, Tableau, the ECB feed and GitHub are **not DSI services**; an
-`SI_` ticket for them goes nowhere. Infisical is ENAC-IT's own vault
-(dev only — stage and prod secrets are created by hand), the others are
-vendor or data-source issues.
-
-This map is scoped to triage: who to call when something breaks. For the
-full picture, including local Docker Compose and the observability
-stack, see [Deployment Topology](11-deployment-topology.md).
+Moved to [Operations § Symptom to owner](../infra/04-operations.md#symptom-to-owner),
+the page an operator opens during an incident. It holds the service map,
+the DSI service numbers and support queues, and the note that object
+storage has no published `SI_` queue.
 
 ## Third parties
 
 Services this deployment depends on:
 
-| Service                | Role                                            |
-| ---------------------- | ----------------------------------------------- |
-| Microsoft Entra ID     | Authentication and authorization (OIDC)         |
-| EPFL DSI PostgreSQL    | Application database                            |
-| EPFL S3                | Object storage for uploads and ingestion files  |
-| ENAC-IT Infisical      | Secret and encryption-key vault                 |
-| EPFL Tableau           | Source of travel and headcount data             |
-| European Central Bank  | Exchange-rate reference data                    |
-| GitHub                 | Source hosting, CI/CD, image registry, scanning |
-| OpenShift / Kubernetes | Runtime platform                                |
+| Service                | Role                                              |
+| ---------------------- | ------------------------------------------------- |
+| Microsoft Entra ID     | Authentication and authorization (OIDC)           |
+| EPFL DSI PostgreSQL    | Application database                              |
+| EPFL S3                | Object storage for uploads and ingestion files    |
+| ENAC-IT Infisical      | Secret and encryption-key vault, all environments |
+| EPFL Tableau           | Source of travel and headcount data               |
+| European Central Bank  | Exchange-rate reference data                      |
+| GitHub                 | Source hosting, CI/CD, image registry, scanning   |
+| OpenShift / Kubernetes | Runtime platform                                  |
 
 DSI-run services carry a service number and a support queue — see the
-[service map](#service-map-and-dsi-queues) for which one to ticket.
+[service map](../infra/04-operations.md#symptom-to-owner) for which one to ticket.
 
 Library and package dependencies are not listed here — they change too
 often for a hand-maintained list to stay honest. The GitHub dependency
