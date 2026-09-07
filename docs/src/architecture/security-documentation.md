@@ -31,8 +31,9 @@ answering a security questionnaire or an audit.
   recoverable at all — that is a decision to take, not code to write.
 - **Object storage support queue** — every other DSI dependency has a
   named `SI_` queue in the [service map](../infra/04-operations.md#symptom-to-owner);
-  object storage does not. Ask DSI which queue owns SVC1057 and record
-  it there, so an incident is not routed by guesswork.
+  object storage does not. Decided 2026-09-07: open the ticket at
+  `1234@epfl.ch` with the bucket name. Replace with the `SI_` queue if
+  DSI ever publishes one.
 
 That gap is not closed by a code change. Track it as an issue rather
 than leaving it implied by an unticked box.

@@ -46,7 +46,9 @@ for SSE streams and long exports.
   the sysadmins group), Grafana dashboards.
 
 Outside the namespace: PostgreSQL (EPFL DBaaS), S3 object storage,
-Entra ID, Tempo, Icinga, GlitchTip, Matomo. What each is for and how to
+Entra ID, EPFL's OPDo Elasticsearch (audit records, ISO 27701, see
+[plan 240](../implementation-plans/240-feat-elastic-search.md)), Tempo,
+Icinga, GlitchTip, Matomo. What each is for and how to
 get access: [Tools and access](05-tools-and-access.md).
 
 ## How a change gets deployed
@@ -73,7 +75,17 @@ Secrets Operator in all three environments**: one `ExternalSecret` pulls
 every key under `/epfl/co2-calculator` into `backend-secret`, and separate
 ones feed `db-secret`, `quay-reg-cred` and `docker-reg-cred`. Refresh
 interval is 5 minutes; a changed value reaches the pods on the next
-rollout restart. No secret is created by hand anymore.
+rollout restart. No secret is created by hand anymore. The key names
+the backend reads are declared in `backend/app/core/config.py`; list what
+is actually mounted with:
+
+```bash
+oc get secret backend-secret -n <namespace> -o json | jq '.data | keys'
+```
+
+Because of the wildcard, keys that only CI needs (release-please and
+Codecov tokens, registry credentials) are mounted into the pods too.
+Trim the Infisical folder, not this page.
 
 ## Backups and restore
 
@@ -88,8 +100,24 @@ rollout restart. No secret is created by hand anymore.
   [Disaster Recovery Plan](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/DRP.md)
   (private).
 
+## See also
+
+- [Deployment Topology](../architecture/11-deployment-topology.md),
+  [Environments](../architecture/05-environments.md),
+  [Tech Stack](../architecture/08-tech-stack.md),
+  [Scalability](../architecture/12-scalability.md)
+- [CI/CD Pipeline](../architecture/06-cicd-pipeline.md) and
+  [CI/CD Workflows](../architecture/cicd-workflows.md)
+- [Observability & SLOs](03-observability-slo.md),
+  [Frontend Error Monitoring](../frontend/error-monitoring.md),
+  [OAuth http-callback post-mortem](02-postmortem-oauth-http-redirect.md)
+- Vendor docs: [Kubernetes](https://kubernetes.io/docs/),
+  [Helm](https://helm.sh/docs/), [ArgoCD](https://argo-cd.readthedocs.io/),
+  [Prometheus](https://prometheus.io/docs/)
+
 ## Not here, on purpose
 
 No Jaeger (removed 2026-06-17, traces live in Tempo), no Loki, no
-Elasticsearch or Kibana, no service mesh, no in-cluster PostgreSQL. If you
+Elasticsearch or Kibana **for logs** (the only Elasticsearch is EPFL's
+OPDo audit sink above), no service mesh, no in-cluster PostgreSQL. If you
 read otherwise elsewhere in these docs, that page is stale: fix it.

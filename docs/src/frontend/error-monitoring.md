@@ -27,18 +27,25 @@ infrastructure. Wired in issue #344 — see the
 
 ## How errors reach GlitchTip
 
-`@sentry/vue` is lazy-loaded so the ~900 KiB SDK stays off the
-critical path. Four capture paths feed it:
+There is no Sentry SDK. `src/utils/glitchtip.ts` is a ~2 KB
+dependency-free reporter that speaks the GlitchTip envelope protocol
+([plan 1569](../implementation-plans/frontend-glitchtip-error-reporting.md)).
+`src/boot/sentry.ts` wires it in. Capture paths:
 
-- Vue lifecycle/render errors via `app.config.errorHandler`.
-- Synchronous browser errors via the `window` `error` listener.
-- Unhandled promise rejections via the `unhandledrejection` listener.
-- HTTP 5xx responses via `captureMessage` in
-  [`src/api/http.ts:190`](https://github.com/epfl-enac/co2-calculator/blob/main/frontend/src/api/http.ts).
+- Vue component errors via `app.config.errorHandler`, with
+  `componentName`, `lifecycleHook` and shallow `propsData` attached.
+- Router errors, `window` `error` and `unhandledrejection` listeners.
+- HTTP 5xx responses from the ky client in `src/api/http.ts`.
 
-Noise (ResizeObserver loops, aborted fetches) is filtered. See
-[`src/boot/sentry.ts`](https://github.com/epfl-enac/co2-calculator/blob/main/frontend/src/boot/sentry.ts)
-for the full list and the `tracesSampleRate: 0.05` setting.
+Chunk-load failures and other noise are filtered through `ignoreErrors`.
+Each event carries breadcrumbs (fetch, console, clicks, navigation) and
+`contexts.trace.trace_id`, one id per navigation. The same id goes out as
+a W3C `traceparent` header on every `/api` request
+([plan 2372](../implementation-plans/2372-traceparent-propagation.md)),
+which is meant to make the event searchable in Tempo; see
+[Debugging with traces](../infra/06-debugging-with-traces.md) for the
+current verification status. No performance or span events are sent:
+GlitchTip's Performance tab stays empty by design.
 
 ## Configuring a deployment
 
