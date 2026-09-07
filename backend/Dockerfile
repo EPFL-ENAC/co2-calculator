@@ -36,9 +36,12 @@ COPY alembic.ini ./
 # =========================
 FROM python:3.14-alpine AS runtime
 
-# CVE-2026-14456: openssl < 3.5.8-r0 in the alpine 3.24 base; drop once the
-# base image ships the fix (apk upgrade becomes a no-op then).
-RUN apk upgrade --no-cache libcrypto3 libssl3
+# The alpine 3.24 base lags Alpine's package repo; Trivy blocks the deploy on
+# each HIGH it finds there. Named on purpose so every upgrade is traceable to
+# a CVE. Drop an entry once the base image ships the fix (it becomes a no-op).
+#   libcrypto3 libssl3  CVE-2026-14456  openssl < 3.5.8-r0
+#   libuuid             CVE-2026-53612..53614, 76642, 78408..78410  util-linux < 2.42.3-r1
+RUN apk upgrade --no-cache libcrypto3 libssl3 libuuid
 
 WORKDIR /app
 
