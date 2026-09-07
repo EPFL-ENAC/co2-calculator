@@ -11,12 +11,12 @@ The system runs on EPFL OpenShift, delivered by ArgoCD from the
 
 ## Dev / Stage / Prod Topology
 
-| Environment | URL                                   | Purpose                | Secrets Management       |
-| ----------- | ------------------------------------- | ---------------------- | ------------------------ |
-| Local       | http://localhost:3000                 | Individual development | `.env` files             |
-| Development | https://co2-calculator-dev.epfl.ch/   | Team collaboration     | Infisical Operator       |
-| Staging     | https://co2-calculator-stage.epfl.ch/ | Pre-release testing    | Manual OpenShift secrets |
-| Production  | https://co2-calculator.epfl.ch/       | Live user traffic      | Manual OpenShift secrets |
+| Environment | URL                                   | Purpose                | Secrets Management          |
+| ----------- | ------------------------------------- | ---------------------- | --------------------------- |
+| Local       | http://localhost:3000                 | Individual development | `.env` files                |
+| Development | https://co2-calculator-dev.epfl.ch/   | Team collaboration     | Infisical, External Secrets |
+| Staging     | https://co2-calculator-stage.epfl.ch/ | Pre-release testing    | Infisical, External Secrets |
+| Production  | https://co2-calculator.epfl.ch/       | Live user traffic      | Infisical, External Secrets |
 
 Production (`co2-calculator.epfl.ch`) goes live with **v1.0.0
 (2026-06-17)**; until then it serves as the pre-release/validation
@@ -25,8 +25,7 @@ instance. For local setup, see the [Development Guide](../frontend/01-overview.m
 ## Secrets Management
 
 - **Local** — `.env` files from `.env.example` templates (never committed); separate `backend/.env` and `frontend/.env`.
-- **Dev** — the **Infisical Operator** generates the Kubernetes Secrets, injected as pod environment variables.
-- **Stage / Prod** — currently **manually-managed OpenShift secrets**, because OpenShift is not yet wired to Infisical. **Azure Key Vault** is planned for production secrets (v1.0.0+).
+- **Dev / Stage / Prod** — the **External Secrets Operator** pulls every key under `/epfl/co2-calculator` from Infisical into Kubernetes Secrets, injected as pod environment variables. Details: [Infrastructure Overview](../infra/01-overview.md#configuration-and-secrets).
 
 ## Database
 

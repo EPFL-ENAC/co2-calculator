@@ -22,9 +22,8 @@ infrastructure. Wired in issue #344 — see the
   [Sentry self-host via GlitchTip](https://www.notion.so/enacit4r/Sentry-Self-Host-via-Glitchtip-35e53a25eee880448351e452829897cd)
   Notion page — how the server is operated.
 - **Product docs:** [glitchtip.com/documentation](https://glitchtip.com/documentation).
-- **Project DSN:** stored in
-  [Infisical](https://enac-it-secrets.epfl.ch/project/17dcca22-b05d-4d28-b7aa-c2770018f5be/secrets/overview?secretPath=%2Fepfl-enac%2Fglitchtip),
-  never in the repo.
+- **Project DSN:** stored in ENAC-IT's Infisical vault, never in the
+  repo. Where and how to get access: [Tools and access](../infra/05-tools-and-access.md).
 
 ## How errors reach GlitchTip
 

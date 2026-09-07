@@ -141,8 +141,12 @@ nav:
   - Database:
       - Overview: database/01-overview.md
 
-  - Infrastructure:
+  - Infrastructure & Operations:
+      - Operations, something is broken: infra/04-operations.md
+      - Tools and access: infra/05-tools-and-access.md
       - Overview: infra/01-overview.md
+      - Observability & SLOs: infra/03-observability-slo.md
+      - Postmortem, OAuth HTTP redirect: infra/02-postmortem-oauth-http-redirect.md
 
   - Implementation Plans: implementation-plans/_index.md
 

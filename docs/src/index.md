@@ -10,6 +10,11 @@ co2-calculator is an EPFL open-source web app that lets labs measure, visualise,
 
 The docs cover product scope (the CRD/spec), system architecture and decision records, and per-stack guides for backend, frontend, database, and infrastructure.
 
+## Something is broken?
+
+- [Operations](./infra/04-operations.md) — where to look, who to call, what to expect
+- [Tools and access](./infra/05-tools-and-access.md) — every dashboard and how to get in
+
 ## Start here — humans
 
 - [Architecture overview](./architecture/index.md)

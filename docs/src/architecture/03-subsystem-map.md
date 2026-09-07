@@ -35,7 +35,7 @@ flowchart TB
 
         Migrate[[Migration Job<br/>alembic upgrade head]]
         DBDump[[db-dump CronJob]]
-        Otel[OTEL Collector + Jaeger<br/>via GitOps]
+        Otel[OTEL Collector<br/>via GitOps]
         Cfg[ConfigMap + Secret]
     end
 
@@ -90,7 +90,7 @@ flowchart TB
 
 Solid arrows are always-on; dotted arrows are integrations enabled
 per-environment through injected secrets (otherwise inert — files fall
-back to local disk, audit sync is skipped). The OTEL Collector, Jaeger
+back to local disk, audit sync is skipped). The OTEL Collector
 and the `db-dump` CronJob are deployed into the namespace via GitOps, not
 by the app Helm chart.
 
@@ -115,7 +115,7 @@ by the app Helm chart.
 - **Audit sync** — ships OPDo audit records to Elasticsearch when configured.
 - **Background tasks** — in-process `asyncio` chained via `BackgroundTasks`, backed by a DB job table with a 10-second safety-net poller. No Redis/Celery. See [ADR-010](../architecture-decision-records/010-background-job-processing.md).
 - **Persistence** — SQLAlchemy async (psycopg) to a single managed PostgreSQL (EPFL DBaaS); connection pooling is in-process, **no PgBouncer**.
-- **Telemetry** — the whole app is OpenTelemetry-instrumented and exports OTLP to the in-namespace OTEL Collector (traces → Jaeger, metrics → Prometheus). See [System Overview](./02-system-overview.md#cross-cutting).
+- **Telemetry** — the whole app is OpenTelemetry-instrumented and exports OTLP to the in-namespace OTEL Collector (traces → Tempo, metrics → Prometheus). See [System Overview](./02-system-overview.md#cross-cutting).
 
 For implementation detail see [Frontend](../frontend/01-overview.md),
 [Backend](../backend/01-overview.md) and [Database](../database/01-overview.md).
