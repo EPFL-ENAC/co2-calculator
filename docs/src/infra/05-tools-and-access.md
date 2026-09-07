@@ -22,12 +22,19 @@ a newcomer gets in. Incident procedure is in
 
 ## EPFL identities behind the service
 
-| Identity                   | Kind                     | Purpose                                            | Note                                                                                                         |
-| -------------------------- | ------------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `svc-calcco2-epfl-api`     | Service account (M07583) | Backend access to `api.epfl.ch`                    | **12-month lifetime, expires 2026-10-20.** Renew on [services.epfl.ch](https://services.epfl.ch) before then |
-| `co2-calculator-ops`       | Group (S42207)           | Operators of the service                           | Owner: lead developer. Administered by `enacit4research-devops`                                              |
-| `co2-calculator-sysadmins` | Group                    | Receives Alertmanager, Icinga and GlitchTip mail   | Membership link in the DRP                                                                                   |
-| `enacit4research-devops`   | Group (S36814)           | ENAC-IT devops; owns the Quay organisation contact | Contains `ENAC-IT-admins`                                                                                    |
+| Identity                   | Kind                     | Purpose                                                                            | Note                                                                                                         |
+| -------------------------- | ------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `svc-calcco2-epfl-api`     | Service account (M07583) | Backend access to `api.epfl.ch`                                                    | **12-month lifetime, expires 2026-10-20.** Renew on [services.epfl.ch](https://services.epfl.ch) before then |
+| `co2-calculator-ops`       | Group (S42207)           | Unclear, see below                                                                 | Owner: lead developer. Administered by `enacit4research-devops`                                              |
+| `co2-calculator-sysadmins` | Group                    | Alert mail: Alertmanager, Icinga, GlitchTip. The only one with a distribution list | Membership link in the DRP                                                                                   |
+| `enacit4research-devops`   | Group (S36814)           | ENAC-IT devops; owns the Quay organisation contact                                 | Contains `ENAC-IT-admins`                                                                                    |
+
+**Two groups exist by accident.** Two people each created one without
+coordinating. `co2-calculator-sysadmins` carries the distribution list
+and receives every alert. Nobody has confirmed what `co2-calculator-ops`
+grants; Quay is the leading guess. Decision of 2026-09-07: keep both
+until that is known, then merge into one. A sysadmin left
+`co2-calculator-ops` on that day to see whether any access disappears.
 
 What is actually bound to a namespace, checked 2026-09-07 on prod: one
 human-facing binding, `admin-SVC1751` → ClusterRole `admin`; the rest are
@@ -39,9 +46,9 @@ oc get rolebindings -n svc1751p-co2-calculator-prod
 
 ## Onboarding an operator
 
-1. Get added to `co2-calculator-ops` on [groups.epfl.ch](https://groups.epfl.ch)
-   by the lead developer, and to `co2-calculator-sysadmins` if you should
-   receive alerts.
+1. Get added to `co2-calculator-sysadmins` on
+   [groups.epfl.ch](https://groups.epfl.ch) by the lead developer. This
+   is what makes alert mail reach you.
 2. Ask a namespace admin (DRP roster) for OpenShift access on each
    cluster, then `oc login --web`.
 3. Ask ENAC-IT for the Tempo Grafana, and for Infisical and GlitchTip
@@ -50,5 +57,5 @@ oc get rolebindings -n svc1751p-co2-calculator-prod
 5. Read [Operations](04-operations.md) and the DRP, then bookmark the
    links table.
 
-When someone leaves, reverse the list. Group membership drives OpenShift
-and alert mail; the rest is per-tool.
+When someone leaves, reverse the list. Group membership drives alert
+mail; OpenShift and the rest are per-tool grants.

@@ -50,8 +50,9 @@ else lived in the lead developer's head.
 - `infra/06-debugging-with-traces.md`: trace-based debugging recipes,
   reconstructed from plans 2360, 2404, 2449, 2566, 2531, 1958, 2050,
   2226, 2170, 2145, 2302, 2371, 2372, 2397 and their issues.
-- Which EPFL group feeds the `admin-SVC1751` rolebinding; the lead is
-  asking around.
+- Which EPFL group feeds the `admin-SVC1751` rolebinding, and what
+  `co2-calculator-ops` actually grants. Two groups exist by accident;
+  kept both on 2026-09-07 until understood, then merge into one.
 - Verify end to end that a GlitchTip `trace_id` finds its backend spans
   in Tempo; the docs say "expected, not verified" until then.
 - Renew service account `svc-calcco2-epfl-api` before 2026-10-20.
