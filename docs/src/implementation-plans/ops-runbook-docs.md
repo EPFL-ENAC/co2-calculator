@@ -50,7 +50,8 @@ else lived in the lead developer's head.
 - `infra/06-debugging-with-traces.md`: trace-based debugging recipes,
   reconstructed from plans 2360, 2404, 2449, 2566, 2531, 1958, 2050,
   2226, 2170, 2145, 2302, 2371, 2372, 2397 and their issues.
-- Confirm the end-user support route (`1234@epfl.ch`) with the PM.
-- Confirm the group bound to each namespace with `oc get rolebindings`.
-- Ask DSI which queue owns SVC1057 (object storage).
+- Which EPFL group feeds the `admin-SVC1751` rolebinding; the lead is
+  asking around.
+- Verify end to end that a GlitchTip `trace_id` finds its backend spans
+  in Tempo; the docs say "expected, not verified" until then.
 - Renew service account `svc-calcco2-epfl-api` before 2026-10-20.

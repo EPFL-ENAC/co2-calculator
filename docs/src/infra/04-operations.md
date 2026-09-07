@@ -13,12 +13,11 @@ budget on purpose.
 
 - Support is **best effort, working hours**. There is no on-call rotation
   and nobody is paged.
-- Prometheus/Alertmanager and Icinga both mail
-  `co2-calculator-sysadmins@groupes.epfl.ch`. GlitchTip mails its project
-  members and posts to the private co2-calculator Teams channel.
-- Where **end users** report problems is not settled. Until the PM
-  confirms the service-desk route (`1234@epfl.ch`), reports reach the lead
-  developer directly.
+- Prometheus/Alertmanager and Icinga mail the `co2-calculator-sysadmins`
+  group, and nothing else. GlitchTip mails the same group **and** posts to
+  the private co2-calculator Teams channel.
+- **End users** report problems to the EPFL service desk,
+  `1234@epfl.ch`, which routes them to us.
 
 ## First ten minutes
 
@@ -37,8 +36,10 @@ budget on purpose.
    suspect. Revert it in the GitOps repo; ArgoCD rolls back on its own.
 5. **Traces** in Tempo: [enac-k8s-grafana](https://enac-k8s-grafana.epfl.ch/),
    Explore, Tempo data source, filter by service and route in the time
-   window. A GlitchTip event's `trace_id` is searchable there since
-   [#2372](../implementation-plans/2372-traceparent-propagation.md).
+   window. Since [#2372](../implementation-plans/2372-traceparent-propagation.md)
+   a GlitchTip event's `trace_id` is expected to match the backend spans
+   in Tempo. **Not yet verified end to end**: treat a miss as unconfirmed,
+   not as proof the request never reached the backend.
 6. **Pod logs** in the OpenShift console (links below), or:
 
 ```bash
@@ -88,7 +89,7 @@ graph TB
     subgraph dsi["EPFL DSI — open the ticket in the queue"]
         K8s[OpenShift / Kubernetes<br/>SVC1219 · SI_KUBERNETES]
         PG[(PostgreSQL DBaaS<br/>SVC1757 · SI_POSTGRESQL)]
-        S3[(Object storage S3<br/>SVC1057 · queue to confirm)]
+        S3[(Object storage S3<br/>SVC1057 · ticket via 1234)]
         Entra[(Entra ID / AD<br/>SVC0026 · SI_AD)]
     end
 
@@ -98,6 +99,7 @@ graph TB
         ECB[European Central Bank<br/>exchange rates]
         GH[GitHub + Quay<br/>CI, images, GitOps]
         Obs[ENAC-IT observability<br/>Tempo, Icinga, GlitchTip]
+        ES[(EPFL OPDo Elasticsearch<br/>audit records)]
     end
 
     K8s ==>|hosts| Route
@@ -110,24 +112,25 @@ graph TB
     BE -->|scheduled pull| Tab
     BE -->|scheduled pull| ECB
     BE -.->|OTLP| Obs
+    BE -->|audit sync| ES
 ```
 
-| Dependency                  | Service                               | Queue             | Open a ticket when                                                             |
-| --------------------------- | ------------------------------------- | ----------------- | ------------------------------------------------------------------------------ |
-| OpenShift / Kubernetes      | [SVC1219](https://go.epfl.ch/SVC1219) | `SI_KUBERNETES`   | Pods will not schedule, Route down, wildcard certificate, cluster-wide failure |
-| PostgreSQL (DBaaS)          | [SVC1757](https://go.epfl.ch/SVC1757) | `SI_POSTGRESQL`   | Database unreachable, restore or point-in-time recovery request                |
-| Object storage (S3)         | [SVC1057](https://go.epfl.ch/SVC1057) | **not published** | Bucket unreachable, S3 credentials rejected                                    |
-| Entra ID / Active Directory | [SVC0026](https://go.epfl.ch/SVC0026) | `SI_AD`           | Login broken, group or role claims missing                                     |
+| Dependency                  | Service                               | Queue                        | Open a ticket when                                                             |
+| --------------------------- | ------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------ |
+| OpenShift / Kubernetes      | [SVC1219](https://go.epfl.ch/SVC1219) | `SI_KUBERNETES`              | Pods will not schedule, Route down, wildcard certificate, cluster-wide failure |
+| PostgreSQL (DBaaS)          | [SVC1757](https://go.epfl.ch/SVC1757) | `SI_POSTGRESQL`              | Database unreachable, restore or point-in-time recovery request                |
+| Object storage (S3)         | [SVC1057](https://go.epfl.ch/SVC1057) | `1234@epfl.ch` + bucket name | Bucket unreachable, S3 credentials rejected                                    |
+| Entra ID / Active Directory | [SVC0026](https://go.epfl.ch/SVC0026) | `SI_AD`                      | Login broken, group or role claims missing                                     |
 
 Numbers and queues are as supplied by EPFL DSI. The linked service page
 carries the current service manager; read it there rather than trusting a
 name copied into a doc.
 
-**Object storage has no published `SI_` queue.** Buckets are ordered and
-managed through the VPSI XaaS portal (<https://portal-xaas.epfl.ch>,
-[FAQ](https://inside.epfl.ch/portal-xaas/s3-object-storage-faq/)). Start
-there, or open the incident against SVC1057 itself and let DSI route it.
-Record the queue here once it is known.
+**Object storage has no published `SI_` queue.** Open the ticket at
+`1234@epfl.ch` and give the bucket name: it is `S3_BUCKET` in the backend
+secret, set from the GitOps overlay. Buckets are ordered and managed
+through the VPSI XaaS portal (<https://portal-xaas.epfl.ch>,
+[FAQ](https://inside.epfl.ch/portal-xaas/s3-object-storage-faq/)).
 
 Infisical, Tableau, the ECB feed, GitHub and the ENAC-IT observability
 stack are **not DSI services**; an `SI_` ticket for them goes nowhere.
