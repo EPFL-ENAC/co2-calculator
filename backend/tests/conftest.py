@@ -43,12 +43,20 @@ def pytest_configure():
     # Disabling dotenv loading for the whole session makes pytest-env's
     # `env = [...]` values (pyproject.toml) and monkeypatch the only sources,
     # in every environment, with or without a local .env.
-    # Blanking env_file alone is not enough (#2684): this module's own
-    # top-level `app.*` imports run before pytest_configure and have already
-    # populated get_settings()'s lru_cache with a .env-loaded Settings, so
-    # every .env key stayed live in the test process — S3_* included, which
-    # pointed make_files_store() at real EPFL S3. Clearing the cache is what
-    # makes the line above bite.
+    #
+    # Why cache_clear() too, not just the line below (#2684): get_settings()
+    # is @lru_cache'd, and this module's own top-level `app.*` imports call
+    # it — via other modules' `settings = get_settings()` at import time —
+    # *before* pytest_configure runs. That first call built and cached a
+    # Settings() instance while env_file was still ".env", so it's already
+    # poisoned with every .env key, S3_* included. Setting env_file = None
+    # below only changes what the *next* Settings() build reads; the poisoned
+    # instance is already cached and lru_cache won't rebuild it on its own.
+    # Every later get_settings() call — e.g. make_files_store(), which then
+    # returned S3FilesStore pointed at real EPFL S3 — kept returning that
+    # same poisoned instance. cache_clear() discards it, so the next call
+    # rebuilds fresh, and only then does env_file = None actually take
+    # effect.
     from app.core.config import Settings, get_settings
 
     Settings.model_config["env_file"] = None
