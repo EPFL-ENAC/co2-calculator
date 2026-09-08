@@ -5,6 +5,7 @@ Importing this package registers the module and factor handlers
 """
 
 from app.modules.headcount.data_entries import (
+    FTE_DECIMALS,
     OTHER_SIUS_CODE,
     SIUS_CODE_VALUES,
     HeadCountCreate,
@@ -33,6 +34,7 @@ __all__ = [
     "SIUS_CODE_VALUES",
     "normalize_sius_code",
     "HeadCountCreate",
+    "FTE_DECIMALS",
     "HeadCountStudentCreate",
     "HeadCountStudentResponse",
     "HeadCountStudentUpdate",

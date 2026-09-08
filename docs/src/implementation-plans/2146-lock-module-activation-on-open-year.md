@@ -45,8 +45,8 @@ freely; after opening, the activation state is frozen.
   threshold input stay editable after opening: they gate how data gets in, not
   which submodules participate in stats/results, and back-office legitimately
   adjusts them mid-year.
-- No backend enforcement — the decision explicitly scopes this to the
-  frontend. The `PATCH /year-configuration/{year}` endpoint still accepts
-  activation changes (admin-only surface).
+- ~~No backend enforcement~~ — shipped in #2464: `PATCH
+/year-configuration/{year}` now answers 409 to any module/submodule
+  `enabled` change once `is_started` is true.
 - Option 1 (safe mid-year deactivation) — post-delivery enhancement, tracked
   in #2146.
