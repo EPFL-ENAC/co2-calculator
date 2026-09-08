@@ -9,8 +9,25 @@ from pathlib import Path
 
 import pytest
 
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from scripts.manage_db import refuse_remote_host
+
+
+def test_dotenv_cannot_reach_settings_under_pytest() -> None:
+    """RC2 #2684: conftest blanks env_file, but get_settings() is lru_cached and
+    conftest's own `app.*` imports populate it first. Without the cache_clear()
+    in pytest_configure, a dev's real .env (live S3 creds) is live in the test
+    process and make_files_store() returns S3FilesStore.
+
+    Only fails without the fix on a machine with a populated `.env` — it is
+    green on CI either way, which is exactly the blind spot that let RC2 live.
+    Do not engineer around that by writing a `.env` into the repo root here.
+    """
+    assert Settings.model_config["env_file"] is None
+    settings = get_settings()
+    assert not settings.S3_ENDPOINT_HOSTNAME
+    assert not settings.S3_ACCESS_KEY_ID
+    assert not settings.S3_SECRET_ACCESS_KEY
 
 
 def test_env_var_beats_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

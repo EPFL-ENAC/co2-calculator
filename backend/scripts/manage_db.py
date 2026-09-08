@@ -23,9 +23,10 @@ def parse_args():
 def refuse_remote_host(db_url: str, allow_remote: bool) -> None:
     """Refuse to drop or create on a shared server unless asked in so many words.
 
-    ``backend/.env`` wins over environment variables (settings source order),
-    so a test or a make target that believes it targets localhost acts on
-    whatever ``.env`` names. That is how prod was dropped on 2026-09-08.
+    Deliberately independent of *which* settings source produced ``db_url``
+    (.env vs. env var vs. default) — see app/core/config.py's Settings.
+    model_config comment. Whichever one wins, prod is how it was dropped on
+    2026-09-08: a resolved URL nobody double-checked was local.
     """
     host = make_url(db_url).host
     if host in LOCAL_HOSTS or allow_remote:
