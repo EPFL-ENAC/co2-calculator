@@ -1,0 +1,3 @@
+unit_institutional_id,building_location,building_name,room_name,room_type,note,kg_co2eq
+{unit_institutional_id},ECUBLENS,BC,BC-150,office,,
+{unit_institutional_id},ECUBLENS,BC,ZZ-999,office,,
