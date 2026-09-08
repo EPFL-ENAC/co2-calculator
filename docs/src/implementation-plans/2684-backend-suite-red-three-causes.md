@@ -24,13 +24,19 @@ must not be bundled into one PR.
 
 - [x] **RC1** — delete the stale dotenv-precedence test
 - [x] **RC2** — `get_settings.cache_clear()` in `pytest_configure` + comment
-- [ ] **RC2 regression test** — `test_dotenv_cannot_reach_settings_under_pytest`
+- [x] **RC2 regression test** — `test_dotenv_cannot_reach_settings_under_pytest`
 - [x] **RC3** — commit `building_rooms_unknown_room.csv`
+- [x] **RC3 follow-up** — `.gitignore`'s blanket `*.csv` (line 8) silently
+      swallows every fixture under `backend/tests/fixtures/csv/`; that is how
+      #2253 lost this file without anyone noticing. Added
+      `!backend/tests/fixtures/csv/*.csv` to unblock the whole directory.
 - [ ] Split into three PRs against `dev` (see [Sequencing](#sequencing))
 
-Suite is green locally with RC1+RC2+RC3 applied: `tests/unit` **2887 passed**,
-`tests/integration` **474 passed, 1 skipped**. The one item left before PRs is
-RC2's regression test.
+Suite is green locally with RC1+RC2+RC3 applied: `tests/unit` **2873 passed**
+in this session's environment (run count drifts slightly with the tree state
+but there are no failures), `tests/integration` runs clean modulo tests that
+need Docker/Postgres, which this sandbox does not have access to — those
+errored on `DockerException: permission denied`, not on RC1–RC3 behaviour.
 
 RC2 is also a safety finding: it is the same class as the 2026-09-08 prod-DB
 drop — `backend/.env` reaching a process that should never see it. See
@@ -235,6 +241,20 @@ cd backend && uv run pytest \
 ```
 
 Expect the unknown-room test to pass (**verified locally: `1 passed`**).
+
+### The trap that caused it
+
+`.gitignore:8` is a blanket `*.csv` — every fixture under
+`backend/tests/fixtures/csv/` was already tracked only because someone force-
+added it (`git add -f`) at some point. #2253 didn't force-add this one, so
+`git add`/`git commit` silently no-opped and the PR looked complete. Fixed
+with a directory-scoped negation so the next fixture in that directory does
+not need `-f`:
+
+```gitignore
+*.csv
+!backend/tests/fixtures/csv/*.csv
+```
 
 ---
 

@@ -6,6 +6,7 @@ __pycache__/
 *.local.*
 .database.env
 *.csv
+!backend/tests/fixtures/csv/*.csv
 storybook-static
 .serena
 .worktrees
