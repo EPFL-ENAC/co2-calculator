@@ -24,7 +24,13 @@ must not be bundled into one PR.
 
 - [x] **RC1** — delete the stale dotenv-precedence test
 - [x] **RC2** — `get_settings.cache_clear()` in `pytest_configure` + comment
-- [x] **RC2 regression test** — `test_dotenv_cannot_reach_settings_under_pytest`
+- [x] **RC2 regression tests** — `test_dotenv_cannot_reach_settings_under_pytest` + the CI-provable `test_cache_clear_is_what_drops_a_poisoned_dotenv_settings`
+- [x] **RC2 scope check** — cache_clear() covers modules imported after
+      `pytest_configure` (incl. `app.api.v1.files`, the S3 case this RC
+      fixes); confirmed it does **not** cover `app.core.logging`, eagerly
+      imported by `app/__init__.py` before that point. Filed as
+      [#2686](https://github.com/EPFL-ENAC/co2-calculator/issues/2686), not
+      fixed here — see [Scope](#scope-checked-empirically---not-everything-is-covered).
 - [x] **RC3** — commit `building_rooms_unknown_room.csv`
 - [x] **RC3 follow-up** — `.gitignore`'s blanket `*.csv` (line 8) silently
       swallows every fixture under `backend/tests/fixtures/csv/`; that is how
@@ -147,33 +153,45 @@ Update the surrounding comment to say why the `cache_clear()` is load-bearing:
 blanking `env_file` alone is not enough, because conftest's own module-level
 `app.*` imports have already populated the cache.
 
-### Regression test — TODO, the one piece not yet written
+### Regression tests — done
 
-`b2ac6d1f1` shipped its guard as a test; this one needs the same. Put it in
-`backend/tests/unit/test_manage_db_guard.py` — that file's docstring is already
-the 2026-09-08 `.env`-reached-a-process incident, and RC2 is the same class, so
-the two guards belong side by side. (Not
-`tests/unit/core/test_config_provider_types.py`: that file is about
-provider-type validation and carries an autouse `chdir` fixture that would
-muddy what this test is asserting.)
+`backend/tests/unit/test_manage_db_guard.py`:
 
-```python
-def test_dotenv_cannot_reach_settings_under_pytest() -> None:
-    """RC2 #2684: conftest blanks env_file, but get_settings() is lru_cached and
-    conftest's own `app.*` imports populate it first. Without the cache_clear()
-    in pytest_configure, a dev's real .env (live S3 creds) is live in the test
-    process and make_files_store() returns S3FilesStore."""
-    assert Settings.model_config["env_file"] is None
-    settings = get_settings()
-    assert not settings.S3_ENDPOINT_HOSTNAME
-    assert not settings.S3_ACCESS_KEY_ID
-    assert not settings.S3_SECRET_ACCESS_KEY
-```
+- `test_dotenv_cannot_reach_settings_under_pytest` — the direct check
+  (`S3_*` unset). Fails without the fix **only on a machine with a populated
+  `.env`**; green on CI either way, which is exactly the blind spot that let
+  RC2 live in the first place.
+- `test_cache_clear_is_what_drops_a_poisoned_dotenv_settings` — CI-provable
+  companion: builds a poisoned cached `Settings` on purpose (its own
+  `tmp_path` dotenv, not a real one) and proves `cache_clear()` specifically,
+  not just "this machine's `.env` happens to be clean", is what evicts it.
 
-This fails without the fix **only on a machine with a populated `.env`** — it
-is green on CI either way, which is exactly the blind spot that let RC2 live.
-Note that limitation in the test docstring; do not try to engineer around it by
-writing a `.env` into the repo root from a test.
+### Scope, checked empirically — not everything is covered
+
+`get_settings.cache_clear()` in `pytest_configure` only fixes modules
+imported **after** `pytest_configure` runs. `app.api.v1.files` is one of
+those, which is why the S3 claim above is real and verified. But
+`app/__init__.py:15` (`import app.modules as _modules_pkg`) eagerly imports a
+long chain _before_ `pytest_configure` ever runs, and `app.core.logging` is
+in that chain — its module-level `settings = get_settings()` stays bound to
+a `.env`-poisoned `Settings` object for the whole test session, cache_clear()
+notwithstanding. Confirmed by direct reproduction: a populated `.env` with
+`LOKI_ENABLED=true` + a fake `LOKI_URL` makes `setup_logging()` attempt a
+real outbound connection to that URL during the test session (`LokiHandler:
+failed to push log: ConnectError`). Checked the same way for `app.db`,
+`app.core.security`, `app.providers.*` — none of those are in the eager
+chain, so this is a single-module leak, not a repeat of RC2's blast radius.
+
+Not fixed in this PR — tracked as
+[#2686](https://github.com/EPFL-ENAC/co2-calculator/issues/2686) instead,
+since the two
+candidate fixes (make `app.core.logging`'s settings access lazy — call
+`get_settings()` inside `setup_logging()`/`get_logger()` instead of at
+import time; or detect pytest in `Settings.model_config` itself, e.g.
+`env_file=None if "pytest" in sys.modules else ".env"`) are both changes to
+files this doc and the guardrails already flag as "read the comment before
+touching," and the guardrails ask that architecture changes wait for
+explicit sign-off rather than ride along in a test-suite PR.
 
 ### Verify
 

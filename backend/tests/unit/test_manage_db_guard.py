@@ -30,6 +30,32 @@ def test_dotenv_cannot_reach_settings_under_pytest() -> None:
     assert not settings.S3_SECRET_ACCESS_KEY
 
 
+def test_cache_clear_is_what_drops_a_poisoned_dotenv_settings(tmp_path: Path) -> None:
+    """CI-provable version of the test above: proves cache_clear() itself is
+    load-bearing, not just that this machine's `.env` happens to be clean.
+    Builds a poisoned cached Settings on purpose, then shows env_file = None
+    alone does not evict it — only cache_clear() does. See conftest.py's
+    pytest_configure comment for why this ordering matters (#2684).
+    """
+    original_env_file = Settings.model_config["env_file"]
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("S3_ENDPOINT_HOSTNAME=poisoned.example.com\n")
+    try:
+        Settings.model_config["env_file"] = dotenv
+        get_settings.cache_clear()
+        assert get_settings().S3_ENDPOINT_HOSTNAME == "poisoned.example.com"
+
+        Settings.model_config["env_file"] = None
+        still_poisoned = get_settings()
+        assert still_poisoned.S3_ENDPOINT_HOSTNAME == "poisoned.example.com"
+
+        get_settings.cache_clear()
+        assert not get_settings().S3_ENDPOINT_HOSTNAME
+    finally:
+        Settings.model_config["env_file"] = original_env_file
+        get_settings.cache_clear()
+
+
 def test_env_var_beats_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A one-off ``DB_URL=... uv run ...`` must outrank the file (#1153 reverted)."""
     dotenv = tmp_path / ".env"

@@ -49,14 +49,21 @@ def pytest_configure():
     # it — via other modules' `settings = get_settings()` at import time —
     # *before* pytest_configure runs. That first call built and cached a
     # Settings() instance while env_file was still ".env", so it's already
-    # poisoned with every .env key, S3_* included. Setting env_file = None
-    # below only changes what the *next* Settings() build reads; the poisoned
-    # instance is already cached and lru_cache won't rebuild it on its own.
-    # Every later get_settings() call — e.g. make_files_store(), which then
-    # returned S3FilesStore pointed at real EPFL S3 — kept returning that
-    # same poisoned instance. cache_clear() discards it, so the next call
-    # rebuilds fresh, and only then does env_file = None actually take
-    # effect.
+    # poisoned; env_file = None below only changes what the *next* Settings()
+    # build reads, not the one already cached. cache_clear() discards it, so
+    # the next call rebuilds fresh.
+    #
+    # Scope, checked empirically (do not widen this comment's claim without
+    # re-checking): this closes it for every module imported *after*
+    # pytest_configure runs — including app.api.v1.files, whose module-level
+    # `files_store = make_files_store()` is why RC2's S3 leak is fixed. It
+    # does NOT reach modules that app/__init__.py's own eager imports
+    # (`import app.modules` at app/__init__.py:15) pull in ahead of any of
+    # conftest's imports — as of #2684 that's just app.core.logging, whose
+    # module-level `settings = get_settings()` stays bound to a .env-poisoned
+    # object for the whole test session regardless of this cache_clear().
+    # Tracked as #2686, not fixed here: a populated .env with
+    # LOKI_ENABLED=true leaks a real Loki endpoint into setup_logging().
     from app.core.config import Settings, get_settings
 
     Settings.model_config["env_file"] = None
