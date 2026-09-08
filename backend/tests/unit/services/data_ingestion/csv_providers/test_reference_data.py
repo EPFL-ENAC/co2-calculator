@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.models.building_room import BuildingRoom
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
@@ -12,7 +13,9 @@ from app.services.data_ingestion.csv_providers.reference_data import (
     BUILDING_ROOMS_REQUIRED_COLUMNS,
     LOCATIONS_REQUIRED_COLUMNS,
     ReferenceDataCSVProvider,
+    _non_negative_surface,
     _to_float,
+    _validated_room_type,
 )
 from app.services.data_ingestion.provider_factory import ProviderFactory
 
@@ -221,3 +224,63 @@ def test_to_float_rejects_unparseable_present_value() -> None:
     """
     with pytest.raises(ValueError, match="Invalid numeric value"):
         _to_float("12,5")
+
+
+def test_validated_room_type_accepts_vocabulary_and_blank() -> None:
+    assert _validated_room_type("office") == "office"
+    assert _validated_room_type(" laboratories ") == "laboratories"
+    assert _validated_room_type("") is None
+    assert _validated_room_type(None) is None
+
+
+def test_validated_room_type_rejects_unknown_value() -> None:
+    """#2588: the entry side rejects unknown room types, the reference side
+    accepted anything. Both must enforce the same vocabulary.
+    """
+    with pytest.raises(ValueError, match="Invalid room_type"):
+        _validated_room_type("swimming-pool")
+
+
+def test_non_negative_surface() -> None:
+    assert _non_negative_surface(18.5) == 18.5
+    assert _non_negative_surface(0.0) == 0.0
+    assert _non_negative_surface(None) is None
+    with pytest.raises(ValueError, match="non-negative"):
+        _non_negative_surface(-3.0)
+
+
+_ROOMS_HEADER = (
+    "building_location,building_name,room_name,room_type,room_surface_square_meter"
+)
+
+
+@pytest.mark.asyncio
+async def test_ingest_building_rooms_rejects_bad_room_type() -> None:
+    provider = _make_provider()
+    csv_text = f"{_ROOMS_HEADER}\nECUBLENS,AAB,AAB 0 01,swimming-pool,18.0\n"
+    with pytest.raises(ValueError, match="Invalid room_type"):
+        await provider._ingest_building_rooms(csv_text)
+
+
+@pytest.mark.asyncio
+async def test_ingest_building_rooms_rejects_negative_surface() -> None:
+    provider = _make_provider()
+    csv_text = f"{_ROOMS_HEADER}\nECUBLENS,AAB,AAB 0 01,office,-18.0\n"
+    with pytest.raises(ValueError, match="non-negative"):
+        await provider._ingest_building_rooms(csv_text)
+
+
+@pytest.mark.asyncio
+async def test_ingest_building_rooms_valid_rows_still_pass(db_session) -> None:
+    from sqlalchemy import select
+
+    provider = ReferenceDataCSVProvider(
+        config={"job_id": 1, "year": 2024}, data_session=db_session
+    )
+    csv_text = (
+        f"{_ROOMS_HEADER}\nECUBLENS,AAB,AAB 0 01,office,18.0\nECUBLENS,AAB,AAB 0 02,,\n"
+    )
+    stats = await provider._ingest_building_rooms(csv_text)
+    assert stats["rows_inserted"] == 2
+    rows = (await db_session.exec(select(BuildingRoom))).scalars().all()
+    assert {r.room_type for r in rows} == {"office", None}

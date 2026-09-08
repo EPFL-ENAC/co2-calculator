@@ -114,6 +114,9 @@ class PurchaseModuleHandler(BaseModuleHandler):
             total_spent_amount = ctx.get("total_spent_amount")
             if total_spent_amount is None:
                 return None
+            # .lower() stays until entry data is audited: pre-#1489 entries
+            # may still carry un-normalized currency in ``data`` (the #1489
+            # migration normalizes factors, not entries).
             entry_currency = (ctx.get("currency", "chf") or "chf").lower()
             ef = factor_values.get("ef_kg_co2eq_per_currency")
             if ef is None:

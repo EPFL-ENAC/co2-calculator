@@ -54,12 +54,12 @@ def test_animal_create_rejects_whitespace_only_strings() -> None:
         "researchfacility_type",
         "use_unit",
     ):
-        with pytest.raises(ValidationError, match="cannot be empty"):
+        with pytest.raises(ValidationError, match="cannot be empty|at least 1"):
             _animal_create(**{field: "   "})
 
 
 def test_animal_create_rejects_null_id() -> None:
-    with pytest.raises(ValidationError, match="researchfacility_id is required"):
+    with pytest.raises(ValidationError, match="Input should be a valid string"):
         _animal_create(researchfacility_id=None)
 
 
@@ -70,14 +70,14 @@ def test_animal_update_rejects_negative_use_but_allows_absent() -> None:
 
 
 def test_animal_update_rejects_whitespace_only_type() -> None:
-    with pytest.raises(ValidationError, match="cannot be empty"):
+    with pytest.raises(ValidationError, match="cannot be empty|at least 1"):
         ResearchFacilitiesAnimalHandlerUpdate.model_validate(
             {**_BASE, "researchfacility_type": " "}
         )
 
 
 def test_common_create_rejects_whitespace_only_use_unit() -> None:
-    with pytest.raises(ValidationError, match="cannot be empty"):
+    with pytest.raises(ValidationError, match="cannot be empty|at least 1"):
         ResearchFacilitiesCommonHandlerCreate.model_validate(
             {
                 **_BASE,

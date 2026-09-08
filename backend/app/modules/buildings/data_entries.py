@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 from pydantic import (
     BaseModel,
     ConfigDict,
-    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -13,6 +12,7 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.schemas.fields import ClassificationKey
 
 
 class BuildingRoomBuildingResponse(BaseModel):
@@ -79,16 +79,8 @@ class DiscardClientSurfaceMixin:
 
 
 class BuildingRoomHandlerCreate(DiscardClientSurfaceMixin, DataEntryCreate):
-    building_name: str
-    room_name: str
-
-    @field_validator("building_name", "room_name", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
-
+    building_name: ClassificationKey
+    room_name: ClassificationKey
     room_type: str
     room_allocation_ratio: float | None = None
     note: str | None = None
@@ -110,16 +102,8 @@ class BuildingRoomHandlerCreate(DiscardClientSurfaceMixin, DataEntryCreate):
 
 
 class BuildingRoomHandlerUpdate(DiscardClientSurfaceMixin, DataEntryUpdate):
-    building_name: str | None = None
-    room_name: str | None = None
-
-    @field_validator("building_name", "room_name", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
-        if v is not None and not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
-
+    building_name: ClassificationKey | None = None
+    room_name: ClassificationKey | None = None
     room_type: str | None = None
     room_allocation_ratio: float | None = None
     note: str | None = None
@@ -150,16 +134,9 @@ class EnergyCombustionHandlerResponse(DataEntryResponseGen):
 
 
 class EnergyCombustionHandlerCreate(DataEntryCreate):
-    name: str
+    name: ClassificationKey
     quantity: float
     note: str | None = None
-
-    @field_validator("name", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     @field_validator("quantity", mode="after")
     @classmethod
@@ -170,16 +147,9 @@ class EnergyCombustionHandlerCreate(DataEntryCreate):
 
 
 class EnergyCombustionHandlerUpdate(DataEntryUpdate):
-    name: str | None = None
+    name: ClassificationKey | None = None
     quantity: float | None = None
     note: str | None = None
-
-    @field_validator("name", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
-        if v is not None and not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     @field_validator("quantity", mode="after")
     @classmethod
@@ -210,10 +180,10 @@ class BuildingEmbodiedEnergyHandlerResponse(DataEntryResponseGen):
 class BuildingEmbodiedEnergyHandlerCreate(
     DiscardClientBuildingFieldsMixin, DataEntryCreate
 ):
-    room_name: str
+    room_name: ClassificationKey
 
 
 class BuildingEmbodiedEnergyHandlerUpdate(
     DiscardClientBuildingFieldsMixin, DataEntryUpdate
 ):
-    room_name: str | None = None
+    room_name: ClassificationKey | None = None

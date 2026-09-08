@@ -1,12 +1,13 @@
 from typing import Any
 
-from pydantic import ValidationInfo, field_validator, model_validator
+from pydantic import field_validator, model_validator
 
 from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.schemas.fields import ClassificationKey, CurrencyCode
 
 REQUESTS_FREQUENCY_OPTIONS: list[str] = [
     "1_5",
@@ -42,30 +43,23 @@ class ExternalAIHandlerResponse(DataEntryResponseGen):
 
 
 class ExternalCloudHandlerCreate(DataEntryCreate):
-    service_type: str
-    provider: str
+    service_type: ClassificationKey
+    provider: ClassificationKey
     spent_amount: float
-    currency: str | None = None
+    currency: CurrencyCode | None = None
     note: str | None = None
-
-    @field_validator("service_type", "provider", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     @model_validator(mode="before")
     @classmethod
     def ensure_default_currency(cls, data: Any) -> Any:
-        """Ensure default currency is applied when input has null or empty currency."""
+        """Apply the default currency when input has null or blank currency."""
         if isinstance(data, dict):
             currency = data.get("currency")
-            # Apply default when currency is None, empty string, or whitespace-only
             if currency is None or (
                 isinstance(currency, str) and currency.strip() == ""
             ):
-                data["currency"] = "eur"
+                # Copy: mutating the caller's dict leaks the default upstream.
+                return {**data, "currency": "eur"}
         return data
 
     @field_validator("spent_amount", mode="after")
@@ -80,26 +74,18 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
     def validate_currency(cls, v: str | None) -> str:
         if v is None:
             return "eur"
-        normalized_v = v.strip().lower()
         valid_currencies = ["chf", "eur", "usd"]
-        if normalized_v not in valid_currencies:
+        if v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
-        return normalized_v
+        return v
 
 
 class ExternalAIHandlerCreate(DataEntryCreate):
-    provider: str
-    usage_type: str
+    provider: ClassificationKey
+    usage_type: ClassificationKey
     requests_per_user_per_day: str
     fte_count: float
     note: str | None = None
-
-    @field_validator("provider", "usage_type", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     #  __kg_co2eq_override__ for kg_co2eq
 
@@ -123,18 +109,11 @@ class ExternalAIHandlerCreate(DataEntryCreate):
 
 
 class ExternalCloudHandlerUpdate(DataEntryUpdate):
-    service_type: str | None = None
-    provider: str | None = None
+    service_type: ClassificationKey | None = None
+    provider: ClassificationKey | None = None
     spent_amount: float | None = None
-    currency: str | None = None
+    currency: CurrencyCode | None = None
     note: str | None = None
-
-    @field_validator("service_type", "provider", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
-        if v is not None and not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     @field_validator("spent_amount", mode="after")
     @classmethod
@@ -150,26 +129,18 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
     def validate_currency(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        normalized_v = v.strip().lower()
         valid_currencies = ["chf", "eur", "usd"]
-        if normalized_v not in valid_currencies:
+        if v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
-        return normalized_v
+        return v
 
 
 class ExternalAIHandlerUpdate(DataEntryUpdate):
-    provider: str | None = None
-    usage_type: str | None = None
+    provider: ClassificationKey | None = None
+    usage_type: ClassificationKey | None = None
     requests_per_user_per_day: str | None = None
     fte_count: float | None = None
     note: str | None = None
-
-    @field_validator("provider", "usage_type", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
-        if v is not None and not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     @field_validator("requests_per_user_per_day", mode="after")
     @classmethod

@@ -2,6 +2,7 @@ from pydantic import ValidationInfo, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
+from app.modules.emissions.registry import resolve_factor_emission_type
 from app.schemas.factor import (
     BaseFactorHandler,
     EmissionType,
@@ -9,6 +10,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.schemas.fields import ClassificationKey, CurrencyCode
 
 
 def _validate_non_negative_float(v: float | None, field_name: str) -> float | None:
@@ -48,17 +50,15 @@ class _ExternalCloudFactorValidationMixin:
             "eur",
             "usd",
         ]
-        if not v:
-            raise ValueError("")
-        if v.lower() not in valid_currencies:
+        if v not in valid_currencies:
             raise ValueError("Invalid currency")
         return v
 
 
 class ExternalCloudBaseFactor:
-    service_type: str
-    provider: str
-    currency: str
+    service_type: ClassificationKey
+    provider: ClassificationKey
+    currency: CurrencyCode
     ef_kg_co2eq_per_currency: float
 
 
@@ -103,8 +103,8 @@ class ExternalAIFactorResponse(FactorResponseGen):
 
 
 class ExternalAIFactorCreate(FactorCreate):
-    provider: str
-    usage_type: str
+    provider: ClassificationKey
+    usage_type: ClassificationKey
     ef_kg_co2eq_per_request: float
 
     @field_validator("ef_kg_co2eq_per_request", mode="after")
@@ -116,8 +116,8 @@ class ExternalAIFactorCreate(FactorCreate):
 
 
 class ExternalAIFactorUpdate(FactorUpdate):
-    provider: str | None = None
-    usage_type: str | None = None
+    provider: ClassificationKey | None = None
+    usage_type: ClassificationKey | None = None
     ef_kg_co2eq_per_request: float | None = None
 
     @field_validator("ef_kg_co2eq_per_request", mode="after")
@@ -142,12 +142,14 @@ class ExternalAIFactorHandler(BaseFactorHandler):
     classification_fields: list[str] = ["provider", "usage_type"]
     value_fields: list[str] = ["ef_kg_co2eq_per_request"]
 
-    # instead of having a complex resolve emission_type for factors we could do it here
     def _prepare_payload(self, payload: dict) -> dict:
+        # Go through the #2091 factor funnel instead of indexing the
+        # resolver result by hand: it raises a readable error on an
+        # unknown provider, guards against a resolver returning zero or
+        # several types, and rejects a non-leaf node (#2587).
         prepared = dict(payload)
         if "emission_type_id" not in prepared:
-            provider = prepared.get("provider", "")
-            emission_key = str(provider).lower().strip().replace(" ", "_")
-            emission_type = EmissionType[emission_key]
-            prepared["emission_type_id"] = emission_type.value
+            prepared["emission_type_id"] = resolve_factor_emission_type(
+                DataEntryTypeEnum.external_ai, prepared
+            ).value
         return super()._prepare_payload(prepared)

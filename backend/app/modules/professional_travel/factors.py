@@ -9,6 +9,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.schemas.fields import ROW_COUNTRY_CODE, ClassificationKey, CountryCode
 
 
 def _validate_non_negative_float(v: float | None, field_name: str) -> float | None:
@@ -20,7 +21,7 @@ def _validate_non_negative_float(v: float | None, field_name: str) -> float | No
 
 
 class TravelPlaneBase:
-    category: str
+    category: ClassificationKey
     cabin_class: str
     ef_kg_co2eq_per_km: float
     rfi_adjustment: float
@@ -45,18 +46,14 @@ class _TravelPlaneBaseValidationMixin:
     @field_validator("cabin_class", mode="after")
     @classmethod
     def validate_cabin_class(cls, v: str) -> str:
-        if not v:
+        # Same normalization as the entry-side cabin-class mixins: the two
+        # sides join on this key with exact string equality (#1489).
+        normalized = v.strip().lower()
+        if not normalized:
             raise ValueError("Cabin class is required")
-        if v not in PLANE_CABIN_MAP:
+        if normalized not in PLANE_CABIN_MAP:
             raise ValueError("Invalid cabin class")
-        return v
-
-    @field_validator("category", mode="after")
-    @classmethod
-    def validate_category(cls, v: str) -> str:
-        if not v:
-            raise ValueError("Category is required")
-        return v
+        return normalized
 
 
 class TravelPlaneFactorResponse(
@@ -96,7 +93,7 @@ class TravelPlaneFactorHandler(BaseFactorHandler):
 
 
 class TravelTrainBase:
-    country_code: str
+    country_code: CountryCode
     ef_kg_co2eq_per_km: float
 
 
@@ -116,10 +113,8 @@ class _TravelTrainBaseValidationMixin:
     def validate_country_code(cls, v: str) -> str:
         # in ISO 3166-1 alpha-2 format or use RoW for rest of the world
         # for now we check two letter format but we don't validate against
-        # a list of actual country codes
-        if not v:
-            raise ValueError("Country code is required")
-        if v != "RoW" and (len(v) != 2 or not v.isalpha()):
+        # a list of actual country codes (CountryCode already normalized case)
+        if v != ROW_COUNTRY_CODE and (len(v) != 2 or not v.isalpha()):
             raise ValueError(
                 "Invalid country code, must be ISO 3166-1 alpha-2 or 'RoW'"
             )

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from functools import lru_cache
 
-from pydantic import ValidationInfo, field_validator, model_validator
+from pydantic import field_validator, model_validator
 
 from app.core.config import get_settings
 from app.schemas.data_entry import (
@@ -11,6 +11,7 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.schemas.fields import ClassificationKey, IdentifierKey
 
 
 @dataclass(frozen=True)
@@ -80,26 +81,14 @@ class ResearchFacilitiesCommonHandlerResponse(DataEntryResponseGen):
 
 
 class ResearchFacilitiesCommonHandlerCreate(DataEntryCreate):
-    researchfacility_id: str
-    researchfacility_name: str
+    # IdentifierKey (id and name): spreadsheet-exported columns arrive
+    # numeric, and both keys join against the factor classification.
+    researchfacility_id: IdentifierKey
+    researchfacility_name: IdentifierKey
     use: float
-    use_unit: str
+    use_unit: ClassificationKey
     note: str | None = None
     kg_co2eq: float | None = None
-
-    @field_validator("researchfacility_id", mode="before")
-    @classmethod
-    def _validate_researchfacility_id_response(cls, v: object) -> str | None:
-        if v is None:
-            raise ValueError("researchfacility_id is required")
-        return str(v)
-
-    @field_validator("researchfacility_name", mode="before")
-    @classmethod
-    def _validate_researchfacility_name_response(cls, v: object) -> str | None:
-        if v is None:
-            raise ValueError("researchfacility_name is required")
-        return str(v)
 
     @field_validator("use", mode="before")
     @classmethod
@@ -112,15 +101,6 @@ class ResearchFacilitiesCommonHandlerCreate(DataEntryCreate):
             raise ValueError("use must be a positive number or zero")
         return float(v)
 
-    @field_validator(
-        "researchfacility_id", "researchfacility_name", "use_unit", mode="after"
-    )
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
-
     @model_validator(mode="after")
     def _use_within_unit_bounds(self) -> ResearchFacilitiesCommonHandlerCreate:
         validate_use_within_unit_bounds(self.use, self.use_unit)
@@ -128,18 +108,11 @@ class ResearchFacilitiesCommonHandlerCreate(DataEntryCreate):
 
 
 class ResearchFacilitiesCommonHandlerUpdate(DataEntryUpdate):
-    researchfacility_id: str | None = None
-    researchfacility_name: str | None = None
+    researchfacility_id: IdentifierKey | None = None
+    researchfacility_name: IdentifierKey | None = None
     use: float | None = None
-    use_unit: str | None = None
+    use_unit: ClassificationKey | None = None
     note: str | None = None
-
-    @field_validator("researchfacility_id", mode="before")
-    @classmethod
-    def _validate_researchfacility_id_response(cls, v: object) -> str | None:
-        if v is None:
-            return None
-        return str(v)
 
     @field_validator("use", mode="before")
     @classmethod
@@ -151,15 +124,6 @@ class ResearchFacilitiesCommonHandlerUpdate(DataEntryUpdate):
         if v < 0:
             raise ValueError("use must be a positive number or zero")
         return float(v)
-
-    @field_validator(
-        "researchfacility_id", "researchfacility_name", "use_unit", mode="after"
-    )
-    @classmethod
-    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
-        if v is not None and not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     @model_validator(mode="after")
     def _use_within_unit_bounds(self) -> ResearchFacilitiesCommonHandlerUpdate:
@@ -178,19 +142,12 @@ class ResearchFacilitiesAnimalHandlerResponse(DataEntryResponseGen):
 
 
 class ResearchFacilitiesAnimalHandlerCreate(DataEntryCreate):
-    researchfacility_id: str
-    researchfacility_name: str
-    researchfacility_type: str
+    researchfacility_id: IdentifierKey
+    researchfacility_name: IdentifierKey
+    researchfacility_type: ClassificationKey
     use: float
-    use_unit: str
+    use_unit: ClassificationKey
     note: str | None = None
-
-    @field_validator("researchfacility_id", mode="before")
-    @classmethod
-    def _validate_researchfacility_id(cls, v: object) -> str | None:
-        if v is None:
-            raise ValueError("researchfacility_id is required")
-        return str(v)
 
     @field_validator("use", mode="before")
     @classmethod
@@ -203,19 +160,6 @@ class ResearchFacilitiesAnimalHandlerCreate(DataEntryCreate):
             raise ValueError("use must be a positive number or zero")
         return float(v)
 
-    @field_validator(
-        "researchfacility_id",
-        "researchfacility_name",
-        "researchfacility_type",
-        "use_unit",
-        mode="after",
-    )
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
-
     @model_validator(mode="after")
     def _use_within_unit_bounds(self) -> ResearchFacilitiesAnimalHandlerCreate:
         validate_use_within_unit_bounds(self.use, self.use_unit)
@@ -223,11 +167,11 @@ class ResearchFacilitiesAnimalHandlerCreate(DataEntryCreate):
 
 
 class ResearchFacilitiesAnimalHandlerUpdate(DataEntryUpdate):
-    researchfacility_id: str | None = None
-    researchfacility_name: str | None = None
-    researchfacility_type: str | None = None
+    researchfacility_id: IdentifierKey | None = None
+    researchfacility_name: IdentifierKey | None = None
+    researchfacility_type: ClassificationKey | None = None
     use: float | None = None
-    use_unit: str | None = None
+    use_unit: ClassificationKey | None = None
     note: str | None = None
 
     @field_validator("use", mode="before")
@@ -240,19 +184,6 @@ class ResearchFacilitiesAnimalHandlerUpdate(DataEntryUpdate):
         if v < 0:
             raise ValueError("use must be a positive number or zero")
         return float(v)
-
-    @field_validator(
-        "researchfacility_id",
-        "researchfacility_name",
-        "researchfacility_type",
-        "use_unit",
-        mode="after",
-    )
-    @classmethod
-    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
-        if v is not None and not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     @model_validator(mode="after")
     def _use_within_unit_bounds(self) -> ResearchFacilitiesAnimalHandlerUpdate:
