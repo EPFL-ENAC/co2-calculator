@@ -43,9 +43,16 @@ def pytest_configure():
     # Disabling dotenv loading for the whole session makes pytest-env's
     # `env = [...]` values (pyproject.toml) and monkeypatch the only sources,
     # in every environment, with or without a local .env.
-    from app.core.config import Settings
+    # Blanking env_file alone is not enough (#2684): this module's own
+    # top-level `app.*` imports run before pytest_configure and have already
+    # populated get_settings()'s lru_cache with a .env-loaded Settings, so
+    # every .env key stayed live in the test process — S3_* included, which
+    # pointed make_files_store() at real EPFL S3. Clearing the cache is what
+    # makes the line above bite.
+    from app.core.config import Settings, get_settings
 
     Settings.model_config["env_file"] = None
+    get_settings.cache_clear()
 
 
 @pytest.fixture(autouse=True)
