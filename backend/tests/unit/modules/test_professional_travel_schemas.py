@@ -10,6 +10,8 @@ serialization now that External-other rows persist a real null).
 import pytest
 from pydantic import ValidationError
 
+from app.models.data_entry import DataEntryTypeEnum
+from app.models.factor import Factor
 from app.modules.professional_travel.data_entries import (
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelPlaneHandlerResponse,
@@ -24,7 +26,9 @@ from app.modules.professional_travel.emissions import (
 )
 from app.modules.professional_travel.factors import (
     TravelPlaneFactorCreate,
+    TravelPlaneFactorHandler,
     TravelTrainFactorCreate,
+    check_plane_distance_bands,
 )
 
 _PLANE_META = {
@@ -108,7 +112,7 @@ def test_train_response_accepts_sentinel_and_real_sciper(sciper) -> None:
 _PLANE_FACTOR = {
     "emission_type_id": 1,
     "data_entry_type_id": 1,
-    "category": "short_haul",
+    "category": "short_to_medium_haul",
     "cabin_class": "economy",
     "ef_kg_co2eq_per_km": 0.1,
     "rfi_adjustment": 2.0,
@@ -176,7 +180,7 @@ def _plane_factor_payload(**overrides):
     payload = {
         "emission_type_id": 1,
         "data_entry_type_id": 1,
-        "category": "short_haul",
+        "category": "short_to_medium_haul",
         "cabin_class": " Economy ",
         "ef_kg_co2eq_per_km": 0.2,
         "rfi_adjustment": 1.0,
@@ -283,3 +287,69 @@ def test_train_update_rejects_classes_outside_class_map(cabin_class: str) -> Non
         ProfessionalTravelTrainHandlerUpdate.model_validate(
             {**_UPDATE_META, "cabin_class": cabin_class}
         )
+
+
+# ---------------------------------------------------------------------------
+# Plane factor category vocabulary + distance bands (#2588)
+# ---------------------------------------------------------------------------
+
+
+def test_plane_factor_category_normalized_to_vocabulary() -> None:
+    factor = TravelPlaneFactorCreate.model_validate(
+        _plane_factor_payload(category=" Medium_To_Long_Haul ")
+    )
+    assert factor.category == "medium_to_long_haul"
+
+
+def test_plane_factor_unknown_category_rejected() -> None:
+    with pytest.raises(ValidationError, match="category must be one of"):
+        TravelPlaneFactorCreate.model_validate(
+            _plane_factor_payload(category="very_short_haul")
+        )
+
+
+def test_plane_factor_inverted_band_rejected() -> None:
+    with pytest.raises(ValidationError, match="max_distance must be greater"):
+        TravelPlaneFactorCreate.model_validate(
+            _plane_factor_payload(min_distance=2500.0, max_distance=2500.0)
+        )
+
+
+def _plane_factor(category: str, cabin_class: str, lo: float, hi: float) -> Factor:
+    return Factor(
+        emission_type_id=1,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
+        classification={"category": category, "cabin_class": cabin_class},
+        values={"min_distance": lo, "max_distance": hi},
+        year=2025,
+    )
+
+
+def test_distance_bands_touching_per_cabin_class_accepted() -> None:
+    check_plane_distance_bands(
+        [
+            _plane_factor("short_to_medium_haul", "economy", 0, 2500),
+            _plane_factor("medium_to_long_haul", "economy", 2500, 999999),
+            _plane_factor("short_to_medium_haul", "business", 0, 2500),
+            _plane_factor("medium_to_long_haul", "business", 2500, 999999),
+        ]
+    )
+
+
+def test_distance_bands_overlapping_within_cabin_class_rejected() -> None:
+    with pytest.raises(ValueError, match="overlap for cabin class 'economy'"):
+        TravelPlaneFactorHandler().validate_year_factors(
+            [
+                _plane_factor("short_to_medium_haul", "economy", 0, 3000),
+                _plane_factor("medium_to_long_haul", "economy", 2500, 999999),
+            ]
+        )
+
+
+def test_distance_bands_overlap_across_cabin_classes_is_fine() -> None:
+    check_plane_distance_bands(
+        [
+            _plane_factor("short_to_medium_haul", "economy", 0, 3000),
+            _plane_factor("short_to_medium_haul", "business", 2500, 999999),
+        ]
+    )

@@ -96,12 +96,9 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
                 return None
 
             spent_amount = ctx.get("spent_amount")
-            # .lower() stays until entry data is audited: pre-#1489 entries
-            # may still carry un-normalized currency in ``data`` (the #1489
-            # migration normalizes factors, not entries).
-            entry_currency = (ctx.get("currency", "") or "eur").lower()
+            entry_currency = ctx.get("currency", "") or "eur"
             ef = factor_values.get("ef_kg_co2eq_per_currency")
-            ef_currency = (factor_values.get("currency", "eur") or "eur").lower()
+            ef_currency = factor_values.get("currency", "eur") or "eur"
             if spent_amount is None or ef is None:
                 return None
 

@@ -106,6 +106,8 @@ async def test_finalize_and_commit_routes_batch_through_upsert(monkeypatch):
     mock_factor_repo = MagicMock()
     mock_factor_repo.upsert_factors = AsyncMock(return_value=3)
     mock_factor_repo.delete_stale_for_year = AsyncMock(return_value=0)
+    # #2588: finalize runs the handler's cross-row check on the year's set
+    mock_factor_repo.list_by_data_entry_type = AsyncMock(return_value=[])
 
     batch = [
         Factor(

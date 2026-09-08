@@ -32,6 +32,7 @@ FIXED_TYPE_BY_FILE: dict[str, DataEntryTypeEnum] = {
     "external_ai_factors.csv": DataEntryTypeEnum.external_ai,
     "external_clouds_factors.csv": DataEntryTypeEnum.external_clouds,
     "headcount_member_factors.csv": DataEntryTypeEnum.member,
+    "headcount_members_factors.csv": DataEntryTypeEnum.member,
     "headcount_students_factors.csv": DataEntryTypeEnum.student,
     "processemissions_factors.csv": DataEntryTypeEnum.process_emissions,
     "purchases_centralized_factors.csv": DataEntryTypeEnum.purchases_centralized,

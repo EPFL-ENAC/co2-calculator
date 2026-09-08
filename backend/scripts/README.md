@@ -117,3 +117,16 @@ from `DB_URL`. Used by local/CI setup, not normal development.
 uv run python -m scripts.manage_db --action create [--db-name NAME]
 uv run python -m scripts.manage_db --action drop [--db-name NAME]
 ```
+
+## audit_entry_data_normalization.py
+
+Read-only preview of what migration `cf237968fba7` (#2592) rewrites in
+`data_entries.data`: rows to change per entry type and key, how many of them
+are validated, and values that would still fail a vocabulary check after
+normalization (those need a manual decision). Imports the rules from the
+migration file itself. Run it on each platform before `make db-migrate` and
+paste the output on the issue.
+
+```bash
+uv run python -m scripts.audit_entry_data_normalization
+```

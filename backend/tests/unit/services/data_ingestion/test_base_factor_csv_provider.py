@@ -1033,3 +1033,57 @@ async def test_process_row_accepted_row_collects_translation(monkeypatch):
     assert error_msg is None
     assert factor.id == 1
     assert provider._collected_translations == {("kind", "Engine", "fr"): "Moteur"}
+
+
+# ---------------------------------------------------------------------------
+# Cross-row check on the year's factor set (#2588)
+# ---------------------------------------------------------------------------
+
+
+def _plane_factor(category: str, lo: float, hi: float):
+    from app.models.factor import Factor
+
+    return Factor(
+        emission_type_id=1,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
+        classification={"category": category, "cabin_class": "economy"},
+        values={"min_distance": lo, "max_distance": hi},
+        year=2025,
+    )
+
+
+@pytest.mark.asyncio
+async def test_validate_year_factor_sets_fails_on_overlapping_plane_bands():
+    """The check sees the year's resulting set, not just the uploaded rows."""
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "data_entry_type_id": DataEntryTypeEnum.plane},
+        data_session=MagicMock(),
+    )
+    provider.year = 2025
+    provider._upserted_det_ids = {DataEntryTypeEnum.plane.value}
+    factor_repo = MagicMock()
+    factor_repo.list_by_data_entry_type = AsyncMock(
+        return_value=[
+            _plane_factor("short_to_medium_haul", 0, 3000),
+            _plane_factor("medium_to_long_haul", 2500, 999999),
+        ]
+    )
+    with pytest.raises(ValueError, match="distance bands overlap"):
+        await provider._validate_year_factor_sets(factor_repo)
+    factor_repo.list_by_data_entry_type.assert_awaited_once_with(
+        DataEntryTypeEnum.plane, 2025
+    )
+
+
+@pytest.mark.asyncio
+async def test_validate_year_factor_sets_skips_types_not_uploaded():
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "data_entry_type_id": DataEntryTypeEnum.plane},
+        data_session=MagicMock(),
+    )
+    provider.year = 2025
+    provider._upserted_det_ids = set()
+    factor_repo = MagicMock()
+    factor_repo.list_by_data_entry_type = AsyncMock()
+    await provider._validate_year_factor_sets(factor_repo)
+    factor_repo.list_by_data_entry_type.assert_not_awaited()

@@ -191,7 +191,7 @@ def _load_migration() -> ModuleType:
         Path(__file__).parents[3]
         / "alembic"
         / "versions"
-        / "2026_08_31_1935-09fe9e551783_normalize_factor_classification_join_.py"
+        / "2026_09_08_1000-09fe9e551783_normalize_factor_classification_join_.py"
     )
     spec = importlib.util.spec_from_file_location("migration_09fe9e551783", path)
     if spec is None or spec.loader is None:

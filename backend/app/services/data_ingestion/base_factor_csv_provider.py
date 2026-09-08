@@ -636,6 +636,7 @@ class BaseFactorCSVProvider(CSVIngestionProvider, ABC):
         # operator re-uploads a corrected CSV; that SUCCESS run sweeps.
         if result == IngestionResult.SUCCESS:
             stats["factors_deleted"] = await self._delete_stale_factors(factor_repo)
+        await self._validate_year_factor_sets(factor_repo)
 
         processing_path = setup_result["processing_path"]
         metadata_update: dict[str, Any] = {
@@ -696,6 +697,20 @@ class BaseFactorCSVProvider(CSVIngestionProvider, ABC):
             await derive_planner_purchase_factors(
                 self.data_session, self.year, self.job_id
             )
+
+    async def _validate_year_factor_sets(self, factor_repo: FactorRepository) -> None:
+        """Run each handler's cross-row check on the year's resulting factor set.
+
+        A failure raises before the commit, so a CSV whose rows are valid one
+        by one but inconsistent together (overlapping plane distance bands)
+        leaves the year untouched.
+        """
+        if self.year is None:
+            return
+        for det_id in sorted(self._upserted_det_ids):
+            det = DataEntryTypeEnum(det_id)
+            factors = await factor_repo.list_by_data_entry_type(det, self.year)
+            BaseFactorHandler.get_by_type(det).validate_year_factors(factors)
 
     async def _delete_stale_factors(self, factor_repo: FactorRepository) -> int:
         """Delete factors this job's upsert just superseded.

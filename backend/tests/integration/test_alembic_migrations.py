@@ -389,3 +389,335 @@ def test_2458_orphaned_explore_cleanup(alembic_env: dict[str, str]) -> None:
     )
 
     _assert_2458_cleanup(db_url, ids)
+
+
+# ---------------------------------------------------------------------------
+# #1489 / #2592: join-key normalization on pre-existing rows
+# ---------------------------------------------------------------------------
+
+# 09fe9e551783 (#1489) normalizes factors.classification and merges the
+# duplicates; cf237968fba7 (#2592) normalizes data_entries.data. Both are
+# data migrations over rows written before the DTOs normalized on write, so
+# each test migrates to just before its revision, seeds old-style rows, and
+# applies head. A downgrade + re-upgrade then proves the pass is idempotent
+# (downgrades are documented no-ops, so the second upgrade sees normalized
+# rows and must change nothing).
+_PRE_1489_REVISION = "095d98bc390c"
+_FACTOR_NORMALIZE_REVISION = "09fe9e551783"
+
+_PURCHASE_DET = 62  # consumable_accessories
+_TRAIN_DET = 21
+_RESEARCH_FACILITY_DET = 70
+_MEMBER_DET = 1
+_EMISSION_TYPE = 10000
+
+_SEED_ENTRIES: dict[str, tuple[int, dict]] = {
+    "purchase": (
+        _PURCHASE_DET,
+        {
+            "name": " Pipette ",
+            "currency": "CHF",
+            "purchase_institutional_code": " 51100000 ",
+            "purchase_additional_code": "  ",
+            "total_spent_amount": 10,
+            "note": "  keep  ",
+        },
+    ),
+    "train": (
+        _TRAIN_DET,
+        {
+            "origin_name": " Lausanne ",
+            "destination_name": "Lyon",
+            "origin_country_code": " ch ",
+            "destination_country_code": "row",
+            "cabin_class": " Second ",
+        },
+    ),
+    "facility": (
+        _RESEARCH_FACILITY_DET,
+        {
+            "researchfacility_id": 1.0,
+            "researchfacility_name": " Lab ",
+            "use_unit": "hours",
+            "use": 10,
+        },
+    ),
+    # Headcount has no normalized join key: the row must come back byte-equal.
+    "member": (_MEMBER_DET, {"name": " X ", "sius_code": " 51 "}),
+}
+
+_EXPECTED_ENTRIES: dict[str, dict] = {
+    "purchase": {
+        "name": "Pipette",
+        "currency": "chf",
+        "purchase_institutional_code": "51100000",
+        "purchase_additional_code": None,
+        "total_spent_amount": 10,
+        "note": "  keep  ",
+    },
+    "train": {
+        "origin_name": "Lausanne",
+        "destination_name": "Lyon",
+        "origin_country_code": "CH",
+        "destination_country_code": "RoW",
+        "cabin_class": "second",
+    },
+    "facility": {
+        "researchfacility_id": "1",
+        "researchfacility_name": "Lab",
+        "use_unit": "hours",
+        "use": 10,
+    },
+    "member": {"name": " X ", "sius_code": " 51 "},
+}
+
+# (label, det, classification) — "noisy" and "canonical" collide once
+# normalized; the lowest id (noisy, inserted first) must survive.
+_SEED_FACTORS: list[tuple[str, int, dict]] = [
+    (
+        "noisy",
+        _PURCHASE_DET,
+        {
+            "purchase_institutional_code": " 51100000 ",
+            "purchase_additional_code": "",
+            "currency": "CHF",
+        },
+    ),
+    (
+        "canonical",
+        _PURCHASE_DET,
+        {
+            "purchase_institutional_code": "51100000",
+            "purchase_additional_code": None,
+            "currency": "chf",
+        },
+    ),
+    ("train_fr", _TRAIN_DET, {"country_code": "fr"}),
+    ("train_row", _TRAIN_DET, {"country_code": "row"}),
+]
+
+
+def _sync_engine(db_url: str):
+    from sqlalchemy import create_engine
+
+    return create_engine(db_url.replace("postgresql://", "postgresql+psycopg://"))
+
+
+def _seed_1489_fixture(db_url: str) -> dict[str, int]:
+    """Seed old-style factor and entry rows plus two emissions.
+
+    Raw sync SQL for the same reason as ``_seed_2458_fixture``. Returns the
+    ids the assertions need.
+    """
+    import json
+
+    from sqlalchemy import text
+
+    engine = _sync_engine(db_url)
+    ids: dict[str, int] = {}
+    try:
+        with engine.begin() as conn:
+            unit_id = conn.execute(
+                text(
+                    "INSERT INTO units"
+                    " (provider, institutional_code, name, level, is_active)"
+                    " VALUES ('TEST'::user_provider_enum, 'U1489',"
+                    " 'Normalization test unit', 1, true) RETURNING id"
+                )
+            ).scalar_one()
+            project_id = conn.execute(
+                text(
+                    "INSERT INTO carbon_projects"
+                    " (unit_id, carbon_report_type, is_viewable_by_unit_members)"
+                    " VALUES (:unit_id, CAST('Calculator' AS carbon_report_type_enum),"
+                    " false) RETURNING id"
+                ),
+                {"unit_id": unit_id},
+            ).scalar_one()
+            report_id = conn.execute(
+                text(
+                    "INSERT INTO carbon_reports"
+                    " (year, unit_id, carbon_project_id, overall_status)"
+                    " VALUES (2025, :unit_id, :project_id, 0) RETURNING id"
+                ),
+                {"unit_id": unit_id, "project_id": project_id},
+            ).scalar_one()
+            module_id = conn.execute(
+                text(
+                    "INSERT INTO carbon_report_modules"
+                    " (module_type_id, carbon_report_id, status)"
+                    " VALUES (5, :report_id, 0) RETURNING id"
+                ),
+                {"report_id": report_id},
+            ).scalar_one()
+            for label, (det, data) in _SEED_ENTRIES.items():
+                ids[f"entry_{label}"] = conn.execute(
+                    text(
+                        "INSERT INTO data_entries"
+                        " (data_entry_type_id, carbon_report_module_id, data,"
+                        " created_at, updated_at)"
+                        " VALUES (:det, :module_id, CAST(:data AS jsonb), now(), now())"
+                        " RETURNING id"
+                    ),
+                    {"det": det, "module_id": module_id, "data": json.dumps(data)},
+                ).scalar_one()
+            for label, det, classification in _SEED_FACTORS:
+                ids[f"factor_{label}"] = conn.execute(
+                    text(
+                        "INSERT INTO factors"
+                        " (emission_type_id, data_entry_type_id, classification,"
+                        " values, year)"
+                        " VALUES (:et, :det, CAST(:cls AS jsonb),"
+                        " CAST('{\"ef_kg_co2eq_per_currency\": 0.5}' AS json), 2025)"
+                        " RETURNING id"
+                    ),
+                    {
+                        "et": _EMISSION_TYPE,
+                        "det": det,
+                        "cls": json.dumps(classification),
+                    },
+                ).scalar_one()
+            for label, factor_label in (("a", "canonical"), ("b", "noisy")):
+                ids[f"emission_{label}"] = conn.execute(
+                    text(
+                        "INSERT INTO data_entry_emissions"
+                        " (data_entry_id, emission_type_id, primary_factor_id,"
+                        " kg_co2eq, computed_at)"
+                        " VALUES (:entry, :et, :factor, 5.0, now()) RETURNING id"
+                    ),
+                    {
+                        "entry": ids["entry_purchase"],
+                        "et": _EMISSION_TYPE,
+                        "factor": ids[f"factor_{factor_label}"],
+                    },
+                ).scalar_one()
+        return ids
+    finally:
+        engine.dispose()
+
+
+def _read_factors(db_url: str) -> dict[int, dict]:
+    from sqlalchemy import text
+
+    engine = _sync_engine(db_url)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("SELECT id, classification FROM factors ORDER BY id")
+            ).fetchall()
+        return {row.id: row.classification for row in rows}
+    finally:
+        engine.dispose()
+
+
+def _read_emission_factor_ids(db_url: str, ids: dict[str, int]) -> list[int | None]:
+    from sqlalchemy import text
+
+    engine = _sync_engine(db_url)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text(
+                    "SELECT primary_factor_id FROM data_entry_emissions"
+                    " WHERE id IN (:a, :b) ORDER BY id"
+                ),
+                {"a": ids["emission_a"], "b": ids["emission_b"]},
+            ).fetchall()
+        return [row.primary_factor_id for row in rows]
+    finally:
+        engine.dispose()
+
+
+def _read_entries(db_url: str, ids: dict[str, int]) -> dict[str, dict]:
+    from sqlalchemy import text
+
+    engine = _sync_engine(db_url)
+    try:
+        with engine.connect() as conn:
+            return {
+                label: conn.execute(
+                    text("SELECT data FROM data_entries WHERE id = :id"),
+                    {"id": ids[f"entry_{label}"]},
+                ).scalar_one()
+                for label in _SEED_ENTRIES
+            }
+    finally:
+        engine.dispose()
+
+
+def _fresh_db_at(alembic_env: dict[str, str], revision: str) -> None:
+    _drop_target_db(alembic_env)
+    create = _run(
+        ["uv", "run", "-m", "scripts.manage_db", "--action", "create"], alembic_env
+    )
+    assert create.returncode == 0, create.stderr
+    pre = _run(["uv", "run", "alembic", "upgrade", revision], alembic_env)
+    assert pre.returncode == 0, (
+        f"upgrade to {revision} failed:\n{pre.stdout}\n{pre.stderr}"
+    )
+
+
+def _upgrade_head(alembic_env: dict[str, str]) -> None:
+    migrate = _run(["uv", "run", "alembic", "upgrade", "head"], alembic_env)
+    assert migrate.returncode == 0, (
+        f"upgrade to head failed:\n{migrate.stdout}\n{migrate.stderr}"
+    )
+
+
+def _rerun_from(alembic_env: dict[str, str], revision: str) -> None:
+    """Downgrade (a documented no-op) then upgrade again: the second pass
+    must see already-normalized rows and change nothing.
+    """
+    down = _run(["uv", "run", "alembic", "downgrade", revision], alembic_env)
+    assert down.returncode == 0, f"downgrade to {revision} failed:\n{down.stderr}"
+    _upgrade_head(alembic_env)
+
+
+def test_1489_factor_classifications_normalized_and_duplicates_merged(
+    alembic_env: dict[str, str],
+) -> None:
+    """#1489: old factor rows come out canonical, collisions merge into the
+    lowest id, and the emissions that pointed at the loser are repointed
+    (the FK cascades, so a delete without repointing would drop them).
+    """
+    _fresh_db_at(alembic_env, _PRE_1489_REVISION)
+    db_url = alembic_env["DB_URL"]
+    ids = _seed_1489_fixture(db_url)
+
+    _upgrade_head(alembic_env)
+
+    def _check() -> None:
+        factors = _read_factors(db_url)
+        assert ids["factor_canonical"] not in factors, "duplicate must be deleted"
+        assert factors[ids["factor_noisy"]] == {
+            "purchase_institutional_code": "51100000",
+            "purchase_additional_code": None,
+            "currency": "chf",
+        }
+        assert factors[ids["factor_train_fr"]] == {"country_code": "FR"}
+        assert factors[ids["factor_train_row"]] == {"country_code": "RoW"}
+        assert _read_emission_factor_ids(db_url, ids) == [
+            ids["factor_noisy"],
+            ids["factor_noisy"],
+        ], "both emissions must survive and point at the kept factor"
+
+    _check()
+    _rerun_from(alembic_env, _PRE_1489_REVISION)
+    _check()
+
+
+def test_2592_entry_data_join_keys_normalized_in_place(
+    alembic_env: dict[str, str],
+) -> None:
+    """#2592: entry payloads get the DTO form on the join keys only; other
+    keys, non-string values and unmapped entry types stay byte-equal.
+    """
+    _fresh_db_at(alembic_env, _FACTOR_NORMALIZE_REVISION)
+    db_url = alembic_env["DB_URL"]
+    ids = _seed_1489_fixture(db_url)
+
+    _upgrade_head(alembic_env)
+
+    assert _read_entries(db_url, ids) == _EXPECTED_ENTRIES
+    _rerun_from(alembic_env, _FACTOR_NORMALIZE_REVISION)
+    assert _read_entries(db_url, ids) == _EXPECTED_ENTRIES

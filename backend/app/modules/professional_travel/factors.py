@@ -1,6 +1,9 @@
+from collections.abc import Iterable
+
 from pydantic import ValidationInfo, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.factor import Factor
 from app.modules.emissions import EmissionType
 from app.modules.professional_travel.emissions import PLANE_CABIN_MAP
 from app.schemas.factor import (
@@ -11,6 +14,11 @@ from app.schemas.factor import (
 )
 from app.schemas.fields import ROW_COUNTRY_CODE, ClassificationKey, CountryCode
 
+# Closed vocabulary (#2588): the haul categories the shipped plane factor CSV
+# carries. ``get_haul_category`` picks one by distance band, so a category
+# outside this list is a band no trip can ever fall into.
+PLANE_HAUL_CATEGORIES: list[str] = ["short_to_medium_haul", "medium_to_long_haul"]
+
 
 def _validate_non_negative_float(v: float | None, field_name: str) -> float | None:
     if v is None:
@@ -18,6 +26,36 @@ def _validate_non_negative_float(v: float | None, field_name: str) -> float | No
     if v < 0:
         raise ValueError(f"{field_name} must be non-negative")
     return v
+
+
+def check_plane_distance_bands(factors: Iterable[Factor]) -> None:
+    """Reject plane factors whose ``[min, max)`` bands overlap within a cabin class.
+
+    ``get_haul_category`` returns the first band a distance falls into, so two
+    overlapping bands would make the resolved factor depend on row order.
+    Raises ``ValueError`` naming the two categories that collide (#2588).
+    """
+    bands_by_cabin: dict[str, list[tuple[float, float, str]]] = {}
+    for factor in factors:
+        classification = factor.classification or {}
+        values = factor.values or {}
+        bands_by_cabin.setdefault(str(classification.get("cabin_class")), []).append(
+            (
+                float(values["min_distance"]),
+                float(values["max_distance"]),
+                str(classification.get("category")),
+            )
+        )
+    for cabin_class, bands in bands_by_cabin.items():
+        bands.sort()
+        for (_, prev_max, prev_cat), (cur_min, _, cur_cat) in zip(
+            bands, bands[1:], strict=False
+        ):
+            if cur_min < prev_max:
+                raise ValueError(
+                    f"Plane factor distance bands overlap for cabin class "
+                    f"'{cabin_class}': '{prev_cat}' and '{cur_cat}'"
+                )
 
 
 class TravelPlaneBase:
@@ -55,6 +93,24 @@ class _TravelPlaneBaseValidationMixin:
             raise ValueError("Invalid cabin class")
         return normalized
 
+    @field_validator("category", mode="after")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        normalized = v.lower()
+        if normalized not in PLANE_HAUL_CATEGORIES:
+            raise ValueError(
+                f"category must be one of: {', '.join(PLANE_HAUL_CATEGORIES)}"
+            )
+        return normalized
+
+    @field_validator("max_distance", mode="after")
+    @classmethod
+    def validate_distance_band(cls, v: float, info: ValidationInfo) -> float:
+        # min_distance is declared first, so it is already validated here.
+        if v <= info.data["min_distance"]:
+            raise ValueError("max_distance must be greater than min_distance")
+        return v
+
 
 class TravelPlaneFactorResponse(
     FactorResponseGen, TravelPlaneBase, _TravelPlaneBaseValidationMixin
@@ -90,6 +146,9 @@ class TravelPlaneFactorHandler(BaseFactorHandler):
     create_dto = TravelPlaneFactorCreate
     update_dto = TravelPlaneFactorUpdate
     response_dto = TravelPlaneFactorResponse
+
+    def validate_year_factors(self, factors: list[Factor]) -> None:
+        check_plane_distance_bands(factors)
 
 
 class TravelTrainBase:
