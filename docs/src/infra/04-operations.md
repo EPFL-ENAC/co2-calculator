@@ -156,9 +156,11 @@ GlitchTip; the others are vendor or data-source issues.
 
 - **Bad deploy**: revert the GitOps commit. ArgoCD reconciles within
   minutes.
-- **Database**: nightly dump on the `db-dumps` PVC, restore procedure and
-  tools pod in the private ops README; point-in-time recovery is a
-  `SI_POSTGRESQL` ticket.
+- **Database**: nightly dump on the `db-dumps` PVC. Restore: the
+  [step-by-step runbook and one-shot script](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/README.md#database-dump-and-restore)
+  in the private ops README (exercised for real on 2026-09-08, see
+  [the post-mortem](07-postmortem-prod-db-dropped.md)); point-in-time
+  recovery is a `SI_POSTGRESQL` ticket.
 - **Files**: not recoverable, by decision. Ask the user to re-upload.
 - **Anything larger**: the Disaster Recovery Plan, linked at the top.
 

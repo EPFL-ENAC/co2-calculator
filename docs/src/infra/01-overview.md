@@ -91,8 +91,10 @@ Trim the Infisical folder, not this page.
 
 - **Database**: the nightly dump above, plus DSI's own backups and
   point-in-time recovery under the
-  [EPFL PostgreSQL SLA](https://go.epfl.ch/SVC1757). Restore procedure and
-  the tools pod are in the private ops README.
+  [EPFL PostgreSQL SLA](https://go.epfl.ch/SVC1757). Restore procedure,
+  one-shot script and tools pod:
+  [private ops README](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/README.md#database-dump-and-restore).
+  Last real restore: [2026-09-08 post-mortem](07-postmortem-prod-db-dropped.md).
 - **Files**: S3 buckets are not versioned, by decision
   ([Recovery objectives](../architecture/security-documentation.md#recovery-objectives)).
   A lost CSV is re-uploaded.

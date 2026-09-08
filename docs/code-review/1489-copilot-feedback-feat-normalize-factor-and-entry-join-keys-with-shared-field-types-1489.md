@@ -204,6 +204,8 @@ This statement has no effect.
 
 ### Performance
 
+> Superseded the same day: both data migrations were removed on the lead's decision (see plan 1489). The chunked read lives on in `scripts/normalize_join_keys.py`.
+
 - [x] **backend/alembic/versions/2026_09_08_1029-cf237968fba7_normalize_entry_data_join_keys.py** — the entry-data migration read the whole `data_entries` table with one `fetchall()`; a year of purchases is 150k rows per unit upload, so the migration Job's memory would scale with the table. Fix: keyset pagination (`id > :after_id ORDER BY id LIMIT 5000`), rewrite per chunk. Done in this branch. The same remark on the factor migration (`09fe9e551783`) is dropped: it needs every row in memory to group duplicates, and `factors` is bounded by the shipped CSVs (about 20k rows per year).
 
 ### Dropped after verification

@@ -5,12 +5,35 @@ from sqlalchemy.engine.url import make_url
 
 from app.core.config import get_settings
 
+LOCAL_HOSTS = frozenset({None, "", "localhost", "127.0.0.1", "::1", "db"})
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Manage database (drop/create)")
     parser.add_argument("--action", choices=["drop", "create"], required=True)
     parser.add_argument("--db-name", type=str, default=None)
+    parser.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="act on a database host that is not local (dev/stage/prod DBaaS)",
+    )
     return parser.parse_args()
+
+
+def refuse_remote_host(db_url: str, allow_remote: bool) -> None:
+    """Refuse to drop or create on a shared server unless asked in so many words.
+
+    ``backend/.env`` wins over environment variables (settings source order),
+    so a test or a make target that believes it targets localhost acts on
+    whatever ``.env`` names. That is how prod was dropped on 2026-09-08.
+    """
+    host = make_url(db_url).host
+    if host in LOCAL_HOSTS or allow_remote:
+        return
+    raise SystemExit(
+        f"refusing: DB_URL points at {host!r}, not a local host. "
+        "Check backend/.env; pass --allow-remote if you really mean it."
+    )
 
 
 settings = get_settings()
@@ -80,6 +103,7 @@ def create_db(db_name):
 
 if __name__ == "__main__":
     args = parse_args()
+    refuse_remote_host(settings.DB_URL, args.allow_remote)
     db_name = args.db_name or default_db_name
     if args.action == "drop":
         drop_db(db_name)

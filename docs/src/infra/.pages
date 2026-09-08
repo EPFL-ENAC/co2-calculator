@@ -6,3 +6,4 @@ nav:
   - 01-overview.md
   - 03-observability-slo.md
   - 02-postmortem-oauth-http-redirect.md
+  - 07-postmortem-prod-db-dropped.md

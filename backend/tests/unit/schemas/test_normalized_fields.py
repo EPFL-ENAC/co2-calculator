@@ -7,9 +7,6 @@ value (not the raw one), and the data migration must rewrite existing factor
 rows to the very same form. Each of those three legs gets pinned here.
 """
 
-import importlib.util
-from pathlib import Path
-from types import ModuleType
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -31,6 +28,7 @@ from app.schemas.fields import (
     OptionalClassificationKey,
 )
 from app.services.factor_resolver import FactorResolver
+from scripts.normalize_join_keys import normalize_classification
 
 
 class _Aliases(BaseModel):
@@ -183,32 +181,15 @@ async def test_normalized_entry_data_resolves_canonical_factor():
     assert got is not None and got.id == 1
 
 
-# ===================== migration mirrors the DTO forms =======================
+# ============ the operator script mirrors the DTO forms (#1489, #2592) ========
 
 
-def _load_migration() -> ModuleType:
-    path = (
-        Path(__file__).parents[3]
-        / "alembic"
-        / "versions"
-        / "2026_09_08_1000-09fe9e551783_normalize_factor_classification_join_.py"
-    )
-    spec = importlib.util.spec_from_file_location("migration_09fe9e551783", path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Cannot load migration module at {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def test_migration_normalization_matches_dto_normalization():
-    """The migration must land existing rows on the exact DTO canonical form.
-
-    Any divergence recreates the bug the migration fixes: a factor identity
-    the normalized DTOs can never produce again.
+def test_script_factor_normalization_matches_dto_normalization():
+    """``scripts/normalize_join_keys.py`` must land old factor rows on the exact
+    DTO canonical form, or it recreates the identity the DTOs can never produce
+    again.
     """
-    migration = _load_migration()
-    got = migration.normalize_classification(
+    got = normalize_classification(
         {
             "currency": " CHF ",
             "cabin_class": "Economy",
@@ -230,13 +211,8 @@ def test_migration_normalization_matches_dto_normalization():
     }
 
 
-def test_migration_keeps_row_sentinel_and_non_strings():
-    migration = _load_migration()
-    got = migration.normalize_classification(
+def test_script_keeps_row_sentinel_and_non_strings():
+    got = normalize_classification(
         {"country_code": "row", "year_like": 3, "absent": None}
     )
-    assert got == {
-        "country_code": ROW_COUNTRY_CODE,
-        "year_like": 3,
-        "absent": None,
-    }
+    assert got == {"country_code": ROW_COUNTRY_CODE, "year_like": 3, "absent": None}

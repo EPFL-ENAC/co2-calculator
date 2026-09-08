@@ -118,15 +118,25 @@ uv run python -m scripts.manage_db --action create [--db-name NAME]
 uv run python -m scripts.manage_db --action drop [--db-name NAME]
 ```
 
-## audit_entry_data_normalization.py
+## normalize_join_keys.py
 
-Read-only preview of what migration `cf237968fba7` (#2592) rewrites in
-`data_entries.data`: rows to change per entry type and key, how many of them
-are validated, and values that would still fail a vocabulary check after
-normalization (those need a manual decision). Imports the rules from the
-migration file itself. Run it on each platform before `make db-migrate` and
-paste the output on the issue.
+Audit of the rows written before #1489 normalized factor-resolution join keys
+on write (casing, whitespace, `1.0`-style ids). Read only by default: it
+prints, per table, how many rows differ from the DTO form, which keys, how many
+of those entries are validated, which factor identities would collide after
+normalization, and which values would still fail a vocabulary check. Run it
+on each platform after a deploy that changes the shared field types, and paste
+the output on the issue.
+
+There is deliberately no Alembic migration for this: on prod and stage
+(2026-09-08) no factor needed a change and the only entry differences were
+surrounding spaces on `name`, which no lookup uses. `--apply` rewrites the
+reported rows in place, by hand, after you have read the dry run. It refuses
+to write when two factors would collide (merge by hand, emissions point at
+them) or when a value needs a manual decision. The rules are pinned to the
+live DTOs by `tests/unit/schemas/test_join_key_normalization_rules.py`.
 
 ```bash
-uv run python -m scripts.audit_entry_data_normalization
+uv run python -m scripts.normalize_join_keys           # dry run
+uv run python -m scripts.normalize_join_keys --apply   # rewrite the reported rows
 ```

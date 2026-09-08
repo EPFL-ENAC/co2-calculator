@@ -1,15 +1,11 @@
-"""Migration cf237968fba7 (#2592) mirrors the entry DTO normalization.
+"""``scripts/normalize_join_keys.py`` mirrors the entry DTO normalization.
 
-The migration carries its own copies of the key map and the value rules
-(a migration must not import app code that can change under it). These
-tests pin both copies to the live ``*HandlerCreate`` DTOs and the shared
-field types so the two sides cannot drift: a new normalized key on a DTO
-without a matching migration entry fails here.
+The script carries its own copies of the key map and the value rules. These
+tests pin both to the live ``*HandlerCreate`` DTOs and the shared field types
+so the two sides cannot drift: a new normalized key on a DTO without a
+matching script entry fails here.
 """
 
-import importlib.util
-from pathlib import Path
-from types import ModuleType
 from typing import Annotated, get_args, get_origin
 
 import pytest
@@ -25,26 +21,12 @@ from app.schemas.fields import (
     IdentifierKey,
     OptionalClassificationKey,
 )
-
-_MIGRATION_FILE = "2026_09_08_1029-cf237968fba7_normalize_entry_data_join_keys.py"
-
-
-def _load_migration() -> ModuleType:
-    path = Path(__file__).parents[3] / "alembic" / "versions" / _MIGRATION_FILE
-    spec = importlib.util.spec_from_file_location("migration_cf237968fba7", path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Cannot load migration module at {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-migration = _load_migration()
+from scripts import normalize_join_keys as script
 
 _RULE_BY_VALIDATOR = {
-    "_normalize_country_code": migration.COUNTRY,
-    "_coerce_numeric_identifier": migration.IDENTIFIER,
-    "_blank_to_none": migration.BLANK_TO_NONE,
+    "_normalize_country_code": script.COUNTRY,
+    "_coerce_numeric_identifier": script.IDENTIFIER,
+    "_blank_to_none": script.BLANK_TO_NONE,
 }
 
 
@@ -64,9 +46,9 @@ def _rule_for(field: FieldInfo) -> str | None:
             return _RULE_BY_VALIDATOR[item.func.__name__]
     for item in metadata:
         if isinstance(item, StringConstraints) and item.to_lower:
-            return migration.LOWER
+            return script.LOWER
         if isinstance(item, StringConstraints) and item.strip_whitespace:
-            return migration.STRIP
+            return script.STRIP
     return None
 
 
@@ -85,16 +67,15 @@ def _rules_from_dtos() -> dict[int, dict[str, str]]:
         }
         # cabin_class is normalized by the travel mixins, not a shared alias
         if "cabin_class" in dto.model_fields:
-            rules["cabin_class"] = migration.LOWER
+            rules["cabin_class"] = script.LOWER
         if rules:
             rules_by_det[det.value] = rules
     return rules_by_det
 
 
-def test_migration_key_map_matches_entry_dtos() -> None:
-    expected = _rules_from_dtos()
-    assert migration.RULES_BY_DATA_ENTRY_TYPE == expected, (
-        "add the new normalized key to RULES_BY_DATA_ENTRY_TYPE in the migration"
+def test_script_key_map_matches_entry_dtos() -> None:
+    assert script.RULES_BY_DATA_ENTRY_TYPE == _rules_from_dtos(), (
+        "add the new normalized key to RULES_BY_DATA_ENTRY_TYPE in the script"
     )
 
 
@@ -129,9 +110,9 @@ class _Aliases(BaseModel):
         ("blank_to_none", None),
     ],
 )
-def test_migration_value_rules_match_shared_types(rule: str, raw: object) -> None:
+def test_script_value_rules_match_shared_types(rule: str, raw: object) -> None:
     via_dto = getattr(_Aliases.model_validate({rule: raw}), rule)
-    assert migration.normalize_value(rule, raw) == via_dto
+    assert script.normalize_value(rule, raw) == via_dto
 
 
 def test_normalize_entry_data_touches_only_mapped_string_keys() -> None:
@@ -144,7 +125,7 @@ def test_normalize_entry_data_touches_only_mapped_string_keys() -> None:
         "note": "  keep me  ",
         "supplier": " ACME ",
     }
-    normalized = migration.normalize_entry_data(det, data)
+    normalized = script.normalize_entry_data(det, data)
     assert normalized == {
         "name": "Pipette",
         "currency": "chf",
@@ -153,10 +134,10 @@ def test_normalize_entry_data_touches_only_mapped_string_keys() -> None:
         "note": "  keep me  ",
         "supplier": " ACME ",
     }
-    assert migration.normalize_entry_data(det, normalized) == normalized
+    assert script.normalize_entry_data(det, normalized) == normalized
     assert set(normalized) == set(data), "keys are never added or dropped"
 
 
 def test_normalize_entry_data_leaves_unmapped_types_alone() -> None:
     data = {"name": " X ", "sius_code": " 51 "}
-    assert migration.normalize_entry_data(DataEntryTypeEnum.member.value, data) == data
+    assert script.normalize_entry_data(DataEntryTypeEnum.member.value, data) == data

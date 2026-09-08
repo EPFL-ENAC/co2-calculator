@@ -3,7 +3,7 @@ status: delivered
 issue: 1489
 last_updated: 2026-09-08
 title: "Factor/entry join-key normalization"
-summary: "Shared pydantic field types normalize every factor-resolution join key symmetrically on both DTO families (strip, lowered currency/cabin class, uppered country codes with the RoW sentinel kept, spreadsheet numeric ids coerced, blank optional keys to None). A data migration rewrites existing factor classifications to the same canonical form and merges the duplicates that fall out, repointing emissions first."
+summary: "Shared pydantic field types normalize every factor-resolution join key symmetrically on both DTO families (strip, lowered currency/cabin class, uppered country codes with the RoW sentinel kept, spreadsheet numeric ids coerced, blank optional keys to None). Pre-existing rows are audited by an operator script instead of rewritten by a migration: on prod and stage nothing a lookup uses differed."
 ---
 
 # 1489: Factor/entry join-key normalization
@@ -59,26 +59,36 @@ discarded the validated DTO output:
    for every classification field, so the canonical form is what lands in
    the upsert identity.
 
-## Data migration
+## Pre-existing rows: an audited operator script, no migration
 
-`backend/alembic/versions/2026_09_08_1000-09fe9e551783_...py` rewrites
-existing `factors.classification` values to the same canonical form, then
-merges rows whose identity collides after normalization: lowest id wins,
-`data_entry_emissions.primary_factor_id` is repointed BEFORE the duplicates
-are deleted (the FK is `ondelete=CASCADE`, an unpointed delete would silently
-drop emission rows). Downgrade is a no-op: the old casing is gone by design.
+The plan on the issue asked for an Alembic data migration that rewrites
+`factors.classification` and merges the duplicates. It was written, then
+removed on the lead's decision (2026-09-08) once the dry run against prod and
+stage showed it was not needed:
 
-Entry data (`data_entries.data`) gets the same treatment in the follow-up
-migration `cf237968fba7`, see plan 2592 (shipped in the same PR after the
-lead approved it on 2026-09-08). With both in place the compute handlers no
-longer re-lower entry currency: the stored value is the canonical one.
+| Platform | Factors scanned | Factors to change | Colliding identities | Entries scanned | Entries to change |
+| -------- | --------------: | ----------------: | -------------------: | --------------: | ----------------: |
+| stage    |          18,944 |                 0 |                    0 |         249,496 |             2,147 |
+| prod     |          18,944 |                 0 |                    0 |         249,484 |             2,147 |
 
-The migration was re-parented onto `095d98bc390c` when the PR was rebuilt on
-`dev` (2026-09-08), so the chain is linear: `095d98bc390c` → `09fe9e551783`
-→ `cf237968fba7`.
+The 2,147 entries are purchase and equipment rows whose `name` carries a
+surrounding space. `name` is not a join key for either type (purchases resolve
+on the institutional code, equipment on class and sub-class), so no total
+moves either way. The dev platform database is empty.
 
-A unit test pins the migration's normalization function to the DTO aliases,
-so the two cannot drift silently.
+What ships instead is `backend/scripts/normalize_join_keys.py`: dry run by
+default, `--apply` to rewrite the reported rows by hand, refusal when factor
+identities would collide or a value needs a manual decision. The rules are
+copies of the DTO aliases, pinned by
+`tests/unit/schemas/test_join_key_normalization_rules.py` and
+`test_normalized_fields.py`, and exercised against Postgres in
+`tests/integration/services/data_ingestion/test_normalize_join_keys_script_pg.py`.
+A rewrite hidden in a deploy was exactly what the lead did not want on a
+database that goes live on 2026-09-22.
+
+With both DTO families normalizing on write, the compute handlers no longer
+re-lower entry currency: the stored value is the canonical one, and the audit
+proves the old rows already are.
 
 ## Closed vocabularies from the #1489 audit (#2588, #2587)
 
@@ -124,7 +134,7 @@ Bundled into the same PR on the lead's decision (2026-09-08):
 - `tests/unit/schemas/test_normalized_fields.py`: canonical forms per alias,
   RoW sentinel, whitespace rejection, normalized-value-reaches-`data`
   regressions, an end-to-end FactorResolver match from a noisy payload, and
-  the migration/DTO symmetry pin.
+  the script/DTO symmetry pin.
 - `tests/unit/services/data_ingestion/test_factor_csv_normalized_identity.py`:
   re-importing the same purchase factor row with `CHF`/whitespace noise
   produces the identical classification identity.
@@ -137,11 +147,10 @@ Bundled into the same PR on the lead's decision (2026-09-08):
   `test_professional_travel_schemas.py`,
   `test_base_factor_csv_provider.py`: the vocabularies, the band check and
   its wiring.
-- `tests/integration/test_alembic_migrations.py`
-  (`test_1489_factor_classifications_normalized_and_duplicates_merged`):
-  real Postgres, old-style factor rows plus two emissions, upgrade, assert
-  canonical form, merge into the lowest id, emissions repointed, and a
-  downgrade + re-upgrade changes nothing.
+- `tests/integration/services/data_ingestion/test_normalize_join_keys_script_pg.py`:
+  old-style factor and entry rows on real Postgres, the audit reports exactly
+  them, `--apply` rewrites them into the DTO form and a second audit finds
+  nothing; colliding factor identities make `apply` refuse and write nothing.
 - `tests/integration/services/data_ingestion/test_normalized_entry_pipeline_pg.py`:
   a noisy CSV row (`PIC-IT`, `EUR`, `1.0`) through the real ingest chain
   stores normalized `data`, resolves the canonical factor and computes the
@@ -156,8 +165,8 @@ Bundled into the same PR on the lead's decision (2026-09-08):
 ## Deviations from the plan on the issue
 
 - The defensive `.lower()` in the purchase and external-cloud compute
-  handlers is gone, as the plan asked, but only because the entry-data
-  migration (plan 2592) ships in the same PR.
+  handlers is gone, as the plan asked: the audit against prod and stage shows
+  no entry carries a non-canonical currency (plan 2592).
 - Added the two choke-point fixes above (data sync validator, provider
   classification from DTO); without them the typed aliases are cosmetic.
 - `researchfacility_name` also got `IdentifierKey`, not just
@@ -167,5 +176,5 @@ Bundled into the same PR on the lead's decision (2026-09-08):
 ## Decisions (lead, 2026-09-08)
 
 - Target branch stays `dev`.
-- No recompute after the factor merge migration: emission rows are
-  repointed, numbers move at the next natural recompute.
+- No data migration and no recompute: the operator script audits, and
+  rewrites only by hand; numbers move at the next natural recompute.

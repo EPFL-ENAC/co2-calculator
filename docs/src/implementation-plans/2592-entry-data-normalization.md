@@ -2,12 +2,13 @@
 issue: 2592
 status: delivered
 last_updated: 2026-09-08
-title: "Normalize pre-existing entry data payloads (audited migration pass)"
+title: "Normalize pre-existing entry data payloads (audited operator pass)"
 summary:
   "Plan for #2592: put the join keys stored in data_entries.data in the same
-  format as the shared field types from #2585, with a read-only audit script
-  and an idempotent migration. Touches validated emission data; approved by
-  the lead on 2026-09-08 and shipped in PR #2585 alongside the factor pass."
+  format as the shared field types from #2585. Audited on prod and stage:
+  nothing a factor lookup uses differs, so no migration ships; an operator
+  script (dry run, explicit --apply) replaces it. Decided 2026-09-08 in PR
+  #2585."
 ---
 
 # Normalize pre-existing entry data payloads (#2592)
@@ -15,11 +16,10 @@ summary:
 ## Why
 
 PR #2585 (issue #1489) normalizes the factor side: shared field types in
-`app/schemas/fields.py`, applied on every DTO, plus a migration that puts
-`factors.classification` in the same format and merges the duplicates. It
-does not touch `data_entries.data` on purpose: that is validated emission
-data, and the guardrails require a written plan reviewed by both
-maintainers before migrating it.
+`app/schemas/fields.py`, applied on every DTO. Rows written before that
+(factors and entries) may still hold the old format; touching them is
+validated emission data, so the guardrails require a written plan reviewed
+by both maintainers.
 
 So today, after #2585, new entries are stored normalized but old entries
 keep whatever format they were created with (currency `CHF`, padded codes,
@@ -30,17 +30,21 @@ even though the matching factor exists. The compute handlers for purchase
 and external cloud carry a defensive `.lower()` to paper over the currency
 case; that code can only be deleted once entry data is guaranteed clean.
 
-Shipped in PR #2585 itself (the lead folded the audit PRs into one on
-2026-09-08), as migration `cf237968fba7`, right after the factor migration
-`09fe9e551783`.
+**Outcome (lead, 2026-09-08): no migration.** The dry run against prod and
+stage found 2,147 entries to rewrite, all purchase and equipment `name` values
+with a surrounding space, none validated, no join key among them, and no
+factor to change at all. So the pass is not mandatory and nothing rewrites
+data at deploy time. `backend/scripts/normalize_join_keys.py` carries the
+rules (pinned to the DTOs), prints the audit, and rewrites by hand with
+`--apply` if the whitespace is ever worth tidying.
 
 ## Keys in scope
 
 Exactly the keys the `*HandlerCreate` DTOs type with a shared alias (or the
-cabin-class mixin), per data entry type. The migration carries the map
-(`RULES_BY_DATA_ENTRY_TYPE`) and `tests/unit/schemas/test_entry_data_migration.py`
+cabin-class mixin), per data entry type. The script carries the map
+(`RULES_BY_DATA_ENTRY_TYPE`) and `tests/unit/schemas/test_join_key_normalization_rules.py`
 derives the expected map from the live DTO annotations, so adding a
-normalized field to a DTO without a migration entry fails the test.
+normalized field to a DTO without a script entry fails the test.
 
 | Rule            | Same as                     | Keys                                                                                                                                                |
 | --------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -57,42 +61,32 @@ key and is not in entry data.
 
 ## Step 1: read-only audit (no writes)
 
-`uv run python -m scripts.audit_entry_data_normalization` counts, per data
-entry type and key, how many `data_entries` rows the migration would rewrite
+`uv run python -m scripts.normalize_join_keys` counts, per data
+entry type and key, how many `data_entries` rows differ from the DTO form
 and how many of those are validated, and lists values that would still fail
 the vocabulary checks after normalization (an unsupported currency, an
-unknown cabin class, a malformed country code) for a manual decision. It
-imports the rules from the migration file, so it reports exactly what the
-migration does. Run it on each platform before `make db-migrate` and paste
-the output on #2592.
+unknown cabin class, a malformed country code) for a manual decision. The
+same script does the factor side (rows to change, identities that would
+collide). Run it on each platform after a deploy that touches the shared
+field types and paste the output on #2592.
 
-## Step 2: migration
+## Step 2: rewrite by hand, only if wanted
 
-One Alembic migration, `cf237968fba7`, same shape as `09fe9e551783`:
+`uv run python -m scripts.normalize_join_keys --apply` rewrites the rows the
+dry run listed, in place, in one transaction. It refuses when two factors
+would collide after normalization (merge by hand first, emissions point at
+them) or when a value needs a manual decision. Nothing is merged, deleted or
+added; a second run finds nothing. Pinned to the DTOs by
+`tests/unit/schemas/test_join_key_normalization_rules.py`, exercised on real
+Postgres by `test_normalize_join_keys_script_pg.py`.
 
-- Iterate the entries whose `data` contains at least one in-scope key.
-- Apply the same normalization functions. The migration file carries its
-  own copies, and `tests/unit/schemas/test_entry_data_migration.py` pins
-  both the value rules and the key map to the live DTOs.
-- `tests/integration/test_alembic_migrations.py`
-  (`test_2592_entry_data_join_keys_normalized_in_place`) runs it on real
-  Postgres over seeded old-style rows: join keys come out canonical, other
-  keys and unmapped entry types stay byte-equal, and a downgrade +
-  re-upgrade changes nothing.
-- Update only rows whose normalized `data` differs. Re-running the
-  migration is a no-op (idempotent, per the pipeline guardrail).
-- Unlike the factor migration there is nothing to merge or delete: entry
-  rows are never deduplicated, only their `data` values change.
-- Downgrade is a documented no-op (the old formats are noise, not
-  information).
-
-In the same PR: delete the defensive `.lower()` in the purchase and
-external cloud compute handlers (they are marked with a comment pointing
-to #2592).
+The defensive `.lower()` in the purchase and external cloud compute handlers
+is deleted in the same PR: the audit shows no entry carries a non-canonical
+currency.
 
 ## Step 3: recompute
 
-Lead decision (2026-09-08): **no recompute is triggered by this migration.**
+Lead decision (2026-09-08): **no recompute is triggered by this pass.**
 Entries that silently resolved no factor start matching at the next natural
 recompute (a factor re-upload or an entry edit on the report). The audit
 output on #2592 tells the data manager which reports that concerns before
@@ -115,7 +109,7 @@ it happens.
   the vocabulary check would reject, for example `XTS`). The audit script
   reports these instead of migrating them blindly; they get a manual
   decision each.
-- **Drift between migration and DTO types.** Pinned by the shared unit
+- **Drift between the script and the DTO types.** Pinned by the shared unit
   test pattern from #2585.
 
 ## Out of scope
