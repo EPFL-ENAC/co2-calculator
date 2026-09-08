@@ -1,9 +1,0 @@
-title: Infrastructure & Operations
-nav:
-  - 04-operations.md
-  - 05-tools-and-access.md
-  - 06-debugging-with-traces.md
-  - 01-overview.md
-  - 03-observability-slo.md
-  - 02-postmortem-oauth-http-redirect.md
-  - 07-postmortem-prod-db-dropped.md
