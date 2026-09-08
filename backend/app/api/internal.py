@@ -1,26 +1,11 @@
 """Intra-cluster-only endpoints (#2258 follow-up).
 
-Mounted directly on the app in ``app.main`` — not under
-``settings.API_VERSION`` and never referenced by ``helm/templates/routes.yaml``
-(which only proxies ``/api``, ``/docs`` and ``/``), the same trust boundary
-the root-level ``/healthz`` / ``/ready`` endpoints already rely on.
-
-That boundary alone isn't quite airtight here: an OpenShift ``Route``
-``path`` match is a *prefix* match, so a public request to
-``/api/internal/...`` would still be rewritten to ``/internal/...`` and
-reach this router — fine for an idempotent health read, not fine for an
-endpoint that clears the taxonomy cache (repeatedly hitting it would
-reopen the 2s cold-cache tree-build cost the cache exists to avoid).
-
-So every route here authenticates its caller twice, in this order:
-
-1. **A shared secret header** (``app.core.internal_auth``) — the primary
-   gate, and the only one a caller cannot influence.
-2. **Source IP is a currently-live pod** from the ``pods`` heartbeat
-   table — kept as a second factor, not relied on alone. #2530 found why:
-   the deployed ``FORWARDED_ALLOW_IPS`` trusts the entire pod overlay
-   subnet, so any in-cluster workload can set ``scope["client"]`` to a pod
-   address with one header. See ``app.core.internal_auth``.
+Mounted directly on ``app.main``, outside ``settings.API_VERSION`` and never
+proxied by the Route (``helm/templates/routes.yaml`` only proxies ``/api``,
+``/docs`` and ``/``) — same trust boundary as ``/healthz``/``/ready``. Not
+airtight alone (a Route ``path`` match is a *prefix* match), so every route
+here also authenticates: shared secret (``app.core.internal_auth``) first,
+then a live-pod IP check as a second factor. See the #2530 plan for why both.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status

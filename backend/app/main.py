@@ -60,21 +60,11 @@ def assert_security_settings(settings) -> None:
 def assert_proxy_trust_settings() -> None:
     """Fail closed at boot when uvicorn is told to trust every proxy (#2530).
 
-    ``FORWARDED_ALLOW_IPS`` is uvicorn's own environment variable, not a
-    ``Settings`` field — putting it in ``Settings`` would let someone set it in
-    ``backend/.env``, which pydantic reads and the uvicorn process never sees.
-
-    Two spellings of "trust everything" are rejected, because uvicorn reaches
-    the same forgeable result by two different code paths
-    (``uvicorn/middleware/proxy_headers.py``):
-
-    - ``*`` sets ``always_trust``, and ``get_trusted_client_address`` returns
-      the *first*, client-chosen element without walking the chain at all.
-    - a ``/0`` network trusts every address instead, so the reverse walk finds
-      no untrusted hop and falls through to the same leftmost element.
-
-    Either way every audit IP and every IP-keyed decision becomes
-    attacker-supplied — exactly the forgery #2530 removed.
+    ``FORWARDED_ALLOW_IPS`` is uvicorn's own env var, not a ``Settings`` field
+    (``backend/.env`` is never read by the uvicorn process). Rejects both
+    ``*`` and any ``/0`` network — uvicorn reaches the same forgeable
+    leftmost-XFF-entry result by two different code paths in
+    ``uvicorn/middleware/proxy_headers.py``. See the #2530 plan for detail.
     """
     raw = os.environ.get("FORWARDED_ALLOW_IPS", "").strip()
     if not raw:

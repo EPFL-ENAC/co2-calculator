@@ -1,21 +1,9 @@
 """Shared secret authenticating the intra-cluster ``/internal`` endpoints (#2530).
 
-Those endpoints used to be gated on the caller's source IP matching a live
-``pods`` row. That gate is only as strong as uvicorn's proxy-header trust, and
-the deployed value of ``FORWARDED_ALLOW_IPS`` is ``10.20.0.0/16,10.98.42.0/24``
-in dev, stage and prod — ``10.20.0.0/16`` being the cluster's whole pod overlay
-subnet. uvicorn's ``proxy_headers`` defaults to *True*, so any workload whose
-own address falls in that range is treated as a trusted proxy: its
-``X-Forwarded-For`` is honoured, ``scope["client"]`` becomes whatever it says,
-and the IP allowlist is satisfied by a header. This token is the part of the
-request a caller cannot choose.
-
-Derived from ``JWT_HMAC_KEY`` rather than provisioned as its own secret: every
-pod already has that key, so the gate is real the moment the image ships. A
-gate that only closes after someone remembers an ops action is a gate that
-ships open. HMAC-SHA256 is one-way, so the token cannot be walked back to the
-signing key it is derived from, and the label keeps the two signing domains
-separate.
+The old IP-allowlist gate was defeated by the cluster's own proxy-trust
+config — any pod can spoof another pod's IP. See the #2530 plan for the full
+story. This token is the part of the request a caller cannot choose, derived
+from ``JWT_HMAC_KEY`` (not its own secret) so the gate is real on first boot.
 """
 
 import hashlib
@@ -40,15 +28,10 @@ def internal_auth_token() -> str:
 def internal_auth_ok(presented: str | None) -> bool:
     """True when ``presented`` is this deployment's internal token.
 
-    Fails closed on a missing header and on an unset ``JWT_HMAC_KEY`` — an
-    empty key would otherwise derive a token anyone can compute. Outside local
-    dev the key is already required at boot (``assert_security_settings``).
-
-    Non-ASCII is rejected before the comparison: Starlette decodes headers as
-    latin-1, and ``compare_digest`` raises TypeError on a str holding a
-    codepoint above U+007F. Unhandled that turns an unauthenticated request on
-    a publicly reachable route into a 500 rather than a 403. The token is hex,
-    so no legitimate value is excluded.
+    Fails closed on a missing header or unset ``JWT_HMAC_KEY``. Non-ASCII is
+    rejected before comparing: Starlette decodes headers as latin-1, and
+    ``compare_digest`` raises TypeError above U+007F — unhandled, that turns
+    an unauthenticated request into a 500 instead of a 403.
     """
     if not presented or not presented.isascii():
         return False

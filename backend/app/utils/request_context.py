@@ -14,17 +14,11 @@ logger = get_logger(__name__)
 def extract_ip_address(request: Request) -> str:
     """Extract the client IP address the server actually saw.
 
-    Reads ``scope["client"]``, never ``X-Forwarded-For``. The OpenShift HAProxy
-    router *appends* to XFF (``set-forwarded-headers`` defaults to ``append``),
-    so the header's first element is whatever the client chose to send — an
-    audit trail keyed on it records an attacker-supplied string.
-
-    ``scope["client"]`` is what uvicorn resolved. Every deployed environment
-    sets ``FORWARDED_ALLOW_IPS`` (openshift-app-config, ``overlays/{env}``) and
-    uvicorn's ``proxy_headers`` defaults to True, so this is the end user's
-    address, walked in from the *right* of the proxy chain past each trusted
-    hop — never the client-supplied first element. ``GET /v1/session``
-    documents the same reasoning.
+    Reads ``scope["client"]`` only — never ``X-Forwarded-For``, which a client
+    controls (the router appends to it, so ``split(",")[0]`` was
+    attacker-supplied). ``scope["client"]`` is uvicorn's own resolution of the
+    trusted proxy chain; see the #2530 plan for why that's the real client IP
+    in this deployment. ``GET /v1/session`` documents the same reasoning.
 
     Args:
         request: FastAPI Request object
