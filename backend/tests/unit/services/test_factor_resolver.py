@@ -15,7 +15,7 @@ import pytest
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.schemas.data_entry import BaseModuleHandler
-from app.services.factor_resolver import FactorResolver
+from app.services.factor_resolver import FactorResolver, unresolved_reason
 
 
 def _factor(
@@ -369,3 +369,70 @@ async def test_kind_value_missing_short_circuits_without_bulk_load():
             got = await resolver.resolve(HANDLER, data, EQUIPMENT, 2025)
             assert got is None
     repo_mock.assert_not_awaited()
+
+
+# ===================== entry-time check: unresolved_reason (#2591) =============
+
+PROCESS = DataEntryTypeEnum.process_emissions
+PROCESS_HANDLER = BaseModuleHandler.get_by_type(PROCESS)
+ENERGY = DataEntryTypeEnum.energy_combustion
+ENERGY_HANDLER = BaseModuleHandler.get_by_type(ENERGY)
+
+_PROCESS_FACTORS = [
+    _factor(1, PROCESS, 2025, {"category": "HFCs", "subcategory": "R134a"}),
+    _factor(2, PROCESS, 2025, {"category": "HFCs", "subcategory": "R32"}),
+    _factor(3, PROCESS, 2025, {"category": "CO2", "subcategory": None}),
+]
+
+
+def test_subcategory_required_when_every_factor_of_the_category_has_one():
+    reason = unresolved_reason(PROCESS_HANDLER, {"category": "HFCs"}, _PROCESS_FACTORS)
+    assert (
+        reason == "subcategory is required for category='HFCs': one of ['R134a', 'R32']"
+    )
+
+
+def test_unknown_subcategory_named_with_the_accepted_ones():
+    reason = unresolved_reason(
+        PROCESS_HANDLER, {"category": "HFCs", "subcategory": "R999"}, _PROCESS_FACTORS
+    )
+    assert (
+        reason
+        == "Unknown subcategory='R999' for category='HFCs': one of ['R134a', 'R32']"
+    )
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"category": "HFCs", "subcategory": "R32"},
+        {"category": "CO2"},
+        {"category": "CO2", "subcategory": ""},
+        # unknown category stays a plain miss: not this check's job
+        {"category": "Unobtainium"},
+        {},
+    ],
+)
+def test_resolvable_or_out_of_scope_rows_pass(data: dict):
+    assert unresolved_reason(PROCESS_HANDLER, data, _PROCESS_FACTORS) is None
+
+
+def test_energy_combustion_unit_must_equal_the_factor_unit():
+    factors = [_factor(9, ENERGY, 2025, {"name": "pellets", "unit": "kg"})]
+    assert (
+        unresolved_reason(ENERGY_HANDLER, {"name": "pellets", "unit": "kWh"}, factors)
+        == "unit='kWh' does not match the factor's unit='kg' for name='pellets'"
+    )
+    assert (
+        unresolved_reason(ENERGY_HANDLER, {"name": "pellets", "unit": "kg"}, factors)
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_resolver_method_uses_the_year_set():
+    with _patch_factors(_PROCESS_FACTORS):
+        reason = await FactorResolver(session=AsyncMock()).unresolved_reason(
+            PROCESS_HANDLER, {"category": "HFCs"}, PROCESS, 2025
+        )
+    assert reason is not None and reason.startswith("subcategory is required")

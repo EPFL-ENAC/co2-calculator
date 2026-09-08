@@ -98,6 +98,18 @@ def _workflow_deps(existing_data: dict, source: int | None):
     return session, data_entry_service, emission_service, module_service
 
 
+@pytest.fixture(autouse=True)
+def _no_factor_year():
+    """The mocked reports carry no factor year, so the #2591 entry-time factor
+    check (which needs one) stays out of these permission scenarios.
+    """
+    with patch(
+        "app.workflows.carbon_report_module.resolve_factor_year_safe",
+        new=AsyncMock(return_value=None),
+    ):
+        yield
+
+
 def _patched(session, data_entry_service, emission_service, module_service):
     return (
         patch(

@@ -135,6 +135,9 @@ class EnergyCombustionHandlerResponse(DataEntryResponseGen):
 
 class EnergyCombustionHandlerCreate(DataEntryCreate):
     name: ClassificationKey
+    # Must equal the factor's unit (#2591 D-6): the quantity is priced per
+    # that unit, so a mismatch is a wrong number, not a display detail.
+    unit: ClassificationKey
     quantity: float
     note: str | None = None
 
@@ -148,6 +151,7 @@ class EnergyCombustionHandlerCreate(DataEntryCreate):
 
 class EnergyCombustionHandlerUpdate(DataEntryUpdate):
     name: ClassificationKey | None = None
+    unit: ClassificationKey | None = None
     quantity: float | None = None
     note: str | None = None
 

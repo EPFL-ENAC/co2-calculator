@@ -174,6 +174,10 @@ class ModuleHandler(Protocol[T]):
     # (e.g. a room belongs to one building) — cleared on kind change like
     # the subkind.
     kind_dependent_fields: tuple[str, ...] = ()
+    # Entry keys that must equal the matched factor's classification value
+    # (energy combustion unit); checked where the entry enters, see
+    # ``factor_resolver.unresolved_reason``.
+    factor_match_fields: tuple[str, ...] = ()
     kind_label_field: str | None = None
     subkind_label_field: str | None = None
     taxonomy_meta_fields: tuple[str, ...] = ()
@@ -283,6 +287,10 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # does not supply new values — the row becomes incomplete rather than
     # silently keeping cross-kind data.
     kind_dependent_fields: tuple[str, ...] = ()
+    # Entry keys that must equal the matched factor's classification value
+    # (energy combustion unit); checked where the entry enters, see
+    # ``factor_resolver.unresolved_reason``.
+    factor_match_fields: tuple[str, ...] = ()
     # Display label override for kind_field shown in the UI/response
     # (e.g. "Equipment class"). Falls back to kind_field when None.
     kind_label_field: str | None = None

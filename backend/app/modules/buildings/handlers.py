@@ -316,6 +316,7 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
     kind_field: str = "name"
     subkind_field: str | None = None
     require_subkind_for_factor = False
+    factor_match_fields = ("unit",)
     # Fuel names are enum keys (natural_gas, …) labeled by the #2613 seed
     # in both languages — sius_code shape, English display included.
     translated_code_fields = ("name",)

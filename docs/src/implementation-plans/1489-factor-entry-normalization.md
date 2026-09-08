@@ -101,6 +101,24 @@ Bundled into the same PR on the lead's decision (2026-09-08):
 - External AI factor payloads resolve the provider through `resolve_ai` and
   raise `EmissionTypeResolutionError` on an unknown one (#2587).
 
+## Spec decisions from #2591 (lead, 2026-09-08)
+
+- **Student FTE**: no cap. It is the total FTE of all students of the unit,
+  so it only has to be positive. Doc sentence for Martina, no code change.
+- **Process emissions subcategory**: required exactly when the category's
+  factors carry one (Refrigerants today), optional otherwise. The form
+  already behaves that way (it skips the required check when a category has
+  no sub-options). The backend now enforces it where an entry enters:
+  `factor_resolver.unresolved_reason` names the missing or unknown subkind
+  and lists the accepted ones; the CSV row becomes a row error, the API
+  create a 422. The rule is generic (kind/subkind), so it also covers an
+  equipment class whose factors all carry a `sub_class`. Recompute is not
+  touched: an entry already stored keeps today's behaviour.
+- **Energy combustion unit**: the entry DTO carries `unit` (required on
+  create, as the doc always said) and it must equal the factor's unit,
+  through the same entry-time check (`factor_match_fields = ("unit",)` on
+  the handler). The form already fills the unit from the picked fuel.
+
 ## Tests
 
 - `tests/unit/schemas/test_normalized_fields.py`: canonical forms per alias,
@@ -128,6 +146,10 @@ Bundled into the same PR on the lead's decision (2026-09-08):
   a noisy CSV row (`PIC-IT`, `EUR`, `1.0`) through the real ingest chain
   stores normalized `data`, resolves the canonical factor and computes the
   expected kg CO2eq.
+- `tests/unit/services/test_factor_resolver.py`,
+  `test_carbon_report_module_create.py`, `test_base_csv_provider.py`,
+  `test_energy_combustion_schemas.py`: the entry-time factor check and its
+  two call sites.
 - Existing suites updated where messages or blank-handling changed
   (blank optional codes now store `None`, not `""`).
 

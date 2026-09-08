@@ -82,7 +82,7 @@ RULES_BY_DATA_ENTRY_TYPE: dict[int, dict[str, str]] = {
         "cabin_class": LOWER,
     },
     30: {"building_name": STRIP, "room_name": STRIP},
-    31: {"name": STRIP},
+    31: {"name": STRIP, "unit": STRIP},
     32: {"room_name": STRIP},
     40: {"service_type": STRIP, "provider": STRIP, "currency": LOWER},
     41: {"provider": STRIP, "usage_type": STRIP},
@@ -140,34 +140,53 @@ def normalize_entry_data(data_entry_type_id: int, data: dict) -> dict:
     }
 
 
+_CHUNK_SIZE = 5000
+
+
+def _fetch_chunk(bind: sa.engine.Connection, after_id: int) -> list:
+    return bind.execute(
+        sa.text(
+            "SELECT id, data_entry_type_id, data FROM data_entries"
+            " WHERE data_entry_type_id IN :det_ids AND id > :after_id"
+            " ORDER BY id LIMIT :limit"
+        ).bindparams(sa.bindparam("det_ids", expanding=True)),
+        {
+            "det_ids": sorted(RULES_BY_DATA_ENTRY_TYPE),
+            "after_id": after_id,
+            "limit": _CHUNK_SIZE,
+        },
+    ).fetchall()
+
+
+def _rewrite_row(bind: sa.engine.Connection, row: sa.Row) -> None:
+    data = row.data
+    if isinstance(data, str):
+        data = json.loads(data)
+    if not data:
+        return
+    normalized = normalize_entry_data(row.data_entry_type_id, data)
+    if normalized == data:
+        return
+    bind.execute(
+        sa.text("UPDATE data_entries SET data = CAST(:data AS jsonb) WHERE id = :id"),
+        {"data": json.dumps(normalized), "id": row.id},
+    )
+
+
 def upgrade() -> None:
     """Rewrite data_entries.data join keys into the DTO-normalized form."""
     bind = op.get_bind()
-    # ponytail: one full read; data_entries is bounded by the per-unit-year
-    # ceilings (#2161), stream in chunks if it ever outgrows memory.
-    rows = bind.execute(
-        sa.text(
-            "SELECT id, data_entry_type_id, data FROM data_entries"
-            " WHERE data_entry_type_id IN :det_ids"
-        ).bindparams(sa.bindparam("det_ids", expanding=True)),
-        {"det_ids": sorted(RULES_BY_DATA_ENTRY_TYPE)},
-    ).fetchall()
-
-    for row in rows:
-        data = row.data
-        if isinstance(data, str):
-            data = json.loads(data)
-        if not data:
-            continue
-        normalized = normalize_entry_data(row.data_entry_type_id, data)
-        if normalized == data:
-            continue
-        bind.execute(
-            sa.text(
-                "UPDATE data_entries SET data = CAST(:data AS jsonb) WHERE id = :id"
-            ),
-            {"data": json.dumps(normalized), "id": row.id},
-        )
+    # Keyset pagination: data_entries holds a full year of purchases per
+    # unit (150k+ rows per upload), so one fetchall would size the
+    # migration Job's memory by the table.
+    after_id = 0
+    while True:
+        rows = _fetch_chunk(bind, after_id)
+        if not rows:
+            return
+        for row in rows:
+            _rewrite_row(bind, row)
+        after_id = rows[-1].id
 
 
 def downgrade() -> None:

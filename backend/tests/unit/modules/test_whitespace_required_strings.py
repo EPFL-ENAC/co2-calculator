@@ -57,8 +57,8 @@ _CASES = [
     ),
     (
         EnergyCombustionHandlerCreate,
-        {"name": "natural_gas", "quantity": 1.0},
-        ["name"],
+        {"name": "natural_gas", "unit": "kWh", "quantity": 1.0},
+        ["name", "unit"],
     ),
     (
         ExternalCloudHandlerCreate,

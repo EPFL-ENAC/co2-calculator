@@ -409,3 +409,64 @@ async def test_create_train_with_natural_key_succeeds():
 
     assert response.id == 7
     data_entry_service.create.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# #2591: an entry that would silently price nothing is rejected at create
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_entry_the_factor_check_explains():
+    """Refrigerants without a subcategory: the resolver's entry-time check
+    names the missing input and the workflow turns it into a 422 before
+    anything is written.
+    """
+    session, data_entry_service, emission_service, module_service = (
+        _make_workflow_deps()
+    )
+    workflow = CarbonReportModuleWorkflow(session)
+    resolver = MagicMock()
+    resolver.unresolved_reason = AsyncMock(
+        return_value="subcategory is required for category='HFCs': one of ['R32']"
+    )
+
+    with (
+        patch(
+            "app.workflows.carbon_report_module.DataEntryService",
+            return_value=data_entry_service,
+        ),
+        patch(
+            "app.workflows.carbon_report_module.DataEntryEmissionService",
+            return_value=emission_service,
+        ),
+        patch(
+            "app.workflows.carbon_report_module.CarbonReportModuleService",
+            return_value=module_service,
+        ),
+        patch(
+            "app.workflows.carbon_report_module.resolve_factor_year_safe",
+            new=AsyncMock(return_value=2025),
+        ),
+        patch(
+            "app.workflows.carbon_report_module.FactorResolver",
+            return_value=resolver,
+        ),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await workflow.create(
+                carbon_report_module=MagicMock(
+                    id=42, carbon_report_id=99, module_type_id=8
+                ),
+                data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+                item_data={"category": "HFCs", "quantity_kg": 2.0},
+                current_user=_CURRENT_USER,
+                request_context={},
+                background_tasks=MagicMock(),
+            )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail.startswith("subcategory is required")
+    data_entry_service.create.assert_not_awaited()
+    resolver.unresolved_reason.assert_awaited_once()
+    assert resolver.unresolved_reason.await_args.args[1]["category"] == "HFCs"

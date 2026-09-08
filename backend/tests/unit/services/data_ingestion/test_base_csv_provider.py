@@ -1913,3 +1913,61 @@ async def test_delete_all_types_when_no_data_entry_type_id():
     deleted_types = set(call_kwargs["data_entry_type_ids"])
     assert DataEntryTypeEnum.research_facilities.value in deleted_types
     assert DataEntryTypeEnum.animal_facilities.value in deleted_types
+
+
+# ======================================================================
+# #2591 — a row that would silently price nothing is a row error
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_process_row_rejects_subcategory_less_refrigerant_row():
+    from app.models.factor import Factor
+    from app.schemas.data_entry import BaseModuleHandler
+
+    det = DataEntryTypeEnum.process_emissions
+    handler = BaseModuleHandler.get_by_type(det)
+    provider = ConcreteCSVProvider(
+        {"file_path": "tmp/test.csv", "carbon_report_module_id": 7, "year": 2025},
+        data_session=MagicMock(),
+    )
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (det, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    factor = Factor(
+        id=5,
+        data_entry_type_id=det.value,
+        emission_type_id=1,
+        classification={"category": "HFCs", "subcategory": "R32"},
+        values={"ef_kg_co2eq_per_unit": 1.0, "unit": "kg"},
+        year=2025,
+    )
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {f"{det.value}:2025:hfcs:r32": factor},
+        "expected_columns": {"category", "subcategory", "quantity_kg"},
+    }
+    stats = _build_stats()
+
+    entry, error_msg, _ = await provider._process_row(
+        {"category": "HFCs", "subcategory": "", "quantity_kg": "2"},
+        row_idx=1,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+    )
+    assert entry is None
+    assert error_msg == "subcategory is required for category='HFCs': one of ['R32']"
+    assert stats["row_errors_count"] == 1
+
+    entry, error_msg, _ = await provider._process_row(
+        {"category": "HFCs", "subcategory": "R32", "quantity_kg": "2"},
+        row_idx=2,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+    )
+    assert error_msg is None
+    assert entry is not None and entry.data["subcategory"] == "R32"
