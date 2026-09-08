@@ -1,13 +1,25 @@
 """``scripts.manage_db`` refuses shared hosts unless told in so many words.
 
 Regression for 2026-09-08: an integration test spawned ``manage_db --action
-drop`` while ``backend/.env`` pointed at prod, and ``.env`` wins over the
+drop`` while ``backend/.env`` pointed at prod, and ``.env`` then won over the
 environment in this repo's settings, so prod was dropped.
 """
 
+from pathlib import Path
+
 import pytest
 
+from app.core.config import Settings
 from scripts.manage_db import refuse_remote_host
+
+
+def test_env_var_beats_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A one-off ``DB_URL=... uv run ...`` must outrank the file (#1153 reverted)."""
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("DB_URL=postgresql://app:x@co2-prod.dbaas.intranet.epfl.ch/app\n")
+    local = "postgresql://app:x@localhost:55433/throwaway"
+    monkeypatch.setenv("DB_URL", local)
+    assert Settings(_env_file=dotenv).DB_URL == local
 
 
 @pytest.mark.parametrize(

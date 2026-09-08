@@ -38,22 +38,7 @@ import docker.errors
 import pytest
 from sqlalchemy.engine.url import make_url
 
-from app.core.config import get_settings
 from scripts.manage_db import LOCAL_HOSTS
-
-# This file drops and creates databases through ``scripts.manage_db``, which
-# reads ``backend/.env`` and lets it win over the DB_URL this file sets in the
-# subprocess environment. With ``.env`` on a shared server the drop lands
-# there (prod, 2026-09-08). Refuse the whole session rather than the file:
-# a skipped destructive test is the silent kind of fallback.
-_SETTINGS_HOST = make_url(get_settings().DB_URL).host
-if _SETTINGS_HOST not in LOCAL_HOSTS:
-    pytest.exit(
-        f"backend/.env DB_URL points at {_SETTINGS_HOST!r}; "
-        "test_alembic_migrations.py would drop databases there. "
-        "Point .env at localhost first.",
-        returncode=2,
-    )
 
 _PG_IMAGE = "postgres:16-alpine"
 _PG_CONTAINER_NAME = "test-alembic-migrations-postgres"
@@ -170,6 +155,12 @@ def alembic_env(postgres_container: dict) -> dict[str, str]:
     env = os.environ.copy()
     env["DB_URL"] = _target_db_url()
     env["DB_NAME"] = _PG_TARGET_DB
+    # This file drops databases. The subprocess env beats backend/.env since
+    # #1153 was reverted (prod drop, 2026-09-08); pin that the target this
+    # file owns is local, whatever .env says. manage_db refuses remote hosts
+    # on its own as a second line.
+    if make_url(env["DB_URL"]).host not in LOCAL_HOSTS:
+        raise RuntimeError(f"test target must be local: {env['DB_URL']}")
     return env
 
 

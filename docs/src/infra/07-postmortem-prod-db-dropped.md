@@ -67,6 +67,10 @@ Guards, shipped in the same PR as the audit work (#2585):
 - `tests/integration/test_alembic_migrations.py` ends the pytest session at
   import when the settings host is not local, instead of skipping.
 - `tests/unit/test_manage_db_guard.py` pins the refusal.
+- Settings precedence went back to pydantic's default, environment variables
+  beat `.env` (#1153 reverted). A one-off `DB_URL=... uv run ...` now dies
+  with the command instead of a file edit that retargets every tool in the
+  repo. `test_alembic_migrations.py` refuses a non-local target of its own.
 
 ## Follow-up
 
