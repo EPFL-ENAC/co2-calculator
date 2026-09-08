@@ -12,9 +12,9 @@ summary: "The backend suite is red in three unrelated ways: a stale config test 
 `tests/unit` is red on CI right now; `tests/integration` is red on every dev
 machine that has a populated `backend/.env`. Measured on `dev` @ `49a89971b`:
 
-| Suite | Before |
-| --- | --- |
-| `tests/unit` | 1 failed, 2881 passed |
+| Suite               | Before                           |
+| ------------------- | -------------------------------- |
+| `tests/unit`        | 1 failed, 2881 passed            |
 | `tests/integration` | 12 failed, 459 passed, 1 skipped |
 
 The 13 failures have **three unrelated root causes**. They share no code and
@@ -99,7 +99,7 @@ S3Error: Error moving file from tmp/X.csv to processing/1/X.csv:
 2. `tests/conftest.py::pytest_configure` sets
    `Settings.model_config["env_file"] = None` to keep a dev's `.env` out of
    tests. But `tests/conftest.py` **imports `app.*` at module level**, and
-   pytest imports conftest *before* it calls `pytest_configure`. Those imports
+   pytest imports conftest _before_ it calls `pytest_configure`. Those imports
    already call `get_settings()`, which is `@lru_cache`d. Blanking `env_file`
    afterwards cannot invalidate the cache.
 3. `make_files_store()` (`app/api/v1/files.py:44`) returns `S3FilesStore`
@@ -139,7 +139,7 @@ One line in `backend/tests/conftest.py::pytest_configure`:
     get_settings.cache_clear()
 ```
 
-`app.api.v1.files` is imported *after* `pytest_configure`, so its module-level
+`app.api.v1.files` is imported _after_ `pytest_configure`, so its module-level
 `settings = get_settings()` and its `files_store = make_files_store()`
 singleton both pick up the clean object.
 
@@ -276,9 +276,9 @@ Each targets `dev` per the [guardrails](../contributing/guardrails.md).
 Measured on this branch with RC1+RC2+RC3 applied, with a populated
 `backend/.env` present and no env blanking on the command line:
 
-| Suite | Before | After |
-| --- | --- | --- |
-| `tests/unit` | 1 failed, 2881 passed | **2887 passed** |
+| Suite               | Before                           | After                     |
+| ------------------- | -------------------------------- | ------------------------- |
+| `tests/unit`        | 1 failed, 2881 passed            | **2887 passed**           |
 | `tests/integration` | 12 failed, 459 passed, 1 skipped | **474 passed, 1 skipped** |
 
 ## Not in scope
