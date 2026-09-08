@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2684
 last_updated: 2026-09-08
 summary: "The backend suite is red in three unrelated ways: a stale config test left behind by the #1153 revert (red on CI now), backend/.env leaking into every pytest process through an lru_cache ordering bug (11 integration tests ran against real EPFL S3), and a CSV fixture #2253 never committed. Three independent fixes, shipped in that order."
@@ -30,7 +30,10 @@ must not be bundled into one PR.
       swallows every fixture under `backend/tests/fixtures/csv/`; that is how
       #2253 lost this file without anyone noticing. Added
       `!backend/tests/fixtures/csv/*.csv` to unblock the whole directory.
-- [ ] Split into three PRs against `dev` (see [Sequencing](#sequencing))
+- [x] ~~Split into three PRs against `dev`~~ — delivered as one PR instead
+      (owner call, overriding the sequencing recommendation below): the three
+      fixes are small, already verified together, and splitting after the
+      fact into 3 branches was judged not worth the overhead for this batch.
 
 Suite is green locally with RC1+RC2+RC3 applied: `tests/unit` **2873 passed**
 in this session's environment (run count drifts slightly with the tree state
