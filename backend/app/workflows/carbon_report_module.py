@@ -22,6 +22,7 @@ from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponse,
     DataEntryUpdate,
+    ModuleHandler,
 )
 from app.schemas.user import UserRead
 from app.schemas.write_scope import WriteScope
@@ -29,9 +30,10 @@ from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.exchange_rates_service import ExchangeRatesService
+from app.services.factor_resolver import FactorResolver
 from app.services.module_handler_service import ModuleHandlerService
 from app.services.year_config_service import is_submodule_inputs_deactivated
-from app.utils.factor_year import resolve_factor_year
+from app.utils.factor_year import resolve_factor_year, resolve_factor_year_safe
 
 logger = get_logger(__name__)
 
@@ -201,6 +203,30 @@ class CarbonReportModuleWorkflow:
                 scope["amount_eur"] = converted
         return dump
 
+    async def _reject_unresolvable_factor(
+        self,
+        carbon_report_module: CarbonReportModuleRead,
+        data_entry_type: DataEntryTypeEnum,
+        handler: ModuleHandler,
+        data: dict,
+    ) -> None:
+        """#2591: an entry that would silently price nothing is a 422."""
+        if handler.kind_field is None:
+            return
+        report = await self.session.get(
+            CarbonReport, carbon_report_module.carbon_report_id
+        )
+        year = await resolve_factor_year_safe(self.session, report) if report else None
+        if year is None:
+            return
+        reason = await FactorResolver(self.session).unresolved_reason(
+            handler, data, data_entry_type, year
+        )
+        if reason is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=reason
+            )
+
     async def create(
         self,
         carbon_report_module: CarbonReportModuleRead,
@@ -226,6 +252,9 @@ class CarbonReportModuleWorkflow:
             handler = BaseModuleHandler.get_by_type(data_entry_type)
 
             validated_data = handler.validate_create(create_payload)
+            await self._reject_unresolvable_factor(
+                carbon_report_module, data_entry_type, handler, validated_data.data
+            )
 
             # DTO-level ``str | None`` is intentional (CSV rows validate
             # before ``enrich_csv_row`` resolves the natural_key — #1186) so

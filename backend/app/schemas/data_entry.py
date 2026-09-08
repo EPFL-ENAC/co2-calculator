@@ -72,6 +72,28 @@ class DataEntryPayloadMixin(BaseModel):
             values = _coerce(values)
         return values
 
+    @model_validator(mode="after")
+    def sync_validated_fields_into_data(self) -> DataEntryPayloadMixin:
+        # ``unflatten_payload`` copies the RAW payload into ``data`` before
+        # field validators run, so without this the normalized value lives
+        # only on the typed field while the raw one gets persisted — and
+        # factor resolution joins on ``data`` (#1489). Only keys already in
+        # ``data`` are overwritten: absent keys keep PATCH semantics.
+        data = getattr(self, "data", None)
+        if not isinstance(data, dict):
+            return self
+        synced = [
+            name
+            for name in type(self).model_fields
+            if name != "data" and name not in DATA_ENTRY_META_FIELDS and name in data
+        ]
+        if not synced:
+            return self
+        dumped = self.model_dump(mode="json", include=set(synced))
+        for name in synced:
+            data[name] = dumped[name]
+        return self
+
 
 class DataEntryCreate(DataEntryPayloadMixin, DataEntryBase):
     """Base factor schema."""
@@ -152,6 +174,10 @@ class ModuleHandler(Protocol[T]):
     # (e.g. a room belongs to one building) — cleared on kind change like
     # the subkind.
     kind_dependent_fields: tuple[str, ...] = ()
+    # Entry keys that must equal the matched factor's classification value
+    # (energy combustion unit); checked where the entry enters, see
+    # ``factor_resolver.unresolved_reason``.
+    factor_match_fields: tuple[str, ...] = ()
     kind_label_field: str | None = None
     subkind_label_field: str | None = None
     taxonomy_meta_fields: tuple[str, ...] = ()
@@ -261,6 +287,10 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # does not supply new values — the row becomes incomplete rather than
     # silently keeping cross-kind data.
     kind_dependent_fields: tuple[str, ...] = ()
+    # Entry keys that must equal the matched factor's classification value
+    # (energy combustion unit); checked where the entry enters, see
+    # ``factor_resolver.unresolved_reason``.
+    factor_match_fields: tuple[str, ...] = ()
     # Display label override for kind_field shown in the UI/response
     # (e.g. "Equipment class"). Falls back to kind_field when None.
     kind_label_field: str | None = None

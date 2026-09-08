@@ -36,6 +36,24 @@ from pathlib import Path
 import docker
 import docker.errors
 import pytest
+from sqlalchemy.engine.url import make_url
+
+from app.core.config import get_settings
+from scripts.manage_db import LOCAL_HOSTS
+
+# This file drops and creates databases through ``scripts.manage_db``, which
+# reads ``backend/.env`` and lets it win over the DB_URL this file sets in the
+# subprocess environment. With ``.env`` on a shared server the drop lands
+# there (prod, 2026-09-08). Refuse the whole session rather than the file:
+# a skipped destructive test is the silent kind of fallback.
+_SETTINGS_HOST = make_url(get_settings().DB_URL).host
+if _SETTINGS_HOST not in LOCAL_HOSTS:
+    pytest.exit(
+        f"backend/.env DB_URL points at {_SETTINGS_HOST!r}; "
+        "test_alembic_migrations.py would drop databases there. "
+        "Point .env at localhost first.",
+        returncode=2,
+    )
 
 _PG_IMAGE = "postgres:16-alpine"
 _PG_CONTAINER_NAME = "test-alembic-migrations-postgres"

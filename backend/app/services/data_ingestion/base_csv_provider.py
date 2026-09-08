@@ -26,6 +26,7 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
+from app.models.factor import Factor
 from app.models.module_type import (
     DERIVED_DATA_ENTRY_TYPES,
     MODULE_TYPE_TO_DATA_ENTRY_TYPES,
@@ -52,6 +53,7 @@ from app.services.data_ingestion.csv_ingestion_provider import (
     CSVIngestionProvider,
     _validate_file_path,
 )
+from app.services.factor_resolver import unresolved_reason
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 from app.utils.csv_dialect import csv_dict_reader, strip_comment_lines
@@ -1299,6 +1301,14 @@ class BaseCSVProvider(CSVIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
                 return None, enrich_error, None
 
+            # #2591: a row that would silently price nothing is a row error.
+            factor_error = unresolved_reason(
+                handler, data, self._row_check_factors(setup_result, data_entry_type)
+            )
+            if factor_error is not None:
+                self._record_row_error(stats, row_idx, factor_error, max_row_errors)
+                return None, factor_error, None
+
             # Persist the override on the data
             # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so
             # the async recalc path (``upsert_by_data_entry`` →
@@ -1323,6 +1333,20 @@ class BaseCSVProvider(CSVIngestionProvider, ABC):
             error_msg = f"Row processing error: {row_error}"
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, error_msg, None
+
+    def _row_check_factors(
+        self, setup_result: dict[str, Any], data_entry_type: DataEntryTypeEnum
+    ) -> list[Factor]:
+        """The setup-time factors of one type, for the per-row factor check."""
+        cache: dict[int, list[Factor]] = setup_result.setdefault("_factors_by_type", {})
+        if data_entry_type.value not in cache:
+            cache[data_entry_type.value] = [
+                f
+                for f in setup_result.get("factors_map", {}).values()
+                if isinstance(f, Factor)
+                and f.data_entry_type_id == data_entry_type.value
+            ]
+        return cache[data_entry_type.value]
 
     def _compute_ingestion_result(self, stats: StatsDict) -> IngestionResult:
         """Compute ingestion result based on success rate.

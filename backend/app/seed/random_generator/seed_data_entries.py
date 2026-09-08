@@ -399,6 +399,7 @@ def build_building_room() -> dict:
 def build_energy_combustion() -> dict:
     return {
         "name": fake.word(),
+        "unit": random.choice(["kWh", "kg"]),  # nosec B311
         "quantity": round(random.uniform(0, 5000), 2),  # nosec B311
         "note": maybe(fake.sentence(nb_words=6)),
     }

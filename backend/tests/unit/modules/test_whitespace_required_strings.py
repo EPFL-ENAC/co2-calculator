@@ -57,8 +57,8 @@ _CASES = [
     ),
     (
         EnergyCombustionHandlerCreate,
-        {"name": "natural_gas", "quantity": 1.0},
-        ["name"],
+        {"name": "natural_gas", "unit": "kWh", "quantity": 1.0},
+        ["name", "unit"],
     ),
     (
         ExternalCloudHandlerCreate,
@@ -114,7 +114,7 @@ _CASES = [
 )
 def test_whitespace_only_required_string_rejected(dto, base, field) -> None:
     dto.model_validate({**_META, **base})  # the base payload itself is valid
-    with pytest.raises(ValidationError, match="cannot be empty"):
+    with pytest.raises(ValidationError, match="cannot be empty|at least 1"):
         dto.model_validate({**_META, **base, field: "   "})
 
 
@@ -125,5 +125,5 @@ def test_update_rejects_whitespace_but_allows_absent() -> None:
         ).category
         is None
     )
-    with pytest.raises(ValidationError, match="cannot be empty"):
+    with pytest.raises(ValidationError, match="cannot be empty|at least 1"):
         ProcessEmissionsHandlerUpdate.model_validate({**_META, "category": " "})
