@@ -287,3 +287,76 @@ def test_submodule_activation_persists_in_config(
     assert refetched["modules"]["4"]["submodules"]["10"]["enabled"] is False
     # Sibling submodule untouched by the sub-module-scoped patch.
     assert refetched["modules"]["4"]["submodules"]["11"]["enabled"] is True
+
+
+# ---------------------------------------------------------------------------
+# #2464: activation lock enforced server-side once the year is open
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture
+async def db_started_year():
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:", echo=False, future=True
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        session.add(
+            YearConfiguration(
+                year=YEAR,
+                provider=UserProvider.DEFAULT,
+                is_started=True,
+                configuration_completed=datetime.now(UTC),
+                config=generate_default_year_config(),
+            )
+        )
+        await session.commit()
+        yield session, async_session
+
+    await engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param({"modules": {"1": {"enabled": False}}}, id="module"),
+        pytest.param(
+            {"modules": {"1": {"submodules": {"1": {"enabled": False}}}}},
+            id="submodule",
+        ),
+    ],
+)
+def test_started_year_rejects_activation_change(
+    client, monkeypatch, db_started_year, config
+):
+    """#2464: the frontend greys the toggle out on ``is_started`` (#2146),
+    but a stale tab or a direct PATCH still reached the merge. The backend
+    now refuses (de)activation itself, and leaves the config untouched.
+    """
+    _, factory = db_started_year
+    _wire(monkeypatch, factory)
+
+    resp = client.patch(URL, json={"config": config})
+
+    assert resp.status_code == 409, resp.text
+    after = client.get(URL).json()["config"]["modules"]["1"]
+    assert after["enabled"] is True
+    assert after["submodules"]["1"]["enabled"] is True
+
+
+def test_started_year_still_accepts_non_activation_changes(
+    client, monkeypatch, db_started_year
+):
+    """The lock covers ``enabled`` only — uncertainty stays editable."""
+    _, factory = db_started_year
+    _wire(monkeypatch, factory)
+
+    resp = client.patch(
+        URL, json={"config": {"modules": {"1": {"uncertainty_tag": "high"}}}}
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["config"]["modules"]["1"]["uncertainty_tag"] == "high"

@@ -40,6 +40,7 @@ from app.modules.external_cloud_and_ai import (
     ExternalCloudHandlerCreate,
 )
 from app.modules.headcount import (
+    FTE_DECIMALS,
     SIUS_CODE_VALUES,
     HeadCountCreate,
     HeadCountStudentCreate,
@@ -346,8 +347,9 @@ def build_headcount() -> dict:
     return {
         "name": fake.name(),
         "sius_code": random.choice(sorted(SIUS_CODE_VALUES)),  # nosec B311
-        # fte is required (non-Optional) on the create DTO, 0 <= fte <= 1.
-        "fte": round(random.uniform(0.1, 1.0), 2),  # nosec B311
+        # fte is required (non-Optional) on the create DTO, 0 <= fte <= 1,
+        # one decimal (#2464).
+        "fte": round(random.uniform(0.1, 1.0), FTE_DECIMALS),  # nosec B311
         # user_institutional_id is required (non-Optional) on the create DTO.
         "user_institutional_id": _user_institutional_id(),
         "note": maybe(fake.sentence(nb_words=6)),
@@ -356,7 +358,7 @@ def build_headcount() -> dict:
 
 def build_student() -> dict:
     return {
-        "fte": round(random.uniform(0.1, 1.0), 2),  # nosec B311
+        "fte": round(random.uniform(0.1, 1.0), FTE_DECIMALS),  # nosec B311
     }
 
 
