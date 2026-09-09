@@ -127,11 +127,27 @@ async def test_emission_bulk_copy_lands_every_column_in_its_own_place(
 
     ``_EMISSION_COPY_SQL``'s column list and ``write_row``'s tuple must stay
     in the same order — a mismatch mis-assigns silently rather than raising,
-    and the two new join keys sit at the end of both. Every value here is
-    distinct so a swap cannot pass.
+    and the two new join keys sit at the end of both.
+
+    The values must be pairwise distinct or the test is decorative. In a
+    fresh schema the first ``carbon_report_module`` gets id 1 and
+    ``DataEntryTypeEnum.member`` is also 1, so the obvious version of this
+    test passes with those two columns transposed — verified by mutating
+    ``write_row``. Burning a module id first makes them differ, and the
+    assertion below fails loudly if that ever stops being true.
     """
     module = await _seed_module(
         psycopg_session, make_unit, make_carbon_report, make_carbon_report_module
+    )
+    # Burn the id that collides with the enum value, then take the next one.
+    report_id = module.carbon_report_id
+    module = await make_carbon_report_module(
+        psycopg_session, carbon_report_id=report_id, module_type_id=2
+    )
+    await psycopg_session.commit()
+    assert module.id != DataEntryTypeEnum.member.value, (
+        "carbon_report_module_id and data_entry_type_id must differ here, or a "
+        "transposition of the two COPY columns passes unnoticed"
     )
     entry = DataEntry(
         data_entry_type_id=DataEntryTypeEnum.member.value,
