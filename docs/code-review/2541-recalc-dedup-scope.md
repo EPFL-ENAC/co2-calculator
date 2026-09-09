@@ -35,17 +35,17 @@ gate is procedural and this review does not discharge it.
 
 Claims in a PR body are not evidence. These were re-run from scratch.
 
-| Claim | Method | Result |
-| --- | --- | --- |
-| Both new tests fail on `origin/dev` | `git checkout origin/dev -- backend/app backend/alembic`, keep the new test file, run the module | **Reproduced.** 2 failed, 5 passed |
-| …with the quoted assertion messages | read the failure output | **Exact match** (both strings, verbatim) |
-| The tests pass on the branch | same module, branch code restored | 7 passed |
-| Unscoped recalcs still dedup (incl. the concurrent `asyncio.gather` pin) | ran dedup + reupload-semantics + orphan-recovery + aggregation-dedup + `tests/unit/tasks/test_runner.py` | **27 passed** |
-| The migration is generated and matches the model | `alembic upgrade head` into one scratch PG; `SQLModel.metadata.create_all` into another; diffed `pg_indexes.indexdef` | **Byte-identical.** See below |
-| The migration round-trips | `alembic downgrade -1`, re-read `indexdef` | Restores the original `uq_emission_recalc_active` exactly |
-| `make -C backend lint` (ruff + prettier) | run | pass — 580 files formatted, all checks passed |
-| `make -C backend type-check` (ty) | run | pass |
-| Root `make lint` / `make type-check` | run | **frontend fails for want of `node_modules`** (`Cannot find package 'eslint-plugin-vue'`, then ~2200 `TS2307 Cannot find module`). Environment, not code — the diff is backend-only |
+| Claim                                                                    | Method                                                                                                                | Result                                                                                                                                                                              |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Both new tests fail on `origin/dev`                                      | `git checkout origin/dev -- backend/app backend/alembic`, keep the new test file, run the module                      | **Reproduced.** 2 failed, 5 passed                                                                                                                                                  |
+| …with the quoted assertion messages                                      | read the failure output                                                                                               | **Exact match** (both strings, verbatim)                                                                                                                                            |
+| The tests pass on the branch                                             | same module, branch code restored                                                                                     | 7 passed                                                                                                                                                                            |
+| Unscoped recalcs still dedup (incl. the concurrent `asyncio.gather` pin) | ran dedup + reupload-semantics + orphan-recovery + aggregation-dedup + `tests/unit/tasks/test_runner.py`              | **27 passed**                                                                                                                                                                       |
+| The migration is generated and matches the model                         | `alembic upgrade head` into one scratch PG; `SQLModel.metadata.create_all` into another; diffed `pg_indexes.indexdef` | **Byte-identical.** See below                                                                                                                                                       |
+| The migration round-trips                                                | `alembic downgrade -1`, re-read `indexdef`                                                                            | Restores the original `uq_emission_recalc_active` exactly                                                                                                                           |
+| `make -C backend lint` (ruff + prettier)                                 | run                                                                                                                   | pass — 580 files formatted, all checks passed                                                                                                                                       |
+| `make -C backend type-check` (ty)                                        | run                                                                                                                   | pass                                                                                                                                                                                |
+| Root `make lint` / `make type-check`                                     | run                                                                                                                   | **frontend fails for want of `node_modules`** (`Cannot find package 'eslint-plugin-vue'`, then ~2200 `TS2307 Cannot find module`). Environment, not code — the diff is backend-only |
 
 Both DBs produce, character for character:
 
@@ -63,7 +63,7 @@ old one is gone, no orphan left behind.
 
 **A note on the PR's own migration proof.** The PR argues the migration is generated
 because a subsequent `alembic revision --autogenerate` came out empty. That proof is
-partly circular: the PR itself (correctly) states that alembic *ignores* a changed
+partly circular: the PR itself (correctly) states that alembic _ignores_ a changed
 `postgresql_where` on a same-named index — which is why the rename was needed at all.
 An empty autogenerate therefore proves the index **name and columns** match the model,
 not the **predicate**. The predicate is the entire point of this PR. The `indexdef`
@@ -113,7 +113,7 @@ Yes. I traced the re-run path end to end:
 This is the sharp question, and the answer is **no today, by a mechanism the PR does
 not name**.
 
-Two scoped children with the *same* `carbon_report_module_ids` (one unit re-uploading
+Two scoped children with the _same_ `carbon_report_module_ids` (one unit re-uploading
 back-to-back) used to collapse and now both run. `bulk_replace_for_entries` is
 DELETE-then-COPY with no unique constraint behind it — I checked, `DataEntryEmission`
 has no `__table_args__` at all, so nothing at the DB level would reject duplicates. An
@@ -146,7 +146,7 @@ have been leaning on it:
 - `claim_job` uses `ix_data_ingestion_jobs_is_current_unique`, a different index.
   Unaffected.
 
-No consumer selects "*the* active recalc for a scope". Clean.
+No consumer selects "_the_ active recalc for a scope". Clean.
 
 ---
 
@@ -192,26 +192,26 @@ A mirroring line in `app/tasks/_locks.py` would be cheap insurance too.
 
 The shared `EMISSION_RECALC_UNSCOPED_SQL` constant does exactly what it claims: the
 index and the Python pre-check cannot drift, and `_pins_module_scope` deliberately tests
-key *presence* so that it agrees with `meta -> … IS NULL` row for row — including the
+key _presence_ so that it agrees with `meta -> … IS NULL` row for row — including the
 subtle case where a JSON `null` is not SQL `NULL`. I checked that correspondence and it
 is right, including for `[]` and for an explicit `null`.
 
 What the constant does **not** cover is the third reader — the handler that consumes the
 scope:
 
-| `config` | `_pins_module_scope` | in the index? | what the handler recomputes |
-| --- | --- | --- | --- |
-| absent | False | yes (dedups) | whole slice |
-| `[101]` | True | no (no dedup) | module 101 |
-| `[]` | True | **no (no dedup)** | **whole slice** — `data_entry_repo.py:519` is `if carbon_report_module_ids:`, falsy |
-| `"101"` (non-list) | True | **no (no dedup)** | **whole slice** — `isinstance(raw_scope, list)` is False → `module_scope = None` |
+| `config`           | `_pins_module_scope` | in the index?     | what the handler recomputes                                                         |
+| ------------------ | -------------------- | ----------------- | ----------------------------------------------------------------------------------- |
+| absent             | False                | yes (dedups)      | whole slice                                                                         |
+| `[101]`            | True                 | no (no dedup)     | module 101                                                                          |
+| `[]`               | True                 | **no (no dedup)** | **whole slice** — `data_entry_repo.py:519` is `if carbon_report_module_ids:`, falsy |
+| `"101"` (non-list) | True                 | **no (no dedup)** | **whole slice** — `isinstance(raw_scope, list)` is False → `module_scope = None`    |
 
 The bottom two rows are children the dedup layer treats as narrow and disjoint while the
 handler treats them as whole-slice. Today that is unreachable: the only producer
 (`ingestion_tasks.py:565-572`) guards on `raw_module_id is not None` and always emits
 exactly one int. So this is a trap, not a bug — but it is the drift the shared constant
 does not prevent, and it is worth one line in the `_pins_module_scope` docstring saying
-that a *present but empty or non-list* scope is a caller error, not a supported input.
+that a _present but empty or non-list_ scope is a caller error, not a supported input.
 
 ### 3. WORTH FIXING — the regression tests never run on a PR
 
@@ -288,24 +288,24 @@ opportunistic refactors here.
 
 ## Repo-invariant checklist
 
-| Invariant | Result |
-| --- | --- |
-| No silent fallbacks | **Pass, and improved.** This PR removes one: a dedup-skipped recalc that reported success. The `_pins_module_scope` opt-out is unconditional and commented, not a swallow. The pre-existing `except TypeError, ValueError` at `ingestion_tasks.py:568` logs and degrades to an unscoped recalc, which is the safe direction (recompute more, not less) — and is valid Python 3.14 (PEP 758), not a syntax error |
-| Functions ≤40 lines, ≤2 nesting | Nesting fine (≤2 in every touched block). Length: see Finding 7 — pre-existing |
-| Imports at top | **Pass.** The one new import (`EMISSION_RECALC_UNSCOPED_SQL`) is added to the existing top-of-file `app.models.data_ingestion` block. No new inline imports |
-| `col()` on SQLModel column refs | **N/A.** The touched code is raw `text()` SQL and `Index()` declarations; no new ORM column comparisons |
-| No `# type: ignore` / `@ts-expect-error` | **Pass.** None added |
-| Migrations generated, not hand-authored | **Pass.** Autogenerate markers intact, one `drop_index` and it is the index being replaced (no false positives), and the produced index matches the model byte for byte. The rename rationale is sound and correctly explained |
-| Bug fix ships a regression test | **Partial.** Both tests verified failing without the fix — but neither runs on a PR; see Finding 3 |
-| Backend is source of truth / layering | **N/A** — no route or service boundary touched |
-| No backward-compat paths | **Pass.** The old index is dropped, not kept alongside. (The unrelated `dedup_active` deprecation shim is pre-existing) |
-| Docs updated with the rename | **Pass.** `alembic/CUSTOM_DB_OBJECTS.md` and `10-INTEGRATION-TESTING.md` updated; historical plans and code-reviews correctly left alone. The PR already flags `2211-consolidate-alembic-files.md:182` as needing the new name whenever that consolidation runs |
+| Invariant                                | Result                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No silent fallbacks                      | **Pass, and improved.** This PR removes one: a dedup-skipped recalc that reported success. The `_pins_module_scope` opt-out is unconditional and commented, not a swallow. The pre-existing `except TypeError, ValueError` at `ingestion_tasks.py:568` logs and degrades to an unscoped recalc, which is the safe direction (recompute more, not less) — and is valid Python 3.14 (PEP 758), not a syntax error |
+| Functions ≤40 lines, ≤2 nesting          | Nesting fine (≤2 in every touched block). Length: see Finding 7 — pre-existing                                                                                                                                                                                                                                                                                                                                  |
+| Imports at top                           | **Pass.** The one new import (`EMISSION_RECALC_UNSCOPED_SQL`) is added to the existing top-of-file `app.models.data_ingestion` block. No new inline imports                                                                                                                                                                                                                                                     |
+| `col()` on SQLModel column refs          | **N/A.** The touched code is raw `text()` SQL and `Index()` declarations; no new ORM column comparisons                                                                                                                                                                                                                                                                                                         |
+| No `# type: ignore` / `@ts-expect-error` | **Pass.** None added                                                                                                                                                                                                                                                                                                                                                                                            |
+| Migrations generated, not hand-authored  | **Pass.** Autogenerate markers intact, one `drop_index` and it is the index being replaced (no false positives), and the produced index matches the model byte for byte. The rename rationale is sound and correctly explained                                                                                                                                                                                  |
+| Bug fix ships a regression test          | **Partial.** Both tests verified failing without the fix — but neither runs on a PR; see Finding 3                                                                                                                                                                                                                                                                                                              |
+| Backend is source of truth / layering    | **N/A** — no route or service boundary touched                                                                                                                                                                                                                                                                                                                                                                  |
+| No backward-compat paths                 | **Pass.** The old index is dropped, not kept alongside. (The unrelated `dedup_active` deprecation shim is pre-existing)                                                                                                                                                                                                                                                                                         |
+| Docs updated with the rename             | **Pass.** `alembic/CUSTOM_DB_OBJECTS.md` and `10-INTEGRATION-TESTING.md` updated; historical plans and code-reviews correctly left alone. The PR already flags `2211-consolidate-alembic-files.md:182` as needing the new name whenever that consolidation runs                                                                                                                                                 |
 
 ---
 
 ## Follow-ups to open as issues (not blockers)
 
-1. **Re-collapse identical scoped children.** Two scoped children with the *same*
+1. **Re-collapse identical scoped children.** Two scoped children with the _same_
    `carbon_report_module_ids` now both run. Correct but wasteful, on exactly the path
    Phase A is about to be measured on. Needs a jsonb-expression unique index; the plan
    deliberately chose the simpler path. Agreed with the PR that this is a follow-up.
