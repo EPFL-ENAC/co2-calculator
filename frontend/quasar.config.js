@@ -243,9 +243,9 @@ export default defineConfig(function () {
           viteConf.css.preprocessorOptions.scss || {};
         viteConf.css.preprocessorOptions.scss.silenceDeprecations = ['import'];
 
-        viteConf.optimizeDeps ??= {}
-        viteConf.optimizeDeps.exclude ??= []
-        viteConf.optimizeDeps.exclude.push('maplibre-gl')
+        viteConf.optimizeDeps ??= {};
+        viteConf.optimizeDeps.exclude ??= [];
+        viteConf.optimizeDeps.exclude.push('maplibre-gl');
       },
     },
 
