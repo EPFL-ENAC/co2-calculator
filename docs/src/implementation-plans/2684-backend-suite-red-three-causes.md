@@ -32,7 +32,7 @@ must not be bundled into one PR.
       [#2686](https://github.com/EPFL-ENAC/co2-calculator/issues/2686) —
       see [Scope](#scope-checked-empirically---not-everything-is-covered).
 - [x] **#2686 fix** — `app.core.logging` no longer binds `settings =
-    get_settings()` at import time; both call sites (`setup_logging()`,
+  get_settings()` at import time; both call sites (`setup_logging()`,
       `LokiHandler.emit()`) call `get_settings()` live instead, mirroring
       `app/core/crypto.py`'s existing pattern. Same PR as RC2, per feedback
       that a follow-up discovered while working the same issue belongs
