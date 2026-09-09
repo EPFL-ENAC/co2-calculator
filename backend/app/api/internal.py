@@ -1,20 +1,11 @@
 """Intra-cluster-only endpoints (#2258 follow-up).
 
-Mounted directly on the app in ``app.main`` — not under
-``settings.API_VERSION`` and never referenced by ``helm/templates/routes.yaml``
-(which only proxies ``/api``, ``/docs`` and ``/``), the same trust boundary
-the root-level ``/healthz`` / ``/ready`` endpoints already rely on.
-
-That boundary alone isn't quite airtight here: an OpenShift ``Route``
-``path`` match is a *prefix* match, so a public request to
-``/api/internal/...`` would still be rewritten to ``/internal/...`` and
-reach this router — fine for an idempotent health read, not fine for an
-endpoint that clears the taxonomy cache (repeatedly hitting it would
-reopen the 2s cold-cache tree-build cost the cache exists to avoid). So,
-unlike the health endpoints, every route here additionally gates on the
-caller's source IP being a currently-live pod from the ``pods`` heartbeat
-table — no new auth machinery, just the pod registry this feature already
-needs for discovery.
+Mounted directly on ``app.main``, outside ``settings.API_VERSION`` and never
+proxied by the Route (``helm/templates/routes.yaml`` only proxies ``/api``,
+``/docs`` and ``/``) — same trust boundary as ``/healthz``/``/ready``. Not
+airtight alone (a Route ``path`` match is a *prefix* match), so every route
+here also authenticates: shared secret (``app.core.internal_auth``) first,
+then a live-pod IP check as a second factor. See the #2530 plan for why both.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -23,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
 from app.core.factor_taxonomy_cache import taxonomy_cache
+from app.core.internal_auth import INTERNAL_AUTH_HEADER, internal_auth_ok
 from app.models.pod import Pod, is_live, live_cutoff
 
 # include_in_schema=False: pod-to-pod only, never called by a browser. Keeping
@@ -30,6 +22,19 @@ from app.models.pod import Pod, is_live, live_cutoff
 # generated frontend client, where it would be noise at best and a hint at a
 # cache-clearing endpoint at worst.
 router = APIRouter(prefix="/internal", tags=["internal"], include_in_schema=False)
+
+
+async def _authorize(request: Request, db: AsyncSession) -> None:
+    """Raise 403 unless the caller proves it is another pod of this deployment.
+
+    Both factors from the module docstring, secret first so a caller that
+    can't produce it never costs a DB round trip.
+    """
+    if not internal_auth_ok(request.headers.get(INTERNAL_AUTH_HEADER)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    client_host = request.client.host if request.client else None
+    if not await _caller_is_live_pod(db, client_host):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
 
 async def _caller_is_live_pod(db: AsyncSession, host: str | None) -> bool:
@@ -59,7 +64,5 @@ async def clear_taxonomy_cache(
     now sized for hit rate rather than staleness since this broadcast is
     the correctness mechanism, #2391).
     """
-    client_host = request.client.host if request.client else None
-    if not await _caller_is_live_pod(db, client_host):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    await _authorize(request, db)
     taxonomy_cache.clear()

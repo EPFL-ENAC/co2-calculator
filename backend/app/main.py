@@ -1,6 +1,8 @@
 """FastAPI application entry point."""
 
 import asyncio
+import ipaddress
+import os
 from contextlib import asynccontextmanager
 
 import httpx
@@ -53,6 +55,39 @@ def assert_security_settings(settings) -> None:
     ]
     if missing:
         raise RuntimeError(f"Missing required security settings: {missing}")
+
+
+def assert_proxy_trust_settings() -> None:
+    """Fail closed at boot when uvicorn is told to trust every proxy (#2530).
+
+    ``FORWARDED_ALLOW_IPS`` is uvicorn's own env var, not a ``Settings`` field
+    (``backend/.env`` is never read by the uvicorn process). Rejects both
+    ``*`` and any ``/0`` network — uvicorn reaches the same forgeable
+    leftmost-XFF-entry result by two different code paths in
+    ``uvicorn/middleware/proxy_headers.py``. See the #2530 plan for detail.
+    """
+    raw = os.environ.get("FORWARDED_ALLOW_IPS", "").strip()
+    if not raw:
+        return
+    entries = [entry.strip() for entry in raw.split(",")]
+    offenders = [entry for entry in entries if _trusts_every_address(entry)]
+    if not offenders:
+        return
+    raise RuntimeError(
+        f"FORWARDED_ALLOW_IPS entries {offenders} trust every proxy, which "
+        "makes X-Forwarded-For client-forgeable (#2530). Set it to the CIDRs "
+        "of this cluster's proxies only."
+    )
+
+
+def _trusts_every_address(entry: str) -> bool:
+    """True when this one allowlist entry matches every possible client."""
+    if entry == "*":
+        return True
+    try:
+        return ipaddress.ip_network(entry).prefixlen == 0
+    except ValueError:
+        return False
 
 
 def assert_accred_settings(settings) -> None:
@@ -110,6 +145,7 @@ def assert_poller_isolation(settings) -> None:
 async def lifespan(app: FastAPI):
     """Run on application startup."""
     assert_security_settings(settings)
+    assert_proxy_trust_settings()
     assert_accred_settings(settings)
     assert_poller_isolation(settings)
 
