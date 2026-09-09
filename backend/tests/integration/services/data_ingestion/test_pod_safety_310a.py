@@ -56,9 +56,10 @@ def _make_job(
     ingestion_method: IngestionMethod = IngestionMethod.csv,
     job_type: str | None = None,
     meta: dict | None = None,
+    entity_type: EntityType = EntityType.MODULE_PER_YEAR,
 ) -> DataIngestionJob:
     return DataIngestionJob(
-        entity_type=EntityType.MODULE_PER_YEAR,
+        entity_type=entity_type,
         module_type_id=module_type_id,
         data_entry_type_id=data_entry_type_id,
         year=year,
@@ -361,6 +362,47 @@ async def test_sweep_abandons_stuck_running_at_max_attempts(
 
 
 @pytest.mark.asyncio
+async def test_sweep_never_retries_module_unit_specific(db_session: AsyncSession):
+    """#2700 Part 2 -- MODULE_UNIT_SPECIFIC never reaches the recoverable
+    bucket, regardless of attempts remaining.
+
+    That upload path is append-only with no delete-before-insert and
+    almost no DB uniqueness constraint on data_entries, and data_session
+    commits per INGEST_COPY_BATCH_SIZE batch rather than once at the
+    end -- so a dead job may already have partially committed. Resetting
+    it to NOT_STARTED would let a retry re-COPY rows a prior attempt
+    already wrote, duplicating them. attempts=0 (miles under max) proves
+    this isn't just the existing attempts-exhausted path firing.
+    """
+    stale_time = datetime.now(UTC) - timedelta(minutes=60)
+    job = _make_job(
+        state=IngestionState.RUNNING,
+        locked_by="pod-crashed",
+        locked_at=stale_time,
+        attempts=0,
+        max_attempts=3,
+        is_current=True,
+        entity_type=EntityType.MODULE_UNIT_SPECIFIC,
+    )
+    db_session.add(job)
+    await db_session.flush()
+    job_id = job.id
+
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (0, 1)
+
+    refreshed = await repo.get_job_by_id(job_id)
+    assert refreshed is not None
+    assert refreshed.state == IngestionState.FINISHED
+    assert refreshed.result == IngestionResult.ERROR
+    # attempts is untouched -- this is not the exhausted-retries path
+    assert refreshed.attempts == 0
+    assert "duplicate protection" in (refreshed.status_message or "")
+    assert "delete any rows" in (refreshed.status_message or "")
+
+
+@pytest.mark.asyncio
 async def test_sweep_skips_running_within_stale_window(db_session: AsyncSession):
     """Jobs whose locked_at is within the stale window are presumed alive."""
     recent_time = datetime.now(UTC) - timedelta(minutes=5)
@@ -512,6 +554,67 @@ async def test_recover_endpoint_stale(
         assert resp.json()["state"] == IngestionState.NOT_STARTED
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_recover_endpoint_blocks_module_unit_specific(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    """#2700 Part 2 -- POST /jobs/{id}/recover has the same footgun as the
+    auto-recovery sweep (resets attempts=0, same append-only handler
+    would run again), so it gets the same block: 409, job untouched.
+    """
+    stale_time = datetime.now(UTC) - timedelta(minutes=60)
+    job = _make_job(
+        state=IngestionState.RUNNING,
+        locked_by="pod-1",
+        locked_at=stale_time,
+        is_current=True,
+        entity_type=EntityType.MODULE_UNIT_SPECIFIC,
+    )
+    db_session.add(job)
+    await db_session.flush()
+    job_id = job.id
+
+    from app.api.deps import get_current_user, get_db
+
+    async def fake_user():
+        fake = MagicMock()
+        fake.institutional_id = "test"
+        fake.roles = []
+        fake.calculate_permissions = MagicMock(return_value={})
+        return fake
+
+    async def fake_permitted(*args, **kwargs):
+        return True
+
+    async def fake_get_db():
+        yield db_session
+
+    async def fake_check_module(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("app.core.security.is_permitted", fake_permitted)
+    monkeypatch.setattr(
+        "app.api.v1.data_sync.check_module_permission", fake_check_module
+    )
+
+    app.dependency_overrides[get_current_user] = fake_user
+    app.dependency_overrides[get_db] = fake_get_db
+
+    try:
+        with TestClient(app) as client:
+            resp = client.post(f"/api/v1/sync/jobs/{job_id}/recover")
+
+        assert resp.status_code == 409
+        assert "duplicate protection" in resp.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()
+
+    repo = DataIngestionRepository(db_session)
+    refreshed = await repo.get_job_by_id(job_id)
+    assert refreshed is not None
+    assert refreshed.state == IngestionState.RUNNING  # untouched
 
 
 @pytest.mark.asyncio

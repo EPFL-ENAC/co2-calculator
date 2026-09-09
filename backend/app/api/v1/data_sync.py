@@ -2195,6 +2195,24 @@ async def recover_job(
             entity_id=scope_row.entity_id,
         )
         await _check_job_scope(scope_job, current_user, db, action="sync")
+        # #2700 Part 2 — MODULE_UNIT_SPECIFIC uploads are append-only with
+        # no delete-before-insert and almost no DB uniqueness constraint on
+        # data_entries, and data_session commits per INGEST_COPY_BATCH_SIZE
+        # batch rather than once at the end — so a dead job may already
+        # have partially committed. Resetting it here would let the same
+        # unsafe re-COPY the auto-recovery sweep also refuses to do (see
+        # sweep_stuck_running_jobs). Same block, same reason, both paths.
+        if scope_row.entity_type == EntityType.MODULE_UNIT_SPECIFIC:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "This upload cannot be recovered automatically — it has "
+                    "no duplicate protection against a partial prior "
+                    "attempt. Verify data_entries for this report against "
+                    "the source file, delete any rows the dead job may "
+                    "have already written, then re-upload."
+                ),
+            )
     recovered = await repo.recover_job(job_id, settings.STALE_JOB_TIMEOUT_MINUTES)
     if not recovered:
         raise HTTPException(
