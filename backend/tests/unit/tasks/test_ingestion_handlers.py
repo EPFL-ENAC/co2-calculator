@@ -920,3 +920,43 @@ async def test_csv_ingest_fan_out_counts_only_owned_children():
     assert mock_chain.await_count == len(expected_dets)
     assert "recalc_jobs_chained" not in meta  # Phase 5B retired
     assert meta["result"] == IngestionResult.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# #2527 B1 — the handler must hand its module pin to the advisory lock
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("config", "expected_pin"),
+    [
+        ({"carbon_report_module_id": 101}, 101),
+        ({}, None),
+    ],
+)
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_passes_its_module_pin_to_the_lock(
+    config, expected_pin
+):
+    """A unit-scoped upload shares the factor gate; a per-year one does not.
+
+    Dropping the kwarg here would not break a test that only looks at the
+    fan-out — it would just quietly restore the head-to-tail
+    serialization B1 exists to remove.
+    """
+    job = _make_job(meta={"provider_name": "FakeCSV", "config": config})
+    _, fake_class = _patch_provider(success=True)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
+        patch.object(
+            ingest_mod, "acquire_factor_recalc_lock", new_callable=AsyncMock
+        ) as mock_lock,
+    ):
+        await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_lock.assert_awaited_once()
+    assert mock_lock.await_args.kwargs["carbon_report_module_id"] == expected_pin
