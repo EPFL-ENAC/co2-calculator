@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2684
-last_updated: 2026-09-08
+last_updated: 2026-09-09
 summary: "The backend suite is red in three unrelated ways: a stale config test left behind by the #1153 revert (red on CI now), backend/.env leaking into every pytest process through an lru_cache ordering bug (11 integration tests ran against real EPFL S3), and a CSV fixture #2253 never committed. Three independent fixes, shipped in that order."
 ---
 
@@ -29,8 +29,15 @@ must not be bundled into one PR.
       `pytest_configure` (incl. `app.api.v1.files`, the S3 case this RC
       fixes); confirmed it does **not** cover `app.core.logging`, eagerly
       imported by `app/__init__.py` before that point. Filed as
-      [#2686](https://github.com/EPFL-ENAC/co2-calculator/issues/2686), not
-      fixed here — see [Scope](#scope-checked-empirically---not-everything-is-covered).
+      [#2686](https://github.com/EPFL-ENAC/co2-calculator/issues/2686) —
+      see [Scope](#scope-checked-empirically---not-everything-is-covered).
+- [x] **#2686 fix** — `app.core.logging` no longer binds `settings =
+    get_settings()` at import time; both call sites (`setup_logging()`,
+      `LokiHandler.emit()`) call `get_settings()` live instead, mirroring
+      `app/core/crypto.py`'s existing pattern. Same PR as RC2, per feedback
+      that a follow-up discovered while working the same issue belongs
+      alongside it, not in a separately-scheduled issue. See
+      [#2686 fix](#2686-fix--appcorelogging-read-settings-live-not-at-import).
 - [x] **RC3** — commit `building_rooms_unknown_room.csv`
 - [x] **RC3 follow-up** — `.gitignore`'s blanket `*.csv` (line 8) silently
       swallows every fixture under `backend/tests/fixtures/csv/`; that is how
@@ -182,16 +189,54 @@ failed to push log: ConnectError`). Checked the same way for `app.db`,
 `app.core.security`, `app.providers.*` — none of those are in the eager
 chain, so this is a single-module leak, not a repeat of RC2's blast radius.
 
-Not fixed in this PR — tracked as
-[#2686](https://github.com/EPFL-ENAC/co2-calculator/issues/2686) instead,
-since the two
-candidate fixes (make `app.core.logging`'s settings access lazy — call
-`get_settings()` inside `setup_logging()`/`get_logger()` instead of at
-import time; or detect pytest in `Settings.model_config` itself, e.g.
-`env_file=None if "pytest" in sys.modules else ".env"`) are both changes to
-files this doc and the guardrails already flag as "read the comment before
-touching," and the guardrails ask that architecture changes wait for
-explicit sign-off rather than ride along in a test-suite PR.
+Filed as [#2686](https://github.com/EPFL-ENAC/co2-calculator/issues/2686).
+Originally deferred out of this PR — reconsidered on feedback that a
+follow-up discovered while working the same issue, on the same branch,
+belongs fixed alongside it rather than mentally parked for a separately
+scheduled PR. See [#2686 fix](#2686-fix--appcorelogging-read-settings-live-not-at-import)
+below.
+
+### #2686 fix — `app.core.logging` reads settings live, not at import
+
+Two candidates were considered:
+
+1. **Make `app.core.logging`'s settings access lazy** — call `get_settings()`
+   inside `setup_logging()`/`LokiHandler.emit()` instead of binding a
+   module-level `settings` singleton at import time.
+2. Detect pytest in `Settings.model_config` itself (e.g. `env_file=None if
+"pytest" in sys.modules else ".env"`) — fixes this and any of the ~19
+   other modules with the same import-time `settings = get_settings()`
+   pattern in one place, but plants test-awareness in production config
+   code, in the exact file already flagged "precedence has flipped twice,
+   read this before touching."
+
+Went with **(1)**. It's not a new pattern — `app/core/crypto.py` already
+does exactly this (`settings = get_settings()` as the first line inside the
+function that needs it, not at module scope). Mirrors existing code rather
+than inventing a config-level mechanism, and stays contained to the one
+module with the confirmed bug.
+
+`tests/unit/core/test_logging_redaction.py::test_loki_handler_is_wrapped_in_a_queue_not_attached_directly`
+already exercised this exact path via `monkeypatch.setattr(logging_module.settings,
+...)`, which stopped working once the module-level singleton was removed —
+switched to the established `monkeypatch.setenv(...)` +
+`get_settings.cache_clear()` pattern (same as `test_crypto.py`), and its
+docstring now also carries the #2686 regression-guard rationale: a
+QueueHandler only appearing after a live env-var change proves
+`setup_logging()` isn't reading a value frozen at import time.
+
+### Verify
+
+```bash
+cd backend && uv run pytest tests/unit/core/test_logging_redaction.py -v
+```
+
+Reproduction used to confirm both the bug and the fix: populate
+`backend/.env` with `LOKI_ENABLED=true` + a fake `LOKI_URL`, run any
+backend test. Before the fix: `setup_logging()` attempts a real outbound
+connection (`LokiHandler: failed to push log: ConnectError`). After: no
+connection attempt — `get_settings().LOKI_ENABLED` reads `False` as
+expected under pytest.
 
 ### Verify
 

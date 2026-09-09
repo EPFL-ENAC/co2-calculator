@@ -59,11 +59,14 @@ def pytest_configure():
     # `files_store = make_files_store()` is why RC2's S3 leak is fixed. It
     # does NOT reach modules that app/__init__.py's own eager imports
     # (`import app.modules` at app/__init__.py:15) pull in ahead of any of
-    # conftest's imports — as of #2684 that's just app.core.logging, whose
-    # module-level `settings = get_settings()` stays bound to a .env-poisoned
-    # object for the whole test session regardless of this cache_clear().
-    # Tracked as #2686, not fixed here: a populated .env with
-    # LOKI_ENABLED=true leaks a real Loki endpoint into setup_logging().
+    # conftest's imports. app.core.logging was one such module (#2686): its
+    # own `settings = get_settings()` singleton stayed bound to a
+    # .env-poisoned object for the whole test session, cache_clear()
+    # notwithstanding — fixed by moving that read inside setup_logging()/
+    # LokiHandler.emit() instead of binding it at import time (mirrors
+    # app/core/crypto.py's existing pattern). If a future module reintroduces
+    # a module-level `settings = get_settings()` and is reachable from
+    # app/__init__.py's eager chain, it has the same latent bug.
     from app.core.config import Settings, get_settings
 
     Settings.model_config["env_file"] = None
