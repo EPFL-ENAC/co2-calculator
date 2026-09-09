@@ -116,7 +116,11 @@ Two more of ours made it worse:
    the wait for one of our own slots, never the in-query wait at the
    bouncer, and a request that fails in 5 s in-process beats one that
    queues 120 s.
-5. **Docs**: `database/01-overview.md` is the canonical PgBouncer note;
+5. **`application_name=co2-<pod>` on every Postgres connection**
+   (`app/db.py`): behind the bouncer every backend shares one
+   `client_addr`, so this is what tells pods, and laptops running the app
+   against dev, apart in `pg_stat_activity`.
+6. **Docs**: `database/01-overview.md` is the canonical PgBouncer note;
    ADR-004 and plan 1723's "no PgBouncer" sections are marked superseded;
    the architecture pages drop the "no PgBouncer" claims.
 
@@ -169,6 +173,25 @@ Two more of ours made it worse:
   rows/s): read the trace first. Batch commits touch pipeline idempotency
   (310-series, 1215, 1219, 1559, 1723) and need a written plan reviewed by
   both maintainers.
+
+## Checked and closed
+
+- `_build_aggregation_scope_config` is not a parallel fan-out: `_gather`
+  runs once on one helper session. A running job holds three connections
+  at most (`job_session`, `data_session`, the helper), so the worker's
+  demand is `3 × MAX_CONCURRENT_JOBS` plus its loops, not 50.
+- A handler failure ends in FINISHED+ERROR, no automatic retry. Only the
+  stale-RUNNING sweep re-dispatches, after `STALE_JOB_TIMEOUT_MINUTES`, so
+  a `query_wait_timeout` wave does not retry itself into a storm.
+- SIGTERM reaches uvicorn: the Dockerfile `CMD` is `sh -c "exec …"`, so
+  the lifespan teardown and `engine.dispose()` (#2566) run. The backend
+  Deployment has a 5 s `preStop` and 35 s grace; the worker Deployment
+  has neither and gets the Kubernetes default 30 s, which also caps how
+  long a running ingest gets to finish before the stale sweep takes over.
+- Every path to dev goes through the bouncer, VPN included: a psql
+  session from a laptop shows `client_addr = 10.95.64.75` like the pods.
+  A pgAdmin tab or a laptop running the app against dev holds server
+  slots exactly like a pod.
 
 ## Rejected
 
