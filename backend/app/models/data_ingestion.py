@@ -13,6 +13,29 @@ from app.models.user import UserProvider
 
 # from app.models.user import UserProvider
 
+# #2527 Phase A — an ``emission_recalc`` child that pins
+# ``carbon_report_module_ids`` recomputes ONE carbon report module's
+# entries, so it is disjoint from every other unit's child for the same
+# (module_type, det, year).  ``uq_emission_recalc_active_unscoped`` below and the
+# Python pre-check in ``app.tasks._chain`` both restrict themselves to
+# whole-slice (unscoped) children with this predicate — they must stay
+# byte-identical, hence the shared constant.  ``->`` (not ``?``) so the
+# fragment is valid for both ``json`` and ``jsonb`` columns and carries
+# no paramstyle-ambiguous character.
+EMISSION_RECALC_UNSCOPED_SQL = "meta -> 'config' -> 'carbon_report_module_ids' IS NULL"
+
+# The complement, for the scoped index below.  A scoped child still
+# dedups — just on its own carbon report module rather than fleet-wide,
+# so one unit re-uploading the same module twice collapses while two
+# different units never do.  The indexed expression casts to ``jsonb``
+# because ``meta`` is ``json``, which has no btree equality operator.
+EMISSION_RECALC_SCOPED_SQL = (
+    "meta -> 'config' -> 'carbon_report_module_ids' IS NOT NULL"
+)
+# Outer parentheses are required: an index column list rejects a bare
+# ``expr::type``, and they are harmless in the pre-check's WHERE.
+EMISSION_RECALC_SCOPE_EXPR = "((meta -> 'config' -> 'carbon_report_module_ids')::jsonb)"
+
 
 # ==========================================
 # 0. ENUMERATIONS
@@ -405,7 +428,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
             ),
         ).ddl_if(dialect="postgresql"),
         Index(
-            "uq_emission_recalc_active",
+            "uq_emission_recalc_active_unscoped",
             "module_type_id",
             "data_entry_type_id",
             "year",
@@ -419,7 +442,33 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
                 ") "
                 "AND module_type_id IS NOT NULL "
                 "AND data_entry_type_id IS NOT NULL "
-                "AND year IS NOT NULL"
+                "AND year IS NOT NULL "
+                f"AND {EMISSION_RECALC_UNSCOPED_SQL}"
+            ),
+        ).ddl_if(dialect="postgresql"),
+        # The scoped half of the same idea (#2527 Phase A/B): a child
+        # pinning carbon_report_module_ids dedups against the SAME module
+        # only.  Two units stay disjoint — the bug this pair replaced —
+        # while one unit re-uploading the same module twice still
+        # collapses, which is what the fleet-wide index used to give it.
+        Index(
+            "uq_emission_recalc_active_scoped",
+            "module_type_id",
+            "data_entry_type_id",
+            "year",
+            text(EMISSION_RECALC_SCOPE_EXPR),
+            unique=True,
+            postgresql_where=text(
+                "job_type = 'emission_recalc' "
+                "AND state IN ("
+                "'NOT_STARTED'::ingestion_state_enum, "
+                "'QUEUED'::ingestion_state_enum, "
+                "'RUNNING'::ingestion_state_enum"
+                ") "
+                "AND module_type_id IS NOT NULL "
+                "AND data_entry_type_id IS NOT NULL "
+                "AND year IS NOT NULL "
+                f"AND {EMISSION_RECALC_SCOPED_SQL}"
             ),
         ).ddl_if(dialect="postgresql"),
     )

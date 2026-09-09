@@ -77,6 +77,18 @@ jobs:
       - name: Run alembic migration smoke test
         run: uv run pytest tests/integration/test_alembic_migrations.py -vv
 
+      # #2527 Phase A.  These pin that two units uploading the same
+      # (module_type, det, year) both get a recalc child.  They are
+      # real-PG-only (partial indexes, enum types), so they used to run
+      # nightly and never on a PR — which meant the guard against silent
+      # wrong totals gated nothing.  Same throwaway container as above,
+      # so this costs one more file, not new infrastructure.
+      - name: Run emission-recalc dedup regression tests
+        run: >
+          uv run pytest
+          tests/integration/services/data_ingestion/test_emission_recalc_dedup_pg.py
+          -vv
+
   test-frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest
