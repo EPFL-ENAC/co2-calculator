@@ -198,7 +198,7 @@ const {
 const showDataEntryDialog = ref(false);
 const dialogCurrentRow = ref<ImportRow | null>(null);
 const dialogTargetType = ref<TargetType | null>(null);
-const dialogInitialFile = ref<File | null>(null);
+const dialogDropFile = ref<File | null>(null);
 
 const showRecalcDialog = ref(false);
 const recalcDialogModuleTypeId = ref<number | null>(null);
@@ -228,7 +228,7 @@ function openDataEntryDialog(
 ) {
   dialogCurrentRow.value = row;
   dialogTargetType.value = targetType;
-  dialogInitialFile.value = file ?? null;
+  dialogDropFile.value = file ?? null;
   showDataEntryDialog.value = true;
 }
 
@@ -437,7 +437,7 @@ provide('currentPipelineId', currentPipelineId);
     :row="dialogCurrentRow || ({} as ImportRow)"
     :year="yearConfigStore.selectedYear"
     :target-type="dialogTargetType ?? TargetType.DATA_ENTRIES"
-    :initial-file="dialogInitialFile"
+    :drop-file="dialogDropFile"
     @completed="handleJobCompleted"
     @progressing="handleJobProgressing"
   />

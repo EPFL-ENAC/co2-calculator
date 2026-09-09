@@ -2,8 +2,9 @@
 status: delivered
 issue: 2702
 last_updated: 2026-09-09
+
 title: "Issue 2702 — References upload through the shared import dialog; upload cards accept a dropped CSV"
-summary: "The references card in the backoffice configuration page was a 480-line fork of the shared UploadCard with a hidden file input that uploaded on selection, bypassing the import dialog's overwrite warning and the year-sync guard. It is now a thin wrapper routed through the same dialog as Factors and Data. Every upload card is also a drop zone: dropping a CSV opens the import dialog with the file pre-selected, so Save is one press away and a stray drop never uploads by itself."
+summary: "The references card in the backoffice configuration page was a 480-line fork of the shared UploadCard with a hidden file input that uploaded on selection, bypassing the import dialog's overwrite warning and the year-sync guard. It is now a thin wrapper routed through the same dialog as Factors and Data. Every upload card is also a drop zone: dropping a CSV uploads it straight away through the dialog's upload path, with no modal. Enter after picking a file in the dialog triggers Save."
 ---
 
 # Issue 2702 — References upload through the shared import dialog; upload cards accept a dropped CSV
@@ -37,9 +38,14 @@ summary: "The references card in the backoffice configuration page was a 480-lin
   the existing `upload` event as an optional third argument.
 - Both dialog openers (`DataManagementPage.vue` for reduction objectives,
   `ModuleConfig.vue` for module and submodule cards) accept the file and
-  pass it as `initialFile`; `DataEntryDialogContent.vue` pre-selects it
-  after `resetDialog()`. The drop never uploads on its own: the
-  overwrite and recalculation warnings still gate the Save.
+  pass it as `dropFile`; `DataEntryDialogContent.vue` then runs its
+  `uploadFiles()` path without showing the dialog and releases the
+  parent's v-model. Follow-up (PR after #2703): the first cut opened the
+  dialog pre-filled; the maintainer chose the Gmail-style direct upload,
+  accepting that a drop skips the overwrite warning.
+- Enter in the dialog: QFile owns Enter (it re-opens the picker), so
+  after a pick the dialog moves focus to the Save button and Enter
+  clicks it natively.
 - The pipeline-scoping computeds moved unchanged from `UploadCard.vue`
   into `useCardPipelineScope.ts` to keep the component under 500 lines.
 - `FileObject` (a `Blob` with a fictional `path`) is gone; the files
@@ -52,8 +58,11 @@ summary: "The references card in the backoffice configuration page was a 480-lin
 - `tests/unit/last-job-for-target.spec.ts` — pure lookup per target type.
 - `tests/integration/data-management.spec.ts` 5c — references upload
   through the dialog dispatches `target_type: 3`.
-- 5d — a synthetic drop on the headcount factors card opens the dialog
-  with the file selected and fires no dispatch until Save.
+- 5d — a synthetic drop on the headcount factors card dispatches without
+  opening the dialog.
+- 5e — Enter after picking a file dispatches.
+- 5f — a drop on a reduction-objective card carries the file and the
+  `reduction_objective_type_id`.
 
 The e2e suite serves the prebuilt `dist/spa`; run `quasar build` before
 `npm run test:e2e` or the tests exercise the previous bundle.
