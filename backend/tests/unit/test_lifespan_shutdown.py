@@ -85,3 +85,24 @@ def test_server_connections_gauge_is_silent_before_the_first_tick():
     _pod_heartbeat._server_connections = None
 
     assert list(_pod_heartbeat._server_connections_callback(None)) == []
+
+
+async def test_lifespan_hands_jobs_back_before_disposing_the_pool(
+    quiet_lifespan, monkeypatch
+):
+    """#2696: the drain must run while the pool is still open, or the
+    hand-back UPDATE has nothing to run on.
+    """
+    pool_before = engine.pool
+    observed = {}
+
+    async def _drain(timeout=None):
+        observed["pool_still_open"] = engine.pool is pool_before
+        return 0
+
+    monkeypatch.setattr("app.main.cancel_background_tasks", _drain)
+
+    async with lifespan(FastAPI()):
+        pass
+
+    assert observed == {"pool_still_open": True}
