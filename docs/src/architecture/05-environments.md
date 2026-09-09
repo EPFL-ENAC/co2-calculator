@@ -30,8 +30,10 @@ instance. For local setup, see the [Development Guide](../frontend/01-overview.m
 ## Database
 
 A single **managed PostgreSQL** (EPFL DBaaS) per environment, reached over
-`DB_URL`. Connection pooling is **in-process** (SQLAlchemy async) — there
-is **no PgBouncer and no read replica**. A `db-dump` CronJob backs each
+`DB_URL`. Connection pooling is **in-process** (SQLAlchemy async) behind a
+**DBaaS-side PgBouncer** on every instance since 2026-09 (see the
+[database overview](../database/01-overview.md#notes)); there is **no read
+replica**. A `db-dump` CronJob backs each
 database up to the `db-dumps` PVC. Local development uses Postgres 18 in
 Docker Compose.
 

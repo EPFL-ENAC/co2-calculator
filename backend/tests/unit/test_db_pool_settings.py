@@ -29,6 +29,7 @@ from app.db import (
     count_connect_failure,
     read_pool_state,
 )
+from app.tasks._pod_id import POD_ID
 
 
 def test_pool_kwargs_passes_settings_through_for_postgres():
@@ -124,12 +125,21 @@ def test_postgres_connect_args_enable_tcp_keepalives():
     mid-connection waits out the OS default (~2h) instead of failing. These
     four settings cap that at roughly 60s: idle 30s, then 3 probes 10s apart.
     """
-    assert _connect_args(is_sqlite=False) == {
+    args = _connect_args(is_sqlite=False)
+    assert {k: args[k] for k in args if k.startswith("keepalives")} == {
         "keepalives": 1,
         "keepalives_idle": 30,
         "keepalives_interval": 10,
         "keepalives_count": 3,
     }
+
+
+def test_postgres_connect_args_name_the_pod():
+    """#2689: behind PgBouncer every backend shares the bouncer's
+    ``client_addr``; ``application_name`` is the only thing left that says
+    which pod (or which laptop) holds a server slot.
+    """
+    assert _connect_args(is_sqlite=False)["application_name"] == f"co2-{POD_ID}"
 
 
 def test_sqlite_connect_args_carry_no_libpq_options():

@@ -19,7 +19,7 @@ from app.core.config import get_settings
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
-from app.db import SessionLocal, get_db
+from app.db import get_db
 from app.models.user import User, UserProvider
 from app.services.user_service import UserService
 
@@ -200,32 +200,24 @@ async def get_current_user(
     """Get current user from JWT token. Thin wrapper over
     :func:`resolve_user_by_jwt_payload` that enforces the access-token
     contract — refresh tokens must not be accepted for protected routes.
+
+    Returns a *detached* ``User`` and hands the pooled connection back
+    before the route body runs. ``get_db`` is a ``yield`` dependency that
+    FastAPI releases only after the response is fully sent, and the user
+    lookup autobegins a transaction, so without the rollback every request
+    pinned one connection from auth to the last byte -- for a stream or an
+    S3 upload that is minutes, and on 2026-09-08 that queue filled the
+    DBaaS PgBouncer (#2654, #2689). The route's own session is untouched:
+    its first query autobegins again and takes a connection only then.
+    ``User`` has no relationships, so a detached instance is complete.
     """
     payload = decode_jwt(token)
-    return await resolve_user_by_jwt_payload(
+    user = await resolve_user_by_jwt_payload(
         payload, db, expected_token_type=TOKEN_TYPE_ACCESS
     )
-
-
-async def get_current_user_detached(
-    token: str = Depends(get_jwt_from_cookie),
-) -> User:
-    """``get_current_user`` for endpoints that return a ``StreamingResponse``.
-
-    ``get_current_user`` takes its session from ``get_db``, a ``yield``
-    dependency. FastAPI (>= 0.118) releases request-scoped ``yield``
-    dependencies only after the response has been fully sent, which for a
-    streaming response is the end of the stream -- so every open SSE stream
-    pinned one pooled connection, in an open transaction, for minutes or
-    hours (#2654). This variant resolves the user in its own short-lived
-    session and returns a detached ``User``; the connection is back in the
-    pool before the stream starts.
-    """
-    payload = decode_jwt(token)
-    async with SessionLocal() as db:
-        return await resolve_user_by_jwt_payload(
-            payload, db, expected_token_type=TOKEN_TYPE_ACCESS
-        )
+    db.expunge(user)
+    await db.rollback()
+    return user
 
 
 async def get_current_active_user(

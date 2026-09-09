@@ -22,6 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import models  # noqa: F401 to register models with Base
 from app.core.config import Settings, get_settings
+from app.tasks._pod_id import POD_ID
 
 settings = get_settings()
 
@@ -196,7 +197,11 @@ def _connect_args(is_sqlite: bool) -> dict:
     """
     if is_sqlite:
         return {"check_same_thread": False}
-    return dict(_PG_KEEPALIVES)
+    # Behind the DBaaS PgBouncer every backend arrives from the bouncer's
+    # address, so ``pg_stat_activity.client_addr`` can no longer tell pods
+    # apart (#2689). ``application_name`` is what the bouncer forwards and
+    # what a laptop running the app against dev shows up as.
+    return {**_PG_KEEPALIVES, "application_name": f"co2-{POD_ID}"}
 
 
 engine = create_async_engine(

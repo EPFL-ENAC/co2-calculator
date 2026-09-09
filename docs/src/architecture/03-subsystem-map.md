@@ -114,7 +114,7 @@ by the app Helm chart.
 - **Files** — `enacit4r-files` abstraction; writes to EPFL S3 when configured, otherwise the local filesystem.
 - **Audit sync** — ships OPDo audit records to Elasticsearch when configured.
 - **Background tasks** — in-process `asyncio` chained via `BackgroundTasks`, backed by a DB job table with a 10-second safety-net poller. No Redis/Celery. See [ADR-010](../architecture-decision-records/010-background-job-processing.md).
-- **Persistence** — SQLAlchemy async (psycopg) to a single managed PostgreSQL (EPFL DBaaS); connection pooling is in-process, **no PgBouncer**.
+- **Persistence** — SQLAlchemy async (psycopg) to a single managed PostgreSQL (EPFL DBaaS); connection pooling is in-process, behind a DBaaS-side PgBouncer (since 2026-09, see the [database overview](../database/01-overview.md#notes)).
 - **Telemetry** — the whole app is OpenTelemetry-instrumented and exports OTLP to the in-namespace OTEL Collector (traces → Tempo, metrics → Prometheus). See [System Overview](./02-system-overview.md#cross-cutting).
 
 For implementation detail see [Frontend](../frontend/01-overview.md),

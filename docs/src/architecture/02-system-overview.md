@@ -126,9 +126,12 @@ Actions, published to Quay, and reconciled onto OpenShift by ArgoCD from
 the `openshift-app-config` GitOps repo. The OTEL Collector and
 the monitoring stack are also deployed via that GitOps repo.
 
-> **Not in the stack** (despite older docs): PgBouncer, PostgreSQL
-> replicas, Azure Blob Storage, Redis/Celery, a service mesh. Connection
-> pooling and background jobs run in-process; see [ADR-010](../architecture-decision-records/010-background-job-processing.md).
+> **Not in the stack** (despite older docs): PostgreSQL replicas, Azure
+> Blob Storage, Redis/Celery, a service mesh. Background jobs run
+> in-process; see [ADR-010](../architecture-decision-records/010-background-job-processing.md).
+> Connection pooling is in-process too, behind the PgBouncer that DBaaS
+> runs in front of every instance since 2026-09 — see the
+> [database overview](../database/01-overview.md#notes).
 
 ---
 
@@ -187,12 +190,12 @@ flowchart TB
 
 ### Container responsibilities
 
-| Container       | Role                                                                                                                                        |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Frontend**    | Static Quasar SPA, calls Backend over REST with HTTP-only auth cookies.                                                                     |
-| **Backend API** | Auth, business logic, persistence, file uploads, data ingestion, background jobs.                                                           |
-| **Docs**        | This MkDocs site, served as static files.                                                                                                   |
-| **PostgreSQL**  | System of record (also holds the background-job queue table); managed EPFL DBaaS, reached directly via SQLAlchemy async — **no PgBouncer**. |
+| Container       | Role                                                                                                                                                           |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**    | Static Quasar SPA, calls Backend over REST with HTTP-only auth cookies.                                                                                        |
+| **Backend API** | Auth, business logic, persistence, file uploads, data ingestion, background jobs.                                                                              |
+| **Docs**        | This MkDocs site, served as static files.                                                                                                                      |
+| **PostgreSQL**  | System of record (also holds the background-job queue table); managed EPFL DBaaS, reached via SQLAlchemy async through a DBaaS-side PgBouncer (since 2026-09). |
 
 Stack and versions live in [Tech Stack](./08-tech-stack.md). The backend's
 internal subsystems are in the [Subsystem Map](./03-subsystem-map.md).
