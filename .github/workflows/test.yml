@@ -77,16 +77,19 @@ jobs:
       - name: Run alembic migration smoke test
         run: uv run pytest tests/integration/test_alembic_migrations.py -vv
 
-      # #2527 Phase A.  These pin that two units uploading the same
-      # (module_type, det, year) both get a recalc child.  They are
-      # real-PG-only (partial indexes, enum types), so they used to run
-      # nightly and never on a PR — which meant the guard against silent
-      # wrong totals gated nothing.  Same throwaway container as above,
-      # so this costs one more file, not new infrastructure.
-      - name: Run emission-recalc dedup regression tests
+      # #2527 Phase A and B.  Phase A's pin that two units uploading the
+      # same (module_type, det, year) both get a recalc child; Phase B's
+      # pin which of those two uploads may run concurrently and which must
+      # still serialize.  Both are real-PG-only (partial indexes, enum
+      # types, advisory-lock modes), so they used to run nightly and never
+      # on a PR — which meant the guard against silent wrong totals gated
+      # nothing.  Same throwaway container as above, so this costs two
+      # more files, not new infrastructure.
+      - name: Run emission-recalc dedup and factor-lock scoping tests
         run: >
           uv run pytest
           tests/integration/services/data_ingestion/test_emission_recalc_dedup_pg.py
+          tests/integration/services/data_ingestion/test_factor_lock_scoping_pg.py
           -vv
 
       # #2527: the kg_co2eq sort's buffer budget. Real-PG-only (EXPLAIN
