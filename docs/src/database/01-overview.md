@@ -98,23 +98,9 @@ The application connects to PostgreSQL using the `DB_URL` environment variable, 
     Since #2689 `get_current_user` hands its connection back before the
     route body runs, so a request holds a connection only from its own
     first query to the end of the response.
-  - A request crosses three pools and each says "full" in its own words.
-    Since #2689 the app logs which layer it was and counts bouncer waits
-    (`db.pgbouncer.queued` fires the moment PgBouncer parks a client,
-    `db.pgbouncer.queue_timeouts` 120 s later when it gives up):
-
-    | Layer                  | Waiting for                                                      | Timeout                                                                    | What you see                                                                                              |
-    | ---------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-    | SQLAlchemy `QueuePool` | a slot in this pod's pool (`DB_POOL_SIZE` + `DB_MAX_OVERFLOW`)   | `DB_POOL_TIMEOUT`, 5 s                                                     | `sqlalchemy.exc.TimeoutError: QueuePool limit of size … reached`                                          |
-    | PgBouncer              | a server connection in its pool (`default_pool_size`, 35 on dev) | `query_wait_timeout`, 120 s                                                | NOTICE `client being queued` at once (1.22+), then `psycopg.errors.ProtocolViolation: query_wait_timeout` |
-    | Postgres login         | a backend under `max_connections` (100)                          | none, immediate                                                            | `FATAL: remaining connection slots are reserved` / `too many clients already`                             |
-    | Postgres execution     | locks, I/O                                                       | `statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout` | `canceling statement due to statement timeout`                                                            |
-
-    On prod the bouncer's pool is larger than `max_connections`, so the
-    third row is the one that fires there; on dev it is the second.
-    `scripts/probe_pgbouncer_pool.py` measures the bouncer's pool per
-    environment.
-
+  - Who opens connections, the three layers with their timeouts, the
+    per-environment budgets and which knob to turn on each alert:
+    [connection budget](02-connection-budget.md).
   - The `db.server.connections` gauge is emitted by the pod heartbeat,
     which blocks at the bouncer during a stall, so a flat line _during_ an
     incident is a frozen value. The ~40 plateau seen on four separate days

@@ -147,6 +147,7 @@ nav:
 
   - Database:
       - Overview: database/01-overview.md
+      - Connection budget: database/02-connection-budget.md
       - ERD: database/erd.md
 
   - Infrastructure & Operations:

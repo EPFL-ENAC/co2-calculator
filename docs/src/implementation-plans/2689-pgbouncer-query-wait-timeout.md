@@ -124,6 +124,17 @@ Two more of ours made it worse:
    ADR-004 and plan 1723's "no PgBouncer" sections are marked superseded;
    the architecture pages drop the "no PgBouncer" claims.
 
+## Pool sizing (2026-09-09, after the probe)
+
+The 5+50 shipped in the morning assumed a ~40 bouncer pool and turned out
+wrong twice: dev's pool probed at 35 (so 20 base connections left no room
+for a rollout), and prod's bouncer never queues at all, Postgres refuses
+at `max_connections=100`, so 3 × 55 + 55 = 220 could lock Postgres for
+everyone. Replaced by the measured budgets, rule and per-env table in
+[database/02-connection-budget.md](../database/02-connection-budget.md);
+values in openshift-app-config#41. `MAX_CONCURRENT_JOBS` 10 on dev was
+never deployed (#40 merged before that commit) and is now 2 there.
+
 ## Still open
 
 - **Pool mode on the app path.** From pgAdmin over VPN on stage, `SET` +
