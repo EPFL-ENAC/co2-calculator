@@ -29,7 +29,7 @@ const { t: $t } = useI18n();
 const reductionObjectivesExpanded = ref(false);
 
 const openDataEntryDialog = inject<
-  (row: ImportRow, targetType: TargetType | null) => void
+  (row: ImportRow, targetType: TargetType | null, file?: File) => void
 >('openDataEntryDialog')!;
 
 /** Default empty goal for a slot. */
@@ -222,7 +222,10 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.institutional_footprint)"
-          @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
+          @upload="
+            (row, _t, file) =>
+              openDataEntryDialog(row, TargetType.REDUCTION_OBJECTIVES, file)
+          "
           @download="downloadFile(reductionFiles?.institutional_footprint)"
         />
         <UploadCard
@@ -243,7 +246,10 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.population_projections)"
-          @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
+          @upload="
+            (row, _t, file) =>
+              openDataEntryDialog(row, TargetType.REDUCTION_OBJECTIVES, file)
+          "
           @download="downloadFile(reductionFiles?.population_projections)"
         />
         <UploadCard
@@ -264,7 +270,10 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.unit_scenarios)"
-          @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
+          @upload="
+            (row, _t, file) =>
+              openDataEntryDialog(row, TargetType.REDUCTION_OBJECTIVES, file)
+          "
           @download="downloadFile(reductionFiles?.unit_scenarios)"
         />
       </div>

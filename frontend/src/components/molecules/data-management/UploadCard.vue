@@ -106,10 +106,21 @@ function statsWithoutRowErrors(
 const { pipelinePhaseLabelKey, pipelineStillRunning, dataIngestionRunning } =
   useCardPipelineScope(props);
 
-// Drag-and-drop: the whole card is the drop target; the dropped file
-// opens the shared import dialog pre-selected (overwrite + recalc
-// warnings still apply — a stray drop never uploads by itself).
+// Drag-and-drop: the whole card is the drop target; a dropped file
+// is uploaded straight away through the shared dialog's upload path
+// (no modal — the operator asked for the Gmail-style fast lane).
 const isDragOver = ref(false);
+
+const cardTestId = computed(() =>
+  [
+    'upload-card',
+    props.targetType,
+    props.row?.moduleTypeId ?? props.row?.reductionObjectiveTypeId,
+    props.row?.dataEntryTypeId,
+  ]
+    .filter((v) => v !== undefined)
+    .join('-'),
+);
 
 function onDragOver() {
   if (props.isDisabled) return;
@@ -157,7 +168,7 @@ function handleAbort() {
     flat
     class="q-pa-lg column relative-position"
     :style="cardStyle(buttonColor)"
-    :data-testid="`upload-card-${targetType}-${row?.moduleTypeId}-${row?.dataEntryTypeId}`"
+    :data-testid="cardTestId"
     @dragenter.prevent="onDragOver"
     @dragover.prevent="onDragOver"
     @drop.prevent="onDrop"

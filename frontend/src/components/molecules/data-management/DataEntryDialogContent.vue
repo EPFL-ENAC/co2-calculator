@@ -5,18 +5,19 @@ import type {
   ImportRow,
 } from '@/stores/backofficeDataManagement';
 import { TargetType } from '@/stores/backofficeDataManagement';
-import { computed, watch, toRef } from 'vue';
+import { computed, ref, watch, toRef } from 'vue';
+import type { QBtn } from 'quasar';
 
 interface Props {
   modelValue: boolean;
   row: ImportRow;
   year: number;
   targetType: TargetType;
-  /** File dropped on an upload card — pre-selected so Save is one press away. */
-  initialFile?: File | null;
+  /** File dropped on an upload card — uploaded straight away, no dialog. */
+  dropFile?: File | null;
 }
 
-const props = withDefaults(defineProps<Props>(), { initialFile: null });
+const props = withDefaults(defineProps<Props>(), { dropFile: null });
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'completed', job: SyncJobResponse): void;
@@ -54,15 +55,32 @@ const connectorOptions = computed(() =>
 
 watch(
   () => props.modelValue,
-  (newVal) => {
-    showDialog.value = newVal;
-    if (newVal) {
-      resetDialog();
-      if (props.initialFile) selectedFiles.value = [props.initialFile];
-      loadConnectorOptions();
+  async (newVal) => {
+    if (!newVal) {
+      showDialog.value = false;
+      return;
     }
+    resetDialog();
+    // ponytail: a dropped file reuses this component's upload path
+    // (temp-upload → dispatch → SSE → toasts) without ever showing
+    // the dialog; the parent's v-model is released once it is sent.
+    if (props.dropFile) {
+      selectedFiles.value = [props.dropFile];
+      await uploadFiles();
+      emit('update:modelValue', false);
+      return;
+    }
+    showDialog.value = true;
+    loadConnectorOptions();
   },
 );
+
+// QFile owns Enter (it re-opens the picker), so after a pick move
+// focus to Save: Enter then clicks it natively.
+const saveBtnRef = ref<QBtn | null>(null);
+function focusSave() {
+  saveBtnRef.value?.$el?.focus();
+}
 
 watch(showDialog, (newVal) => {
   emit('update:modelValue', newVal);
@@ -148,6 +166,7 @@ watch(showDialog, (newVal) => {
             :hint="$t('data_management_supported_file_types')"
             counter
             accept=".csv, text/csv"
+            @update:model-value="focusSave"
           />
         </div>
 
@@ -209,6 +228,7 @@ watch(showDialog, (newVal) => {
 
       <q-card-actions class="q-px-md q-pb-md">
         <q-btn
+          ref="saveBtnRef"
           aria-label="data-entry-save"
           :label="
             selectedFiles && selectedFiles.length > 0

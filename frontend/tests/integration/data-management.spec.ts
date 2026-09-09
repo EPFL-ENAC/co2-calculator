@@ -444,7 +444,7 @@ test.describe('back-office data-management — happy paths', () => {
     expect(dispatch?.body).toContain('"target_type":3'); // REFERENCE_DATA
   });
 
-  test('5d — dropping a CSV on a card opens the dialog pre-filled', async ({
+  test('5d — dropping a CSV on a card uploads straight away, no dialog', async ({
     page,
   }) => {
     const { requests } = await mockBackend(page);
@@ -454,31 +454,8 @@ test.describe('back-office data-management — happy paths', () => {
     // Headcount > member: module_type_id 1, data_entry_type_id 1.
     const card = page.getByTestId('upload-card-1-1-1');
     await expect(card).toBeVisible({ timeout: 10000 });
+    await dropCsvOn(page, card, 'factors.csv');
 
-    const dataTransfer = await page.evaluateHandle(() => {
-      const dt = new DataTransfer();
-      dt.items.add(
-        new File(['factor,value\nx,1\n'], 'factors.csv', { type: 'text/csv' }),
-      );
-      return dt;
-    });
-    await card.dispatchEvent('dragenter', { dataTransfer });
-    await expect(page.getByTestId('upload-card-drop-overlay')).toBeVisible();
-    await card.dispatchEvent('drop', { dataTransfer });
-
-    // The dialog opens with the dropped file already selected; the
-    // drop itself never uploads (overwrite / recalc warnings still show).
-    await expect(page.getByTestId('data-entry-file-input')).toBeVisible();
-    await expect(page.getByTestId('data-entry-file-input')).toContainText(
-      'factors.csv',
-    );
-    expect(
-      requests.find(
-        (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
-      ),
-    ).toBeUndefined();
-
-    await page.getByLabel('data-entry-save').click();
     await expect
       .poll(() =>
         requests.find(
@@ -490,6 +467,65 @@ test.describe('back-office data-management — happy paths', () => {
       (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
     );
     expect(dispatch?.body).toContain('"target_type":1'); // FACTORS
+    await expect(page.getByTestId('data-entry-file-input')).toHaveCount(0);
+  });
+
+  test('5e — Enter after picking a file triggers Save', async ({ page }) => {
+    const { requests } = await mockBackend(page);
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    await openHeadcountFactorsDialog(page);
+    await page
+      .getByTestId('data-entry-file-input')
+      .locator('input[type=file]')
+      .setInputFiles({
+        name: 'factors.csv',
+        mimeType: 'text/csv',
+        buffer: Buffer.from('factor,value\nx,1\n', 'utf8'),
+      });
+    // QFile owns Enter (re-opens the picker); the dialog moves focus to
+    // Save after a pick so Enter submits.
+    await expect(page.getByLabel('data-entry-save')).toBeFocused();
+    await page.keyboard.press('Enter');
+
+    await expect
+      .poll(() =>
+        requests.find(
+          (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
+        ),
+      )
+      .toBeTruthy();
+  });
+
+  test('5f — dropping on a reduction-objective card carries the file too', async ({
+    page,
+  }) => {
+    const { requests } = await mockBackend(page);
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    const expand = page
+      .getByRole('button', { name: /expand/i })
+      .filter({ hasText: /reduction objectives/i })
+      .first();
+    await expect(expand).toBeVisible({ timeout: 10000 });
+    await expand.click();
+    // Institutional footprint card: REDUCTION_OBJECTIVES (2), type 0.
+    const card = page.getByTestId('upload-card-2-0');
+    await expect(card).toBeVisible({ timeout: 10000 });
+    await dropCsvOn(page, card, 'footprint.csv');
+
+    await expect
+      .poll(() =>
+        requests.find(
+          (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
+        ),
+      )
+      .toBeTruthy();
+    const dispatch = requests.find(
+      (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
+    );
+    expect(dispatch?.body).toContain('"target_type":2');
+    expect(dispatch?.body).toContain('"reduction_objective_type_id":0');
   });
 
   test('6 — recalculate emissions: dialog → confirm → POST recalculate-emissions/{module}', async ({
@@ -1567,6 +1603,22 @@ async function openHeadcountFactorsDialog(page: Page): Promise<void> {
  * named "Expand" that wraps the labeled content; the easiest stable
  * selector is "the Expand button containing this text".
  */
+/** Dispatch a synthetic drop of ``name`` (CSV) on ``card``. */
+async function dropCsvOn(
+  page: Page,
+  card: ReturnType<Page['getByTestId']>,
+  name: string,
+) {
+  const dataTransfer = await page.evaluateHandle((fileName) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File(['a,b\n1,2\n'], fileName, { type: 'text/csv' }));
+    return dt;
+  }, name);
+  await card.dispatchEvent('dragenter', { dataTransfer });
+  await expect(page.getByTestId('upload-card-drop-overlay')).toBeVisible();
+  await card.dispatchEvent('drop', { dataTransfer });
+}
+
 async function expandHeadcountAndMember(page: Page): Promise<void> {
   // "Member" (labelKey ``headcount-member``) renders singular under
   // vue-i18n's pluralization without a count argument.

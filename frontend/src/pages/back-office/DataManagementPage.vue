@@ -236,7 +236,7 @@ watch(
 const showDataEntryDialog = ref(false);
 const dialogCurrentRow = ref<ImportRow | null>(null);
 const dialogTargetType = ref<TargetType | null>(null);
-const dialogInitialFile = ref<File | null>(null);
+const dialogDropFile = ref<File | null>(null);
 
 function openDataEntryDialog(
   row: ImportRow,
@@ -259,7 +259,7 @@ function openDataEntryDialog(
   }
   dialogCurrentRow.value = row;
   dialogTargetType.value = targetType;
-  dialogInitialFile.value = file ?? null;
+  dialogDropFile.value = file ?? null;
   showDataEntryDialog.value = true;
 }
 
@@ -454,7 +454,7 @@ async function handleDialogCompleted() {
       :row="dialogCurrentRow || ({} as ImportRow)"
       :year="selectedYear"
       :target-type="dialogTargetType ?? TargetType.DATA_ENTRIES"
-      :initial-file="dialogInitialFile"
+      :drop-file="dialogDropFile"
       @completed="handleDialogCompleted"
       @progressing="handleDialogCompleted"
     />
