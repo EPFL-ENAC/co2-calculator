@@ -61,7 +61,7 @@ async def _drop_leftover_probe():
     if probe is not None and not probe.done():
         probe.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await probe
+            _ = await probe
 
 
 class _StuckTeardownSession(_Session):
