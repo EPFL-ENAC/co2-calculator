@@ -98,6 +98,9 @@ The application connects to PostgreSQL using the `DB_URL` environment variable, 
     Since #2689 `get_current_user` hands its connection back before the
     route body runs, so a request holds a connection only from its own
     first query to the end of the response.
+  - Who opens connections, the three layers with their timeouts, the
+    per-environment budgets and which knob to turn on each alert:
+    [connection budget](02-connection-budget.md).
   - The `db.server.connections` gauge is emitted by the pod heartbeat,
     which blocks at the bouncer during a stall, so a flat line _during_ an
     incident is a frozen value. The ~40 plateau seen on four separate days
