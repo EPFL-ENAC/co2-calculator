@@ -77,8 +77,8 @@ id per `(module_type_id, data_entry_type_id)`. It never looks at whether
 Now trace the bug this script hunts. `EMISSION_RECALC_DEDUP`
 (`backend/app/tasks/_chain.py:146`) keys on
 `("module_type_id", "data_entry_type_id", "year")` — **the exact grouping
-`get_recalculation_status_by_year` uses.** The dedup bug means the *second* unit's
-recalc child was skipped *because the first unit's job already occupies that key*.
+`get_recalculation_status_by_year` uses.** The dedup bug means the _second_ unit's
+recalc child was skipped _because the first unit's job already occupies that key_.
 That first job is `is_current` and newer than the factor job, so
 `needs_recalculation` is **False** for precisely the scope that is missing emissions.
 
@@ -106,7 +106,7 @@ WITH emitting_types AS (
 )
 ```
 
-A type qualifies if it emitted *anywhere, ever*. A 2025 campaign whose factors were
+A type qualifies if it emitted _anywhere, ever_. A 2025 campaign whose factors were
 never loaded therefore passes the filter on the strength of its 2024 emissions, and
 every 2025 group of that type is reported as fully missing. That is a whole-year
 systemic gap, not a per-`(unit, year)` dedup collision — and the query cannot tell them
@@ -122,7 +122,7 @@ year scoping does.
 
 **(b) `--since` filters `created_at`, not the report year.** (`:72`)
 
-The default window is `de.created_at >= 2026-06-12`. A 2025-campaign backfill *imported*
+The default window is `de.created_at >= 2026-06-12`. A 2025-campaign backfill _imported_
 after that date is inside the window, and the headline says nothing about which years it
 found. This is exactly how a 2025 gap gets read as June-2026 dedup fallout.
 
@@ -325,7 +325,7 @@ not a cosmetic mess.
 
 Also, the "restore" is not a restore: it rewrites `DB_URL` to a hardcoded constant
 rather than putting back the line the user had. And `set_db_url` comments out any
-*additional* live `DB_URL=` line with a `# ` prefix, which is never undone — repeated
+_additional_ live `DB_URL=` line with a `# ` prefix, which is never undone — repeated
 runs accumulate commented-out cruft.
 
 **Fix — one line, covers every exit path:**
@@ -385,7 +385,7 @@ is what actually works).
 - `LEFT JOIN LATERAL (SELECT 1 AS data_entry_id … LIMIT 1) e ON TRUE` +
   `COUNT(*) FILTER (WHERE e.data_entry_id IS NULL)` is correct but reads as a puzzle.
   `COUNT(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM data_entry_emissions dee WHERE
-  dee.data_entry_id = de.id))` says the same thing in one place.
+dee.data_entry_id = de.id))` says the same thing in one place.
 - `datetime.strptime(args.since, "%Y-%m-%d")` (`:125`) throws a raw traceback on a typo.
 - `import json` inside `main()` (`diagnose_accred_roles.py:93`) violates the
   no-inline-imports rule.
