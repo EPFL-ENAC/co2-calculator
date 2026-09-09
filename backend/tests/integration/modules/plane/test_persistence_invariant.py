@@ -30,11 +30,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions import EmissionType
 from app.repositories.data_entry_repo import DataEntryRepository
+from tests.conftest import make_emission
 
 # Forbidden keys: derived/computed values that the listing endpoint
 # enriches into the response payload and that must NEVER end up in the
@@ -109,8 +109,8 @@ async def test_listing_plane_with_emissions_does_not_pollute_data(
     # non-NULL totals — this exercises the enrichment code path that
     # built the (previously persisted) ``primary_factor`` / ``kg_co2eq``
     # / ``distance_km`` keys.
-    emission = DataEntryEmission(
-        data_entry_id=entry_id,
+    emission = make_emission(
+        entry,
         emission_type_id=EmissionType.professional_travel__plane.value,
         primary_factor_id=factor.id,
         kg_co2eq=152.685,

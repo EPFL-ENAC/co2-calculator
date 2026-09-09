@@ -52,7 +52,14 @@ def _make_fake_emission() -> DataEntryEmissionRow:
     """A ``prepare_create``-shaped stand-in — real dataclass, not a mock,
     since ``upsert_by_data_entry`` calls ``.to_orm()`` on what it returns.
     """
-    return DataEntryEmissionRow(data_entry_id=1, emission_type_id=1, kg_co2eq=123.45)
+    return DataEntryEmissionRow(
+        data_entry_id=1,
+        emission_type_id=1,
+        kg_co2eq=123.45,
+        # Stamped, as prepare_create returns them (#2527).
+        carbon_report_module_id=10,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +255,80 @@ async def test_prepare_create_does_not_read_kg_co2eq_from_data():
     # Result is from the formula: 100.0 km * 0.2 = 20.0
     assert results[0].kg_co2eq == pytest.approx(20.0)
     assert results[0].primary_factor_id == 99
+
+
+# ---------------------------------------------------------------------------
+# #2527 — the denormalized join keys are stamped on every produced row
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_prepare_create_stamps_module_and_type_on_every_row():
+    """Leaves *and* the rollup row carry the parent entry's join keys.
+
+    They are NOT NULL on ``data_entry_emissions`` and the submodule
+    aggregate now filters on them, so a row that missed the stamp would
+    vanish from every total instead of failing loudly.
+    """
+    service = _make_service()
+
+    factor = MagicMock(spec=Factor)
+    factor.id = 7
+    factor.emission_type_id = None
+    factor.values = {"kg_co2eq_per_fte": 100.0}
+
+    de = DataEntryResponse(
+        id=55,
+        data_entry_type_id=DataEntryTypeEnum.member.value,
+        carbon_report_module_id=4242,
+        data={"fte": 1.0},
+    )
+
+    with (
+        patch.object(service, "_fetch_factors", new=AsyncMock(return_value=[factor])),
+        patch.object(
+            service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+        ),
+        patch(
+            "app.services.data_entry_emission_service.resolve_emission_types",
+            return_value=[EmissionType.food, EmissionType.waste],
+        ),
+        patch(
+            "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+        ) as mock_handler_cls,
+    ):
+        mock_handler = MagicMock()
+        mock_handler.kind_field = None
+        mock_handler.pre_compute = AsyncMock(return_value={"fte": 1.0})
+        mock_handler.resolve_computations = MagicMock(
+            side_effect=lambda _de, emission_type, _ctx: [
+                EmissionComputation(
+                    emission_type=emission_type,
+                    factor_id=factor.id,
+                    formula_key="kg_co2eq_per_fte",
+                    quantity_key="fte",
+                )
+            ]
+        )
+        mock_handler_cls.return_value = mock_handler
+
+        results = await service.prepare_create(de)
+
+    # two leaves + the headcount rollup row
+    assert len(results) == 3
+    assert {r.emission_type_id for r in results} & ROLLUP_EMISSION_TYPE_IDS
+    assert all(r.carbon_report_module_id == 4242 for r in results)
+    assert all(r.data_entry_type_id == DataEntryTypeEnum.member.value for r in results)
+
+
+def test_to_orm_raises_on_unstamped_row():
+    """The single guard covering create / bulk_create / upsert / the
+    non-psycopg bulk_copy fallback — no silent default into module 0.
+    """
+    row = DataEntryEmissionRow(data_entry_id=9, emission_type_id=1, kg_co2eq=1.0)
+
+    with pytest.raises(ValueError, match="was not stamped"):
+        row.to_orm()
 
 
 # ---------------------------------------------------------------------------
