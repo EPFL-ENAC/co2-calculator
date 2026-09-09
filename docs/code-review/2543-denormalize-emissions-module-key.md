@@ -24,18 +24,18 @@ requires touching the production diff.
 `_EMISSION_COPY_SQL`'s column list and `bulk_copy`'s `copy.write_row` tuple must agree
 in order. They do — 10 positions, exact match:
 
-| # | `_EMISSION_COPY_SQL` | `write_row` tuple |
-|---|---|---|
-| 1 | `data_entry_id` | `e.data_entry_id` |
-| 2 | `emission_type_id` | `e.emission_type_id` |
-| 3 | `primary_factor_id` | `e.primary_factor_id` |
-| 4 | `kg_co2eq` | `e.kg_co2eq` |
-| 5 | `additional_value` | `e.additional_value` |
-| 6 | `scope` | `e.scope` |
-| 7 | `meta` | `Json(e.meta) if …` |
-| 8 | `computed_at` | `e.computed_at` |
-| 9 | `carbon_report_module_id` | `e.carbon_report_module_id` |
-| 10 | `data_entry_type_id` | `e.data_entry_type_id` |
+| #   | `_EMISSION_COPY_SQL`      | `write_row` tuple           |
+| --- | ------------------------- | --------------------------- |
+| 1   | `data_entry_id`           | `e.data_entry_id`           |
+| 2   | `emission_type_id`        | `e.emission_type_id`        |
+| 3   | `primary_factor_id`       | `e.primary_factor_id`       |
+| 4   | `kg_co2eq`                | `e.kg_co2eq`                |
+| 5   | `additional_value`        | `e.additional_value`        |
+| 6   | `scope`                   | `e.scope`                   |
+| 7   | `meta`                    | `Json(e.meta) if …`         |
+| 8   | `computed_at`             | `e.computed_at`             |
+| 9   | `carbon_report_module_id` | `e.carbon_report_module_id` |
+| 10  | `data_entry_type_id`      | `e.data_entry_type_id`      |
 
 ### The test was executed, and it passes
 
@@ -83,8 +83,8 @@ not simply inert):
 
 So the test works in general and has one blind spot — precisely on the pair this PR adds.
 
-**Root cause.** The docstring asserts *"Every value here is distinct so a swap cannot
-pass."* That is false in the fixture's own environment. The `pg_dsn` fixture
+**Root cause.** The docstring asserts _"Every value here is distinct so a swap cannot
+pass."_ That is false in the fixture's own environment. The `pg_dsn` fixture
 `drop_all`/`create_all`s a fresh schema per test, so sequences restart at 1:
 
 - `entry.id` → **1** (position 1)
@@ -134,7 +134,7 @@ guard on a silently mis-assigning COPY runs up to 24 hours later, on `dev`, afte
 merge — and never on the PR whose diff changes the tuple.
 
 Combined with Finding 1, the current state is: the guard is blind to the relevant
-mutation *and* would not have run anyway.
+mutation _and_ would not have run anyway.
 
 Options, cheapest first:
 
@@ -165,10 +165,10 @@ The plan names four. I swept for a fifth and found none.
 
 **Every service-level write API routes through `prepare_create`:**
 
-| API | Path |
-|---|---|
-| `create` | `prepare_create` → `to_orm()` → `repo.bulk_create` |
-| `upsert_by_data_entry` | `prepare_create` → `to_orm()` → `repo.bulk_create` |
+| API                        | Path                                                    |
+| -------------------------- | ------------------------------------------------------- |
+| `create`                   | `prepare_create` → `to_orm()` → `repo.bulk_create`      |
+| `upsert_by_data_entry`     | `prepare_create` → `to_orm()` → `repo.bulk_create`      |
 | `bulk_replace_for_entries` | callers pass `prepare_create` output → `repo.bulk_copy` |
 
 Callers checked: `workflows/emission_recalculation.py:159/227/244`,
@@ -179,7 +179,7 @@ Callers checked: `workflows/emission_recalculation.py:159/227/244`,
 **Planner copies — no re-pointing.** The claim "planner copies included" holds:
 `SimulatorPlanService._prepare_recalc_emissions` calls
 `prepare_create(DataEntryResponse.model_validate(entry))` per entry, so the keys come
-from the *target* entry, not a source entry. A grep for post-hoc `.data_entry_id =`
+from the _target_ entry, not a source entry. A grep for post-hoc `.data_entry_id =`
 assignment on emission rows returns nothing — no path builds rows against one entry and
 writes them under another id. This was the finding that could have sunk the PR; it is
 clean.
@@ -227,7 +227,7 @@ branch:
   1164–1173. **Narrowing kept.** For travel (`page_entry_ids is None`) both old and new
   reduce to module+type scope. Equivalent.
 - **Buildings legacy aggregate.** `page_entry_ids` is always `None` here, so the old
-  `module_entry_ids` was *never* narrowed in this branch. Replacing it with
+  `module_entry_ids` was _never_ narrowed in this branch. Replacing it with
   `emission_scope` is exactly equivalent. **Nothing lost** — this is the trap, and the
   PR did not fall into it.
 - **Headcount.** No standalone aggregate; the rollup `JOIN` gained the module/type
@@ -235,7 +235,7 @@ branch:
   `rollup_on` variable. Both the page query and the count apply it with `isouter=True`
   (`data_entry_repo.py:1408`), so the count cannot degenerate.
 - **`get_professional_travel_trip_legs`.** Old: `IN (SELECT id FROM data_entries WHERE
-  carbon_report_module_id = m)`. New: `carbon_report_module_id == m` on the emission
+carbon_report_module_id = m)`. New: `carbon_report_module_id == m` on the emission
   row. No type predicate in either — both travel modes wanted, as documented. Equivalent.
 
 The old `module_entry_ids` subquery carried no predicates beyond module and type (no
@@ -252,7 +252,7 @@ kind of thing that drifts.
 
 Nullable → backfill → `SET NOT NULL` → `CREATE INDEX` in one migration is an approved
 maintainer decision (the DB is dropped for this change), so the rolling-pod hazard is
-out of scope. What remained to check was whether the backfill is *correct* and whether
+out of scope. What remained to check was whether the backfill is _correct_ and whether
 the file was generated.
 
 **Generated, not hand-authored.** The `# ### commands auto generated by Alembic` markers
@@ -262,7 +262,7 @@ and `down_revision` chains correctly to `95fe938000d4`. The documented adjustmen
 standard, expected edit and is explained in the docstring.
 
 **Backfill verified empirically.** `tests/integration/test_alembic_migrations.py` only
-runs `upgrade head` on an *empty* DB, where the backfill `UPDATE` touches zero rows — so
+runs `upgrade head` on an _empty_ DB, where the backfill `UPDATE` touches zero rows — so
 it proves nothing about the backfill. I ran that suite (`2 passed in 7.98s`) and then
 built the missing case: a throwaway `postgres:16-alpine` on port 15445, migrated to
 `95fe938000d4`, seeded **two** entries in **two different modules with two different
@@ -296,8 +296,8 @@ worth blocking on, but the next data migration should reuse that harness.
 
 ### FINDING 3 (MEDIUM) — two plan items not delivered
 
-Issue #2527's implementation checklist, item 3, reads: *"…drop the `module_entry_ids`
-IN-subquery. **Same for the rollup join and module stats sums.**"*
+Issue #2527's implementation checklist, item 3, reads: _"…drop the `module_entry_ids`
+IN-subquery. **Same for the rollup join and module stats sums.**"_
 
 The rollup joins were done. The module stats sums were not:
 `DataEntryEmissionRepository.get_stats` still reaches the module through
@@ -339,9 +339,9 @@ path) and is a deliberate, documented trade rather than an oversight.
 
 ### FINDING 4 (LOW) — "no re-parenting path anywhere" is overstated
 
-The PR states: *"an entry's module and type are set at construction and never change
+The PR states: _"an entry's module and type are set at construction and never change
 (verified: no `update(DataEntry)`, no raw `UPDATE data_entries`, no re-parenting path
-anywhere)."* The raw-SQL half is true — there is no `UPDATE data_entries` anywhere. The
+anywhere)."_ The raw-SQL half is true — there is no `UPDATE data_entries` anywhere. The
 ORM half is not:
 
 ```python
@@ -410,18 +410,18 @@ is the right split.
 
 ## Verification performed
 
-| Check | Result |
-|---|---|
-| `pytest -k emission_bulk_copy` (Docker PG, throwaway) | **2 passed** |
-| Mutation A: swap the two new COPY columns | **passes — test blind (Finding 1)** |
-| Mutation B: swap `kg_co2eq`/`additional_value` | fails correctly (control) |
-| `pytest tests/integration/test_alembic_migrations.py` | 2 passed |
-| Migration backfill on populated data, 2 distinct (module, type) pairs | **PASS** — backfill, `NOT NULL`, index all correct |
-| `tests/unit/repositories` + emission service (incl. new test file) | 320 passed |
-| `make lint` (backend) | All checks passed |
-| `make type-check` (backend) | All checks passed |
-| `make lint` (frontend) | fails on missing `node_modules` in this fresh worktree; PR touches **0** frontend files |
-| `# type: ignore` / `@ts-expect-error` in diff | none |
+| Check                                                                 | Result                                                                                  |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `pytest -k emission_bulk_copy` (Docker PG, throwaway)                 | **2 passed**                                                                            |
+| Mutation A: swap the two new COPY columns                             | **passes — test blind (Finding 1)**                                                     |
+| Mutation B: swap `kg_co2eq`/`additional_value`                        | fails correctly (control)                                                               |
+| `pytest tests/integration/test_alembic_migrations.py`                 | 2 passed                                                                                |
+| Migration backfill on populated data, 2 distinct (module, type) pairs | **PASS** — backfill, `NOT NULL`, index all correct                                      |
+| `tests/unit/repositories` + emission service (incl. new test file)    | 320 passed                                                                              |
+| `make lint` (backend)                                                 | All checks passed                                                                       |
+| `make type-check` (backend)                                           | All checks passed                                                                       |
+| `make lint` (frontend)                                                | fails on missing `node_modules` in this fresh worktree; PR touches **0** frontend files |
+| `# type: ignore` / `@ts-expect-error` in diff                         | none                                                                                    |
 
 All Postgres work ran in throwaway containers (`postgres:16-alpine`, ports 55432 /
 15445), created and torn down by the fixtures. No shared database was touched;
@@ -433,7 +433,7 @@ All Postgres work ran in throwaway containers (`postgres:16-alpine`, ports 55432
 
 1. **Fix the positional test's blind spot** (Finding 1) — in
    `test_emission_bulk_copy_lands_every_column_in_its_own_place`, make `entry.id`,
-   `module.id` and `data_entry_type_id` (positions 1, 9, 10) three *distinct* integers,
+   `module.id` and `data_entry_type_id` (positions 1, 9, 10) three _distinct_ integers,
    and assert the distinctness so it cannot regress. Fixing only the new pair leaves the
    1↔9 transposition undetected. Re-run mutation A to confirm it now fails.
 2. **Make that test run on PRs** (Finding 2) — mirror the `test-backend-migrations` job
@@ -444,7 +444,7 @@ All Postgres work ran in throwaway containers (`postgres:16-alpine`, ports 55432
 
 3. File an issue for the two unshipped plan items (Finding 3): `get_stats` still joining
    through `data_entries`, and the `data_entries (carbon_report_module_id,
-   data_entry_type_id)` composite index — or record the deferral in the plan, which
+data_entry_type_id)` composite index — or record the deferral in the plan, which
    currently reads `status: delivered`.
 4. Correct the "never re-parented" wording (Finding 4) to name the real guarantee: the
    sole update path re-stamps emissions, and any future path that does not will silently
