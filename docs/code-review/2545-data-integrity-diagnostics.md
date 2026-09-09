@@ -32,7 +32,7 @@ Per the brief, **no script was executed against any database.**
 **File:** `backend/tests/performance/run_capacity_both.sh:19`
 
 ```bash
-DEV_URL='postgresql://app:LTasaXCnLE79kKPacVKrnMVKrgkNPofz@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app'
+DEV_URL='postgresql://app:<redacted-see-issue>@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app'
 ```
 
 - `gh repo view` reports `"isPrivate": false, "visibility": "PUBLIC"`.
