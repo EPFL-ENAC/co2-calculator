@@ -78,7 +78,30 @@ The application connects to PostgreSQL using the `DB_URL` environment variable, 
 
 ## Notes
 
-- Connection pooling (e.g., pgbouncer) is not yet implemented, but the app is compatible via `DB_URL`.
+- **PgBouncer sits in front of every DBaaS instance** (dev, stage, prod —
+  confirmed by DBaaS on 2026-09-08). The app still connects to port 5432 via
+  `DB_URL`; SQLAlchemy's in-process pool (`DB_POOL_SIZE`/`DB_MAX_OVERFLOW`,
+  set per environment in `openshift-app-config`) is the client side of it.
+  Consequences:
+  - The bouncer's server pool, not Postgres `max_connections`, is the
+    connection ceiling. The `db.server.connections` gauge reads that pool
+    (~35 in dev). The "1000" DBaaS quotes is most likely `max_client_conn`.
+  - A client that waits past the bouncer's `query_wait_timeout` (~120 s)
+    gets `psycopg.errors.ProtocolViolation: query_wait_timeout` — dev
+    logged exactly that on 2026-09-08 while the SQLAlchemy pool was far
+    from full.
+  - `pool_mode` and `default_pool_size` are **not confirmed yet**. Under
+    transaction pooling every open transaction pins a server slot: the
+    request-scoped session from `get_db` holds one for the whole request
+    (the general case of #2654), and a long ingest holds one for its whole
+    run. Ask DBaaS (`SHOW POOLS`) before changing any pool number.
+    Since #2689 `get_current_user` hands its connection back before the
+    route body runs, so a request holds a connection only from its own
+    first query to the end of the response.
+  - The `db.server.connections` gauge is emitted by the pod heartbeat,
+    which blocks at the bouncer during a stall, so a flat line _during_ an
+    incident is a frozen value. The ~40 plateau seen on four separate days
+    in dev is the effective ceiling.
 - For table/index details, see [erd.md](erd.md).
 
 ---

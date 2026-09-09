@@ -47,7 +47,11 @@ Fleet math: 3 replicas x 20 max (pool_size + overflow) = 60 connections peak vs 
 > from measured peak `checked_out` (~4/pod). See
 > [2566](./2566-db-pool-disposal-and-visibility.md).
 
-### 3. Ops note: no PgBouncer (with a revisit trigger)
+### 3. Ops note: no PgBouncer (superseded 2026-09-08)
+
+> Superseded: DBaaS put PgBouncer in front of dev, stage and prod. The
+> ceiling is now the bouncer's server pool, not `max_connections` — see the
+> [database overview](../database/01-overview.md#notes).
 
 Direct connections fit comfortably at 2-3 replicas. PgBouncer adds a hop, and its transaction-pooling mode sits badly with long recalc transactions. Revisit when `replicas x (pool_size + overflow)` approaches ~80% of `max_connections` — roughly 4+ replicas at these defaults, or sooner on a managed-PG tier with a small `max_connections`.
 
