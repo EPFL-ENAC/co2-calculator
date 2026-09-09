@@ -30,14 +30,14 @@ must not be bundled into one PR.
       fixes); confirmed it does **not** cover `app.core.logging`, eagerly
       imported by `app/__init__.py` before that point. Filed as
       [#2686](https://github.com/EPFL-ENAC/co2-calculator/issues/2686) —
-      see [Scope](#scope-checked-empirically---not-everything-is-covered).
+      see [Scope](#scope-checked-empirically-not-everything-is-covered).
 - [x] **#2686 fix** — `app.core.logging` no longer binds a module-level
       `settings` singleton at import time; both call sites
       (`setup_logging()`, `LokiHandler.emit()`) call `get_settings()` live
       instead, mirroring `app/core/crypto.py`'s existing pattern. Same PR as
       RC2, per feedback that a follow-up discovered while working the same
       issue belongs alongside it, not in a separately-scheduled issue. See
-      [#2686 fix](#2686-fix--appcorelogging-read-settings-live-not-at-import).
+      [#2686 fix](#2686-fix-appcorelogging-reads-settings-live-not-at-import).
 - [x] **RC3** — commit `building_rooms_unknown_room.csv`
 - [x] **RC3 follow-up** — `.gitignore`'s blanket `*.csv` (line 8) silently
       swallows every fixture under `backend/tests/fixtures/csv/`; that is how
@@ -193,7 +193,7 @@ Filed as [#2686](https://github.com/EPFL-ENAC/co2-calculator/issues/2686).
 Originally deferred out of this PR — reconsidered on feedback that a
 follow-up discovered while working the same issue, on the same branch,
 belongs fixed alongside it rather than mentally parked for a separately
-scheduled PR. See [#2686 fix](#2686-fix--appcorelogging-read-settings-live-not-at-import)
+scheduled PR. See [#2686 fix](#2686-fix-appcorelogging-reads-settings-live-not-at-import)
 below.
 
 ### #2686 fix — `app.core.logging` reads settings live, not at import
