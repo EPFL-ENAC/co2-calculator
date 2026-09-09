@@ -91,7 +91,7 @@ GROUP BY job_type
 ORDER BY total_p95 DESC;
 ```
 
-## Phase A — the dedup drop (correctness; blocks the baseline)
+## Phase A — the dedup drop (correctness; blocks the baseline) — shipped in #2541
 
 `EMISSION_RECALC_DEDUP` scopes on `(module_type_id, data_entry_type_id,
 year)` across all active rows fleet-wide (`tasks/_chain.py:146-150`,
@@ -175,6 +175,18 @@ its keys are raw `carbon_report_module` ids and would otherwise collide
 with a packed `(module_type, year)` key. Every caller acquires factor gate
 first, module second, so no pair can deadlock.
 
+**Divergence from the bullet: `api_ingest` keeps the exclusive gate.** The
+bullet grouped it with `csv_ingest` on the premise that a data ingest's
+delete is per-`carbon_report_module`. That is true of a unit-specific CSV
+upload — which does no fleet-wide delete at all
+(`base_csv_provider.py:888-906` gates the delete on `MODULE_PER_YEAR`) —
+but false for an API feed: it is a complete yearly export, and
+`_delete_existing_api_entries` deletes by `(year, det, source)` across
+every unit's module (`base_tableau_api_provider.py:909-940`). No single
+module bounds its writes, so it cannot share the gate even if its config
+carries a pin. Pinned by
+`test_api_ingest_handler_never_narrows_the_lock`.
+
 Notes on the delivered shape, where it goes beyond the bullet:
 
 - **Ambiguity fails towards exclusive.** A job whose pin is not exactly
@@ -211,6 +223,13 @@ via `lock_timeout` → 55P03, so a regression fails instead of hanging):
 Both directions were mutation-checked: making the module lock shared
 fails three of those tests, and ignoring the pin entirely (pre-B1
 behaviour) fails the disjoint-modules one.
+
+The `(1238, crm)` lock inherits the gate's existing early release:
+`_process_batch` commits `data_session` at `base_csv_provider.py:1548`, so
+a file over `INGEST_COPY_BATCH_SIZE` drops both locks mid-parse. Not new —
+the single exclusive lock behaved identically, and the
+[invariants](#invariants-this-plan-must-not-break) section already
+documents the mid-handler commit as inherited.
 
 **Not measured:** the 63 s @5 / 184 s @20 tail itself. Reproducing it
 needs the dev DB and the #2295 dataset (Task 0 / the acceptance gate);

@@ -37,12 +37,14 @@ logger = get_logger(__name__)
 
 
 def _pinned_module_id(job: DataIngestionJob) -> int | None:
-    """The one carbon report module a unit-specific ingest writes (#2527 B1).
+    """The carbon report module an ingest job pinned, if any.
 
-    ``MODULE_PER_YEAR`` ingests resolve a module per unit from the CSV and
-    delete across all of them, so they have no pin and stay unscoped. A
-    non-int pin is reported and treated as unscoped: that only widens the
-    lock and the recalc, never narrows either past what we wrote.
+    It scopes the chained recalc child for every data ingest, and — for
+    ``csv_ingest`` only — the advisory lock (#2527 B1). ``MODULE_PER_YEAR``
+    ingests resolve a module per unit from the CSV and delete across all of
+    them, so they have no pin. A non-int pin is reported and treated as
+    unpinned: that only widens the lock and the recalc, never narrows
+    either past what we wrote.
     """
     raw = ((job.meta or {}).get("config") or {}).get("carbon_report_module_id")
     if raw is None:
@@ -128,14 +130,18 @@ async def api_ingest_handler(
     same (det, year) slice regardless of how the data_entries
     arrived).
     """
-    # Same serialization rationale (and #2527 B1 scoping) as
-    # csv_ingest_handler above.
+    # Same serialization rationale as csv_ingest_handler above, but this
+    # one stays EXCLUSIVE (#2527 B1 divergence): an API feed is a complete
+    # yearly export, and `_delete_existing_api_entries` deletes by
+    # ``(year, det, source)`` across every unit's module
+    # (`base_tableau_api_provider.py:909-940`). No single
+    # carbon_report_module bounds what it writes, so it cannot share the
+    # gate even when the job config happens to carry a module pin.
     await acquire_factor_recalc_lock(
         data_session,
         module_type_id=job.module_type_id,
         year=job.year,
         handler_label=f"api_ingest job {job.id}",
-        carbon_report_module_id=_pinned_module_id(job),
     )
     meta = await _run_ingest(job, job_session, data_session)
     if meta.get("result") == IngestionResult.ERROR:

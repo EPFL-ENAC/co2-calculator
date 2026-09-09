@@ -960,3 +960,32 @@ async def test_csv_ingest_handler_passes_its_module_pin_to_the_lock(
 
     mock_lock.assert_awaited_once()
     assert mock_lock.await_args.kwargs["carbon_report_module_id"] == expected_pin
+
+
+@pytest.mark.asyncio
+async def test_api_ingest_handler_never_narrows_the_lock():
+    """#2527 B1 divergence — API feeds are complete yearly exports.
+
+    ``_delete_existing_api_entries`` deletes by ``(year, det, source)``
+    across every unit's module, so no single carbon report module bounds
+    what an ``api_ingest`` writes: it must keep the exclusive gate even
+    when its config carries a module pin.
+    """
+    job = _make_job(
+        meta={"provider_name": "FakeAPI", "config": {"carbon_report_module_id": 101}}
+    )
+    _, fake_class = _patch_provider(success=True)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
+        patch.object(
+            ingest_mod, "acquire_factor_recalc_lock", new_callable=AsyncMock
+        ) as mock_lock,
+    ):
+        await ingest_mod.api_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_lock.assert_awaited_once()
+    assert "carbon_report_module_id" not in mock_lock.await_args.kwargs
