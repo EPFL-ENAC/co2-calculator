@@ -186,6 +186,38 @@ class DataIngestionRepository:
             await self.session.refresh(result_job)
         return result_job
 
+    async def release_job(self, job_id: int, pod_id: str) -> bool:
+        """Hand a RUNNING job we own back to the queue (#2696).
+
+        The pod is shutting down mid-handler. Same CAS guard as
+        ``finish_job`` (``locked_by == pod_id AND state == RUNNING``) and
+        the same target as the stale sweep's recoverable bucket:
+        NOT_STARTED, unlocked, ``attempts`` preserved so ``claim_job``'s
+        retry cap still counts this run. Any poller re-dispatches it on
+        its next tick instead of after ``STALE_JOB_TIMEOUT_MINUTES``.
+
+        Returns True when the row was ours and is back in the queue.
+        """
+        result = await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.id) == job_id,
+                col(DataIngestionJob.locked_by) == pod_id,
+                col(DataIngestionJob.state) == IngestionState.RUNNING,
+            )
+            .values(
+                state=IngestionState.NOT_STARTED,
+                locked_by=None,
+                locked_at=None,
+                is_current=False,
+                run_after=None,
+            )
+            .returning(col(DataIngestionJob.id))
+        )
+        released = result.scalar_one_or_none() is not None
+        await self.session.commit()
+        return released
+
     async def finish_job(
         self,
         job_id: int,

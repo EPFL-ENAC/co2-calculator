@@ -283,6 +283,26 @@ async def run_job(job_id: int) -> None:
                         metadata = {}
                         result = IngestionResult.ERROR
                         handler_succeeded = False
+                except asyncio.CancelledError:
+                    # Pod shutdown (#2696): the lifespan cancels every
+                    # in-flight run_job. Stop the handler, drop its writes,
+                    # and hand the row back now -- otherwise it stays
+                    # RUNNING under a dead pod until the stale sweep finds
+                    # it STALE_JOB_TIMEOUT_MINUTES later.
+                    handler_task.cancel()
+                    try:
+                        await handler_task
+                    except asyncio.CancelledError, Exception:
+                        pass
+                    await data_session.rollback()
+                    await job_session.rollback()
+                    released = await repo.release_job(job_id, POD_ID)
+                    logger.warning(
+                        "run_job: cancelled mid-handler, job %s %s",
+                        job_id,
+                        "handed back to the queue" if released else "no longer ours",
+                    )
+                    raise
                 except Exception as exc:
                     logger.exception(
                         f"run_job: handler for job_type={job_type!r} failed "

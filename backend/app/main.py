@@ -24,6 +24,7 @@ from app.core.exceptions import (
 from app.core.logging import get_logger, setup_logging
 from app.core.request_origin import RequestOriginMiddleware
 from app.db import engine
+from app.tasks._background import cancel_background_tasks
 from app.tasks._db_health import DBHealthState, get_db_health_state, is_fresh
 
 # Setup logging
@@ -247,6 +248,13 @@ async def lifespan(app: FastAPI):
             await task
         except asyncio.CancelledError:
             logger.info("Safety poller cancelled successfully")
+    # #2696: with the poller stopped nothing dispatches anymore; now cancel
+    # the jobs already running so each hands its row back (NOT_STARTED,
+    # unlocked) while the pool is still open. Before the other loops:
+    # the hand-back needs the heartbeat to still own the lock.
+    in_flight = await cancel_background_tasks()
+    if in_flight:
+        logger.info("Handed back %s in-flight job(s)", in_flight)
     reconciler_task = getattr(app.state, "pipeline_reconciler_task", None)
     if reconciler_task:
         logger.info("Cancelling pipeline reconciler")
