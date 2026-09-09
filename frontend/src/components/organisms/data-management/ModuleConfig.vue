@@ -198,6 +198,7 @@ const {
 const showDataEntryDialog = ref(false);
 const dialogCurrentRow = ref<ImportRow | null>(null);
 const dialogTargetType = ref<TargetType | null>(null);
+const dialogInitialFile = ref<File | null>(null);
 
 const showRecalcDialog = ref(false);
 const recalcDialogModuleTypeId = ref<number | null>(null);
@@ -220,9 +221,14 @@ type TooltipExposed = { show: () => void; hide: () => void };
 const recalcTooltip = ref<TooltipExposed>();
 const failureTooltip = ref<TooltipExposed>();
 
-function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
+function openDataEntryDialog(
+  row: ImportRow,
+  targetType: TargetType | null,
+  file?: File,
+) {
   dialogCurrentRow.value = row;
   dialogTargetType.value = targetType;
+  dialogInitialFile.value = file ?? null;
   showDataEntryDialog.value = true;
 }
 
@@ -431,6 +437,7 @@ provide('currentPipelineId', currentPipelineId);
     :row="dialogCurrentRow || ({} as ImportRow)"
     :year="yearConfigStore.selectedYear"
     :target-type="dialogTargetType ?? TargetType.DATA_ENTRIES"
+    :initial-file="dialogInitialFile"
     @completed="handleJobCompleted"
     @progressing="handleJobProgressing"
   />

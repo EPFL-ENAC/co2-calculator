@@ -12,9 +12,11 @@ interface Props {
   row: ImportRow;
   year: number;
   targetType: TargetType;
+  /** File dropped on an upload card — pre-selected so Save is one press away. */
+  initialFile?: File | null;
 }
 
-const props = withDefaults(defineProps<Props>(), {});
+const props = withDefaults(defineProps<Props>(), { initialFile: null });
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'completed', job: SyncJobResponse): void;
@@ -56,6 +58,7 @@ watch(
     showDialog.value = newVal;
     if (newVal) {
       resetDialog();
+      if (props.initialFile) selectedFiles.value = [props.initialFile];
       loadConnectorOptions();
     }
   },

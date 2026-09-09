@@ -63,13 +63,10 @@ const pipelineProgress = computed<PipelineProgress | null>(
 );
 
 const openDataEntryDialog = inject<
-  (row: ImportRow, targetType: TargetType | null) => void
+  (row: ImportRow, targetType: TargetType | null, file?: File) => void
 >('openDataEntryDialog')!;
 
 const handleJobCompleted = inject<() => Promise<void>>('handleJobCompleted')!;
-const handleJobProgressing = inject<() => Promise<void>>(
-  'handleJobProgressing',
-)!;
 const recalcTypeRunning =
   inject<Ref<Record<string, boolean>>>('recalcTypeRunning')!;
 
@@ -81,14 +78,6 @@ function openComputedFactorConfirm() {
 
 async function handleComputedFactorConfirm() {
   await confirmComputedFactorSync(props.submodule, handleJobCompleted);
-}
-
-async function handleReferenceCompleted() {
-  await handleJobCompleted();
-}
-
-async function handleReferenceProgressing() {
-  await handleJobProgressing();
 }
 
 // Module-scoped pipeline_id (provided by ModuleConfig — single SSE
@@ -280,7 +269,9 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
             downloadLastCsv(e, y);
           }
         "
-        @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
+        @upload="
+          (row, _t, file) => openDataEntryDialog(row, TargetType.FACTORS, file)
+        "
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @compute-factors="openComputedFactorConfirm"
         @abort="handleAbortPipeline"
@@ -288,9 +279,13 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
       <UploadCardReferences
         v-if="getImportRow(submodule).hasOtherUpload"
         :row="getImportRow(submodule)"
-        :year="yearConfigStore.selectedYear"
-        @completed="handleReferenceCompleted"
-        @progressing="handleReferenceProgressing"
+        :pipeline-progress="pipelineProgress"
+        :on-download="downloadLastCsv"
+        @upload="
+          (row, _t, file) =>
+            openDataEntryDialog(row, TargetType.REFERENCE_DATA, file)
+        "
+        @abort="handleAbortPipeline"
       />
       <UploadCardData
         v-if="getImportRow(submodule).hasData"
@@ -303,7 +298,10 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
         :recalc-status="getRecalcStatus(submodule)"
         :pipeline-progress="pipelineProgress"
         :on-download="downloadLastCsv"
-        @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
+        @upload="
+          (row, _t, file) =>
+            openDataEntryDialog(row, TargetType.DATA_ENTRIES, file)
+        "
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @abort="handleAbortPipeline"
       />
