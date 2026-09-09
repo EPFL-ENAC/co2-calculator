@@ -2,7 +2,7 @@
 """denormalize module key onto data entry emissions
 
 Revision ID: 1a9837dd65a3
-Revises: 095d98bc390c
+Revises: 3f254df7a368
 Create Date: 2026-08-30 14:14:40.479942
 
 """
@@ -23,7 +23,7 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "1a9837dd65a3"  # noqa: F841
-down_revision: str | Sequence[str] | None = "095d98bc390c"  # noqa: F841
+down_revision: str | Sequence[str] | None = "3f254df7a368"  # noqa: F841
 branch_labels: str | Sequence[str] | None = None  # noqa: F841
 depends_on: str | Sequence[str] | None = None  # noqa: F841
 
