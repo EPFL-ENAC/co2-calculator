@@ -210,6 +210,61 @@ async def test_rerunning_the_prefill_job_converges(Sf, pg_dsn, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_copied_payload_survives_the_json_round_trip(Sf):
+    """#2527 C1: the copy is built in the database, so ``data`` makes a
+    ``json -> jsonb -> json`` trip that SQLite's ``json_patch`` cannot model.
+
+    jsonb sorts keys, drops duplicates and normalizes numbers, so this pins
+    the copied payload as a *dict* — nesting, lists, unicode, null, bool and
+    the integer-vs-float shape of every value included. A silently floated
+    quantity or a stringified null here would ship wrong numbers into every
+    plan year built from a baseline.
+    """
+    _plan_id, report_ids, plan_module_id = await _seed_plan_awaiting_prefill(Sf)
+
+    payload = {
+        "category": "co2",
+        "quantity_kg": 4.5,
+        "count": 7,
+        "zeta": None,
+        "alpha": True,
+        "label": "café — ré/söm",
+        "nested": {"b": [1, 2.5, "x"], "a": {"deep": 0}},
+    }
+    async with Sf() as session:
+        svc = SimulatorPlanService(session)
+        ref = await svc.repo.get_calculator_report(1, 2024)
+        assert ref is not None and ref.id is not None
+        ref_modules = await svc.report_service.module_service.list_modules(ref.id)
+        ref_module = next(
+            m
+            for m in ref_modules
+            if m.module_type_id == int(ModuleTypeEnum.process_emissions)
+        )
+        rich = DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+            carbon_report_module_id=ref_module.id,
+            data=payload,
+        )
+        session.add(rich)
+        await session.flush()
+        rich_id = rich.id
+
+        await svc.prefill_reports(report_ids)
+        await session.commit()
+
+        rows = await DataEntryRepository(session).list_by_module(plan_module_id)
+        copied = next(r for r in rows if r.data.get("source_data_entry_id") == rich_id)
+        assert copied.data == {
+            **payload,
+            "percentage_of_reference_year": 0,
+            "source_data_entry_id": rich_id,
+        }
+        # 0, not 0.0 — jsonb_build_object must not widen the baseline.
+        assert isinstance(copied.data["percentage_of_reference_year"], int)
+
+
+@pytest.mark.asyncio
 async def test_reports_survive_the_job_with_their_reference_year(Sf):
     """Sanity: the deferred metadata write is committed before the job runs.
 

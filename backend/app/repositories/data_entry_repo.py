@@ -2,12 +2,14 @@
 
 import asyncio
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Any
 
 from psycopg.types.json import Json
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import Select, and_, asc, desc, func, or_
+from sqlalchemy import DateTime, Select, and_, asc, bindparam, desc, func, or_
 from sqlalchemy import select as sa_select
+from sqlalchemy import text as sa_text
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, insert, select
@@ -27,7 +29,12 @@ from app.models.classification_translation import (
     normalize_lang,
     resolve_label_from_field,
 )
-from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.data_entry import (
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryStatusEnum,
+    DataEntryTypeEnum,
+)
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.location import Location, TransportModeEnum
@@ -121,6 +128,33 @@ COPY data_entries (
     data_entry_type_id, carbon_report_module_id, data, status,
     source, created_by_id, created_at, updated_at, year, unit_id
 ) FROM STDIN
+"""
+
+# #2527 C1 — the Simulator Plan prefill's server-side copy. The reference
+# module's ``data`` blob is merged with the two reference-link keys inside
+# the database, so a 5k-entry module never crosses the wire.
+_REFERENCE_LINK_JSON: dict[str, str] = {
+    "postgresql": (
+        "(src.data::jsonb || jsonb_build_object("
+        "'percentage_of_reference_year', 0, 'source_data_entry_id', src.id))::json"
+    ),
+    "sqlite": (
+        "json_patch(src.data, json_object("
+        "'percentage_of_reference_year', 0, 'source_data_entry_id', src.id))"
+    ),
+}
+
+_COPY_MODULE_ENTRIES_SQL = """
+INSERT INTO data_entries (
+    data_entry_type_id, carbon_report_module_id, data, status,
+    source, created_by_id, created_at, updated_at, year, unit_id
+)
+SELECT
+    src.data_entry_type_id, :target_module_id, {data_expr}, '{status}',
+    :source, NULL, :copied_at, :copied_at, :year, :unit_id
+FROM data_entries AS src
+WHERE src.carbon_report_module_id = :source_module_id
+ORDER BY src.id
 """
 
 
@@ -272,6 +306,59 @@ class DataEntryRepository:
         )
         result = await self.session.execute(stmt, rows)
         return [row[0] for row in result.all()]
+
+    async def copy_module_entries(
+        self,
+        *,
+        source_module_id: int,
+        target_module_id: int,
+        unit_id: int | None,
+        year: int | None,
+        with_reference_link: bool,
+    ) -> int:
+        """Copy one module's entries into another, entirely server-side.
+
+        Backs the Simulator Plan prefill (#2527 C1). The old shape read every
+        source row into Python, rebuilt a dict per row and bulk-inserted it
+        back; a ~5k-entry module therefore crossed the wire twice for a copy
+        the database can do in one statement. Returns the rows written, which
+        is what the caller uses to tell an emptied module from a rebuilt one.
+
+        ``with_reference_link`` adds the two planner keys
+        (``percentage_of_reference_year`` at 0 — the baseline the user then
+        raises — and ``source_data_entry_id``) to each copied ``data`` blob.
+        Plain-copy modules pass False: their copies are ordinary editable
+        entries. Emissions are not copied; the caller recomputes.
+        """
+        dialect = self.session.get_bind().dialect.name
+        data_expr = (
+            _REFERENCE_LINK_JSON.get(dialect) if with_reference_link else "src.data"
+        )
+        if data_expr is None:
+            raise ValueError(
+                f"copy_module_entries: no reference-link JSON expression for "
+                f"dialect {dialect!r}"
+            )
+        # Only the two module constants above are interpolated (a JSON
+        # expression keyed by dialect, an enum member name); every value
+        # travels as a bind param.
+        stmt = sa_text(
+            _COPY_MODULE_ENTRIES_SQL.format(
+                data_expr=data_expr, status=DataEntryStatusEnum.PENDING.name
+            )
+        ).bindparams(
+            # One timestamp for the batch (the old per-row ``datetime.now``
+            # spread a copy across milliseconds for no reader's benefit).
+            bindparam("copied_at", datetime.now(UTC), type_=DateTime()),
+            target_module_id=target_module_id,
+            source_module_id=source_module_id,
+            source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
+            unit_id=unit_id,
+            year=year,
+        )
+        result = await self.session.execute(stmt)
+        await self.session.flush()
+        return getattr(result, "rowcount", 0) or 0
 
     async def bulk_delete(
         self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum

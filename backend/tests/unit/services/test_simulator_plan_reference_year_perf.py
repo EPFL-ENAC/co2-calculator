@@ -934,16 +934,17 @@ async def test_prefill_reference_modules_never_calls_get_module(
 
 
 # ── Finding #2: prefill_module_from_reference queried the same rows twice ─────
-# Fixed: the copy loop now reuses the emptiness-check's ``src_entries``.
+# Superseded by #2527 C1: the copy is one server-side INSERT ... SELECT, so
+# the reference rows are not read into Python at all.
 
 
 @pytest.mark.asyncio
-async def test_prefill_module_from_reference_calls_list_by_module_once(
+async def test_prefill_module_from_reference_never_reads_source_rows(
     async_session, user, monkeypatch: pytest.MonkeyPatch
 ):
-    """Finding #2, fixed: ``entry_repo.list_by_module(ref_module.id)`` ran
-    once for the emptiness check and again for the copy loop. The copy loop
-    now iterates the already-fetched ``src_entries`` instead of re-querying.
+    """Finding #2, superseded: ``list_by_module(ref_module.id)`` ran twice
+    (emptiness check + copy loop), then once, and since #2527 C1 not at all —
+    ``copy_module_entries`` builds every copied ``data`` blob in the database.
     Counts calls directly rather than sniffing SQL text — deterministic
     regardless of backend.
     """
@@ -976,10 +977,10 @@ async def test_prefill_module_from_reference_calls_list_by_module_once(
 
     ref_module_calls = calls.count(module.id)
     print(f"\nlist_by_module(ref_module.id) called {ref_module_calls} time(s)")
-    assert ref_module_calls == 1, (
+    assert ref_module_calls == 0, (
         f"list_by_module(ref_module.id) was called {ref_module_calls} times "
-        "(expected 1): finding #2 regressed — the copy loop is re-querying "
-        "instead of reusing src_entries"
+        "(expected 0): #2527 C1 regressed — the copy is reading the source "
+        "rows into Python instead of INSERT ... SELECT"
     )
 
 
