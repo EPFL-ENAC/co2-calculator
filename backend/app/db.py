@@ -56,6 +56,91 @@ _TOO_MANY_CONNECTIONS_MESSAGES = (
     "too many connections for database",
 )
 
+logger = logging.getLogger(__name__)
+
+# #2689: a request crosses three pools and each says "full" in its own
+# words, none of which name the layer. These two counters and the
+# explanations below do. The bouncer's NOTICE (1.22+) fires the moment a
+# client is parked; the error only comes query_wait_timeout later.
+_bouncer_queued = get_meter(__name__).create_counter(
+    "db.pgbouncer.queued",
+    unit="{connection}",
+    description=(
+        "Connections PgBouncer parked for lack of a free server connection in "
+        "its pool (NOTICE 'client being queued'). Leading indicator: the "
+        "query_wait_timeout error follows 120 s later if nothing frees up."
+    ),
+)
+_bouncer_queue_timeouts = get_meter(__name__).create_counter(
+    "db.pgbouncer.queue_timeouts",
+    unit="{timeout}",
+    description=(
+        "Queries PgBouncer dropped after query_wait_timeout with no server "
+        "connection freed -- the bouncer's pool is full, not this pod's."
+    ),
+)
+
+BOUNCER_QUEUED_NOTICE = "client being queued"
+BOUNCER_QUEUE_TIMEOUT = "query_wait_timeout"
+
+_WAIT_LAYERS = (
+    "layers, in request order: sqlalchemy TimeoutError 'QueuePool limit ... "
+    "reached' = this pod's own pool (DB_POOL_SIZE + DB_MAX_OVERFLOW, "
+    "DB_POOL_TIMEOUT); psycopg ProtocolViolation 'query_wait_timeout' = "
+    "PgBouncer's server pool (default_pool_size, query_wait_timeout); FATAL "
+    "'remaining connection slots' / 'too many clients' = Postgres "
+    "max_connections, the bouncer passed the login through"
+)
+
+
+def explain_db_wait(error: BaseException) -> str | None:
+    """Name the layer that ran out, for the two errors whose text does not."""
+    message = str(error)
+    if BOUNCER_QUEUE_TIMEOUT in message:
+        return (
+            "PgBouncer found no free server connection in its pool for the whole "
+            "query_wait_timeout and dropped this query. Its pool "
+            "(default_pool_size; measure it with scripts/probe_pgbouncer_pool.py) "
+            f"is full, not this pod's SQLAlchemy pool. {_WAIT_LAYERS}"
+        )
+    if any(marker in message for marker in _TOO_MANY_CONNECTIONS_MESSAGES):
+        return (
+            "Postgres refused the login: max_connections reached. PgBouncer passed "
+            "the login through, so its pool is larger than Postgres itself. "
+            f"{_WAIT_LAYERS}"
+        )
+    return None
+
+
+def explain_pool_wait(context: ExceptionContext) -> None:
+    """``handle_error``: log which layer ran out and count bouncer timeouts."""
+    explanation = explain_db_wait(context.original_exception)
+    if explanation is None:
+        return
+    if BOUNCER_QUEUE_TIMEOUT in str(context.original_exception):
+        _bouncer_queue_timeouts.add(1)
+    logger.error(explanation)
+
+
+def on_pg_notice(diagnostic) -> None:
+    """Psycopg notice handler: PgBouncer 1.22+ says it parked us when it does."""
+    message = diagnostic.message_primary or ""
+    if BOUNCER_QUEUED_NOTICE not in message:
+        return
+    _bouncer_queued.add(1)
+    logger.warning(
+        "PgBouncer queued this connection: no free server connection in its pool. "
+        "The query now waits up to query_wait_timeout before failing. (%s)",
+        message,
+    )
+
+
+def register_pg_notice_handler(dbapi_connection, _record) -> None:
+    """Pool ``connect`` listener: hook the notice handler on the raw psycopg
+    connection behind SQLAlchemy's async adapter.
+    """
+    dbapi_connection.driver_connection.add_notice_handler(on_pg_notice)
+
 
 class InstrumentedQueuePool(AsyncAdaptedQueuePool):
     """Count pool checkout timeouts (#2572).
@@ -217,6 +302,8 @@ engine = create_async_engine(
 # a failure with -- mirror the sqlite guard the pool kwargs already use.
 if not is_sqlite:
     event.listen(engine.sync_engine, "handle_error", count_connect_failure)
+    event.listen(engine.sync_engine, "handle_error", explain_pool_wait)
+    event.listen(engine.sync_engine, "connect", register_pg_notice_handler)
 
 
 def read_pool_state(pool: Pool) -> dict[str, int] | None:
