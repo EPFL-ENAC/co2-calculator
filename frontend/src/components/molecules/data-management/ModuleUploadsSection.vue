@@ -19,7 +19,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const openDataEntryDialog = inject<
-  (row: ImportRow, targetType: TargetType | null) => void
+  (row: ImportRow, targetType: TargetType | null, file?: File) => void
 >('openDataEntryDialog')!;
 
 const { getImportRow, downloadLastCsv, commonUploads, submodules } =
@@ -96,7 +96,10 @@ async function handleAbortPipeline() {
             :row="getImportRow(common)"
             :pipeline-progress="pipelineProgress"
             :on-download="downloadLastCsv"
-            @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
+            @upload="
+              (row, _t, file) =>
+                openDataEntryDialog(row, TargetType.FACTORS, file)
+            "
             @recalculate="() => triggerTypeRecalculation(common)"
             @abort="handleAbortPipeline"
           />
@@ -111,7 +114,10 @@ async function handleAbortPipeline() {
             "
             :recalc-status="getRecalcStatus(common)"
             :on-download="downloadLastCsv"
-            @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
+            @upload="
+              (row, _t, file) =>
+                openDataEntryDialog(row, TargetType.DATA_ENTRIES, file)
+            "
             @recalculate="() => triggerTypeRecalculation(common)"
             @abort="handleAbortPipeline"
           />

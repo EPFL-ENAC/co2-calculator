@@ -3,13 +3,6 @@ import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref } from 'vue';
 import { api } from '@/api/http';
 
-export interface FileObject extends Blob {
-  readonly size: number;
-  readonly name: string;
-  readonly path: string;
-  readonly type: string;
-}
-
 export interface FileNode {
   name: string;
   path: string;
@@ -32,7 +25,7 @@ export const useFilesStore = defineStore(
      * @param files The files to upload.
      * @returns The uploaded FileNode array with paths
      */
-    async function uploadTempFiles(files: FileObject[]): Promise<FileNode[]> {
+    async function uploadTempFiles(files: File[]): Promise<FileNode[]> {
       const formData = new FormData();
       files.forEach((file) => {
         formData.append('files', file, file.name);

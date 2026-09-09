@@ -236,8 +236,13 @@ watch(
 const showDataEntryDialog = ref(false);
 const dialogCurrentRow = ref<ImportRow | null>(null);
 const dialogTargetType = ref<TargetType | null>(null);
+const dialogInitialFile = ref<File | null>(null);
 
-function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
+function openDataEntryDialog(
+  row: ImportRow,
+  targetType: TargetType | null,
+  file?: File,
+) {
   // Issue #867 — refuse to open the upload dialog while the
   // ``unit_sync`` pipeline is still running.  Module-level rows depend
   // on the units / carbon_reports it produces; opening the upload
@@ -254,6 +259,7 @@ function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
   }
   dialogCurrentRow.value = row;
   dialogTargetType.value = targetType;
+  dialogInitialFile.value = file ?? null;
   showDataEntryDialog.value = true;
 }
 
@@ -448,6 +454,7 @@ async function handleDialogCompleted() {
       :row="dialogCurrentRow || ({} as ImportRow)"
       :year="selectedYear"
       :target-type="dialogTargetType ?? TargetType.DATA_ENTRIES"
+      :initial-file="dialogInitialFile"
       @completed="handleDialogCompleted"
       @progressing="handleDialogCompleted"
     />

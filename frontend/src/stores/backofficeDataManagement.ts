@@ -2,7 +2,11 @@ import { defineStore } from 'pinia';
 // Moved to a leaf module so pure-function Playwright specs can import the
 // enums without dragging api/i18n (import.meta.glob) into the node runner;
 // re-exported here so existing importers keep one canonical path.
-import { IngestionState, IngestionResult } from '@/constant/ingestion';
+import {
+  IngestionState,
+  IngestionResult,
+  TargetType,
+} from '@/constant/ingestion';
 import { computed, ref } from 'vue';
 import { api } from '@/api/http';
 import { Module } from '@/constant/modules';
@@ -106,13 +110,6 @@ export enum IngestionMethod {
 // institutional_footprint
 // population_projections
 // unit_scenarios
-export enum TargetType {
-  DATA_ENTRIES = 0,
-  FACTORS = 1,
-  REDUCTION_OBJECTIVES = 2,
-  REFERENCE_DATA = 3,
-}
-
 // Mirrors backend ``app.models.data_ingestion.EntityType`` — keep the integer
 // values in lock-step (BE persists ``entity_type.value`` into job meta and
 // round-trips via ``EntityType(value)``).  The dispatch endpoint currently
@@ -137,7 +134,7 @@ export enum FactorType {
 // that file or the per-row spinner rehydrate on page reload will
 // silently mis-map states — the unit test mirrors the literals so it
 // won't catch you either.
-export { IngestionState, IngestionResult };
+export { IngestionState, IngestionResult, TargetType };
 
 export type InitiateSyncParams = {
   module_type_id: number;
