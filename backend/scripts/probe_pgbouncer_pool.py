@@ -10,7 +10,11 @@ in use when we started.
 PgBouncer 1.22+ says "No server connection available in postgres backend,
 client being queued" as a NOTICE the moment it queues; older versions just
 hang until ``query_wait_timeout``. Both are handled: a queued probe is one
-whose ``SELECT 1`` does not answer within ``--wait`` seconds.
+whose ``SELECT 1`` does not answer within ``--wait`` seconds. A bouncer
+whose pool is larger than Postgres itself never queues: Postgres refuses
+the login first ("remaining connection slots are reserved"), and that is
+reported as the answer too -- the cap is ``max_connections``, not the
+bouncer.
 
 The reserve pool (``reserve_pool_size``) only opens for a client that has
 waited ``reserve_pool_timeout`` (5 s by default), so a first pass with
@@ -58,6 +62,11 @@ class Probe:
     conn: psycopg.AsyncConnection
     notices: list[str] = field(default_factory=list)
     latency: float | None = None
+    pending: asyncio.Task | None = None
+
+
+class PostgresRefused(Exception):
+    """Postgres, not the bouncer, turned the login away: max_connections."""
 
 
 def _dsn() -> str:
@@ -68,22 +77,38 @@ def _dsn() -> str:
 
 
 async def _open(dsn: str) -> Probe:
-    conn = await psycopg.AsyncConnection.connect(
-        dsn, autocommit=True, connect_timeout=10
-    )
+    try:
+        conn = await psycopg.AsyncConnection.connect(
+            dsn, autocommit=True, connect_timeout=10
+        )
+    except psycopg.OperationalError as e:
+        if any(
+            s in str(e)
+            for s in ("connection slots", "too many con", "too many clients")
+        ):
+            raise PostgresRefused(str(e).strip().splitlines()[-1]) from e
+        raise
     probe = Probe(conn)
     conn.add_notice_handler(lambda d: probe.notices.append(d.message_primary or ""))
     return probe
 
 
 async def _served(probe: Probe, wait: float) -> bool:
-    """True if the bouncer handed this client a server slot within ``wait``."""
+    """True if the bouncer handed this client a server slot within ``wait``.
+
+    A queued query is left pending, not cancelled: psycopg cancels by
+    sending a cancel request to the server, and a client without a server
+    slot has nowhere to send it, so ``wait_for`` would hang there for
+    ``query_wait_timeout``. The task is dropped with its connection.
+    """
     loop = asyncio.get_running_loop()
     start = loop.time()
-    try:
-        await asyncio.wait_for(probe.conn.execute("SELECT 1"), wait)
-    except TimeoutError:
+    task = asyncio.ensure_future(probe.conn.execute("SELECT 1"))
+    done, _ = await asyncio.wait({task}, timeout=wait)
+    if task not in done:
+        probe.pending = task
         return False
+    task.result()
     probe.latency = loop.time() - start
     return not any(QUEUED_NOTICE in n for n in probe.notices)
 
@@ -99,6 +124,8 @@ async def _baseline(dsn: str) -> tuple[str | None, int, int]:
 
 async def _close_all(probes: list[Probe]) -> None:
     for p in probes:
+        if p.pending is not None and not p.pending.done():
+            p.pending.cancel()
         try:
             await asyncio.wait_for(p.conn.close(), 2)
         except Exception:  # noqa: BLE001 -- a queued client may not close cleanly
@@ -121,9 +148,15 @@ async def main() -> int:
 
     probes: list[Probe] = []
     queued: Probe | None = None
+    refused: str | None = None
     try:
         for n in range(1, args.max + 1):
-            probe = await _open(dsn)
+            try:
+                probe = await _open(dsn)
+            except PostgresRefused as e:
+                refused = str(e)
+                print(f"  probe {n:3d}: REFUSED by postgres: {refused}")
+                break
             probes.append(probe)
             if await _served(probe, args.wait):
                 print(f"  probe {n:3d}: served in {probe.latency:.3f}s", flush=True)
@@ -135,16 +168,22 @@ async def main() -> int:
         await _close_all(probes)
 
     served = len(probes) - (1 if queued else 0)
-    if queued is None:
-        print(
-            f"\nno queue reached within {args.max} probes: "
-            "either no bouncer, or its pool is larger"
-        )
-        return 1
     # ``via_my_addr`` counted the baseline connection itself; it is closed
     # now, so the slots in use during the probe are one fewer.
     in_use = via_my_addr - 1
     print(f"\nserved {served} new connections on top of {in_use} already in use")
+    if refused is not None:
+        print(
+            f"=> no bouncer queue before postgres max_connections: the cap is "
+            f"postgres itself, reached at {served + in_use} client backends"
+        )
+        return 0
+    if queued is None:
+        print(
+            f"=> no queue reached within {args.max} probes: "
+            "either no bouncer, or its pool is larger"
+        )
+        return 1
     print(f"=> pool for this (user, database) at --wait {args.wait}: {served + in_use}")
     return 0
 
