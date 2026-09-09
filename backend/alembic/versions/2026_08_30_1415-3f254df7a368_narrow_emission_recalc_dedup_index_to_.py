@@ -2,7 +2,7 @@
 """narrow emission recalc dedup index to unscoped children
 
 Revision ID: 3f254df7a368
-Revises: 95fe938000d4
+Revises: 095d98bc390c
 Create Date: 2026-08-30 14:15:01.841982
 
 """
@@ -23,7 +23,7 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "3f254df7a368"  # noqa: F841
-down_revision: str | Sequence[str] | None = "95fe938000d4"  # noqa: F841
+down_revision: str | Sequence[str] | None = "095d98bc390c"  # noqa: F841
 branch_labels: str | Sequence[str] | None = None  # noqa: F841
 depends_on: str | Sequence[str] | None = None  # noqa: F841
 
