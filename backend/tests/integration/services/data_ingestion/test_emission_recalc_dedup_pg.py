@@ -475,3 +475,55 @@ async def test_dedup_config_rejects_null_scope_keys(pg_dsn):
                 )
 
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_same_unit_same_module_recalcs_still_collapse(pg_dsn):
+    """#2527 Phase B — scoped children dedup on their OWN module.
+
+    Phase A stopped two *different* units collapsing into one another.
+    It must not also mean a single unit re-uploading the same module
+    twice recomputes the identical rows twice: that work is genuinely
+    redundant, and leaving it uncollapsed is what would make narrowing
+    ``acquire_factor_recalc_lock`` unsafe — ``data_entry_emissions`` has
+    no unique constraint to catch a double write.
+
+    Same pin on both calls, so the scoped partial unique index applies
+    and the second is the no-op the fleet-wide index used to give us.
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with Sf() as session:
+        parent_a = _parent_factor_job()
+        parent_b = _parent_factor_job(is_current=False)
+        for parent in (parent_a, parent_b):
+            await ensure_pipeline_for_job(session, parent)
+        session.add_all([parent_a, parent_b])
+        await session.commit()
+        await session.refresh(parent_a)
+        await session.refresh(parent_b)
+
+    fired: list[str | None] = []
+    child_id_a = await _chain_recalc(
+        Sf, parent_a, config={"carbon_report_module_ids": [101]}, fired=fired
+    )
+    child_id_b = await _chain_recalc(
+        Sf, parent_b, config={"carbon_report_module_ids": [101]}, fired=fired
+    )
+
+    assert child_id_a is not None
+    assert child_id_b is None, (
+        "same unit, same module: the second recalc recomputes identical "
+        "rows and must collapse into the pending one"
+    )
+    assert len(fired) == 1
+
+    async with Sf() as session:
+        result = await session.execute(
+            select(DataIngestionJob).where(
+                DataIngestionJob.job_type == "emission_recalc",
+                DataIngestionJob.module_type_id == parent_a.module_type_id,
+            )
+        )
+        assert len(list(result.scalars().all())) == 1

@@ -36,6 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_ingestion import (
+    EMISSION_RECALC_SCOPE_EXPR,
     EMISSION_RECALC_UNSCOPED_SQL,
     DataIngestionJob,
     EntityType,
@@ -132,16 +133,25 @@ class DedupConfig:
     different job type for the same scope can coexist with us.
 
     ``extra_predicate`` is raw SQL appended to the pre-check's WHERE so
-    it covers exactly the rows the partial unique index covers.  It
-    takes no bind parameters and must be the same fragment the index
-    declares — a pre-check wider than the index skips work the index
-    would have allowed (silently, which is the #2527 Phase A bug).
+    it covers exactly the rows the partial unique index covers.  It must
+    describe the same rows the index declares — a pre-check wider than
+    the index skips work the index would have allowed (silently, which
+    is the #2527 Phase A bug).
+
+    ``scoped_config_key`` names a key in the child's ``config`` whose
+    value completes the scope.  When set, ``extra_predicate`` may bind
+    ``:scoped_ids``, and the value is passed as JSON text so Postgres
+    compares it as ``jsonb``.  Ordering inside that value is
+    significant, so a reordered list misses the dedup and does the work
+    twice — the safe direction: this can only ever do redundant work,
+    never drop a unit's recalc.
     """
 
     job_type: str
     scope_columns: tuple[str, ...]
     constraint_name: str
     extra_predicate: str = ""
+    scoped_config_key: str | None = None
 
 
 AGGREGATION_DEDUP = DedupConfig(
@@ -156,6 +166,17 @@ EMISSION_RECALC_DEDUP = DedupConfig(
     scope_columns=("module_type_id", "data_entry_type_id", "year"),
     constraint_name="uq_emission_recalc_active_unscoped",
     extra_predicate=EMISSION_RECALC_UNSCOPED_SQL,
+)
+
+# The scoped counterpart: same three columns plus the pinned carbon
+# report module, so two units never collapse into each other but one
+# unit's back-to-back re-upload still does (#2527 Phase A/B).
+EMISSION_RECALC_SCOPED_DEDUP = DedupConfig(
+    job_type="emission_recalc",
+    scope_columns=("module_type_id", "data_entry_type_id", "year"),
+    constraint_name="uq_emission_recalc_active_scoped",
+    extra_predicate=f"{EMISSION_RECALC_SCOPE_EXPR} = CAST(:scoped_ids AS JSONB)",
+    scoped_config_key="carbon_report_module_ids",
 )
 
 
@@ -322,7 +343,18 @@ async def chain_job(
         # recalcs; scoped children were never in its remit and the
         # partial unique index excludes them too, so the plain INSERT
         # below cannot trip it.
-        dedup_config = None
+        #
+        # They are not exempt from dedup, only from the *fleet-wide*
+        # one: swap to the scoped config, which keys on the pinned
+        # carbon report module as well.  Two units stay disjoint, and
+        # one unit's back-to-back re-upload still collapses instead of
+        # recomputing the same rows twice.
+        #
+        # Keeping that collapse is what lets `acquire_factor_recalc_lock`
+        # be narrowed later (#2527 Phase B) without turning duplicate
+        # work into duplicate `data_entry_emissions` rows — the table has
+        # no unique constraint, so nothing else would catch them.
+        dedup_config = EMISSION_RECALC_SCOPED_DEDUP
 
     if dedup_config is not None:
         child_id = await _insert_child_with_dedup(
@@ -344,11 +376,35 @@ async def chain_job(
             # scope.  Caller must treat None as "no-op, do not
             # fan out further" so we don't double-dispatch the
             # work the existing pending row will do.
-            logger.info(
-                f"chain_job(dedup): {job_type!r} for "
-                f"module={resolved_module_type_id}/det={data_entry_type_id}/"
-                f"year={resolved_year} already pending — skipped"
-            )
+            scoped = _pins_module_scope(config)
+            if scoped and dedup_config.scoped_config_key is None:
+                # Unreachable by construction: the early-out above swaps
+                # a scoped child onto the scoped config.  Reaching it
+                # means a scoped child was collapsed by the FLEET-WIDE
+                # key — the #2527 Phase A bug exactly, and one unit's
+                # entries are about to have no emissions.  Silent by
+                # nature, so say it loudly rather than let a green
+                # pipeline hide it.
+                logger.warning(
+                    f"chain_job(dedup): REGRESSION — module-scoped "
+                    f"{job_type!r} child collapsed by the fleet-wide key "
+                    f"for module={resolved_module_type_id}/"
+                    f"det={data_entry_type_id}/year={resolved_year} "
+                    f"scope={(config or {}).get('carbon_report_module_ids')}"
+                    f" — its entries will have no emissions (#2527)"
+                )
+            else:
+                # A scoped skip here is legitimate: the same unit already
+                # has a pending recalc for this very module.
+                scope_note = ""
+                if scoped:
+                    pinned = (config or {}).get("carbon_report_module_ids")
+                    scope_note = f"/scope={pinned}"
+                logger.info(
+                    f"chain_job(dedup): {job_type!r} for "
+                    f"module={resolved_module_type_id}/det={data_entry_type_id}/"
+                    f"year={resolved_year}{scope_note} already pending — skipped"
+                )
             return None
     else:
         child = DataIngestionJob(
@@ -494,6 +550,13 @@ async def _insert_child_with_dedup(
         col: scope_param_map[col] for col in dedup_config.scope_columns
     }
     pre_check_params["job_type"] = dedup_config.job_type
+    if dedup_config.scoped_config_key is not None:
+        # Bound, not interpolated — the value comes from job config.
+        # Serialised here so Postgres compares it as ``jsonb`` against
+        # the same expression the scoped partial index is built on.
+        pre_check_params["scoped_ids"] = json.dumps(
+            (config or {}).get(dedup_config.scoped_config_key)
+        )
 
     # ``scope_predicate`` is built from ``dedup_config.scope_columns``,
     # which are compile-time constants defined in ``DedupConfig`` instances
