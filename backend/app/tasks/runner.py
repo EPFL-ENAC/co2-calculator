@@ -33,6 +33,14 @@ Concurrency model per ``run_job`` invocation:
   handler's domain writes.  Separate so a handler ``rollback`` does
   not roll back the FINISHED+ERROR state-write the runner makes
   afterward.
+- ``job_session`` is committed right after ``claim_job`` (#2700), not
+  held open through the handler: nothing writes to it again until the
+  handler's own frequent progress commits (``base_provider.py``) or the
+  post-handler preempt-check/``finish_job`` tail, so there is no reason
+  for the claim's connection to sit checked out through the handler's
+  setup phase (S3 move included).  ``data_session`` still holds one
+  connection for the whole handler run — that gap is #2700's Part 2,
+  deferred pending an idempotent-resume design for batched commits.
 - One per-job heartbeat task that wakes every
   ``STALE_JOB_TIMEOUT_MINUTES / 4`` and refreshes ``locked_at`` via
   its OWN session.  Cancelled in ``finally`` regardless of outcome
@@ -178,6 +186,20 @@ async def run_job(job_id: int) -> None:
             # post-commit ``job_session`` would risk an expired-instance
             # lazy load; a local value sidesteps that entirely.
             pipeline_id_for_status = job.pipeline_id
+
+            # #2700 — commit job_session now, before the handler starts.
+            # Without this, the transaction ``get_job_by_id`` autobegan
+            # stays open (holding a pooled connection) through the
+            # handler's setup phase — the S3 tmp→processing move included
+            # — even though nothing has written to job_session since
+            # ``claim_job``. The handler's own frequent progress commits
+            # (``base_provider.py``'s ``self.job_session``) already release
+            # and reacquire from here on; this just stops the claim itself
+            # from holding a slot it no longer needs. Safe to commit here:
+            # ``SessionLocal`` is ``expire_on_commit=False`` (app/db.py), so
+            # ``job``'s already-loaded attributes stay readable without a
+            # session — the handler needs no refresh.
+            await job_session.commit()
 
             # #2371 — one OTel span per job execution, so every SQL span the
             # handler, ``finish_job``, the post-commit pipeline recompute, and
