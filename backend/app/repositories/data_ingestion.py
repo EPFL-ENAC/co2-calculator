@@ -1206,21 +1206,41 @@ class DataIngestionRepository:
         """Auto-recovery sweep for jobs stuck in RUNNING after a pod crash.
 
         The poller calls this once per tick.  Jobs whose ``locked_at`` is
-        older than the stale window are split into two buckets:
+        older than the stale window are split into three buckets:
 
-        - **Recoverable** (``attempts < max_attempts``) — reset to
-          NOT_STARTED so the next poll cycle can re-dispatch them.  Unlike
-          ``recover_job`` (the manual API path, which resets ``attempts=0``
-          on operator intent), this preserves ``attempts`` so a genuinely
-          broken job that crashes every claim can't loop forever — once
-          ``attempts`` reaches ``max_attempts`` the next sweep abandons it.
+        - **MODULE_UNIT_SPECIFIC** (#2700 Part 2) — never auto-retried,
+          regardless of ``attempts`` remaining.  Always abandoned straight
+          to FINISHED+ERROR.  This upload path is append-only with no
+          delete-before-insert and almost no DB uniqueness constraint on
+          ``data_entries`` (see
+          ``docs/src/implementation-plans/2700-module-unit-specific-no-auto-retry.md``),
+          so a dead job may already have committed some batches
+          (``data_session`` commits per ``INGEST_COPY_BATCH_SIZE`` batch,
+          not once at the end) — resetting it to NOT_STARTED for reclaim
+          would let a retry re-``COPY`` rows a prior attempt already
+          wrote, duplicating them silently.  A human must verify and
+          clean up before re-uploading; there is no safe automated retry
+          for this entity type.
 
-        - **Abandoned** (``attempts >= max_attempts``) — moved to
-          ``state=FINISHED, result=ERROR`` with a diagnostic
-          ``status_message``.  Operators see the failure on the dashboard
-          instead of a silently-stuck row.
+        - **Recoverable** (every other entity type, ``attempts <
+          max_attempts``) — reset to NOT_STARTED so the next poll cycle
+          can re-dispatch them.  Unlike ``recover_job`` (the manual API
+          path, which resets ``attempts=0`` on operator intent), this
+          preserves ``attempts`` so a genuinely broken job that crashes
+          every claim can't loop forever — once ``attempts`` reaches
+          ``max_attempts`` the next sweep abandons it.  Safe for these
+          entity types because their handlers delete-and-reinsert their
+          scope on every attempt (``MODULE_PER_YEAR``) or otherwise don't
+          write ``data_entries`` at all.
 
-        Returns ``(recovered_count, abandoned_count)``.
+        - **Abandoned, attempts exhausted** — moved to ``state=FINISHED,
+          result=ERROR`` with a diagnostic ``status_message``.  Operators
+          see the failure on the dashboard instead of a silently-stuck
+          row.
+
+        Returns ``(recovered_count, abandoned_count)`` — the latter sums
+        both abandon reasons; each row's own ``status_message``
+        distinguishes them.
 
         ``locked_at`` is refreshed by the 310-C runner's per-job
         heartbeat (``_heartbeat_loop``, every quarter of the stale
@@ -1230,8 +1250,39 @@ class DataIngestionRepository:
         evicted, or was SIGTERMed mid-job (stage incident 2026-07-17).
         """
         stale_filter = stale_running_clause(stale_job_cutoff(stale_timeout_minutes))
+        is_module_unit_specific = col(DataIngestionJob.entity_type) == (
+            EntityType.MODULE_UNIT_SPECIFIC
+        )
+        is_not_module_unit_specific = col(DataIngestionJob.entity_type) != (
+            EntityType.MODULE_UNIT_SPECIFIC
+        )
 
-        # Bucket 1: still has retries left → unlock and let claim_job pick
+        # Bucket 1: MODULE_UNIT_SPECIFIC — abandon unconditionally, before
+        # the other two buckets run, so neither can also match this row
+        # (both explicitly exclude this entity type below, but ordering
+        # first plus the shared state==RUNNING in stale_filter is a
+        # second, structural guarantee: once this UPDATE moves a row out
+        # of RUNNING, the later queries' stale_filter no longer sees it).
+        no_retry_abandoned = await self.session.execute(
+            update(DataIngestionJob)
+            .where(stale_filter, is_module_unit_specific)
+            .values(
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
+                finished_at=func.now(),
+                status_message=(
+                    "Job stopped mid-run (pod lost or crashed) and cannot be "
+                    "safely retried automatically — this upload has no "
+                    "duplicate protection. Verify data_entries for this "
+                    "report against the source file before re-uploading; "
+                    "delete any rows this job may have already written."
+                ),
+            )
+            .returning(col(DataIngestionJob.id))
+        )
+        no_retry_abandoned_ids = list(no_retry_abandoned.scalars().all())
+
+        # Bucket 2: still has retries left → unlock and let claim_job pick
         # it up next cycle.  Preserve ``attempts`` so claim_job's
         # ``attempts < max_attempts`` guard caps the retry count.
         recovered = await self.session.execute(
@@ -1239,6 +1290,7 @@ class DataIngestionRepository:
             .where(
                 stale_filter,
                 col(DataIngestionJob.attempts) < col(DataIngestionJob.max_attempts),
+                is_not_module_unit_specific,
             )
             .values(
                 state=IngestionState.NOT_STARTED,
@@ -1251,12 +1303,13 @@ class DataIngestionRepository:
         )
         recovered_ids = list(recovered.scalars().all())
 
-        # Bucket 2: out of retries → mark FINISHED+ERROR loud and clear.
+        # Bucket 3: out of retries → mark FINISHED+ERROR loud and clear.
         abandoned = await self.session.execute(
             update(DataIngestionJob)
             .where(
                 stale_filter,
                 col(DataIngestionJob.attempts) >= col(DataIngestionJob.max_attempts),
+                is_not_module_unit_specific,
             )
             .values(
                 state=IngestionState.FINISHED,
@@ -1276,7 +1329,7 @@ class DataIngestionRepository:
         abandoned_ids = list(abandoned.scalars().all())
 
         await self.session.commit()
-        return len(recovered_ids), len(abandoned_ids)
+        return len(recovered_ids), len(abandoned_ids) + len(no_retry_abandoned_ids)
 
     async def recover_job(
         self, job_id: int, stale_timeout_minutes: int
