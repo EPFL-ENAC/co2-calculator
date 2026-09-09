@@ -70,6 +70,14 @@ async def test_server_connection_count_is_skipped_off_postgres():
     assert _pod_heartbeat._server_connections is None
 
 
+def test_server_connection_count_counts_client_backends_only():
+    """#2689: the bare ``count(*)`` took in autovacuum, checkpointer and the
+    walsenders (14 rows on dev), so a 25-slot PgBouncer pool read as ~40
+    on the dashboard. Only client backends occupy a bouncer slot.
+    """
+    assert "backend_type = 'client backend'" in _pod_heartbeat.SERVER_CONNECTIONS_SQL
+
+
 def test_server_connections_gauge_is_silent_before_the_first_tick():
     """The observable gauge reports nothing rather than 0 — a pod that
     hasn't ticked yet must not drag a `max()` aggregation down.
