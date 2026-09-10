@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { matAdjust } from '@quasar/extras/material-icons';
+import { matAdjust, matUpload } from '@quasar/extras/material-icons';
 import { ref, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import {
@@ -214,7 +214,7 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           :button-label="
             csvButtonLabel(reductionFiles?.institutional_footprint)
           "
-          button-icon="upload"
+          :button-icon="matUpload"
           :row="
             {
               reductionObjectiveTypeId: 0,
@@ -238,7 +238,7 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           :show-mandatory-indicator="true"
           :button-color="csvButtonColor(reductionFiles?.population_projections)"
           :button-label="csvButtonLabel(reductionFiles?.population_projections)"
-          button-icon="upload"
+          :button-icon="matUpload"
           :row="
             {
               reductionObjectiveTypeId: 1,
@@ -262,7 +262,7 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           :show-mandatory-indicator="true"
           :button-color="csvButtonColor(reductionFiles?.unit_scenarios)"
           :button-label="csvButtonLabel(reductionFiles?.unit_scenarios)"
-          button-icon="upload"
+          :button-icon="matUpload"
           :row="
             {
               reductionObjectiveTypeId: 2,

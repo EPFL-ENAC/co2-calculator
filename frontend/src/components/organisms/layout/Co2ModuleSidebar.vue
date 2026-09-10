@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { matChevronRight } from '@quasar/extras/material-icons';
+import { matChevronLeft, matChevronRight } from '@quasar/extras/material-icons';
 import {
   outlinedArticle,
   outlinedBarChart,
@@ -84,7 +84,7 @@ const isResultsSelected = computed(() => route.name === 'results');
 const isHomeSelected = computed(() => route.name === HOME_ROUTE_NAME);
 
 const collapseToggleIcon = computed(() =>
-  collapsed.value ? 'chevron_right' : 'chevron_left',
+  collapsed.value ? matChevronRight : matChevronLeft,
 );
 
 function navigateToModule(moduleLink: string) {

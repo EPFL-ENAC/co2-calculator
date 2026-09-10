@@ -80,6 +80,7 @@ type-check-go: ## Run TypeScript type checking
 .PHONY: type-check
 type-check: ## Run TypeScript type checking
 	@set -e; \
+	node scripts/check-icon-strings.mjs; \
 	npx vue-tsc --noEmit -p tsconfig.typecheck.json
 
 
