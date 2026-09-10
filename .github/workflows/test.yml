@@ -89,6 +89,15 @@ jobs:
           tests/integration/services/data_ingestion/test_emission_recalc_dedup_pg.py
           -vv
 
+      # #2527: the kg_co2eq sort's buffer budget. Real-PG-only (EXPLAIN
+      # BUFFERS, partial/covering indexes), and deterministic — page counts
+      # are identical on a laptop and on a runner, so this cannot flake.
+      - name: Run kg_co2eq sort buffer-budget test
+        run: >
+          uv run pytest
+          tests/integration/services/data_ingestion/test_kg_sort_buffer_budget_pg.py
+          -vv
+
   test-frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest
