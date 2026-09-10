@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  matAdd,
   matCalculate,
   matCancel,
   matInfo,
@@ -48,7 +49,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   showMandatoryIndicator: false,
   descriptionSubtext: undefined,
-  buttonIcon: 'add',
+  buttonIcon: matAdd,
   isDisabled: false,
   isLoading: false,
   lastJob: undefined,

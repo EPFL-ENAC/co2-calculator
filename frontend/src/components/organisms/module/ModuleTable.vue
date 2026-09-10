@@ -48,7 +48,7 @@
       :placeholder="$t('common_search_placeholder') || 'Search'"
       clearable
       :clear-icon="outlinedClose"
-      prefix-icon="o_search"
+      :prefix-icon="outlinedSearch"
     >
       <template #prepend>
         <q-icon :name="outlinedSearch" color="grey-6" size="16px" />
@@ -488,7 +488,9 @@ import {
   matClose,
 } from '@quasar/extras/material-icons';
 import {
+  outlinedAddComment,
   outlinedClose,
+  outlinedComment,
   outlinedDelete,
   outlinedDownload,
   outlinedEdit,
@@ -942,7 +944,7 @@ const tableStyle = computed(() =>
 );
 
 function noteButtonIcon(note: unknown): string {
-  return note ? 'o_comment' : 'o_add_comment';
+  return note ? outlinedComment : outlinedAddComment;
 }
 
 function noteButtonColor(note: unknown): string | undefined {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { matFileUpload } from '@quasar/extras/material-icons';
 import { computed, inject, type ComputedRef } from 'vue';
 import { useUploadCard } from '@/composables/useUploadCard';
 import { mergeLivePipelineJob } from '@/composables/useModuleConfig';
@@ -59,7 +60,7 @@ function handleDownload(row: ImportRow, targetType: TargetType) {
     :row="row"
     :button-color="referenceButtonColor(row)"
     :button-label="referenceButtonLabel(row)"
-    button-icon="file_upload"
+    :button-icon="matFileUpload"
     :is-disabled="isDisabled || row.isDisabled"
     :is-loading="effectiveReferenceJob?.state === IngestionState.RUNNING"
     :last-job="effectiveReferenceJob"

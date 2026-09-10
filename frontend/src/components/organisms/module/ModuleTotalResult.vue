@@ -216,7 +216,11 @@
 </template>
 
 <script setup lang="ts">
-import { outlinedMail } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedCheckCircle,
+  outlinedMail,
+  outlinedRemoveCircle,
+} from '@quasar/extras/material-icons-outlined';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useTimelineStore, useModuleStore } from '@/stores/modules';
@@ -270,7 +274,7 @@ const showContactHead = computed(
 );
 
 const toggleIcon = computed(() =>
-  isValidated.value ? 'o_remove_circle' : 'o_check_circle',
+  isValidated.value ? outlinedRemoveCircle : outlinedCheckCircle,
 );
 
 // Three-state badge: validated / in progress / not started. Not started has no

@@ -106,7 +106,9 @@
 
 <script setup lang="ts">
 import {
+  outlinedAddComment,
   outlinedClose,
+  outlinedElectricBolt,
   outlinedMail,
 } from '@quasar/extras/material-icons-outlined';
 import { ref, computed } from 'vue';
@@ -158,7 +160,7 @@ const localNote = ref(props.note ?? '');
 const requestText = ref('');
 
 const headerIcon = computed(() =>
-  activeTab.value === 'power' ? 'o_electric_bolt' : 'o_add_comment',
+  activeTab.value === 'power' ? outlinedElectricBolt : outlinedAddComment,
 );
 const headerTitle = computed(() =>
   activeTab.value === 'power'
