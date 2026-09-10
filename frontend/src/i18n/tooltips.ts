@@ -107,15 +107,15 @@ export default {
 
   // ── Equipment ──────────────────────────────────────────────────────────────
   'module-equipment-submodule-scientific': {
-    en: 'Check that the data for your scientific equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
+    en: 'Review that the data for your scientific equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
     fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
   },
   'module-equipment-submodule-it': {
-    en: 'Check that the data for your IT equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
+    en: 'Review that the data for your IT equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
     fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
   },
   'module-equipment-submodule-other': {
-    en: 'Check that the data for your other equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
+    en: 'Review that the data for your other equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
     fr: "Vérifiez que les données de vos autres équipements  sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
   },
 
@@ -131,8 +131,8 @@ export default {
 
   // ── Professional Travel ────────────────────────────────────────────────────
   'module-professional-travel-submodule-plane': {
-    en: 'The flights listed in the table are provided by the EPFL Central Travel Agency. If any flights are missing, you can add them manually and they will appear in the table in beige.',
-    fr: "Les vols affichés dans le tableau proviennent de l'agence de voyage central EPFL. S'il manque des vols, il est possible de les saisir manuellement et ils apparaitront dans le tableau en beige.",
+    en: 'The flights listed in the table are provided by the EPFL Central Travel Agency. Complete any missing entries manually, if applicable. Data rows for external passengers are highlighted in orange.,
+    fr: "Les vols affichés dans le tableau proviennent de l'agence de voyage central EPFL. Saisissez manuellement les vols manquants, le cas échéant. Les lignes de données des passagers externes sont surlignées en orange.",
   },
   'module-professional-travel-submodule-train': {
     en: 'Enter your train trips manually, whether they were taken in Switzerland or abroad. ',
@@ -236,7 +236,10 @@ export default {
     en: 'Please select the supplier(s) from the list, then provide the service type, total spent, and currency. To save time, you can pre-fill and import a CSV file.',
     fr: 'Veuillez sélectionner le ou les fournisseurs dans la liste, puis préciser le type de service, le montant dépensé et la devise associée. Pour faciliter la saisie, vous pouvez préalablement remplir et importer un fichier CSV.',
   },
-  'module-external-cloud-and-ai-submodule-external_ai-form': { en: '', fr: '' },
+  'module-external-cloud-and-ai-submodule-external_ai-form': {
+    en: 'Please select the supplier(s) from the list, then provide the usage type, number of users in FTP, and frequency. To save time, you can pre-fill and import a CSV file.',
+    fr: "Veuillez sélectionner le ou les fournisseurs dans la liste, puis préciser le type d'usage, nombre de utilisateur·trices en EPT, et la fréquence. Pour faciliter la saisie, vous pouvez préalablement remplir et importer un fichier CSV.",
+  },
 
   // ── Professional Travel ────────────────────────────────────────────────────
   'module-professional-travel-submodule-plane-form': {
@@ -330,8 +333,8 @@ export default {
     fr: '',
   },
   'module-process-emissions-submodule-process_emissions-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ── Buildings — rooms table ─────────────────────────────────────────────────
@@ -363,7 +366,10 @@ export default {
     en: 'Annual lighting energy consumption calculated from room surface and SIA room type benchmark (kWh/m²)',
     fr: "Consommation annuelle d'énergie d'éclairage calculée à partir de la surface du local et du benchmark SIA par type de local (kWh/m²)",
   },
-  'module-buildings-submodule-building-table-kg_co2eq': { en: '', fr: '' },
+  'module-buildings-submodule-building-table-kg_co2eq': {
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
+  },
 
   // ── Buildings — energy combustion table ────────────────────────────────────
   'module-buildings-submodule-energy_combustion-table-name': { en: '', fr: '' },
@@ -373,8 +379,8 @@ export default {
     fr: '',
   },
   'module-buildings-submodule-energy_combustion-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ── Equipment — scientific table ────────────────────────────────────────────
@@ -407,8 +413,8 @@ export default {
     fr: "La puissance standby moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas vous pouvez demander une modification via le bouton Commentaire de la ligne concernée.",
   },
   'module-equipment-submodule-scientific-table-kg_co2eq': {
-    en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters.',
-    fr: "L'incertitude de ces valeurs peut être haute et dépend de la représentativité de la puissance, des heures d'utilisation et des paramètre d'utilisation.",
+    en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters. Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "L'incertitude de ces valeurs peut être haute et dépend de la représentativité de la puissance, des heures d'utilisation et des paramètre d'utilisation. Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
   'module-equipment-submodule-scientific-table-t_co2eq': {
     en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters.',
@@ -443,8 +449,8 @@ export default {
     fr: '',
   },
   'module-external-cloud-and-ai-submodule-external_clouds-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ── External Cloud & AI — AI services table ─────────────────────────────────
@@ -463,8 +469,8 @@ export default {
   'module-external-cloud-and-ai-submodule-external_ai-table-requests_per_user_per_day':
     { en: '', fr: '' },
   'module-external-cloud-and-ai-submodule-external_ai-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ── Research Facilities — research facilities table ─────────────────────────
@@ -479,8 +485,8 @@ export default {
     fr: '',
   },
   'module-research-facilities-submodule-research-facilities-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ── Research Facilities — animal facilities table ───────────────────────────
@@ -499,8 +505,8 @@ export default {
     fr: "Pour l'utilisation des animaleries rongeurs et poissons à l'EPFL, nous ne considérons que la partie hébergement des animaux et pas ce qui concerne l'unité de phénotypage (UDP) et la plateforme de transgénèse (TCF).",
   },
   'module-research-facilities-submodule-animal_facilities-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
