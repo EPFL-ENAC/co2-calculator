@@ -1,8 +1,13 @@
+// Subsetted to Basic Latin + Latin-1 (fr/en/de/es/it) + Œ, dashes, curly quotes,
+// bullet, ellipsis, guillemets, €, − (kerning kept). Glyphs outside that range
+// (² ₂ ₃ ₄ ₆ → ≈ ℹ ⚠ …) never were in the EPFL WebS files and render from the
+// system fallback font. Regenerate from the full EPFL woff2 with:
+//   pyftsubset <font>.woff2 --flavor=woff2 --layout-features='kern,liga' \
+//     --unicodes="U+0020-007E,U+00A0-00FF,U+0152-0153,U+2013-2014,U+2018-201A,U+201C-201E,U+2022,U+2026,U+2039-203A,U+20AC,U+2212"
 @font-face {
   font-family: SuisseIntl;
   src:
-    url('/fonts/SuisseIntlEPFL-Regular-WebS.woff2') format('woff2'),
-    url('/fonts/SuisseIntlEPFL-Regular-WebS.woff') format('woff');
+    url('/fonts/SuisseIntlEPFL-Regular-WebS.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -11,8 +16,7 @@
 @font-face {
   font-family: SuisseIntl;
   src:
-    url('/fonts/SuisseIntlEPFL-Medium-WebS.woff2') format('woff2'),
-    url('/fonts/SuisseIntlEPFL-Medium-WebS.woff') format('woff');
+    url('/fonts/SuisseIntlEPFL-Medium-WebS.woff2') format('woff2');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -21,8 +25,7 @@
 @font-face {
   font-family: SuisseIntl;
   src:
-    url('/fonts/SuisseIntlEPFL-Bold-WebS.woff2') format('woff2'),
-    url('/fonts/SuisseIntlEPFL-Bold-WebS.woff') format('woff');
+    url('/fonts/SuisseIntlEPFL-Bold-WebS.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
