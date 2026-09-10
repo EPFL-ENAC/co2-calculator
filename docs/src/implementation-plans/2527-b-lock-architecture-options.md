@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: proposed
 issue: 2527
 last_updated: 2026-09-10
 title: "2527 B — can we get rid of the advisory locks?"
