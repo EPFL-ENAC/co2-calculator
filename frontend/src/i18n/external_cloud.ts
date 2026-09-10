@@ -7,13 +7,13 @@ export default {
   },
   [`${MODULES.ExternalCloudAndAI}-description`]: {
     en: `Enter your external cloud and AI usage.`,
-    fr: "Saisissez vos données d'utilisation de clouds externes et l'IA.",
+    fr: "Saisissez vos données d'utilisation de clouds externes et d'IA.",
   },
   [`${MODULES.ExternalCloudAndAI}-title-subtext`]: {
-    en: `This module helps you estimate the carbon footprint of external cloud and AI service usage.
+    en: `This module helps you estimate the carbon footprint of external cloud and AI service usages.
 
 To identify all usage across your unit, review licenses, subscriptions, and invoices paid over the past year. Be sure to include individual use of everyday tools, such as shared online storage or AI assistants (for writing, translation, or code generation,...).`,
-    fr: `Ce module vous aide à estimer l'empreinte carbone liée à l'utilisation de services cloud externes et d'intelligence artificielle.
+    fr: `Ce module vous aide à estimer l'empreinte carbone liée à l'utilisation de services de clouds externes et d'intelligence artificielle (IA).
   
 Afin d'identifier l'ensemble des usages de votre unité, basez-vous sur les licences, abonnements ou factures réglés l'année écoulée. Veillez également à inclure les usages individuels des outils du quotidien, comme le stockage partagé en ligne ou les assistants IA (rédaction, traduction, génération de code,...).`,
   },
@@ -25,7 +25,7 @@ Afin d'identifier l'ensemble des usages de votre unité, basez-vous sur les lice
   // Add an external cloud usage / Ajouter une utilisation de cloud externe
   [`${MODULES.ExternalCloudAndAI}-external_clouds-form-title`]: {
     en: 'Add an external cloud service usage',
-    fr: 'Ajoutez une utilisation de service cloud externe',
+    fr: 'Ajoutez une utilisation de service de cloud externe',
   },
 
   // Add an external AI usage / Ajouter une utilisation d’IA externe
@@ -105,7 +105,7 @@ Afin d'identifier l'ensemble des usages de votre unité, basez-vous sur les lice
   },
   [`${MODULES.ExternalCloudAndAI}.inputs.fte_count`]: {
     en: 'Number of users (FTE)',
-    fr: "Nombre d'utilisateurs (EPT)",
+    fr: "Nombre d'utilisateurs·trice (EPT)",
   },
 
   [`${MODULES.ExternalCloudAndAI}-${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds}-form-disclaimer`]:
