@@ -1,5 +1,5 @@
 ---
-status: deferred
+status: abandoned
 issue: 1832
 last_updated: 2026-09-10
 title: "Provider (tenant) isolation for factors, pipelines, connectors, locations, building_rooms"
@@ -8,7 +8,10 @@ summary: "Add a provider column (user_provider_enum) to every table that still l
 
 # Provider scoping for shared tables (#1832)
 
-> **Deferred, 2026-09-10 — merged as a record, not as a queue item.**
+> **Not being implemented, 2026-09-10 — merged as a record, not as a queue
+> item.** (`status: abandoned` is the closest the plan vocabulary offers;
+> it describes _this plan_, not the risk, which is unchanged and still
+> tracked by the open #1832.)
 >
 > The decision is that **the provider is not changed mid-deploy**, which
 > removes the trigger for every leak below: they require two tenants to be
