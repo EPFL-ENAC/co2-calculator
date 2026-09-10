@@ -40,6 +40,38 @@ from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 logger = get_logger(__name__)
 
 
+def _module_scope(job: DataIngestionJob) -> list[int] | None:
+    """Carbon report modules this recalc rewrites, ``None`` = whole slice.
+
+    Unit-specific ingests pin their module scope at chain time so a
+    20-row upload doesn't recompute the whole (det, year) slice.
+    """
+    config = (job.meta or {}).get("config") or {}
+    raw_scope = config.get("carbon_report_module_ids")
+    if not isinstance(raw_scope, list):
+        return None
+    return [int(i) for i in raw_scope if isinstance(i, int)]
+
+
+def _lock_module_id(job_id: int, module_scope: list[int] | None) -> int | None:
+    """The module whose write lock covers everything this recalc rewrites.
+
+    ``None`` keeps the exclusive ``(module_type, year)`` gate (#2527 B1).
+    Anything but exactly one module falls back to it: over-serialising is
+    slow, but a scope the lock doesn't cover writes duplicate
+    ``data_entry_emissions`` rows, which no constraint would catch.
+    """
+    if module_scope is None:
+        return None
+    if len(module_scope) == 1:
+        return module_scope[0]
+    logger.warning(
+        f"emission_recalc job {job_id}: module scope {module_scope!r} is not a "
+        "single module — falling back to the exclusive factor lock"
+    )
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Plan 310-C registered handlers (additive — coexist with the legacy
 # functions below until the endpoint+poller cutover PR removes them).
@@ -321,17 +353,21 @@ async def emission_recalc_handler(
     )
     await job_session.commit()
 
-    # 4B — per-``(module, year)`` advisory lock: blocks while any
-    # concurrent ``factor_ingest`` for the same scope is mid-write,
-    # so this recalc reads complete factor values instead of the
-    # half-loaded state. Held until ``data_session`` commits (runner
-    # does that after this handler returns) — covers the whole
-    # factor-read window inside the workflow.
+    # 4B — factor gate: blocks while any concurrent ``factor_ingest``
+    # for the same scope is mid-write, so this recalc reads complete
+    # factor values instead of the half-loaded state. Held until
+    # ``data_session`` commits (runner does that after this handler
+    # returns) — covers the whole factor-read window inside the workflow.
+    # #2527 B1 — the scope is resolved BEFORE the lock so the key is
+    # derived from the exact module list the workflow rewrites below; a
+    # module-scoped recalc shares the gate and locks its own module.
+    module_scope = _module_scope(job)
     await acquire_factor_recalc_lock(
         data_session,
         module_type_id=job.module_type_id,
         year=job.year,
         handler_label=f"emission_recalc job {job.id}",
+        carbon_report_module_id=_lock_module_id(job.id, module_scope),
     )
 
     logger.info(
@@ -360,14 +396,6 @@ async def emission_recalc_handler(
             metadata={},
         )
         await job_session.commit()
-
-    # Unit-specific ingests pin their module scope at chain time so a
-    # 20-row upload doesn't recompute the whole (det, year) slice.
-    config = (job.meta or {}).get("config") or {}
-    raw_scope = config.get("carbon_report_module_ids")
-    module_scope: list[int] | None = None
-    if isinstance(raw_scope, list):
-        module_scope = [int(i) for i in raw_scope if isinstance(i, int)]
 
     try:
         stats = await svc.recalculate_for_data_entry_type(
@@ -506,7 +534,9 @@ async def module_emission_recalc_handler(
     # 4B — same per-``(module, year)`` advisory lock as the per-det
     # recalc handler: held until ``data_session`` commits so every
     # det in the bulk loop reads factors that are not mid-write by a
-    # concurrent ``factor_ingest`` for the same scope.
+    # concurrent ``factor_ingest`` for the same scope.  Stays EXCLUSIVE
+    # (#2527 B1): this handler rewrites whole (det, year) slices, so no
+    # single carbon report module bounds what it writes.
     await acquire_factor_recalc_lock(
         data_session,
         module_type_id=job.module_type_id,
