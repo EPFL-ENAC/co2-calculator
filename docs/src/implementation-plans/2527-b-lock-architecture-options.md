@@ -1,5 +1,5 @@
 ---
-status: analysis
+status: in-progress
 issue: 2527
 last_updated: 2026-09-10
 title: "2527 B — can we get rid of the advisory locks?"
@@ -300,20 +300,24 @@ So the plan is four phases, and two of them may end with "do nothing".
 - [ ] **P0.1 — instrument the lock wait.** `perf_counter` around the
       `execute` in `acquire_factor_recalc_lock`; log duration, mode
       (shared/exclusive), scope, handler. An afternoon.
-- [ ] **P0.2 — run the load test** (`PERF_CLASSES=CsvUploadUser
-    PERF_USERS=20`) on dev **after #2708 is deployed**, and read the
-      wait distribution. #2708's narrowing may already have taken most
+- [ ] **P0.2 — run the load test** on dev **after #2708 is deployed** —
+      `make perf-load PERF_CLASSES=CsvUploadUser PERF_USERS=20` — and read
+      the wait distribution. #2708's narrowing may already have taken most
       of it.
-- [ ] **P0.3 — verify the uniqueness key**, read-only:
+- [ ] **P0.3 — verify the uniqueness key.** Read-only; the query is below.
 
-      SELECT data_entry_id, emission_type_id, scope, count(*)
-          FROM data_entry_emissions
-          GROUP BY 1, 2, 3 HAVING count(*) > 1 LIMIT 20;
+P0.3's query, kept out of the list because a code block nested in a task
+item is not stable under `prettier`:
 
-          Empty → Phase 1 is a clean migration. Non-empty → **I2 has already
-          been violated in production** and Phase 1 becomes an incident, not
-          a cleanup. That is the single result most likely to change this
-          plan.
+```sql
+SELECT data_entry_id, emission_type_id, scope, count(*)
+FROM data_entry_emissions
+GROUP BY 1, 2, 3 HAVING count(*) > 1 LIMIT 20;
+```
+
+Empty → Phase 1 is a clean migration. Non-empty → **I2 has already been
+violated in production**, and Phase 1 becomes an incident rather than a
+cleanup. That is the single result most likely to change this plan.
 
 **Gate:** if P0.2 shows the post-#2708 wait is negligible, Phases 2 and 3
 are **not implemented**. Phase 1 still ships — it is correctness, not
