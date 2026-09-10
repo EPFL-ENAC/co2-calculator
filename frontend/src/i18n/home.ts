@@ -48,8 +48,8 @@ export default {
     fr: 'nous contacter',
   },
   home_intro_4_contact_link_url: {
-    en: 'mailto:sustainability%40epfl.ch',
-    fr: 'mailto:sustainability%40epfl.ch',
+    en: 'mailto:co2calculator%40epfl.ch',
+    fr: 'mailto:co2calculator%40epfl.ch',
   },
   home_intro_4_part_3: {
     en: '.',
@@ -117,7 +117,7 @@ export default {
     fr: 'Unité / Labo',
   },
   workspace_year_label: {
-    en: 'Assessment Year',
+    en: 'Assessment year',
     fr: "Année d'évaluation",
   },
   co2_calculator_title: {
@@ -129,19 +129,19 @@ export default {
     fr: 'À propos',
   },
   co2_calculator_about_paragraph_1: {
-    en: 'Click “Start” to complete the modules and get a comprehensive estimation of your unit’s carbon footprint. You can then review your results and export your report.',
+    en: 'Click “Start” to complete the modules and receive a comprehensive estimation of your unit’s carbon footprint. You can then review your results and export your report.',
     fr: "Cliquez sur « Démarrer » pour remplir les modules et obtenir une estimation complète de l'empreinte carbone de votre unité. Vous pourrez ensuite consulter vos résultats et exporter vos données.",
   },
   co2_calculator_about_paragraph_2: {
-    en: 'Most of the data is loaded automatically, but some can be entered manually or imported via a CSV file. Use the left-hand menu to navigate between modules, edit them, or validate your data.',
-    fr: 'La majorité des données sont intégrées automatiquement, mais certaines peuvent être saisies manuellement ou importées via un fichier CSV. Le menu de gauche vous permet de naviguer entre les modules pour les modifier ou les valider.',
+    en: 'Most of the data is loaded automatically, but some can be entered manually or imported via a CSV file. Use the left-hand menu to navigate between modules, edit them, or validate your data. Your changes are saved automatically.',
+    fr: 'La majorité des données sont intégrées automatiquement, mais certaines peuvent être saisies manuellement ou importées via un fichier CSV. Le menu de gauche vous permet de naviguer entre les modules pour les modifier ou les valider. Vos modifications sont enregistrées automatiquement.',
   },
   co2_calculator_about_paragraph_3: {
     en: 'You can enable “Colorblind” mode in the top right corner to adjust the display.',
     fr: "Le mode « Daltonien » est accessible en haut à droite pour adapter l'affichage.",
   },
   co2_calculator_chart_title: {
-    en: 'My unit CO₂ Assessment {year}',
+    en: 'My unit CO₂ assessment {year}',
     fr: 'Bilan CO₂ de mon unité {year}',
   },
   co2_calculator_continue: {
@@ -225,8 +225,8 @@ export default {
     fr: 'Planificateur de projet CO₂',
   },
   co2_project_planner_description: {
-    en: 'The CO₂ Project Planner enables you to estimate the carbon footprint of various projects – whether for funding applications or for past, current or future projects – based on the results from the CO₂ calculator.',
-    fr: `Le Planificateur de projet CO₂ permet d'estimer l'empreinte carbone de  différents projets, que ce soient pour des demandes de financement ou des projets passés, en cours ou futurs, en s’appuyant sur les données remontant du calculateur CO₂`,
+    en: 'The CO₂ Project planner enables you to estimate the carbon footprint of various projects – whether for funding applications or for past, current or future projects – based on the results from the CO₂ Calculator.',
+    fr: `Le Planificateur de projet CO₂ permet d'estimer l'empreinte carbone de  différents projets, que ce soient pour des demandes de financement ou des projets passés, en cours ou futurs, en s’appuyant sur les données remontant du Calculateur CO₂.`,
   },
   co2_project_planner_btn: {
     en: 'Start a project',
