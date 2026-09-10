@@ -31,6 +31,12 @@ const ligatures = new Set(
 const RULES = [
   // <q-btn button-icon="file_upload">  -- static attribute, so not a binding
   [/\b[a-z-]*icon="([a-z][a-z0-9_]*)"/g, (m) => ligatures.has(strip(m[1]))],
+  // :dropdown-icon="cond ? 'expand_more' : undefined"  -- any string literal
+  // inside a bound icon attribute; the ternary rule below needs both sides.
+  [
+    /\b[a-z-]*icon="[^"]*'([a-z][a-z0-9_]*)'[^"]*"/g,
+    (m) => ligatures.has(strip(m[1])),
+  ],
   // { buttonIcon: 'add' }  -- prop default or config object
   [
     /\b[a-zA-Z]*[iI]con:\s*'([a-z][a-z0-9_]*)'/g,
