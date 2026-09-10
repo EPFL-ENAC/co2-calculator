@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { matWarning } from '@quasar/extras/material-icons';
+import { outlinedClose } from '@quasar/extras/material-icons-outlined';
 import { useDataEntryDialog } from '@/composables/useDataEntryDialog';
 import type {
   SyncJobResponse,
@@ -137,7 +139,7 @@ watch(showDialog, (newVal) => {
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
         />
@@ -154,7 +156,7 @@ watch(showDialog, (newVal) => {
           class="q-mb-sm"
           inline-action
         >
-          <q-icon name="warning" size="sm" class="q-mr-sm" />
+          <q-icon :name="matWarning" size="sm" class="q-mr-sm" />
           {{ $t('data_management_last_upload_overwrite') }}
         </q-banner>
         <div data-testid="data-entry-file-input">
@@ -189,7 +191,7 @@ watch(showDialog, (newVal) => {
               class="q-mb-sm"
               inline-action
             >
-              <q-icon name="warning" size="sm" class="q-mr-sm" />
+              <q-icon :name="matWarning" size="sm" class="q-mr-sm" />
               {{ $t('data_management_last_upload_overwrite') }}
             </q-banner>
             <div class="q-gutter-sm q-mt-sm">

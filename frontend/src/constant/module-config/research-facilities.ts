@@ -1,3 +1,4 @@
+import { outlinedBiotech } from '@quasar/extras/material-icons-outlined';
 import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import {
   MODULES,
@@ -20,7 +21,7 @@ const facilityIdField: ModuleField = {
   required: true,
   align: 'left',
   hideIn: { table: true },
-  icon: 'o_biotech',
+  icon: outlinedBiotech,
   columnSize: 'lg',
 };
 

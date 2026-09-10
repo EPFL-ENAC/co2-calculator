@@ -11,7 +11,13 @@
           {{ headerTitle }}
         </div>
         <q-space />
-        <q-btn v-close-popup flat size="md" icon="o_close" color="grey-6" />
+        <q-btn
+          v-close-popup
+          flat
+          size="md"
+          :icon="outlinedClose"
+          color="grey-6"
+        />
       </q-card-section>
 
       <q-separator class="q-mt-sm" />
@@ -85,7 +91,7 @@
               :label="$t('equipment-power-feedback-send')"
               :color="submitBtnColor"
               :style="submitBtnStyle"
-              icon="o_mail"
+              :icon="outlinedMail"
               unelevated
               no-caps
               class="text-weight-medium"
@@ -99,6 +105,10 @@
 </template>
 
 <script setup lang="ts">
+import {
+  outlinedClose,
+  outlinedMail,
+} from '@quasar/extras/material-icons-outlined';
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { runtimeConfig } from '@/config/runtime';

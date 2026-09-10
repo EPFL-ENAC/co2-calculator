@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { matEditNote, matHourglassEmpty } from '@quasar/extras/material-icons';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ReportingStats } from '@/api/backoffice';
@@ -18,21 +19,21 @@ const cards = computed(() => [
     tooltipText: t('backoffice_reporting_usage_box_validated'),
     key: MODULE_STATES.Validated,
     color: '#28a745',
-    icon: 'edit_note',
+    icon: matEditNote,
   },
   {
     label: t('backoffice_reporting_usage_box_in_progress'),
     tooltipText: t('backoffice_reporting_usage_box_in_progress'),
     key: MODULE_STATES.InProgress,
     color: '#ffc107',
-    icon: 'hourglass_empty',
+    icon: matHourglassEmpty,
   },
   {
     label: t('backoffice_reporting_usage_box_not_started'),
     tooltipText: t('backoffice_reporting_usage_box_not_started'),
     key: MODULE_STATES.Default,
     color: '#8e8e8e',
-    icon: 'hourglass_empty',
+    icon: matHourglassEmpty,
   },
 ]);
 </script>

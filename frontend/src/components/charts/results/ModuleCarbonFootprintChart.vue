@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import {
+  outlinedBarChart,
+  outlinedDownload,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, type PropType, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
@@ -1498,7 +1503,7 @@ const downloadCSV = () => {
         </span>
         <q-icon
           v-if="!isPrintMode"
-          name="o_info"
+          :name="outlinedInfo"
           size="xs"
           color="primary"
           class="cursor-pointer"
@@ -1555,7 +1560,7 @@ const downloadCSV = () => {
         <q-btn
           v-if="props.enableCompareYears"
           color="black"
-          icon="o_bar_chart"
+          :icon="outlinedBarChart"
           :label="$t('results_compare_years')"
           outline
           no-caps
@@ -1629,7 +1634,7 @@ const downloadCSV = () => {
         unelevated
         no-caps
         outline
-        icon="o_download"
+        :icon="outlinedDownload"
         :label="$t('common_download_as_png')"
         size="xs"
         dense
@@ -1640,7 +1645,7 @@ const downloadCSV = () => {
         unelevated
         no-caps
         outline
-        icon="o_download"
+        :icon="outlinedDownload"
         :label="$t('common_download_as_csv')"
         size="xs"
         dense

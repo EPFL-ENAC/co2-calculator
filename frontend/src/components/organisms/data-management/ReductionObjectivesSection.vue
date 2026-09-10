@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { matAdjust } from '@quasar/extras/material-icons';
 import { ref, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import {
@@ -281,7 +282,7 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
       <!-- Goals Section -->
       <q-item-section class="q-pt-xl q-pb-sm q-px-md">
         <div class="row items-start align-center q-mb-xs">
-          <q-icon name="adjust" color="accent" size="xs" class="q-mr-sm" />
+          <q-icon :name="matAdjust" color="accent" size="xs" class="q-mr-sm" />
           <div class="text-body1 text-weight-medium">
             {{ $t('data_management_define_reduction_objectives_title') }}
           </div>

@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { createI18n } from 'vue-i18n';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { Quasar, Dialog, Loading, Notify } from 'quasar';
+import svgMaterialIcons from 'quasar/icon-set/svg-material-icons.js';
 import {
   QHeader,
   QToolbar,
@@ -31,10 +32,6 @@ import {
 import messages from '../../src/i18n';
 import { icons } from '../../src/plugin/module-icon';
 import { useColorblindStore } from '../../src/stores/colorblind';
-
-// Import Quasar styles
-import '@quasar/extras/material-icons/material-icons.css';
-import '@quasar/extras/material-icons-outlined/material-icons-outlined.css';
 
 // Import app styles with CSS Cascade Layers
 import '../../src/css/app.scss';
@@ -140,8 +137,10 @@ setup((app) => {
   });
   app.use(router);
 
-  // Install Quasar
+  // Install Quasar. `iconSet` mirrors quasar.config.js: no icon webfont is
+  // loaded here, so Quasar's own component icons must resolve to inline SVG.
   app.use(Quasar, {
+    iconSet: svgMaterialIcons,
     plugins: {
       Dialog,
       Loading,

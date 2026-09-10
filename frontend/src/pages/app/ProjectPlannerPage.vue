@@ -2,7 +2,7 @@
   <q-page class="page-grid">
     <q-card v-if="notFound" flat class="container">
       <q-icon
-        name="o_calendar_month"
+        :name="outlinedCalendarMonth"
         color="info"
         size="32px"
         class="q-mb-md"
@@ -26,7 +26,12 @@
       <q-card flat class="container">
         <div class="row justify-between items-start no-wrap">
           <div class="col">
-            <q-icon name="o_tune" color="info" size="32px" class="q-mb-md" />
+            <q-icon
+              :name="outlinedTune"
+              color="info"
+              size="32px"
+              class="q-mb-md"
+            />
             <h1 class="text-h2 q-mb-md">{{ $t('planner_page_title') }}</h1>
             <p class="text-body1 q-mb-sm">
               {{ $t('planner_page_subtitle') }}
@@ -36,7 +41,7 @@
             </p>
           </div>
           <q-icon
-            name="o_info"
+            :name="outlinedInfo"
             size="sm"
             class="cursor-pointer"
             :aria-label="$t('module-info-label')"
@@ -192,7 +197,7 @@
               <q-btn
                 unelevated
                 no-caps
-                icon="o_download"
+                :icon="outlinedDownload"
                 :label="$t('planner_results_download_button')"
                 size="md"
                 color="info"
@@ -213,6 +218,12 @@
 </template>
 
 <script setup lang="ts">
+import {
+  outlinedCalendarMonth,
+  outlinedDownload,
+  outlinedInfo,
+  outlinedTune,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';

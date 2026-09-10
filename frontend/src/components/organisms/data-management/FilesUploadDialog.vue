@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { outlinedClose } from '@quasar/extras/material-icons-outlined';
 import { ref, watch } from 'vue';
 import { useFilesStore } from '@/stores/files';
 
@@ -53,7 +54,7 @@ const uploadFiles = async () => {
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
         />

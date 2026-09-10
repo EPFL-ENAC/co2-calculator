@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import {
+  outlinedPictureAsPdf,
+  outlinedTableChart,
+  outlinedWarning,
+} from '@quasar/extras/material-icons-outlined';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
@@ -290,7 +295,7 @@ async function downloadReport(format: 'csv' | 'json') {
     <div class="container full-width container--pa-none">
       <div class="flex items-center q-gutter-md">
         <div class="bg-accent q-px-md q-mr-xl self-stretch flex items-center">
-          <q-icon name="o_warning" size="xs" color="white" />
+          <q-icon :name="outlinedWarning" size="xs" color="white" />
         </div>
         <div>
           <div class="q-my-lg text-body2">
@@ -305,7 +310,7 @@ async function downloadReport(format: 'csv' | 'json') {
 
   <div class="q-mt-lg">
     <q-btn
-      icon="o_picture_as_pdf"
+      :icon="outlinedPictureAsPdf"
       color="accent"
       :label="$t('common_export_as_pdf')"
       :disable="
@@ -320,7 +325,7 @@ async function downloadReport(format: 'csv' | 'json') {
       @click="downloadPDF"
     />
     <q-btn
-      icon="o_table"
+      :icon="outlinedTableChart"
       color="accent"
       :label="$t('common_export_as_csv')"
       :loading="downloading"

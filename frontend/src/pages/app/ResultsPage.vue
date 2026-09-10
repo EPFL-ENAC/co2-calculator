@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { matDownload } from '@quasar/extras/material-icons';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import {
   computed,
   defineAsyncComponent,
@@ -639,7 +641,7 @@ const getUncertainty = (
           <div class="flex column justify-between">
             <q-btn
               color="info"
-              icon="download"
+              :icon="matDownload"
               :label="$t('results_download_pdf')"
               unelevated
               no-caps
@@ -774,7 +776,7 @@ const getUncertainty = (
                 <q-card flat bordered class="validation-required-card">
                   <q-card-section class="validation-required-card__content">
                     <q-icon
-                      name="o_info"
+                      :name="outlinedInfo"
                       size="md"
                       color="info"
                       class="q-mb-md"
@@ -1000,7 +1002,7 @@ const getUncertainty = (
                           class="validation-required-card__content"
                         >
                           <q-icon
-                            name="o_info"
+                            :name="outlinedInfo"
                             size="md"
                             color="accent"
                             class="q-mb-md"

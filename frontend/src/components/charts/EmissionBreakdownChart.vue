@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { matGridView, matStackedBarChart } from '@quasar/extras/material-icons';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
 import GenericEmissionTreeMapChart from '@/components/charts/GenericEmissionTreeMapChart.vue';
@@ -241,7 +243,7 @@ const emissionTypeInfoKey = computed(() =>
           flat
           round
           dense
-          icon="info_outline"
+          :icon="outlinedInfo"
           size="sm"
           class="text-grey-7"
           :aria-label="t('emission-type-breakdown-info-aria')"
@@ -266,7 +268,7 @@ const emissionTypeInfoKey = computed(() =>
                 : {}
             "
             :class="chartView !== 'type' ? 'toggle-inactive' : ''"
-            icon="stacked_bar_chart"
+            :icon="matStackedBarChart"
             size="sm"
             @click="chartView = 'type'"
           />
@@ -279,7 +281,7 @@ const emissionTypeInfoKey = computed(() =>
                 : {}
             "
             :class="chartView !== 'breakdown' ? 'toggle-inactive' : ''"
-            icon="grid_view"
+            :icon="matGridView"
             size="sm"
             @click="chartView = 'breakdown'"
           />

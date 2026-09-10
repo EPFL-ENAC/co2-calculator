@@ -11,7 +11,7 @@
     >
       <q-btn
         outline
-        icon="o_view_list"
+        :icon="outlinedViewList"
         color="primary"
         :label="$t('common_upload_csv')"
         unelevated
@@ -23,7 +23,7 @@
       />
       <q-btn
         outline
-        icon="o_download"
+        :icon="outlinedDownload"
         color="primary"
         :label="$t('common_download_csv_template')"
         unelevated
@@ -47,11 +47,11 @@
       class="table-search"
       :placeholder="$t('common_search_placeholder') || 'Search'"
       clearable
-      clear-icon="o_close"
+      :clear-icon="outlinedClose"
       prefix-icon="o_search"
     >
       <template #prepend>
-        <q-icon name="o_search" color="grey-6" size="16px" />
+        <q-icon :name="outlinedSearch" color="grey-6" size="16px" />
       </template>
     </q-input>
   </div>
@@ -64,7 +64,7 @@
     class="equipment-new-banner q-mb-md"
   >
     <template #avatar>
-      <q-icon name="o_warning" class="equipment-new-banner__icon" />
+      <q-icon :name="outlinedWarning" class="equipment-new-banner__icon" />
     </template>
     {{
       $t('equipment_new_usage_required_banner', {
@@ -109,7 +109,7 @@
           <span>{{ col.label }}</span>
           <q-icon
             v-if="col.tooltip && $t(col.tooltip)"
-            name="o_info"
+            :name="outlinedInfo"
             size="16px"
             color="grey-6"
             class="q-ml-xs"
@@ -121,7 +121,7 @@
     </template>
     <template #pagination="scope">
       <q-btn
-        icon="chevron_left"
+        :icon="matChevronLeft"
         color="grey-8"
         round
         dense
@@ -133,7 +133,7 @@
         {{ scope.pagination.page }} / {{ scope.pagesNumber }}
       </div>
       <q-btn
-        icon="chevron_right"
+        :icon="matChevronRight"
         color="grey-8"
         round
         dense
@@ -222,7 +222,7 @@
               <template v-if="col.type !== 'select'" #append>
                 <q-icon
                   v-if="hasValue(slotProps.row[col.field])"
-                  name="o_edit"
+                  :name="outlinedEdit"
                   size="14px"
                   class="inline-edit-icon"
                 />
@@ -252,7 +252,7 @@
             </q-btn>
             <q-btn
               v-if="showTableRowActions && canEditRows && hasModuleUpload"
-              icon="o_delete"
+              :icon="outlinedDelete"
               color="black"
               :disable="isDisabled || !isRowPolicyDeletable(slotProps.row)"
               unelevated
@@ -356,7 +356,7 @@
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
         />
@@ -426,7 +426,7 @@
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
           :disable="deleteInFlight"
@@ -482,6 +482,22 @@
 </template>
 
 <script setup lang="ts">
+import {
+  matChevronLeft,
+  matChevronRight,
+  matClose,
+} from '@quasar/extras/material-icons';
+import {
+  outlinedClose,
+  outlinedDelete,
+  outlinedDownload,
+  outlinedEdit,
+  outlinedInfo,
+  outlinedReportProblem,
+  outlinedSearch,
+  outlinedViewList,
+  outlinedWarning,
+} from '@quasar/extras/material-icons-outlined';
 import FilesUploadDialog from '@/components/organisms//data-management/FilesUploadDialog.vue';
 
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
@@ -745,7 +761,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
             timeout: 30000,
             actions: [
               {
-                icon: 'o_report_problem',
+                icon: outlinedReportProblem,
                 color: 'negative',
                 textColor: 'white',
                 label: $t('close_error_details'),
@@ -779,7 +795,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
           timeout: 30000,
           actions: [
             {
-              icon: 'o_report_problem',
+              icon: outlinedReportProblem,
               color: 'negative',
               textColor: 'white',
               label: $t('close_error_details'),
@@ -803,7 +819,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
           closeBtn: true,
           actions: [
             {
-              icon: 'close',
+              icon: matClose,
               // for individual action (button):
               'aria-label': 'Dismiss',
             },

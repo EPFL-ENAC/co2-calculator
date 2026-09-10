@@ -1,3 +1,4 @@
+import { matClose } from '@quasar/extras/material-icons';
 import ky, { type Options } from 'ky';
 import { Notify } from 'quasar';
 import { i18n } from '@/boot/i18n';
@@ -109,7 +110,7 @@ export const api = ky.create({
             message: i18n.global.t('session_expired_notice'),
             position: 'top',
             timeout: 5000,
-            actions: [{ icon: 'close', color: 'white' }],
+            actions: [{ icon: matClose, color: 'white' }],
           });
           location.replace(loginPageName);
         } else if (res.status === 403) {
@@ -207,7 +208,7 @@ export const api = ky.create({
             message: toastMessage,
             position: 'top',
             timeout: 3000,
-            actions: [{ icon: 'close', color: 'white' }],
+            actions: [{ icon: matClose, color: 'white' }],
           });
 
           // Redirect immediately - toast will remain visible during navigation
@@ -270,7 +271,7 @@ export const api = ky.create({
                 }),
               position: 'top',
               timeout: 3000,
-              actions: [{ icon: 'close', color: 'white' }],
+              actions: [{ icon: matClose, color: 'white' }],
             });
           }
         }

@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import {
+  matAdd,
+  matCalendarMonth,
+  matCalendarToday,
+  matEvent,
+  matLock,
+  matLockOpen,
+} from '@quasar/extras/material-icons';
 import { computed, ref, watch, provide } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
@@ -320,7 +328,7 @@ async function handleDialogCompleted() {
             class="full-width q-my-md"
           >
             <template #prepend>
-              <q-icon name="event" color="accent" size="xs" />
+              <q-icon :name="matEvent" color="accent" size="xs" />
             </template>
           </q-select>
 
@@ -331,7 +339,7 @@ async function handleDialogCompleted() {
             data-testid="year-open-status-chip"
             :color="yearConfigStore.config.is_started ? 'positive' : 'grey-4'"
             :text-color="yearConfigStore.config.is_started ? 'white' : 'grey-9'"
-            :icon="yearConfigStore.config.is_started ? 'lock_open' : 'lock'"
+            :icon="yearConfigStore.config.is_started ? matLockOpen : matLock"
             dense
             square
             class="q-mb-sm"
@@ -361,7 +369,7 @@ async function handleDialogCompleted() {
         class="q-pa-xl q-mb-xl text-center"
       >
         <q-icon
-          name="calendar_today"
+          :name="matCalendarToday"
           size="64px"
           color="grey-5"
           class="q-mb-md"
@@ -376,7 +384,7 @@ async function handleDialogCompleted() {
         </div>
         <q-btn
           color="primary"
-          icon="add"
+          :icon="matAdd"
           :label="$t('data_management_create_year', { year: selectedYear })"
           :loading="yearConfigStore.loading"
           @click="handleCreateYear"
@@ -428,7 +436,7 @@ async function handleDialogCompleted() {
 
       <q-btn
         v-if="yearConfigStore.config && !yearSyncInFlight"
-        icon="calendar_month"
+        :icon="matCalendarMonth"
         color="accent"
         :label="$t('open_year_for_users')"
         class="text-weight-medium text-capitalize q-mt-md"

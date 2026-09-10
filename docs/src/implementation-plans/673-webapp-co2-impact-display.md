@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 673
 last_updated: 2026-07-07
 title: "Homepage tooltip: webapp's own Lighthouse/ecoindex footprint"

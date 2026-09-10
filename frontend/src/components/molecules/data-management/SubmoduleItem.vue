@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import {
+  matEditOff,
+  matLegendToggle,
+  matPowerSettingsNew,
+} from '@quasar/extras/material-icons';
 import { ref, inject, computed, type ComputedRef, type Ref } from 'vue';
 import { useSubmoduleConfig } from '@/composables/useSubmoduleConfig';
 import { useRecalculation } from '@/composables/useRecalculation';
@@ -144,7 +149,7 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
     <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
       <div class="row items-center q-mb-xs">
         <q-icon
-          name="power_settings_new"
+          :name="matPowerSettingsNew"
           color="accent"
           size="xs"
           class="q-mr-sm"
@@ -179,7 +184,7 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
       :class="{ 'submodule-item--disabled': isSubmoduleDisabled(submodule) }"
     >
       <div class="row items-center q-mb-xs">
-        <q-icon name="edit_off" color="accent" size="xs" class="q-mr-sm" />
+        <q-icon :name="matEditOff" color="accent" size="xs" class="q-mr-sm" />
         <div class="text-body2 text-weight-medium">
           {{ $t('data_management_submodule_inputs_deactivation_title') }}
         </div>
@@ -217,7 +222,7 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
       >
         <div class="row items-center q-mb-xs">
           <q-icon
-            name="legend_toggle"
+            :name="matLegendToggle"
             color="accent"
             size="xs"
             class="q-mr-sm"

@@ -39,7 +39,7 @@
       />
       <q-btn
         v-else-if="showContactHead && isValidated"
-        icon="o_mail"
+        :icon="outlinedMail"
         color="info"
         unelevated
         no-caps
@@ -113,7 +113,7 @@
       </div>
       <q-btn
         v-else-if="showContactHead && isValidated"
-        icon="o_mail"
+        :icon="outlinedMail"
         :label="$t('common_request_edit')"
         color="info"
         unelevated
@@ -196,7 +196,7 @@
         class="module-total-result__button"
       >
         <q-btn
-          icon="o_mail"
+          :icon="outlinedMail"
           :label="$t('common_request_edit')"
           color="info"
           unelevated
@@ -216,6 +216,7 @@
 </template>
 
 <script setup lang="ts">
+import { outlinedMail } from '@quasar/extras/material-icons-outlined';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useTimelineStore, useModuleStore } from '@/stores/modules';

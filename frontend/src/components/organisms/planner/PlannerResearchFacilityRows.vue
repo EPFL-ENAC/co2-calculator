@@ -37,7 +37,7 @@
         @update:model-value="onAdd"
       >
         <template #prepend>
-          <q-icon name="o_add_circle" color="info" />
+          <q-icon :name="outlinedAddCircle" color="info" />
         </template>
         <template #no-option>
           <q-item>
@@ -106,7 +106,7 @@
               flat
               dense
               round
-              icon="o_delete"
+              :icon="outlinedDelete"
               class="q-ml-sm"
               :disable="disable || savingKey === row.key"
               :aria-label="$t('common_delete')"
@@ -122,6 +122,10 @@
 </template>
 
 <script setup lang="ts">
+import {
+  outlinedAddCircle,
+  outlinedDelete,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
