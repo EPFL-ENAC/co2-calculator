@@ -528,11 +528,7 @@ class DataEntryEmissionRepository:
                 )
                 continue
 
-            # The apportionment is a ratio, and the room surface was a common
-            # multiplier on both sides of it — `ef * surface / SUM(ef * surface)`
-            # is just `ef / SUM(ef)`. It never changed a result, but reading it
-            # back from `meta` silently dropped every row whose emissions were
-            # written by a path that did not happen to record it (#2715).
+            # Surface has no activity-type index (#700) — it cancels out here (#2715).
             raw_by_cat: dict[str, float] = {}
             raw_total = 0.0
             for fid in ids:

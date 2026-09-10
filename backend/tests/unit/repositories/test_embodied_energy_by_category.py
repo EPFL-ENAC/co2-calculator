@@ -5,8 +5,14 @@ factor categories. It used to read ``meta['room_surface_square_meter']`` first
 and ``continue`` past any row that lacked it — silently, so the breakdown
 under-reported and looked complete.
 
-The surface never affected the result. The apportionment is a ratio and the
-surface was a common multiplier on both sides of it:
+The surface never affected the result. The published methodology (#700, and
+the user doc's "Construction et rénovation") defines the total as
+
+    CF = SUM_building SUM_activity (surface_building * EF_{building,activity})
+
+and this function apportions a persisted total along the *activity* axis.
+``surface`` carries no activity index, so it is constant across the axis being
+normalized and factors out:
 
     result[cat] = (surface * ef[cat]) * kg / (surface * SUM(ef))
                 = ef[cat] * kg / SUM(ef)
