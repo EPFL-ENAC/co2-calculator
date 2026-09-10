@@ -521,16 +521,6 @@ class DataEntryEmissionRepository:
                 continue
 
             meta = row.meta if isinstance(row.meta, dict) else {}
-            surface = meta.get("room_surface_square_meter")
-            if surface is None:
-                continue
-            try:
-                surface_f = float(surface)
-            except TypeError, ValueError:
-                continue
-            if surface_f <= 0:
-                continue
-
             ids = _factor_ids(meta)
             if not ids:
                 category_totals["unknown"] = (
@@ -538,6 +528,7 @@ class DataEntryEmissionRepository:
                 )
                 continue
 
+            # Surface has no activity-type index (#700) — it cancels out here (#2715).
             raw_by_cat: dict[str, float] = {}
             raw_total = 0.0
             for fid in ids:
@@ -545,9 +536,8 @@ class DataEntryEmissionRepository:
                 if ef <= 0:
                     continue
                 cat = factor_category_map.get(fid, "unknown")
-                raw = surface_f * ef
-                raw_by_cat[cat] = raw_by_cat.get(cat, 0.0) + raw
-                raw_total += raw
+                raw_by_cat[cat] = raw_by_cat.get(cat, 0.0) + ef
+                raw_total += ef
 
             if raw_total <= 0:
                 category_totals["unknown"] = (
