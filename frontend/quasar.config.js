@@ -86,11 +86,10 @@ export default defineConfig(function () {
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: ['app.scss'],
 
+    // No icon webfonts: every icon is an inline SVG imported per component
+    // from @quasar/extras, so only the icons in use are bundled.
     // https://github.com/quasarframework/quasar/tree/dev/extras
-    extras: [
-      'material-icons', // optional, you are not bound to it
-      'material-icons-outlined',
-    ],
+    extras: [],
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
     build: {
@@ -266,6 +265,8 @@ export default defineConfig(function () {
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#framework
     framework: {
+      // Quasar's own component icons (dropdown arrows, sort carets, close
+      // buttons) as inline SVG — they default to webfont ligature names.
       iconSet: 'svg-material-icons',
       plugins: [
         'Dialog',

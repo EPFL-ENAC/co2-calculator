@@ -20,7 +20,9 @@ import {
   QItemSection,
   QSelect,
   QTooltip,
+  QCardSection,
 } from 'quasar';
+import svgMaterialIcons from 'quasar/icon-set/svg-material-icons.js';
 import { i18n } from '@/boot/i18n';
 // Pinia stores in this app (e.g. useModuleStore) call useRoute() at setup
 // time, so any CT mount that instantiates a store needs both plugins
@@ -37,7 +39,9 @@ const router = createRouter({
 });
 
 beforeMount(async ({ app }) => {
-  app.use(Quasar, { plugins: { Notify } });
+  // `iconSet` mirrors quasar.config.js: no icon webfont ships, so Quasar's
+  // own component icons must resolve to inline SVG here too.
+  app.use(Quasar, { iconSet: svgMaterialIcons, plugins: { Notify } });
   app.use(createPinia());
   app.use(router);
   app.use(i18n);
@@ -54,4 +58,6 @@ beforeMount(async ({ app }) => {
   app.component('QTooltip', QTooltip);
   // PlannerHeadcountRows (#2613 vocabulary labels) renders q-input rows.
   app.component('QInput', QInput);
+  // ChartContainer (svg-icons.spec.ts) renders q-card-section.
+  app.component('QCardSection', QCardSection);
 });
