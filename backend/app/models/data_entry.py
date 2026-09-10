@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Column, DateTime, Index, Integer, text
+from sqlalchemy import CheckConstraint, Column, DateTime, Index, Integer, text
 from sqlmodel import JSON, Field, SQLModel
 
 from app.models._field_defaults import default_dict, default_utcnow
@@ -180,6 +180,14 @@ class DataEntry(DataEntryBase, table=True):
                 f"AND data ->> 'user_institutional_id' IS NOT NULL"
             ),
         ),
+        # #2527 C1: an entry whose ``data`` is NULL prices nothing, and every
+        # reader reaches into it (``data.get(...)``), so it can only fail.
+        # The column is nullable for historical reasons; this stops new NULLs
+        # without the ACCESS EXCLUSIVE full-table scan ``SET NOT NULL`` would
+        # need on millions of rows — the migration adds it NOT VALID, so it
+        # binds every INSERT/UPDATE from that point and leaves any existing
+        # bad row visible instead of silently rewriting it.
+        CheckConstraint("data IS NOT NULL", name="ck_data_entries_data_not_null"),
     )
 
     id: int | None = Field(default=None, primary_key=True, index=True)

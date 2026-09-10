@@ -330,14 +330,13 @@ class DataEntryRepository:
         Plain-copy modules pass False: their copies are ordinary editable
         entries. Emissions are not copied; the caller recomputes.
 
-        Known behaviour change: ``data_entries.data`` is nullable, and the
-        Python shape this replaced raised on a NULL source blob
-        (``{**None}``). The SQL propagates it instead — ``NULL || …`` is
-        NULL — so such a row copies as NULL and errors per-entry in the
-        recalc rather than failing the copy. Narrow (the ORM always writes
-        ``{}``; only raw-SQL writers can produce NULL) but the loud failure
-        moved. The real fix is ``NOT NULL`` on the column, not a COALESCE
-        here, which would be exactly the silent fallback this repo forbids.
+        ``data_entries.data`` is nullable, and the Python shape this replaced
+        raised on a NULL source blob (``{**None}``), so the job failed loudly.
+        SQL propagates instead — ``NULL || …`` is NULL — which would have made
+        the copy succeed and the failure surface later, per entry, inside a
+        recalc that catches and continues. Closed by
+        ``ck_data_entries_data_not_null`` (#2527 C1), so the INSERT below now
+        raises rather than writing a row nothing can price.
         """
         dialect = self.session.get_bind().dialect.name
         data_expr = (
