@@ -211,7 +211,7 @@
                   ),
                 },
               ]"
-              :dropdown-icon="col.type === 'select' ? 'expand_more' : undefined"
+              :dropdown-icon="col.type === 'select' ? matExpandMore : undefined"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
               @blur="col.type !== 'select' && commitInline(slotProps.row, col)"
@@ -486,6 +486,7 @@ import {
   matChevronLeft,
   matChevronRight,
   matClose,
+  matExpandMore,
 } from '@quasar/extras/material-icons';
 import {
   outlinedAddComment,
