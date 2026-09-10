@@ -33,9 +33,9 @@ on a rendered page look identical.
 
 Two custom metrics already exist and set the pattern to copy:
 
-| Metric | Where | Shape |
-| --- | --- | --- |
-| `db.pool.connections` | `backend/app/db.py:102` | observable gauge + callback |
+| Metric                   | Where                                     | Shape                                    |
+| ------------------------ | ----------------------------------------- | ---------------------------------------- |
+| `db.pool.connections`    | `backend/app/db.py:102`                   | observable gauge + callback              |
 | `event_loop_lag_seconds` | `backend/app/tasks/_event_loop_lag.py:28` | histogram, recorded from a lifespan task |
 
 No `MeterProvider` is constructed in app code — `opentelemetry-instrument`
@@ -62,7 +62,7 @@ here so the road not taken is visible.
 
 Consequence to accept: unauthenticated traffic (`/healthz`, `/ready`, the
 OAuth callback, 401s) is never counted. That is the correct behaviour for
-a *user* gauge.
+a _user_ gauge.
 
 ### Design
 
@@ -123,7 +123,7 @@ one uvicorn process per pod, one series per pod, as the issue assumes.
 
 If anyone ever sets `WORKERS > 1`, uvicorn forks and each worker gets its
 own heap: the same user's requests round-robin across workers, so nearly
-every active user appears in *every* worker's map and the sum inflates by
+every active user appears in _every_ worker's map and the sum inflates by
 roughly the worker count. This does not fail silently — it shows up as N
 series sharing one `k8s_pod_name`. The panel legend is
 `{{k8s_pod_name}}` for exactly that reason, and the panel description
@@ -146,7 +146,7 @@ the label exists first (query in Steps).
 `sum()` across pods counts a user once per pod that served them within
 the window. With 2–3 backend pods and no session affinity, a browsing
 user is likely to hit more than one. **The number is an upper bound.** It
-is still the right signal — the tiers below are about *when to act*, and
+is still the right signal — the tiers below are about _when to act_, and
 an over-counting load signal errs toward acting early.
 
 The lower bound is `max()` over pods. Chart both: `sum()` as the headline
@@ -163,11 +163,11 @@ metric.
 
 Title: **Active users (5m) — capacity tier**
 
-| refId | Query (`$ns` = the env's namespace) | Legend |
-| --- | --- | --- |
-| A | `sum(co2_active_users_5m{namespace="$ns"})` | `active users (upper bound)` |
-| B | `max(co2_active_users_5m{namespace="$ns"})` | `active users (lower bound)` |
-| C | `co2_active_users_5m{namespace="$ns"}` | `{{k8s_pod_name}}` |
+| refId | Query (`$ns` = the env's namespace)         | Legend                       |
+| ----- | ------------------------------------------- | ---------------------------- |
+| A     | `sum(co2_active_users_5m{namespace="$ns"})` | `active users (upper bound)` |
+| B     | `max(co2_active_users_5m{namespace="$ns"})` | `active users (lower bound)` |
+| C     | `co2_active_users_5m{namespace="$ns"}`      | `{{k8s_pod_name}}`           |
 
 refId C is a **bare selector, not `sum(...) by (k8s_pod_name)`** — that
 is the point. Summing by pod name would collapse per-worker series back
@@ -178,12 +178,12 @@ N lines sharing a pod name, which is visible.
 Threshold steps wired to the capacity tiers in #2529 §2, so the panel
 answers "do I need to do something" without a lookup:
 
-| Value | Colour | What it means / what to do |
-| ---: | --- | --- |
-| < 100 | green | Within today's 2 pods × 1 CPU / 512 Mi. No action. |
-| 100 | yellow | At the tested-OK ceiling. Raise the backend memory limit to 768 Mi (~380 MB/worker observed under load). |
-| 200 | orange | **Add a third pod**, and check the merged report-stats p95 on the latency panel — that endpoint hit 1.3 s at 200 users on the dev DB. Connections, not CPU, are the binding constraint: `replicas × (DB_POOL_SIZE + DB_MAX_OVERFLOW)` must stay under the DB's `max_connections`. Blocked on #2527 items 4–5. |
-| 600 | red | Not supported today. Needs HPA + pgbouncer (#2527 items 1–5). |
+| Value | Colour | What it means / what to do                                                                                                                                                                                                                                                                                    |
+| ----: | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| < 100 | green  | Within today's 2 pods × 1 CPU / 512 Mi. No action.                                                                                                                                                                                                                                                            |
+|   100 | yellow | At the tested-OK ceiling. Raise the backend memory limit to 768 Mi (~380 MB/worker observed under load).                                                                                                                                                                                                      |
+|   200 | orange | **Add a third pod**, and check the merged report-stats p95 on the latency panel — that endpoint hit 1.3 s at 200 users on the dev DB. Connections, not CPU, are the binding constraint: `replicas × (DB_POOL_SIZE + DB_MAX_OVERFLOW)` must stay under the DB's `max_connections`. Blocked on #2527 items 4–5. |
+|   600 | red    | Not supported today. Needs HPA + pgbouncer (#2527 items 1–5).                                                                                                                                                                                                                                                 |
 
 Panel description (verbatim, so the bias is never lost):
 
@@ -252,7 +252,7 @@ of job-class requests already exceed 10 s in normal stage traffic** —
 which is verbatim the alert's own firing condition (`> 0.05` over
 `le="10000"`).
 
-The alert is not mis-thresholded by some margin. It is set *at* its
+The alert is not mis-thresholded by some margin. It is set _at_ its
 observed baseline. It has stayed quiet only because of `for: 15m`
 combined with the `> 0.02 req/s` traffic floor: stage is rarely busy
 enough for 15 continuous minutes to clear the floor. Sustained real load
@@ -315,8 +315,8 @@ landing in `job`).
 
 Fix: add `project-plans` prefill routes to the `job` classification.
 **But confirm the live label shape first** — #1402 explicitly records
-that where the `/v1/<router-prefix>` collapse happens is *still
-unconfirmed*, so the tail these routes actually produce must be observed,
+that where the `/v1/<router-prefix>` collapse happens is _still
+unconfirmed_, so the tail these routes actually produce must be observed,
 not predicted:
 
 ```promql
@@ -332,12 +332,12 @@ polls that should never be slow, and trigger requests that legitimately
 do work. Averaging them is why the current number is uninterpretable.
 Split them in the collector transform:
 
-| Class | Routes | Should be | Proposed alert |
-| --- | --- | --- | --- |
-| `job_poll` | `GET /sync/jobs/*`, `/sync/pipelines/*`, `/workers`, `/active-pipelines*`, `/recalculation-status`, and the `project-plans/*/prefill/*` polls once reclassified | Sub-second. A status read is one indexed row. | > 5% over **1 s** (`le="1000"`), `for: 15m`. A slow poll is a genuine, actionable signal — it is the frontend's progress bar stalling. |
-| `job_trigger` | `POST /sync/dispatch`, `POST /sync/units`, `POST /year-configuration/{year}` recalc, the prefill-enqueueing `PATCH` | Enqueue + commit, then return. Slow means the enqueue path itself is doing work it shouldn't. | > 5% over **10 s** — keep the existing threshold; on a trigger it is a real bound, not a saturated one. |
-| `upload` | `POST /files` | Unchanged. | `UploadLatencySLOBreach` unchanged (> 2% over 5 s). Confirm against real data — #2529 §1 measured upload-to-ingested at 8 s dev median, but that is again the *flow*, not the POST. |
-| `stream` | SSE | Excluded from latency alerting entirely (#1402). | none |
+| Class         | Routes                                                                                                                                                          | Should be                                                                                     | Proposed alert                                                                                                                                                                      |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `job_poll`    | `GET /sync/jobs/*`, `/sync/pipelines/*`, `/workers`, `/active-pipelines*`, `/recalculation-status`, and the `project-plans/*/prefill/*` polls once reclassified | Sub-second. A status read is one indexed row.                                                 | > 5% over **1 s** (`le="1000"`), `for: 15m`. A slow poll is a genuine, actionable signal — it is the frontend's progress bar stalling.                                              |
+| `job_trigger` | `POST /sync/dispatch`, `POST /sync/units`, `POST /year-configuration/{year}` recalc, the prefill-enqueueing `PATCH`                                             | Enqueue + commit, then return. Slow means the enqueue path itself is doing work it shouldn't. | > 5% over **10 s** — keep the existing threshold; on a trigger it is a real bound, not a saturated one.                                                                             |
+| `upload`      | `POST /files`                                                                                                                                                   | Unchanged.                                                                                    | `UploadLatencySLOBreach` unchanged (> 2% over 5 s). Confirm against real data — #2529 §1 measured upload-to-ingested at 8 s dev median, but that is again the _flow_, not the POST. |
+| `stream`      | SSE                                                                                                                                                             | Excluded from latency alerting entirely (#1402).                                              | none                                                                                                                                                                                |
 
 Deliberately **no** raise of a threshold above what the histogram can
 resolve, because there is no such threshold to set. If the confirming
@@ -377,7 +377,7 @@ Three compensations, all repo precedent rather than invention:
 
 1. **A sustained low-threshold companion**, copying
    `ErrorRateSustainedElevated`: same ratio, evaluated over a rolling 6h
-   `increase()` window at the *target* threshold (not the interim one),
+   `increase()` window at the _target_ threshold (not the interim one),
    `for: 30m`, `severity: info`. A raised fast alert structurally cannot
    see a persistent low-grade regression; this one can. `info` because
    the alertmanager here is a single flat email route with no
@@ -388,7 +388,7 @@ Three compensations, all repo precedent rather than invention:
    kind of change that can make a series disappear.
 3. **Re-verify classification against real traffic**, with the
    `count by (route_class, http_target, http_method)` query above, run
-   *while a real import is running*. This is still an open step in #1402
+   _while a real import is running_. This is still an open step in #1402
    for the same reason: a wrong regex silently mis-classifies requests,
    and every threshold downstream becomes meaningless without failing.
 
@@ -398,7 +398,7 @@ To be explicit: the correct fix for "plan prefill takes 42 s and
 upload-to-ingested takes 184 s" is **making those jobs faster** —
 [#2527](https://github.com/EPFL-ENAC/co2-calculator/issues/2527) items
 1–3. Nothing in this plan improves either number. Every threshold change
-proposed here is a change to what we *observe*, and each one is time-boxed
+proposed here is a change to what we _observe_, and each one is time-boxed
 against those issues landing.
 
 The metric that should eventually carry the 42 s and 184 s numbers is a
@@ -429,10 +429,10 @@ strongest argument for unblocking 2049-C4.
       (`backend/app/core/security.py`), beside `tag_span_with_user`.
 - [ ] Unit test in `backend/tests/unit/core/test_active_users.py`.
 - [ ] Deploy to dev; confirm `co2_active_users_5m` appears with one series
-      per backend pod and a plausible value. Same trip, record which
-      labels actually survive — `count by (service_name, k8s_pod_name)
-      (co2_active_users_5m{namespace="$ns"})` — so the panel is written
-      against observed labels, not assumed ones.
+      per backend pod and a plausible value. Same trip, record which labels
+      actually survive — group by `service_name` and `k8s_pod_name` and see
+      what comes back — so the panel is written against observed labels,
+      not assumed ones.
 - [ ] **Ops repo PR** (separate): the "Active users (5m) — capacity tier"
       panel in all three overlays, with the threshold steps and the
       description above; bump the dashboard `version`.
