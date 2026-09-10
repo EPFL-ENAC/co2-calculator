@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 2527
-last_updated: 2026-09-09
+last_updated: 2026-09-10
 title: "2527 items 1-3 — the three write paths over the 10 s alert bucket"
 summary: "JobLatencySLOBreach fires on a 10 s bucket; uploads, plan prefill and plan mutations sit above it under load. Per-path verdict from the code: uploads and prefill are queue-plus-CPU, not per-row SQL; plan PATCH/DELETE round trips were already trimmed by #2449 Track B, so its residual is cascade data volume — which fires #2449's own deferred trigger for Track A. One correctness fix (module-scoped emission_recalc children are silently dropped by EMISSION_RECALC_DEDUP) must land before any baseline, because it flatters today's upload numbers."
 ---
@@ -196,9 +196,10 @@ One PATCH enqueues **one** job for every year of the range
 (`api/v1/simulator_plan.py:49-86`), and the handler walks them
 sequentially: per report, empty + copy every reference-scoped module, then
 re-price every entry of the report (`simulator_plan_service.py:420-458`).
-The docstring records 21.9 s on dev for a single year of a ~5k-entry
-module. A 5-year PlanUser flow is that, five times, in one job holding one
-of four slots.
+The docstring recorded 21.9 s on dev for a single year of a ~5k-entry
+module. **That figure never measured this job** — see "What 21.9 s
+actually was" below. A 5-year PlanUser flow is this handler, five times,
+in one job holding one of four slots.
 
 - [x] **C1 — copy without a Python round trip.** _Delivered._
       `prefill_module_from_reference` read every source row into memory,
@@ -214,6 +215,9 @@ of four slots.
       parallel jobs cost connections and DB CPU; splitting is the fallback
       lever, not the first one. Still deferred: C1 landed and C2 is out,
       so the next prefill measurement decides whether this is needed.
+- [x] **C4 — emit the 0% rows instead of deriving them.** _Dropped: the
+      gate fails._ C2's successor idea, killed by its own pre-committed
+      measurement. See "Why the 0%-short-circuit is not worth building".
 
 ### C1 as delivered
 
@@ -280,11 +284,143 @@ SQLite's statement count is a harness artefact — its
 `bulk_insert_returning_ids` fallback writes one INSERT per row — so only
 the vanished round trip and the shape transfer from that row.
 
-**Not measured:** anything end to end. The 21.9 s dev figure, the 42 s
-FLOW median and the Phase C acceptance gate all still stand unmeasured —
-this is one step of one job on a laptop, and the prefill job also runs
+This is one step of one job on a laptop; the prefill job also runs
 `_recalculate_report_emissions` over the whole report, which C1 does not
-touch.
+touch. That whole-job profile is the next section. The 42 s FLOW median
+and the Phase C acceptance gate still stand unmeasured.
+
+### C0 — the whole job, profiled (2026-09-10)
+
+Run against `origin/dev` (`191065d59`) — i.e. **before** C1 — on local
+Docker Postgres: one report, one plan year, one populated module type
+(`process_emissions`). Two reps per N, both shown.
+
+|    N |        total |      copy | recompute |  commit | SQL statements |
+| ---: | -----------: | --------: | --------: | ------: | -------------: |
+|  100 |  99 / 104 ms |   55 / 64 |   39 / 33 |   2 / 1 |             56 |
+| 1000 | 237 / 193 ms | 116 / 100 |  116 / 88 |   1 / 1 |             56 |
+| 5000 | 822 / 818 ms | 399 / 407 | 415 / 403 | 38 / 38 |             60 |
+
+Plus one `COPY ... FROM STDIN` per report that a `before_cursor_execute`
+listener cannot see — `bulk_copy` runs on the raw psycopg cursor.
+
+**Wall time is linear in N (~0.148 ms/entry above a ~60 ms floor);
+statement count is flat.** 56 → 60 only because SQLAlchemy's
+`insertmanyvalues` pages at 1000 rows, so 5000 rows becomes five INSERTs.
+No N+1 remains in this job — the same conclusion #2050 §F0's local rig
+reached from the recalc side.
+
+Where the 822 ms goes at N=5000:
+
+|        ms |  share | calls | call                                                |
+| --------: | -----: | ----: | --------------------------------------------------- |
+| 309 / 351 | 38-41% |     1 | `DataEntryRepository.bulk_insert_returning_ids`     |
+| 103 / 108 |    13% |     5 | ↳ `psycopg._queries._query2pg_nocache`              |
+| 117 / 117 |    14% |     1 | `DataEntryEmissionService.bulk_replace_for_entries` |
+| 108 / 107 |    13% |     1 | ↳ `bulk_copy` (the untraced COPY)                   |
+|   87 / 95 |    11% |     1 | `prefetch_percentage_override_cache`                |
+|  72 / 102 |  9-12% |  5000 | `prepare_create`                                    |
+|   40 / 40 |     5% |  5000 | `DataEntryResponse.model_validate`                  |
+|   34 / 35 |     4% |     2 | `recompute_stats_many`                              |
+|   33 / 33 |     4% |     1 | `list_by_carbon_report`                             |
+
+The dominant call is the copy's bulk insert — and **13% of the whole job
+is psycopg rewriting `%s` → `$n` across five 295 kB SQL strings**. psycopg
+deliberately bypasses its statement cache above
+`MAX_CACHED_STATEMENT_LENGTH`, naming ORM-generated multi-row
+`INSERT ... VALUES` as the reason. Being client CPU, it does not improve
+on a faster database. #2050 wrote this INSERT off as "row volume, not
+overhead"; a third of it was overhead.
+
+**C1 deletes exactly that.** The four copy-side rows — the bulk insert,
+its psycopg rewriting, `model_validate`, `list_by_carbon_report` — are
+gone for every module but headcount, which aggregates many member rows
+into a handful of grid rows in Python.
+
+Post-C1 this shape is **~557 ms at N=5000 — derived from two
+measurements, not measured.** T0's copy phase (399/407 ms) and the "C1
+measured" table above (404 ms) are the same step seen from two rigs, and
+that table puts it at **110 ms** after C1. So 110 + ~409 (recompute) + 38
+(commit). The recompute is then ~73% of the job, and it is what remains.
+Converting that from derived to measured means re-running the T0 rig on
+this branch; nobody has.
+
+**Not covered by this profile:** no dev DB, no network, no job runner. One
+report, one year (a 10-year plan multiplies it; #2050 measured 660
+statements for 10 years × 4 modules). One populated module type, though
+the rig does walk all ~11. Strategy-A factor lookup only — Strategy B
+(headcount, travel, building) issues classification queries keyed by
+`factor_query_cache`, i.e. O(distinct classifications), and is the highest
+-value remaining lead if a statement-count problem is still suspected. One
+`Factor` row and one emission leaf per entry; equipment may be multi-leaf.
+
+### What 21.9 s actually was
+
+`simulator_plan_tasks.py` claimed the job was "measured at 21.9s on dev".
+It was not. The number is a single dev APM trace (`954e5976…c3e298`) of
+`PATCH /v1/project-plans/{plan_id}/years/{year}`, recorded in
+[#2050](2050-backend-compute-performance.md) §F0 — the **synchronous
+request**, which §F4 later moved off the request path. §F0's own
+decomposition: 21885.3 ms wall, 241 DB spans, 2776.5 ms of traced DB time,
+and an 18486 ms contiguous gap with no traced DB activity that §F0
+explicitly declines to apportion between Python compute and the untraced
+`COPY`. §F6 then wrote "on dev that job is the 21.9 s", and the docstring
+hardened that inference into a measurement. Corrected in this PR.
+
+The honest statement: **the prefill job has never been measured on dev** —
+only locally, here and in #2050 §F6 (1148 ms for 10 plan years × 4 module
+types).
+
+Extrapolating, not measuring: 60 statements + 1 COPY regardless of N means
+dev round-trip latency adds a _fixed_ cost, not one that grows with the
+module. At this campaign's 14 ms/statement that is ~0.85 s — a figure
+drawn from small statements, so it understates five 295 kB INSERTs and a
+5000-row COPY, whose cost is bytes and server work, and overstates the ~55
+small ones. A ~4× slower dev DB puts a single 5000-entry year at roughly
+**1.5-3 s**. A statement-count model structurally cannot reach 21.9 s
+here, because the count does not grow with N at all.
+
+### Why the 0%-short-circuit is not worth building
+
+C2's successor: every prefilled row lands at
+`percentage_of_reference_year = 0` (`simulator_plan_service.py:759`) and
+the derivation ends in `prev_kg * (percentage / 100.0)`, so every freshly
+prefilled row is **zero by arithmetic**, whatever its source, factors or
+reference year. Emit those rows directly instead of deriving them.
+
+True, and still not worth building. C0 was run as a pre-committed gate —
+_if the derivation is not the dominant cost, stop and re-target_ — and the
+idea fails on arithmetic, not taste. Post-C1 the job is ~557 ms at N=5000
+(derived above) and the recompute is ~73% of it, but the short-circuit
+cannot touch most of that:
+
+|     ms | stays, and why                                                                                            |
+| -----: | --------------------------------------------------------------------------------------------------------- |
+|    108 | `bulk_copy` — the zero rows still get written                                                             |
+|  87-95 | `prefetch_percentage_override_cache` — the short-circuit **needs** it, for `primary_factor_id`            |
+|     34 | `recompute_stats_many` — runs for every module regardless (#2706)                                         |
+| 72-102 | `prepare_create` — the **only** line it cuts, and only the leaf-sum slice; it still builds a row per leaf |
+
+Ceiling: a fraction of ~100 ms on a ~557 ms job — under 18% optimistically
+— in exchange for a special case inside the emission derivation. Multi-leaf
+modules do not rescue it: leaf count scales the COPY and the row
+construction alongside the arithmetic that would be removed, so the ratio
+barely moves.
+
+Two findings from the attempt are worth keeping:
+
+- **Emit zeros, never skip rows.** A missing emission row is not a zero
+  one. The listing shows `kg_co2eq: null` (LEFT join, no coalesce at
+  `:1770`), the kg sort puts NULLs elsewhere (no coalesce at `:1565`),
+  `get_stats_pair_many` omits the module entirely, and the row's
+  `primary_factor` goes blank (`min(primary_factor_id)` at `:1446`).
+- **`primary_factor_id` is not legacy.** 3.46 M of 9.83 M emission rows
+  carry it and it drives the factor shown per table row; `data_entries`
+  has no factor column at all, so the emission row is its only carrier.
+
+Also settled while measuring: `prefetch_percentage_override_cache` really
+does batch — 2 statements, not one per row. An earlier claim of "5,000
+source lookups" was wrong.
 
 ## Phase D — plan PATCH / DELETE
 
@@ -403,7 +539,12 @@ PERF_USERS=50` worst-endpoint p95 no worse than the #2529 baseline —
    binding risk; `meta` was. It carries the factor resolver's output and
    each handler's `pre_compute` enrichment, neither reachable from a join
    on `source_data_entry_id`. C2 is dropped (see "Why C2 was dropped").
-   The open question that replaces it: with prefill's copy step now
-   ~4x cheaper but its whole-report recompute untouched, is the recompute
-   worth attacking on its own, or does C3 (one job per report) come
-   first?
+   The open question that replaced it — is the recompute worth attacking
+   on its own, or does C3 (one job per report) come first? — is now
+   **answered by C0: C3.** The recompute has no N+1 left and no single
+   dominant call to remove (C4 was the last candidate and it failed its
+   gate). What remains is per-year work that costs what it costs, and a
+   range PATCH runs it once per year in one job. If the gate run misses,
+   the lever is splitting the years, not shaving the year.
+4. C0 is local-only. The gate run on dev is what turns its ~1.5-3 s/year
+   extrapolation into a number — and decides whether C3 is needed at all.
