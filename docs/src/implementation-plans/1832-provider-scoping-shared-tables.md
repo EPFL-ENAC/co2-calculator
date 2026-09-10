@@ -1,12 +1,42 @@
 ---
-status: planned
+status: deferred
 issue: 1832
-last_updated: 2026-07-16
+last_updated: 2026-09-10
 title: "Provider (tenant) isolation for factors, pipelines, connectors, locations, building_rooms"
 summary: "Add a provider column (user_provider_enum) to every table that still leaks across tenants, scope all reads/writes like year_configuration does, and backfill by duplicating reference data per provider so TEST starts with a full mirror of ACCRED."
 ---
 
 # Provider scoping for shared tables (#1832)
+
+> **Deferred, 2026-09-10 — merged as a record, not as a queue item.**
+>
+> The decision is that **the provider is not changed mid-deploy**, which
+> removes the trigger for every leak below: they require two tenants to be
+> live against the same database at the same time. That is an _operational_
+> mitigation, so it constrains how the system is run rather than what it
+> guarantees. **The leaks themselves are unchanged** — the `factors` upsert
+> conflict key still has no provider, and the connector tables still show both
+> tenants the same credentials.
+>
+> This plan is merged so the analysis is findable rather than lost in a closed
+> PR: what leaks, how severely, and what the fix would cost. Nothing in it is
+> scheduled.
+>
+> **Revisit when any of these becomes true**, because each one restores the
+> trigger the mitigation removes:
+>
+> - a second provider needs to be live alongside ACCRED, for any length of
+>   time — a TEST tenant for training or a migration rehearsal included;
+> - a connector credential is added that is not shared between tenants by
+>   intent (this is the one that is a disclosure rather than a corruption —
+>   see the table below);
+> - a factor CSV is ever uploaded under a non-ACCRED provider against the
+>   shared database, deliberately or by accident. `upsert_factors` will
+>   overwrite the rows ACCRED's published emissions are computed from, and
+>   nothing will report an error.
+>
+> #1832 stays **open**, holding the risk. Closing it would assert the leaks
+> are gone; they are not, they are unreachable by convention.
 
 ## Problem
 
