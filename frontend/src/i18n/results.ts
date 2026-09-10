@@ -591,6 +591,14 @@ export default {
     en: 'Additional information about this emission breakdown',
     fr: 'Informations complémentaires sur cette répartition des émissions',
   },
+  'emission-breakdown-view-type-aria': {
+    en: 'Show emissions by type',
+    fr: 'Afficher les émissions par type',
+  },
+  'emission-breakdown-view-breakdown-aria': {
+    en: 'Show emissions breakdown',
+    fr: 'Afficher la répartition des émissions',
+  },
   'charts-purchase-category': {
     en: 'Purchase',
     fr: 'Achat',

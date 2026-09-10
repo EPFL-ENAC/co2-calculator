@@ -269,6 +269,8 @@ const emissionTypeInfoKey = computed(() =>
             "
             :class="chartView !== 'type' ? 'toggle-inactive' : ''"
             :icon="matStackedBarChart"
+            :aria-label="t('emission-breakdown-view-type-aria')"
+            :aria-pressed="chartView === 'type'"
             size="sm"
             @click="chartView = 'type'"
           />
@@ -282,6 +284,8 @@ const emissionTypeInfoKey = computed(() =>
             "
             :class="chartView !== 'breakdown' ? 'toggle-inactive' : ''"
             :icon="matGridView"
+            :aria-label="t('emission-breakdown-view-breakdown-aria')"
+            :aria-pressed="chartView === 'breakdown'"
             size="sm"
             @click="chartView = 'breakdown'"
           />

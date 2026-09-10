@@ -63,6 +63,8 @@
                 :style="typeButtonStyle"
                 :class="typeButtonClass"
                 :icon="matStackedBarChart"
+                :aria-label="t('emission-breakdown-view-type-aria')"
+                :aria-pressed="moduleChartView === 'type'"
                 size="sm"
                 @click="moduleChartView = 'type'"
               />
@@ -72,6 +74,8 @@
                 :style="breakdownButtonStyle"
                 :class="breakdownButtonClass"
                 :icon="matGridView"
+                :aria-label="t('emission-breakdown-view-breakdown-aria')"
+                :aria-pressed="moduleChartView === 'breakdown'"
                 size="sm"
                 @click="moduleChartView = 'breakdown'"
               />
