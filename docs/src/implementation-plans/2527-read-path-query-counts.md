@@ -29,13 +29,13 @@ gap is round trips, not work.
 
 Dev-DB medians at 50 users (unsaturated, so honest per-request cost):
 
-| Endpoint | median @50 | p95 @200 |
-| --- | ---: | ---: |
-| `/v1/modules-stats/merged/report-stats` | 220 ms | **1.3 s** — first over the 1 s budget |
-| `/v1/workspace/{unit}/{year}/home` | 190 ms | — |
-| `/v1/unit/{unit}/{year}/totals` | 140 ms | — |
-| `/v1/modules-stats/merged/multi-year-report-stats` | 110 ms | — |
-| `GET /v1/session` | 90 ms | — |
+| Endpoint                                           | median @50 |                              p95 @200 |
+| -------------------------------------------------- | ---------: | ------------------------------------: |
+| `/v1/modules-stats/merged/report-stats`            |     220 ms | **1.3 s** — first over the 1 s budget |
+| `/v1/workspace/{unit}/{year}/home`                 |     190 ms |                                     — |
+| `/v1/unit/{unit}/{year}/totals`                    |     140 ms |                                     — |
+| `/v1/modules-stats/merged/multi-year-report-stats` |     110 ms |                                     — |
+| `GET /v1/session`                                  |      90 ms |                                     — |
 
 ### How the counts below were obtained
 
@@ -141,13 +141,13 @@ job but mark it non-blocking for one week before turning it required.
 
 **Budgets asserted (targets after tasks 4, 5, 8; see each task):**
 
-| Endpoint | Today (inferred) | Budget after |
-| --- | ---: | ---: |
-| `/merged/report-stats` | `7 + 2R` | **≤ 9**, constant in R |
-| `/merged/results-summary` | `3 + 4R` | **≤ 8**, constant in R |
-| `/merged/multi-year-report-stats` | 4 | **≤ 4** (ratchet) |
-| `/workspace/{unit}/{year}/home` | 10 | **≤ 7 cold / 6 warm** (statement 4 is the cached one) |
-| `GET /v1/session` | 3 | **≤ 3 cold / 2 warm** |
+| Endpoint                          | Today (inferred) |                                          Budget after |
+| --------------------------------- | ---------------: | ----------------------------------------------------: |
+| `/merged/report-stats`            |         `7 + 2R` |                                **≤ 9**, constant in R |
+| `/merged/results-summary`         |         `3 + 4R` |                                **≤ 8**, constant in R |
+| `/merged/multi-year-report-stats` |                4 |                                     **≤ 4** (ratchet) |
+| `/workspace/{unit}/{year}/home`   |               10 | **≤ 7 cold / 6 warm** (statement 4 is the cached one) |
+| `GET /v1/session`                 |                3 |                                 **≤ 3 cold / 2 warm** |
 
 ---
 
@@ -164,14 +164,14 @@ R = 6–8.
 
 ### `/merged/report-stats` — today
 
-| # | Statement | Site |
-| --- | --- | --- |
-| 1 | user lookup | `app/core/security.py:183` |
-| 2 | `get_user_units` — units × unit_users × users join | `app/services/unit_service.py:102-129` |
-| 3 | `list_by_units` | `app/repositories/carbon_report_repo.py:86-98` |
-| 4 | IT module ids | `app/services/carbon_report_module_service.py:664-676` |
-| 5–7 | `get_top_class_breakdown`, once per `_IT_TOP_CLASS_SPECS` entry present (k ≤ 3) | loop at `carbon_report_module_service.py:686-698` |
-| 8… | **`build_validated_totals` × R = 2R statements** | loop at `carbon_report_module_stats.py:255-257` |
+| #   | Statement                                                                       | Site                                                   |
+| --- | ------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 1   | user lookup                                                                     | `app/core/security.py:183`                             |
+| 2   | `get_user_units` — units × unit_users × users join                              | `app/services/unit_service.py:102-129`                 |
+| 3   | `list_by_units`                                                                 | `app/repositories/carbon_report_repo.py:86-98`         |
+| 4   | IT module ids                                                                   | `app/services/carbon_report_module_service.py:664-676` |
+| 5–7 | `get_top_class_breakdown`, once per `_IT_TOP_CLASS_SPECS` entry present (k ≤ 3) | loop at `carbon_report_module_service.py:686-698`      |
+| 8…  | **`build_validated_totals` × R = 2R statements**                                | loop at `carbon_report_module_stats.py:255-257`        |
 
 **Total `4 + k + 2R`, worst case `7 + 2R`.** At R = 8 that is 23 statements ≈
 320 ms on dev — the shape of the 220 ms median and the 1.3 s p95 at 200 users.
@@ -185,10 +185,10 @@ in-process branch at `app/core/policy.py:334-340`.
 
 ### `/merged/results-summary` — today (the worse one)
 
-| # | Statement | Site |
-| --- | --- | --- |
-| 1–3 | user lookup, `get_user_units`, `list_by_units` | as above |
-| 4… | per report: `report_repo.get` + previous-year `get_by_unit_and_year` + `_validated_module_totals` current + `_validated_module_totals` previous | `app/services/unit_totals_service.py:182, 188, 192, 198`, driven by the loop at `carbon_report_module_stats.py:288-291` |
+| #   | Statement                                                                                                                                       | Site                                                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1–3 | user lookup, `get_user_units`, `list_by_units`                                                                                                  | as above                                                                                                                |
+| 4…  | per report: `report_repo.get` + previous-year `get_by_unit_and_year` + `_validated_module_totals` current + `_validated_module_totals` previous | `app/services/unit_totals_service.py:182, 188, 192, 198`, driven by the loop at `carbon_report_module_stats.py:288-291` |
 
 **Total `3 + 4R`.** At R = 8 that is 35 statements ≈ 490 ms — **fatter per
 request than report-stats**, but it is under-sampled in the ladder
@@ -214,18 +214,18 @@ one grouped read.
 
 1. Add `CarbonReportRepository.module_stats_by_report(report_ids: list[int])`
    returning `(carbon_report_id, module_type_id, status, stats,
-   carbon_report_type)` — the same three columns `build_validated_totals`
+carbon_report_type)` — the same three columns `build_validated_totals`
    already selects, plus the report id to fold on and the project type joined
    from `CarbonProject` (which `_calculator_reports_of` already joins). One
    statement for all R reports. **Rows come back unfiltered on `status`** —
    every consumer applies its own status rule in the Python fold. Here the only
    consumer is validated-totals, so the effect is nil; Task 5 reuses the same
-   shape and *depends* on the rows being unfiltered.
+   shape and _depends_ on the rows being unfiltered.
 2. `/merged/report-stats`: replace the loop at
    `carbon_report_module_stats.py:255-257` with one call to that repo method,
    folding per report through the existing pure helper
    `compute_validated_totals` (`app/utils/report_computations.py`). → `4 + k +
-   1`, **constant in R**.
+1`, **constant in R**.
 3. `/merged/results-summary`: resolve the previous year's reports with a second
    `list_by_units(unit_ids, year - 1)` (one statement, not R), then one
    `module_stats_by_report` per year. → `3 + 2 + 1 = 6`, **constant in R**.
@@ -237,7 +237,7 @@ one grouped read.
 
 **Do not flatten `build_validated_totals` itself.** It has four call sites
 (`carbon_report_module_stats.py:256, 334, 346` and `workspace_home.py:153`) and
-its `validated_only` branch depends on the *per-report* project type: the
+its `validated_only` branch depends on the _per-report_ project type: the
 merged paths are CALCULATOR-only via `_calculator_reports_of`, the
 single-report callers are not, and `SIMULATOR_EXPLORE` reports deliberately
 count every module (`:68`). Keep the branch; feed it batched rows.
@@ -267,7 +267,7 @@ Existing coverage to keep green: `tests/integration/v1/test_merged_report_stats.
 - Budget test: `/merged/results-summary` ≤ 8 statements, and equal counts for 1
   unit and 3 units.
 - `make perf-load PERF_CLASSES=ExplorerReadUser PERF_USERS=200
-  PERF_MERGED_UNITS=10` against the dev DB: merged report-stats **p95 < 1 s**
+PERF_MERGED_UNITS=10` against the dev DB: merged report-stats **p95 < 1 s**
   (from 1.3 s). Pin `PERF_MERGED_UNITS=10` — the merged numbers are not
   comparable across a different value.
 - Response payloads byte-identical to today's for a fixed fixture (assert in
@@ -282,18 +282,18 @@ every workspace page load pays it.
 
 ### Today: 10 statements
 
-| # | Statement | Site |
-| --- | --- | --- |
-| 1 | user lookup | `app/core/security.py:183` |
-| 2 | `db.get(Unit, unit_id)` | `workspace_home.py:138` |
-| 3 | report by unit + year | `:142` → `carbon_report_repo.py:138-155` |
-| 4 | year configuration | `:148` → `:100-104` |
-| 5 | `build_validated_totals` report-type lookup | `carbon_report_module_stats.py:60-66` |
-| 6 | `build_validated_totals` module stats | `carbon_report_module_stats.py:70-78` |
-| 7 | module states | `workspace_home.py:156-163` |
-| 8 | `list_plans_by_unit` | `app/services/simulator_plan_service.py:132` |
-| 9 | `list_report_stats_by_project` | `:157` |
-| 10 | `get_latest_calculator_year` | `:136` |
+| #   | Statement                                   | Site                                         |
+| --- | ------------------------------------------- | -------------------------------------------- |
+| 1   | user lookup                                 | `app/core/security.py:183`                   |
+| 2   | `db.get(Unit, unit_id)`                     | `workspace_home.py:138`                      |
+| 3   | report by unit + year                       | `:142` → `carbon_report_repo.py:138-155`     |
+| 4   | year configuration                          | `:148` → `:100-104`                          |
+| 5   | `build_validated_totals` report-type lookup | `carbon_report_module_stats.py:60-66`        |
+| 6   | `build_validated_totals` module stats       | `carbon_report_module_stats.py:70-78`        |
+| 7   | module states                               | `workspace_home.py:156-163`                  |
+| 8   | `list_plans_by_unit`                        | `app/services/simulator_plan_service.py:132` |
+| 9   | `list_report_stats_by_project`              | `:157`                                       |
+| 10  | `get_latest_calculator_year`                | `:136`                                       |
 
 10 × 14 ms = 140 ms, plus framework overhead ≈ the measured 190 ms. Local: 26 ms.
 
@@ -319,7 +319,7 @@ strictly cheaper and needs no concurrency at all.
    (`module_type_id`, `status`, `stats`). One query, two consumers. **−1**
 
    **The merged query must be unfiltered on `status`.** `module_states` feeds
-   the sidebar timeline and the validation gates, so it needs *every* module
+   the sidebar timeline and the validation gates, so it needs _every_ module
    row including the in-progress ones; `build_validated_totals` needs only the
    validated ones when `validated_only` (`carbon_report_module_stats.py:83`).
    That filter stays in the Python fold and must **not** be pushed into the
@@ -327,6 +327,7 @@ strictly cheaper and needs no concurrency at all.
    unvalidated modules, which is the kind of quiet wrong answer this codebase
    forbids. Assert both consumers in the same integration test on a fixture
    that has one validated and one in-progress module.
+
 3. **Merge 9 into 8.** `list_plans_by_unit` and `list_report_stats_by_project`
    are a parent read followed by a child read keyed on the ids the first
    returned — a join, folded in Python exactly as `_totals_by_plan` already
@@ -366,11 +367,11 @@ change which plans reach it.
 
 ### Today: 3 statements
 
-| # | Statement | Site |
-| --- | --- | --- |
-| 1 | user lookup | `auth.py:579` → `app/core/security.py:183` |
-| 2 | `get_user_units` | `auth.py:592` → `unit_service.py:102-129` |
-| 3 | `list_configured_years` | `auth.py:594` → `app/api/v1/year_configuration.py:503-510` |
+| #   | Statement               | Site                                                       |
+| --- | ----------------------- | ---------------------------------------------------------- |
+| 1   | user lookup             | `auth.py:579` → `app/core/security.py:183`                 |
+| 2   | `get_user_units`        | `auth.py:592` → `unit_service.py:102-129`                  |
+| 3   | `list_configured_years` | `auth.py:594` → `app/api/v1/year_configuration.py:503-510` |
 
 ### The issue's role-sync lever does not apply here
 
@@ -418,11 +419,11 @@ for a pod that missed a broadcast, **not** the correctness mechanism.
 There are exactly three commit sites that write `YearConfiguration`, and all
 three must clear + broadcast:
 
-| Route | Commit |
-| --- | --- |
-| `POST /v1/year-configuration/` (create) | `year_configuration.py:746` |
-| `PATCH /v1/year-configuration/{year}` (update) | `:910` |
-| `POST .../reduction-objective-file` (upload) | `:1103` |
+| Route                                          | Commit                      |
+| ---------------------------------------------- | --------------------------- |
+| `POST /v1/year-configuration/` (create)        | `year_configuration.py:746` |
+| `PATCH /v1/year-configuration/{year}` (update) | `:910`                      |
+| `POST .../reduction-objective-file` (upload)   | `:1103`                     |
 
 The three are the complete set as of this plan — a fourth writer added later
 without a clear is a correctness bug, so the acceptance gate below asserts the
@@ -466,7 +467,7 @@ previous year at `:89`), each issuing `get_by_year_and_unit` plus
 `DataEntryService.get_stats` is called with its defaults
 (`data_entry_service.py:70-83`), so `DataEntryRepository.get_stats`
 (`data_entry_repo.py:1776-1831`) groups by `data_entry_type_id` and sums
-`data->'fte'`, producing a dict keyed by *stringified data-entry-type ids*.
+`data->'fte'`, producing a dict keyed by _stringified data-entry-type ids_.
 `unit_totals_service.py:43` then reads `equipment_stats.get("total_kg_co2eq",
 0.0)` — a key that cannot exist in that dict. Two bare
 `except Exception` handlers (`:46-48` and `:95-97`) keep it quiet.
@@ -476,7 +477,7 @@ the other six), so even fixed it would be a wrong headline.
 
 **No caller found under `frontend/src`** — the path appears only in the
 generated `frontend/src/types/api/openapi.d.ts:173`. (`/v1/unit/{id}/results`
-at `:156` *is* called, from `frontend/src/stores/workspace.ts:303`, and returns
+at `:156` _is_ called, from `frontend/src/stores/workspace.ts:303`, and returns
 the hardcoded literal at `unit_results.py:18-44`.)
 
 **Proposal: delete the route, or reimplement it over persisted
@@ -519,7 +520,7 @@ are, in order of laziness:
 
 The repo's rule is that creating or editing an entry updates visible charts
 without leaving the page. Compare Years is a pop-up on the results page, so a
-user *can* edit an entry and reopen it in the same session.
+user _can_ edit an entry and reopen it in the same session.
 
 Therefore, if option 2 is taken: **the cache is invalidated by the stats write,
 not by the TTL.** `CarbonReport.stats` is written by the recompute pipeline, so
@@ -554,7 +555,7 @@ idempotency constraints — read the 310-series and stuck-job plans (1215, 1219,
 
 ## Order of work
 
-1. **Task 6** — harness + CI job + budget tests at *today's* numbers. Every
+1. **Task 6** — harness + CI job + budget tests at _today's_ numbers. Every
    subsequent task then shows a measured before/after instead of an estimate,
    and the ratchet stops a regression the moment it appears.
 2. **Task 4** — the only endpoint currently over the 1 s budget, and
