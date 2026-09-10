@@ -23,7 +23,7 @@ export default {
   },
   calculator_title: {
     en: 'CO₂ Calculator',
-    fr: 'CO₂ Calculator',
+    fr: 'Calculateur CO₂',
   },
   home: {
     en: 'Home',
@@ -34,8 +34,8 @@ export default {
     fr: 'Module',
   },
   'module-results': {
-    en: 'Module Results',
-    fr: 'Résultats du Module',
+    en: 'Module results',
+    fr: 'Résultats du module',
   },
   results: {
     en: 'Results',
@@ -51,11 +51,11 @@ export default {
   },
   'simulation-explore': {
     en: 'CO₂ Explorer',
-    fr: 'CO₂ Explorer',
+    fr: 'Explorateur CO₂',
   },
   'simulation-edit': {
-    en: 'Edit Simulation',
-    fr: 'Modifier la Simulation',
+    en: 'Edit simulation',
+    fr: 'Modifier la simulation',
   },
   documentation: {
     en: 'Documentation',
@@ -78,8 +78,8 @@ export default {
     fr: '<span>Pour plus d\'informations, visitez <a href="{url}" target="_blank">{linkText}</a>.</span>',
   },
   documentation_link: {
-    en: 'Documentation and Resources',
-    fr: 'Documentation et Ressources',
+    en: 'Documentation and resources',
+    fr: 'Documentation et ressources',
   },
   contact: {
     en: 'Contact',
@@ -99,18 +99,18 @@ export default {
         return 'Total FTE';
       }
       if (named('typeI18n')) {
-        return `Total ${named('typeI18n')} Carbon Footprint`;
+        return `Total ${named('typeI18n')} carbon footprint`;
       }
-      return 'Total Carbon Footprint';
+      return 'Total carbon footprint';
     },
     fr: ({ named }) => {
       if (named('type') === MODULES.Headcount) {
         return 'Total EPT';
       }
       if (named('typeI18n')) {
-        return `Empreinte Carbone ${named('typeI18n')}`;
+        return `Empreinte carbone ${named('typeI18n')}`;
       }
-      return 'Empreinte Carbone Totale';
+      return 'Empreinte carbone totale';
     },
   },
   module_total_result_title_unit: {
@@ -200,7 +200,7 @@ export default {
     fr: 'Rechercher dans le tableau',
   },
   common_show_all_rows: {
-    en: 'View Full Table',
+    en: 'View full table',
     fr: 'Voir tout',
   },
   common_export_as_pdf: {
@@ -236,7 +236,7 @@ export default {
     fr: 'co2 (t CO₂-eq)',
   },
   common_download_csv_template: {
-    en: 'Download CSV Template',
+    en: 'Download CSV template',
     fr: 'Télécharger le modèle CSV',
   },
   common_upload_csv_mock: {
@@ -260,11 +260,11 @@ export default {
     fr: 'Documentation',
   },
   documentation_backoffice_button_label: {
-    en: 'Back-office Guidance',
-    fr: 'Back-office Guide',
+    en: 'Back-office guidance',
+    fr: 'Back-office guide',
   },
   documentation_dev_button_label: {
-    en: 'Developer Documentation',
+    en: 'Developer documentation',
     fr: 'Documentation développeur·euse',
   },
   common_add_button: {
@@ -280,11 +280,11 @@ export default {
     fr: 'Ajouter avec note',
   },
   common_comment_entry_title: {
-    en: 'Comment Entry',
+    en: 'Comment entry',
     fr: "Commenter l'entrée",
   },
   common_edit_comment_title: {
-    en: 'Edit Comment',
+    en: 'Edit comment',
     fr: 'Modifier le commentaire',
   },
   common_comment_placeholder: {
@@ -308,7 +308,7 @@ export default {
     fr: 'Actions',
   },
   common_validate: {
-    en: 'Validate Module',
+    en: 'Validate module',
     fr: 'Valider le module',
   },
   common_validate_short: {
@@ -320,7 +320,7 @@ export default {
     fr: 'ou',
   },
   common_unvalidate: {
-    en: 'Edit Module',
+    en: 'Edit module',
     fr: 'Éditer le module',
   },
   common_unvalidate_short: {
@@ -372,7 +372,7 @@ export default {
     fr: 'Dupliquer',
   },
   common_view_only: {
-    en: 'View Only',
+    en: 'View only',
     fr: 'Lecture seule',
   },
   module_submodule_inputs_deactivated_notice: {
@@ -472,7 +472,7 @@ export default {
     fr: 'Ce module a été validé par votre responsable d\'unité. Demandez-lui ou elle de le passer en "mode Édition" pour pouvoir saisir vos données. ',
   },
   common_request_edit: {
-    en: 'Request Edit mode',
+    en: 'Request edit mode',
     fr: 'Débloquer la saisie',
   },
   validation_required: {
@@ -520,7 +520,7 @@ export default {
     fr: "Échec de l'enregistrement",
   },
   carbon_footprint_title: {
-    en: '{module} Carbon Footprint',
+    en: '{module} carbon footprint',
     fr: '{module} empreinte carbone ',
   },
   'carbon_footprint_title_professional-travel': {
