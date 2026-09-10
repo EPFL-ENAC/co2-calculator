@@ -106,7 +106,11 @@ async def seeded(pg_dsn, make_unit, make_carbon_report, make_carbon_report_modul
         det=DataEntryTypeEnum.member.value,
         emission_type=EmissionType.food.value,
         scope=None,
-        data="{}",
+        # A plausible member payload, not `{}`: since #2527 C1 the database
+        # rejects an empty object, because an entry carrying no data prices
+        # nothing. These rows exist only as volume, but they still have to
+        # look like rows the application could have written.
+        data='{"fte": 1.0, "sius_code": "BG"}',
     )
     yield engine, factory, target
     await engine.dispose()

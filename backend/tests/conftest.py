@@ -233,7 +233,11 @@ def make_data_entry():
         defaults = dict(
             data_entry_type_id=DataEntryTypeEnum.member.value,
             carbon_report_module_id=1,
-            data={},
+            # Not `{}`: since #2527 C1 Postgres rejects an empty object,
+            # because an entry carrying no data prices nothing. The default
+            # matches the default `data_entry_type_id` (member) so a fixture
+            # entry looks like one the application could have written.
+            data={"fte": 1.0, "sius_code": "BG"},
             status=DataEntryStatusEnum.PENDING,
         )
         defaults.update(overrides)

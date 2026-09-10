@@ -68,6 +68,10 @@ class _ReferenceCache:
     expensive part — all of its entries once per year: 40 of the 90
     ``list_by_module`` calls in a measured 10-year prefill were the same
     rows fetched ten times (plan #2050 Track F6).
+
+    Since #2527 C1 only ``entries`` for the headcount module is ever
+    populated: every other prefilled module copies with a server-side
+    ``INSERT ... SELECT`` and reads no source row into Python at all.
     """
 
     reports: dict[tuple[int, int], CarbonReport | None] = field(default_factory=dict)
@@ -612,7 +616,6 @@ class SimulatorPlanService:
                     ref_report=ref_report,
                     plan_module=plan_module,
                     ref_module=ref_modules_by_type.get(module_type_id),
-                    ref_cache=ref_cache,
                 )
             if copied == 0 and plan_module.id is not None:
                 emptied.append(plan_module.id)
@@ -632,8 +635,9 @@ class SimulatorPlanService:
     ) -> list[DataEntry]:
         """The reference module's entries, read once per job when cached.
 
-        These are the rows every plan year copies, so a 10-year prefill
-        otherwise fetches the same set ten times (plan #2050 Track F6).
+        These are the rows every plan year aggregates, so a 10-year prefill
+        otherwise fetches the same set ten times (plan #2050 Track F6). Only
+        headcount still comes through here — see ``_ReferenceCache``.
         """
         if ref_cache is not None and ref_module_id in ref_cache.entries:
             return ref_cache.entries[ref_module_id]
@@ -681,7 +685,6 @@ class SimulatorPlanService:
         ref_report: CarbonReport | None = None,
         plan_module: CarbonReportModuleRead | None = None,
         ref_module: CarbonReportModuleRead | None = None,
-        ref_cache: _ReferenceCache | None = None,
     ) -> int:
         """Rebuild a plan module from the reference-year Calculator entries.
 
@@ -692,6 +695,12 @@ class SimulatorPlanService:
         (``PLANNER_PLAIN_COPY_MODULE_TYPES``) skip both fields: their copies are
         ordinary editable entries whose emissions recompute from the row data.
         Returns the copied count.
+
+        The copy itself is one server-side ``INSERT ... SELECT``
+        (``copy_module_entries``, #2527 C1): the source rows never reach
+        Python, so this no longer needs the job-wide reference-entry cache —
+        only ``prefill_headcount_from_reference``, which aggregates in Python,
+        still does.
 
         Emissions are not computed here — the caller recomputes the whole
         report in one batched pass right after (plan #2050 Track F2).
@@ -734,36 +743,16 @@ class SimulatorPlanService:
         entry_repo = DataEntryRepository(self.session)
         await entry_repo.bulk_delete_by_modules([plan_module.id])
 
-        src_entries = await self._reference_entries(ref_module.id, ref_cache)
-        if not src_entries:
-            # Returning 0 tells _prefill_reference_modules this module ended
-            # up empty; it batches every such module's stats refresh into one
-            # call instead of one per module (plan #2050 Track F6).
-            return 0
-        plain_copy = module_type_id in PLANNER_PLAIN_COPY_MODULE_TYPES
-        rows = [
-            {
-                "data_entry_type_id": src.data_entry_type_id,
-                "carbon_report_module_id": plan_module.id,
-                "unit_id": report.unit_id,
-                "year": report.year,
-                "source": DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
-                "status": DataEntryStatusEnum.PENDING,
-                "created_by_id": None,
-                "created_at": datetime.now(UTC),
-                "updated_at": datetime.now(UTC),
-                "data": dict(src.data)
-                if plain_copy
-                else {
-                    **src.data,
-                    "percentage_of_reference_year": 0,
-                    "source_data_entry_id": src.id,
-                },
-            }
-            for src in src_entries
-        ]
-        await self._bulk_insert_entries(rows)
-        return len(rows)
+        # A rowcount of 0 tells _prefill_reference_modules this module ended
+        # up empty; it batches every such module's stats refresh into one
+        # call instead of one per module (plan #2050 Track F6).
+        return await entry_repo.copy_module_entries(
+            source_module_id=ref_module.id,
+            target_module_id=plan_module.id,
+            unit_id=report.unit_id,
+            year=report.year,
+            with_reference_link=module_type_id not in PLANNER_PLAIN_COPY_MODULE_TYPES,
+        )
 
     async def prefill_headcount_from_reference(
         self,

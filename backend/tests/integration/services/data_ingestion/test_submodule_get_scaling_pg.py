@@ -95,7 +95,14 @@ async def _seed_background_load(pg_dsn: str, module_id: int, entries: int) -> No
             await conn.copy_records_to_table(
                 "tmp_bg_entries",
                 records=[
-                    (DataEntryTypeEnum.member.value, module_id, "{}", 1)
+                    # Not `{}`: since #2527 C1 an empty object is
+                    # rejected — a row carrying no data prices nothing.
+                    (
+                        DataEntryTypeEnum.member.value,
+                        module_id,
+                        '{"fte": 1.0, "sius_code": "BG"}',
+                        1,
+                    )
                     for _ in range(entries)
                 ],
             )

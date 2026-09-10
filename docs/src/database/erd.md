@@ -114,8 +114,10 @@ erDiagram
   }
   data_entry_emissions {
     FLOAT additional_value "Polymorphic physical quantity tied to this emission row. Unit is inferred from emission_type_id (e.g. km for commuting and travel, kg for food and waste)."
+    INTEGER carbon_report_module_id "indexed"
     TIMESTAMP computed_at "indexed"
     INTEGER data_entry_id FK
+    INTEGER data_entry_type_id "indexed"
     INTEGER emission_type_id "indexed"
     INTEGER id PK
     FLOAT kg_co2eq

@@ -95,7 +95,10 @@ async def _seed_emission(
     entry = DataEntry(
         data_entry_type_id=int(data_entry_type),
         carbon_report_module_id=crm_id,
-        data={},
+        # Not `{}`: since #2527 C1 an empty object is rejected — a row
+        # carrying no data prices nothing. The stats under test come from
+        # the emissions chained onto this entry, not from its payload.
+        data={"fte": 1.0, "sius_code": "BG"},
     )
     session.add(entry)
     await session.flush()
