@@ -144,7 +144,8 @@ Two consequences for this plan:
 > **Follow-on: can the locks go away entirely?**
 > B1 narrows the factor gate; it does not question whether a gate is the
 > right mechanism. That question is answered separately in
-> [2527-b-lock-architecture-options.md](2527-b-lock-architecture-options.md)
+> `2527-b-lock-architecture-options.md` (PR #2718 — deliberately a draft
+> until its Phase 0 measurement exists; the link goes in when it lands)
 > — ten options ranked and phased. Its two findings that matter here: the
 > "half-loaded factors" hazard exists **only because the engine runs at
 > READ COMMITTED** and the recalc reads factors in many statements; and

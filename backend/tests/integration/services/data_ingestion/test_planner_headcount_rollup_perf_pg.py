@@ -92,7 +92,15 @@ async def _seed_background_load(pg_dsn: str, module_id: int, entries: int) -> No
                 "data JSONB, status INT) ON COMMIT DROP"
             )
             entry_rows = [
-                (DataEntryTypeEnum.member.value, module_id, "{}", 1)
+                # Not `{}`: since #2527 C1 an empty object is rejected —
+                # a row carrying no data prices nothing. Volume rows still
+                # have to look like rows the application could write.
+                (
+                    DataEntryTypeEnum.member.value,
+                    module_id,
+                    '{"fte": 1.0, "sius_code": "BG"}',
+                    1,
+                )
                 for _ in range(entries)
             ]
             await conn.copy_records_to_table("tmp_bg_entries", records=entry_rows)
