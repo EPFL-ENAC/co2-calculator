@@ -141,6 +141,17 @@ Two consequences for this plan:
 
 ## Phase B — CSV upload -> ingested
 
+> **Follow-on: can the locks go away entirely?**
+> B1 narrows the factor gate; it does not question whether a gate is the
+> right mechanism. That question is answered separately in
+> [2527-b-lock-architecture-options.md](2527-b-lock-architecture-options.md)
+> — ten options ranked and phased. Its two findings that matter here: the
+> "half-loaded factors" hazard exists **only because the engine runs at
+> READ COMMITTED** and the recalc reads factors in many statements; and
+> the per-module write lock exists **only because `data_entry_emissions`
+> has no unique constraint**. Neither is intrinsic. Nothing there is a
+> reason to undo B1.
+
 ### B1. Stop serializing unrelated units on the factor lock
 
 `acquire_factor_recalc_lock` keys on `(module_type_id, year)` only

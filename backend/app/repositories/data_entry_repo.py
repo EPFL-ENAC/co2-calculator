@@ -329,6 +329,15 @@ class DataEntryRepository:
         raises — and ``source_data_entry_id``) to each copied ``data`` blob.
         Plain-copy modules pass False: their copies are ordinary editable
         entries. Emissions are not copied; the caller recomputes.
+
+        Known behaviour change: ``data_entries.data`` is nullable, and the
+        Python shape this replaced raised on a NULL source blob
+        (``{**None}``). The SQL propagates it instead — ``NULL || …`` is
+        NULL — so such a row copies as NULL and errors per-entry in the
+        recalc rather than failing the copy. Narrow (the ORM always writes
+        ``{}``; only raw-SQL writers can produce NULL) but the loud failure
+        moved. The real fix is ``NOT NULL`` on the column, not a COALESCE
+        here, which would be exactly the silent fallback this repo forbids.
         """
         dialect = self.session.get_bind().dialect.name
         data_expr = (
