@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import {
+  matAddCircle,
+  matDelete,
+  matEdit,
+  matEditNote,
+} from '@quasar/extras/material-icons';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AuditStats } from '@/api/audit';
@@ -17,25 +23,25 @@ const cards = computed(() => [
     label: t('audit_stat_total'),
     key: 'total_entries' as keyof AuditStats,
     color: '#0D6EFD',
-    icon: 'edit_note',
+    icon: matEditNote,
   },
   {
     label: t('audit_stat_creates'),
     key: 'creates' as keyof AuditStats,
     color: '#28A745',
-    icon: 'add_circle',
+    icon: matAddCircle,
   },
   {
     label: t('audit_stat_updates'),
     key: 'updates' as keyof AuditStats,
     color: '#FFC107',
-    icon: 'edit',
+    icon: matEdit,
   },
   {
     label: t('audit_stat_deletes'),
     key: 'deletes' as keyof AuditStats,
     color: '#DC3545',
-    icon: 'delete',
+    icon: matDelete,
   },
 ]);
 </script>

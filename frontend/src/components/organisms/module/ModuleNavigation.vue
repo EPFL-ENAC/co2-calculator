@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import {
+  matBarChart,
+  matChevronLeft,
+  matChevronRight,
+} from '@quasar/extras/material-icons';
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { Module, MODULES_LIST } from '@/constant/modules';
@@ -102,7 +107,7 @@ function validateCurrentModule() {
       class="module-navigation__link module-navigation__link--previous"
       @click="validateCurrentModule"
     >
-      <q-icon name="chevron_left" class="chevron-left" size="sm" />
+      <q-icon :name="matChevronLeft" class="chevron-left" size="sm" />
 
       <span class="text-body2 text-weight-medium">{{
         $t(previousModule!)
@@ -117,7 +122,7 @@ function validateCurrentModule() {
     >
       <module-icon-box :name="nextModule" size="sm" />
       <span class="text-body2 text-weight-medium">{{ $t(nextModule!) }}</span>
-      <q-icon name="chevron_right" class="chevron-right" size="sm" />
+      <q-icon :name="matChevronRight" class="chevron-right" size="sm" />
     </router-link>
     <router-link
       v-if="isLastModule"
@@ -126,7 +131,7 @@ function validateCurrentModule() {
       @click="validateCurrentModule"
     >
       <span class="results-icon-box">
-        <q-icon name="bar_chart" size="sm" />
+        <q-icon :name="matBarChart" size="sm" />
       </span>
       <span class="text-body2 text-weight-medium">{{ $t('results_btn') }}</span>
     </router-link>

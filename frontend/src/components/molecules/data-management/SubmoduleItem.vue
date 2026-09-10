@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { matEditOff, matLegendToggle, matPowerSettingsNew } from '@quasar/extras/material-icons';
+import {
+  matEditOff,
+  matLegendToggle,
+  matPowerSettingsNew,
+} from '@quasar/extras/material-icons';
 import { ref, inject, computed, type ComputedRef, type Ref } from 'vue';
 import { useSubmoduleConfig } from '@/composables/useSubmoduleConfig';
 import { useRecalculation } from '@/composables/useRecalculation';

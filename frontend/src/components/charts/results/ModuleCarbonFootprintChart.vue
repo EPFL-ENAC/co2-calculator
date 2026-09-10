@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import {
+  outlinedBarChart,
+  outlinedDownload,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, type PropType, nextTick, ref } from 'vue';
-import { outlinedDownload, outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -1556,7 +1560,7 @@ const downloadCSV = () => {
         <q-btn
           v-if="props.enableCompareYears"
           color="black"
-          icon="o_bar_chart"
+          :icon="outlinedBarChart"
           :label="$t('results_compare_years')"
           outline
           no-caps

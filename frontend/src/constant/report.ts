@@ -1,4 +1,9 @@
-import { outlinedAddBox, outlinedAssignment, outlinedBarChart, outlinedPieChart } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedAddBox,
+  outlinedAssignment,
+  outlinedBarChart,
+  outlinedPieChart,
+} from '@quasar/extras/material-icons-outlined';
 // export type ReportType = 'usage' | 'results' | 'combined';
 import type { ReportType } from '@/api/backoffice';
 

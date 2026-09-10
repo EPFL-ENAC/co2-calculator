@@ -1,4 +1,14 @@
 <script setup lang="ts">
+import {
+  outlinedArrowCircleRight,
+  outlinedBarChart,
+  outlinedCalculate,
+  outlinedClose,
+  outlinedInfo,
+  outlinedNotifications,
+  outlinedUploadFile,
+  outlinedVisibility,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, defineAsyncComponent, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES_LIST } from '@/constant/modules';
@@ -101,13 +111,13 @@ const calculatorUpdates = computed(() => {
       <section class="co2-calculator">
         <div class="row items-start justify-between no-wrap q-mb-md">
           <div class="row items-center q-gutter-sm">
-            <q-icon name="o_calculate" size="md" color="info" />
+            <q-icon :name="outlinedCalculate" size="md" color="info" />
             <h1 class="text-h2 q-mb-none">{{ $t('co2_calculator_title') }}</h1>
           </div>
           <q-btn
             color="info"
             :label="$t('co2_calculator_about')"
-            icon="o_info"
+            :icon="outlinedInfo"
             unelevated
             no-caps
             outline
@@ -124,7 +134,12 @@ const calculatorUpdates = computed(() => {
             <q-card-section
               class="row items-center no-wrap about-dialog__header"
             >
-              <q-icon name="o_info" size="xs" color="info" class="q-mr-sm" />
+              <q-icon
+                :name="outlinedInfo"
+                size="xs"
+                color="info"
+                class="q-mr-sm"
+              />
               <span class="text-subtitle1 text-weight-medium col">
                 {{ $t('co2_calculator_about') }}
               </span>
@@ -134,7 +149,7 @@ const calculatorUpdates = computed(() => {
                 round
                 dense
                 size="sm"
-                icon="o_close"
+                :icon="outlinedClose"
                 color="grey-7"
               />
             </q-card-section>
@@ -143,7 +158,7 @@ const calculatorUpdates = computed(() => {
               <div class="about-dialog__item">
                 <div class="about-dialog__icon">
                   <q-icon
-                    name="o_arrow_circle_right"
+                    :name="outlinedArrowCircleRight"
                     size="22px"
                     color="info"
                   />
@@ -154,7 +169,7 @@ const calculatorUpdates = computed(() => {
               </div>
               <div class="about-dialog__item">
                 <div class="about-dialog__icon">
-                  <q-icon name="o_upload_file" size="24px" color="info" />
+                  <q-icon :name="outlinedUploadFile" size="24px" color="info" />
                 </div>
                 <p class="text-body2 text-grey-9 q-mb-none">
                   {{ $t('co2_calculator_about_paragraph_2') }}
@@ -162,7 +177,7 @@ const calculatorUpdates = computed(() => {
               </div>
               <div class="about-dialog__item">
                 <div class="about-dialog__icon">
-                  <q-icon name="o_visibility" size="24px" color="info" />
+                  <q-icon :name="outlinedVisibility" size="24px" color="info" />
                 </div>
                 <p class="text-body2 text-grey-9 q-mb-none">
                   {{ $t('co2_calculator_about_paragraph_3') }}
@@ -222,7 +237,7 @@ const calculatorUpdates = computed(() => {
                 module-icon-axis
               />
               <div v-else class="calculator-card__empty">
-                <q-icon name="o_bar_chart" size="48px" color="info" />
+                <q-icon :name="outlinedBarChart" size="48px" color="info" />
                 <h3 class="text-h5 text-weight-medium q-mt-md q-mb-sm">
                   {{ $t('co2_calculator_empty_title') }}
                 </h3>
@@ -234,7 +249,7 @@ const calculatorUpdates = computed(() => {
                 <q-btn
                   color="info"
                   :label="$t('co2_calculator_empty_btn')"
-                  icon-right="o_arrow_circle_right"
+                  :icon-right="outlinedArrowCircleRight"
                   unelevated
                   no-caps
                   size="md"
@@ -255,7 +270,7 @@ const calculatorUpdates = computed(() => {
                 <q-btn
                   color="info"
                   :label="$t('co2_calculator_continue')"
-                  icon-right="o_arrow_circle_right"
+                  :icon-right="outlinedArrowCircleRight"
                   unelevated
                   no-caps
                   size="md"
@@ -270,7 +285,7 @@ const calculatorUpdates = computed(() => {
                   color="grey-4"
                   text-color="primary"
                   :label="$t('home_results_btn')"
-                  icon="o_bar_chart"
+                  :icon="outlinedBarChart"
                   unelevated
                   no-caps
                   outline
@@ -295,7 +310,7 @@ const calculatorUpdates = computed(() => {
           <!-- Right column: calculator updates -->
           <div class="calculator-card__aside">
             <div class="calculator-card__header calculator-card__header--side">
-              <q-icon name="o_notifications" size="sm" color="info" />
+              <q-icon :name="outlinedNotifications" size="sm" color="info" />
               <h3 class="text-h5 text-weight-medium q-mb-none">
                 {{ $t('calculator_update_title') }}
               </h3>

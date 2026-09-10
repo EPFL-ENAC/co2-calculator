@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { matRefresh } from '@quasar/extras/material-icons';
 import { computed, ref, provide, watch } from 'vue';
 import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
 import { useModuleConfig } from '@/composables/useModuleConfig';
@@ -410,7 +411,7 @@ provide('currentPipelineId', currentPipelineId);
               flat
               dense
               size="sm"
-              icon="refresh"
+              :icon="matRefresh"
               :color="hasRecalcFailure ? 'negative' : 'accent'"
               :label="$t(recalcButtonLabel)"
               @click.stop="openRecalcDialog(getModuleTypeIdFromName(module))"

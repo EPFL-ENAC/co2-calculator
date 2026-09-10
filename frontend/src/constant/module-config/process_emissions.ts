@@ -1,4 +1,7 @@
-import { outlinedCategory, outlinedScience } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedCategory,
+  outlinedScience,
+} from '@quasar/extras/material-icons-outlined';
 import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import { SUBMODULE_PROCESSES_TYPES, MODULES } from '@/constant/modules';
 import type { ProcessesSubType, Module } from '@/constant/modules';

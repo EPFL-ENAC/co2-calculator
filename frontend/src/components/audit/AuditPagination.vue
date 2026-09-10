@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import {
+  matChevronLeft,
+  matChevronRight,
+  matUnfoldMore,
+} from '@quasar/extras/material-icons';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -60,13 +65,13 @@ function cyclePageSize() {
     </span>
     <q-btn flat dense class="rows-btn" @click="cyclePageSize">
       {{ pageSize }}
-      <q-icon name="unfold_more" size="14px" />
+      <q-icon :name="matUnfoldMore" size="14px" />
     </q-btn>
     <q-btn
       flat
       dense
       round
-      icon="chevron_left"
+      :icon="matChevronLeft"
       size="sm"
       :disable="page === 1"
       @click="prevPage"
@@ -76,7 +81,7 @@ function cyclePageSize() {
       flat
       dense
       round
-      icon="chevron_right"
+      :icon="matChevronRight"
       size="sm"
       :disable="page === lastPage"
       @click="nextPage"

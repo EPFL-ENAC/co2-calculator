@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { matDownload, matSearch } from '@quasar/extras/material-icons';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -34,7 +35,12 @@ function onExport(format: 'csv' | 'json') {
 <template>
   <div class="audit-search-bar">
     <div class="search-input-wrapper">
-      <q-icon name="search" size="20px" color="grey-7" class="search-icon" />
+      <q-icon
+        :name="matSearch"
+        size="20px"
+        color="grey-7"
+        class="search-icon"
+      />
       <input
         :value="modelValue"
         type="text"
@@ -49,7 +55,7 @@ function onExport(format: 'csv' | 'json') {
         flat
         dense
         no-caps
-        icon="download"
+        :icon="matDownload"
         color="grey-7"
         class="export-btn"
       >

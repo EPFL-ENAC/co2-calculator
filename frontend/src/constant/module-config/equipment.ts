@@ -1,4 +1,8 @@
-import { outlinedCategory, outlinedDonutLarge, outlinedElectricBolt } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedCategory,
+  outlinedDonutLarge,
+  outlinedElectricBolt,
+} from '@quasar/extras/material-icons-outlined';
 import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import { formatTonnesCO2 } from '@/utils/number';
 import type { Module, EquipmentSubType } from '@/constant/modules';

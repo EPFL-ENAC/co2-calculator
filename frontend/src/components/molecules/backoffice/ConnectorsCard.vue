@@ -49,7 +49,14 @@
             })
           }}
         </div>
-        <q-btn v-close-popup flat round dense icon="o_close" color="grey-6" />
+        <q-btn
+          v-close-popup
+          flat
+          round
+          dense
+          :icon="outlinedClose"
+          color="grey-6"
+        />
       </q-card-section>
       <q-separator />
       <q-card-section class="q-gutter-sm">
@@ -129,6 +136,7 @@
 </template>
 
 <script setup lang="ts">
+import { outlinedClose } from '@quasar/extras/material-icons-outlined';
 import { ref, computed, onMounted } from 'vue';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';

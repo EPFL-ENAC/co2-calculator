@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { matClose, matContentCopy } from '@quasar/extras/material-icons';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AuditLogDetail, AuditAction } from '@/api/audit';
@@ -83,7 +84,14 @@ function formatValue(val: unknown): string {
             $d(new Date(entry.changed_at), 'long')
           }}</span>
         </div>
-        <q-btn flat round dense icon="close" class="close-btn" @click="close" />
+        <q-btn
+          flat
+          round
+          dense
+          :icon="matClose"
+          class="close-btn"
+          @click="close"
+        />
       </q-card-section>
 
       <q-separator />
@@ -234,7 +242,7 @@ function formatValue(val: unknown): string {
           flat
           no-caps
           :label="t('audit_btn_copy_json')"
-          icon="content_copy"
+          :icon="matContentCopy"
           @click="onCopy"
         />
         <q-btn flat no-caps :label="t('audit_btn_close')" @click="close" />

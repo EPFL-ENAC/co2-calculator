@@ -89,7 +89,7 @@
                   "
                 >
                   <template #append>
-                    <q-icon name="o_event" class="cursor-pointer">
+                    <q-icon :name="outlinedEvent" class="cursor-pointer">
                       <q-popup-proxy
                         cover
                         transition-show="scale"
@@ -275,7 +275,7 @@
               @click="$emit('edit', null)"
             />
             <q-btn
-              icon="o_save"
+              :icon="outlinedSave"
               :style="{
                 background: moduleColors.bgColorLighter,
                 color: moduleColors.buttonTextColor,
@@ -292,7 +292,7 @@
           <template v-else>
             <!-- Add mode buttons -->
             <q-btn
-              icon="o_add_circle"
+              :icon="outlinedAddCircle"
               :style="{
                 background: moduleColors.bgColorLighter,
                 color: moduleColors.buttonTextColor,
@@ -309,7 +309,7 @@
             <q-btn
               v-if="hasAddWithNote"
               outline
-              icon="o_add_comment"
+              :icon="outlinedAddComment"
               color="primary"
               :label="$t('common_add_with_note_button')"
               unelevated
@@ -340,6 +340,13 @@
 </template>
 
 <script setup lang="ts">
+import {
+  outlinedAddCircle,
+  outlinedAddComment,
+  outlinedEvent,
+  outlinedInfo,
+  outlinedSave,
+} from '@quasar/extras/material-icons-outlined';
 import { reactive, watch, computed, ref, toRef } from 'vue';
 
 import type { ModuleField } from '@/constant/moduleConfig';
@@ -355,7 +362,6 @@ import {
 } from 'quasar';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from '@/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from '@/components/molecules/NoteDialog.vue';
 import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';

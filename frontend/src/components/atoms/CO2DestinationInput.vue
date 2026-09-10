@@ -155,7 +155,10 @@
 </template>
 
 <script setup lang="ts">
-import { outlinedInfo, outlinedSwapHoriz } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedInfo,
+  outlinedSwapHoriz,
+} from '@quasar/extras/material-icons-outlined';
 import { ref, computed, watch } from 'vue';
 import { MODULES } from '@/constant/modules';
 import { useI18n } from 'vue-i18n';

@@ -1,4 +1,13 @@
-import { outlinedApartment, outlinedApps, outlinedBolt, outlinedDiversity2, outlinedFilterDrama, outlinedFlight, outlinedScience, outlinedSell } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedApartment,
+  outlinedApps,
+  outlinedBolt,
+  outlinedDiversity2,
+  outlinedFilterDrama,
+  outlinedFlight,
+  outlinedScience,
+  outlinedSell,
+} from '@quasar/extras/material-icons-outlined';
 import type { Module } from '@/constant/modules';
 
 export type { Module };

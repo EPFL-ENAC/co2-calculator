@@ -47,7 +47,7 @@
           class="reference-year-box reference-year-row row items-center no-wrap"
         >
           <q-icon
-            name="o_calendar_month"
+            :name="outlinedCalendarMonth"
             color="info"
             class="reference-year-row__icon"
           />
@@ -77,7 +77,10 @@
           :loading="settingReferenceYear"
           @click="referenceYearDialogOpen = true"
         >
-          <q-icon name="o_calendar_month" class="reference-year-row__icon" />
+          <q-icon
+            :name="outlinedCalendarMonth"
+            class="reference-year-row__icon"
+          />
           <span>{{ $t('planner_reference_year_set_button') }}</span>
         </q-btn>
         <div class="text-body2 text-grey-7 q-mt-sm">
@@ -478,6 +481,10 @@
 </template>
 
 <script setup lang="ts">
+import {
+  outlinedCalendarMonth,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
@@ -486,7 +493,6 @@ import { api } from '@/api/http';
 import { formatTonnesCO2 } from '@/utils/number';
 import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
 import ModuleTableSection from '@/components/organisms/module/ModuleTableSection.vue';
-import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { moduleTooltipKey, type TooltipScope } from '@/utils/tooltipScope';
 import PlannerHeadcountRows from '@/components/organisms/planner/PlannerHeadcountRows.vue';
 import PlannerPurchaseRows from '@/components/organisms/planner/PlannerPurchaseRows.vue';

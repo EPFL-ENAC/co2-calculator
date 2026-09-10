@@ -2,7 +2,7 @@
   <q-page class="page-grid">
     <q-card flat class="container">
       <q-icon
-        name="o_display_settings"
+        :name="outlinedDisplaySettings"
         color="info"
         size="32px"
         class="q-mb-md"
@@ -73,7 +73,7 @@
             <q-btn
               unelevated
               no-caps
-              icon="o_download"
+              :icon="outlinedDownload"
               :label="$t('simulation_explore_page_results_download_button')"
               size="md"
               color="info"
@@ -88,6 +88,10 @@
 </template>
 
 <script setup lang="ts">
+import {
+  outlinedDisplaySettings,
+  outlinedDownload,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';

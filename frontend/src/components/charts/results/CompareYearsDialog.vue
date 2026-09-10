@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { outlinedClose } from '@quasar/extras/material-icons-outlined';
 import { computed, ref, watch, type PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useModuleStore } from '@/stores/modules';
@@ -295,7 +296,14 @@ const scopeObjectiveBars = computed(() =>
           {{ $t('results_compare_years_title') }}
         </div>
         <q-space />
-        <q-btn v-close-popup flat round dense icon="o_close" color="grey-6" />
+        <q-btn
+          v-close-popup
+          flat
+          round
+          dense
+          :icon="outlinedClose"
+          color="grey-6"
+        />
       </q-card-section>
 
       <q-separator class="q-mt-sm" />

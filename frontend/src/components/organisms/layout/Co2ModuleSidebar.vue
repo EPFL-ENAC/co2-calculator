@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { matChevronRight } from '@quasar/extras/material-icons';
+import {
+  outlinedArticle,
+  outlinedBarChart,
+  outlinedHome,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
@@ -118,7 +124,7 @@ function navigateToHome() {
         @click="navigateToHome"
       >
         <span class="sidebar-home__icon-box">
-          <q-icon name="o_home" size="sm" class="sidebar-home__icon" />
+          <q-icon :name="outlinedHome" size="sm" class="sidebar-home__icon" />
         </span>
         <q-item-label
           class="sidebar-label text-body2"
@@ -127,7 +133,7 @@ function navigateToHome() {
         >
         <q-icon
           v-if="!collapsed"
-          name="chevron_right"
+          :name="matChevronRight"
           size="xs"
           class="status-icon"
         />
@@ -191,7 +197,11 @@ function navigateToHome() {
         @click="navigateToResults"
       >
         <span class="sidebar-results__icon-box">
-          <q-icon name="o_bar_chart" size="sm" class="sidebar-results__icon" />
+          <q-icon
+            :name="outlinedBarChart"
+            size="sm"
+            class="sidebar-results__icon"
+          />
         </span>
         <q-item-label
           class="sidebar-label sidebar-results__label text-body2"
@@ -200,7 +210,7 @@ function navigateToHome() {
         >
         <q-icon
           v-if="!collapsed"
-          name="chevron_right"
+          :name="matChevronRight"
           size="xs"
           class="sidebar-results__chevron status-icon"
         />
@@ -228,7 +238,11 @@ function navigateToHome() {
         clickable
       >
         <span class="sidebar-docs__icon-box">
-          <q-icon name="o_article" size="sm" class="sidebar-docs__icon" />
+          <q-icon
+            :name="outlinedArticle"
+            size="sm"
+            class="sidebar-docs__icon"
+          />
         </span>
         <q-item-label
           class="sidebar-label text-body2"

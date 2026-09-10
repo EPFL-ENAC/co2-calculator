@@ -1,4 +1,15 @@
-import { outlinedAcUnit, outlinedAir, outlinedApartment, outlinedCategory, outlinedImageAspectRatio, outlinedLightMode, outlinedLocalFireDepartment, outlinedMeetingRoom, outlinedStraighten, outlinedThermostat } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedAcUnit,
+  outlinedAir,
+  outlinedApartment,
+  outlinedCategory,
+  outlinedImageAspectRatio,
+  outlinedLightMode,
+  outlinedLocalFireDepartment,
+  outlinedMeetingRoom,
+  outlinedStraighten,
+  outlinedThermostat,
+} from '@quasar/extras/material-icons-outlined';
 import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import { SUBMODULE_BUILDINGS_TYPES, MODULES } from '@/constant/modules';
 import type { BuildingsSubType, Module } from '@/constant/modules';

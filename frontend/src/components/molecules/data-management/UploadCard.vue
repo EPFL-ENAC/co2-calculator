@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { matCalculate, matCancel, matInfo } from '@quasar/extras/material-icons';
+import {
+  matCalculate,
+  matCancel,
+  matInfo,
+} from '@quasar/extras/material-icons';
 import { outlinedDownload } from '@quasar/extras/material-icons-outlined';
 import { computed, ref } from 'vue';
 import { useUploadCard } from '@/composables/useUploadCard';

@@ -11,7 +11,7 @@
         <div class="column items-center q-gutter-y-xl">
           <!-- Error Code and Icon -->
           <div class="column items-center q-gutter-y-md">
-            <q-icon name="o_search_off" size="lg" color="accent" />
+            <q-icon :name="outlinedSearchOff" size="lg" color="accent" />
             <div class="text-h4 text-weight-medium text-dark">
               {{ t('not_found_title') }}
             </div>
@@ -49,6 +49,7 @@
 </template>
 
 <script setup lang="ts">
+import { outlinedSearchOff } from '@quasar/extras/material-icons-outlined';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { HOME_ROUTE_NAME, DEFAULT_ROUTE_NAME } from '@/router/routes';
