@@ -8,6 +8,11 @@ import { permissionGuard } from './guards/permissionGuard';
 import { moduleEnabledGuard } from './guards/moduleEnabledGuard';
 import { PermissionAction } from '@/stores/auth';
 import { isDevEnvironment } from './routeNames';
+// Landing path for every user: ship these with the entry bundle instead of
+// waiting for the guard chain (session → year → workspace) to resolve first.
+import MainLayout from '@/layouts/MainLayout.vue';
+import WorkspacePage from '@/pages/app/WorkspacePage.vue';
+import HomePage from '@/pages/app/HomePage.vue';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -135,7 +140,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/',
-    component: () => import('@/layouts/MainLayout.vue'),
+    component: MainLayout,
     name: 'root',
     children: [
       {
@@ -193,7 +198,7 @@ const routes: RouteRecordRaw[] = [
             // Pass-through layout: the workspace is loaded by the global
             // `workspaceGuard`, so this parent only hosts the child
             // <router-view>.
-            component: () => import('@/pages/app/WorkspacePage.vue'),
+            component: WorkspacePage,
             children: [
               {
                 name: 'home-redirect',
@@ -203,7 +208,7 @@ const routes: RouteRecordRaw[] = [
               {
                 path: 'home',
                 name: HOME_ROUTE_NAME,
-                component: () => import('@/pages/app/HomePage.vue'),
+                component: HomePage,
                 meta: {
                   requiresAuth: true,
                   note: 'Home - Main overview and navigation',
