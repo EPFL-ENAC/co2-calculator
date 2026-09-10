@@ -53,15 +53,9 @@ export default {
     en: 'Add FTE',
     fr: 'Ajouter un EPT',
   },
-  [`${MODULES.Headcount}-member-form-title`]: {
-    // en: 'Add Full-Time Equivalent member',
-    // fr: 'Ajouter un membre à équivalent plein-temps',
-    en: 'Add FTE',
-    fr: 'Ajouter un EPT',
-  },
 
   [`${MODULES.Headcount}-student-form-add-button`]: {
-    en: 'Add Student FTE',
+    en: 'Add student FTE',
     fr: 'Ajouter un EPT étudiant·e',
   },
   // module member
@@ -84,11 +78,11 @@ export default {
   },
   // module_mylab_student_form_field_fte_label
   [`${MODULES.Headcount}-student_form_field_fte_label`]: {
-    en: 'Total Student FTE',
+    en: 'Total student FTE',
     fr: 'EPT étudiant·es total',
   },
   [`${MODULES.Headcount}-student-form-title`]: {
-    en: 'Add Student FTE',
+    en: 'Add student FTE',
     fr: 'Ajouter un EPT étudiant·e',
   },
   [`${MODULES.Headcount}-student-form-title-info-label`]: {
