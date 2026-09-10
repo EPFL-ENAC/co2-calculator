@@ -101,6 +101,17 @@ jobs:
           tests/integration/services/data_ingestion/test_kg_sort_buffer_budget_pg.py
           -vv
 
+      # #2527 C1: the data_entries.data constraints. Real-PG-only — the
+      # unit suite covers the portable NULL half on SQLite, but the JSON
+      # `null` and `{}` halves need json_typeof and a jsonb comparison.
+      # Those two are the ones a Python guard cannot catch: SQLAlchemy
+      # writes `data=None` as the JSON scalar `null`, which is not SQL NULL.
+      - name: Run data_entries.data constraint tests
+        run: >
+          uv run pytest
+          tests/integration/services/data_ingestion/test_data_entry_data_constraint_pg.py
+          -vv
+
   test-frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest

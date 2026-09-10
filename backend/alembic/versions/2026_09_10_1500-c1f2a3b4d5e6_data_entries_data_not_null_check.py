@@ -62,8 +62,32 @@ def upgrade() -> None:
         "ADD CONSTRAINT ck_data_entries_data_not_null "
         "CHECK (data IS NOT NULL) NOT VALID"
     )
+    # Two more holes the NULL check alone does not cover:
+    #
+    # * SQLAlchemy's JSON type defaults to ``none_as_null=False``, so an ORM
+    #   write of ``data=None`` stores the JSON scalar ``null`` — which is not
+    #   SQL NULL and passes the check above. ``json_typeof`` rejects it, along
+    #   with arrays and scalars.
+    # * ``{}`` prices nothing for exactly the same reason a NULL does, and no
+    #   handler can produce it: all 26 ``validate_create`` DTOs reject an empty
+    #   payload, and every ``DataEntry(...)`` in the app passes real keys.
+    #
+    # ``data IS NOT NULL`` is repeated deliberately: a CHECK passes when its
+    # predicate evaluates to NULL, so without it a SQL NULL would satisfy this
+    # constraint too.
+    op.execute(
+        "ALTER TABLE data_entries "
+        "ADD CONSTRAINT ck_data_entries_data_is_non_empty_object "
+        "CHECK (data IS NOT NULL "
+        "AND json_typeof(data) = 'object' "
+        "AND data::jsonb <> '{}'::jsonb) NOT VALID"
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    op.execute(
+        "ALTER TABLE data_entries "
+        "DROP CONSTRAINT ck_data_entries_data_is_non_empty_object"
+    )
     op.execute("ALTER TABLE data_entries DROP CONSTRAINT ck_data_entries_data_not_null")

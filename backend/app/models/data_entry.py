@@ -180,14 +180,31 @@ class DataEntry(DataEntryBase, table=True):
                 f"AND data ->> 'user_institutional_id' IS NOT NULL"
             ),
         ),
-        # #2527 C1: an entry whose ``data`` is NULL prices nothing, and every
-        # reader reaches into it (``data.get(...)``), so it can only fail.
-        # The column is nullable for historical reasons; this stops new NULLs
-        # without the ACCESS EXCLUSIVE full-table scan ``SET NOT NULL`` would
-        # need on millions of rows — the migration adds it NOT VALID, so it
-        # binds every INSERT/UPDATE from that point and leaves any existing
-        # bad row visible instead of silently rewriting it.
+        # #2527 C1: an entry with no readable ``data`` prices nothing, and
+        # every reader reaches into it (``data.get(...)``), so it can only
+        # fail — silently, inside a recalc that catches per-entry and
+        # continues. The column is nullable for historical reasons; these stop
+        # new bad rows without the ACCESS EXCLUSIVE full-table scan
+        # ``SET NOT NULL`` would need on millions of rows (both are added
+        # NOT VALID, so they bind every INSERT/UPDATE from that point and
+        # leave any existing bad row visible instead of silently rewriting).
+        #
+        # Portable, so the SQLite unit fixture enforces it too:
         CheckConstraint("data IS NOT NULL", name="ck_data_entries_data_not_null"),
+        # Postgres-only, because the remaining two holes need its JSON
+        # functions. ``data IS NOT NULL`` is repeated on purpose: a CHECK
+        # passes when its predicate is NULL, so dropping it would let a SQL
+        # NULL through this one. ``json_typeof`` rejects the JSON scalar
+        # ``null`` that SQLAlchemy writes for ``data=None`` (its JSON type
+        # defaults to ``none_as_null=False``), plus arrays and scalars; the
+        # ``<> '{}'`` rejects an empty object, which no handler can produce —
+        # all 26 ``validate_create`` DTOs reject an empty payload.
+        CheckConstraint(
+            "data IS NOT NULL "
+            "AND json_typeof(data) = 'object' "
+            "AND data::jsonb <> '{}'::jsonb",
+            name="ck_data_entries_data_is_non_empty_object",
+        ).ddl_if(dialect="postgresql"),
     )
 
     id: int | None = Field(default=None, primary_key=True, index=True)
