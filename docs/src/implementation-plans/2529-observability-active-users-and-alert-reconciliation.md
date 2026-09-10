@@ -3,7 +3,7 @@ status: in-progress
 issue: 2529
 title: "Concurrent-users gauge + reconcile job-latency alerting with measured load"
 last_updated: 2026-08-30
-summary: "Add a co2_active_users_5m gauge wired to the capacity tiers from #2529 §2, and reconcile JobLatencySLOBreach with the #2295 load-test numbers — including the finding that the 42 s / 184 s figures are client-side flow times the alert's histogram never sees."
+summary: "Item A: a `co2_active_users_5m` observable gauge plus a capacity-tier panel — unimplemented in both repos, unchanged. Item B was written to reconcile `JobLatencySLOBreach`; that alert was deleted in every environment by openshift-app-config #38 on 2026-09-07 ('no alerting on job-class routes at all'), so it is rewritten to keep only what is still true: why a request-duration histogram whose last bucket is 10 s could never have measured a 42 s job, one live classification defect that routes plan prefill into the tightly-alerted `api` class, and a dev-only route_class split that stage and prod never received."
 ---
 
 # Concurrent-users gauge + reconcile job-latency alerting with measured load
@@ -209,16 +209,32 @@ the window, touch one, assert it yields 1 and the map has been pruned to
 
 ---
 
-## Item B — reconcile `JobLatencySLOBreach` with measured reality
+## Item B — job-class alerting, after it was removed
 
-### Correction to the premise, first
+> **Rewritten 2026-09-10, before this plan was merged.** This item was
+> written to reconcile `JobLatencySLOBreach` with measured reality.
+> **That alert no longer exists.** openshift-app-config **#38**
+> (2026-09-07) removed job-class latency alerting in every environment —
+> dev's `JobPollLatencySLOBreach`, `JobTriggerLatencySLOBreach` and
+> `JobRouteClassAbsent`, and stage's and prod's `JobLatencySLOBreach` —
+> after `JobRouteClassAbsent` fired on dev following a quiet weekend when
+> nobody had opened the sync UI for three days. The decision recorded
+> there is categorical: _"no alerting on job-class routes at all."_
+>
+> So the reconciliation this item proposed is moot, and re-proposing it
+> would relitigate a decision already taken. What follows keeps only the
+> analysis that is still true: why those alerts were unfixable rather
+> than mis-tuned, and the two live defects the removal did **not**
+> address.
+
+### Why the issue's premise was wrong to begin with
 
 #2529 §3 reads: "`JobLatencySLOBreach` fires on a 10 s bucket, but
-measured plan prefill is 42 s median at 40 users and uploads reach 184 s."
-Those two numbers cannot move this alert, because the alert never sees
-them.
+measured plan prefill is 42 s median at 40 users and uploads reach
+184 s." Those two numbers could never have moved that alert, because the
+alert never saw them.
 
-`JobLatencySLOBreach` is a proportion over
+It was a proportion over
 `http_server_duration_milliseconds{route_class="job"}` — the duration of
 **individual HTTP requests**. The 42 s and 184 s figures are locust
 `FLOW` metrics: client-side wall time across a whole multi-request flow.
@@ -228,19 +244,11 @@ is `POST` → `PATCH` → ~21 poll `GET`s at `PERF_POLL_INTERVAL=2` →
 of it. Every constituent request is fast; the flow is slow because it
 waits. `CsvUploadUser` is the same shape.
 
-Two consequences:
+Those numbers are also quantized to the 2 s poll interval and are upper
+bounds — the job finished somewhere in the preceding 2 s. Any future SLO
+built from them must not claim finer precision than ±2 s.
 
-- Reconciling 42 s / 184 s against a request-duration histogram is a
-  category error. They belong to a **job-duration** metric that does not
-  exist yet (see "The long-term answer" below).
-- Those numbers are quantized to the 2 s poll interval and are upper
-  bounds — the job finished somewhere in the preceding 2 s. Do not set
-  any SLO to finer precision than ±2 s off them.
-
-This does not make the issue's concern wrong. It makes it **more**
-urgent, for a different reason.
-
-### The real defect: the threshold was set at its own baseline
+### Why the removed alerts could not have been fixed, only removed
 
 [1402-trim-down-alerting.md](1402-trim-down-alerting.md) recorded, from
 4 weeks of stage traffic: `route_class="job"` p50 60.8 ms, **p95 and p99
@@ -248,76 +256,48 @@ both saturated at 10000 ms**.
 
 `histogram_quantile` returns the highest finite bucket boundary when the
 quantile lands in the `+Inf` bucket. So p95 = 10000 means **more than 5%
-of job-class requests already exceed 10 s in normal stage traffic** —
-which is verbatim the alert's own firing condition (`> 0.05` over
-`le="10000"`).
+of job-class requests already exceeded 10 s in normal stage traffic** —
+which was verbatim the alert's own firing condition (`> 0.05` over
+`le="10000"`). It was not mis-thresholded by some margin; it was set _at_
+its observed baseline, and stayed quiet only because `for: 15m` combined
+with the `> 0.02 req/s` traffic floor meant stage was rarely busy enough
+for 15 continuous minutes to clear it.
 
-The alert is not mis-thresholded by some margin. It is set _at_ its
-observed baseline. It has stayed quiet only because of `for: 15m`
-combined with the `> 0.02 req/s` traffic floor: stage is rarely busy
-enough for 15 continuous minutes to clear the floor. Sustained real load
-clears it, and then the alert is a coin flip that resolves to "firing".
-
-**Confirm before changing anything.** This is a hypothesis derived from a
-recorded quantile, and #1402's own working rule is "pull real numbers
-instead of guessing". Step 1 of the work below is running this in each
-env's Grafana:
-
-```promql
-# What fraction of job-class requests exceed 10s, over 7 days?
-1 - (
-  sum(rate(http_server_duration_milliseconds_bucket{namespace="$ns", route_class="job", le="10000"}[7d]))
-  /
-  sum(rate(http_server_duration_milliseconds_count{namespace="$ns", route_class="job"}[7d]))
-)
-```
-
-If that is materially below 0.05, the alert is fine as written and Item B
-reduces to the classification fix below. If it is at or above 0.05,
-proceed.
-
-### The constraint that kills the obvious fix
-
-**10 s cannot be raised to 60 s.** `http_server_duration_milliseconds`
+And **10 s could not be raised.** `http_server_duration_milliseconds`
 uses the OTel SDK's default explicit bucket boundaries, whose last finite
-bucket is `10000`. There is no `le="60000"` to query. The alert's own
-annotation already says this ("10s is this histogram's last resolvable
-bucket"); it is easy to miss when reading the threshold as a tunable
-number.
+bucket is `10000`. There is no `le="60000"` to query. A request-duration
+histogram simply cannot express "this job took 42 s".
 
-That leaves three real knobs, and the third is the one that matters:
+That is the real reason #38's removal was right rather than merely
+convenient: the instrument could not measure the thing, at any threshold.
 
-1. **Move the proportion** (5% → higher). Cheapest, and the weakest: it
-   says "more of our requests may be slow" without saying how slow.
-2. **Split `route_class="job"`** so the number means something. Collector
-   change only, no backend code.
-3. **Measure job duration directly**, which is what the 42 s / 184 s
-   numbers are actually about. Backend code, and gated — see below.
+### 🔴 Still live: the classification bug
 
-### A classification bug found while writing this
+**The removal did not touch this, and it is the one defect here that can
+still page someone at 3am for the wrong reason.**
 
 Derived from the collector's metrics `transform` block
 (`overlays/{env}/kustomization.yaml`, the `route_class` rules), which
-matches on `http.target` tails:
+matches on `http.target` tails: `/v1/project-plans/*` matches **none** of
+the `job` patterns (`dispatch|jobs|workers|active-pipelines|
+recalculation-status|pipelines|health/stale-stats|admin/recompute-stats`).
+So it falls through to the final `set(... "api")` rule, and the prefill
+trigger `PATCH` plus all ~21 prefill poll `GET`s per plan lifecycle land
+in `route_class="api"` — the class with the **tight**
+`LatencyP50/95/99High` thresholds, which are all still active.
 
-`/v1/project-plans/*` matches **none** of the `job` patterns
-(`dispatch|jobs|workers|active-pipelines|recalculation-status|pipelines|
-health/stale-stats|admin/recompute-stats`). So it falls through to the
-final `set(... "api")` rule. That means the prefill trigger `PATCH` and
-all ~21 prefill poll `GET`s per plan lifecycle land in
-`route_class="api"` — the class with the **tight** `LatencyP50/95/99High`
-thresholds.
+So if plan prefill gets slow, it pages `LatencyP95High`. That was true
+before #38 and is still true after it; removing the job-class rules
+removed the alert that _would not_ have fired and left the one that
+will. This is the same failure mode #1402 caught twice already
+(`/healthz` and `/dispatch` landing in `api`; `GET /v1/units` landing in
+`job`).
 
-If plan prefill ever gets slow, it will page `LatencyP95High`, not
-`JobLatencySLOBreach`. This is the same failure mode #1402 caught twice
-already (`/healthz` and `/dispatch` landing in `api`; `GET /v1/units`
-landing in `job`).
-
-Fix: add `project-plans` prefill routes to the `job` classification.
-**But confirm the live label shape first** — #1402 explicitly records
-that where the `/v1/<router-prefix>` collapse happens is _still
-unconfirmed_, so the tail these routes actually produce must be observed,
-not predicted:
+Fix: add the project-plans prefill routes to the right job class.
+**Confirm the live label shape first** — #1402 explicitly records that
+where the `/v1/<router-prefix>` collapse happens is _still unconfirmed_,
+so the tail these routes actually produce must be observed, not
+predicted:
 
 ```promql
 count by (route_class, http_target, http_method) (
@@ -325,86 +305,34 @@ count by (route_class, http_target, http_method) (
 )
 ```
 
-### Proposed job classes and thresholds
+### Still open: the split shipped to dev only
 
-The single `job` class mixes two populations with nothing in common: fast
-polls that should never be slow, and trigger requests that legitimately
-do work. Averaging them is why the current number is uninterpretable.
-Split them in the collector transform:
+openshift-app-config **#30** split `route_class="job"` into `job_poll` /
+`job_trigger` in the collector transform, tagged `co2-calculator#2529`.
+#38 explicitly **kept** that transform — only the `PrometheusRule`
+entries went — because "dashboards and TraceQL filters still use job /
+job_poll / job_trigger".
 
-| Class         | Routes                                                                                                                                                          | Should be                                                                                     | Proposed alert                                                                                                                                                                      |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `job_poll`    | `GET /sync/jobs/*`, `/sync/pipelines/*`, `/workers`, `/active-pipelines*`, `/recalculation-status`, and the `project-plans/*/prefill/*` polls once reclassified | Sub-second. A status read is one indexed row.                                                 | > 5% over **1 s** (`le="1000"`), `for: 15m`. A slow poll is a genuine, actionable signal — it is the frontend's progress bar stalling.                                              |
-| `job_trigger` | `POST /sync/dispatch`, `POST /sync/units`, `POST /year-configuration/{year}` recalc, the prefill-enqueueing `PATCH`                                             | Enqueue + commit, then return. Slow means the enqueue path itself is doing work it shouldn't. | > 5% over **10 s** — keep the existing threshold; on a trigger it is a real bound, not a saturated one.                                                                             |
-| `upload`      | `POST /files`                                                                                                                                                   | Unchanged.                                                                                    | `UploadLatencySLOBreach` unchanged (> 2% over 5 s). Confirm against real data — #2529 §1 measured upload-to-ingested at 8 s dev median, but that is again the _flow_, not the POST. |
-| `stream`      | SSE                                                                                                                                                             | Excluded from latency alerting entirely (#1402).                                              | none                                                                                                                                                                                |
+But the split only ever landed in the **dev** overlay. Stage and prod
+still emit a single `job` class. So the same dashboard panel and the same
+TraceQL filter mean different things in different environments, which is
+its own quiet trap.
 
-Deliberately **no** raise of a threshold above what the histogram can
-resolve, because there is no such threshold to set. If the confirming
-query shows `job_poll` genuinely cannot meet 1 s today, the intermediate
-target goes in as a time-boxed exception, not as a permanent number —
-see below.
+Two coherent options, and this needs a decision rather than drift:
+propagate the split to stage and prod, or revert dev to match them. The
+split is independently correct and costs nothing at query time, so
+propagating is the better default — but it is a call, not a conclusion.
 
-### Intermediate targets while #2527 lands
+### The real gap, unchanged and now wider
 
-Any threshold that is looser than where it should end up carries its
-expiry **in `annotations.description`**, which is the one place the
-on-call actually reads. Mirroring how the existing rules already carry
-their rationale there:
-
-```yaml
-description: >
-  TIME-BOXED to 2026-11-30, tracked by #2527 (items 1-3) and #2529.
-  Interim threshold: <N>% over <M>s. Target on expiry: 5% over 1s.
-  Baseline when set: <value from the 7d query>, measured <date>.
-  If this date passes with the threshold unchanged, the raise has
-  become a mute -- reopen #2529.
-```
-
-Rules, so this cannot rot into a permanent mute:
-
-- Every interim threshold names a **date**, a **target value**, and the
-  **measured baseline it was set from**. No bare numbers.
-- The interim value is set from the confirming query, not copied between
-  environments. #1402 already applied this rule once for stage and is
-  currently blocked on prod for exactly this reason.
-- A threshold raise ships **together** with the compensating coverage
-  below, never alone.
-
-### How not to mute a real signal
-
-Three compensations, all repo precedent rather than invention:
-
-1. **A sustained low-threshold companion**, copying
-   `ErrorRateSustainedElevated`: same ratio, evaluated over a rolling 6h
-   `increase()` window at the _target_ threshold (not the interim one),
-   `for: 30m`, `severity: info`. A raised fast alert structurally cannot
-   see a persistent low-grade regression; this one can. `info` because
-   the alertmanager here is a single flat email route with no
-   severity-based sub-routing — it does not page differently, it just
-   does not get lost as another `warning`.
-2. **Keep `BackendMetricsAbsent`.** Every one of these rules silently
-   depends on the metric existing; splitting `route_class` is exactly the
-   kind of change that can make a series disappear.
-3. **Re-verify classification against real traffic**, with the
-   `count by (route_class, http_target, http_method)` query above, run
-   _while a real import is running_. This is still an open step in #1402
-   for the same reason: a wrong regex silently mis-classifies requests,
-   and every threshold downstream becomes meaningless without failing.
-
-### The long-term answer is #2527, not a threshold
-
-To be explicit: the correct fix for "plan prefill takes 42 s and
-upload-to-ingested takes 184 s" is **making those jobs faster** —
+The correct fix for "plan prefill takes 42 s and upload-to-ingested takes
+184 s" is **making those jobs faster** —
 [#2527](https://github.com/EPFL-ENAC/co2-calculator/issues/2527) items
-1–3. Nothing in this plan improves either number. Every threshold change
-proposed here is a change to what we _observe_, and each one is time-boxed
-against those issues landing.
+1–3. Nothing in this plan improves either number.
 
-The metric that should eventually carry the 42 s and 184 s numbers is a
-job-duration business metric (`pipeline_duration_seconds` / the
-`PipelineSlow` alert), which is an open step in
-[1402](1402-trim-down-alerting.md) and tracked as C4 in
+The metric that should carry those numbers is a job-duration business
+metric (`pipeline_duration_seconds` / a `PipelineSlow` alert), an open
+step in [1402](1402-trim-down-alerting.md) and tracked as C4 in
 [2049-optimize-pipeline-performance.md](2049-optimize-pipeline-performance.md).
 
 **That work is out of scope here and stays gated.** It requires hooking
@@ -412,10 +340,20 @@ job completion in `backend/app/tasks/runner.py` / `_chain.py` /
 `_pipeline_reconciler.py` — recalculation internals, which the
 [guardrails](../contributing/guardrails.md) put behind a written plan
 reviewed by both maintainers, however additive the metric itself looks.
-This plan does not propose editing those files. It only records that
-until that metric exists, **no alert in this system can see how long a
-job takes** — which is the actual gap #2529 §3 identified, and the
-strongest argument for unblocking 2049-C4.
+
+What #38 changed is the urgency: there is now **no alert anywhere that
+can see a slow job**, by deliberate choice. That is defensible while the
+only available instrument was a saturated request-duration histogram. It
+stops being defensible once 2049-C4 exists, and it is the strongest
+argument for unblocking it.
+
+### What this item deliberately does not propose
+
+**Re-adding job-class latency alerts.** #38 removed them on a considered
+decision after a real false page. Nothing measured since contradicts it,
+and the analysis above explains why no threshold would have helped. If
+job slowness should page, it pages off a job-duration metric — not off a
+histogram whose last bucket is 10 s.
 
 ---
 
@@ -439,28 +377,26 @@ strongest argument for unblocking 2049-C4.
 
 ### Item B
 
-- [ ] Run the 7-day `le="10000"` proportion query in dev, stage and prod.
-      Record the numbers in this plan. **Everything below is gated on
-      this** — if the proportion is comfortably under 5%, close Item B as
-      "premise corrected, no change needed" and keep only the
-      classification fix.
+Everything about re-thresholding is gone — see the rewrite note. What is
+left is the classification defect and one decision.
+
 - [ ] Run `count by (route_class, http_target, http_method)` and record
-      the real tail for `/v1/project-plans/*`.
-- [ ] **Ops repo PR**: split `route_class="job"` into `job_poll` /
-      `job_trigger` in the collector transform; add the project-plans
-      prefill routes to the right class.
-- [ ] **Ops repo PR**: replace `JobLatencySLOBreach` with the two
-      class-specific rules, thresholds from the measured baselines, each
-      carrying the time-box annotation.
-- [ ] **Ops repo PR**: `JobLatencySustainedElevated` — 6h window, target
-      threshold, `severity: info`.
-- [ ] Split the "Latency percentile (by route_class)" panel legend to show
-      the new classes (it already groups `by (le, route_class)`, so this
-      is free once the transform ships).
+      the real tail for `/v1/project-plans/*`. This is the only gating
+      measurement left: the fix below must be written against observed
+      labels, not predicted ones.
+- [ ] **Ops repo PR**: add the project-plans prefill routes to the right
+      job class, so they stop landing in `route_class="api"` under the
+      tight `LatencyP50/95/99High` thresholds that are still active.
+- [ ] **Decide**: propagate the dev-only `job_poll` / `job_trigger`
+      transform to stage and prod, or revert dev to match them. Today the
+      same dashboard panel and TraceQL filter mean different things per
+      environment.
 - [ ] Re-verify classification during a real import, per #1402's open
-      step.
-- [ ] On the time-box date: either the thresholds tighten to target, or
-      #2529 reopens. No third outcome.
+      step — a wrong regex mis-classifies silently and every threshold
+      downstream becomes meaningless without failing.
+- [ ] **Do not** re-add job-class latency rules (openshift-app-config
+      #38). If job slowness should page, it pages off 2049-C4's
+      job-duration metric.
 
 ## Open questions for the maintainer
 
@@ -471,8 +407,11 @@ strongest argument for unblocking 2049-C4.
 2. **`sum()` or `max()` as the panel's headline stat?** Proposed `sum()`
    (upper bound, errs toward acting early), with `max()` charted
    alongside. Say if you would rather the headline read low.
-3. **One PR or two in the ops repo?** The classification split and the
-   threshold change are separable and the split is independently correct;
-   shipping the split first would give a week of clean per-class data to
-   set thresholds from. Slower, but it is the "pull real numbers" rule
-   applied one more time.
+3. **Does the `job_poll` / `job_trigger` split propagate to stage and
+   prod, or does dev revert to match them?** #30 shipped it to dev only
+   and #38 kept the transform while dropping the rules, so the classes
+   exist in one environment and not the others — the same panel and the
+   same TraceQL filter mean different things depending where you look.
+   Propagating is the better default (independently correct, free at
+   query time), but with no job-class alerts left the only consumers are
+   dashboards and traces, so reverting is defensible too.
