@@ -788,6 +788,31 @@ class BaseCSVProvider(CSVIngestionProvider, ABC):
             f"(year={self.year}, {len(valid_entry_types)} types, full replace)"
         )
 
+    async def _delete_own_job_entries_for_module_unit_specific(
+        self, data_entry_service: DataEntryService
+    ) -> None:
+        """Retry-idempotency guard (#2700).
+
+        MODULE_UNIT_SPECIFIC is append-only by design (see
+        ``_delete_existing_entries_for_module_per_year``'s docstring) — a
+        unit's equipment/animal-facility entries accumulate across uploads
+        rather than getting replaced wholesale, so there is no year+type
+        delete here. But that also means a job retried after a crash
+        (``sweep_stuck_running_jobs``, #1559) re-runs the whole batch loop
+        and would duplicate whatever it already committed before crashing.
+        Deleting this job's own rows first (scoped by ``created_by_id``,
+        not by module/year) undoes exactly that prior partial write and
+        nothing else — a no-op on a first attempt, since nothing carries
+        this job's id yet.
+        """
+        if self.job_id is None:
+            return
+        deleted = await data_entry_service.repo.bulk_delete_by_created_by_id(
+            self.job_id
+        )
+        if deleted:
+            logger.info(f"Deleted {deleted} data entries from a prior job attempt")
+
     def _enter_phase(self, phase: str) -> None:
         """Mark the start of a pipeline phase (resets the rate/ETA baseline)."""
         self._phase = phase
@@ -903,6 +928,10 @@ class BaseCSVProvider(CSVIngestionProvider, ABC):
                 await self._report("Deleting previous entries", force=True)
                 await self._delete_existing_entries_for_module_per_year(
                     unit_to_module_map, stats, data_entry_service
+                )
+            elif self.entity_type == EntityType.MODULE_UNIT_SPECIFIC:
+                await self._delete_own_job_entries_for_module_unit_specific(
+                    data_entry_service
                 )
 
             # Process CSV rows
