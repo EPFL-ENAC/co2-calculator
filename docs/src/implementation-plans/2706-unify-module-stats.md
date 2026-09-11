@@ -54,10 +54,19 @@ denormalized onto emissions too.
   module service calls it).
 - Frontend: `ModuleResponse.stats` is `Record<string, unknown> | null`;
   `headcountChartStats` builds the chart map from the persisted keys.
+- **Emptied modules join the aggregation scope.** `bulk_delete_by_source_year`
+  (CSV / Tableau full-year re-import) deletes a module's rows; no entry is
+  left to put it in any recalc's `affected_module_ids`, so its stats kept
+  the old kg. The simulator already refreshed the modules its prefill left
+  empty; the bulk path now does the same: `aggregation_handler` unions
+  `CarbonReportModuleService.emptied_module_ids` (persisted `entry_count`
+  > 0, zero entries left) into the scoped set. One grouped count over the
+  > slice; the full-slice fallback already covered it.
 - Tests: repo (`get_stats_pair_many` snapshot split, rollup no-double-count,
   banner total), pure `compute_module_stats` keys, route (headline, hidden
   viewer, no stats, 503), Playwright unit spec for the chart adapter, and the
-  `_pg` shape contract updated.
+  `_pg` shape contract updated; handler + service tests for the emptied
+  scope.
 
 ## Deploy step
 
@@ -70,12 +79,5 @@ module pages answer 503 by design.
 - **Stage drift**: 4039 of 18096 modules on stage differ between the
   persisted `by_emission_type` and a live sum — the first query also counted
   computed parent rollups, so the leaf-only figure is still to be read.
-- **Emptied modules keep stale stats**: `bulk_delete_by_source_year` (CSV /
-  Tableau re-import) deletes a module's rows, then the recalc finds no
-  entries, reports no affected modules, and the aggregation job never
-  rewrites that module's JSON. The simulator already compensates
-  (`cleared + emptied` at `simulator_plan_service.py:634`); the bulk path
-  does not. With the GET now reading the column, this staleness reaches the
-  sidebar too. Separate decision — pipeline scoping.
 - `breakdownTotal.ts` still re-sums non-additional buckets client-side for
   the results page; `total_excluding_additional` can retire it.

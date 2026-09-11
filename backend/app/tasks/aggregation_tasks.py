@@ -167,11 +167,15 @@ async def aggregation_handler(
             job.pipeline_id, data_session
         )
     if affected_scope is not None:
-        affected = [m for m in candidates if m.id in affected_scope]
+        # Modules emptied by the ingest's full-year delete never enter a
+        # recalc's affected set (nothing left to recalculate) but are stale
+        # all the same — #2706 reads these stats on the module page.
+        emptied = await svc.emptied_module_ids(candidates)
+        affected = [m for m in candidates if m.id in affected_scope or m.id in emptied]
         logger.info(
             f"aggregation handler (job {job.id}): scoped to "
             f"{len(affected)}/{len(candidates)} module(s) via recalc "
-            f"affected_module_ids"
+            f"affected_module_ids (+{len(emptied)} emptied)"
         )
     else:
         affected = candidates

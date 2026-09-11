@@ -565,6 +565,26 @@ class CarbonReportModuleService:
             [carbon_report_module_id], prefetched_years=prefetched_years
         )
 
+    async def emptied_module_ids(
+        self, modules: Sequence[CarbonReportModule]
+    ) -> set[int]:
+        """Modules whose persisted stats count entries that no longer exist.
+
+        A full-year re-import that no longer carries a module deletes its
+        rows; no entry remains to put it in any recalc's affected set, so
+        its stats would keep the old kg forever (#2706). Same case the
+        Simulator prefill handles for the modules it leaves empty.
+        """
+        counts, _ = await self._entry_counts_and_fte(modules)
+        return {
+            m.id
+            for m in modules
+            if m.id is not None
+            and m.stats is not None
+            and m.stats.get("entry_count", 0) > 0
+            and counts.get(m.id, 0) == 0
+        }
+
     async def _entry_counts_and_fte(
         self, modules: Sequence[CarbonReportModule]
     ) -> tuple[dict[int, int], dict[int, float]]:
