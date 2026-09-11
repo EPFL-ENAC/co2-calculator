@@ -1,23 +1,24 @@
 <template>
   <div class="inline-select-wrapper">
-    <div v-if="showPlaceholder" class="inline-subclass-placeholder">-</div>
     <VirtualSelectField
-      v-else
+      ref="selectRef"
       :model-value="model"
       :options="currentOptions"
       :loading="isLoading"
       :disable="props.disable"
+      :autofocus="props.openOnMount"
       :title="props.hint ? $t(props.hint) : undefined"
       hide-bottom-space
       :dropdown-icon="matExpandMore"
       @update:model-value="onValueChange"
+      @blur="emit('blur')"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { matExpandMore } from '@quasar/extras/material-icons';
-import { computed, ref, toRef, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, toRef, watch } from 'vue';
 import { useEquipmentClassOptions } from '@/composables/useEquipmentClassOptions';
 import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
 import type { Module, ConditionalSubmoduleProps } from '@/constant/modules';
@@ -64,11 +65,14 @@ type CommonProps = {
   factorYear: number | null;
   carbonReportId?: number;
   disable?: boolean;
+  openOnMount?: boolean;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
+const emit = defineEmits<{ blur: []; committed: [] }>();
+const selectRef = ref<InstanceType<typeof VirtualSelectField> | null>(null);
 const factorYear = toRef(props, 'factorYear');
 const isClass = computed(() => props.optionsId === 'kind');
 const isSubClass = computed(() => props.optionsId === 'subkind');
@@ -83,17 +87,23 @@ const subkindFieldId = computed(() => {
   return subkindField ? subkindField.field : null;
 });
 
-const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useEquipmentClassOptions(
-    props.row,
-    toRef(props, 'moduleType'),
-    toRef(props, 'submoduleType'),
-    {
-      classFieldId: kindFieldId.value,
-      subClassFieldId: subkindFieldId.value,
-    },
-    factorYear,
-  );
+const {
+  dynamicOptions,
+  loadingClasses,
+  loadingSubclasses,
+  loadClassOptions,
+  loadSubclassOptions,
+} = useEquipmentClassOptions(
+  props.row,
+  toRef(props, 'moduleType'),
+  toRef(props, 'submoduleType'),
+  {
+    classFieldId: kindFieldId.value,
+    subClassFieldId: subkindFieldId.value,
+    skipClassOptions: !isClass.value,
+  },
+  factorYear,
+);
 
 // Buildings room rows: the factor taxonomy's subkinds are room *types*, so
 // the Local column must instead offer the ref-data rooms of the row's
@@ -107,31 +117,49 @@ const buildingRoomStore = useBuildingRoomStore();
 const buildingRooms = ref<BuildingRoom[]>([]);
 const loadingRooms = ref(false);
 let roomsRequestId = 0;
+let roomsRequest: Promise<void> = Promise.resolve();
+
+async function loadRooms(building: unknown) {
+  if (!building || typeof building !== 'string') {
+    buildingRooms.value = [];
+    return;
+  }
+  const requestId = ++roomsRequestId;
+  loadingRooms.value = true;
+  try {
+    const rooms = await buildingRoomStore.fetchRooms(building);
+    if (requestId !== roomsRequestId) return;
+    buildingRooms.value = rooms;
+  } catch {
+    if (requestId === roomsRequestId) buildingRooms.value = [];
+  } finally {
+    if (requestId === roomsRequestId) loadingRooms.value = false;
+  }
+}
 
 watch(
   () =>
     isBuildingsRoom.value && isSubClass.value && kindFieldId.value
       ? props.row[kindFieldId.value]
       : null,
-  async (building) => {
-    if (!building || typeof building !== 'string') {
-      buildingRooms.value = [];
-      return;
-    }
-    const requestId = ++roomsRequestId;
-    loadingRooms.value = true;
-    try {
-      const rooms = await buildingRoomStore.fetchRooms(building);
-      if (requestId !== roomsRequestId) return;
-      buildingRooms.value = rooms;
-    } catch {
-      if (requestId === roomsRequestId) buildingRooms.value = [];
-    } finally {
-      if (requestId === roomsRequestId) loadingRooms.value = false;
-    }
+  (building) => {
+    roomsRequest = loadRooms(building);
   },
   { immediate: true },
 );
+
+onMounted(async () => {
+  if (!props.openOnMount) return;
+  if (isBuildingsRoom.value && isSubClass.value) {
+    await roomsRequest;
+  } else if (isClass.value) {
+    await loadClassOptions();
+  } else {
+    await loadSubclassOptions();
+  }
+  await nextTick();
+  selectRef.value?.showPopup();
+});
 
 const buildingRoomOptions = computed(() =>
   mapBuildingRoomOptions(buildingRooms.value),
@@ -183,14 +211,6 @@ const isLoading = computed(() => {
   return isClass.value ? loadingClasses.value : loadingSubclasses.value;
 });
 
-const showPlaceholder = computed(
-  () =>
-    isSubClass.value &&
-    !isLoading.value &&
-    currentOptions.value.length === 0 &&
-    !model.value,
-);
-
 const model = computed({
   get() {
     return props.row[props.fieldId] ?? '';
@@ -203,6 +223,7 @@ const model = computed({
 
 async function onValueChange(val: string | number | null) {
   model.value = val;
+  emit('committed');
 
   const idNum = Number(props.row.id);
   if (!Number.isFinite(idNum)) return;
@@ -229,18 +250,7 @@ async function onValueChange(val: string | number | null) {
 </script>
 
 <style scoped lang="scss">
-@use '@/css/02-tokens' as tokens;
-
 .inline-select-wrapper {
   width: 100%;
-}
-
-.inline-subclass-placeholder {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  height: 2.5rem;
-  color: tokens.$table-color-disabled;
-  cursor: default;
 }
 </style>
