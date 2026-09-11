@@ -26,9 +26,9 @@ class BuildingRoomService:
         """Get rooms by name in one query (bulk form of ``get_room``)."""
         return await self.repo.get_rooms_by_names(room_names)
 
-    async def get_room_names(self) -> set[str]:
-        """Return every known room name in one query (bulk existence check)."""
-        return await self.repo.get_room_names()
+    async def get_room_surfaces(self) -> list[tuple[str, float | None]]:
+        """Every known room name with its surface, in one query."""
+        return await self.repo.get_room_surfaces()
 
     async def list_buildings(self) -> list[dict]:
         """Return distinct buildings with location and name."""

@@ -18,6 +18,7 @@ from app.modules.buildings.data_entries import (
     EnergyCombustionHandlerCreate,
     EnergyCombustionHandlerResponse,
     EnergyCombustionHandlerUpdate,
+    normalize_room_name,
 )
 from app.modules.buildings.factors import (
     BuildingEmbodiedEnergyFactorCreate,
@@ -53,6 +54,7 @@ __all__ = [
     "EnergyCombustionHandlerCreate",
     "EnergyCombustionHandlerResponse",
     "EnergyCombustionHandlerUpdate",
+    "normalize_room_name",
     "BuildingEmbodiedEnergyFactorCreate",
     "BuildingEmbodiedEnergyFactorHandler",
     "BuildingEmbodiedEnergyFactorResponse",
