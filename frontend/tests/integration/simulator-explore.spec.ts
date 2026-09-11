@@ -136,6 +136,12 @@ async function selectOptions(scope: Locator, label: string): Promise<string[]> {
   return options;
 }
 
+// Dispatch rather than click: QMenu opens downward and `position: fixed`,
+// so on a form this far down the page its later options can straddle the
+// viewport fold with zero margin (see research-facilities-input.spec.ts's
+// pickOption for the measured pixel numbers). A mouse click targets the
+// element's centre and Playwright loops forever trying to scroll it into
+// view; dispatching the event drops the dependency on where the menu lands.
 async function pick(scope: Locator, label: string, option: string) {
   const page = scope.page();
   await field(scope, label).click();
@@ -144,8 +150,11 @@ async function pick(scope: Locator, label: string, option: string) {
   const exactMatch = items.filter({
     hasText: new RegExp(`^${escapeRe(option)}$`, 'i'),
   });
-  if (await exactMatch.count()) await exactMatch.first().click();
-  else await items.filter({ hasText: option }).first().click();
+  const target = (await exactMatch.count())
+    ? exactMatch.first()
+    : items.filter({ hasText: option }).first();
+  await expect(target).toHaveCount(1);
+  await target.dispatchEvent('click');
   await expect(page.locator('.q-menu:visible')).toHaveCount(0);
 }
 
@@ -218,7 +227,9 @@ async function travelCity(
   const f = field(form, which);
   await f.locator('input').fill(typed);
   const menu = page.locator('.q-menu:visible').last();
-  await menu.locator('.q-item').filter({ hasText: city }).first().click();
+  const target = menu.locator('.q-item').filter({ hasText: city }).first();
+  await expect(target).toHaveCount(1);
+  await target.dispatchEvent('click');
   await expect(page.locator('.q-menu:visible')).toHaveCount(0);
 }
 
