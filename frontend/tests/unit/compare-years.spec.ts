@@ -17,6 +17,7 @@ import {
   computeCompareYearsTotal,
   computeCompareYearsObjectives,
   closestAvailableYear,
+  computeObjectiveGap,
 } from '../../src/utils/compareYears';
 
 const ORDER = ['equipment', 'professional_travel', 'commuting'] as const;
@@ -135,4 +136,29 @@ test('objectives is empty without goals or without any positive baseline year', 
   expect(computeCompareYearsObjectives(YEARS, [...ORDER], [])).toEqual([]);
   // No category with data anywhere → every goal skipped.
   expect(computeCompareYearsObjectives(YEARS, ['food'], GOALS)).toEqual([]);
+});
+
+test('objective gap: reduction needed is a share of the current year', () => {
+  // 483 t today, 48.3 t target → (483 − 48.3) / 483 = 90% still to cut.
+  expect(computeObjectiveGap(483, 48.3)).toEqual({
+    missing: true,
+    pctMagnitude: expect.closeTo(0.9, 6),
+  });
+});
+
+test('objective gap: target reached reports how far below it the year sits', () => {
+  // 10 t today, 48.3 t target → (48.3 − 10) / 48.3 ≈ 79% below target.
+  expect(computeObjectiveGap(10, 48.3)).toEqual({
+    missing: false,
+    pctMagnitude: expect.closeTo(0.7929, 3),
+  });
+  // Exactly on target → reached with a 0% margin.
+  expect(computeObjectiveGap(48.3, 48.3)).toEqual({
+    missing: false,
+    pctMagnitude: 0,
+  });
+});
+
+test('objective gap is null without a positive objective', () => {
+  expect(computeObjectiveGap(10, 0)).toBeNull();
 });
