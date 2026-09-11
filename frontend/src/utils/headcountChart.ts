@@ -1,3 +1,23 @@
+/**
+ * Bars for the "FTE by function" chart from the module's persisted stats
+ * (#2706): member FTE keyed by SIUS code plus the "student" sentinel. Null
+ * member groups (a group with no FTE recorded) draw no bar.
+ */
+export function headcountChartStats(
+  stats?: Record<string, unknown> | null,
+): Record<string, number> {
+  const members = stats?.member_fte_by_sius_code;
+  const result: Record<string, number> = {};
+  if (members && typeof members === 'object') {
+    for (const [code, fte] of Object.entries(members)) {
+      if (typeof fte === 'number') result[code] = fte;
+    }
+  }
+  const student = stats?.student_fte;
+  if (typeof student === 'number') result.student = student;
+  return result;
+}
+
 export function getHeadcountChartKeys(
   stats?: Record<string, number> | null,
 ): string[] {

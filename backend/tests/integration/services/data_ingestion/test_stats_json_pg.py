@@ -157,10 +157,17 @@ EXPECTED_MODULE_STATS_KEYS: set[str] = {
     "by_additional_value",
     "computed_at",
     "entry_count",
+    "total_excluding_additional",
+    "planner_snapshot_kg",
 }
 
 # Per-module extras persisted alongside the base keys.
-ALLOWED_MODULE_STATS_EXTRAS: set[str] = {"total_fte", "it_top_classes"}
+ALLOWED_MODULE_STATS_EXTRAS: set[str] = {
+    "total_fte",
+    "student_fte",
+    "member_fte_by_sius_code",
+    "it_top_classes",
+}
 
 
 # (module_type, data_entry_type, emission_type) — one shape probe per

@@ -759,13 +759,6 @@ class TestGetYearFromDataEntry:
 
 
 class TestDelegationMethods:
-    async def test_get_stats_delegates(self):
-        service = _make_service()
-        service.repo.get_stats = AsyncMock(return_value={"total": 100})
-        result = await service.get_stats(1)
-        assert result == {"total": 100}
-        service.repo.get_stats.assert_awaited_once()
-
     async def test_create_with_no_emissions(self):
         service = _make_service()
         de = _make_data_entry_response({"fte": 1.0})
