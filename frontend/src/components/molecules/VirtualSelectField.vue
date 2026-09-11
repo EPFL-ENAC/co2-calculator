@@ -1,5 +1,6 @@
 <template>
   <q-select
+    ref="selectRef"
     :model-value="modelValue"
     :options="onSearch ? serverOptions : filteredOptions"
     :loading="loading || serverLoading"
@@ -44,6 +45,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import type { QSelect } from 'quasar';
 
 interface SelectOption {
   label: string;
@@ -82,6 +84,12 @@ const props = defineProps<{
 defineEmits<{
   (e: 'update:modelValue', value: string | number | null): void;
 }>();
+
+const selectRef = ref<QSelect | null>(null);
+
+defineExpose({
+  showPopup: () => selectRef.value?.showPopup(),
+});
 
 const searchQuery = ref('');
 
