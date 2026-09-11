@@ -505,8 +505,8 @@ function getBounds(inp: ModuleField): {
   const fallback = {
     min: inp.min,
     max: inp.max,
-    step: inp.step,
-    integer: false,
+    step: inp.integer ? 1 : inp.step,
+    integer: inp.integer === true,
   };
   if (!inp.conditionalBounds) return fallback;
   const selector = form[inp.conditionalBounds.fieldId];
@@ -1042,6 +1042,11 @@ function validateField(i: ModuleField) {
     i.id === 'active_usage_hours_per_week' ||
     i.id === 'standby_usage_hours_per_week'
   ) {
+    const formatError = isEmptyValue(v) ? null : numberFormatError(i, v);
+    if (formatError) {
+      errors[i.id] = formatError;
+      return false;
+    }
     const v_active = Number(form['active_usage_hours_per_week']) || 0;
     const v_standby = Number(form['standby_usage_hours_per_week']) || 0;
     const validation = validateUsageHoursWeek(v_active + v_standby);
@@ -1178,33 +1183,40 @@ function validateField(i: ModuleField) {
       errors[i.id] = requiredMsg;
     }
   }
-  if (effectiveType === 'number' && v !== '' && v !== null && v !== undefined) {
-    const s = typeof v === 'string' ? v.trim() : String(v);
-    // Canonical dot-decimal only: optional minus, digits, optional single dot + digits
-    const NUMBER_RE = /^-?\d+(\.\d+)?$/;
-
-    if (s.includes(',')) {
-      // Targeted message: FR/CH users instinctively type a comma separator
-      errors[i.id] = $t('validation_use_dot_not_comma');
-    } else if (!NUMBER_RE.test(s)) {
-      errors[i.id] = $t('validation_number_format');
-    } else {
-      const n = Number(s);
-      const bounds = getBounds(i);
-      if (bounds.min !== undefined && n < bounds.min)
-        errors[i.id] = $t('validation_must_be_at_least', { min: bounds.min });
-      else if (bounds.max !== undefined && n > bounds.max)
-        errors[i.id] = $t('validation_must_be_at_most', { max: bounds.max });
-      else if (bounds.integer && !Number.isInteger(n))
-        errors[i.id] = $t('validation_must_be_whole_number');
-      else if (
-        i.maxDecimals !== undefined &&
-        (s.split('.')[1]?.length ?? 0) > i.maxDecimals
-      )
-        errors[i.id] = $t('validation_max_decimals', { count: i.maxDecimals });
-    }
+  if (effectiveType === 'number' && !isEmptyValue(v)) {
+    errors[i.id] = numberFormatError(i, v);
   }
   return !errors[i.id];
+}
+
+function isEmptyValue(v: FieldValue): boolean {
+  return v === '' || v === null || v === undefined;
+}
+
+function numberFormatError(i: ModuleField, v: FieldValue): string | null {
+  const s = typeof v === 'string' ? v.trim() : String(v);
+  // Canonical dot-decimal only: optional minus, digits, optional single dot + digits
+  const NUMBER_RE = /^-?\d+(\.\d+)?$/;
+
+  if (s.includes(',')) {
+    // Targeted message: FR/CH users instinctively type a comma separator
+    return $t('validation_use_dot_not_comma');
+  }
+  if (!NUMBER_RE.test(s)) return $t('validation_number_format');
+  const n = Number(s);
+  const bounds = getBounds(i);
+  if (bounds.min !== undefined && n < bounds.min)
+    return $t('validation_must_be_at_least', { min: bounds.min });
+  if (bounds.max !== undefined && n > bounds.max)
+    return $t('validation_must_be_at_most', { max: bounds.max });
+  if (bounds.integer && !Number.isInteger(n))
+    return $t('validation_must_be_whole_number');
+  if (
+    i.maxDecimals !== undefined &&
+    (s.split('.')[1]?.length ?? 0) > i.maxDecimals
+  )
+    return $t('validation_max_decimals', { count: i.maxDecimals });
+  return null;
 }
 
 function validateForm() {
