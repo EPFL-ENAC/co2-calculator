@@ -292,7 +292,21 @@ async def get_file(
             # ``nosniff`` stops the browser from second-guessing our
             # Content-Type (e.g. sniffing a malformed CSV as HTML and
             # running script injection on a malformed row).
-            headers = {"X-Content-Type-Options": "nosniff"}
+            # ``no-store`` (#2442) — this endpoint sets no validator (no
+            # ETag/Last-Modified), so leaving Cache-Control unset invites
+            # any intermediary between here and the browser (CDN, OpenShift
+            # Route, corporate proxy) to apply its own default caching
+            # policy. Reported symptom: the same job-scoped path served
+            # stale bytes from an earlier request only for callers that
+            # happened to hit it with a different query string — i.e. an
+            # intermediary cache keyed on the full URL, not on any signal
+            # this app controls. This is also permission-gated
+            # (backoffice.configuration.view); an intermediary cache with
+            # no per-user key risks serving one user's file to another.
+            headers = {
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "no-store",
+            }
             # Force a real download when explicitly requested OR when the
             # stored type would execute inline (html/svg/xml/js) — serving
             # those inline from the file store would be stored XSS. Without

@@ -271,7 +271,13 @@ class BaseReductionObjectiveCSVProvider(CSVIngestionProvider, ABC):
             csv_text, handler.expected_columns, handler.required_columns
         )
 
-        processed_path = f"processed/{self.job_id}/{filename}"
+        # Reuses the same folder-naming helper _move_to_processed() itself
+        # calls below in _finalize() — computed here only so the file's
+        # display path in reduction_objectives.files.{category} (set at
+        # :224) matches where the move actually lands (#2442: two
+        # independent computations of "the processed path" is exactly
+        # the class of bug this issue was about).
+        processed_path = f"processed/{self._archive_folder()}/{filename}"
 
         return {
             "csv_text": csv_text,
