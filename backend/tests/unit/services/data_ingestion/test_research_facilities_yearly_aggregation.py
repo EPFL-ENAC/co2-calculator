@@ -118,3 +118,42 @@ async def test_rows_outside_the_target_year_are_excluded_from_the_total():
             "note": None,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_no_unit_months_are_not_merged_so_each_is_counted_missing():
+    """#2474 — a month with no Centre financier can never load. Merging those
+    months into one yearly row before ``_inject_module_ids`` made
+    ``rows_missing_centre_financier`` count facilities, not months, hiding
+    the true size of the SAP coverage gap.
+    """
+    provider = _provider(2026)
+
+    transformed = await provider.transform_data(
+        [
+            _row(date_iso="20260101", unit_institutional_id=None),
+            _row(date_iso="20260201", unit_institutional_id=""),
+            _row(date_iso="20260301", unit_institutional_id=None),
+            _row(date_iso="20260401", unit_institutional_id="0040"),
+            _row(date_iso="20260501", unit_institutional_id="0040"),
+        ]
+    )
+
+    stats = provider._init_stats()
+    valid = provider._inject_module_ids(transformed, {"0040": 7}, stats)
+
+    assert stats["rows_missing_centre_financier"] == 3
+    assert [row["use"] for row in valid] == [200.0]
+
+
+@pytest.mark.asyncio
+async def test_drop_reasons_do_not_leak_across_transform_calls():
+    """#2474 — ``drop_reasons`` was initialised once per instance, so a reused
+    provider would report the previous call's tallies on top of its own.
+    """
+    provider = _provider(2026)
+
+    await provider.transform_data([_row(client_type="EXTERNE")])
+    await provider.transform_data([_row(client_type="EXTERNE")])
+
+    assert provider.drop_reasons["client_type"] == 1

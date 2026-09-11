@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from typing import Any, TypedDict
 
 from pydantic import ValidationError
+from pydantic_core import ErrorDetails
 from sqlmodel import col, select
 
 from app.api.v1.files import make_files_store
@@ -109,10 +110,19 @@ def _format_pydantic_validation_error(validation_error: ValidationError) -> str:
     — deliberately out of scope), just on one line and free of the
     ``type=...`` noise.
     """
-    return "; ".join(
-        f"{err['loc'][-1]}: {err['msg']} (got {err['input']!r})"
-        for err in validation_error.errors()
-    )
+    return "; ".join(_format_one_error(err) for err in validation_error.errors())
+
+
+def _format_one_error(err: ErrorDetails) -> str:
+    """One field error as ``field: msg (got value)``.
+
+    A ``@model_validator`` error has an empty ``loc`` and the whole row as
+    ``input`` — keep the message alone: indexing ``loc[-1]`` crashed the row
+    (#2700), and the row contents must never reach job metadata.
+    """
+    if not err["loc"]:
+        return str(err["msg"])
+    return f"{err['loc'][-1]}: {err['msg']} (got {err['input']!r})"
 
 
 def _get_expected_columns_from_handlers(handlers: list[Any]) -> set[str]:
