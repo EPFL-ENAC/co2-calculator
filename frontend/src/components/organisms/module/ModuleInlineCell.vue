@@ -12,7 +12,7 @@
     }"
     :role="canActivate ? 'button' : undefined"
     :tabindex="canActivate ? 0 : undefined"
-    :aria-label="canActivate ? ariaLabel : undefined"
+    :aria-label="canActivate ? editLabel : undefined"
     :title="title"
     @click="activate"
     @keydown.enter.prevent="activate"
@@ -48,7 +48,7 @@ const props = defineProps<{
   affordance: 'input' | 'select';
   requiredEmpty?: boolean;
   title?: string;
-  ariaLabel: string;
+  editLabel: string;
 }>();
 
 const editing = defineModel<boolean>('editing', { default: false });

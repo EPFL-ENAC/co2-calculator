@@ -1,8 +1,6 @@
 <template>
   <div class="inline-select-wrapper">
-    <div v-if="showPlaceholder" class="inline-subclass-placeholder">-</div>
     <VirtualSelectField
-      v-else
       ref="selectRef"
       :model-value="model"
       :options="currentOptions"
@@ -213,14 +211,6 @@ const isLoading = computed(() => {
   return isClass.value ? loadingClasses.value : loadingSubclasses.value;
 });
 
-const showPlaceholder = computed(
-  () =>
-    isSubClass.value &&
-    !isLoading.value &&
-    currentOptions.value.length === 0 &&
-    !model.value,
-);
-
 const model = computed({
   get() {
     return props.row[props.fieldId] ?? '';
@@ -260,18 +250,7 @@ async function onValueChange(val: string | number | null) {
 </script>
 
 <style scoped lang="scss">
-@use '@/css/02-tokens' as tokens;
-
 .inline-select-wrapper {
   width: 100%;
-}
-
-.inline-subclass-placeholder {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  height: 2.5rem;
-  color: tokens.$table-color-disabled;
-  cursor: default;
 }
 </style>
