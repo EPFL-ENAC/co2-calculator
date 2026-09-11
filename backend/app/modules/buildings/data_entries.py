@@ -85,6 +85,13 @@ class BuildingRoomHandlerCreate(DiscardClientSurfaceMixin, DataEntryCreate):
     room_allocation_ratio: float | None = None
     note: str | None = None
 
+    @model_validator(mode="after")
+    def default_room_allocation_ratio(self):
+        if self.room_allocation_ratio is None:
+            self.room_allocation_ratio = 1.0
+        self.data["room_allocation_ratio"] = self.room_allocation_ratio
+        return self
+
     @field_validator("room_type", mode="after")
     @classmethod
     def validate_room_type(cls, v: str) -> str:
