@@ -233,3 +233,34 @@ def test_merge_report_stats_omits_absent_bucket_detail():
     merged = merge_report_stats([_build_report_stats(_modules())])
     assert "by_building" not in merged["buckets"]["equipment"]
     assert "by_category" not in merged["buckets"]["equipment"]
+
+
+def test_module_headline_excludes_additional_buckets_and_splits_snapshot_kg():
+    """#2706: the module page headline (sidebar total) is persisted as
+    ``total_excluding_additional`` — every bucket except the additional ones
+    (embodied energy here) — and the share of it carried by Simulator prefill
+    rows as ``planner_snapshot_kg``, so the GET never re-aggregates.
+    """
+    propane = str(EmissionType.buildings__combustion__propane.value)
+    embodied = str(EmissionType.buildings__construction_and_renovation.value)
+    leaf = {propane: 100.0, embodied: 7.0}
+    snapshot = {propane: 40.0, embodied: 7.0}
+
+    stats = compute_module_stats(
+        leaf,
+        {},
+        MODULE_STAT_BUCKETS[ModuleTypeEnum.buildings],
+        planner_snapshot_emissions=snapshot,
+    )
+
+    assert stats["total"] == pytest.approx(107.0)
+    assert stats["total_excluding_additional"] == pytest.approx(100.0)
+    # The embodied snapshot share is additional, so it stays out too.
+    assert stats["planner_snapshot_kg"] == pytest.approx(40.0)
+
+
+def test_module_headline_keys_default_to_zero_without_snapshot_rows():
+    stats = _equipment_stats()
+
+    assert stats["total_excluding_additional"] == pytest.approx(1000.0)
+    assert stats["planner_snapshot_kg"] == 0.0

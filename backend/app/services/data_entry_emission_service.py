@@ -1158,22 +1158,6 @@ class DataEntryEmissionService:
         )
         return created_emissions
 
-    async def get_stats(
-        self,
-        carbon_report_module_id: int,
-        aggregate_by: str = "emission_type_id",
-        aggregate_field: str = "kg_co2eq",
-        exclude_planner_snapshots: bool = False,
-    ) -> dict[str, float | None]:
-        """Get aggregated emission statistics for a carbon report module."""
-        stats = await self.repo.get_stats(
-            carbon_report_module_id,
-            aggregate_by,
-            aggregate_field,
-            exclude_planner_snapshots=exclude_planner_snapshots,
-        )
-        return stats
-
     async def get_embodied_energy_by_building(
         self,
         carbon_report_id: int,

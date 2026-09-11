@@ -18,7 +18,7 @@
         </div>
         <headCountBarChart
           v-if="headcountChartKeys.length"
-          :stats="moduleStore?.state?.data?.stats"
+          :stats="headcountStats"
           :year="workspaceStore.selectedYear"
         />
         <chart-empty-state v-else />
@@ -200,7 +200,10 @@ import {
   MODULE_TO_CATEGORIES,
 } from '@/constant/charts';
 import { getEmissionTypeBreakdownInfoKey } from '@/constant/emissionTypeBreakdownInfo';
-import { getHeadcountChartKeys } from '@/utils/headcountChart';
+import {
+  getHeadcountChartKeys,
+  headcountChartStats,
+} from '@/utils/headcountChart';
 import { getHeadcountMembers } from '@/api/modules';
 import { resolveTravelerNames } from '@/utils/trips-map-data';
 import { travelerSentinelMapEntries } from '@/constant/module-config/traveler-options';
@@ -454,8 +457,11 @@ watch(
   () => fetchTopClassBreakdownIfNeeded(),
 );
 
+const headcountStats = computed(() =>
+  headcountChartStats(moduleStore.state.data?.stats),
+);
 const headcountChartKeys = computed(() =>
-  getHeadcountChartKeys(moduleStore.state.data?.stats),
+  getHeadcountChartKeys(headcountStats.value),
 );
 
 const moduleTreemapData = computed(() => {

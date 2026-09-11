@@ -3692,10 +3692,10 @@ export interface components {
             };
             /**
              * Stats
-             * @description Module statistics
+             * @description The module's persisted stats JSON (carbon_report_modules.stats)
              */
             stats?: {
-                [key: string]: number | null;
+                [key: string]: unknown;
             } | null;
             /** @description Module totals */
             totals: components["schemas"]["ModuleTotals"];

@@ -4,6 +4,7 @@ from typing import Any
 
 from psycopg.types.json import Json
 from sqlalchemy import ColumnElement, Integer, Select, bindparam, case, literal
+from sqlalchemy import select as sa_select
 from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import col, delete, func, select
@@ -39,6 +40,12 @@ def _is_leaf_emission() -> ColumnElement[bool]:
     if not ROLLUP_EMISSION_TYPE_IDS:
         return col(DataEntryEmission.id).isnot(None)
     return col(DataEntryEmission.emission_type_id).notin_(ROLLUP_EMISSION_TYPE_IDS)
+
+
+# (kg_co2eq, additional_value, planner_snapshot_kg) maps keyed by str(emission_type_id).
+ModuleEmissionSums = tuple[
+    dict[str, float | None], dict[str, float | None], dict[str, float | None]
+]
 
 
 class DataEntryEmissionRepository:
@@ -187,80 +194,35 @@ class DataEntryEmissionRepository:
                     )
         return len(emissions)
 
-    async def get_stats(
-        self,
-        carbon_report_module_id,
-        aggregate_by: str = "emission_type_id",
-        aggregate_field: str = "kg_co2eq",
-        exclude_planner_snapshots: bool = False,
-    ) -> dict[str, float | None]:
-        """Aggregate DataEntryEmission data by emission_type_id
-                SELECT
-            dee.*
-        FROM
-            data_entry_emission dee
-        JOIN
-            data_entry de ON dee.data_entry_id = de.id
-        WHERE
-            de.carbon_report_module_id = 'YOUR_REPORT_ID_HERE';
-        """
-        # 1. Get the model attributes dynamically
-        group_field = getattr(DataEntryEmission, aggregate_by)
-        sum_field = getattr(DataEntryEmission, aggregate_field)
-
-        # 2. Build the query with the JOIN
-        query = (
-            select(
-                group_field,
-                func.sum(sum_field).label("total"),
-            )
-            .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
-            .where(
-                DataEntry.carbon_report_module_id == carbon_report_module_id,
-                _is_leaf_emission(),
-            )
-            .group_by(group_field)
-        )
-        if exclude_planner_snapshots:
-            query = query.where(
-                col(DataEntry.source).is_distinct_from(
-                    DataEntrySourceEnum.PLANNER_SNAPSHOT.value
-                )
-            )
-
-        result = await self.session.execute(
-            query
-        )  # Changed .exec to .execute (Standard SQLAlchemy/SQLModel)
-        rows = result.all()
-
-        # 3. Format the results
-        aggregation: dict[str, float | None] = {}
-        for key, total_count in rows:
-            label = str(key) if key is not None else "unknown"
-            aggregation[label] = total_count
-
-        return aggregation
-
     async def get_stats_pair_many(
         self,
         carbon_report_module_ids: list[int],
-    ) -> dict[int, tuple[dict[str, float | None], dict[str, float | None]]]:
-        """``get_stats_pair`` for a whole module set in ONE grouped query.
+    ) -> dict[int, ModuleEmissionSums]:
+        """Per-module emission sums by emission type, in ONE grouped query.
 
-        Returns {module_id: (by_emission_type kg_co2eq, additional_value)}.
-        Modules with no emissions are absent from the result — callers
-        treat a miss as empty stats.
+        Returns {module_id: (kg_co2eq, additional_value, planner_snapshot_kg)}.
+        The third map is the kg carried by Simulator prefill rows
+        (``DataEntrySourceEnum.PLANNER_SNAPSHOT``), persisted so the module
+        GET can hide it from viewers who may not see those rows (#2706)
+        without re-aggregating. Modules with no emissions are absent from the
+        result — callers treat a miss as empty stats.
         """
         if not carbon_report_module_ids:
             return {}
+        kg = col(DataEntryEmission.kg_co2eq)
+        is_snapshot = (
+            col(DataEntry.source) == DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+        )
+        # sqlmodel's select is typed up to four columns; sqlalchemy's for five.
         query = (
-            select(
+            sa_select(
                 col(DataEntry.carbon_report_module_id),
                 col(DataEntryEmission.emission_type_id),
-                func.sum(col(DataEntryEmission.kg_co2eq)).label("primary_total"),
+                func.sum(kg).label("primary_total"),
                 func.sum(col(DataEntryEmission.additional_value)).label(
                     "secondary_total"
                 ),
+                func.sum(kg).filter(is_snapshot).label("snapshot_total"),
             )
             .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
             .where(col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids))
@@ -270,60 +232,16 @@ class DataEntryEmissionRepository:
             )
         )
         rows = (await self.session.execute(query)).all()
-        result: dict[int, tuple[dict[str, float | None], dict[str, float | None]]] = {}
-        for module_id, emission_type_id, primary_total, secondary_total in rows:
-            by_primary, by_secondary = result.setdefault(module_id, ({}, {}))
+        result: dict[int, ModuleEmissionSums] = {}
+        for module_id, emission_type_id, primary, secondary, snapshot in rows:
+            by_primary, by_secondary, by_snapshot = result.setdefault(
+                module_id, ({}, {}, {})
+            )
             key = str(emission_type_id)
-            by_primary[key] = (
-                float(primary_total) if primary_total is not None else None
-            )
-            by_secondary[key] = (
-                float(secondary_total) if secondary_total is not None else None
-            )
+            by_primary[key] = float(primary) if primary is not None else None
+            by_secondary[key] = float(secondary) if secondary is not None else None
+            by_snapshot[key] = float(snapshot) if snapshot is not None else None
         return result
-
-    async def get_stats_pair(
-        self,
-        carbon_report_module_id: int,
-        aggregate_by: str = "emission_type_id",
-        primary_field: str = "kg_co2eq",
-        secondary_field: str = "additional_value",
-    ) -> tuple[dict[str, float | None], dict[str, float | None]]:
-        """Aggregate DataEntryEmission data by a field and sum two numeric columns.
-
-        Returns:
-            (by_primary, by_secondary) dicts keyed by ``aggregate_by`` values.
-        """
-        group_field = getattr(DataEntryEmission, aggregate_by)
-        sum_primary = getattr(DataEntryEmission, primary_field)
-        sum_secondary = getattr(DataEntryEmission, secondary_field)
-
-        query = (
-            select(
-                group_field,
-                func.sum(sum_primary).label("primary_total"),
-                func.sum(sum_secondary).label("secondary_total"),
-            )
-            .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
-            .where(DataEntry.carbon_report_module_id == carbon_report_module_id)
-            .group_by(group_field)
-        )
-
-        result = await self.session.execute(query)
-        rows = result.all()
-
-        by_primary: dict[str, float | None] = {}
-        by_secondary: dict[str, float | None] = {}
-        for key, primary_total, secondary_total in rows:
-            label = str(key) if key is not None else "unknown"
-            by_primary[label] = (
-                float(primary_total) if primary_total is not None else None
-            )
-            by_secondary[label] = (
-                float(secondary_total) if secondary_total is not None else None
-            )
-
-        return by_primary, by_secondary
 
     async def get_validated_totals_by_unit(
         self,
