@@ -442,6 +442,20 @@ class DataEntryRepository:
         await self.session.flush()
         return getattr(result, "rowcount", 0) or 0
 
+    async def bulk_delete_by_created_by_id(self, created_by_id: int) -> int:
+        """Retry-idempotency guard (#2700): undo exactly this job's own
+        prior partial write, scoped by the ``created_by_id`` every bulk
+        insert stamps with the job's id. A no-op for a genuinely new job
+        (fresh id, nothing stamped yet) — only a resumed/retried run of
+        the SAME job ever matches rows. Returns the number of rows deleted.
+        """
+        statement = delete(DataEntry).where(
+            col(DataEntry.created_by_id) == created_by_id
+        )
+        result = await self.session.execute(statement)
+        await self.session.flush()
+        return getattr(result, "rowcount", 0) or 0
+
     async def update(
         self, id: int, data: DataEntryUpdate, user_id: int
     ) -> DataEntry | None:

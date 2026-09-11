@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_project import CarbonProject
@@ -347,6 +348,51 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
     result = await db_session.exec(stmt)
     remaining_other = list(result.all())
     assert len(remaining_other) == 1
+
+
+@pytest.mark.asyncio
+async def test_bulk_delete_by_created_by_id_scopes_to_one_job(db_session: AsyncSession):
+    """#2700: a retried job must not duplicate the batches it already
+    committed before crashing. Deleting by ``created_by_id`` (stamped with
+    the job's id on every row it writes) undoes exactly this job's own
+    prior partial write, leaving other jobs' rows untouched.
+    """
+    repo = DataEntryRepository(db_session)
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    this_job_entries = [
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.plane,
+            status=DataEntryStatusEnum.PENDING,
+            data={"name": f"Trip {i}"},
+            created_by_id=42,
+        )
+        for i in range(3)
+    ]
+    other_job_entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data={"name": "Unrelated"},
+        created_by_id=99,
+    )
+    db_session.add_all(this_job_entries + [other_job_entry])
+    await db_session.flush()
+
+    deleted = await repo.bulk_delete_by_created_by_id(42)
+    await db_session.flush()
+
+    assert deleted == 3
+    stmt = select(DataEntry).where(DataEntry.carbon_report_module_id == module.id)
+    remaining = list((await db_session.exec(stmt)).all())
+    assert [e.created_by_id for e in remaining] == [99]
 
 
 # ======================================================================

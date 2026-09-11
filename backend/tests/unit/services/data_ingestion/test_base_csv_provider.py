@@ -1894,6 +1894,26 @@ async def test_delete_sibling_submodule_not_wiped():
 
 
 @pytest.mark.asyncio
+async def test_module_unit_specific_deletes_own_job_before_reprocessing():
+    """#2700: MODULE_UNIT_SPECIFIC is append-only by design (no per-year
+    replace), so a retried job (crash + ``sweep_stuck_running_jobs``, #1559)
+    re-runs the whole batch loop and would duplicate the rows it already
+    committed before crashing. Guard: delete this job's own prior rows
+    (scoped by ``created_by_id``, not by module/year) before reprocessing —
+    a no-op for a first attempt, since nothing is stamped with its id yet.
+    """
+    provider = _make_provider_with_job(module_type_id=6, data_entry_type_id=70)
+    provider.job_id = 42
+
+    data_entry_service = MagicMock()
+    data_entry_service.repo.bulk_delete_by_created_by_id = AsyncMock(return_value=0)
+
+    await provider._delete_own_job_entries_for_module_unit_specific(data_entry_service)
+
+    data_entry_service.repo.bulk_delete_by_created_by_id.assert_awaited_once_with(42)
+
+
+@pytest.mark.asyncio
 async def test_delete_all_types_when_no_data_entry_type_id():
     """Without data_entry_type_id on the job, all module types are deleted."""
     # module_type_id=6 has two types; no specific type given
