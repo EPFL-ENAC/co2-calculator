@@ -131,7 +131,7 @@ export default {
 
   // ── Professional Travel ────────────────────────────────────────────────────
   'module-professional-travel-submodule-plane': {
-    en: 'The flights listed in the table are provided by the EPFL Central Travel Agency. Complete any missing entries manually, if applicable. Data rows for external passengers are highlighted in orange.,
+    en: 'The flights listed in the table are provided by the EPFL Central Travel Agency. Complete any missing entries manually, if applicable. Data rows for external passengers are highlighted in orange.',
     fr: "Les vols affichés dans le tableau proviennent de l'agence de voyage central EPFL. Saisissez manuellement les vols manquants, le cas échéant. Les lignes de données des passagers externes sont surlignées en orange.",
   },
   'module-professional-travel-submodule-train': {
