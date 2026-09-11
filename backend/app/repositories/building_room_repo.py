@@ -33,11 +33,11 @@ class BuildingRoomRepository:
         result = await self.session.exec(stmt)
         return list(result.all())
 
-    async def get_room_names(self) -> set[str]:
-        """Return every known room name in one query (bulk existence check)."""
-        stmt = select(BuildingRoom.room_name).distinct()
+    async def get_room_surfaces(self) -> list[tuple[str, float | None]]:
+        """Every known room name with its surface, in one query."""
+        stmt = select(BuildingRoom.room_name, BuildingRoom.room_surface_square_meter)
         result = await self.session.exec(stmt)
-        return set(result.all())
+        return [(row[0], row[1]) for row in result.all()]
 
     async def list_buildings(self) -> list[dict]:
         """Return distinct buildings with location and name."""

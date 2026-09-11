@@ -51,6 +51,14 @@ class BuildingRoomHandlerResponse(DataEntryResponseGen):
     kg_co2eq: float | None = None
 
 
+def normalize_room_name(room_name: str) -> str:
+    """Room names match with spaces ignored (#2268): ``AI 9 121`` and
+    ``AI 9121`` are the same room, and the reference's own spacing changed
+    between vintages.
+    """
+    return "".join(room_name.split())
+
+
 # Order matches the frontend room-type dropdown (see `make gen-module-constants`).
 VALID_ROOM_TYPES: list[str | None] = [
     "laboratories",

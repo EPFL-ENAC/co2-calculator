@@ -22,6 +22,7 @@ from app.modules.buildings.data_entries import (
     EnergyCombustionHandlerCreate,
     EnergyCombustionHandlerResponse,
     EnergyCombustionHandlerUpdate,
+    normalize_room_name,
 )
 from app.modules.emissions import EmissionType
 from app.schemas.data_entry import BaseModuleHandler
@@ -62,40 +63,56 @@ async def _resolve_room(
     return await BuildingRoomService(session).get_room(room_name=room_name)
 
 
-_KNOWN_ROOM_NAMES_INFO_KEY = "buildings_known_room_names"
+_KNOWN_ROOMS_INFO_KEY = "buildings_known_rooms"
 
 
-async def _known_room_names(session: Any) -> set[str]:
-    """All known room names, loaded once per session and cached on
-    ``session.info`` — the CSV provider calls ``enrich_csv_row`` once per row,
-    and rooms CSVs are mostly distinct names, so per-name lookups can't be
-    memoized away; the full set is one cheap names-only query.
+async def _known_rooms(session: Any) -> dict[str, tuple[str, float | None]]:
+    """Every reference room keyed by its space-collapsed name, mapping to the
+    canonical ``room_name`` and its surface. Loaded once per session and
+    cached on ``session.info`` — the CSV provider calls ``enrich_csv_row``
+    once per row, and rooms CSVs are mostly distinct names, so per-name
+    lookups can't be memoized away; the full set is one cheap two-column
+    query. First row per name wins, matching ``get_room``'s ``.first()``.
     """
-    names = session.info.get(_KNOWN_ROOM_NAMES_INFO_KEY)
-    if names is None:
-        names = await BuildingRoomService(session).get_room_names()
-        session.info[_KNOWN_ROOM_NAMES_INFO_KEY] = names
-    return names
+    rooms = session.info.get(_KNOWN_ROOMS_INFO_KEY)
+    if rooms is None:
+        rooms = {}
+        for room_name, surface in await BuildingRoomService(
+            session
+        ).get_room_surfaces():
+            rooms.setdefault(normalize_room_name(room_name), (room_name, surface))
+        session.info[_KNOWN_ROOMS_INFO_KEY] = rooms
+    return rooms
 
 
 async def _reject_unknown_room(data: dict, session: Any) -> tuple[dict, str | None]:
     """CSV-time reference check shared by the rooms and embodied-energy
-    handlers (#2253).
+    handlers (#2253, #2716).
 
-    A room absent from the ``BuildingRoom`` ref-data resolves to no surface
-    at compute time, so the entry would persist and silently contribute zero
-    — reject the row instead, mirroring the data→factor and train-station
-    (#1186) checks.
+    A room absent from the ``BuildingRoom`` ref-data, or present without a
+    surface, resolves to no surface at compute time, so the entry would
+    persist and silently contribute zero — reject the row instead, mirroring
+    the data→factor and train-station (#1186) checks. A known room is
+    rewritten to the reference's own spelling so every later lookup stays an
+    exact match (#2268).
     """
     room_name = data.get("room_name")
     if not room_name:
         return data, "Missing room_name"
-    if room_name not in await _known_room_names(session):
+    known = (await _known_rooms(session)).get(normalize_room_name(room_name))
+    if known is None:
         return data, (
             f"Room {room_name!r} not found in the building rooms reference — "
             "fix the room_name or upload the building rooms reference CSV first"
         )
-    return data, None
+    canonical_name, surface = known
+    if surface is None:
+        return data, (
+            f"Room {room_name!r} has no surface in the building rooms reference — "
+            "fix the reference CSV (room_surface_square_meter is empty) and "
+            "upload it again"
+        )
+    return {**data, "room_name": canonical_name}, None
 
 
 class BuildingRoomModuleHandler(BaseModuleHandler):
@@ -248,7 +265,13 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
     ) -> list:
         factor_id = ctx.get("primary_factor_id")
         if factor_id is None:
-            return []
+            raise ValueError(
+                f"No buildings factor for building_name="
+                f"{ctx.get('building_name')!r}, room_type="
+                f"{ctx.get('room_type')!r} (data_entry_id="
+                f"{getattr(data_entry, 'id', None)!r}); the entry cannot "
+                "contribute an emission — check building_rooms_factors.csv"
+            )
 
         # Try direct match, then fall back to parent (WW→ZZ)
         kwh_field = self._EMISSION_TO_KWH_FIELD.get(emission_type)

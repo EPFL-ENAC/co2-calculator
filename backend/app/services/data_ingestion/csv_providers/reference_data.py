@@ -22,7 +22,7 @@ clears the rest of the table.
 import csv
 import io
 import urllib.parse
-from typing import Any
+from typing import Any, NamedTuple
 
 import psycopg
 from sqlalchemy.engine.url import make_url
@@ -40,7 +40,8 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.user import User
-from app.modules.buildings import VALID_ROOM_TYPES
+from app.modules.buildings import VALID_ROOM_TYPES, normalize_room_name
+from app.repositories.factor_repo import FactorRepository
 from app.seed.seed_locations import _NATURAL_KEY_EXPR
 from app.services.data_ingestion.csv_ingestion_provider import (
     CSVIngestionProvider,
@@ -70,11 +71,23 @@ BUILDING_ROOMS_REQUIRED_COLUMNS = {
     "building_location",
     "building_name",
     "room_name",
-}
-BUILDING_ROOMS_EXPECTED_COLUMNS = BUILDING_ROOMS_REQUIRED_COLUMNS | {
     "room_type",
     "room_surface_square_meter",
 }
+BUILDING_ROOMS_EXPECTED_COLUMNS = BUILDING_ROOMS_REQUIRED_COLUMNS
+_BUILDING_ROOM_CELLS = (
+    "building_location",
+    "building_name",
+    "room_name",
+    "room_type",
+    "room_surface_square_meter",
+)
+_DEFECT_LIST_CAP = 20
+
+
+class _BuildingRoomRow(NamedTuple):
+    line: int
+    room: BuildingRoom
 
 
 class ReferenceDataCSVProvider(CSVIngestionProvider):
@@ -491,35 +504,28 @@ class ReferenceDataCSVProvider(CSVIngestionProvider):
 
         Uploading a partial CSV will wipe everything outside it; the
         FE makes this explicit to the admin.
+
+        The pack is validated as a whole before anything is written (#2716):
+        a row with an empty mandatory cell, a room listed twice, or a
+        building with no factor row would each become a silent zero at
+        compute time, so every defect is reported in one error instead.
         """
         self._validate_headers(
             csv_text,
             BUILDING_ROOMS_REQUIRED_COLUMNS,
             BUILDING_ROOMS_EXPECTED_COLUMNS,
         )
-
-        rooms: list[BuildingRoom] = []
-        skipped = 0
-        reader = csv_dict_reader(csv_text)
-        for raw in reader:
-            building_location = (raw.get("building_location") or "").strip()
-            building_name = (raw.get("building_name") or "").strip()
-            room_name = (raw.get("room_name") or "").strip()
-            if not (building_location and building_name and room_name):
-                skipped += 1
-                continue
-            rooms.append(
-                BuildingRoom(
-                    building_location=building_location,
-                    building_name=building_name,
-                    room_name=room_name,
-                    room_type=_validated_room_type(raw.get("room_type")),
-                    room_surface_square_meter=_non_negative_surface(
-                        _to_float(raw.get("room_surface_square_meter"))
-                    ),
-                )
+        rows = _parse_building_rooms(csv_dict_reader(csv_text))
+        known_buildings = await FactorRepository(
+            self.data_session
+        ).list_classification_values(DataEntryTypeEnum.building, "building_name")
+        defects = _building_room_defects(rows, known_buildings)
+        if defects:
+            raise ValueError(
+                "Building rooms reference rejected:\n" + "\n".join(defects)
             )
 
+        rooms = [row.room for row in rows]
         await self.data_session.exec(delete(BuildingRoom))
         if rooms:
             self.data_session.add_all(rooms)
@@ -527,9 +533,100 @@ class ReferenceDataCSVProvider(CSVIngestionProvider):
 
         return {
             "rows_processed": len(rooms),
-            "rows_skipped": skipped,
+            "rows_skipped": 0,
             "rows_inserted": len(rooms),
         }
+
+
+def _parse_building_rooms(reader: csv.DictReader) -> list[_BuildingRoomRow]:
+    """One ``BuildingRoom`` per CSV row, cells stripped, tagged with the
+    file line so a defect points the data manager at the exact row.
+    """
+    rows: list[_BuildingRoomRow] = []
+    for raw in reader:
+        cells = {name: (raw.get(name) or "").strip() for name in _BUILDING_ROOM_CELLS}
+        room = BuildingRoom(
+            building_location=cells["building_location"],
+            building_name=cells["building_name"],
+            room_name=cells["room_name"],
+            room_type=_validated_room_type(cells["room_type"]),
+            room_surface_square_meter=_non_negative_surface(
+                _to_float(cells["room_surface_square_meter"])
+            ),
+        )
+        rows.append(_BuildingRoomRow(line=reader.line_num, room=room))
+    return rows
+
+
+def _building_room_defects(
+    rows: list[_BuildingRoomRow], known_buildings: set[str]
+) -> list[str]:
+    return [
+        *_capped("Rows with an empty mandatory cell", _empty_cell_defects(rows)),
+        *_capped("Rooms listed more than once", _duplicate_room_defects(rows)),
+        *_capped(
+            "Buildings with no row in the buildings factors",
+            _unknown_building_defects(rows, known_buildings),
+        ),
+    ]
+
+
+def _empty_cell_defects(rows: list[_BuildingRoomRow]) -> list[str]:
+    defects: list[str] = []
+    for row in rows:
+        empty = [
+            name
+            for name in _BUILDING_ROOM_CELLS
+            if getattr(row.room, name) is None or getattr(row.room, name) == ""
+        ]
+        if empty:
+            defects.append(f"line {row.line}: empty {', '.join(empty)}")
+    return defects
+
+
+def _duplicate_room_defects(rows: list[_BuildingRoomRow]) -> list[str]:
+    """Spaces are ignored in the key so the upload-side match (#2268) can
+    never resolve one name to two rooms.
+    """
+    first_seen: dict[str, int] = {}
+    defects: list[str] = []
+    for row in rows:
+        key = normalize_room_name(row.room.room_name)
+        if not key:
+            continue
+        if key in first_seen:
+            defects.append(
+                f"line {row.line}: room {row.room.room_name!r} already listed "
+                f"on line {first_seen[key]}"
+            )
+            continue
+        first_seen[key] = row.line
+    return defects
+
+
+def _unknown_building_defects(
+    rows: list[_BuildingRoomRow], known_buildings: set[str]
+) -> list[str]:
+    if not known_buildings:
+        return [
+            "no buildings factors are loaded — upload building_rooms_factors.csv "
+            "before the building rooms reference"
+        ]
+    return [
+        f"line {row.line}: building {row.room.building_name!r}"
+        for row in rows
+        if row.room.building_name and row.room.building_name not in known_buildings
+    ]
+
+
+def _capped(label: str, defects: list[str]) -> list[str]:
+    if not defects:
+        return []
+    shown = defects[:_DEFECT_LIST_CAP]
+    lines = [f"{label} ({len(defects)}):", *shown]
+    if len(defects) > len(shown):
+        lines.append(f"... and {len(defects) - len(shown)} more")
+    return lines
 
 
 def _validated_room_type(value: Any) -> str | None:

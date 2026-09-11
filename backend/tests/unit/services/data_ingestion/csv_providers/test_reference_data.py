@@ -1,13 +1,15 @@
 """Tests for ReferenceDataCSVProvider."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.models.building_room import BuildingRoom
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
+from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 from app.services.data_ingestion.csv_providers.reference_data import (
     BUILDING_ROOMS_EXPECTED_COLUMNS,
     BUILDING_ROOMS_REQUIRED_COLUMNS,
@@ -85,13 +87,29 @@ def test_validate_headers_accepts_full_set():
     )
 
 
-def test_validate_headers_rejects_unknown_columns():
+def test_validate_headers_rejects_misspelled_column():
     # Regression test for #1545: a misspelled column (e.g.
     # room_surface_square_meters instead of room_surface_square_meter) must
-    # fail loudly rather than silently resolving to None on every row.
+    # fail loudly rather than silently resolving to None on every row. Every
+    # rooms column is required (#2716), so the typo surfaces as the missing one.
     csv_text = (
-        "building_location,building_name,room_name,room_surface_square_meters\n"
-        "ECUBLENS,GC,AI0122,12\n"
+        "building_location,building_name,room_name,room_type,"
+        "room_surface_square_meters\n"
+        "ECUBLENS,GC,AI0122,office,12\n"
+    )
+    with pytest.raises(ValueError, match="missing required.*room_surface_square_meter"):
+        ReferenceDataCSVProvider._validate_headers(
+            csv_text,
+            BUILDING_ROOMS_REQUIRED_COLUMNS,
+            BUILDING_ROOMS_EXPECTED_COLUMNS,
+        )
+
+
+def test_validate_headers_rejects_unknown_columns():
+    csv_text = (
+        "building_location,building_name,room_name,room_type,"
+        "room_surface_square_meter,floor\n"
+        "ECUBLENS,GC,AI0122,office,12,3\n"
     )
     with pytest.raises(ValueError, match="unexpected columns"):
         ReferenceDataCSVProvider._validate_headers(
@@ -252,35 +270,144 @@ def test_non_negative_surface() -> None:
 _ROOMS_HEADER = (
     "building_location,building_name,room_name,room_type,room_surface_square_meter"
 )
+_KNOWN_BUILDINGS_PATCH = (
+    "app.services.data_ingestion.csv_providers.reference_data.FactorRepository"
+)
+
+
+def _known_buildings(*names: str):
+    """Stand in for the factors table: the buildings that have a factor row."""
+    patcher = patch(_KNOWN_BUILDINGS_PATCH)
+    repo_cls = patcher.start()
+    repo_cls.return_value.list_classification_values = AsyncMock(
+        return_value=set(names)
+    )
+    return patcher
+
+
+async def _ingest_rooms(csv_rows: str, *known: str) -> dict:
+    patcher = _known_buildings(*known)
+    try:
+        return await _make_provider()._ingest_building_rooms(
+            f"{_ROOMS_HEADER}\n{csv_rows}"
+        )
+    finally:
+        patcher.stop()
 
 
 @pytest.mark.asyncio
 async def test_ingest_building_rooms_rejects_bad_room_type() -> None:
-    provider = _make_provider()
-    csv_text = f"{_ROOMS_HEADER}\nECUBLENS,AAB,AAB 0 01,swimming-pool,18.0\n"
     with pytest.raises(ValueError, match="Invalid room_type"):
-        await provider._ingest_building_rooms(csv_text)
+        await _ingest_rooms("ECUBLENS,AAB,AAB 0 01,swimming-pool,18.0\n", "AAB")
 
 
 @pytest.mark.asyncio
 async def test_ingest_building_rooms_rejects_negative_surface() -> None:
-    provider = _make_provider()
-    csv_text = f"{_ROOMS_HEADER}\nECUBLENS,AAB,AAB 0 01,office,-18.0\n"
     with pytest.raises(ValueError, match="non-negative"):
-        await provider._ingest_building_rooms(csv_text)
+        await _ingest_rooms("ECUBLENS,AAB,AAB 0 01,office,-18.0\n", "AAB")
+
+
+@pytest.mark.asyncio
+async def test_ingest_building_rooms_rejects_empty_surface_with_its_line() -> None:
+    """#2716: an empty surface cell used to import as NULL and every entry
+    naming the room computed to nothing. Line 1 is the header, so the
+    offending row is file line 3.
+    """
+    with pytest.raises(ValueError, match=r"line 3: empty room_surface_square_meter"):
+        await _ingest_rooms(
+            "ECUBLENS,AAB,AAB 0 01,office,18.0\nECUBLENS ,AI,AI 2 46.1,laboratories,\n",
+            "AAB",
+            "AI",
+        )
+
+
+@pytest.mark.asyncio
+async def test_ingest_building_rooms_rejects_empty_mandatory_cells() -> None:
+    """Rows missing a name used to be skipped and counted, not rejected."""
+    with pytest.raises(ValueError, match=r"line 2: empty building_name, room_type"):
+        await _ingest_rooms("ECUBLENS,,AAB 0 01,,18.0\n", "AAB")
+
+
+@pytest.mark.asyncio
+async def test_ingest_building_rooms_rejects_duplicates_spaces_ignored() -> None:
+    """Exact duplicates and spacing-only variants both collapse to one room;
+    the message points at both lines so the data manager can delete one.
+    """
+    with pytest.raises(ValueError) as exc_info:
+        await _ingest_rooms(
+            "ECUBLENS,AAB,AAB 0 14,office,25.81\n"
+            "ECUBLENS,AAB,AAB 0 14,office,25.81\n"
+            "ECUBLENS,AI,AI 3147,office,11.94\n"
+            "ECUBLENS,AI,AI 3 147,office,11.94\n",
+            "AAB",
+            "AI",
+        )
+    message = str(exc_info.value)
+    assert "line 3: room 'AAB 0 14' already listed on line 2" in message
+    assert "line 5: room 'AI 3 147' already listed on line 4" in message
+
+
+@pytest.mark.asyncio
+async def test_ingest_building_rooms_rejects_building_without_factors() -> None:
+    with pytest.raises(ValueError, match=r"line 2: building 'ZEBRAFISH'"):
+        await _ingest_rooms(
+            "ECUBLENS,ZEBRAFISH,ZEBRAFISH facility,laboratories,40.0\n", "AAB"
+        )
+
+
+@pytest.mark.asyncio
+async def test_ingest_building_rooms_names_the_missing_factors_upload() -> None:
+    """A factor-less database is one message, not one line per room."""
+    with pytest.raises(ValueError, match="upload building_rooms_factors.csv"):
+        await _ingest_rooms("ECUBLENS,AAB,AAB 0 01,office,18.0\n")
+
+
+@pytest.mark.asyncio
+async def test_ingest_building_rooms_reports_every_defect_class_at_once() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        await _ingest_rooms(
+            "ECUBLENS,AAB,AAB 0 01,office,\n"
+            "ECUBLENS,AAB,AAB 0 01,office,18.0\n"
+            "GENEVE,B,B 3 3 222.129,laboratories,9.0\n",
+            "AAB",
+        )
+    message = str(exc_info.value)
+    assert "Rows with an empty mandatory cell (1):" in message
+    assert "Rooms listed more than once (1):" in message
+    assert "Buildings with no row in the buildings factors (1):" in message
 
 
 @pytest.mark.asyncio
 async def test_ingest_building_rooms_valid_rows_still_pass(db_session) -> None:
+    """Zero is a valid surface, cells are trimmed, and the building check
+    reads the real factors table.
+    """
     from sqlalchemy import select
 
+    db_session.add(
+        Factor(
+            emission_type_id=EmissionType.buildings__rooms.value,
+            data_entry_type_id=DataEntryTypeEnum.building.value,
+            classification={
+                "building_name": "AAB",
+                "room_type": "office",
+                "energy_type": "electric",
+            },
+            values={"ef_kg_co2eq_per_kwh": 0.1},
+            year=2025,
+        )
+    )
+    await db_session.flush()
     provider = ReferenceDataCSVProvider(
         config={"job_id": 1, "year": 2024}, data_session=db_session
     )
     csv_text = (
-        f"{_ROOMS_HEADER}\nECUBLENS,AAB,AAB 0 01,office,18.0\nECUBLENS,AAB,AAB 0 02,,\n"
+        f"{_ROOMS_HEADER}\n"
+        "ECUBLENS,AAB,AAB 0 01,office,18.0\n"
+        "ECUBLENS ,AAB,AAB 0 02,archives,0.0\n"
     )
     stats = await provider._ingest_building_rooms(csv_text)
-    assert stats["rows_inserted"] == 2
+    assert stats == {"rows_processed": 2, "rows_skipped": 0, "rows_inserted": 2}
     rows = (await db_session.exec(select(BuildingRoom))).scalars().all()
-    assert {r.room_type for r in rows} == {"office", None}
+    assert {r.building_location for r in rows} == {"ECUBLENS"}
+    assert {r.room_surface_square_meter for r in rows} == {18.0, 0.0}
