@@ -1,11 +1,30 @@
 import { outlinedBiotech } from '@quasar/extras/material-icons-outlined';
-import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
+import {
+  ConditionalBounds,
+  ModuleConfig,
+  ModuleField,
+} from '@/constant/moduleConfig';
 import {
   MODULES,
   SUBMODULE_RESEARCH_FACILITIES_TYPES,
 } from '@/constant/modules';
 import { formatTonnesCO2 } from '@/utils/number';
 import type { Module, ResearchFacilitiesSubType } from '@/constant/modules';
+
+// #2007 — mirrors backend USE_BOUNDS: `use` means a share, machine time,
+// spend or housings depending on the platform's unit. The Planner grid
+// validates against the same table.
+export const USE_BOUNDS: ConditionalBounds = {
+  fieldId: 'use_unit',
+  byValue: {
+    '%': { max: 100 },
+    // 168 h/week x 52 weeks — the backend derives this from
+    // HOURS_PER_WEEK x WEEKS_PER_YEAR, the same pair the equipment module
+    // computes with. Not the calendar's 8760.
+    hours: { max: 8736 },
+    housings: { integer: true },
+  },
+};
 
 // #2007: manual entry picks a platform from the year's factor catalog — the id
 // is the factor's classification key, the name is only its label. Free-typing
@@ -46,19 +65,7 @@ const researchFacilitiesFields: ModuleField[] = [
     type: 'number',
     required: true,
     min: 0,
-    // #2007 — mirrors backend USE_BOUNDS: `use` means a share, machine time,
-    // spend or housings depending on the platform's unit.
-    conditionalBounds: {
-      fieldId: 'use_unit',
-      byValue: {
-        '%': { max: 100 },
-        // 168 h/week x 52 weeks — the backend derives this from
-        // HOURS_PER_WEEK x WEEKS_PER_YEAR, the same pair the equipment module
-        // computes with. Not the calendar's 8760.
-        hours: { max: 8736 },
-        housings: { integer: true },
-      },
-    },
+    conditionalBounds: USE_BOUNDS,
     editableInline: true,
     ratio: '1/3',
     hideIn: { form: false },
@@ -131,19 +138,7 @@ const animalFields: ModuleField[] = [
     type: 'number',
     required: true,
     min: 0,
-    // #2007 — mirrors backend USE_BOUNDS: `use` means a share, machine time,
-    // spend or housings depending on the platform's unit.
-    conditionalBounds: {
-      fieldId: 'use_unit',
-      byValue: {
-        '%': { max: 100 },
-        // 168 h/week x 52 weeks — the backend derives this from
-        // HOURS_PER_WEEK x WEEKS_PER_YEAR, the same pair the equipment module
-        // computes with. Not the calendar's 8760.
-        hours: { max: 8736 },
-        housings: { integer: true },
-      },
-    },
+    conditionalBounds: USE_BOUNDS,
     editableInline: true,
     ratio: '1/4',
     hideIn: { form: false },
