@@ -467,6 +467,10 @@ export default {
     en: 'New',
     fr: 'Nouveau',
   },
+  table_inline_edit_cell: {
+    en: 'Edit {column}',
+    fr: 'Modifier {column}',
+  },
   common_ask_head_of_unit: {
     en: 'This module has been validate by your head of unit. Ask them to switch it to "Edition mode" to add your data. ',
     fr: 'Ce module a été validé par votre responsable d\'unité. Demandez-lui ou elle de le passer en "mode Édition" pour pouvoir saisir vos données. ',
