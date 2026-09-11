@@ -85,6 +85,9 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
         self, raw_data: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         year = str(self.config["year"])
+        # Per-call tallies: a reused instance must not report the previous
+        # call's drops on top of its own (#2474).
+        self.drop_reasons.clear()
         monthly_rows: list[dict[str, Any]] = []
         for record in raw_data:
             if record.get(self.CAPTION_CLIENT_TYPE) != self.INTERNAL_CLIENT_TYPE:
@@ -133,15 +136,21 @@ class ResearchFacilitiesApiProvider(BaseTableauApiProvider):
         # returns SUM(amount) grouped at date_iso's native (month) grain —
         # collapse those monthly rows into one annual total per (facility, unit)
         # here instead (facility IDs are only unique within a unit).
-        yearly_totals: dict[tuple[str, str | None], dict[str, Any]] = {}
+        # A month with no unit can never load; keep each one unmerged so
+        # ``rows_missing_centre_financier`` counts months, not facilities —
+        # merging them hid the true size of the SAP coverage gap (#2474).
+        no_unit_rows = [r for r in monthly_rows if not r["unit_institutional_id"]]
+        yearly_totals: dict[tuple[str, str], dict[str, Any]] = {}
         for row in monthly_rows:
+            if not row["unit_institutional_id"]:
+                continue
             key = (row["researchfacility_id"], row["unit_institutional_id"])
             existing = yearly_totals.get(key)
             if existing is None:
                 yearly_totals[key] = dict(row)
             else:
                 existing["use"] += row["use"]
-        transformed = list(yearly_totals.values())
+        transformed = list(yearly_totals.values()) + no_unit_rows
 
         logger.info(
             "Research facilities transform kept %s of %s rows%s "
