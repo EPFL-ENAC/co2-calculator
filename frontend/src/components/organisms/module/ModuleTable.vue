@@ -156,19 +156,27 @@
           :class="getColumnClasses(slotProps.row, col)"
           :style="getColumnStyle(col)"
         >
-          <template v-if="col.editableInline">
-            <template
-              v-if="
-                isRowConditionallyReadOnly(slotProps.row, col) ||
-                isRowFieldPolicyLocked(slotProps.row, col)
-              "
-            >
-              <span>{{ renderReadOnlyInlineCell(slotProps.row, col) }}</span>
-            </template>
+          <module-inline-cell
+            v-if="col.editableInline"
+            :editing="isInlineEditing(slotProps.row, col)"
+            :locked="isInlineLocked(slotProps.row, col)"
+            :disabled="isDisabled"
+            :affordance="col.type === 'select' ? 'select' : 'input'"
+            :text="inlineCellText(slotProps.row, col)"
+            :text-is-placeholder="isRequiredEmptyUsageCell(slotProps.row, col)"
+            :required-empty="isRequiredEmptyUsageCell(slotProps.row, col)"
+            :title="getColumnTitle(col)"
+            :edit-label="$t('table_inline_edit_cell', { column: col.label })"
+            @update:editing="
+              (open: boolean) =>
+                open
+                  ? beginInlineEdit(slotProps.row, col)
+                  : endInlineEdit(slotProps.row, col)
+            "
+            @cancel="cancelInlineEdit(slotProps.row, col)"
+          >
             <module-inline-select
-              v-else-if="
-                col.optionsId === 'kind' || col.optionsId === 'subkind'
-              "
+              v-if="col.optionsId === 'kind' || col.optionsId === 'subkind'"
               :row="slotProps.row"
               :field-id="col.field"
               :options-id="col.optionsId"
@@ -182,11 +190,16 @@
               :factor-year="factorYear"
               :carbon-report-id="carbonReportId"
               :disable="isDisabled"
+              open-on-mount
+              @committed="endInlineEdit(slotProps.row, col)"
+              @blur="endInlineEdit(slotProps.row, col)"
             />
             <component
               :is="col.inputComponent"
               v-else
+              :ref="col.type === 'select' ? openSelectOnMount : undefined"
               v-model="slotProps.row[col.field]"
+              autofocus
               :disable="isDisabled"
               :inputmode="getColumnInputmode(col)"
               :options="getInlineOptions(col)"
@@ -202,33 +215,18 @@
               :rules="getColumnRules(col)"
               :mask="col.type === 'date' ? DATE_INPUT_MASK : undefined"
               :placeholder="getColumnPlaceholder(slotProps.row, col)"
-              :class="[
-                'inline-input',
-                {
-                  'inline-input--required-empty': isRequiredEmptyUsageCell(
-                    slotProps.row,
-                    col,
-                  ),
-                },
-              ]"
+              class="inline-input"
               :dropdown-icon="col.type === 'select' ? matExpandMore : undefined"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
-              @blur="col.type !== 'select' && commitInline(slotProps.row, col)"
-              @update:model-value="
-                col.type === 'select' && commitInline(slotProps.row, col)
+              @blur="
+                col.type !== 'select' && onInlineEditorBlur(slotProps.row, col)
               "
-            >
-              <template v-if="col.type !== 'select'" #append>
-                <q-icon
-                  v-if="hasValue(slotProps.row[col.field])"
-                  :name="outlinedEdit"
-                  size="14px"
-                  class="inline-edit-icon"
-                />
-              </template>
-            </component>
-          </template>
+              @update:model-value="
+                col.type === 'select' && onInlineSelectPicked(slotProps.row, col)
+              "
+            />
+          </module-inline-cell>
           <template v-else-if="col.name === 'action' && showTableActions">
             <q-btn
               v-if="showTableNote"
@@ -494,7 +492,6 @@ import {
   outlinedComment,
   outlinedDelete,
   outlinedDownload,
-  outlinedEdit,
   outlinedInfo,
   outlinedReportProblem,
   outlinedSearch,
@@ -513,6 +510,7 @@ import type {
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
+import ModuleInlineCell from './ModuleInlineCell.vue';
 import {
   DATE_INPUT_MASK,
   isValidCalendarDate,
@@ -1578,6 +1576,47 @@ function getError(row: ModuleRow, col: { name: string }) {
   return inlineErrors.value[errorKey(row, col)] ?? '';
 }
 
+const inlineEditing = ref<Record<string, { original: RowValue }>>({});
+function isInlineEditing(row: ModuleRow, col: { name: string }) {
+  return errorKey(row, col) in inlineEditing.value;
+}
+function beginInlineEdit(row: ModuleRow, col: TableViewColumn) {
+  inlineEditing.value[errorKey(row, col)] = { original: row[col.field] };
+}
+function endInlineEdit(row: ModuleRow, col: { name: string }) {
+  delete inlineEditing.value[errorKey(row, col)];
+}
+function cancelInlineEdit(row: ModuleRow, col: TableViewColumn) {
+  const snapshot = inlineEditing.value[errorKey(row, col)];
+  if (snapshot) row[col.field] = snapshot.original;
+  setError(row, col, null);
+  endInlineEdit(row, col);
+}
+async function onInlineEditorBlur(row: ModuleRow, col: TableViewColumn) {
+  await commitInline(row, col);
+  if (!getError(row, col)) endInlineEdit(row, col);
+}
+async function onInlineSelectPicked(row: ModuleRow, col: TableViewColumn) {
+  await commitInline(row, col);
+  if (!getError(row, col)) endInlineEdit(row, col);
+}
+async function openSelectOnMount(el: unknown) {
+  if (!el) return;
+  await nextTick();
+  (el as InstanceType<typeof QSelect>).showPopup();
+}
+function isInlineLocked(row: ModuleRow, col: TableViewColumn) {
+  return (
+    isRowConditionallyReadOnly(row, col) || isRowFieldPolicyLocked(row, col)
+  );
+}
+function inlineCellText(row: ModuleRow, col: TableViewColumn): string {
+  if (isRequiredEmptyUsageCell(row, col)) {
+    return getColumnPlaceholder(row, col) ?? '';
+  }
+  return renderReadOnlyInlineCell(row, col);
+}
+
 function validateUsageHoursWeek(value: number) {
   if (!Number.isFinite(value))
     return {
@@ -1633,6 +1672,11 @@ async function commitInline(
   },
 ) {
   if (!col.editableInline) return;
+  const snapshot = inlineEditing.value[errorKey(row, col)];
+  if (snapshot && Object.is(row[col.field], snapshot.original)) {
+    setError(row, col, null);
+    return;
+  }
   const isUsageField =
     col.name === 'active_usage_hours_per_week' ||
     col.name === 'standby_usage_hours_per_week';
@@ -1792,6 +1836,7 @@ function getColumnClasses(row: ModuleRow, col: TableViewColumn) {
     'table-cell',
     { 'column-max-width': col.maxColumnWidth !== undefined },
     { 'column-min-width': hasMinWidth },
+    { 'co2-table__td--inline': col.editableInline },
   ];
 }
 
@@ -2238,12 +2283,6 @@ watch(locale, () => {
   fetchTaxonomyIfNeeded();
 });
 
-watch(
-  () => moduleStore.state.dataSubmodule[props.submoduleType],
-  () => {},
-  { deep: true, immediate: true },
-);
-
 onMounted(async () => {
   moduleStore.initializeSubmoduleState(props.submoduleType);
 
@@ -2349,17 +2388,6 @@ onUnmounted(() => {
 
 .equipment-new-banner__icon {
   color: #ffa503;
-}
-
-/* Empty required usage cell on a new equipment row (#259): orange contour so
-   the user immediately sees what must be filled before validating. */
-.inline-input--required-empty :deep(.q-field__control) {
-  border: 1px solid #ffa503;
-  border-radius: 4px;
-}
-
-.inline-input--required-empty :deep(.q-field__control):hover {
-  border-color: #e09400;
 }
 
 .cell-content {
@@ -2514,78 +2542,81 @@ onUnmounted(() => {
     }
   }
 
-  td
-    .q-field--outlined:not(.q-field--focused):not(.q-field--error)
-    .q-field__control::before {
-    border-color: transparent;
+  td.co2-table__td--inline {
+    padding-right: 0;
+    padding-left: 0;
   }
 
-  td
-    .q-field--outlined:not(.q-field--focused):not(.q-field--error):not(
-      .q-field--disabled
-    ):hover
-    .q-field__control {
+  .inline-cell {
+    display: flex;
+    gap: tokens.$spacing-xs;
+    align-items: center;
+    width: 100%;
+    min-height: tokens.$table-inline-field-height;
+    padding: 0 tokens.$table-inline-field-padding-x;
+    font-size: tokens.$text-size-sm;
+    border-radius: tokens.$radius-default;
+  }
+
+  .inline-cell__text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .inline-cell__icon {
+    flex: none;
+    color: tokens.$table-inline-icon-color;
+  }
+
+  .inline-cell--input {
+    cursor: text;
+  }
+
+  .inline-cell--input .inline-cell__icon {
+    font-size: tokens.$table-inline-icon-size;
+  }
+
+  .inline-cell--select {
+    cursor: pointer;
+  }
+
+  .inline-cell--select .inline-cell__icon {
+    font-size: tokens.$table-action-icon-size;
+  }
+
+  .inline-cell--editable:hover,
+  .inline-cell--editable:focus-visible {
     background: tokens.$table-field-hover-bg;
   }
 
-  // HACK: Editable and read-only rows share a column, so a field's text must sit on
-  // the same left edge as plain cell text. The control's horizontal padding is
-  // set from one token and cancelled by an equal negative margin: the pill
-  // keeps its inset while its text lands on the column's text grid.
-  td .inline-input,
-  td .inline-select-wrapper .q-select {
-    display: inline-flex;
-    width: auto;
-    max-width: 100%;
-    margin-left: -(tokens.$table-inline-field-padding-x);
-    vertical-align: middle;
-
-    .q-field__control {
-      padding: 0 tokens.$table-inline-field-padding-x;
-    }
+  .inline-cell--placeholder .inline-cell__text {
+    color: tokens.$table-color-disabled;
   }
 
-  td .inline-input .q-field__native,
-  td .inline-input .q-field__input,
-  td .inline-select-wrapper .q-field__native,
-  td .inline-select-wrapper .q-field__input {
-    field-sizing: content;
-    min-width: 1ch;
-    font-size: tokens.$text-size-sm;
+  .inline-cell--required-empty {
+    border: 1px solid #ffa503;
   }
 
-  td .inline-input .q-field__append,
-  td .inline-select-wrapper .q-field__append {
-    padding-left: tokens.$spacing-xs;
+  .inline-cell--editing {
+    padding: 0;
   }
 
-  td .inline-input--required-empty {
-    width: calc(100% + tokens.$table-inline-field-padding-x);
-  }
-
-  td .inline-input--required-empty .q-field__native,
-  td .inline-input--required-empty .q-field__input {
-    field-sizing: auto;
+  .inline-cell--editing .q-field {
     width: 100%;
   }
 
-  .inline-edit-icon {
+  .inline-cell--editing .q-field__control {
+    height: tokens.$table-inline-field-height;
+    padding: 0 tokens.$table-inline-field-padding-x;
+  }
+
+  .inline-cell--editing .q-field__native,
+  .inline-cell--editing .q-field__input {
+    font-size: tokens.$text-size-sm;
+  }
+
+  .inline-cell--editing .q-select__dropdown-icon {
     color: tokens.$table-inline-icon-color;
-  }
-
-  .q-field--focused .inline-edit-icon,
-  .q-field--disabled .inline-edit-icon {
-    display: none;
-  }
-
-  td .q-select__dropdown-icon {
-    font-size: 18px;
-    color: tokens.$table-inline-icon-color;
-  }
-
-  td .q-select:not(.q-field--disabled),
-  td .q-select:not(.q-field--disabled) * {
-    cursor: pointer;
   }
 
   .action-btn {
