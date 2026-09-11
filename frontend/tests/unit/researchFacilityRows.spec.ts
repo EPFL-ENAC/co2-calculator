@@ -8,7 +8,10 @@
 
 import { test, expect } from '@playwright/test';
 
-import { buildResearchFacilityRows } from '../../src/utils/researchFacilityRows';
+import {
+  buildResearchFacilityRows,
+  researchFacilityUseRules,
+} from '../../src/utils/researchFacilityRows';
 
 // research_facilities: kind_field = researchfacility_id, no subkind.
 const COMMON_TREE = [
@@ -101,4 +104,42 @@ test('rows start unselected and empty — entries bind afterwards', () => {
     entryId: null,
     kg: null,
   });
+});
+
+// #2653 — a planned use above 100 % used to reach the backend and surface as
+// a raw pydantic error; the grid now refuses it inline with the same bounds
+// table the Calculator form uses.
+const USE_BOUNDS = {
+  fieldId: 'use_unit',
+  byValue: {
+    '%': { max: 100 },
+    hours: { max: 8736 },
+    housings: { integer: true },
+  },
+};
+const t = (key: string): string => key;
+
+function firstFailure(metric: string, value: number): string | true {
+  const failed = researchFacilityUseRules(metric, USE_BOUNDS, t)
+    .map((rule) => rule(value))
+    .find((result) => result !== true);
+  return failed ?? true;
+}
+
+test('#2653: a percentage use above 100 is refused, 100 is accepted', () => {
+  expect(firstFailure('%', 150)).toBe('validation_must_be_at_most');
+  expect(firstFailure('%', 100)).toBe(true);
+});
+
+test('#2653: a negative use is refused whatever the unit', () => {
+  expect(firstFailure('CHF', -1)).toBe('validation_must_be_at_least');
+});
+
+test('#2653: a unit without a ceiling accepts any positive use', () => {
+  expect(firstFailure('CHF', 20000)).toBe(true);
+});
+
+test('#2653: housings must be whole numbers', () => {
+  expect(firstFailure('housings', 2.5)).toBe('validation_must_be_whole_number');
+  expect(firstFailure('housings', 3)).toBe(true);
 });

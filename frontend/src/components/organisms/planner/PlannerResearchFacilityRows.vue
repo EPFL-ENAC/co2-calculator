@@ -96,6 +96,7 @@
               hide-bottom-space
               min="0"
               :suffix="row.metric"
+              :rules="rulesFor(row)"
               :aria-label="$t('planner_rf_use_label')"
               :disable="disable || savingKey === row.key"
               :loading="savingKey === row.key"
@@ -136,11 +137,13 @@ import {
   MODULES,
   SUBMODULE_RESEARCH_FACILITIES_TYPES,
 } from '@/constant/modules';
+import { USE_BOUNDS } from '@/constant/module-config/research-facilities';
 import { getModuleTypeId } from '@/constant/moduleStates';
 import { useFactorsStore } from '@/stores/factors';
 import { useModuleStore } from '@/stores/modules';
 import {
   buildResearchFacilityRows,
+  researchFacilityUseRules,
   rowKey,
   type RfRow,
   type RfSub,
@@ -312,6 +315,19 @@ async function loadGroup(sub: RfSub) {
   bindEntries(sub, entries);
 }
 
+const rulesByMetric = new Map<
+  string,
+  ReturnType<typeof researchFacilityUseRules>
+>();
+
+function rulesFor(row: RfRow) {
+  const cached = rulesByMetric.get(row.metric);
+  if (cached) return cached;
+  const rules = researchFacilityUseRules(row.metric, USE_BOUNDS, t);
+  rulesByMetric.set(row.metric, rules);
+  return rules;
+}
+
 function formatKg(value: number): string {
   return n(Math.round(value));
 }
@@ -325,6 +341,7 @@ function save(row: RfRow): Promise<void> {
 }
 
 async function persist(row: RfRow) {
+  if (rulesFor(row).some((rule) => rule(row.use) !== true)) return;
   const use =
     typeof row.use === 'number' && Number.isFinite(row.use) && row.use >= 0
       ? row.use
