@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 1557
-last_updated: 2026-08-28
+last_updated: 2026-09-11
 title: "ModuleTable.vue decomposition"
 summary: "Break the ~2017-line shared Calculator/planner data-entry table into composables + sub-components, each under the repo's 500-line limit, with no behavior change."
 ---
@@ -86,6 +86,11 @@ function useModuleTableColumns(params: {
 Export `TableViewColumn` from the composable; `renderCell` (Step 2) imports it.
 
 ### Step 2 — `useInlineCellEditing`
+
+> Since [2517](2517-inline-cell-lazy-editor.md) the inline cell's
+> presentation and activation live in `ModuleInlineCell.vue`; this step moves
+> only `commitInline`, `inlineErrors`, `inlineEditing` and `renderCell` into
+> the composable, and the shell's props are computed from it.
 
 Extract inline editing. Moves out:
 
