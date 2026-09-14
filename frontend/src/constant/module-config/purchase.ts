@@ -96,6 +96,7 @@ const purchaseFields: ModuleField[] = [
     type: 'number',
     hideIn: { form: true },
     sortable: true,
+    tooltip: 'module-purchase-submodule-purchase-table-kg_co2eq',
   },
 ];
 
@@ -153,6 +154,7 @@ const additionalPurchaseFields: ModuleField[] = [
     type: 'number',
     hideIn: { form: true },
     sortable: true,
+    tooltip: 'module-purchase-submodule-purchase-table-kg_co2eq',
   },
 ];
 

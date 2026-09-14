@@ -18,10 +18,10 @@ import {
 } from '@/stores/simulatorPlans';
 import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { parseUtcDate } from '@/utils/date';
+import { formatYmd, parseUtcDate } from '@/utils/date';
 import { formatTonnesCO2 } from '@/utils/number';
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const workspaceStore = useWorkspaceStore();
@@ -41,7 +41,7 @@ const pagination = ref({ rowsPerPage: ROWS_PER_PAGE });
 
 function formatPlanDate(dateString: string | null): string {
   if (!dateString) return '';
-  return parseUtcDate(dateString).toLocaleDateString(locale.value);
+  return formatYmd(parseUtcDate(dateString));
 }
 
 const planColumns = computed<QTableColumn[]>(() => [

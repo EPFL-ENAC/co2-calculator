@@ -87,7 +87,11 @@ async def test_aggregation_calls_recompute_stats_for_each_affected_module():
     with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
         meta = await aggregation_mod.aggregation_handler(job, job_session, data_session)
 
-    svc.list_modules_for.assert_awaited_once_with(module_type_id=11, year=2025)
+    # A plain (recalc-chained) aggregation keeps the narrow slice: only the
+    # admin trigger sets ``include_reference_year_reports`` (#2775).
+    svc.list_modules_for.assert_awaited_once_with(
+        module_type_id=11, year=2025, include_reference_year=False
+    )
     svc.recompute_stats_many.assert_awaited_once_with([101, 202, 303], bump_status=True)
     assert meta["modules_refreshed"] == 3
     assert meta["status_message"] == "Aggregation completed"

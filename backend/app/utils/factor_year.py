@@ -2,6 +2,8 @@
 
 from datetime import UTC, datetime
 
+from sqlalchemy.sql.elements import ColumnElement
+from sqlmodel import col, func
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_project import CarbonProject
@@ -9,6 +11,24 @@ from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportRead
 from app.services.year_config_service import is_year_started
+
+
+def effective_factor_year_col() -> ColumnElement[int]:
+    """SQL twin of :func:`resolve_factor_year`'s reference-year tier (#2775).
+
+    Scoping queries must group reports by the year whose factors apply, not
+    by ``CarbonReport.year``: a Simulator Plan report's own year is its
+    planning target (2020-2043 in dev) while its entries price against
+    ``reference_year``. Scoping on the planning year drops the plan into a
+    year bucket that has no factor data and that no operator would select.
+
+    Only Simulator Plan writes ``reference_year``
+    (``SimulatorPlanService.set_reference_year``), so this resolves to
+    ``CarbonReport.year`` unchanged for Calculator and Explore. Explore's
+    ``_resolve_latest_started_year`` tier has no SQL twin — it needs
+    per-project state (#2656) — so Explore stays out of scope here.
+    """
+    return func.coalesce(col(CarbonReport.reference_year), col(CarbonReport.year))
 
 
 async def resolve_factor_year(

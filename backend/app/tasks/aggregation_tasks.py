@@ -138,9 +138,21 @@ async def aggregation_handler(
             f"pg_advisory_xact_lock({_AGGREGATION_LOCK_CATEGORY}, {job.year})"
         )
 
+    own_config = (job.meta or {}).get("config") or {}
+
+    # #2775 — the admin recompute-stats trigger asks for Simulator Plan
+    # reports baselined on this year (their own year is a planning year with
+    # no factors, so they never appear in a slice of their own). The
+    # recalc-chained path deliberately does not: widening its candidates
+    # would route plan modules through ``emptied_module_ids`` and bump
+    # validated plans to IN_PROGRESS on every factor upload.
+    include_reference_year = bool(own_config.get("include_reference_year_reports"))
+
     svc = CarbonReportModuleService(data_session)
     candidates = await svc.list_modules_for(
-        module_type_id=job.module_type_id, year=job.year
+        module_type_id=job.module_type_id,
+        year=job.year,
+        include_reference_year=include_reference_year,
     )
 
     # 4A.4 — read the precise union from OUR OWN ``meta.config`` first
@@ -149,7 +161,6 @@ async def aggregation_handler(
     # see it yet, runner-``finish_job`` is pending). Falls back to
     # the sibling-query helper (4A.3) for legacy aggregations that
     # weren't passed an explicit scope at chain time.
-    own_config = (job.meta or {}).get("config") or {}
     own_scope = own_config.get("affected_module_ids")
     affected_scope: set[int] | None
     if isinstance(own_scope, list):

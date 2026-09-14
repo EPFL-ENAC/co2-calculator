@@ -10,6 +10,7 @@ import PlannerPrintHeadcountTable from '@/components/organisms/print/PlannerPrin
 import PlannerPrintYearPage from '@/components/organisms/print/PlannerPrintYearPage.vue';
 import PrintReportShell from '@/components/organisms/print/PrintReportShell.vue';
 import { useProjectPlannerPrintData } from '@/composables/print/useProjectPlannerPrintData';
+import { formatYmd, parseUtcDate } from '@/utils/date';
 import { formatTonnesCO2 } from '@/utils/number';
 import {
   filledYearRange,
@@ -42,10 +43,7 @@ const {
 const createdAtLabel = computed(() => {
   const createdAt = plan.value?.created_at;
   if (!createdAt) return '';
-  const parsed = new Date(createdAt);
-  return Number.isNaN(parsed.getTime())
-    ? ''
-    : parsed.toLocaleDateString('de-CH');
+  return formatYmd(parseUtcDate(createdAt));
 });
 
 // A grant proposal with planned years carries both views, so the cover opens

@@ -7,6 +7,7 @@ import {
 } from '@quasar/extras/material-icons';
 import { outlinedDownload } from '@quasar/extras/material-icons-outlined';
 import { computed, ref } from 'vue';
+import { date } from 'quasar';
 import { useUploadCard } from '@/composables/useUploadCard';
 import { useCardPipelineScope } from '@/composables/useCardPipelineScope';
 import {
@@ -275,7 +276,7 @@ function handleAbort() {
             </span>
             <span v-if="jobInfo.timestamp">
               {{ jobInfo.rowsProcessed !== undefined ? '·' : '' }}
-              {{ jobInfo.timestamp.toLocaleDateString() }}
+              {{ date.formatDate(jobInfo.timestamp, 'YYYY/MM/DD') }}
             </span>
           </div>
         </div>
@@ -381,7 +382,7 @@ function handleAbort() {
         {{ $t('data_management_rows_imported') }}
       </span>
       <span v-if="apiJobInfo.timestamp" class="q-ml-xs">
-        • {{ apiJobInfo.timestamp.toLocaleDateString() }}
+        • {{ date.formatDate(apiJobInfo.timestamp, 'YYYY/MM/DD') }}
       </span>
     </div>
 
