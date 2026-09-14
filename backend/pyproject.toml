@@ -51,6 +51,11 @@ testpaths = ["tests/"]
 asyncio_mode = "auto"
 
 env = [
+    # Tests that boot the real app (TestClient) must never reach a developer's
+    # on-disk SQLite: the default DB_URL points at ./co2_calculator.db, whose
+    # tables are created once and never migrated, so a stale file fails the
+    # suite with "no such column" while CI stays green.
+    "DB_URL=sqlite+aiosqlite:///:memory:",
     "DB_NAME=test_auth_db",
     "OAUTH_ISSUER_URL=http://fake-issuer",
     "OAUTH_CLIENT_ID=fake-client-id",

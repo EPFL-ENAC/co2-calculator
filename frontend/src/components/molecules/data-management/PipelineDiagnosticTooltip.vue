@@ -123,6 +123,7 @@ function formatRelative(iso: string | null): string | null {
           dense
           size="xs"
           :icon="matContentCopy"
+          :aria-label="$t('data_management_pipeline_id_copy')"
           color="white"
           @click.stop.prevent="copyPipelineId"
         >

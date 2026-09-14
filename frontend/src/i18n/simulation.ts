@@ -67,6 +67,10 @@ export default {
     en: 'CO₂ Explorer',
     fr: 'Explorateur CO₂',
   },
+  simulation_explore_print_no_exploration: {
+    en: 'No exploration to report on — start one from the CO₂ Explorer.',
+    fr: "Aucune exploration à présenter — démarrez-en une depuis l'Explorateur CO₂.",
+  },
   simulation_explore_page_intro: {
     en: 'Explore the carbon impact of any equipment, travel, purchase, research facilities and lab activity quickly, temporarily, and without saving.',
     fr: "Explorez l'impact carbone de tout équipement, voyage, achat, infrastructure de recherche et activité de laboratoire rapidement, temporairement, et sans sauvegarder.",
