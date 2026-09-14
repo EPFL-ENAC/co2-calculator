@@ -190,9 +190,16 @@
               :factor-year="factorYear"
               :carbon-report-id="carbonReportId"
               :disable="isDisabled"
+              :error-message="getError(slotProps.row, col) || null"
               open-on-mount
-              @committed="endInlineEdit(slotProps.row, col)"
-              @blur="endInlineEdit(slotProps.row, col)"
+              @committed="onInlineSelectCommitted(slotProps.row, col)"
+              @error="
+                (msg: string) => onInlineSelectError(slotProps.row, col, msg)
+              "
+              @blur="
+                !getError(slotProps.row, col) &&
+                endInlineEdit(slotProps.row, col)
+              "
             />
             <component
               :is="col.inputComponent"
@@ -1600,6 +1607,20 @@ async function onInlineEditorBlur(row: ModuleRow, col: TableViewColumn) {
 async function onInlineSelectPicked(row: ModuleRow, col: TableViewColumn) {
   await commitInline(row, col);
   if (!getError(row, col)) endInlineEdit(row, col);
+}
+// ModuleInlineSelect PATCHes itself; it reports the outcome so the editor
+// closes only on success and stays open with the error otherwise (like the
+// input editors above), where Esc restores the pre-edit value.
+function onInlineSelectCommitted(row: ModuleRow, col: TableViewColumn) {
+  setError(row, col, null);
+  endInlineEdit(row, col);
+}
+function onInlineSelectError(
+  row: ModuleRow,
+  col: TableViewColumn,
+  msg: string,
+) {
+  setError(row, col, msg || $t('validation_save_failed'));
 }
 async function openSelectOnMount(el: unknown) {
   if (!el) return;

@@ -8,6 +8,8 @@
       :disable="props.disable"
       :autofocus="props.openOnMount"
       :title="props.hint ? $t(props.hint) : undefined"
+      :error="!!props.errorMessage"
+      :error-message="props.errorMessage"
       hide-bottom-space
       :dropdown-icon="matExpandMore"
       @update:model-value="onValueChange"
@@ -66,12 +68,20 @@ type CommonProps = {
   carbonReportId?: number;
   disable?: boolean;
   openOnMount?: boolean;
+  /** Inline save error from the parent; shown under the field, keeps it open. */
+  errorMessage?: string | null;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
-const emit = defineEmits<{ blur: []; committed: [] }>();
+const emit = defineEmits<{
+  blur: [];
+  /** The pick was PATCHed; the parent may unmount this editor. */
+  committed: [];
+  /** The PATCH failed: the row keeps the picked value, the editor must stay. */
+  error: [message: string];
+}>();
 const selectRef = ref<InstanceType<typeof VirtualSelectField> | null>(null);
 const factorYear = toRef(props, 'factorYear');
 const isClass = computed(() => props.optionsId === 'kind');
@@ -223,10 +233,12 @@ const model = computed({
 
 async function onValueChange(val: string | number | null) {
   model.value = val;
-  emit('committed');
 
   const idNum = Number(props.row.id);
-  if (!Number.isFinite(idNum)) return;
+  if (!Number.isFinite(idNum)) {
+    emit('committed');
+    return;
+  }
 
   let payload: Record<string, string | number | boolean | null> = {
     [props.fieldId]: val,
@@ -237,15 +249,24 @@ async function onValueChange(val: string | number | null) {
     payload = buildingRoomPatchPayload(val, buildingRooms.value);
   }
 
-  await moduleStore.patchItem(
-    props.moduleType as Module,
-    props.submoduleType,
-    props.unitId,
-    String(props.year),
-    idNum,
-    payload,
-    props.carbonReportId,
-  );
+  // Only a successful PATCH commits: emitting first let the parent unmount
+  // this editor while the request was in flight, so a failure left the row
+  // showing an unsaved value with no error and no way back (Esc restores).
+  try {
+    await moduleStore.patchItem(
+      props.moduleType as Module,
+      props.submoduleType,
+      props.unitId,
+      String(props.year),
+      idNum,
+      payload,
+      props.carbonReportId,
+    );
+  } catch (err: unknown) {
+    emit('error', err instanceof Error ? err.message : '');
+    return;
+  }
+  emit('committed');
 }
 </script>
 

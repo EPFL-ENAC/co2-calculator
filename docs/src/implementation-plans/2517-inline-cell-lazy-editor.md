@@ -1,7 +1,7 @@
 ---
-status: accepted
+status: in-progress
 issue: 2517
-last_updated: 2026-09-11
+last_updated: 2026-09-14
 title: "Inline cells: one shell per editable cell, editor mounted on activation"
 summary: "Every editableInline cell of ModuleTable renders the same lightweight shell (locked or not) and mounts its Quasar editor only when activated. Replaces the negative-margin alignment hack of PR #2568 and removes the per-cell QSelect + composable cost."
 ---
