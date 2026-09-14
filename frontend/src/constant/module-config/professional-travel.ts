@@ -163,6 +163,7 @@ const emissionsField: ModuleField = {
   hideIn: {
     form: true,
   },
+  tooltip: 'module-professional-travel-submodule-travel-table-kg_co2eq',
 };
 
 const planeCabinClassField: ModuleField = {
