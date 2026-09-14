@@ -69,6 +69,20 @@ export function parseUtcDate(dateString: string): Date {
   return new Date(dateString);
 }
 
+const YMD_FORMAT = new Intl.DateTimeFormat('en-GB', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function formatYmd(date: Date): string {
+  if (Number.isNaN(date.getTime())) return '';
+  const p = Object.fromEntries(
+    YMD_FORMAT.formatToParts(date).map((part) => [part.type, part.value]),
+  );
+  return `${p.year}/${p.month}/${p.day}`;
+}
+
 export const DATE_INPUT_MASK = '####/##/##';
 
 const DATE_INPUT_PATTERN = /^\d{4}([/.-])\d{2}\1\d{2}$/;
