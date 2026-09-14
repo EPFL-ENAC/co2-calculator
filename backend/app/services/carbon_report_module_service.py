@@ -313,16 +313,21 @@ class CarbonReportModuleService:
         ]
 
     async def list_modules_for(
-        self, module_type_id: int, year: int
+        self, module_type_id: int, year: int, *, include_reference_year: bool = False
     ) -> list[CarbonReportModule]:
         """Return all CarbonReportModule rows for a (module_type_id, year) slice.
 
         Used by the Plan 310-D ``aggregation`` handler to identify which
         modules need their stats recomputed after a bulk recalc / ingest
         pipeline writes new emissions for that scope.
+
+        ``include_reference_year`` also picks up Simulator Plan reports
+        baselined on ``year`` (#2775) — the admin recompute-stats trigger only.
         """
         return await self.repo.list_by_module_type_and_year(
-            module_type_id=module_type_id, year=year
+            module_type_id=module_type_id,
+            year=year,
+            include_reference_year=include_reference_year,
         )
 
     async def update_status(

@@ -22,6 +22,7 @@ from app.models.data_ingestion import (
 )
 from app.models.user import UserProvider
 from app.utils.datetime_utc import as_utc
+from app.utils.factor_year import effective_factor_year_col
 
 logger = get_logger(__name__)
 
@@ -1830,13 +1831,16 @@ class DataIngestionRepository:
             .subquery()
         )
 
-        # Seed: distinct (module_type_id, carbon_reports.year) the modules
-        # themselves declare.  DISTINCT keeps the seed one row per scope
-        # even when many units share the same (module_type_id, year).
+        # Seed: distinct (module_type_id, factor year) the modules themselves
+        # declare.  DISTINCT keeps the seed one row per scope even when many
+        # units share the same scope.  A Simulator Plan seeds its
+        # ``reference_year`` rather than its planning year (#2775) — seeding
+        # the planning year invented a scope no aggregation can ever target,
+        # which then reported as ``no_aggregation_ever`` forever.
         scopes_sub = (
             select(
                 col(CarbonReportModule.module_type_id).label("module_type_id"),
-                col(CarbonReport.year).label("year"),
+                effective_factor_year_col().label("year"),
             )
             .join(
                 CarbonReport,
@@ -1948,11 +1952,19 @@ class DataIngestionRepository:
         recompute-stats trigger to fan out one full-recompute aggregation
         job per scope, regardless of whether the last aggregation looked
         fresh (a stats-shape change makes even a fresh row wrong).
+
+        The scope year is the *factor* year (``effective_factor_year_col``),
+        so a Simulator Plan report folds into its ``reference_year`` scope
+        instead of raising a scope for its planning year (#2775). That keeps
+        plans inside the jobs already dispatched for the baseline year — no
+        extra scopes, and the factor-availability filter downstream asks
+        about a year that actually has factors.
         """
+        scope_year = effective_factor_year_col()
         stmt = (
             select(
                 col(CarbonReportModule.module_type_id),
-                col(CarbonReport.year),
+                scope_year,
             )
             .join(
                 CarbonReport,
@@ -1961,7 +1973,7 @@ class DataIngestionRepository:
             .distinct()
         )
         if year is not None:
-            stmt = stmt.where(col(CarbonReport.year) == year)
+            stmt = stmt.where(scope_year == year)
         if module_type_id is not None:
             stmt = stmt.where(col(CarbonReportModule.module_type_id) == module_type_id)
         rows = (await self.session.execute(stmt)).all()
@@ -2063,7 +2075,15 @@ class DataIngestionRepository:
             provider=provider,
             pipeline_id=pipeline_id,
             run_after=None,
-            meta={"config": {"skip_module_status_update": True}},
+            meta={
+                "config": {
+                    "skip_module_status_update": True,
+                    # #2775 — reach Simulator Plan reports baselined on this
+                    # year; their own year is a planning year that no scope
+                    # targets. Recalc-chained aggregations don't set this.
+                    "include_reference_year_reports": True,
+                }
+            },
         )
         try:
             created = await self.create_ingestion_job(job)

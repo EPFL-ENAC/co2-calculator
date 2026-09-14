@@ -18,6 +18,7 @@ from app.models.module_type import DEFAULT_COMPLETION_PROGRESS, ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleCreate
+from app.utils.factor_year import effective_factor_year_col
 from app.utils.report_stats import merge_report_stats
 
 logger = get_logger(__name__)
@@ -162,14 +163,28 @@ class CarbonReportModuleRepository:
         return list(result.scalars().all())
 
     async def list_by_module_type_and_year(
-        self, module_type_id: int, year: int
+        self, module_type_id: int, year: int, *, include_reference_year: bool = False
     ) -> list[CarbonReportModule]:
         """List all modules for a given (module_type_id, year) slice.
 
         ``module_type_id`` lives on ``CarbonReportModule``; ``year`` lives on
         the parent ``CarbonReport``, so the filter joins through it.  Mirrors
         ``get_by_year_and_unit`` minus the unit filter.
+
+        ``include_reference_year`` widens the match to the *effective factor
+        year*, pulling in Simulator Plan reports whose ``reference_year`` is
+        ``year`` but whose own year is a planning year (#2775). Only the admin
+        recompute-stats trigger asks for it: the recalc-chained aggregation
+        keeps the narrow slice, because widening its candidate list would feed
+        plan modules to ``emptied_module_ids`` and bump validated plans back to
+        IN_PROGRESS on every factor upload. Whether recalc *should* reach plans
+        is a separate call (#2775 follow-up).
         """
+        year_match = (
+            effective_factor_year_col()
+            if include_reference_year
+            else col(CarbonReport.year)
+        )
         statement = (
             select(CarbonReportModule)
             .join(
@@ -178,7 +193,7 @@ class CarbonReportModuleRepository:
             )
             .where(
                 CarbonReportModule.module_type_id == module_type_id,
-                CarbonReport.year == year,
+                year_match == year,
             )
         )
         result = await self.session.execute(statement)
