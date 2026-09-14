@@ -152,8 +152,9 @@ Grant section renders **before** (not instead of) the year sections.
 
 ### #1981: grant-mode Equipment module
 
-- In the Project Grant section only, Equipment carries a "Planning mode"
-  toggle: **Manual entry per line** (each prefilled line has its own
+- Equipment carries a "Planning mode" toggle (grant-only at first; the
+  Detailed per Year sections got it with #2749, see
+  [2749-planner-equipment-global-percentage-year-sections](./2749-planner-equipment-global-percentage-year-sections.md)): **Manual entry per line** (each prefilled line has its own
   reference-year percentage, prefilled at the planner's usual 100%) vs
   **Global percentage** (one value applied to all prefilled lines at
   once, shown beside the aggregated reference-year total it scales).
@@ -162,7 +163,7 @@ Grant section renders **before** (not instead of) the year sections.
   confirmed mode switch deletes them.
 - Global mode: `PATCH
 /carbon-reports/{id}/modules/{module_type_id}/reference-percentage`
-  (`{percentage: 0..100}`, grant reports only) updates every snapshot
+  (`{percentage: 0..100}`, any plan report since #2749) updates every snapshot
   entry (`source_data_entry_id` set), recomputes their emissions and the
   stats; the table remounts to refetch its rows. Per-row % controls are
   read-only in global mode (`percentageLocked` prop chain).

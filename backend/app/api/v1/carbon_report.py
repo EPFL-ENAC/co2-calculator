@@ -356,13 +356,13 @@ async def update_carbon_report_module_active(
     return result
 
 
-async def _require_grant_report_edit(
+async def _require_plan_report_edit(
     db: AsyncSession, current_user: User, carbon_report_id: int
-) -> CarbonReportService:
-    """Load a Project Grant report and enforce plan-edit access on it.
+) -> tuple[CarbonReportService, CarbonReportRead]:
+    """Load a plan report (grant or year section) and enforce plan-edit access.
 
-    404 when the report is missing, 409 when it is not a grant report —
-    budgets exist only on the Project Grant section (#1978).
+    404 when the report is missing. Shared by every plan-only write that
+    applies to both the Project Grant and the Detailed per Year sections.
     """
     report_service = CarbonReportService(db)
     report = await report_service.get(carbon_report_id)
@@ -371,6 +371,20 @@ async def _require_grant_report_edit(
     unit = await db.get(Unit, report.unit_id)
     require_unit_access(current_user, unit)
     await require_plan_scope_for_report(db, current_user, report, "edit")
+    return report_service, report
+
+
+async def _require_grant_report_edit(
+    db: AsyncSession, current_user: User, carbon_report_id: int
+) -> CarbonReportService:
+    """Load a Project Grant report and enforce plan-edit access on it.
+
+    404 when the report is missing, 409 when it is not a grant report —
+    budgets exist only on the Project Grant section (#1978).
+    """
+    report_service, report = await _require_plan_report_edit(
+        db, current_user, carbon_report_id
+    )
     if not report.is_grant:
         raise HTTPException(
             status_code=409,
@@ -412,11 +426,12 @@ async def update_carbon_report_module_reference_percentage(
 ) -> dict:
     """Apply one reference percentage to every snapshot entry of a module.
 
-    Backs the grant equipment "global percentage" mode (#1981): the
-    calculator's prefilled lines are kept and one percentage prices them
-    all. Only Project Grant reports carry this mode.
+    Backs the equipment "global percentage" mode (#1981): the calculator's
+    prefilled lines are kept and one percentage prices them all. Both the
+    Project Grant and the Detailed per Year sections carry this mode
+    (#2749).
     """
-    report_service = await _require_grant_report_edit(
+    report_service, _ = await _require_plan_report_edit(
         db, current_user, carbon_report_id
     )
     module_service = CarbonReportModuleService(db)
