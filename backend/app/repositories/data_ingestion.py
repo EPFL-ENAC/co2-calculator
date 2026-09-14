@@ -1991,6 +1991,20 @@ class DataIngestionRepository:
         ``get_recalculation_status_by_year`` already uses, reused here so
         the admin recompute-stats trigger doesn't spend a job (and a
         pooled DB connection) on scopes that can't produce real numbers.
+
+        **Simulator Explore is knowingly unreachable here** (#2775, decided).
+        Its scope year is its creation year (``now.year``) while it prices
+        against N-1, so it sits in a scope that usually has no factors and
+        gets skipped. Plan was fixed because its factor year is a stored
+        column (``reference_year``) the scope query can read; Explore's is
+        derived from today's date plus ``users.provider`` and
+        ``year_configurations``, with nothing stored to key on. Not worth the
+        machinery: sandboxes are recreated on every "start exploration" with
+        the previous ones deleted in the background (#2656) and their stats
+        are NULL until edited, so a stats-shape change self-heals on the next
+        exploration. Revisit only if Explore sandboxes gain a long lifespan
+        or their stats start being read somewhere durable — see
+        ``docs/src/implementation-plans/2775-recompute-stats-plan-reference-year.md``.
         """
         if not scopes:
             return []
