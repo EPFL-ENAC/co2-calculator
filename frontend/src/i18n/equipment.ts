@@ -117,11 +117,11 @@ Si la puissance moyenne (en mode actif ou en veille) de votre équipement est di
     fr: 'Équipement scientifique ({count}) | Équipements scientifiques ({count})',
   },
   [`${MODULES.Equipment}-it-equipment-table-title`]: {
-    en: 'IT equipment ({count}) | IT equipments ({count})',
+    en: 'IT equipment ({count}) | IT equipment ({count})',
     fr: 'Équipements IT ({count}) | Équipements IT ({count})',
   },
   [`${MODULES.Equipment}-other-equipment-table-title`]: {
-    en: 'Other equipment ({count}) | Other equipments ({count})',
+    en: 'Other equipment ({count}) | Other equipment ({count})',
     fr: 'Autres équipements ({count}) | Autres équipements ({count})',
   },
   [`${MODULES.Equipment}-scientific-form-title`]: {
@@ -212,7 +212,7 @@ Commentaire additionnel :
 Merci.`,
   },
   [`${MODULES.Equipment}-results-total-electricity-use`]: {
-    en: 'Total Electricity Use',
+    en: 'Total electricity use',
     fr: 'Consommation électrique totale',
   },
   [`${MODULES.Equipment}-results-total-electricity-use-comparison`]: {
@@ -220,15 +220,15 @@ Merci.`,
     fr: "Équivalent au réseau d'éclairage public d'une ville de {residents} habitants pendant une année complète.",
   },
   [`${MODULES.Equipment}-results-share-of-lab-total`]: {
-    en: "Share of the Lab's total",
-    fr: 'Part du total du laboratoire',
+    en: "Share of the unit's total",
+    fr: "Part du total de l'unité",
   },
   [`${MODULES.Equipment}-results-share-of-lab-total-unit`]: {
-    en: "of lab's total",
-    fr: 'total du lab',
+    en: "of unit's total",
+    fr: "total de l'unité",
   },
   [`${MODULES.Equipment}-results-share-of-lab-total-comparison`]: {
-    en: 'at EPFL in average Electrical consumption represents {percentage}.',
+    en: 'at EPFL in average electrical consumption represents {percentage}.',
     fr: "à l'EPFL en moyenne, la consommation électrique représente {percentage}.",
   },
   [`${MODULES.Equipment}-results-year-to-year-evolution`]: {

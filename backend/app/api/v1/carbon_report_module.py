@@ -35,7 +35,6 @@ from app.models.module_type import (
 )
 from app.models.unit import Unit
 from app.models.user import GlobalScope, User
-from app.modules.emissions.registry import is_additional_breakdown_emission
 from app.modules.emissions.taxonomy import EmissionType
 from app.modules.headcount import (
     HeadcountItemResponse,
@@ -219,6 +218,41 @@ def _hide_planner_snapshots_for_viewer(
     )
 
 
+def _module_totals(
+    stats: dict | None, *, is_headcount: bool, hide_planner_snapshots: bool
+) -> ModuleTotals:
+    """Headline figures read off the persisted module stats (#2706).
+
+    No live aggregate: the pipeline and every interactive write persist
+    ``carbon_report_modules.stats``, so the GET only reads. Stats written
+    before #2706 lack the headline keys — a loud 503 until the admin
+    recompute-stats trigger has re-derived them, never a silent zero.
+    """
+    total_kg: float | None = None
+    total_fte: float | None = None
+    if stats is not None and is_headcount:
+        total_fte = stats["total_fte"]
+    if stats is not None and not is_headcount:
+        try:
+            total_kg = stats["total_excluding_additional"]
+            if hide_planner_snapshots:
+                total_kg -= stats["planner_snapshot_kg"]
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "Module stats predate #2706 — run the admin "
+                    "recompute-stats trigger to re-derive them"
+                ),
+            ) from exc
+    return ModuleTotals(
+        total_kg_co2eq=total_kg,
+        total_tonnes_co2eq=total_kg / 1000.0 if total_kg is not None else None,
+        total_annual_consumption_kwh=None,
+        total_annual_fte=total_fte,
+    )
+
+
 def _has_global_or_principal_access_for_unit(
     current_user: User,
     unit: Unit | None,
@@ -335,43 +369,11 @@ async def get_module(
         exclude_planner_snapshots=hide_for_viewer,
     )
 
-    # if headcount compute FTE here
-    total_annual_fte = None
-    total_kg_co2eq = None
-    if module_id == "headcount":
-        # #2050 Track J: one round trip, not three. These asked the same
-        # table for the same field over the same module; on dev a round
-        # trip costs ~160ms, so the count was the cost (Track G2).
-        fte = await DataEntryService(db).get_headcount_fte_breakdown(
-            carbon_report_module_id=carbon_report_module_id,
-        )
-        total_annual_fte = fte.total_fte
-        module_data.stats = {
-            **fte.member_fte_by_sius_code,
-            "student": fte.student_fte,
-        }
-    else:
-        module_data.stats = await DataEntryEmissionService(db).get_stats(
-            carbon_report_module_id=carbon_report_module_id,
-            exclude_planner_snapshots=hide_for_viewer,
-        )
-
-        total_kg_co2eq = (
-            sum(
-                v
-                for k, v in module_data.stats.items()
-                if v is not None and not is_additional_breakdown_emission(int(k))
-            )
-            if module_data.stats
-            else None
-        )
-    module_data.totals = ModuleTotals(
-        total_kg_co2eq=total_kg_co2eq,
-        total_tonnes_co2eq=total_kg_co2eq / 1000.0
-        if total_kg_co2eq is not None
-        else None,
-        total_annual_consumption_kwh=None,
-        total_annual_fte=total_annual_fte,
+    module_data.stats = module.stats
+    module_data.totals = _module_totals(
+        module.stats,
+        is_headcount=module_id == "headcount",
+        hide_planner_snapshots=hide_for_viewer,
     )
     if not module_data:
         raise HTTPException(

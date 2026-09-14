@@ -13,6 +13,7 @@ type NumericRuleColumn = {
   min?: number;
   max?: number;
   maxDecimals?: number;
+  integer?: boolean;
 };
 
 /**
@@ -44,6 +45,15 @@ export function getNumericRules(col: NumericRuleColumn, t: Translate) {
     rules.push((val: string | number | null) => {
       const num = Number(val);
       return num <= max || t('validation_must_be_at_most', { max });
+    });
+  }
+
+  if (col.integer) {
+    rules.push((val: string | number | null) => {
+      if (val === '' || val === null || val === undefined) return true;
+      return (
+        Number.isInteger(Number(val)) || t('validation_must_be_whole_number')
+      );
     });
   }
 

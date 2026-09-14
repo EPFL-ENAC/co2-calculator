@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { outlinedViewCozy } from '@quasar/extras/material-icons-outlined';
 import { computed, inject, type ComputedRef } from 'vue';
 import type { PipelineProgress } from '@/stores/pipelineStream';
 import { useModuleConfig } from '@/composables/useModuleConfig';
@@ -19,7 +20,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const openDataEntryDialog = inject<
-  (row: ImportRow, targetType: TargetType | null) => void
+  (row: ImportRow, targetType: TargetType | null, file?: File) => void
 >('openDataEntryDialog')!;
 
 const { getImportRow, downloadLastCsv, commonUploads, submodules } =
@@ -96,7 +97,10 @@ async function handleAbortPipeline() {
             :row="getImportRow(common)"
             :pipeline-progress="pipelineProgress"
             :on-download="downloadLastCsv"
-            @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
+            @upload="
+              (row, _t, file) =>
+                openDataEntryDialog(row, TargetType.FACTORS, file)
+            "
             @recalculate="() => triggerTypeRecalculation(common)"
             @abort="handleAbortPipeline"
           />
@@ -111,7 +115,10 @@ async function handleAbortPipeline() {
             "
             :recalc-status="getRecalcStatus(common)"
             :on-download="downloadLastCsv"
-            @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
+            @upload="
+              (row, _t, file) =>
+                openDataEntryDialog(row, TargetType.DATA_ENTRIES, file)
+            "
             @recalculate="() => triggerTypeRecalculation(common)"
             @abort="handleAbortPipeline"
           />
@@ -123,7 +130,12 @@ async function handleAbortPipeline() {
     <template v-if="submodules.length > 0">
       <div class="q-px-lg q-pt-md q-pb-sm">
         <div class="row items-center q-mb-xs">
-          <q-icon name="o_view_cozy" color="accent" size="xs" class="q-mr-sm" />
+          <q-icon
+            :name="outlinedViewCozy"
+            color="accent"
+            size="xs"
+            class="q-mr-sm"
+          />
           <div class="text-body1 text-weight-medium">
             {{ $t('data_management_submodules_configuration_title') }}
           </div>

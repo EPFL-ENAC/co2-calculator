@@ -20,7 +20,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import db as db_module
-from app.api.deps import get_current_user, get_current_user_detached, get_db
+from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
 from app.core.policy import (
     check_module_permission,
@@ -1279,17 +1279,17 @@ async def list_workers(
 async def job_stream_by_id(
     job_id: int,
     request: Request,
-    current_user: User = Depends(get_current_user_detached),
+    current_user: User = Depends(get_current_user),
 ):
     """Server-Sent Events endpoint to stream a single job update in real-time.
 
     Polls the database for status changes and sends updates to the client.
     Stream ends when the job is completed, failed, or the client disconnects.
 
-    Session lifetime: no request-scoped session anywhere on this path. The
-    user is resolved by ``get_current_user_detached`` (its session closes
-    before the stream opens -- a ``get_db`` session would be held until the
-    stream ends, #2654), and a fresh ``SessionLocal()`` is opened per poll
+    Session lifetime: no pooled connection is held anywhere on this path.
+    ``get_current_user`` hands its connection back before the stream opens
+    (it used to be pinned until the stream ended, #2654, #2689), and a fresh
+    ``SessionLocal()`` is opened per poll
     iteration and closed before the sleep, so no pool slot is pinned for the
     full stream duration (minutes).  ``request.is_disconnected()`` is checked
     at the top of each iteration so client aborts surface immediately rather
@@ -1761,13 +1761,13 @@ async def get_pipeline_jobs(
 async def pipeline_stream_by_id(
     pipeline_id: UUID,
     request: Request,
-    current_user: User = Depends(get_current_user_detached),
+    current_user: User = Depends(get_current_user),
 ):
     """Server-Sent Events stream for every job sharing a ``pipeline_id``.
 
-    Gated like ``require_module_or_config_view`` but on the detached user
-    dependency: see ``job_stream_by_id`` for why a stream must not hold a
-    ``get_db`` session (#2654).
+    Gated like ``require_module_or_config_view`` but inline: see
+    ``job_stream_by_id`` for why a stream must not hold a pooled
+    connection (#2654).
 
     Plan 310D — the frontend stale-stats UX subscribes here when a module's
     carbon-report response surfaces a ``current_pipeline_id``.  Each tick
@@ -1836,8 +1836,7 @@ async def pipeline_stream_by_id(
             # between ticks.  The previous implementation captured
             # ``Depends(get_db)`` for the entire generator lifetime, pinning
             # one slot per subscriber for the whole stream (minutes) -- and
-            # the auth dependency did the same until #2654, see
-            # ``get_current_user_detached``.
+            # the auth dependency did the same until #2654/#2689.
             async with db_module.SessionLocal() as session:
                 repo = DataIngestionRepository(session)
                 jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
@@ -2196,6 +2195,24 @@ async def recover_job(
             entity_id=scope_row.entity_id,
         )
         await _check_job_scope(scope_job, current_user, db, action="sync")
+        # #2700 Part 2 — MODULE_UNIT_SPECIFIC uploads are append-only with
+        # no delete-before-insert and almost no DB uniqueness constraint on
+        # data_entries, and data_session commits per INGEST_COPY_BATCH_SIZE
+        # batch rather than once at the end — so a dead job may already
+        # have partially committed. Resetting it here would let the same
+        # unsafe re-COPY the auto-recovery sweep also refuses to do (see
+        # sweep_stuck_running_jobs). Same block, same reason, both paths.
+        if scope_row.entity_type == EntityType.MODULE_UNIT_SPECIFIC:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "This upload cannot be recovered automatically — it has "
+                    "no duplicate protection against a partial prior "
+                    "attempt. Verify data_entries for this report against "
+                    "the source file, delete any rows the dead job may "
+                    "have already written, then re-upload."
+                ),
+            )
     recovered = await repo.recover_job(job_id, settings.STALE_JOB_TIMEOUT_MINUTES)
     if not recovered:
         raise HTTPException(

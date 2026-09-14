@@ -17,7 +17,6 @@ from app.core.role_priority import pick_role_for_institutional_id, role_priority
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope
-from app.repositories.data_entry_repo import HeadcountFteBreakdown
 from app.schemas.carbon_report import CarbonReportModuleRead, CarbonReportRead
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -512,61 +511,109 @@ def test_module_top_class_group_field_mapping():
     assert ModuleTypeEnum.purchase in crm._MODULE_TOP_CLASS_GROUP_FIELD
 
 
-# ── get_module: headcount 500 regression ─────────────────────────────────────
+# ── get_module: headline figures read off the persisted stats (#2706) ───────
+
+
+def _get_module_patches(module_stats, *, hide_for_viewer=False):
+    """Route collaborators for get_module with a module carrying ``stats``."""
+    report, module = _resolved(module_id=99)
+    module.stats = module_stats
+    unit = MagicMock()
+    unit.institutional_id = UNIT_IID
+    data_svc = MagicMock()
+    data_svc.get_module_data = AsyncMock(return_value=MagicMock())
+    return (
+        patch.object(
+            crm, "check_module_permission_for_report", AsyncMock(return_value=unit)
+        ),
+        patch.object(
+            crm, "resolve_report_module", AsyncMock(return_value=(report, module))
+        ),
+        patch.object(
+            crm, "_hide_planner_snapshots_for_viewer", return_value=hide_for_viewer
+        ),
+        patch.object(crm, "DataEntryService", return_value=data_svc),
+    )
+
+
+async def _get_module(module_id: str, module_stats, *, hide_for_viewer=False):
+    p1, p2, p3, p4 = _get_module_patches(module_stats, hide_for_viewer=hide_for_viewer)
+    with p1, p2, p3, p4:
+        return await crm.get_module(
+            carbon_report_id=1,
+            module_id=module_id,
+            preview_limit=20,
+            db=_mock_db(UNIT_IID),
+            current_user=_user(roles=[_principal(UNIT_IID)]),
+        )
 
 
 @pytest.mark.asyncio
-async def test_get_module_headcount_does_not_raise_name_error():
-    """get_module must not raise NameError (→ 500) for headcount.
-
-    Before the fix, total_kg_co2eq was only assigned in the else-branch
-    (non-headcount path) but used unconditionally when building ModuleTotals,
-    causing NameError on the headcount page.
+async def test_get_module_headcount_reads_fte_from_persisted_stats():
+    """Headcount: total FTE and the chart maps come from the stats JSON, no
+    per-request aggregate (#2706). Also pins the old NameError regression:
+    total_kg_co2eq stays None on the headcount path.
     """
-    user = _user(roles=[_principal(UNIT_IID)])
-    db = _mock_db(UNIT_IID)
-
-    module_data = MagicMock()
-    module_data.stats = {}
-
-    data_svc = MagicMock()
-    data_svc.get_module_data = AsyncMock(return_value=module_data)
-    # #2050 Track J: the three FTE round trips collapsed into one call.
-    data_svc.get_headcount_fte_breakdown = AsyncMock(
-        return_value=HeadcountFteBreakdown(
-            total_fte=10.0,
-            student_fte=4.0,
-            member_fte_by_sius_code={"10208": 5.0},
-        )
-    )
-
-    unit = MagicMock()
-    unit.institutional_id = UNIT_IID
-
-    with (
-        patch.object(
-            crm,
-            "check_module_permission_for_report",
-            AsyncMock(return_value=unit),
-        ),
-        patch.object(
-            crm,
-            "resolve_report_module",
-            AsyncMock(return_value=_resolved(module_id=99)),
-        ),
-        patch.object(crm, "DataEntryService", return_value=data_svc),
-    ):
-        result = await crm.get_module(
-            carbon_report_id=1,
-            module_id="headcount",
-            preview_limit=20,
-            db=db,
-            current_user=user,
-        )
+    stats = {
+        "total_fte": 10.0,
+        "student_fte": 4.0,
+        "member_fte_by_sius_code": {"10208": 5.0},
+    }
+    result = await _get_module("headcount", stats)
 
     assert result.totals.total_kg_co2eq is None
     assert result.totals.total_annual_fte == 10.0
-    assert result.stats == {"10208": 5.0, "student": 4.0}
+    assert result.stats == stats
+
+
+@pytest.mark.asyncio
+async def test_get_module_reads_headline_total_from_persisted_stats():
+    """The sidebar total is ``total_excluding_additional``, not the every-bucket
+    ``total`` — no live get_stats aggregate anymore (#2706).
+    """
+    stats = {
+        "total": 41_000.0,
+        "total_excluding_additional": 6_000.0,
+        "planner_snapshot_kg": 500.0,
+    }
+    result = await _get_module("buildings", stats)
+
+    assert result.totals.total_kg_co2eq == 6_000.0
+    assert result.totals.total_tonnes_co2eq == 6.0
+    assert result.totals.total_annual_fte is None
+    assert result.stats is stats
+
+
+@pytest.mark.asyncio
+async def test_get_module_hides_planner_snapshot_kg_from_restricted_viewer():
+    """A viewer who may not see the reference-year prefill rows (#1983) must not
+    see their kg in the headline either: the persisted split is subtracted.
+    """
+    stats = {"total_excluding_additional": 6_000.0, "planner_snapshot_kg": 500.0}
+    result = await _get_module("buildings", stats, hide_for_viewer=True)
+
+    assert result.totals.total_kg_co2eq == 5_500.0
+
+
+@pytest.mark.asyncio
+async def test_get_module_without_stats_has_no_totals():
+    """A module never recomputed (no entries yet) reports no headline, not 0."""
+    result = await _get_module("buildings", None)
+
+    assert result.totals.total_kg_co2eq is None
+    assert result.totals.total_tonnes_co2eq is None
+
+
+@pytest.mark.asyncio
+async def test_get_module_fails_loud_when_stats_predate_2706():
+    """Stats written before #2706 lack the headline keys: a 503 pointing at the
+    admin recompute-stats trigger, never a silent zero.
+    """
+    with pytest.raises(HTTPException) as exc:
+        await _get_module("buildings", {"total": 41_000.0})
+
+    assert exc.value.status_code == 503
+    assert "recompute-stats" in exc.value.detail
 
 
 # ======================================================================

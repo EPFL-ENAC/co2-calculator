@@ -1,4 +1,5 @@
 import { useI18n } from 'vue-i18n';
+import { lastJobForTarget } from '@/composables/lastJobForTarget';
 import { TargetType, IngestionResult } from '@/stores/backofficeDataManagement';
 import type {
   ImportRow,
@@ -40,12 +41,21 @@ export function useUploadCard() {
     );
   }
 
+  function resultButtonColor(job?: SyncJobResponse): string {
+    if (!job) return 'accent';
+    if (job.result === IngestionResult.ERROR) return 'negative';
+    if (job.result === IngestionResult.WARNING) return 'warning';
+    return 'positive';
+  }
+
   function factorButtonColor(row: ImportRow): string {
     if (row.isDisabled) return 'grey-4';
-    if (!row.lastFactorJob) return 'accent';
-    if (row.lastFactorJob.result === IngestionResult.ERROR) return 'negative';
-    if (row.lastFactorJob.result === IngestionResult.WARNING) return 'warning';
-    return 'positive';
+    return resultButtonColor(row.lastFactorJob);
+  }
+
+  function referenceButtonColor(row: ImportRow): string {
+    if (row.isDisabled) return 'grey-4';
+    return resultButtonColor(row.lastReferenceJob);
   }
 
   function dataButtonLabel(row: ImportRow): string {
@@ -64,6 +74,13 @@ export function useUploadCard() {
       : t('data_management_add_factors');
   }
 
+  function referenceButtonLabel(row: ImportRow): string {
+    if (row.isDisabled) return '';
+    return row.lastReferenceJob
+      ? t('data_management_reupload_reference')
+      : t('data_management_upload_reference');
+  }
+
   function safeFileName(meta: unknown): string | undefined {
     const fp = (meta as Record<string, unknown>)?.file_path as
       string | undefined;
@@ -73,10 +90,7 @@ export function useUploadCard() {
   }
 
   function downloadLastCsv(row: ImportRow, targetType: TargetType): void {
-    const job =
-      targetType === TargetType.DATA_ENTRIES
-        ? row.lastDataJob
-        : row.lastFactorJob;
+    const job = lastJobForTarget(row, targetType);
     if (!job?.meta) return;
     const filePath = (job.meta as Record<string, unknown>)
       .processed_file_path as string;
@@ -193,12 +207,18 @@ export function useUploadCard() {
     if (targetType === TargetType.DATA_ENTRIES) {
       return dataButtonColor(row);
     }
+    if (targetType === TargetType.REFERENCE_DATA) {
+      return referenceButtonColor(row);
+    }
     return factorButtonColor(row);
   }
 
   function getButtonLabel(row: ImportRow, targetType: TargetType): string {
     if (targetType === TargetType.DATA_ENTRIES) {
       return dataButtonLabel(row);
+    }
+    if (targetType === TargetType.REFERENCE_DATA) {
+      return referenceButtonLabel(row);
     }
     return factorButtonLabel(row);
   }
@@ -209,6 +229,8 @@ export function useUploadCard() {
     factorButtonColor,
     dataButtonLabel,
     factorButtonLabel,
+    referenceButtonColor,
+    referenceButtonLabel,
     safeFileName,
     downloadLastCsv,
     getJobInfo,

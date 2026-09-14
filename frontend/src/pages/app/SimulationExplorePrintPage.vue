@@ -11,6 +11,7 @@ import { formatTonnesCO2 } from '@/utils/number';
 const {
   currentYear,
   loading,
+  noExploration,
   totalTonnesCo2eq,
   breakdown,
   exploreModules,
@@ -29,7 +30,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PrintReportShell :loading="loading">
+  <PrintReportShell
+    :loading="loading"
+    :empty="noExploration"
+    :empty-message="$t('simulation_explore_print_no_exploration')"
+  >
     <ReportPage
       :title="$t('simulation_explore_page_title')"
       :page-number="1"

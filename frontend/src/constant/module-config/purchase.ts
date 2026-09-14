@@ -1,3 +1,4 @@
+import { outlinedCategory } from '@quasar/extras/material-icons-outlined';
 import { CURRENCY_OPTIONS } from '@/constant/currencies';
 import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import { formatTonnesCO2 } from '@/utils/number';
@@ -46,7 +47,7 @@ const purchaseFields: ModuleField[] = [
     readOnly: false,
     editableInline: false,
     ratio: '1/4',
-    icon: 'o_category',
+    icon: outlinedCategory,
     columnSize: 'md',
     maxColumnWidth: 260,
   },
@@ -110,7 +111,7 @@ const additionalPurchaseFields: ModuleField[] = [
     inputTypeName: 'QSelect',
     align: 'left',
     ratio: '1/3',
-    icon: 'o_category',
+    icon: outlinedCategory,
     columnSize: 'lg',
   },
   {

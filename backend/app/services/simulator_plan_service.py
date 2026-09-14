@@ -68,6 +68,10 @@ class _ReferenceCache:
     expensive part — all of its entries once per year: 40 of the 90
     ``list_by_module`` calls in a measured 10-year prefill were the same
     rows fetched ten times (plan #2050 Track F6).
+
+    Since #2527 C1 only ``entries`` for the headcount module is ever
+    populated: every other prefilled module copies with a server-side
+    ``INSERT ... SELECT`` and reads no source row into Python at all.
     """
 
     reports: dict[tuple[int, int], CarbonReport | None] = field(default_factory=dict)
@@ -95,7 +99,6 @@ def _to_read(
     project: CarbonProject,
     creator_name: str | None,
     total_tonnes_co2eq: float | None = None,
-    default_factor_year: int | None = None,
     *,
     is_grant_proposal: bool = False,
 ) -> SimulatorPlanRead:
@@ -113,7 +116,6 @@ def _to_read(
         created_at=project.created_at,
         creator_name=creator_name,
         total_tonnes_co2eq=total_tonnes_co2eq,
-        default_factor_year=default_factor_year,
     )
 
 
@@ -135,13 +137,11 @@ class SimulatorPlanService:
         totals = await self._totals_by_plan(
             [project.id for project, _, _ in rows if project.id is not None]
         )
-        default_factor_year = await self.repo.get_latest_calculator_year(unit_id)
         return [
             _to_read(
                 project,
                 creator_name,
                 totals.get(project.id or -1),
-                default_factor_year,
                 is_grant_proposal=is_grant_proposal,
             )
             for project, creator_name, is_grant_proposal in rows
@@ -172,9 +172,6 @@ class SimulatorPlanService:
         return _to_read(
             project,
             creator_name,
-            default_factor_year=await self.repo.get_latest_calculator_year(
-                project.unit_id
-            ),
             is_grant_proposal=is_grant_proposal,
         )
 
@@ -199,7 +196,6 @@ class SimulatorPlanService:
         return _to_read(
             project,
             user.display_name,
-            default_factor_year=await self.repo.get_latest_calculator_year(unit_id),
         )
 
     async def update_plan(
@@ -620,7 +616,6 @@ class SimulatorPlanService:
                     ref_report=ref_report,
                     plan_module=plan_module,
                     ref_module=ref_modules_by_type.get(module_type_id),
-                    ref_cache=ref_cache,
                 )
             if copied == 0 and plan_module.id is not None:
                 emptied.append(plan_module.id)
@@ -640,8 +635,9 @@ class SimulatorPlanService:
     ) -> list[DataEntry]:
         """The reference module's entries, read once per job when cached.
 
-        These are the rows every plan year copies, so a 10-year prefill
-        otherwise fetches the same set ten times (plan #2050 Track F6).
+        These are the rows every plan year aggregates, so a 10-year prefill
+        otherwise fetches the same set ten times (plan #2050 Track F6). Only
+        headcount still comes through here — see ``_ReferenceCache``.
         """
         if ref_cache is not None and ref_module_id in ref_cache.entries:
             return ref_cache.entries[ref_module_id]
@@ -689,7 +685,6 @@ class SimulatorPlanService:
         ref_report: CarbonReport | None = None,
         plan_module: CarbonReportModuleRead | None = None,
         ref_module: CarbonReportModuleRead | None = None,
-        ref_cache: _ReferenceCache | None = None,
     ) -> int:
         """Rebuild a plan module from the reference-year Calculator entries.
 
@@ -700,6 +695,12 @@ class SimulatorPlanService:
         (``PLANNER_PLAIN_COPY_MODULE_TYPES``) skip both fields: their copies are
         ordinary editable entries whose emissions recompute from the row data.
         Returns the copied count.
+
+        The copy itself is one server-side ``INSERT ... SELECT``
+        (``copy_module_entries``, #2527 C1): the source rows never reach
+        Python, so this no longer needs the job-wide reference-entry cache —
+        only ``prefill_headcount_from_reference``, which aggregates in Python,
+        still does.
 
         Emissions are not computed here — the caller recomputes the whole
         report in one batched pass right after (plan #2050 Track F2).
@@ -742,36 +743,16 @@ class SimulatorPlanService:
         entry_repo = DataEntryRepository(self.session)
         await entry_repo.bulk_delete_by_modules([plan_module.id])
 
-        src_entries = await self._reference_entries(ref_module.id, ref_cache)
-        if not src_entries:
-            # Returning 0 tells _prefill_reference_modules this module ended
-            # up empty; it batches every such module's stats refresh into one
-            # call instead of one per module (plan #2050 Track F6).
-            return 0
-        plain_copy = module_type_id in PLANNER_PLAIN_COPY_MODULE_TYPES
-        rows = [
-            {
-                "data_entry_type_id": src.data_entry_type_id,
-                "carbon_report_module_id": plan_module.id,
-                "unit_id": report.unit_id,
-                "year": report.year,
-                "source": DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
-                "status": DataEntryStatusEnum.PENDING,
-                "created_by_id": None,
-                "created_at": datetime.now(UTC),
-                "updated_at": datetime.now(UTC),
-                "data": dict(src.data)
-                if plain_copy
-                else {
-                    **src.data,
-                    "percentage_of_reference_year": 0,
-                    "source_data_entry_id": src.id,
-                },
-            }
-            for src in src_entries
-        ]
-        await self._bulk_insert_entries(rows)
-        return len(rows)
+        # A rowcount of 0 tells _prefill_reference_modules this module ended
+        # up empty; it batches every such module's stats refresh into one
+        # call instead of one per module (plan #2050 Track F6).
+        return await entry_repo.copy_module_entries(
+            source_module_id=ref_module.id,
+            target_module_id=plan_module.id,
+            unit_id=report.unit_id,
+            year=report.year,
+            with_reference_link=module_type_id not in PLANNER_PLAIN_COPY_MODULE_TYPES,
+        )
 
     async def prefill_headcount_from_reference(
         self,
@@ -1028,9 +1009,6 @@ class SimulatorPlanService:
         return _to_read(
             copy,
             user.display_name,
-            default_factor_year=await self.repo.get_latest_calculator_year(
-                copy.unit_id
-            ),
             is_grant_proposal=has_grant,
         )
 
@@ -1051,16 +1029,12 @@ class SimulatorPlanService:
 
     async def _read_with_creator(self, project: CarbonProject) -> SimulatorPlanRead:
         """Build a Read DTO resolving the creator display name via the join."""
-        default_factor_year = await self.repo.get_latest_calculator_year(
-            project.unit_id
-        )
         row = await self.repo.get_plan_with_creator(project.id or -1)
         if row is None:
-            return _to_read(project, None, default_factor_year=default_factor_year)
+            return _to_read(project, None)
         refreshed, creator_name, is_grant_proposal = row
         return _to_read(
             refreshed,
             creator_name,
-            default_factor_year=default_factor_year,
             is_grant_proposal=is_grant_proposal,
         )

@@ -11,9 +11,9 @@ dependencies = [
     "uvicorn[standard]==0.52.4",
     "python-multipart==0.0.32",
     "sqlalchemy[asyncio]==2.0.52",
-    "psycopg[binary,pool]==3.3.4",
-    "alembic==1.19.1",
-    "authlib==1.7.2",
+    "psycopg[binary,pool]==3.3.5",
+    "alembic==1.19.2",
+    "authlib==1.8.0",
     # to remove once, we use entra or keycloak
     "passlib[bcrypt]==1.7.4",
     # "python-dotenv==1.0.0",
@@ -51,6 +51,11 @@ testpaths = ["tests/"]
 asyncio_mode = "auto"
 
 env = [
+    # Tests that boot the real app (TestClient) must never reach a developer's
+    # on-disk SQLite: the default DB_URL points at ./co2_calculator.db, whose
+    # tables are created once and never migrated, so a stale file fails the
+    # suite with "no such column" while CI stays green.
+    "DB_URL=sqlite+aiosqlite:///:memory:",
     "DB_NAME=test_auth_db",
     "OAUTH_ISSUER_URL=http://fake-issuer",
     "OAUTH_CLIENT_ID=fake-client-id",
@@ -119,15 +124,15 @@ dev = [
     "pytest-benchmark>=5.1",
     "pytest-mock>=3.15",
     "pytest-elasticsearch>=5.0",
-    "ruff>=0.16.5",
+    "ruff>=0.16.7",
     "httpx>=0.28",
     "locust>=2.46.4",
-    "pytest-env>=1.7.0",
+    "pytest-env>=1.7.1",
     "faker>=40.32.0",
     "docker>=7.2.0",
     "asyncpg>=0.31.0",
     "types-pyyaml>=6.0.12.20260815",
-    "ty>=0.0.75",
+    "ty>=0.0.79",
     "opentelemetry-instrumentation-fastapi==0.65b0",
 ]
 

@@ -126,6 +126,14 @@ async def _delete_pod_row() -> None:
         logger.exception("pod heartbeat: shutdown delete failed for %s", POD_ID)
 
 
+# Client backends only: the bare count also took in autovacuum, checkpointer,
+# walsenders and the rest (14 rows on dev), which made a 25-slot PgBouncer
+# pool read as ~40 during #2689.
+SERVER_CONNECTIONS_SQL = (
+    "SELECT count(*) FROM pg_stat_activity WHERE backend_type = 'client backend'"
+)
+
+
 async def _refresh_server_connection_count() -> None:
     """Cache ``count(*)`` over ``pg_stat_activity`` for the OTel gauge.
 
@@ -136,7 +144,7 @@ async def _refresh_server_connection_count() -> None:
     if engine.dialect.name != "postgresql":
         return
     async with SessionLocal() as session:
-        result = await session.execute(text("SELECT count(*) FROM pg_stat_activity"))
+        result = await session.execute(text(SERVER_CONNECTIONS_SQL))
         _server_connections = result.scalar_one()
 
 

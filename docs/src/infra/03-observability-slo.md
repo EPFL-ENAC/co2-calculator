@@ -64,18 +64,18 @@ then promote. Tracked in
 | `BackendMetricsAbsent` (deadman's switch)                | ✅                                  | ✅                          | ✅                                                        |
 | `HighErrorRate` -- global (not per-pod) 5xx ratio        | ✅ 2%                               | ✅ 2%                       | ✅ 1% (retuned from data)                                 |
 | `ErrorRateSustainedElevated` -- 6h window, severity:info | ✅ 0.3%                             | ✅ 0.3%                     | ✅ 0.3%                                                   |
-| `UploadLatencySLOBreach` / `JobLatencySLOBreach`         | ✅ (thresholds from 4wk stage data) | ✅                          | 🟡 interim -- stage-derived thresholds, see below (#2301) |
+| `UploadLatencySLOBreach`                                 | ✅ (thresholds from 4wk stage data) | ✅                          | 🟡 interim -- stage-derived thresholds, see below (#2301) |
+| Job-class latency alerts                                 | ❌ removed 2026-09-07               | ❌ removed 2026-09-07       | ❌ removed 2026-09-07                                     |
 | Probe trace sampling -- latency-aware, not blanket drop  | ✅                                  | ⬜ not yet promoted (#2302) | ⬜ not yet promoted (#2302)                               |
 
-Prod's `route_class` transform only shipped recently. `UploadLatencySLOBreach`/
-`JobLatencySLOBreach` are live there now, but running on **stage's**
-4-week-derived thresholds (5s@2%, 10s@5%) as an explicit interim value --
-prod has no traffic history of its own yet to derive a number from, and
-1402's own precedent is "pull real numbers, don't guess." Zero coverage for
-the weeks it takes to accumulate that data seemed worse than a
-clearly-labeled approximation; both alerts say "interim" in their summary
-text. Retune from real prod `route_class="upload"`/`"job"` history once
-available -- tracked in
+Prod's `route_class` transform only shipped recently. `UploadLatencySLOBreach`
+is live there now, but running on **stage's** 4-week-derived threshold
+(5s@2%) as an explicit interim value -- prod has no traffic history of its
+own yet to derive a number from, and 1402's own precedent is "pull real
+numbers, don't guess." Zero coverage for the weeks it takes to accumulate
+that data seemed worse than a clearly-labeled approximation; the alert says
+"interim" in its summary text. Retune from real prod `route_class="upload"`
+history once available -- tracked in
 [co2-calculator#2301](https://github.com/EPFL-ENAC/co2-calculator/issues/2301).
 
 **`HighErrorRate` was retuned from real data, not carried over.** Pulled
@@ -107,7 +107,14 @@ doesn't page differently, it just doesn't get lost as another `warning`.
 | `ErrorRateSustainedElevated`   | global 5xx rate > 0.3% over a rolling 6h window, for 30m                         | Slow-burn companion to `HighErrorRate` -- catches a persistent low-grade error rate the 5-minute window and its traffic floor structurally can't see; `severity:info`, doesn't page |
 | `BackendMetricsAbsent`         | no `http_server_duration_milliseconds_count` for 10m                             | Deadman's switch -- every alert above depends on this metric existing                                                                                                               |
 | `UploadLatencySLOBreach`       | >2% of uploads slower than 5s over 15m                                           | Proportion-of-slow-requests, not a raw quantile -- the 1402 job-class p95/p99 saturated at the histogram's last bucket, making raw quantiles meaningless there                      |
-| `JobLatencySLOBreach`          | >5% of job-class requests slower than 10s over 15m                               | Same reasoning; 10s is this histogram's last resolvable bucket                                                                                                                      |
+
+**No job-class latency alert, by decision (2026-09-07).** Dev's
+`JobPollLatencySLOBreach` / `JobTriggerLatencySLOBreach` /
+`JobRouteClassAbsent` and stage/prod's `JobLatencySLOBreach` were removed.
+Job endpoints are expected to run long, the 10s bucket could not resolve
+"how much worse", and the deadman fired on every quiet dev weekend. The
+`route_class="job*"` label still exists for dashboards and TraceQL; only the
+rules are gone.
 
 ## Known gaps (not yet actioned)
 

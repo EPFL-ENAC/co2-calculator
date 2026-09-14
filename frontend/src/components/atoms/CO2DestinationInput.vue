@@ -8,7 +8,7 @@
     >
       <q-icon
         v-if="hint"
-        name="o_info"
+        :name="outlinedInfo"
         size="xs"
         color="grey-6"
         class="destination-input-hint-icon cursor-pointer"
@@ -142,7 +142,7 @@
           :disable="disable || !transportMode"
           @click="swapValues"
         >
-          <q-icon name="o_swap_horiz" size="xs" />
+          <q-icon :name="outlinedSwapHoriz" size="xs" />
         </q-btn>
       </q-card-section>
       <q-separator class="destination-separator" color="grey-4" />
@@ -155,6 +155,10 @@
 </template>
 
 <script setup lang="ts">
+import {
+  outlinedInfo,
+  outlinedSwapHoriz,
+} from '@quasar/extras/material-icons-outlined';
 import { ref, computed, watch } from 'vue';
 import { MODULES } from '@/constant/modules';
 import { useI18n } from 'vue-i18n';

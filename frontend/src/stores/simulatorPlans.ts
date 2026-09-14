@@ -16,9 +16,6 @@ export interface SimulatorPlan {
   start_year: number | null;
   end_year: number | null;
   is_viewable_by_unit_members: boolean;
-  /** Latest Calculator report year of the unit; factor fallback when a plan
-   * year has no reference year (backend-derived, read-only). */
-  default_factor_year: number | null;
   is_grant_proposal: boolean;
   created_by: number | null;
   created_at: string | null;

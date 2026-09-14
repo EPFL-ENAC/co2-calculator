@@ -148,6 +148,23 @@ def test_download_handles_unknown_content_type(client):
     assert 'filename="no_extension"' in disposition
 
 
+def test_response_forbids_intermediary_caching(client):
+    """#2442: a job-scoped path (``processed/<job_id>/…``) served stale
+    content depending on the request's query string, well after the
+    underlying file store held the correct bytes — evidence of a cache
+    between the browser and this app keyed on the full URL rather than
+    anything this endpoint controls. This endpoint sets no ETag/
+    Last-Modified either, so leaving Cache-Control unset would let any
+    such intermediary invent its own policy. It's also permission-gated
+    (backoffice.configuration.view): an intermediary cache with no
+    per-user key risks serving one user's file to another.
+    """
+    with _patch_files_store(b"col1,col2\n1,2\n", "text/csv"):
+        resp = client.get("/api/v1/files/processed/5/data.csv?d=true")
+
+    assert resp.headers.get("cache-control") == "no-store", resp.headers
+
+
 def test_download_encodes_non_ascii_filename(client):
     """Non-ASCII characters in the filename are percent-encoded in
     the RFC 5987 ``filename*`` form; the ASCII fallback gets ``?`` for

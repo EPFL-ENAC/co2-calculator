@@ -2,12 +2,14 @@
 
 import asyncio
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Any
 
 from psycopg.types.json import Json
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import Select, and_, asc, desc, func, or_
+from sqlalchemy import DateTime, Select, and_, asc, bindparam, desc, func, or_
 from sqlalchemy import select as sa_select
+from sqlalchemy import text as sa_text
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, insert, select
@@ -15,14 +17,24 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.building_room import BuildingRoom
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import (
+    SIMULATOR_REPORT_TYPES,
+    CarbonReport,
+    CarbonReportModule,
+)
 from app.models.classification_translation import (
     DEFAULT_LANG,
     ClassificationTranslation,
     normalize_lang,
     resolve_label_from_field,
 )
-from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.data_entry import (
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryStatusEnum,
+    DataEntryTypeEnum,
+)
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.location import Location, TransportModeEnum
@@ -70,6 +82,18 @@ def _reads_joined_table(expr: Any) -> bool:
     return any(name in rendered for name in _PAGE_FIRST_JOINED_TABLES)
 
 
+def _emission_module_scope(emission: Any, module_id: int, type_id: int) -> Any:
+    """#2527: scope emission rows by their own denormalized keys.
+
+    ``emission`` is ``DataEntryEmission`` or an ``aliased()`` of it. Both
+    columns lead ``ix_dee_module_type_entry``, so the aggregate reads one
+    contiguous index-only range instead of probing ``data_entries`` per row.
+    """
+    return (col(emission.carbon_report_module_id) == module_id) & (
+        col(emission.data_entry_type_id) == type_id
+    )
+
+
 def _equipment_usage_priority() -> Any:
     """New equipment still missing its usage floats to the top (#2050 J10).
 
@@ -104,6 +128,33 @@ COPY data_entries (
     data_entry_type_id, carbon_report_module_id, data, status,
     source, created_by_id, created_at, updated_at, year, unit_id
 ) FROM STDIN
+"""
+
+# #2527 C1 — the Simulator Plan prefill's server-side copy. The reference
+# module's ``data`` blob is merged with the two reference-link keys inside
+# the database, so a 5k-entry module never crosses the wire.
+_REFERENCE_LINK_JSON: dict[str, str] = {
+    "postgresql": (
+        "(src.data::jsonb || jsonb_build_object("
+        "'percentage_of_reference_year', 0, 'source_data_entry_id', src.id))::json"
+    ),
+    "sqlite": (
+        "json_patch(src.data, json_object("
+        "'percentage_of_reference_year', 0, 'source_data_entry_id', src.id))"
+    ),
+}
+
+_COPY_MODULE_ENTRIES_SQL = """
+INSERT INTO data_entries (
+    data_entry_type_id, carbon_report_module_id, data, status,
+    source, created_by_id, created_at, updated_at, year, unit_id
+)
+SELECT
+    src.data_entry_type_id, :target_module_id, {data_expr}, '{status}',
+    :source, NULL, :copied_at, :copied_at, :year, :unit_id
+FROM data_entries AS src
+WHERE src.carbon_report_module_id = :source_module_id
+ORDER BY src.id
 """
 
 
@@ -256,6 +307,67 @@ class DataEntryRepository:
         result = await self.session.execute(stmt, rows)
         return [row[0] for row in result.all()]
 
+    async def copy_module_entries(
+        self,
+        *,
+        source_module_id: int,
+        target_module_id: int,
+        unit_id: int | None,
+        year: int | None,
+        with_reference_link: bool,
+    ) -> int:
+        """Copy one module's entries into another, entirely server-side.
+
+        Backs the Simulator Plan prefill (#2527 C1). The old shape read every
+        source row into Python, rebuilt a dict per row and bulk-inserted it
+        back; a ~5k-entry module therefore crossed the wire twice for a copy
+        the database can do in one statement. Returns the rows written, which
+        is what the caller uses to tell an emptied module from a rebuilt one.
+
+        ``with_reference_link`` adds the two planner keys
+        (``percentage_of_reference_year`` at 0 — the baseline the user then
+        raises — and ``source_data_entry_id``) to each copied ``data`` blob.
+        Plain-copy modules pass False: their copies are ordinary editable
+        entries. Emissions are not copied; the caller recomputes.
+
+        ``data_entries.data`` is nullable, and the Python shape this replaced
+        raised on a NULL source blob (``{**None}``), so the job failed loudly.
+        SQL propagates instead — ``NULL || …`` is NULL — which would have made
+        the copy succeed and the failure surface later, per entry, inside a
+        recalc that catches and continues. Closed by
+        ``ck_data_entries_data_not_null`` (#2527 C1), so the INSERT below now
+        raises rather than writing a row nothing can price.
+        """
+        dialect = self.session.get_bind().dialect.name
+        data_expr = (
+            _REFERENCE_LINK_JSON.get(dialect) if with_reference_link else "src.data"
+        )
+        if data_expr is None:
+            raise ValueError(
+                f"copy_module_entries: no reference-link JSON expression for "
+                f"dialect {dialect!r}"
+            )
+        # Only the two module constants above are interpolated (a JSON
+        # expression keyed by dialect, an enum member name); every value
+        # travels as a bind param.
+        stmt = sa_text(
+            _COPY_MODULE_ENTRIES_SQL.format(
+                data_expr=data_expr, status=DataEntryStatusEnum.PENDING.name
+            )
+        ).bindparams(
+            # One timestamp for the batch (the old per-row ``datetime.now``
+            # spread a copy across milliseconds for no reader's benefit).
+            bindparam("copied_at", datetime.now(UTC), type_=DateTime()),
+            target_module_id=target_module_id,
+            source_module_id=source_module_id,
+            source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
+            unit_id=unit_id,
+            year=year,
+        )
+        result = await self.session.execute(stmt)
+        await self.session.flush()
+        return getattr(result, "rowcount", 0) or 0
+
     async def bulk_delete(
         self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum
     ) -> None:
@@ -325,6 +437,20 @@ class DataEntryRepository:
             col(DataEntry.year) == year,
             col(DataEntry.data_entry_type_id).in_(data_entry_type_ids),
             col(DataEntry.source).in_(sources),
+        )
+        result = await self.session.execute(statement)
+        await self.session.flush()
+        return getattr(result, "rowcount", 0) or 0
+
+    async def bulk_delete_by_created_by_id(self, created_by_id: int) -> int:
+        """Retry-idempotency guard (#2700): undo exactly this job's own
+        prior partial write, scoped by the ``created_by_id`` every bulk
+        insert stamps with the job's id. A no-op for a genuinely new job
+        (fresh id, nothing stamped yet) — only a resumed/retried run of
+        the SAME job ever matches rows. Returns the number of rows deleted.
+        """
+        statement = delete(DataEntry).where(
+            col(DataEntry.created_by_id) == created_by_id
         )
         result = await self.session.execute(statement)
         await self.session.flush()
@@ -1043,6 +1169,44 @@ class DataEntryRepository:
         ids = (await self.session.execute(page_q)).scalars().all()
         return [int(i) for i in ids]
 
+    @staticmethod
+    def _calculator_equipment_select(*columns: Any, unit_id: int) -> Select:
+        """``columns`` over the unit's Calculator equipment rows only.
+
+        Planner and grant prefill copy the reference year's equipment onto
+        plan rows carrying the same unit, year and ``equipment_id``, so a
+        unit/year filter alone lets a snapshot shadow the Calculator row.
+        Reports without a project (unit-test seeds) count as Calculator.
+        """
+        return (
+            sa_select(*columns)
+            .select_from(DataEntry)
+            .join(
+                CarbonReportModule,
+                col(CarbonReportModule.id) == col(DataEntry.carbon_report_module_id),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReport.id) == col(CarbonReportModule.carbon_report_id),
+            )
+            .outerjoin(
+                CarbonProject,
+                col(CarbonProject.id) == col(CarbonReport.carbon_project_id),
+            )
+            .where(
+                col(DataEntry.unit_id) == unit_id,
+                col(DataEntry.data_entry_type_id).in_(
+                    list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
+                ),
+                or_(
+                    col(CarbonProject.id).is_(None),
+                    col(CarbonProject.carbon_report_type).not_in(
+                        SIMULATOR_REPORT_TYPES
+                    ),
+                ),
+            )
+        )
+
     async def _prior_equipment_year(
         self, unit_id: int, current_year: int
     ) -> int | None:
@@ -1052,13 +1216,9 @@ class DataEntryRepository:
         """
         prior_year = (
             await self.session.execute(
-                select(func.max(DataEntry.year)).where(
-                    col(DataEntry.unit_id) == unit_id,
-                    col(DataEntry.year) < current_year,
-                    col(DataEntry.data_entry_type_id).in_(
-                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
-                    ),
-                )
+                self._calculator_equipment_select(
+                    func.max(DataEntry.year), unit_id=unit_id
+                ).where(col(DataEntry.year) < current_year)
             )
         ).scalar_one_or_none()
         return int(prior_year) if prior_year is not None else None
@@ -1080,14 +1240,8 @@ class DataEntryRepository:
         rows = (
             (
                 await self.session.execute(
-                    select(equipment_id)
-                    .where(
-                        col(DataEntry.unit_id) == unit_id,
-                        col(DataEntry.year) == prior_year,
-                        col(DataEntry.data_entry_type_id).in_(
-                            list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
-                        ),
-                    )
+                    self._calculator_equipment_select(equipment_id, unit_id=unit_id)
+                    .where(col(DataEntry.year) == prior_year)
                     .distinct()
                 )
             )
@@ -1112,18 +1266,13 @@ class DataEntryRepository:
             return {}
         rows = (
             await self.session.execute(
-                select(
+                self._calculator_equipment_select(
                     DataEntry.data["equipment_id"].as_string(),
                     *(DataEntry.data[field] for field in EQUIPMENT_USAGE_FIELDS),
+                    unit_id=unit_id,
                 )
-                .where(
-                    col(DataEntry.unit_id) == unit_id,
-                    col(DataEntry.year) == prior_year,
-                    col(DataEntry.data_entry_type_id).in_(
-                        list(EQUIPMENT_DATA_ENTRY_TYPE_IDS)
-                    ),
-                )
-                .order_by(col(DataEntry.id))
+                .where(col(DataEntry.year) == prior_year)
+                .order_by(col(DataEntry.updated_at), col(DataEntry.id))
             )
         ).all()
         usage_by_equipment: dict[str, dict] = {}
@@ -1275,17 +1424,14 @@ class DataEntryRepository:
                 lang=lang,
             )
 
-        # The entries this page can possibly show. Both aggregation subqueries
-        # below restrict to it: a GROUP BY over the whole data_entry_emissions
-        # table cannot be narrowed by the outer WHERE (#2050 J8).
-        module_entry_ids = select(col(DataEntry.id)).where(
-            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
-            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        # The emissions this page can possibly aggregate. Every branch below
+        # restricts to it: a GROUP BY over the whole data_entry_emissions
+        # table cannot be narrowed by the outer WHERE (#2050 J8). Since #2527
+        # the restriction is enforced by the emission row's own module/type
+        # columns rather than an IN-subquery over data_entries.
+        emission_scope = _emission_module_scope(
+            DataEntryEmission, carbon_report_module_id, data_entry_type_id
         )
-        if page_entry_ids is not None:
-            module_entry_ids = module_entry_ids.where(
-                col(DataEntry.id).in_(page_entry_ids)
-            )
 
         if is_buildings_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
@@ -1296,6 +1442,17 @@ class DataEntryRepository:
                 DataEntryTypeEnum.building
             ].value
             RollupEmission = aliased(DataEntryEmission)
+            # #2527: the rollup probe carries the module/type predicates too,
+            # so it rides ix_dee_module_type_entry — scope is INCLUDEd there,
+            # which is what keeps the ``scope IS NULL`` test index-only.
+            rollup_on = (
+                (col(RollupEmission.data_entry_id) == col(DataEntry.id))
+                & (col(RollupEmission.emission_type_id) == rollup_et_id)
+                & (col(RollupEmission.scope).is_(None))
+                & _emission_module_scope(
+                    RollupEmission, carbon_report_module_id, data_entry_type_id
+                )
+            )
             # Fallback for legacy rows created before rollups existed.
             # #2050 J8: restricted to this module's entries — see the generic
             # branch below for why an unrestricted GROUP BY here scans the
@@ -1305,7 +1462,7 @@ class DataEntryRepository:
                     DataEntryEmission.data_entry_id,
                     func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
                 )
-                .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+                .where(emission_scope)
                 .group_by(col(DataEntryEmission.data_entry_id))
             )
             if ROLLUP_EMISSION_TYPE_IDS:
@@ -1327,13 +1484,7 @@ class DataEntryRepository:
             ]
             statement: Select[Any] = (
                 sa_select(*entities)
-                .join(
-                    RollupEmission,
-                    (col(RollupEmission.data_entry_id) == col(DataEntry.id))
-                    & (col(RollupEmission.emission_type_id) == rollup_et_id)
-                    & (col(RollupEmission.scope).is_(None)),
-                    isouter=True,
-                )
+                .join(RollupEmission, rollup_on, isouter=True)
                 .join(
                     Factor,
                     col(Factor.id) == resolved_factor_id,
@@ -1369,6 +1520,17 @@ class DataEntryRepository:
                 DataEntryTypeEnum(data_entry_type_id)
             ].value
             RollupEmission = aliased(DataEntryEmission)
+            # #2527: same covering-index predicates as the buildings branch —
+            # the page query and the count query must join identically or the
+            # count degenerates.
+            rollup_on = (
+                (col(RollupEmission.data_entry_id) == col(DataEntry.id))
+                & (col(RollupEmission.emission_type_id) == rollup_et_id)
+                & (col(RollupEmission.scope).is_(None))
+                & _emission_module_scope(
+                    RollupEmission, carbon_report_module_id, data_entry_type_id
+                )
+            )
             entities = [
                 DataEntry,
                 col(RollupEmission.kg_co2eq).label("total_kg_co2eq"),
@@ -1376,13 +1538,7 @@ class DataEntryRepository:
             ]
             statement = (
                 sa_select(*entities)
-                .join(
-                    RollupEmission,
-                    (col(RollupEmission.data_entry_id) == col(DataEntry.id))
-                    & (col(RollupEmission.emission_type_id) == rollup_et_id)
-                    & (col(RollupEmission.scope).is_(None)),
-                    isouter=True,
-                )
+                .join(RollupEmission, rollup_on, isouter=True)
                 .join(
                     Factor,
                     col(RollupEmission.primary_factor_id) == col(Factor.id),
@@ -1391,12 +1547,7 @@ class DataEntryRepository:
             )
             kg_sort_expr = RollupEmission.kg_co2eq
             count_factor_joins = [
-                (
-                    RollupEmission,
-                    (col(RollupEmission.data_entry_id) == col(DataEntry.id))
-                    & (col(RollupEmission.emission_type_id) == rollup_et_id)
-                    & (col(RollupEmission.scope).is_(None)),
-                ),
+                (RollupEmission, rollup_on),
                 (Factor, col(RollupEmission.primary_factor_id) == col(Factor.id)),
             ]
         else:
@@ -1419,9 +1570,19 @@ class DataEntryRepository:
                         "primary_factor_id"
                     ),
                 )
-                .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+                .where(emission_scope)
                 .group_by(col(DataEntryEmission.data_entry_id))
             )
+            if page_entry_ids is not None:
+                # #2404 narrowing, kept on purpose: only kg_co2eq sorts fall
+                # through to the whole-module aggregate. Every other sort
+                # already resolved its ~20 ids, and dropping this in favour of
+                # the module/type predicates alone would make the majority of
+                # table combos slower. data_entry_id is the third column of
+                # ix_dee_module_type_entry, so both shapes use the same index.
+                emission_agg_q = emission_agg_q.where(
+                    col(DataEntryEmission.data_entry_id).in_(page_entry_ids)
+                )
             if ROLLUP_EMISSION_TYPE_IDS:
                 emission_agg_q = emission_agg_q.where(
                     col(DataEntryEmission.emission_type_id).notin_(
@@ -1847,20 +2008,23 @@ class DataEntryRepository:
         ``number_of_trips``. Rows whose origin or destination location did not
         resolve are dropped and counted into the returned ``dropped`` total.
         """
-        # Scope the per-entry emission rollup to THIS module's entries. Without
-        # it, the subquery seq-scans and aggregates the whole emissions table
-        # (~700k rows) on every call — and the mode loop below runs it twice —
-        # which dominates the query (seconds on a cold cache). Restricting by
-        # data_entry_id turns that into an indexed lookup of the module's rows.
-        module_entry_ids = select(col(DataEntry.id)).where(
-            col(DataEntry.carbon_report_module_id) == carbon_report_module_id
-        )
+        # Scope the per-entry emission rollup to THIS module's emissions.
+        # Without it, the subquery seq-scans and aggregates the whole emissions
+        # table (~700k rows) on every call — and the mode loop below runs it
+        # twice — which dominates the query (seconds on a cold cache). #2527:
+        # the module id now lives on the emission row itself, so this is a
+        # range scan on ix_dee_module_type_entry's leading column rather than
+        # an IN-subquery over data_entries. No type predicate here: both
+        # travel modes are wanted.
         emission_agg_q = (
             select(
                 DataEntryEmission.data_entry_id,
                 func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
             )
-            .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+            .where(
+                col(DataEntryEmission.carbon_report_module_id)
+                == carbon_report_module_id
+            )
             .group_by(col(DataEntryEmission.data_entry_id))
         )
         if ROLLUP_EMISSION_TYPE_IDS:

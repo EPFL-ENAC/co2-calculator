@@ -1,3 +1,8 @@
+import {
+  outlinedAssignmentInd,
+  outlinedFilterDrama,
+  outlinedTimer,
+} from '@quasar/extras/material-icons-outlined';
 import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import { MODULES, MODULES_THRESHOLD_TYPES } from '@/constant/modules';
 import { formatFTE } from '@/utils/number';
@@ -9,11 +14,6 @@ import {
 } from '@/constant/input-decimals';
 
 // Define an icon map to convert string keys to SVG icons
-import {
-  outlinedFilterDrama,
-  outlinedAssignmentInd,
-  outlinedTimer,
-} from '@quasar/extras/material-icons-outlined';
 
 export const iconMap: Record<string, string> = {
   o_filter_drama: outlinedFilterDrama,
@@ -32,7 +32,7 @@ const memberFields: ModuleField[] = [
     required: true,
     sortable: true,
     ratio: '1/4',
-    icon: 'o_filter_drama',
+    icon: outlinedFilterDrama,
     columnSize: 'sm',
     editableInline: true,
   },
@@ -43,7 +43,7 @@ const memberFields: ModuleField[] = [
     required: true,
     sortable: true,
     ratio: '1/4',
-    icon: 'o_assignment_ind',
+    icon: outlinedAssignmentInd,
     columnSize: 'sm',
     editableInline: true,
     // #2254: imported rows may carry the "Other staff" sentinel (-1),
@@ -73,7 +73,7 @@ const memberFields: ModuleField[] = [
     maxDecimals: moduleInputDecimals(MODULES.Headcount),
     sortable: false,
     ratio: '1/4',
-    icon: 'o_timer',
+    icon: outlinedTimer,
     editableInline: true,
   },
 ];

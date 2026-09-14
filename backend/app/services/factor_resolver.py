@@ -84,6 +84,17 @@ class FactorResolver:
             return None
         return maps.by_id.get(factor_id)
 
+    async def unresolved_reason(
+        self,
+        handler: ModuleHandler,
+        data: dict,
+        data_entry_type: DataEntryTypeEnum,
+        year: int,
+    ) -> str | None:
+        """See ``unresolved_reason``; runs it on the year's bulk-loaded set."""
+        maps = await self._get_maps(data_entry_type, year)
+        return unresolved_reason(handler, data, list(maps.by_id.values()))
+
     async def _get_maps(
         self, data_entry_type: DataEntryTypeEnum, year: int
     ) -> _FactorMaps:
@@ -102,6 +113,81 @@ class FactorResolver:
             )
             self._maps[key] = maps
         return maps
+
+
+def unresolved_reason(
+    handler: ModuleHandler, data: dict, factors: list[Factor]
+) -> str | None:
+    """Why an entry would silently price nothing against ``factors`` (#2591).
+
+    Run where an entry enters the system (CSV row, API create), never in
+    recompute. Covers the cases the data manager decided must fail loud:
+    a kind whose factors all carry a subkind but the entry gives none or an
+    unknown one (Refrigerants without a subcategory), and a field the entry
+    must copy from its factor but does not (energy combustion unit). An
+    unknown kind stays a plain miss here; that is its own issue.
+    """
+    kind_field = handler.kind_field
+    if kind_field is None or handler.kind_field_override is not None:
+        return None
+    kind = data.get(kind_field)
+    if not kind:
+        return None
+    by_kind_subkind = _build_kind_subkind_map(
+        factors, kind_field, handler.subkind_field
+    )
+    subkinds = sorted(s for (k, s) in by_kind_subkind if k == kind and s)
+    subkind_reason = _subkind_reason(handler, data, kind, subkinds, by_kind_subkind)
+    if subkind_reason is not None:
+        return subkind_reason
+    factor_id = _resolve_kind_subkind(
+        data,
+        kind_field=kind_field,
+        subkind_field=handler.subkind_field,
+        by_kind_subkind=by_kind_subkind,
+    )
+    factor = next((f for f in factors if f.id == factor_id), None)
+    if factor is None:
+        return None
+    return _factor_match_reason(handler, data, factor, kind_field, kind)
+
+
+def _subkind_reason(
+    handler: ModuleHandler,
+    data: dict,
+    kind: str,
+    subkinds: list[str],
+    by_kind_subkind: dict[tuple[str, str | None], int],
+) -> str | None:
+    if not subkinds or (kind, None) in by_kind_subkind:
+        return None
+    subkind_field = handler.subkind_field
+    given = data.get(subkind_field) or None if subkind_field else None
+    if given is None:
+        return (
+            f"{subkind_field} is required for {handler.kind_field}={kind!r}:"
+            f" one of {subkinds}"
+        )
+    if (kind, given) in by_kind_subkind:
+        return None
+    return (
+        f"Unknown {subkind_field}={given!r} for {handler.kind_field}={kind!r}:"
+        f" one of {subkinds}"
+    )
+
+
+def _factor_match_reason(
+    handler: ModuleHandler, data: dict, factor: Factor, kind_field: str, kind: str
+) -> str | None:
+    classification = factor.classification or {}
+    for field in handler.factor_match_fields:
+        expected = classification.get(field)
+        if data.get(field) != expected:
+            return (
+                f"{field}={data.get(field)!r} does not match the factor's"
+                f" {field}={expected!r} for {kind_field}={kind!r}"
+            )
+    return None
 
 
 def _build_maps(

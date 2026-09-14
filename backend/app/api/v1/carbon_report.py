@@ -32,10 +32,18 @@ from app.utils.factor_year import resolve_factor_year_safe
 from app.workflows.explore_provisioning import ExploreProvisioningWorkflow
 
 
-async def _explore_report_read(
+async def _carbon_report_read(
     db: AsyncSession, report: CarbonReport | CarbonReportRead
 ) -> CarbonReportRead:
-    """Build an Explore response carrying its resolved factor year (#2631)."""
+    """Build a response carrying the report's resolved factor year (#2631).
+
+    Not Explore-specific despite where it was first added: any route
+    returning a single ``CarbonReportRead`` should carry a consistent
+    ``factor_year`` — the dedicated Explore GET already did, but the
+    generic by-id GET (also reachable for an Explore report, #2461's
+    ownership gate) silently left it ``None``, which read as a bug to
+    anyone comparing the two responses for the same report.
+    """
     factor_year = await resolve_factor_year_safe(db, report)
     return CarbonReportRead.model_validate(report).model_copy(
         update={"factor_year": factor_year}
@@ -152,7 +160,7 @@ async def get_simulator_explore_carbon_report(
         raise HTTPException(
             status_code=404, detail="Simulator Explore report not found"
         )
-    return await _explore_report_read(db, result)
+    return await _carbon_report_read(db, result)
 
 
 @router.post(
@@ -195,7 +203,7 @@ async def create_simulator_explore_carbon_report(
         created_by=current_user.id,
         keep_project_id=result.carbon_project_id,
     )
-    return await _explore_report_read(db, result)
+    return await _carbon_report_read(db, result)
 
 
 @router.get("/{carbon_report_id}", response_model=CarbonReportRead)
@@ -214,7 +222,7 @@ async def get_carbon_report(
     if report.carbon_project_id is not None:
         project = await db.get(CarbonProject, report.carbon_project_id)
         require_explore_ownership(current_user, project)
-    return report
+    return await _carbon_report_read(db, report)
 
 
 # --- CarbonReportModule endpoints ---

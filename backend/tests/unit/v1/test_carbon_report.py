@@ -120,8 +120,10 @@ async def test_create_carbon_report_commits_and_returns():
 async def test_get_carbon_report_found():
     db = _db()
     report = MagicMock()
+    report.carbon_project_id = None
     svc = MagicMock()
     svc.get = AsyncMock(return_value=report)
+    sentinel = MagicMock()
 
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
@@ -129,9 +131,13 @@ async def test_get_carbon_report_found():
         with (
             patch.object(module, "require_unit_access"),
             patch.object(module, "require_module_unit_scope"),
+            patch.object(
+                module, "_carbon_report_read", AsyncMock(return_value=sentinel)
+            ) as read_mock,
         ):
             result = await module.get_carbon_report(42, db, _user())
-        assert result == report
+        assert result == sentinel
+        read_mock.assert_awaited_once_with(db, report)
     finally:
         module.CarbonReportService = original
 
@@ -206,13 +212,19 @@ async def test_get_carbon_report_allows_creator_explore_by_id():
     svc = MagicMock()
     svc.get = AsyncMock(return_value=report)
     current_user = MagicMock(id=1)
+    sentinel = MagicMock()
 
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(
+                module, "_carbon_report_read", AsyncMock(return_value=sentinel)
+            ),
+        ):
             result = await module.get_carbon_report(7, db, current_user)
-        assert result is report
+        assert result is sentinel
     finally:
         module.CarbonReportService = original
 
@@ -229,13 +241,19 @@ async def test_get_carbon_report_plan_report_ignores_creator_mismatch():
     svc = MagicMock()
     svc.get = AsyncMock(return_value=report)
     current_user = MagicMock(id=2)
+    sentinel = MagicMock()
 
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(
+                module, "_carbon_report_read", AsyncMock(return_value=sentinel)
+            ),
+        ):
             result = await module.get_carbon_report(7, db, current_user)
-        assert result is report
+        assert result is sentinel
     finally:
         module.CarbonReportService = original
 
@@ -418,7 +436,7 @@ async def test_get_simulator_explore_found_returns_it():
             patch.object(module, "require_unit_access"),
             patch.object(module, "require_module_unit_scope"),
             patch.object(
-                module, "_explore_report_read", AsyncMock(return_value=sentinel)
+                module, "_carbon_report_read", AsyncMock(return_value=sentinel)
             ) as read_mock,
         ):
             result = await module.get_simulator_explore_carbon_report(1, db, _user())
@@ -474,7 +492,7 @@ async def test_create_simulator_explore_always_creates_and_schedules_cleanup():
             patch.object(module, "require_unit_access"),
             patch.object(module, "require_module_unit_scope"),
             patch.object(
-                module, "_explore_report_read", AsyncMock(return_value=sentinel)
+                module, "_carbon_report_read", AsyncMock(return_value=sentinel)
             ) as read_mock,
         ):
             result = await module.create_simulator_explore_carbon_report(
@@ -518,7 +536,7 @@ async def test_create_simulator_explore_raises_when_project_id_missing():
         module.ExploreProvisioningWorkflow = original
 
 
-# ── _explore_report_read (#2631) ────────────────────────────────────────────────
+# ── _carbon_report_read (#2631) ────────────────────────────────────────────────
 
 
 def _explore_report_row(**overrides):
@@ -541,16 +559,16 @@ def _explore_report_row(**overrides):
 
 
 @pytest.mark.asyncio
-async def test_explore_report_read_carries_resolved_factor_year():
+async def test_carbon_report_read_carries_resolved_factor_year():
     report = _explore_report_row()
     with patch.object(module, "resolve_factor_year_safe", AsyncMock(return_value=2025)):
-        result = await module._explore_report_read(_db(), report)
+        result = await module._carbon_report_read(_db(), report)
     assert result.factor_year == 2025
     assert result.year == 2026  # creation year untouched, distinct field (#2656)
 
 
 @pytest.mark.asyncio
-async def test_explore_report_read_factor_year_none_when_unresolvable():
+async def test_carbon_report_read_factor_year_none_when_unresolvable():
     """No published factors for either fallback year → None, not a 500 (#2631).
 
     The sandbox itself is real; only its dropdowns have nothing to price
@@ -558,5 +576,5 @@ async def test_explore_report_read_factor_year_none_when_unresolvable():
     """
     report = _explore_report_row()
     with patch.object(module, "resolve_factor_year_safe", AsyncMock(return_value=None)):
-        result = await module._explore_report_read(_db(), report)
+        result = await module._carbon_report_read(_db(), report)
     assert result.factor_year is None

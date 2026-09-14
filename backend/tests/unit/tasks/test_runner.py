@@ -211,6 +211,47 @@ async def test_run_job_success_commits_and_marks_finished_success():
 
 
 @pytest.mark.asyncio
+async def test_run_job_commits_job_session_before_handler_starts():
+    """#2700 -- job_session releases its connection (commit) right after
+    claim, before the handler starts. Without this, the transaction
+    ``get_job_by_id`` autobegan stays open through the handler's setup
+    phase (S3 move included) even though nothing writes to job_session
+    again until the handler's own frequent progress commits.
+    """
+    job = _make_job()
+    job.locked_by = runner_mod.POD_ID
+    repo = _make_repo_returning(job)
+
+    events: list[str] = []
+    session_names = iter(["job_session", "data_session"])
+
+    @asynccontextmanager
+    async def _capture_session():
+        name = next(session_names)
+        session = MagicMock()
+        session.commit = AsyncMock(side_effect=lambda: events.append(f"{name}.commit"))
+        session.rollback = AsyncMock()
+        session.add = MagicMock()
+        yield session
+
+    @register("test_job")
+    async def _handler(j, js, ds) -> dict:
+        events.append("handler_start")
+        return {"status_message": "ok"}
+
+    with (
+        patch.object(runner_mod, "SessionLocal", _capture_session),
+        _patch_heartbeat(),
+        patch.object(runner_mod, "DataIngestionRepository", return_value=repo),
+    ):
+        await runner_mod.run_job(1)
+
+    assert "job_session.commit" in events
+    assert "handler_start" in events
+    assert events.index("job_session.commit") < events.index("handler_start"), events
+
+
+@pytest.mark.asyncio
 async def test_run_job_handler_raises_marks_finished_error_and_rolls_back():
     """Handler exception → data_session rolled back, state→FINISHED,
     result→ERROR, status_message captures the exception.
@@ -390,7 +431,7 @@ async def test_run_job_handler_poisons_job_session_still_marks_error():
 
     When a handler raises an exception that left ``job_session`` in a
     PendingRollbackError state (e.g. an uncaught IntegrityError from a
-    chain_job INSERT tripping ``uq_emission_recalc_active``), the
+    chain_job INSERT tripping ``uq_emission_recalc_active_unscoped``), the
     runner must roll back ``job_session`` BEFORE the preempt-check so
     ``get_job_by_id`` / ``finish_job`` can run and the job is durably
     written FINISHED+ERROR.
@@ -444,7 +485,8 @@ async def test_run_job_handler_poisons_job_session_still_marks_error():
         # Simulate an uncaught IntegrityError that poisoned the
         # session — the message mirrors the production stack.
         raise RuntimeError(
-            'duplicate key value violates unique constraint "uq_emission_recalc_active"'
+            "duplicate key value violates unique constraint "
+            '"uq_emission_recalc_active_unscoped"'
         )
 
     with (
@@ -463,7 +505,7 @@ async def test_run_job_handler_poisons_job_session_still_marks_error():
     repo.finish_job.assert_awaited_once()
     _, kwargs = repo.finish_job.call_args
     assert kwargs["result"] == IngestionResult.ERROR
-    assert "uq_emission_recalc_active" in kwargs["status_message"]
+    assert "uq_emission_recalc_active_unscoped" in kwargs["status_message"]
 
 
 # ---------------------------------------------------------------------------

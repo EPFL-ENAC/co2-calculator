@@ -27,8 +27,13 @@ from app.db import (
     _pool_kwargs,
     connect_failure_sqlstate,
     count_connect_failure,
+    explain_db_wait,
+    explain_pool_wait,
+    on_pg_notice,
     read_pool_state,
+    register_pg_notice_handler,
 )
+from app.tasks._pod_id import POD_ID
 
 
 def test_pool_kwargs_passes_settings_through_for_postgres():
@@ -124,12 +129,21 @@ def test_postgres_connect_args_enable_tcp_keepalives():
     mid-connection waits out the OS default (~2h) instead of failing. These
     four settings cap that at roughly 60s: idle 30s, then 3 probes 10s apart.
     """
-    assert _connect_args(is_sqlite=False) == {
+    args = _connect_args(is_sqlite=False)
+    assert {k: args[k] for k in args if k.startswith("keepalives")} == {
         "keepalives": 1,
         "keepalives_idle": 30,
         "keepalives_interval": 10,
         "keepalives_count": 3,
     }
+
+
+def test_postgres_connect_args_name_the_pod():
+    """#2689: behind PgBouncer every backend shares the bouncer's
+    ``client_addr``; ``application_name`` is the only thing left that says
+    which pod (or which laptop) holds a server slot.
+    """
+    assert _connect_args(is_sqlite=False)["application_name"] == f"co2-{POD_ID}"
 
 
 def test_sqlite_connect_args_carry_no_libpq_options():
@@ -352,3 +366,86 @@ def test_pool_logger_does_not_inherit_app_debug_level():
 
     assert not pool_logger.isEnabledFor(logging.DEBUG)
     assert pool_logger.isEnabledFor(logging.WARNING)
+
+
+# ---------------------------------------------------------------------------
+# #2689: name the layer that ran out
+# ---------------------------------------------------------------------------
+
+
+def test_query_wait_timeout_is_explained_as_the_bouncer_pool():
+    """The psycopg text names neither PgBouncer nor a pool; the explanation
+    must, and must point away from this pod's own pool.
+    """
+    error = psycopg.errors.ProtocolViolation("query_wait_timeout")
+
+    text = explain_db_wait(error)
+
+    assert text is not None
+    assert "PgBouncer" in text
+    assert "not this pod's SQLAlchemy pool" in text
+
+
+def test_postgres_refusal_is_explained_as_max_connections():
+    error = psycopg.OperationalError(
+        "FATAL:  remaining connection slots are reserved for roles with the "
+        "SUPERUSER attribute"
+    )
+
+    text = explain_db_wait(error)
+
+    assert text is not None
+    assert "max_connections" in text
+
+
+def test_ordinary_errors_get_no_explanation():
+    assert explain_db_wait(RuntimeError("syntax error at or near")) is None
+
+
+def test_bouncer_timeout_is_logged_and_counted(monkeypatch, caplog):
+    counter = _RecordingCounter()
+    monkeypatch.setattr(db, "_bouncer_queue_timeouts", counter)
+    context = SimpleNamespace(
+        original_exception=psycopg.errors.ProtocolViolation("query_wait_timeout")
+    )
+
+    with caplog.at_level(logging.ERROR, logger="app.db"):
+        explain_pool_wait(context)
+
+    assert counter.calls == [(1, None)]
+    assert "PgBouncer" in caplog.text
+
+
+def test_bouncer_queued_notice_is_logged_and_counted(monkeypatch, caplog):
+    """PgBouncer 1.22+ sends the NOTICE the moment it parks a client, 120 s
+    before the error: the one signal that fires while there is still time.
+    """
+    counter = _RecordingCounter()
+    monkeypatch.setattr(db, "_bouncer_queued", counter)
+    notice = SimpleNamespace(
+        message_primary=(
+            "No server connection available in postgres backend, client being queued"
+        )
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.db"):
+        on_pg_notice(notice)
+        on_pg_notice(SimpleNamespace(message_primary="table created"))
+
+    assert counter.calls == [(1, None)]
+    assert "PgBouncer queued this connection" in caplog.text
+
+
+def test_notice_handler_is_hooked_on_the_driver_connection():
+    """SQLAlchemy hands the pool 'connect' event its async adapter; the
+    psycopg connection with ``add_notice_handler`` sits behind
+    ``driver_connection``.
+    """
+    registered = []
+    dbapi_connection = SimpleNamespace(
+        driver_connection=SimpleNamespace(add_notice_handler=registered.append)
+    )
+
+    register_pg_notice_handler(dbapi_connection, None)
+
+    assert registered == [on_pg_notice]

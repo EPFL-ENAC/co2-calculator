@@ -753,6 +753,13 @@ class DataEntryEmissionService:
                 )
             )
 
+        # #2527: stamp the denormalized join keys once, from the same entry
+        # that supplied every row's data_entry_id — so a fifth construction
+        # site above cannot forget them, and the keys cannot disagree with
+        # the parent row (planner copies included).
+        for row in results:
+            row.carbon_report_module_id = data_entry.carbon_report_module_id
+            row.data_entry_type_id = data_entry.data_entry_type_id
         return results
 
     @staticmethod
@@ -1150,22 +1157,6 @@ class DataEntryEmissionService:
             [row.to_orm() for row in prepared_emissions]
         )
         return created_emissions
-
-    async def get_stats(
-        self,
-        carbon_report_module_id: int,
-        aggregate_by: str = "emission_type_id",
-        aggregate_field: str = "kg_co2eq",
-        exclude_planner_snapshots: bool = False,
-    ) -> dict[str, float | None]:
-        """Get aggregated emission statistics for a carbon report module."""
-        stats = await self.repo.get_stats(
-            carbon_report_module_id,
-            aggregate_by,
-            aggregate_field,
-            exclude_planner_snapshots=exclude_planner_snapshots,
-        )
-        return stats
 
     async def get_embodied_energy_by_building(
         self,

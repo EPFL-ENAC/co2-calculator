@@ -59,9 +59,9 @@ graph TB
     subgraph "OpenShift namespace"
         Route[Route · TLS edge]
         FE[Frontend · 2 pods]
-        BE[Backend · 2 pods<br/>incl. async jobs]
+        BE[Backend · 2–3 pods + 1 worker]
         Docs[Docs · 1 pod]
-        Otel[OTEL Collector + Jaeger]
+        Otel[OTEL Collector]
         DBDump[db-dump CronJob]
         PVC[(db-dumps PVC)]
 
@@ -78,6 +78,7 @@ graph TB
         Graf[Grafana]
         Alert[Alertmanager · email]
         Otel --> Prom
+        Otel -->|traces| Tempo[Tempo · enac-it-otel]
         Prom --> Graf
         Prom --> Alert
     end
@@ -101,7 +102,7 @@ graph TB
 **Key characteristics:**
 
 - App Helm chart: backend / frontend / docs Deployments, Routes, Services, HPA, PDB, migration Job
-- Deployed via GitOps (not the app chart): OTEL Collector, Jaeger, `ServiceMonitor`, Grafana dashboards, `PrometheusRule`, `AlertmanagerConfig`, and the `db-dump` CronJob
+- Deployed via GitOps (not the app chart): OTEL Collector, `ServiceMonitor`, Grafana dashboards, `PrometheusRule`, `AlertmanagerConfig`, and the `db-dump` CronJob
 - ArgoCD reconciliation; HPA autoscaling; rolling updates
 - TLS terminated at the OpenShift Route (edge); access over EPFL VPN only
 - No service mesh (no Istio/Linkerd)

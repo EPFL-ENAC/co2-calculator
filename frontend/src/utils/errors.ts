@@ -1,3 +1,4 @@
+import { matClose } from '@quasar/extras/material-icons';
 import { HTTPError } from 'ky';
 import { QNotifyCreateOptions } from 'quasar';
 
@@ -268,7 +269,7 @@ export function showPermissionError(
     message,
     position: 'top',
     timeout: 5000,
-    actions: [{ icon: 'close', color: 'white' }],
+    actions: [{ icon: matClose, color: 'white' }],
     ...options,
   });
 }

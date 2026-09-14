@@ -341,6 +341,16 @@ def get_files_storage_path() -> str:
     return os.environ.get("FILES_STORAGE_PATH", "./files_storage")
 
 
+def _changes_activation(config: dict[str, Any]) -> bool:
+    """True when the patch flips a module or submodule ``enabled`` flag."""
+    for module in config.get("modules", {}).values():
+        if "enabled" in module:
+            return True
+        if any("enabled" in sub for sub in module.get("submodules", {}).values()):
+            return True
+    return False
+
+
 def _deep_merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge patch into base (returns a new dict).
 
@@ -871,6 +881,14 @@ async def update_year_configuration(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No configuration found for year {year}. Use POST to create.",
+        )
+
+    # #2464: the form greys the toggles out once the year is open (#2146);
+    # enforce it here so a stale tab or a direct PATCH cannot bypass it.
+    if result.is_started and payload.config and _changes_activation(payload.config):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Module activation is locked once the year has started",
         )
 
     # Get old snapshot for audit

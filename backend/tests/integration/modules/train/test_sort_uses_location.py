@@ -16,12 +16,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.location import Location, TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions import EmissionType
 from app.repositories.data_entry_repo import DataEntryRepository
+from tests.conftest import make_emission
 
 
 async def _seed_base(session: AsyncSession):
@@ -127,8 +127,8 @@ async def test_origin_destination_name_come_from_location_join(
     db_session.add(entry_b)
     await db_session.flush()
 
-    emission_a = DataEntryEmission(
-        data_entry_id=entry_a.id,
+    emission_a = make_emission(
+        entry_a,
         emission_type_id=EmissionType.professional_travel__train.value,
         primary_factor_id=factor.id,
         kg_co2eq=5.0,
@@ -136,8 +136,8 @@ async def test_origin_destination_name_come_from_location_join(
         scope=None,
         meta={},
     )
-    emission_b = DataEntryEmission(
-        data_entry_id=entry_b.id,
+    emission_b = make_emission(
+        entry_b,
         emission_type_id=EmissionType.professional_travel__train.value,
         primary_factor_id=factor.id,
         kg_co2eq=5.0,
@@ -246,8 +246,8 @@ async def test_distance_km_sort_uses_coalesce_additional_value_over_data(
     db_session.add(entry_b)
     await db_session.flush()
 
-    emission_a = DataEntryEmission(
-        data_entry_id=entry_a.id,
+    emission_a = make_emission(
+        entry_a,
         emission_type_id=EmissionType.professional_travel__train.value,
         primary_factor_id=factor.id,
         kg_co2eq=1.8,
@@ -255,8 +255,8 @@ async def test_distance_km_sort_uses_coalesce_additional_value_over_data(
         scope=None,
         meta={},
     )
-    emission_b = DataEntryEmission(
-        data_entry_id=entry_b.id,
+    emission_b = make_emission(
+        entry_b,
         emission_type_id=EmissionType.professional_travel__train.value,
         primary_factor_id=factor.id,
         kg_co2eq=0.6,

@@ -25,6 +25,9 @@ statements = [
     "DROP INDEX IF EXISTS ix_data_entry_emissions_data_entry_id;",
     "DROP INDEX IF EXISTS ix_data_entry_emissions_emission_type_id;",
     "DROP INDEX IF EXISTS ix_data_entry_emissions_primary_factor_id;",
+    # #2527 covering index — must match data_entry_emission.py's
+    # __table_args__ exactly when seed_post_all re-creates it.
+    "DROP INDEX IF EXISTS ix_dee_module_type_entry;",
     # --- 4. Switch to UNLOGGED (Now both are "disconnected" from logged tables) ---
     "ALTER TABLE data_entry_emissions SET UNLOGGED;",
     "ALTER TABLE data_entries SET UNLOGGED;",

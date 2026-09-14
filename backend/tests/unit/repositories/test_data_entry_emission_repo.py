@@ -7,16 +7,19 @@ from app.core.constants import ModuleStatus
 from app.models.building_room import BuildingRoom
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
-from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry import (
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryStatusEnum,
+    DataEntryTypeEnum,
+)
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.modules.emissions import EmissionType
-from app.modules.emissions.registry import (
-    emission_type_scope,
-    is_additional_breakdown_emission,
-)
+from app.modules.emissions.registry import MODULE_STAT_BUCKETS, emission_type_scope
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
+from app.services.carbon_report_module_service import compute_module_stats
+from tests.conftest import make_emission
 
 # ======================================================================
 # CRUD Operation Tests
@@ -47,8 +50,8 @@ async def test_create_emission(db_session: AsyncSession):
     await db_session.flush()
 
     # Create emission
-    emission = DataEntryEmission(
-        data_entry_id=data_entry.id,
+    emission = make_emission(
+        data_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
         additional_value=500.0,
@@ -87,8 +90,8 @@ async def test_update_emission(db_session: AsyncSession):
     db_session.add(data_entry)
     await db_session.flush()
 
-    emission = DataEntryEmission(
-        data_entry_id=data_entry.id,
+    emission = make_emission(
+        data_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
@@ -125,8 +128,8 @@ async def test_get_by_data_entry_id(db_session: AsyncSession):
     db_session.add(data_entry)
     await db_session.flush()
 
-    emission = DataEntryEmission(
-        data_entry_id=data_entry.id,
+    emission = make_emission(
+        data_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
@@ -173,8 +176,8 @@ async def test_delete_by_data_entry_id(db_session: AsyncSession):
     db_session.add(data_entry)
     await db_session.flush()
 
-    emission = DataEntryEmission(
-        data_entry_id=data_entry.id,
+    emission = make_emission(
+        data_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
@@ -225,8 +228,8 @@ async def test_bulk_create_emissions(db_session: AsyncSession):
     await db_session.flush()
 
     emissions = [
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.professional_travel__plane__business,
             kg_co2eq=100.0 * (i + 1),
             scope=emission_type_scope(
@@ -250,8 +253,8 @@ async def test_bulk_create_emissions(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_get_stats_by_emission_type(db_session: AsyncSession):
-    """Test aggregating emissions by emission_type_id."""
+async def test_get_stats_pair_many_by_emission_type(db_session: AsyncSession):
+    """Per-module kg sums keyed by emission_type_id (#2706 single path)."""
     repo = DataEntryEmissionRepository(db_session)
 
     # Create prerequisites
@@ -289,8 +292,8 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
 
     # Create emissions
     plane_emissions = [
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.professional_travel__plane__business,
             kg_co2eq=200.0,
             scope=emission_type_scope(
@@ -301,8 +304,8 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
     ]
 
     train_emissions = [
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.professional_travel__train__class_2,
             kg_co2eq=50.0,
             scope=emission_type_scope(EmissionType.professional_travel__train__class_2),
@@ -313,7 +316,7 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
     db_session.add_all(plane_emissions + train_emissions)
     await db_session.flush()
 
-    result = await repo.get_stats(module.id, "emission_type_id", "kg_co2eq")
+    result, _, _ = (await repo.get_stats_pair_many([module.id]))[module.id]
 
     assert str(EmissionType.professional_travel__plane__business.value) in result
     assert str(EmissionType.professional_travel__train__class_2.value) in result
@@ -326,13 +329,11 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_get_stats_empty_result(db_session: AsyncSession):
-    """Test get_stats returns empty dict when no data."""
+async def test_get_stats_pair_many_empty_result(db_session: AsyncSession):
+    """A module with no emissions is absent — callers treat a miss as empty."""
     repo = DataEntryEmissionRepository(db_session)
 
-    result = await repo.get_stats(99999, "emission_type_id", "kg_co2eq")
-
-    assert result == {}
+    assert await repo.get_stats_pair_many([99999]) == {}
 
 
 @pytest.mark.asyncio
@@ -341,9 +342,9 @@ async def test_buildings_banner_total_excludes_embodied_energy(
 ):
     """Regression for #1616: the buildings module banner total must exclude
     embodied energy (an additional-breakdown category), matching the Results
-    module total. get_stats still returns the embodied row; the headline sum
-    filters it out via is_additional_breakdown_emission, exactly like the
-    GET /modules/{unit}/{year}/{module} endpoint does.
+    module total. Since #2706 the banner reads the persisted
+    ``total_excluding_additional``; the embodied row still lands in
+    ``by_emission_type`` and in ``total``.
     """
     repo = DataEntryEmissionRepository(db_session)
 
@@ -379,8 +380,8 @@ async def test_buildings_banner_total_excludes_embodied_energy(
         db_session.add(entry)
         await db_session.flush()
         db_session.add(
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=emission_type,
                 kg_co2eq=kg,
                 scope=emission_type_scope(emission_type),
@@ -388,18 +389,91 @@ async def test_buildings_banner_total_excludes_embodied_energy(
         )
     await db_session.flush()
 
-    stats = await repo.get_stats(module.id, "emission_type_id", "kg_co2eq")
+    leaf, additional, snapshot = (await repo.get_stats_pair_many([module.id]))[
+        module.id
+    ]
+    stats = compute_module_stats(
+        leaf,
+        additional,
+        MODULE_STAT_BUCKETS[ModuleTypeEnum.buildings],
+        planner_snapshot_emissions=snapshot,
+    )
 
     # Raw stats still include the embodied row.
-    assert str(EmissionType.buildings__construction_and_renovation.value) in stats
+    embodied = str(EmissionType.buildings__construction_and_renovation.value)
+    assert embodied in stats["by_emission_type"]
+    assert stats["total"] == pytest.approx(41_000.0)
 
-    # Headline total mirrors the banner endpoint: drop additional categories.
-    banner_total = sum(
-        v
-        for k, v in stats.items()
-        if v is not None and not is_additional_breakdown_emission(int(k))
+    # Headline total (module banner + sidebar): rooms + combustion, no embodied.
+    assert stats["total_excluding_additional"] == pytest.approx(6_000.0)
+
+
+@pytest.mark.asyncio
+async def test_get_stats_pair_many_splits_planner_snapshot_kg(
+    db_session: AsyncSession,
+):
+    """#2706: the kg carried by Simulator prefill rows is persisted apart, so
+    the module GET can hide it from a viewer who may not see those rows
+    without re-aggregating. Additional buckets stay out of that figure, like
+    they stay out of the headline it is subtracted from.
+    """
+    repo = DataEntryEmissionRepository(db_session)
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.buildings.value,
+        status="in_progress",
     )
-    assert banner_total == pytest.approx(6_000.0)  # rooms + combustion, no embodied
+    db_session.add(module)
+    await db_session.flush()
+
+    seed = [
+        (None, EmissionType.buildings__rooms__lighting, 4_000.0),
+        (
+            DataEntrySourceEnum.PLANNER_SNAPSHOT,
+            EmissionType.buildings__rooms__lighting,
+            1_000.0,
+        ),
+        (
+            DataEntrySourceEnum.PLANNER_SNAPSHOT,
+            EmissionType.buildings__construction_and_renovation,
+            9_000.0,
+        ),
+    ]
+    for source, emission_type, kg in seed:
+        entry = DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.building,
+            status=DataEntryStatusEnum.PENDING,
+            source=source,
+            data={},
+        )
+        db_session.add(entry)
+        await db_session.flush()
+        db_session.add(
+            make_emission(
+                entry,
+                emission_type_id=emission_type,
+                kg_co2eq=kg,
+                scope=emission_type_scope(emission_type),
+            )
+        )
+    await db_session.flush()
+
+    leaf, additional, snapshot = (await repo.get_stats_pair_many([module.id]))[
+        module.id
+    ]
+    lighting = str(EmissionType.buildings__rooms__lighting.value)
+    assert leaf[lighting] == pytest.approx(5_000.0)
+    assert snapshot[lighting] == pytest.approx(1_000.0)
+
+    stats = compute_module_stats(
+        leaf,
+        additional,
+        MODULE_STAT_BUCKETS[ModuleTypeEnum.buildings],
+        planner_snapshot_emissions=snapshot,
+    )
+    assert stats["total_excluding_additional"] == pytest.approx(5_000.0)
+    assert stats["planner_snapshot_kg"] == pytest.approx(1_000.0)
 
 
 # ======================================================================
@@ -440,15 +514,15 @@ async def test_get_travel_stats_by_class_basic(db_session: AsyncSession):
     await db_session.flush()
 
     # Create emissions
-    eco_emission = DataEntryEmission(
-        data_entry_id=eco_entry.id,
+    eco_emission = make_emission(
+        eco_entry,
         emission_type_id=EmissionType.professional_travel__plane__eco,
         kg_co2eq=200.0,
         scope=emission_type_scope(EmissionType.professional_travel__plane__eco),
     )
 
-    business_emission = DataEntryEmission(
-        data_entry_id=business_entry.id,
+    business_emission = make_emission(
+        business_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=600.0,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
@@ -513,15 +587,15 @@ async def test_get_travel_stats_by_class_null_cabin(db_session: AsyncSession):
     await db_session.flush()
 
     # Create emissions
-    plane_emission = DataEntryEmission(
-        data_entry_id=plane_entry.id,
+    plane_emission = make_emission(
+        plane_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=300.0,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
     )
 
-    train_emission = DataEntryEmission(
-        data_entry_id=train_entry.id,
+    train_emission = make_emission(
+        train_entry,
         emission_type_id=EmissionType.professional_travel__train__class_2,
         kg_co2eq=50.0,
         scope=emission_type_scope(EmissionType.professional_travel__train__class_2),
@@ -579,15 +653,15 @@ async def test_get_travel_stats_by_class_filters_zero_emissions(
     await db_session.flush()
 
     # Create emissions - one valid, one zero
-    valid_emission = DataEntryEmission(
-        data_entry_id=valid_entry.id,
+    valid_emission = make_emission(
+        valid_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=200.0,
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
     )
 
-    zero_emission = DataEntryEmission(
-        data_entry_id=zero_entry.id,
+    zero_emission = make_emission(
+        zero_entry,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=0.0,  # Zero emission
         scope=emission_type_scope(EmissionType.professional_travel__plane__business),
@@ -631,8 +705,8 @@ async def _seed_emission(db_session, module, name, kg):
     db_session.add(entry)
     await db_session.flush()
     db_session.add(
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.equipment__scientific,
             kg_co2eq=kg,
             scope=emission_type_scope(EmissionType.equipment__scientific),
@@ -809,8 +883,8 @@ async def test_embodied_energy_by_building_groups_by_name(db_session: AsyncSessi
         db_session.add(entry)
         await db_session.flush()
         db_session.add(
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=EmissionType.buildings__construction_and_renovation,
                 kg_co2eq=kg,
                 scope=emission_type_scope(
@@ -857,8 +931,8 @@ async def _seed_building_with_rollup(
     ]
     for et in leaf_types:
         db_session.add(
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=et,
                 kg_co2eq=kg_leaf / len(leaf_types),
                 scope=emission_type_scope(et),
@@ -867,8 +941,8 @@ async def _seed_building_with_rollup(
 
     # The rollup row (buildings__rooms = 60100), created by prepare_create()
     db_session.add(
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.buildings__rooms,
             kg_co2eq=kg_rollup,
             primary_factor_id=None,
@@ -880,8 +954,10 @@ async def _seed_building_with_rollup(
 
 
 @pytest.mark.asyncio
-async def test_get_stats_excludes_rollup_rows(db_session: AsyncSession):
-    """get_stats() must NOT count the rollup row — only leaf rows."""
+async def test_persisted_stats_do_not_double_count_rollup_rows(
+    db_session: AsyncSession,
+):
+    """The persisted rollup row must not be added on top of its leaves."""
     repo = DataEntryEmissionRepository(db_session)
 
     module = CarbonReportModule(
@@ -896,14 +972,20 @@ async def test_get_stats_excludes_rollup_rows(db_session: AsyncSession):
         db_session, module, kg_leaf=1000.0, kg_rollup=1000.0
     )
 
-    result = await repo.get_stats(module.id, "emission_type_id", "kg_co2eq")
+    leaf, additional, snapshot = (await repo.get_stats_pair_many([module.id]))[
+        module.id
+    ]
+    stats = compute_module_stats(
+        leaf,
+        additional,
+        MODULE_STAT_BUCKETS[ModuleTypeEnum.buildings],
+        planner_snapshot_emissions=snapshot,
+    )
 
-    # Rollup emission_type_id (60100) must NOT appear
+    # The rollup key is reported as its subtree sum, not added on top of it.
     rollup_key = str(EmissionType.buildings__rooms.value)
-    assert rollup_key not in result, "rollup row must be excluded from get_stats"
-    # Sum of leaf rows must equal 1000.0 (not 2000.0)
-    total = sum(v for v in result.values() if v is not None)
-    assert total == pytest.approx(1000.0, rel=0.01)
+    assert stats["by_emission_type"][rollup_key] == pytest.approx(1000.0, rel=0.01)
+    assert stats["total"] == pytest.approx(1000.0, rel=0.01)
 
 
 @pytest.mark.asyncio

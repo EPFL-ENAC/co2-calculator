@@ -53,6 +53,7 @@ from app.models.user import UserProvider
 from app.modules.emissions import EmissionType
 from app.repositories.factor_repo import FactorRepository
 from app.services.factor_service import FactorService
+from tests.conftest import make_emission
 
 # ── Helpers (mirrors test_factor_lifecycle_pg.py) ──────────────────────
 
@@ -261,10 +262,9 @@ async def test_delete_stale_for_year_removes_superseded_rows_and_cascades(
             s.add(entry)
             await s.commit()
             assert entry.id is not None
-            entry_id: int = entry.id
 
-            emission = DataEntryEmission(
-                data_entry_id=entry_id,
+            emission = make_emission(
+                entry,
                 emission_type_id=EmissionType.equipment__it.value,
                 primary_factor_id=drop_id,
                 kg_co2eq=1.23,

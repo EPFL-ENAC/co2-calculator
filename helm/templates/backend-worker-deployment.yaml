@@ -57,6 +57,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
 
+      terminationGracePeriodSeconds: {{ .Values.worker.terminationGracePeriodSeconds }}
       initContainers:
         {{- if .Values.database.waitForPostgres.enabled }}
         - name: wait-for-postgres

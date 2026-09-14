@@ -84,7 +84,7 @@
         class="q-mx-lg q-my-md inputs-deactivated-notice"
       >
         <div class="inputs-deactivated-notice__content">
-          <q-icon name="edit_off" size="sm" color="accent" class="q-mb-sm" />
+          <q-icon :name="matEditOff" size="sm" color="accent" class="q-mb-sm" />
           <div class="text-body2 text-weight-medium text-center text-primary">
             {{ $t('module_submodule_inputs_deactivated_notice') }}
           </div>
@@ -115,6 +115,7 @@
 </template>
 
 <script setup lang="ts">
+import { matEditOff } from '@quasar/extras/material-icons';
 import {
   Submodule as ConfigSubmodule,
   ModuleConfig,

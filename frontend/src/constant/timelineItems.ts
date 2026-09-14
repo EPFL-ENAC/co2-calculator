@@ -1,41 +1,51 @@
+import {
+  outlinedApartment,
+  outlinedApps,
+  outlinedBolt,
+  outlinedDiversity2,
+  outlinedFilterDrama,
+  outlinedFlight,
+  outlinedScience,
+  outlinedSell,
+} from '@quasar/extras/material-icons-outlined';
 import type { Module } from '@/constant/modules';
 
 export type { Module };
 
 export const timelineItems = [
   {
-    icon: 'o_diversity_2',
+    icon: outlinedDiversity2,
     link: 'headcount' as Module,
   },
 
   {
-    icon: 'o_science',
+    icon: outlinedScience,
     link: 'process-emissions' as Module,
   },
   {
-    icon: 'o_apartment',
+    icon: outlinedApartment,
     link: 'buildings' as Module,
   },
   {
-    icon: 'o_bolt',
+    icon: outlinedBolt,
     link: 'equipment' as Module,
   },
   {
-    icon: 'o_filter_drama',
+    icon: outlinedFilterDrama,
     link: 'external-cloud-and-ai' as Module,
   },
   {
-    icon: 'o_flight',
+    icon: outlinedFlight,
     link: 'professional-travel' as Module,
   },
 
   {
-    icon: 'o_sell',
+    icon: outlinedSell,
     link: 'purchase' as Module,
   },
 
   {
-    icon: 'o_apps',
+    icon: outlinedApps,
     link: 'research-facilities' as Module,
   },
 ];

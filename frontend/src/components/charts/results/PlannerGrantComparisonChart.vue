@@ -27,7 +27,7 @@
         outline
         no-caps
         size="sm"
-        icon="o_download"
+        :icon="outlinedDownload"
         :label="$t('common_download_as_png')"
         @click="downloadPNG"
       />
@@ -35,7 +35,7 @@
         outline
         no-caps
         size="sm"
-        icon="o_download"
+        :icon="outlinedDownload"
         :label="$t('common_download_as_csv')"
         @click="downloadCSV"
       />
@@ -44,6 +44,7 @@
 </template>
 
 <script setup lang="ts">
+import { outlinedDownload } from '@quasar/extras/material-icons-outlined';
 import { computed, ref } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';

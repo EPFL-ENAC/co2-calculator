@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { outlinedCalendarMonth } from '@quasar/extras/material-icons-outlined';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useBackofficeStore } from '@/stores/backoffice';
 
@@ -61,7 +62,7 @@ onMounted(async () => {
       style="flex-grow: 1"
     >
       <template #prepend>
-        <q-icon name="o_calendar_month" color="accent" size="sm" />
+        <q-icon :name="outlinedCalendarMonth" color="accent" size="sm" />
       </template>
     </q-select>
   </div>

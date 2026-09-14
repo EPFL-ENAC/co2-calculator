@@ -568,44 +568,6 @@ async def test_get_stats(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_get_headcount_fte_breakdown(db_session: AsyncSession):
-    """All three headcount FTE figures come back from one query (#2050 J2)."""
-    service = DataEntryService(db_session)
-
-    # Create test module
-    module = CarbonReportModule(
-        carbon_report_id=1,
-        module_type_id=ModuleTypeEnum.headcount.value,
-        status="in_progress",
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    # Create entries with FTE
-    entries = [
-        DataEntry(
-            carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.member,
-            status=DataEntryStatusEnum.PENDING,
-            data={"name": f"Person {i}", "fte": 1.0},
-        )
-        for i in range(5)
-    ]
-    db_session.add_all(entries)
-    await db_session.flush()
-
-    breakdown = await service.get_headcount_fte_breakdown(
-        carbon_report_module_id=module.id,
-    )
-
-    assert breakdown.total_fte == pytest.approx(5.0, rel=0.01)
-    assert breakdown.member_fte_by_sius_code == {"unknown": pytest.approx(5.0)}
-    # No student entries seeded — 0.0, not None: the sum of nothing is zero,
-    # unlike a member group that exists with no FTE recorded.
-    assert breakdown.student_fte == pytest.approx(0.0)
-
-
-@pytest.mark.asyncio
 async def test_trips_map_carries_traveler_sciper_without_resolving_name(
     db_session: AsyncSession,
 ):

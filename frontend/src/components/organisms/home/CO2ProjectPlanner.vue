@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import {
+  outlinedAdd,
+  outlinedCalendarMonth,
+  outlinedClose,
+  outlinedContentCopy,
+  outlinedDelete,
+  outlinedEdit,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
@@ -128,7 +136,7 @@ onMounted(() => {
     <div class="co2-project-planner__inner">
       <div class="row items-start justify-between no-wrap q-mb-md">
         <div class="row items-center q-gutter-sm">
-          <q-icon name="o_calendar_month" size="md" color="info" />
+          <q-icon :name="outlinedCalendarMonth" size="md" color="info" />
           <h2 class="text-h3 q-mb-none">
             {{ $t('co2_project_planner_title') }}
           </h2>
@@ -139,7 +147,7 @@ onMounted(() => {
         <q-btn
           color="info"
           :label="$t('co2_project_planner_btn')"
-          icon="o_add"
+          :icon="outlinedAdd"
           unelevated
           no-caps
           size="md"
@@ -192,7 +200,7 @@ onMounted(() => {
               <template v-if="col.name === 'action'">
                 <div class="row no-wrap justify-end items-center">
                   <q-btn
-                    icon="o_content_copy"
+                    :icon="outlinedContentCopy"
                     color="black"
                     unelevated
                     no-caps
@@ -206,7 +214,7 @@ onMounted(() => {
                     </q-tooltip>
                   </q-btn>
                   <q-btn
-                    icon="o_edit"
+                    :icon="outlinedEdit"
                     color="black"
                     unelevated
                     no-caps
@@ -220,7 +228,7 @@ onMounted(() => {
                     </q-tooltip>
                   </q-btn>
                   <q-btn
-                    icon="o_delete"
+                    :icon="outlinedDelete"
                     color="black"
                     unelevated
                     no-caps
@@ -274,7 +282,7 @@ onMounted(() => {
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
         />

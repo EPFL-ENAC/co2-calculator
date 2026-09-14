@@ -13,6 +13,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.schemas.fields import ClassificationKey, OptionalClassificationKey
 
 
 class _EquipmentFactorValidationMixin(_EquipmentUsageHoursValidationMixin):
@@ -37,8 +38,8 @@ value_fields: list[str] = [
 
 
 class EquipmentFactorCreate(_EquipmentFactorValidationMixin, FactorCreate):
-    equipment_class: str
-    sub_class: str | None = None
+    equipment_class: ClassificationKey
+    sub_class: OptionalClassificationKey = None
     active_usage_hours_per_week: int  # make it mandatory
     standby_usage_hours_per_week: int  # make it mandatory
     active_power_w: float
@@ -52,8 +53,8 @@ class EquipmentFactorCreate(_EquipmentFactorValidationMixin, FactorCreate):
 
 
 class EquipmentFactorUpdate(_EquipmentFactorValidationMixin, FactorUpdate):
-    equipment_class: str | None = None
-    sub_class: str | None = None
+    equipment_class: ClassificationKey | None = None
+    sub_class: OptionalClassificationKey = None
     active_power_w: float | None = None
     standby_power_w: float | None = None
     active_usage_hours_per_week: int | None = None

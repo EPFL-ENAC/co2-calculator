@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 from pydantic import (
     BaseModel,
     ConfigDict,
-    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -13,6 +12,7 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.schemas.fields import ClassificationKey
 
 
 class BuildingRoomBuildingResponse(BaseModel):
@@ -51,6 +51,14 @@ class BuildingRoomHandlerResponse(DataEntryResponseGen):
     kg_co2eq: float | None = None
 
 
+def normalize_room_name(room_name: str) -> str:
+    """Room names match with spaces ignored (#2268): ``AI 9 121`` and
+    ``AI 9121`` are the same room, and the reference's own spacing changed
+    between vintages.
+    """
+    return "".join(room_name.split())
+
+
 # Order matches the frontend room-type dropdown (see `make gen-module-constants`).
 VALID_ROOM_TYPES: list[str | None] = [
     "laboratories",
@@ -79,19 +87,18 @@ class DiscardClientSurfaceMixin:
 
 
 class BuildingRoomHandlerCreate(DiscardClientSurfaceMixin, DataEntryCreate):
-    building_name: str
-    room_name: str
-
-    @field_validator("building_name", "room_name", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
-
+    building_name: ClassificationKey
+    room_name: ClassificationKey
     room_type: str
     room_allocation_ratio: float | None = None
     note: str | None = None
+
+    @model_validator(mode="after")
+    def default_room_allocation_ratio(self):
+        if self.room_allocation_ratio is None:
+            self.room_allocation_ratio = 1.0
+        self.data["room_allocation_ratio"] = self.room_allocation_ratio
+        return self
 
     @field_validator("room_type", mode="after")
     @classmethod
@@ -110,16 +117,8 @@ class BuildingRoomHandlerCreate(DiscardClientSurfaceMixin, DataEntryCreate):
 
 
 class BuildingRoomHandlerUpdate(DiscardClientSurfaceMixin, DataEntryUpdate):
-    building_name: str | None = None
-    room_name: str | None = None
-
-    @field_validator("building_name", "room_name", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
-        if v is not None and not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
-
+    building_name: ClassificationKey | None = None
+    room_name: ClassificationKey | None = None
     room_type: str | None = None
     room_allocation_ratio: float | None = None
     note: str | None = None
@@ -150,16 +149,12 @@ class EnergyCombustionHandlerResponse(DataEntryResponseGen):
 
 
 class EnergyCombustionHandlerCreate(DataEntryCreate):
-    name: str
+    name: ClassificationKey
+    # Must equal the factor's unit (#2591 D-6): the quantity is priced per
+    # that unit, so a mismatch is a wrong number, not a display detail.
+    unit: ClassificationKey
     quantity: float
     note: str | None = None
-
-    @field_validator("name", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     @field_validator("quantity", mode="after")
     @classmethod
@@ -170,16 +165,10 @@ class EnergyCombustionHandlerCreate(DataEntryCreate):
 
 
 class EnergyCombustionHandlerUpdate(DataEntryUpdate):
-    name: str | None = None
+    name: ClassificationKey | None = None
+    unit: ClassificationKey | None = None
     quantity: float | None = None
     note: str | None = None
-
-    @field_validator("name", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str | None, info: ValidationInfo) -> str | None:
-        if v is not None and not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v
 
     @field_validator("quantity", mode="after")
     @classmethod
@@ -210,10 +199,10 @@ class BuildingEmbodiedEnergyHandlerResponse(DataEntryResponseGen):
 class BuildingEmbodiedEnergyHandlerCreate(
     DiscardClientBuildingFieldsMixin, DataEntryCreate
 ):
-    room_name: str
+    room_name: ClassificationKey
 
 
 class BuildingEmbodiedEnergyHandlerUpdate(
     DiscardClientBuildingFieldsMixin, DataEntryUpdate
 ):
-    room_name: str | None = None
+    room_name: ClassificationKey | None = None

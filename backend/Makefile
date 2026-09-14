@@ -288,11 +288,11 @@ db-revision: ## Create new migration (usage: make db-revision message="descripti
 	uv run alembic revision --autogenerate -m "$(message)"
 
 .PHONY: db-drop
-db-drop: ## Drop the database (use with caution!)
-	uv run -m scripts.manage_db --action drop || true
+db-drop: ## Drop the database named in .env (refuses non-local hosts; add ARGS=--allow-remote on purpose)
+	uv run -m scripts.manage_db --action drop $(ARGS) || true
 .PHONY: db-create
-db-create: ## Create the database
-	uv run -m scripts.manage_db --action create  || true
+db-create: ## Create the database named in .env (refuses non-local hosts; add ARGS=--allow-remote on purpose)
+	uv run -m scripts.manage_db --action create $(ARGS) || true
 
 .PHONY: formula-version
 formula-version: ## Update formula version (SHA1) in .env and .env.example

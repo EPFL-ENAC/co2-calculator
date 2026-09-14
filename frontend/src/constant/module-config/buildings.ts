@@ -1,3 +1,15 @@
+import {
+  outlinedAcUnit,
+  outlinedAir,
+  outlinedApartment,
+  outlinedCategory,
+  outlinedImageAspectRatio,
+  outlinedLightMode,
+  outlinedLocalFireDepartment,
+  outlinedMeetingRoom,
+  outlinedStraighten,
+  outlinedThermostat,
+} from '@quasar/extras/material-icons-outlined';
 import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import { SUBMODULE_BUILDINGS_TYPES, MODULES } from '@/constant/modules';
 import type { BuildingsSubType, Module } from '@/constant/modules';
@@ -17,7 +29,7 @@ const roomFields: ModuleField[] = [
     inputTypeName: 'QSelect',
     align: 'left',
     ratio: '1/3',
-    icon: 'o_apartment',
+    icon: outlinedApartment,
     columnSize: 'sm',
     tooltip: 'module-buildings-submodule-building-table-building_name',
   },
@@ -32,7 +44,7 @@ const roomFields: ModuleField[] = [
     inputTypeName: 'QSelect',
     align: 'left',
     ratio: '1/3',
-    icon: 'o_meeting_room',
+    icon: outlinedMeetingRoom,
     columnSize: 'md',
     tooltip: 'module-buildings-submodule-building-table-room_name',
   },
@@ -46,7 +58,7 @@ const roomFields: ModuleField[] = [
     inputTypeName: 'QSelect',
     align: 'left',
     ratio: '1/3',
-    icon: 'o_category',
+    icon: outlinedCategory,
     columnSize: 'md',
     disableUntilField: 'room_name',
     // IMPORTANT: these values are backend emission-factor lookup keys.
@@ -67,7 +79,7 @@ const roomFields: ModuleField[] = [
     unit: 'm²',
     ratio: '1/6',
     disableUntilField: 'room_name',
-    icon: 'o_straighten',
+    icon: outlinedStraighten,
     tooltip:
       'module-buildings-submodule-building-table-room_surface_square_meter',
   },
@@ -83,7 +95,7 @@ const roomFields: ModuleField[] = [
     default: 1,
     ratio: '1/6',
     disableUntilField: 'room_name',
-    icon: 'o_image_aspect_ratio',
+    icon: outlinedImageAspectRatio,
     tooltip: 'module-buildings-submodule-building-table-room_allocation_ratio',
     columnSize: 'xs',
     maxColumnWidth: 100,
@@ -98,7 +110,7 @@ const roomFields: ModuleField[] = [
     unit: 'kWh/m²',
     ratio: '1/6',
     disableUntilField: 'room_name',
-    icon: 'o_thermostat',
+    icon: outlinedThermostat,
     tooltip:
       'module-buildings-submodule-building-table-heating_kwh_per_square_meter',
     maxColumnWidth: 120,
@@ -113,7 +125,7 @@ const roomFields: ModuleField[] = [
     unit: 'kWh/m²',
     ratio: '1/6',
     disableUntilField: 'room_name',
-    icon: 'o_ac_unit',
+    icon: outlinedAcUnit,
     tooltip:
       'module-buildings-submodule-building-table-cooling_kwh_per_square_meter',
     maxColumnWidth: 120,
@@ -128,7 +140,7 @@ const roomFields: ModuleField[] = [
     unit: 'kWh/m²',
     ratio: '1/6',
     disableUntilField: 'room_name',
-    icon: 'o_air',
+    icon: outlinedAir,
     tooltip:
       'module-buildings-submodule-building-table-ventilation_kwh_per_square_meter',
     maxColumnWidth: 120,
@@ -143,7 +155,7 @@ const roomFields: ModuleField[] = [
     unit: 'kWh/m²',
     ratio: '1/6',
     disableUntilField: 'room_name',
-    icon: 'o_light_mode',
+    icon: outlinedLightMode,
     tooltip:
       'module-buildings-submodule-building-table-lighting_kwh_per_square_meter',
     maxColumnWidth: 120,
@@ -172,7 +184,7 @@ const energyCombustionFields: ModuleField[] = [
     inputTypeName: 'QSelect',
     align: 'left',
     ratio: '1/3',
-    icon: 'o_local_fire_department',
+    icon: outlinedLocalFireDepartment,
     hideIn: { form: false },
     columnSize: 'lg',
     tooltip: 'module-buildings-submodule-energy_combustion-table-name',

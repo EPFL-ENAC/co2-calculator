@@ -238,6 +238,7 @@ async def test_aggregation_scopes_to_affected_module_ids():
     modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=modules)
+    svc.emptied_module_ids = AsyncMock(return_value=set())
     svc.recompute_stats_many = AsyncMock(side_effect=lambda ids, **_kw: len(ids))
 
     with (
@@ -251,6 +252,34 @@ async def test_aggregation_scopes_to_affected_module_ids():
         meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
 
     svc.recompute_stats_many.assert_awaited_once_with([101, 303], bump_status=True)
+    assert meta["modules_refreshed"] == 2
+
+
+@pytest.mark.asyncio
+async def test_aggregation_scope_adds_modules_emptied_by_the_ingest_delete():
+    """#2706: a module whose rows were all deleted by the full-year replace
+    is in no recalc's affected set, yet its stats are stale. The scoped run
+    unions it in; the full-slice fallback already covers it.
+    """
+    job = _make_job(pipeline_id="dummy")
+    modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
+    svc = MagicMock()
+    svc.list_modules_for = AsyncMock(return_value=modules)
+    svc.emptied_module_ids = AsyncMock(return_value={202})
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids, **_kw: len(ids))
+
+    with (
+        patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc),
+        patch.object(
+            aggregation_mod,
+            "_collect_affected_module_ids",
+            new=AsyncMock(return_value={101}),
+        ),
+    ):
+        meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
+
+    svc.emptied_module_ids.assert_awaited_once_with(modules)
+    svc.recompute_stats_many.assert_awaited_once_with([101, 202], bump_status=True)
     assert meta["modules_refreshed"] == 2
 
 

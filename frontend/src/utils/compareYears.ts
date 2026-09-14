@@ -133,3 +133,27 @@ export function computeCompareYearsObjectives(
   }
   return objectives.sort((a, b) => a.targetYear - b.targetYear);
 }
+
+export interface CompareYearsObjectiveGap {
+  /** `true` while the latest year still sits above its objective. */
+  missing: boolean;
+  /**
+   * Distance to the objective as a positive ratio. When missing, the share of
+   * the latest year's emissions still to cut (`(latest − objective) / latest`);
+   * when reached, how far below the target the year sits
+   * (`(objective − latest) / objective`).
+   */
+  pctMagnitude: number;
+}
+
+export function computeObjectiveGap(
+  latestTonnes: number,
+  objectiveTonnes: number,
+): CompareYearsObjectiveGap | null {
+  if (objectiveTonnes <= 0) return null;
+  const missing = latestTonnes > objectiveTonnes;
+  const pctMagnitude = missing
+    ? (latestTonnes - objectiveTonnes) / latestTonnes
+    : (objectiveTonnes - latestTonnes) / objectiveTonnes;
+  return { missing, pctMagnitude };
+}

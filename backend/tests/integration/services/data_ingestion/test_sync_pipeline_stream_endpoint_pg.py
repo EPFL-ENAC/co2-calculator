@@ -81,7 +81,6 @@ async def pg_app(pg_dsn, monkeypatch):
 
     app.dependency_overrides[deps_module.get_db] = override_get_db
     app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
-    app.dependency_overrides[deps_module.get_current_user_detached] = lambda: fake_user
     app.dependency_overrides[security_module.get_current_active_user] = lambda: (
         fake_user
     )
@@ -180,7 +179,6 @@ async def test_pipeline_stream_returns_403_for_user_without_permission(
 
     app.dependency_overrides[deps_module.get_db] = override_get_db
     app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
-    app.dependency_overrides[deps_module.get_current_user_detached] = lambda: fake_user
     app.dependency_overrides[security_module.get_current_active_user] = lambda: (
         fake_user
     )
@@ -452,7 +450,6 @@ async def test_cross_tenant_pipeline_returns_403(pg_dsn, monkeypatch):
 
     app.dependency_overrides[deps_module.get_db] = override_get_db
     app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
-    app.dependency_overrides[deps_module.get_current_user_detached] = lambda: fake_user
     app.dependency_overrides[security_module.get_current_active_user] = lambda: (
         fake_user
     )

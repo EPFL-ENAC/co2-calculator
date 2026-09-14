@@ -31,7 +31,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  (e: 'upload', row: ImportRow, targetType: TargetType): void;
+  (e: 'upload', row: ImportRow, targetType: TargetType, file?: File): void;
   (e: 'recalculate', item: ImportRow): void;
   (e: 'compute-factors', item: ImportRow): void;
   (e: 'abort'): void;
@@ -68,8 +68,8 @@ const hasComputedFactor = computed(() => {
     .includes(props.module ?? '');
 });
 
-function handleUpload() {
-  emit('upload', props.row, TargetType.FACTORS);
+function handleUpload(_row: ImportRow, _targetType: TargetType, file?: File) {
+  emit('upload', props.row, TargetType.FACTORS, file);
 }
 
 function handleDownload(row: ImportRow, targetType: TargetType) {

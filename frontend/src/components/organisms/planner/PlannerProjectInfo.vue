@@ -1,7 +1,7 @@
 <template>
   <q-card flat bordered>
     <q-card-section class="row items-center q-gutter-sm">
-      <q-icon name="o_folder_open" color="info" size="24px" />
+      <q-icon :name="outlinedFolderOpen" color="info" size="24px" />
       <span class="text-h5 text-weight-medium">
         {{ $t('planner_project_info_title') }}
       </span>
@@ -89,7 +89,7 @@
             style="width: 180px"
           >
             <template #prepend>
-              <q-icon name="o_calendar_month" color="info" />
+              <q-icon :name="outlinedCalendarMonth" color="info" />
             </template>
           </q-select>
         </div>
@@ -106,7 +106,7 @@
             style="width: 180px"
           >
             <template #prepend>
-              <q-icon name="o_calendar_month" color="info" />
+              <q-icon :name="outlinedCalendarMonth" color="info" />
             </template>
           </q-select>
         </div>
@@ -130,7 +130,7 @@
         size="md"
         color="info"
         class="full-width text-weight-medium"
-        icon="o_playlist_add"
+        :icon="outlinedPlaylistAdd"
         :label="$t('planner_generate_sections_button')"
         :disable="!sectionsDirty || !yearsValid || !sectionTypeSelected"
         :loading="generatingSections"
@@ -144,10 +144,15 @@
 </template>
 
 <script setup lang="ts">
+import {
+  outlinedCalendarMonth,
+  outlinedFolderOpen,
+  outlinedInfo,
+  outlinedPlaylistAdd,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
-import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { runtimeConfig } from '@/config/runtime';
 import { resolveDefaultReferenceYear } from '@/utils/plannerYearRange';
 import { useYearConfigStore } from '@/stores/yearConfig';

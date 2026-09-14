@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { matRefresh } from '@quasar/extras/material-icons';
 import { computed, ref, provide, watch } from 'vue';
 import ModuleIcon from '@/components/atoms/ModuleIcon.vue';
 import { useModuleConfig } from '@/composables/useModuleConfig';
@@ -198,6 +199,7 @@ const {
 const showDataEntryDialog = ref(false);
 const dialogCurrentRow = ref<ImportRow | null>(null);
 const dialogTargetType = ref<TargetType | null>(null);
+const dialogDropFile = ref<File | null>(null);
 
 const showRecalcDialog = ref(false);
 const recalcDialogModuleTypeId = ref<number | null>(null);
@@ -220,9 +222,14 @@ type TooltipExposed = { show: () => void; hide: () => void };
 const recalcTooltip = ref<TooltipExposed>();
 const failureTooltip = ref<TooltipExposed>();
 
-function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
+function openDataEntryDialog(
+  row: ImportRow,
+  targetType: TargetType | null,
+  file?: File,
+) {
   dialogCurrentRow.value = row;
   dialogTargetType.value = targetType;
+  dialogDropFile.value = file ?? null;
   showDataEntryDialog.value = true;
 }
 
@@ -404,7 +411,7 @@ provide('currentPipelineId', currentPipelineId);
               flat
               dense
               size="sm"
-              icon="refresh"
+              :icon="matRefresh"
               :color="hasRecalcFailure ? 'negative' : 'accent'"
               :label="$t(recalcButtonLabel)"
               @click.stop="openRecalcDialog(getModuleTypeIdFromName(module))"
@@ -431,6 +438,7 @@ provide('currentPipelineId', currentPipelineId);
     :row="dialogCurrentRow || ({} as ImportRow)"
     :year="yearConfigStore.selectedYear"
     :target-type="dialogTargetType ?? TargetType.DATA_ENTRIES"
+    :drop-file="dialogDropFile"
     @completed="handleJobCompleted"
     @progressing="handleJobProgressing"
   />

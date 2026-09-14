@@ -11,9 +11,10 @@ interface Props {
   row: ImportRow;
   year: number;
   targetType: TargetType;
+  dropFile?: File | null;
 }
 
-defineProps<Props>();
+withDefaults(defineProps<Props>(), { dropFile: null });
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'completed', job: SyncJobResponse): void;
@@ -27,6 +28,7 @@ const emit = defineEmits<{
     :row="row"
     :year="year"
     :target-type="targetType"
+    :drop-file="dropFile"
     @update:model-value="emit('update:modelValue', $event)"
     @completed="(job) => emit('completed', job)"
     @progressing="(job) => emit('progressing', job)"

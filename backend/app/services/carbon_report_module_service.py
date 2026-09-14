@@ -115,6 +115,11 @@ def _compute_bucket_stats(
     }
 
 
+def _data_node_sum(bucket_nodes: BucketNodes, values: dict[str, float | None]) -> float:
+    """Sum a per-emission-type map over the bucket's non-rollup nodes."""
+    return sum(values.get(str(node.value)) or 0.0 for node in bucket_nodes.data_nodes)
+
+
 def compute_module_stats(
     leaf_emissions: dict[str, float | None],
     additional_values: dict[str, float | None],
@@ -122,6 +127,7 @@ def compute_module_stats(
     entry_count: int = 0,
     bucket_extras: dict[str, dict] | None = None,
     module_extras: dict | None = None,
+    planner_snapshot_emissions: dict[str, float | None] | None = None,
 ) -> dict:
     """Build the stats dict from leaf-level emission totals.
 
@@ -133,17 +139,25 @@ def compute_module_stats(
         bucket_extras: extra payload merged into a bucket by key (e.g. the
             embodied bucket's by_building detail).
         module_extras: extra top-level payload (e.g. headcount total_fte).
+        planner_snapshot_emissions: the share of ``leaf_emissions`` carried
+            by Simulator prefill rows, same keys.
 
     Returns:
         {"buckets": {...}, "total": kg, "by_emission_type": merged,
-         "by_additional_value": merged, "entry_count", "computed_at"}.
+         "by_additional_value": merged, "entry_count", "computed_at",
+         "total_excluding_additional", "planner_snapshot_kg"}.
         ``total`` sums every bucket (headline behaviour); the per-bucket
-        ``additional`` flag carries the informative/organisational split.
+        ``additional`` flag carries the informative/organisational split, and
+        ``total_excluding_additional`` is the module page headline (#2706).
+        ``planner_snapshot_kg`` is the part of that headline a viewer who may
+        not see prefill rows must not be shown.
     """
     buckets: dict[str, dict] = {}
     merged_et: dict[str, float] = {}
     merged_additional: dict[str, float] = {}
     total_kg = 0.0
+    total_excluding_additional = 0.0
+    planner_snapshot_kg = 0.0
 
     for bn in bucket_nodes:
         bucket_stats = _compute_bucket_stats(bn, leaf_emissions, additional_values)
@@ -154,10 +168,15 @@ def compute_module_stats(
         merged_et.update(bucket_stats["by_emission_type"])
         merged_additional.update(bucket_stats["by_additional_value"])
         total_kg += bucket_stats["total_kg"]
+        if not bn.bucket.additional:
+            total_excluding_additional += bucket_stats["total_kg"]
+            planner_snapshot_kg += _data_node_sum(bn, planner_snapshot_emissions or {})
 
     return {
         "buckets": buckets,
         "total": total_kg,
+        "total_excluding_additional": total_excluding_additional,
+        "planner_snapshot_kg": planner_snapshot_kg,
         "by_emission_type": merged_et,
         "by_additional_value": merged_additional,
         "entry_count": entry_count,
@@ -486,10 +505,13 @@ class CarbonReportModuleService:
             if not bucket_nodes:
                 # Module type has no emission mapping (e.g. global_energy)
                 continue
-            leaf_emissions, additional_values = pairs.get(module.id, ({}, {}))
+            leaf_emissions, additional_values, snapshot_kg = pairs.get(
+                module.id, ({}, {}, {})
+            )
             module.stats = compute_module_stats(
                 leaf_emissions=leaf_emissions,
                 additional_values=additional_values,
+                planner_snapshot_emissions=snapshot_kg,
                 bucket_nodes=bucket_nodes,
                 entry_count=counts.get(module.id, 0),
                 bucket_extras=await self._collect_bucket_extras(module),
@@ -542,6 +564,26 @@ class CarbonReportModuleService:
         await self.recompute_stats_many(
             [carbon_report_module_id], prefetched_years=prefetched_years
         )
+
+    async def emptied_module_ids(
+        self, modules: Sequence[CarbonReportModule]
+    ) -> set[int]:
+        """Modules whose persisted stats count entries that no longer exist.
+
+        A full-year re-import that no longer carries a module deletes its
+        rows; no entry remains to put it in any recalc's affected set, so
+        its stats would keep the old kg forever (#2706). Same case the
+        Simulator prefill handles for the modules it leaves empty.
+        """
+        counts, _ = await self._entry_counts_and_fte(modules)
+        return {
+            m.id
+            for m in modules
+            if m.id is not None
+            and m.stats is not None
+            and m.stats.get("entry_count", 0) > 0
+            and counts.get(m.id, 0) == 0
+        }
 
     async def _entry_counts_and_fte(
         self, modules: Sequence[CarbonReportModule]
@@ -634,7 +676,16 @@ class CarbonReportModuleService:
         fte_by_module: dict[int, float],
     ) -> dict:
         if module.module_type_id == ModuleTypeEnum.headcount and module.id is not None:
-            return {"total_fte": fte_by_module.get(module.id, 0.0)}
+            # The FTE-by-function chart used to be aggregated on every module
+            # GET; it is persisted here instead so the GET only reads (#2706).
+            fte = await DataEntryRepository(self.session).get_headcount_fte_breakdown(
+                carbon_report_module_id=module.id
+            )
+            return {
+                "total_fte": fte_by_module.get(module.id, 0.0),
+                "student_fte": fte.student_fte,
+                "member_fte_by_sius_code": fte.member_fte_by_sius_code,
+            }
         spec = _IT_TOP_CLASS_SPECS.get(ModuleTypeEnum(module.module_type_id))
         if spec is None or module.id is None:
             return {}

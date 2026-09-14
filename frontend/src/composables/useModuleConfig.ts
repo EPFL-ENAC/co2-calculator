@@ -1,4 +1,5 @@
 import { computed } from 'vue';
+import { lastJobForTarget } from '@/composables/lastJobForTarget';
 import {
   useYearConfigStore,
   type SyncJobSummary,
@@ -91,10 +92,7 @@ export function useModuleConfig(options: UseModuleConfigOptions) {
   }
 
   function downloadLastCsv(row: ImportRow, targetType: TargetType) {
-    const job =
-      targetType === TargetType.DATA_ENTRIES
-        ? row.lastDataJob
-        : row.lastFactorJob;
+    const job = lastJobForTarget(row, targetType);
     if (!job?.meta) return;
     const filePath = (job.meta as Record<string, unknown>)
       .processed_file_path as string;

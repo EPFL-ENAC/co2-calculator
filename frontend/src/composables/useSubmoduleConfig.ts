@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue';
+import { lastJobForTarget } from '@/composables/lastJobForTarget';
 import { useRoute, useRouter } from 'vue-router';
 import {
   useBackofficeDataManagement,
@@ -92,10 +93,7 @@ export function useSubmoduleConfig() {
   }
 
   function downloadLastCsv(row: ImportRow, targetType: TargetType) {
-    const job =
-      targetType === TargetType.DATA_ENTRIES
-        ? row.lastDataJob
-        : row.lastFactorJob;
+    const job = lastJobForTarget(row, targetType);
     if (!job?.meta) return;
     const jobMeta = job.meta as Record<string, unknown>;
     const filePath = jobMeta?.processed_file_path as string;

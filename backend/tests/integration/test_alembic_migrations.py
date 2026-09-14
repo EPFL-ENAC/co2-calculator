@@ -36,6 +36,9 @@ from pathlib import Path
 import docker
 import docker.errors
 import pytest
+from sqlalchemy.engine.url import make_url
+
+from scripts.manage_db import LOCAL_HOSTS
 
 _PG_IMAGE = "postgres:16-alpine"
 _PG_CONTAINER_NAME = "test-alembic-migrations-postgres"
@@ -152,6 +155,12 @@ def alembic_env(postgres_container: dict) -> dict[str, str]:
     env = os.environ.copy()
     env["DB_URL"] = _target_db_url()
     env["DB_NAME"] = _PG_TARGET_DB
+    # This file drops databases. The subprocess env beats backend/.env since
+    # #1153 was reverted (prod drop, 2026-09-08); pin that the target this
+    # file owns is local, whatever .env says. manage_db refuses remote hosts
+    # on its own as a second line.
+    if make_url(env["DB_URL"]).host not in LOCAL_HOSTS:
+        raise RuntimeError(f"test target must be local: {env['DB_URL']}")
     return env
 
 

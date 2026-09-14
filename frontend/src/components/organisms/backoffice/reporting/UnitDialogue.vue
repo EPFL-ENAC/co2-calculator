@@ -1,4 +1,13 @@
 <script setup lang="ts">
+import {
+  matCheck,
+  matCheckBoxOutlineBlank,
+  matHourglassEmpty,
+} from '@quasar/extras/material-icons';
+import {
+  outlinedCalendarMonth,
+  outlinedClose,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, ref, watch } from 'vue';
 // import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
@@ -216,7 +225,7 @@ const completionCountsForYear = computed(() => {
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
         />
@@ -244,7 +253,11 @@ const completionCountsForYear = computed(() => {
               map-options
             >
               <template #prepend>
-                <q-icon name="o_calendar_month" color="accent" size="xs" />
+                <q-icon
+                  :name="outlinedCalendarMonth"
+                  color="accent"
+                  size="xs"
+                />
               </template>
             </q-select>
           </div>
@@ -257,7 +270,7 @@ const completionCountsForYear = computed(() => {
                   completionCountsForYear.validated
                 }}</span>
               </div>
-              <q-icon name="check" color="green" size="xs" />
+              <q-icon :name="matCheck" color="green" size="xs" />
               <span class="text-body2 q-ml-sm">{{
                 t(MODULE_STATES.Validated)
               }}</span>
@@ -268,7 +281,7 @@ const completionCountsForYear = computed(() => {
                   completionCountsForYear.in_progress
                 }}</span>
               </div>
-              <q-icon name="hourglass_empty" color="orange" size="xs" />
+              <q-icon :name="matHourglassEmpty" color="orange" size="xs" />
               <span class="text-body2 q-ml-sm">{{
                 t(MODULE_STATES.InProgress)
               }}</span>
@@ -279,7 +292,11 @@ const completionCountsForYear = computed(() => {
                   completionCountsForYear.default
                 }}</span>
               </div>
-              <q-icon name="check_box_outline_blank" color="grey-6" size="xs" />
+              <q-icon
+                :name="matCheckBoxOutlineBlank"
+                color="grey-6"
+                size="xs"
+              />
               <span class="text-body2 q-ml-sm">{{
                 t(MODULE_STATES.Default)
               }}</span>

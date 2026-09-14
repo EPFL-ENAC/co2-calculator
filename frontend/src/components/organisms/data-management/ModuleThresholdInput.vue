@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { matCircle } from '@quasar/extras/material-icons';
 import { computed } from 'vue';
 import type { ModuleThreshold, ThresholdType } from '@/constant/modules';
 
@@ -93,7 +94,7 @@ function onValueChange() {
         @update:model-value="onValueChange"
       />
       <div v-else class="text-body2">
-        <q-icon name="circle" size="xs" class="q-mr-sm" color="positive" />
+        <q-icon :name="matCircle" size="xs" class="q-mr-sm" color="positive" />
         {{ $t('threshold_median_info') }}
       </div>
     </q-card-actions>

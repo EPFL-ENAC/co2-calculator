@@ -18,6 +18,13 @@ rebuild_statements = [
     + "ON data_entry_emissions (emission_type_id);",
     "CREATE INDEX IF NOT EXISTS ix_data_entry_emissions_primary_factor_id "
     + "ON data_entry_emissions (primary_factor_id);",
+    # #2527 covering index — the kg_co2eq sort's whole access path. DDL must
+    # stay identical to data_entry_emission.py's __table_args__ or the next
+    # autogenerate churns on it.
+    "CREATE INDEX IF NOT EXISTS ix_dee_module_type_entry "
+    + "ON data_entry_emissions (carbon_report_module_id, data_entry_type_id, "
+    + "data_entry_id) INCLUDE (kg_co2eq, emission_type_id, primary_factor_id, "
+    + "scope);",
     # --- 3. Re-create Foreign Keys (Corrected Direction) ---
     "ALTER TABLE data_entries ADD CONSTRAINT data_entries_carbon_report_module_id_fkey "
     + "FOREIGN KEY (carbon_report_module_id) REFERENCES carbon_report_modules (id);",

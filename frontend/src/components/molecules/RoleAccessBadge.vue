@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { matExpandMore } from '@quasar/extras/material-icons';
+import {
+  outlinedArrowOutward,
+  outlinedLock,
+  outlinedMail,
+  outlinedVerifiedUser,
+} from '@quasar/extras/material-icons-outlined';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useWorkspaceStore } from '@/stores/workspace';
@@ -63,12 +70,12 @@ const requestAccessMailto = computed(() => {
     :class="{ 'role-access-badge--principal': isPrincipalUser }"
   >
     <q-icon
-      :name="isPrincipalUser ? 'o_verified_user' : 'o_lock'"
+      :name="isPrincipalUser ? outlinedVerifiedUser : outlinedLock"
       size="xs"
       class="q-mr-xs"
     />
     {{ $t(`co2_calculator_role_${userType}`) }}
-    <q-icon name="expand_more" size="xs" class="q-ml-xs" />
+    <q-icon :name="matExpandMore" size="xs" class="q-ml-xs" />
     <q-menu anchor="bottom right" self="top right" :offset="[0, 6]">
       <div class="role-access-badge__popover">
         <div>
@@ -92,7 +99,7 @@ const requestAccessMailto = computed(() => {
           type="a"
           :href="requestAccessMailto"
           color="info"
-          icon="o_mail"
+          :icon="outlinedMail"
           :label="$t('co2_calculator_access_cta_standard')"
           unelevated
           no-caps
@@ -119,7 +126,7 @@ const requestAccessMailto = computed(() => {
             class="link text-body2 text-weight-medium"
           >
             {{ $t('co2_calculator_access_cta_roles_doc') }}
-            <q-icon name="o_arrow_outward" size="xs" />
+            <q-icon :name="outlinedArrowOutward" size="xs" />
           </a>
 
           <a
@@ -136,7 +143,7 @@ const requestAccessMailto = computed(() => {
                   $t('co2_calculator_access_provider_generic'),
               })
             }}
-            <q-icon name="o_arrow_outward" size="xs" />
+            <q-icon :name="outlinedArrowOutward" size="xs" />
           </a>
 
           <!-- Principals delegate roles in the access-management portal;
@@ -155,7 +162,7 @@ const requestAccessMailto = computed(() => {
                   $t('co2_calculator_access_provider_generic'),
               })
             }}
-            <q-icon name="o_arrow_outward" size="xs" />
+            <q-icon :name="outlinedArrowOutward" size="xs" />
           </a>
         </div>
       </div>

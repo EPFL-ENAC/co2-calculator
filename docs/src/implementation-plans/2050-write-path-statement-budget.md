@@ -2513,6 +2513,13 @@ regressions.
   costs one `carbon_projects` get, and the `year_configuration` check the
   guard exists for now actually runs on Calculator writes. Fail-closed
   security beats two statements.
+- **18 → 19 (2026-09-14, #2706).** The module stats write persists the
+  FTE-by-function breakdown the module GET used to aggregate live on every
+  read: `CarbonReportModuleService._collect_module_extras` calls
+  `DataEntryRepository.get_headcount_fte_breakdown` for headcount modules,
+  one grouped query, and it lands inside the POST's inline stats refresh.
+  One statement onto the interactive write, one live aggregate off every
+  read of the module page — the same trade #2706 made deliberately.
 
 ### Follow-ups
 

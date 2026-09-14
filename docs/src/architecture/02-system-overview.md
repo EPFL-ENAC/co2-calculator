@@ -45,9 +45,9 @@ flowchart TB
     subgraph OCP["EPFL OpenShift namespace"]
         Route[Route · TLS edge<br/>/ · /api · /docs]
         App[co2-calculator<br/>frontend · backend · docs]
-        Otel[OTEL Collector<br/>+ Jaeger]
+        Otel[OTEL Collector]
         DBDump[[db-dump CronJob]]
-        Secrets[Secrets<br/>Infisical dev · manual stage/prod]
+        Secrets[Secrets<br/>Infisical via External Secrets]
     end
 
     subgraph MON["Cluster observability"]
@@ -123,12 +123,15 @@ DBaaS), which also holds the background-job queue table; a `db-dump`
 CronJob backs it up to a PVC. Identity is delegated to Entra ID (OIDC).
 File blobs live in EPFL S3 when configured. It is built by GitHub
 Actions, published to Quay, and reconciled onto OpenShift by ArgoCD from
-the `openshift-app-config` GitOps repo. The OTEL Collector, Jaeger and
+the `openshift-app-config` GitOps repo. The OTEL Collector and
 the monitoring stack are also deployed via that GitOps repo.
 
-> **Not in the stack** (despite older docs): PgBouncer, PostgreSQL
-> replicas, Azure Blob Storage, Redis/Celery, a service mesh. Connection
-> pooling and background jobs run in-process; see [ADR-010](../architecture-decision-records/010-background-job-processing.md).
+> **Not in the stack** (despite older docs): PostgreSQL replicas, Azure
+> Blob Storage, Redis/Celery, a service mesh. Background jobs run
+> in-process; see [ADR-010](../architecture-decision-records/010-background-job-processing.md).
+> Connection pooling is in-process too, behind the PgBouncer that DBaaS
+> runs in front of every instance since 2026-09 — see the
+> [database overview](../database/01-overview.md#notes).
 
 ---
 
@@ -149,7 +152,7 @@ flowchart TB
         FE["Frontend<br/>Vue 3 + Quasar (Nginx)"]
         BE["Backend API<br/>FastAPI + Uvicorn<br/>(in-process background tasks)"]
         Docs["Docs<br/>MkDocs (Nginx)"]
-        Otel["OTEL Collector + Jaeger"]
+        Otel["OTEL Collector"]
         DBDump[[db-dump CronJob]]
     end
 
@@ -187,12 +190,12 @@ flowchart TB
 
 ### Container responsibilities
 
-| Container       | Role                                                                                                                                        |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Frontend**    | Static Quasar SPA, calls Backend over REST with HTTP-only auth cookies.                                                                     |
-| **Backend API** | Auth, business logic, persistence, file uploads, data ingestion, background jobs.                                                           |
-| **Docs**        | This MkDocs site, served as static files.                                                                                                   |
-| **PostgreSQL**  | System of record (also holds the background-job queue table); managed EPFL DBaaS, reached directly via SQLAlchemy async — **no PgBouncer**. |
+| Container       | Role                                                                                                                                                           |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**    | Static Quasar SPA, calls Backend over REST with HTTP-only auth cookies.                                                                                        |
+| **Backend API** | Auth, business logic, persistence, file uploads, data ingestion, background jobs.                                                                              |
+| **Docs**        | This MkDocs site, served as static files.                                                                                                                      |
+| **PostgreSQL**  | System of record (also holds the background-job queue table); managed EPFL DBaaS, reached via SQLAlchemy async through a DBaaS-side PgBouncer (since 2026-09). |
 
 Stack and versions live in [Tech Stack](./08-tech-stack.md). The backend's
 internal subsystems are in the [Subsystem Map](./03-subsystem-map.md).
@@ -229,12 +232,11 @@ Detailed sequences (uploads, exports, auth) are in
 
 - **Identity.** Entra ID OIDC handshake exchanged for HTTP-only
   `auth_token` / `refresh_token` cookies — see [Auth Flow](./04-auth-flow.md).
-- **Secrets.** ConfigMaps + Kubernetes Secrets per environment: the
-  Infisical Operator generates them on dev; stage and prod use
-  manually-managed credentials until OpenShift is wired to Infisical
-  (Azure Key Vault planned for production). See [Environments](./05-environments.md).
+- **Secrets.** ConfigMaps + Kubernetes Secrets per environment, all
+  pulled from Infisical by the External Secrets Operator. See
+  [Environments](./05-environments.md).
 - **Observability.** The backend is OpenTelemetry-instrumented and
-  exports OTLP to an in-namespace OTEL Collector: traces go to **Jaeger**,
+  exports OTLP to an in-namespace OTEL Collector: traces go to **Tempo**,
   metrics are scraped by **Prometheus** (via a `ServiceMonitor`) and shown
   in **Grafana**, with **Alertmanager** email alerts. All deployed via
   GitOps. Frontend JS errors go to GlitchTip/Sentry when `APP_SENTRY_DSN`

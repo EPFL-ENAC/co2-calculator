@@ -11,7 +11,7 @@
     >
       <q-btn
         outline
-        icon="o_view_list"
+        :icon="outlinedViewList"
         color="primary"
         :label="$t('common_upload_csv')"
         unelevated
@@ -23,7 +23,7 @@
       />
       <q-btn
         outline
-        icon="o_download"
+        :icon="outlinedDownload"
         color="primary"
         :label="$t('common_download_csv_template')"
         unelevated
@@ -47,11 +47,11 @@
       class="table-search"
       :placeholder="$t('common_search_placeholder') || 'Search'"
       clearable
-      clear-icon="o_close"
-      prefix-icon="o_search"
+      :clear-icon="outlinedClose"
+      :prefix-icon="outlinedSearch"
     >
       <template #prepend>
-        <q-icon name="o_search" color="grey-6" size="16px" />
+        <q-icon :name="outlinedSearch" color="grey-6" size="16px" />
       </template>
     </q-input>
   </div>
@@ -64,7 +64,7 @@
     class="equipment-new-banner q-mb-md"
   >
     <template #avatar>
-      <q-icon name="o_warning" class="equipment-new-banner__icon" />
+      <q-icon :name="outlinedWarning" class="equipment-new-banner__icon" />
     </template>
     {{
       $t('equipment_new_usage_required_banner', {
@@ -109,7 +109,7 @@
           <span>{{ col.label }}</span>
           <q-icon
             v-if="col.tooltip && $t(col.tooltip)"
-            name="o_info"
+            :name="outlinedInfo"
             size="16px"
             color="grey-6"
             class="q-ml-xs"
@@ -121,7 +121,7 @@
     </template>
     <template #pagination="scope">
       <q-btn
-        icon="chevron_left"
+        :icon="matChevronLeft"
         color="grey-8"
         round
         dense
@@ -133,7 +133,7 @@
         {{ scope.pagination.page }} / {{ scope.pagesNumber }}
       </div>
       <q-btn
-        icon="chevron_right"
+        :icon="matChevronRight"
         color="grey-8"
         round
         dense
@@ -211,7 +211,7 @@
                   ),
                 },
               ]"
-              :dropdown-icon="col.type === 'select' ? 'expand_more' : undefined"
+              :dropdown-icon="col.type === 'select' ? matExpandMore : undefined"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
               @blur="col.type !== 'select' && commitInline(slotProps.row, col)"
@@ -222,7 +222,7 @@
               <template v-if="col.type !== 'select'" #append>
                 <q-icon
                   v-if="hasValue(slotProps.row[col.field])"
-                  name="o_edit"
+                  :name="outlinedEdit"
                   size="14px"
                   class="inline-edit-icon"
                 />
@@ -252,7 +252,7 @@
             </q-btn>
             <q-btn
               v-if="showTableRowActions && canEditRows && hasModuleUpload"
-              icon="o_delete"
+              :icon="outlinedDelete"
               color="black"
               :disable="isDisabled || !isRowPolicyDeletable(slotProps.row)"
               unelevated
@@ -356,7 +356,7 @@
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
         />
@@ -426,7 +426,7 @@
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
           :disable="deleteInFlight"
@@ -482,6 +482,25 @@
 </template>
 
 <script setup lang="ts">
+import {
+  matChevronLeft,
+  matChevronRight,
+  matClose,
+  matExpandMore,
+} from '@quasar/extras/material-icons';
+import {
+  outlinedAddComment,
+  outlinedClose,
+  outlinedComment,
+  outlinedDelete,
+  outlinedDownload,
+  outlinedEdit,
+  outlinedInfo,
+  outlinedReportProblem,
+  outlinedSearch,
+  outlinedViewList,
+  outlinedWarning,
+} from '@quasar/extras/material-icons-outlined';
 import FilesUploadDialog from '@/components/organisms//data-management/FilesUploadDialog.vue';
 
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
@@ -505,6 +524,7 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from '@/stores/modules';
 import { useFactorsStore } from '@/stores/factors';
+import type { ValueFactorResponse } from '@/api/factors';
 import { useYearConfigStore } from '@/stores/yearConfig';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -744,7 +764,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
             timeout: 30000,
             actions: [
               {
-                icon: 'o_report_problem',
+                icon: outlinedReportProblem,
                 color: 'negative',
                 textColor: 'white',
                 label: $t('close_error_details'),
@@ -778,7 +798,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
           timeout: 30000,
           actions: [
             {
-              icon: 'o_report_problem',
+              icon: outlinedReportProblem,
               color: 'negative',
               textColor: 'white',
               label: $t('close_error_details'),
@@ -802,7 +822,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
           closeBtn: true,
           actions: [
             {
-              icon: 'close',
+              icon: matClose,
               // for individual action (button):
               'aria-label': 'Dismiss',
             },
@@ -925,7 +945,7 @@ const tableStyle = computed(() =>
 );
 
 function noteButtonIcon(note: unknown): string {
-  return note ? 'o_comment' : 'o_add_comment';
+  return note ? outlinedComment : outlinedAddComment;
 }
 
 function noteButtonColor(note: unknown): string | undefined {
@@ -964,7 +984,16 @@ function getColumnPlaceholder(
   col: TableViewColumn,
 ): string | undefined {
   if (col.type === 'date') return $t('date_format_placeholder');
-  return isRequiredEmptyUsageCell(row, col) ? '—' : undefined;
+  if (!isRequiredEmptyUsageCell(row, col)) return undefined;
+  const values = newRowFactorValues.value[newRowFactorKey(row)];
+  if (values === undefined) {
+    loadNewRowFactorValues(row);
+    return '—';
+  }
+  const suggested = values?.[col.field];
+  return suggested === null || suggested === undefined
+    ? '—'
+    : String(suggested);
 }
 
 function getColumnRules(col: TableViewColumn) {
@@ -1790,6 +1819,36 @@ function isRequiredEmptyUsageCell(
   );
 }
 
+// The class default the backend computes an incomplete new row's emission
+// with, shown as the empty usage cell's placeholder. Fetched once per
+// class/sub-class the first time such a cell renders.
+const newRowFactorValues = ref<Record<string, ValueFactorResponse>>({});
+const newRowFactorRequests = new Set<string>();
+
+function newRowFactorKey(row: ModuleRow): string {
+  return `${String(row.equipment_class ?? '')}|${String(row.sub_class ?? '')}`;
+}
+
+function loadNewRowFactorValues(row: ModuleRow): void {
+  const key = newRowFactorKey(row);
+  if (newRowFactorRequests.has(key)) return;
+  newRowFactorRequests.add(key);
+  const subClass = row.sub_class;
+  useFactorsStore()
+    .fetchPowerFactor(
+      props.submoduleType,
+      String(row.equipment_class ?? ''),
+      subClass === null || subClass === undefined ? null : String(subClass),
+      props.factorYear ?? props.year,
+    )
+    .then((values) => {
+      newRowFactorValues.value = { ...newRowFactorValues.value, [key]: values };
+    })
+    .catch(() => {
+      newRowFactorValues.value = { ...newRowFactorValues.value, [key]: null };
+    });
+}
+
 // A new equipment only needs the "new" emphasis (badge, row highlight, float to
 // top) until its usage is entered; once active + standby are filled it behaves
 // like a normal row (#259).
@@ -2121,6 +2180,21 @@ async function onRequest(request: {
   }
 }
 
+// Kind/subkind labels come from the taxonomy tree, which is factor-year
+// scoped — not the row's own `year` (#2651: the earlier fix covered the
+// form/inline-select dropdowns via useEquipmentClassOptions, but missed
+// this table-level fetch, which kept requesting the report's own year).
+// Skipped entirely when unresolvable, same as every other factorYear
+// consumer — nothing to fetch, not a request for a made-up year.
+function fetchTaxonomyIfNeeded() {
+  if (kindOptionsServerSearched.value || props.factorYear == null) return;
+  moduleStore.getSubmoduleTaxonomy(
+    props.moduleType,
+    props.submoduleType,
+    String(props.factorYear),
+  );
+}
+
 watch(
   () => moduleStore.state.expandedSubmodules[props.submoduleType],
   (isExpanded, oldValue) => {
@@ -2142,13 +2216,7 @@ watch(
           year: String(props.year),
           carbonReportId: props.carbonReportId,
         });
-        if (!kindOptionsServerSearched.value) {
-          moduleStore.getSubmoduleTaxonomy(
-            props.moduleType,
-            props.submoduleType,
-            String(props.year),
-          );
-        }
+        fetchTaxonomyIfNeeded();
       }
     }
   },
@@ -2167,13 +2235,7 @@ watch(locale, () => {
     year: String(props.year),
     carbonReportId: props.carbonReportId,
   });
-  if (!kindOptionsServerSearched.value) {
-    moduleStore.getSubmoduleTaxonomy(
-      props.moduleType,
-      props.submoduleType,
-      String(props.year),
-    );
-  }
+  fetchTaxonomyIfNeeded();
 });
 
 watch(
@@ -2194,13 +2256,7 @@ onMounted(async () => {
       year: String(props.year),
       carbonReportId: props.carbonReportId,
     });
-    if (!kindOptionsServerSearched.value) {
-      moduleStore.getSubmoduleTaxonomy(
-        props.moduleType,
-        props.submoduleType,
-        String(props.year),
-      );
-    }
+    fetchTaxonomyIfNeeded();
   }
 
   // For professional travel, pre-load headcount members to resolve traveler names

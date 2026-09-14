@@ -11,6 +11,8 @@
  */
 
 import type { TaxonomyNode } from '@/constant/modules';
+import type { ConditionalBounds } from '@/constant/moduleConfig';
+import { getNumericRules } from '@/utils/numeric-rules';
 
 export type RfSub = 'research-facilities' | 'animal_facilities';
 
@@ -79,4 +81,23 @@ export function buildResearchFacilityRows(
         }));
     })
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+type Translate = Parameters<typeof getNumericRules>[1];
+
+/**
+ * Inline rules for a row's planned use: the unit decides the ceiling (0-100
+ * as a %, whole numbers as housings), the same table the Calculator form and
+ * the backend validate against.
+ */
+export function researchFacilityUseRules(
+  metric: string,
+  bounds: ConditionalBounds,
+  t: Translate,
+) {
+  const byUnit = bounds.byValue[metric];
+  return getNumericRules(
+    { min: 0, max: byUnit?.max, integer: byUnit?.integer },
+    t,
+  );
 }

@@ -50,4 +50,5 @@ behavior:
   message (`{count} decimal place | {count} decimal places`), and the
   interpolation param renamed `max` → `count` at all three call sites.
 
-No follow-up issues filed against #2318 itself.
+Follow-up: #2464 mirrors the one-decimal cap server-side (DTO validators
+and the HR import path).

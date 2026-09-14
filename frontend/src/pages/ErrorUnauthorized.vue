@@ -11,7 +11,7 @@
         <div class="column items-center q-gutter-y-xl">
           <!-- Error Code and Icon -->
           <div class="column items-center q-gutter-y-md">
-            <q-icon name="o_lock" size="lg" color="accent" />
+            <q-icon :name="outlinedLock" size="lg" color="accent" />
             <div class="text-h4 text-weight-medium text-dark">
               {{ t('unauthorized_title') }}
             </div>
@@ -26,7 +26,7 @@
             style="max-width: 100%"
           >
             <div class="row items-center q-gutter-x-sm justify-center">
-              <q-icon name="o_info" size="sm" color="orange-8" />
+              <q-icon :name="outlinedInfo" size="sm" color="orange-8" />
               <p class="text-body1 text-weight-medium text-orange-9 q-ma-none">
                 {{ highlightMessage }}
               </p>
@@ -98,6 +98,10 @@
 </template>
 
 <script setup lang="ts">
+import {
+  outlinedInfo,
+  outlinedLock,
+} from '@quasar/extras/material-icons-outlined';
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';

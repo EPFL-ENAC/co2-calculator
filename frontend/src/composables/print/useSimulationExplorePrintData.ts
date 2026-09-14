@@ -29,6 +29,8 @@ export function useSimulationExplorePrintData() {
   );
 
   const loading = ref(true);
+  /** No sandbox exists for this unit — nothing to report on (#2656). */
+  const noExploration = ref(false);
 
   const totalTonnesCo2eq = computed(() =>
     sumBreakdownTonnes(moduleStore.state.emissionBreakdown),
@@ -70,13 +72,30 @@ export function useSimulationExplorePrintData() {
 
     await yearConfigStore.fetchConfig(yearParam.value);
 
-    const carbonReport =
-      await workspaceStore.selectSimulatorExploreCarbonReport(
-        workspaceStore.selectedUnit.id,
-        workspaceStore.selectedYear,
-      );
-
-    return carbonReport?.id ?? null;
+    // Read, never provision: `selectSimulatorExploreCarbonReport` POSTs, and
+    // a POST starts a brand-new empty sandbox and deletes the previous one
+    // (#2656) — opening the report would erase the exploration it prints.
+    // Reading can 404 where the POST never could (a bookmarked print URL, a
+    // sandbox replaced from another tab), which is an empty report, not a
+    // failure — the page says so instead of spinning.
+    try {
+      const carbonReport =
+        await workspaceStore.loadSimulatorExploreCarbonReport(
+          workspaceStore.selectedUnit.id,
+          workspaceStore.selectedYear,
+        );
+      return carbonReport?.id ?? null;
+    } catch (err: unknown) {
+      if (err instanceof Error && 'response' in err) {
+        const httpErr = err as Error & { response: { status: number } };
+        if (httpErr.response?.status === 404) {
+          noExploration.value = true;
+          loading.value = false;
+          return null;
+        }
+      }
+      throw err;
+    }
   }
 
   async function fetchAllData(carbonReportId: number) {
@@ -85,6 +104,9 @@ export function useSimulationExplorePrintData() {
       const unitId = workspaceStore.selectedUnit?.id;
       const year = workspaceStore.selectedYear;
       if (unitId == null || year == null) return;
+      // Resolved N-1/N-2 factor year (#2651) — `year` above is only the
+      // sandbox's creation year, never a year with published factors.
+      const factorYear = workspaceStore.selectedCarbonReport?.factor_year;
 
       const tasks: Promise<unknown>[] = [
         moduleStore.getEmissionBreakdown(carbonReportId, []),
@@ -119,12 +141,12 @@ export function useSimulationExplorePrintData() {
           }
         }
         // One batched call per module instead of one per submodule (#2049 T6).
-        if (taxonomyEntries.length > 0) {
+        if (taxonomyEntries.length > 0 && factorYear != null) {
           tasks.push(
             moduleStore.getSubmoduleTaxonomiesBatch(
               m.type,
               taxonomyEntries,
-              String(year),
+              String(factorYear),
             ),
           );
         }
@@ -155,6 +177,7 @@ export function useSimulationExplorePrintData() {
   return {
     currentYear,
     loading,
+    noExploration,
     totalTonnesCo2eq,
     breakdown,
     exploreModules,

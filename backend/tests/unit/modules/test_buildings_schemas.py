@@ -208,15 +208,19 @@ def test_zero_surface_returns_zero_not_none() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_computations_without_factor_id_returns_empty() -> None:
-    # No primary_factor_id → no factor → no emission computation.
-    ctx = {"room_surface_square_meter": 100.0}
-    assert (
+def test_resolve_computations_without_factor_id_fails_loudly() -> None:
+    # No primary_factor_id means the building has no factor row. Returning
+    # no computations made the entry a silent zero (#2716); the failure has
+    # to name the building so the operator can fix the factors file.
+    ctx = {
+        "room_surface_square_meter": 100.0,
+        "building_name": "ZEBRAFISH",
+        "room_type": "laboratories",
+    }
+    with pytest.raises(ValueError, match="ZEBRAFISH"):
         _HANDLER.resolve_computations(
             None, EmissionType.buildings__rooms__lighting__office, ctx
         )
-        == []
-    )
 
 
 def test_resolve_computations_heating_leaf_formula_applies_conversion_factor() -> None:

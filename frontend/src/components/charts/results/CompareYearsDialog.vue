@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { outlinedClose } from '@quasar/extras/material-icons-outlined';
 import { computed, ref, watch, type PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useModuleStore } from '@/stores/modules';
@@ -16,6 +17,7 @@ import {
   presentCategories,
   computeCompareYearsTotal,
   computeCompareYearsObjectives,
+  computeObjectiveGap,
 } from '@/utils/compareYears';
 import { nOrDash } from '@/utils/number';
 import CompareYearsChart, {
@@ -245,23 +247,23 @@ const scopeObjectives = computed(() =>
 const latestObjective = computed(() => categoryObjectives.value.at(-1) ?? null);
 
 // KPI: how far the latest selected year sits from its objective, framed as the
-// reduction still missing to reach the target. Over target → `missing` with a
-// positive magnitude (e.g. "Missing 11 %"); at/below target → already reached.
+// reduction still missing to reach the target. Over target → `missing` with the
+// share of current emissions to cut (e.g. "-90%"); at/below target → how far
+// below the target the year sits.
 const objectiveGap = computed(() => {
   const obj = latestObjective.value;
-  if (!obj || obj.valueTonnes <= 0 || selectedYears.value.length === 0) {
-    return null;
-  }
+  if (!obj || selectedYears.value.length === 0) return null;
   const latestTonnes = computeCompareYearsTotal(
     data.value?.years ?? [],
     [Math.max(...selectedYears.value)],
     selectedCategories.value,
   );
+  const gap = computeObjectiveGap(latestTonnes, obj.valueTonnes);
+  if (!gap) return null;
   return {
     targetYear: obj.targetYear,
     objectiveTonnes: obj.valueTonnes,
-    missing: latestTonnes > obj.valueTonnes,
-    pctMagnitude: Math.abs(latestTonnes - obj.valueTonnes) / obj.valueTonnes,
+    ...gap,
   };
 });
 
@@ -295,7 +297,14 @@ const scopeObjectiveBars = computed(() =>
           {{ $t('results_compare_years_title') }}
         </div>
         <q-space />
-        <q-btn v-close-popup flat round dense icon="o_close" color="grey-6" />
+        <q-btn
+          v-close-popup
+          flat
+          round
+          dense
+          :icon="outlinedClose"
+          color="grey-6"
+        />
       </q-card-section>
 
       <q-separator class="q-mt-sm" />

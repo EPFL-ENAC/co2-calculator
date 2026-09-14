@@ -37,26 +37,48 @@ def pytest_configure():
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
-    # Settings.settings_customise_sources makes a local .env file win over
-    # process env vars (dev convenience, #1153). Tests must not depend on
-    # whatever happens to be in a developer's .env, and must be able to
-    # reliably blank a setting via monkeypatch.setenv to exercise
-    # fail-closed paths (e.g. test_fails_closed_without_key). Disabling
-    # dotenv loading for the whole session makes pytest-env's `env = [...]`
-    # values (pyproject.toml) and monkeypatch the only sources, in every
-    # environment, with or without a local .env.
-    from app.core.config import Settings
+    # Tests must not depend on whatever happens to be in a developer's .env,
+    # and must be able to reliably blank a setting via monkeypatch.setenv to
+    # exercise fail-closed paths (e.g. test_fails_closed_without_key).
+    # Disabling dotenv loading for the whole session makes pytest-env's
+    # `env = [...]` values (pyproject.toml) and monkeypatch the only sources,
+    # in every environment, with or without a local .env.
+    #
+    # Why cache_clear() too, not just the line below (#2684): get_settings()
+    # is @lru_cache'd, and this module's own top-level `app.*` imports call
+    # it — via other modules' `settings = get_settings()` at import time —
+    # *before* pytest_configure runs. That first call built and cached a
+    # Settings() instance while env_file was still ".env", so it's already
+    # poisoned; env_file = None below only changes what the *next* Settings()
+    # build reads, not the one already cached. cache_clear() discards it, so
+    # the next call rebuilds fresh.
+    #
+    # Scope, checked empirically (do not widen this comment's claim without
+    # re-checking): this closes it for every module imported *after*
+    # pytest_configure runs — including app.api.v1.files, whose module-level
+    # `files_store = make_files_store()` is why RC2's S3 leak is fixed. It
+    # does NOT reach modules that app/__init__.py's own eager imports
+    # (`import app.modules` at app/__init__.py:15) pull in ahead of any of
+    # conftest's imports. app.core.logging was one such module (#2686): its
+    # own `settings = get_settings()` singleton stayed bound to a
+    # .env-poisoned object for the whole test session, cache_clear()
+    # notwithstanding — fixed by moving that read inside setup_logging()/
+    # LokiHandler.emit() instead of binding it at import time (mirrors
+    # app/core/crypto.py's existing pattern). If a future module reintroduces
+    # a module-level `settings = get_settings()` and is reachable from
+    # app/__init__.py's eager chain, it has the same latent bug.
+    from app.core.config import Settings, get_settings
 
     Settings.model_config["env_file"] = None
+    get_settings.cache_clear()
 
 
 @pytest.fixture(autouse=True)
 def disable_poller(monkeypatch):
     """Disable the background pollers for all tests.
 
-    No current test drives app.main's lifespan (TestClient calls hit
-    route functions directly), so this is belt-and-suspenders rather
-    than load-bearing today — kept for the day a test does.
+    Load-bearing: every ``with TestClient(app)`` test runs app.main's
+    lifespan, which would otherwise start the pollers.
     """
     monkeypatch.setattr("app.main.settings.RUN_BACKGROUND_POLLER", False)
     monkeypatch.setattr("app.main.settings.RUN_DB_HEALTH_POLLER", False)
@@ -210,7 +232,11 @@ def make_data_entry():
         defaults = dict(
             data_entry_type_id=DataEntryTypeEnum.member.value,
             carbon_report_module_id=1,
-            data={},
+            # Not `{}`: since #2527 C1 Postgres rejects an empty object,
+            # because an entry carrying no data prices nothing. The default
+            # matches the default `data_entry_type_id` (member) so a fixture
+            # entry looks like one the application could have written.
+            data={"fte": 1.0, "sius_code": "BG"},
             status=DataEntryStatusEnum.PENDING,
         )
         defaults.update(overrides)
@@ -243,13 +269,37 @@ def make_factor():
     return _make
 
 
+def make_emission(entry: DataEntry, **overrides) -> DataEntryEmission:
+    """Build an unsaved emission carrying ``entry``'s join keys (#2527).
+
+    ``carbon_report_module_id`` / ``data_entry_type_id`` are NOT NULL on
+    ``data_entry_emissions`` and must mirror the parent entry — deriving them
+    here is why no test has to restate them, and why the next one cannot get
+    them wrong. Everything else is passed through explicitly.
+    """
+    return DataEntryEmission(
+        data_entry_id=entry.id,
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=entry.data_entry_type_id,
+        **overrides,
+    )
+
+
 @pytest.fixture
 def make_data_entry_emission():
-    """Factory for DataEntryEmission model instances."""
+    """Factory for DataEntryEmission model instances.
+
+    Every default here is synthetic, including the #2527 join keys — nothing
+    is derived from a real entry. If the test reads back through a
+    module/type-scoped query, use ``make_emission(entry, ...)`` instead, or
+    the row lands outside the scope and the query returns nothing.
+    """
 
     async def _make(session: AsyncSession, **overrides) -> DataEntryEmission:
         defaults = dict(
             data_entry_id=1,
+            carbon_report_module_id=1,
+            data_entry_type_id=DataEntryTypeEnum.member.value,
             emission_type_id=EmissionType.food.value,
             primary_factor_id=None,
             kg_co2eq=100.0,

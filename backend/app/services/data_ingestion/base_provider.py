@@ -61,8 +61,39 @@ class DataIngestionProvider(ABC):
             f"{type(self).__name__} does not provide a files_store"
         )
 
+    def _archive_folder(self) -> str:
+        """Folder component for ``processing/`` and ``processed/`` paths
+        (#2442): ``job_id`` alone is a bare auto-increment int that gets
+        reused whenever a shared environment's DB is reset/reseeded
+        without also clearing file storage — confirmed live, where
+        ``processed/5/`` had accumulated files from eight unrelated jobs
+        months apart. Suffixing with the job's own ``created_at`` (a
+        Python-side timestamp stamped once per job object, so it can't
+        collide within one DB epoch either) means a job can only ever
+        collide with itself — the exact case ``_move_to_processing``'s
+        retry-skip below already relies on being safe.
+
+        No DB round-trip needed: ``self.job`` is already set on the
+        same-instance path (``create_job`` sets it directly), and the
+        background-worker path that reconstructs a fresh provider already
+        spreads ``**job.__dict__`` — ``created_at`` included — into
+        ``self.config``. Falls back to the bare id if neither is
+        available (e.g. a bare test double) — degrades to the old
+        behavior rather than failing an upload over an archive path.
+        """
+        created_at = (
+            getattr(self.job, "created_at", None)
+            if self.job
+            else self.config.get("created_at")
+        )
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at)
+        if not isinstance(created_at, datetime):
+            return str(self.job_id)
+        return f"{self.job_id}-{created_at.strftime('%Y%m%dT%H%M%S%f')}"
+
     async def _move_to_processing(self, tmp_path: str) -> str:
-        """Move an uploaded file from ``tmp/`` to ``processing/<job_id>/``.
+        """Move an uploaded file from ``tmp/`` to ``processing/<job_id>-<created_at>/``.
 
         Idempotent: if a prior attempt already produced the destination
         (job crashed/restarted after the move but before FINISHED, then
@@ -73,7 +104,7 @@ class DataIngestionProvider(ABC):
         there still raises.
         """
         filename = tmp_path.split("/")[-1]
-        processing_path = f"processing/{self.job_id}/{filename}"
+        processing_path = f"processing/{self._archive_folder()}/{filename}"
         if await self.files_store.file_exists(processing_path):
             logger.info(
                 f"File already at {processing_path} (prior attempt); skipping move"
@@ -111,20 +142,22 @@ class DataIngestionProvider(ABC):
         )
 
     async def _move_to_processed(self, processing_path: str) -> str:
-        """Move an ingested file from ``processing/`` to ``processed/<job_id>/``.
+        """Move an ingested file from ``processing/`` to ``processed/<job_id>-<ts>/``.
 
-        Idempotent like ``_move_to_processing``. Unlike that move, a
-        failure here is non-fatal — the data is already committed, only
-        archival bookkeeping is at stake — so it logs and returns the
-        un-moved ``processing_path`` instead of raising.
+        Always (re-)writes the destination rather than skipping when it
+        already exists — belt-and-suspenders alongside ``_archive_folder``'s
+        collision-proof naming above (#2442): even with that naming, this
+        stays a pure archival copy of what THIS job just parsed, so
+        re-writing on a genuine same-job retry is a harmless no-op. There's
+        no case where skipping was load-bearing for correctness, only a
+        redundant write it saved.
+
+        A failure here is non-fatal — the data is already committed,
+        only archival bookkeeping is at stake — so it logs and returns
+        the un-moved ``processing_path`` instead of raising.
         """
         filename = processing_path.split("/")[-1]
-        processed_path = f"processed/{self.job_id}/{filename}"
-        if await self.files_store.file_exists(processed_path):
-            logger.info(
-                f"File already at {processed_path} (prior attempt); skipping move"
-            )
-            return processed_path
+        processed_path = f"processed/{self._archive_folder()}/{filename}"
         logger.info(f"Moving file from {processing_path} to {processed_path}")
         if not await self.files_store.move_file(processing_path, processed_path):
             logger.warning(

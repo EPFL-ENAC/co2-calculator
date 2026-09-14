@@ -303,7 +303,13 @@ async def test_headcount_member_post_statement_budget(
 # Calculator reports; keying it off the project's type costs one
 # carbon_projects get plus the year_configuration check it exists for, which
 # now actually runs. Reason recorded in plan 2050 (Ratchet raises).
-STATEMENT_BUDGET = 18
+#
+# 18 → 19 (2026-09-14, #2706): the module stats write now persists the
+# FTE-by-function breakdown the module GET used to aggregate live on every
+# read — `_collect_module_extras` calls `get_headcount_fte_breakdown`, which
+# is statement 15 below. One statement onto the interactive write, one live
+# aggregate off every read of the page. Reason recorded in plan 2050.
+STATEMENT_BUDGET = 19
 # One per emission leaf is the ceiling worth defending: factor resolution
 # must not scale with the fallback chain's depth.
 FACTOR_LOOKUP_BUDGET = 1
