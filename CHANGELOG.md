@@ -1,3 +1,4 @@
+## [1.4.11](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.10...v1.4.11) (2026-09-14)
 ## [1.4.10](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.3...v1.4.10) (2026-09-03)
 
 
