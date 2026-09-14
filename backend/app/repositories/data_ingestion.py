@@ -2075,7 +2075,15 @@ class DataIngestionRepository:
             provider=provider,
             pipeline_id=pipeline_id,
             run_after=None,
-            meta={"config": {"skip_module_status_update": True}},
+            meta={
+                "config": {
+                    "skip_module_status_update": True,
+                    # #2775 — reach Simulator Plan reports baselined on this
+                    # year; their own year is a planning year that no scope
+                    # targets. Recalc-chained aggregations don't set this.
+                    "include_reference_year_reports": True,
+                }
+            },
         )
         try:
             created = await self.create_ingestion_job(job)

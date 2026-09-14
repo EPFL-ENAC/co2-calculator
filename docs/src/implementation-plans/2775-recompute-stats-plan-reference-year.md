@@ -2,7 +2,7 @@
 status: delivered
 issue: 2775
 last_updated: 2026-09-14
-summary: "Scope the recompute-stats and stale-stats queries on the effective factor year (COALESCE(reference_year, year)) instead of carbon_reports.year, so Simulator Plan reports fold into their baseline year's aggregation scope instead of raising a scope for their planning year — which has no factors, is never selectable in the operator UI, and left every plan's stats permanently un-recomputed."
+summary: "Scope the recompute-stats and stale-stats queries on the effective factor year (COALESCE(reference_year, year)) instead of carbon_reports.year, so Simulator Plan reports fold into their baseline year's aggregation scope instead of raising a scope for their planning year — which has no factors, is never selectable in the operator UI, and left every plan's stats permanently un-recomputed. The aggregation handler's module slice is widened for the admin trigger only, so the recalc-chained path cannot bump validated plans to IN_PROGRESS."
 ---
 
 # recompute-stats never reached Simulator Plan reports (#2775)
@@ -53,15 +53,42 @@ func.coalesce(col(CarbonReport.reference_year), col(CarbonReport.year))
 
 Applied at the three scoping sites:
 
-| Site                                                     | Was                                   | Now                                   |
-| -------------------------------------------------------- | ------------------------------------- | ------------------------------------- |
-| `data_ingestion.list_module_type_year_scopes`            | `CarbonReport.year` (select + filter) | `effective_factor_year_col()`         |
-| `data_ingestion.find_stale_aggregations` (seed subquery) | `CarbonReport.year`                   | `effective_factor_year_col()`         |
-| `carbon_report_module_repo.list_by_module_type_and_year` | `CarbonReport.year == year`           | `effective_factor_year_col() == year` |
+| Site                                                     | Was                                   | Now                                                                            |
+| -------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------ |
+| `data_ingestion.list_module_type_year_scopes`            | `CarbonReport.year` (select + filter) | `effective_factor_year_col()`                                                  |
+| `data_ingestion.find_stale_aggregations` (seed subquery) | `CarbonReport.year`                   | `effective_factor_year_col()`                                                  |
+| `carbon_report_module_repo.list_by_module_type_and_year` | `CarbonReport.year == year`           | `effective_factor_year_col() == year`, **opt-in** via `include_reference_year` |
 
 `CarbonReport.reference_year` is written in exactly one place —
 `SimulatorPlanService.set_reference_year`, a Simulator Plan route — so the
 COALESCE is a no-op for Calculator and Explore reports.
+
+### The module slice is widened for the admin trigger only
+
+`list_by_module_type_and_year` backs **both** aggregation paths: the admin
+trigger and the recalc-chained aggregation that runs after every ingest or
+factor upload. Widening it unconditionally would have changed the hot path:
+
+```python
+emptied = await svc.emptied_module_ids(candidates)
+affected = [m for m in candidates if m.id in affected_scope or m.id in emptied]
+```
+
+`emptied_module_ids` runs over the full candidate list and is _not_ filtered by
+`affected_scope`, and the recalc path recomputes with `bump_status=True`. So a
+routine 2025 factor upload could have flipped validated plan modules back to
+IN_PROGRESS — a change to validated data on the pipeline's hot path, which is
+not what this issue is for.
+
+The widening is therefore opt-in: `create_root_aggregation_job` sets
+`meta.config.include_reference_year_reports`, and `aggregation_handler` passes
+it through to the slice query. Recalc-chained aggregations don't set it and
+keep exactly their current candidate set.
+
+**Open question for review:** a 2025 factor change _does_ invalidate plans
+baselined on 2025, so arguably the recalc path should reach them too. That is a
+deliberate follow-up, not an oversight — it touches validated emission data and
+needs its own plan.
 
 ### Why this shape
 
@@ -97,6 +124,9 @@ in every plan baselined on it.
   factors dispatches **one** job, at year 2025, with `skipped_no_factors == 0`.
   Before the fix the plan raised a second, factorless 2043 scope.
 - `test_reference_year_slice_collects_plan_modules` — the handler's own module
-  query returns the plan's module for the 2025 slice and _not_ for the 2043
-  slice. This is the assertion that proves a dispatched job actually reaches
-  the modules.
+  query returns the plan's module for the widened 2025 slice, and _not_ for the
+  narrow (recalc-chained) 2025 slice nor the 2043 planning slice. This proves a
+  dispatched job reaches the modules and that the recalc path is unchanged.
+
+`backend/tests/unit/tasks/test_aggregation_handler.py` pins the default: a plain
+aggregation job calls `list_modules_for(..., include_reference_year=False)`.

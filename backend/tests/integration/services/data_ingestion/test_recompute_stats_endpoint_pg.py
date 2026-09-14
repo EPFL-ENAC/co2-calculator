@@ -451,16 +451,20 @@ async def test_recompute_stats_scopes_plan_by_reference_year(pg_app):
             .all()
         )
     assert [j.year for j in jobs] == [_YEAR_2025]
+    # The flag is what lets the handler widen its module slice to reach the
+    # plan; without it a dispatched job still collects nothing for it.
+    assert all((j.meta or {})["config"]["include_reference_year_reports"] for j in jobs)
 
 
 @pytest.mark.asyncio
 async def test_reference_year_slice_collects_plan_modules(pg_app):
-    """#2775 — the handler's module query must collect the plan's modules.
+    """#2775 — the admin trigger's module query collects the plan's modules.
 
     ``list_by_module_type_and_year`` is what ``aggregation_handler`` calls to
     turn its ``(module_type_id, year)`` job into a module list. Matching on
     the report's own year left the plan out of every slice, so even a
-    dispatched job recomputed nothing for it.
+    dispatched job recomputed nothing for it. Only the admin trigger opts
+    into the widened slice, via ``include_reference_year``.
     """
     Sf = pg_app["factory"]
     plan_module_id = await _seed_plan_scope(
@@ -472,14 +476,20 @@ async def test_reference_year_slice_collects_plan_modules(pg_app):
 
     async with Sf() as s:
         repo = CarbonReportModuleRepository(s)
-        in_reference_slice = await repo.list_by_module_type_and_year(
+        widened = await repo.list_by_module_type_and_year(
+            module_type_id=_MT_A, year=_YEAR_2025, include_reference_year=True
+        )
+        narrow = await repo.list_by_module_type_and_year(
             module_type_id=_MT_A, year=_YEAR_2025
         )
-        in_planning_slice = await repo.list_by_module_type_and_year(
-            module_type_id=_MT_A, year=_PLAN_YEAR
+        planning_slice = await repo.list_by_module_type_and_year(
+            module_type_id=_MT_A, year=_PLAN_YEAR, include_reference_year=True
         )
 
-    assert plan_module_id in [m.id for m in in_reference_slice]
-    # The planning year is not a slice anything targets — the module must not
-    # answer to it, or a 2043 job would double-recompute it.
-    assert plan_module_id not in [m.id for m in in_planning_slice]
+    assert plan_module_id in [m.id for m in widened]
+    # The recalc-chained aggregation keeps the narrow slice: widening it would
+    # route plan modules through ``emptied_module_ids`` and bump validated
+    # plans to IN_PROGRESS on every factor upload (#2775).
+    assert plan_module_id not in [m.id for m in narrow]
+    # The planning year is not a slice key at all once the reference year is set.
+    assert plan_module_id not in [m.id for m in planning_slice]
