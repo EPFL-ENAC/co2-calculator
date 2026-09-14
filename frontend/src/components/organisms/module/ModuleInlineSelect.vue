@@ -240,6 +240,7 @@ async function onValueChange(val: string | number | null) {
   display: flex;
   align-items: center;
   height: 2.5rem;
+  padding-left: tokens.$table-inline-field-padding-x;
   color: tokens.$table-color-disabled;
   cursor: default;
 }
