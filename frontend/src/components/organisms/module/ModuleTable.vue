@@ -1969,12 +1969,6 @@ function isComplete(row: ModuleRow) {
     }
     return isCompletePurchase(row);
   }
-  if (props.moduleType === MODULES.ProfessionalTravel) {
-    const required = ['origin', 'destination', 'user_institutional_id'];
-    return required.every(
-      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-    );
-  }
   if (props.moduleType === MODULES.ProcessEmissions) {
     const baseRequired = ['category', 'quantity_kg'];
     const hasBaseRequired = hasRequiredValues(row, baseRequired);
