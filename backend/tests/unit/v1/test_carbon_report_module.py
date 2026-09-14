@@ -14,6 +14,8 @@ from fastapi import HTTPException
 import app.api.v1.carbon_report_module as crm
 from app.core.constants import ModuleStatus
 from app.core.role_priority import pick_role_for_institutional_id, role_priority_case
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReportType
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope
@@ -55,11 +57,12 @@ def _mock_db(unit_iid=UNIT_IID, unit_found=True):
     return db
 
 
-def _resolved(module_id=1, unit_id=1, year=2024):
+def _resolved(module_id=1, unit_id=1, year=2024, carbon_project_id=None):
     """(report, module) pair as resolve_report_module would return them."""
     report = MagicMock()
     report.unit_id = unit_id
     report.year = year
+    report.carbon_project_id = carbon_project_id
     module = MagicMock()
     module.id = module_id
     return report, module
@@ -446,7 +449,7 @@ class TestGetProfessionalTravelFilter:
         user = _user(roles=[_std(UNIT_IID)])
         result = await crm._get_professional_travel_institutional_id_filter(
             db=db,
-            unit_id=1,
+            report=_resolved()[0],
             current_user=user,
             data_entry_type_id=DataEntryTypeEnum.scientific,
         )
@@ -462,7 +465,7 @@ class TestGetProfessionalTravelFilter:
 
         result = await crm._get_professional_travel_institutional_id_filter(
             db=db,
-            unit_id=1,
+            report=_resolved()[0],
             current_user=user,
             data_entry_type_id=DataEntryTypeEnum.plane,
         )
@@ -478,7 +481,7 @@ class TestGetProfessionalTravelFilter:
 
         result = await crm._get_professional_travel_institutional_id_filter(
             db=db,
-            unit_id=1,
+            report=_resolved()[0],
             current_user=user,
             data_entry_type_id=DataEntryTypeEnum.plane,
         )
@@ -496,7 +499,7 @@ class TestGetProfessionalTravelFilter:
         with pytest.raises(HTTPException) as exc:
             await crm._get_professional_travel_institutional_id_filter(
                 db=db,
-                unit_id=1,
+                report=_resolved()[0],
                 current_user=user,
                 data_entry_type_id=DataEntryTypeEnum.train,
             )
@@ -614,6 +617,78 @@ async def test_get_module_fails_loud_when_stats_predate_2706():
 
     assert exc.value.status_code == 503
     assert "recompute-stats" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_get_module_travel_in_explore_sandbox_skips_own_rows_filter():
+    """Regression for #2752: the submodule counts a standard user sees in an
+    Explore sandbox must include the sentinel-traveler trips they just added.
+    """
+    report, module = _resolved(module_id=99, carbon_project_id=5)
+    module.stats = {"total": 1_000.0, "total_excluding_additional": 1_000.0}
+    unit = MagicMock()
+    unit.institutional_id = UNIT_IID
+    project = MagicMock()
+    project.carbon_report_type = CarbonReportType.SIMULATOR_EXPLORE
+    db = MagicMock()
+
+    async def _get(model, _pk):
+        return project if model is CarbonProject else unit
+
+    db.get = AsyncMock(side_effect=_get)
+    data_svc = MagicMock()
+    data_svc.get_module_data = AsyncMock(return_value=MagicMock())
+
+    with (
+        patch.object(
+            crm, "check_module_permission_for_report", AsyncMock(return_value=unit)
+        ),
+        patch.object(
+            crm, "resolve_report_module", AsyncMock(return_value=(report, module))
+        ),
+        patch.object(crm, "DataEntryService", return_value=data_svc),
+    ):
+        await crm.get_module(
+            carbon_report_id=1,
+            module_id="professional-travel",
+            preview_limit=20,
+            db=db,
+            current_user=_user(roles=[_std(UNIT_IID)]),
+        )
+
+    kwargs = data_svc.get_module_data.await_args.kwargs
+    assert kwargs["travel_institutional_id_filter"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_module_travel_in_calculator_keeps_own_rows_filter():
+    """The Calculator path is untouched: a standard user still gets own rows."""
+    report, module = _resolved(module_id=99)
+    module.stats = {"total": 1_000.0, "total_excluding_additional": 1_000.0}
+    unit = MagicMock()
+    unit.institutional_id = UNIT_IID
+    data_svc = MagicMock()
+    data_svc.get_module_data = AsyncMock(return_value=MagicMock())
+
+    with (
+        patch.object(
+            crm, "check_module_permission_for_report", AsyncMock(return_value=unit)
+        ),
+        patch.object(
+            crm, "resolve_report_module", AsyncMock(return_value=(report, module))
+        ),
+        patch.object(crm, "DataEntryService", return_value=data_svc),
+    ):
+        await crm.get_module(
+            carbon_report_id=1,
+            module_id="professional-travel",
+            preview_limit=20,
+            db=_mock_db(UNIT_IID),
+            current_user=_user("MY_IID", roles=[_std(UNIT_IID)]),
+        )
+
+    kwargs = data_svc.get_module_data.await_args.kwargs
+    assert kwargs["travel_institutional_id_filter"] == "MY_IID"
 
 
 # ======================================================================
