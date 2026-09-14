@@ -431,6 +431,18 @@ export default {
     fr: '',
   },
 
+  // ── Professional Travel — plane and train tables ────────────────────────────
+  'module-professional-travel-submodule-travel-table-kg_co2eq': {
+    en: 'Values appear in red when they exceed the threshold set for this module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
+  },
+
+  // ── Purchases — all purchase tables ─────────────────────────────────────────
+  'module-purchase-submodule-purchase-table-kg_co2eq': {
+    en: 'Values appear in red when they exceed the threshold set for this module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
+  },
+
   // ── External Cloud & AI — cloud services table ──────────────────────────────
   'module-external-cloud-and-ai-submodule-external_clouds-table-provider': {
     en: '',
