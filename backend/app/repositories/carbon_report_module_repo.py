@@ -18,6 +18,7 @@ from app.models.module_type import DEFAULT_COMPLETION_PROGRESS, ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleCreate
+from app.utils.factor_year import effective_factor_year_col
 from app.utils.report_stats import merge_report_stats
 
 logger = get_logger(__name__)
@@ -166,9 +167,14 @@ class CarbonReportModuleRepository:
     ) -> list[CarbonReportModule]:
         """List all modules for a given (module_type_id, year) slice.
 
-        ``module_type_id`` lives on ``CarbonReportModule``; ``year`` lives on
+        ``module_type_id`` lives on ``CarbonReportModule``; the year lives on
         the parent ``CarbonReport``, so the filter joins through it.  Mirrors
         ``get_by_year_and_unit`` minus the unit filter.
+
+        ``year`` is the *factor* year, matched with
+        ``effective_factor_year_col`` so a Simulator Plan report joins the
+        slice of its ``reference_year`` rather than its planning year (#2775)
+        — the aggregation handler would otherwise never collect its modules.
         """
         statement = (
             select(CarbonReportModule)
@@ -178,7 +184,7 @@ class CarbonReportModuleRepository:
             )
             .where(
                 CarbonReportModule.module_type_id == module_type_id,
-                CarbonReport.year == year,
+                effective_factor_year_col() == year,
             )
         )
         result = await self.session.execute(statement)

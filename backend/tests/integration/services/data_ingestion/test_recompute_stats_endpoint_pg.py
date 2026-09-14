@@ -21,7 +21,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 import app.api.deps as deps_module
 import app.core.security as security_module
 from app.main import app
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import (
+    CarbonReport,
+    CarbonReportModule,
+    CarbonReportType,
+)
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
@@ -31,12 +36,17 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.unit import Unit
+from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 
 _MT_A = 1  # ModuleTypeEnum.headcount
 _MT_B = 2  # ModuleTypeEnum.professional_travel
 
 _YEAR_2024 = 2024
 _YEAR_2025 = 2025
+
+# A Simulator Plan year report: its own ``year`` is the planning target,
+# its entries price against ``reference_year`` (#2775).
+_PLAN_YEAR = 2043
 
 
 @pytest_asyncio.fixture
@@ -347,3 +357,129 @@ async def test_recompute_stats_returns_zero_with_no_modules(pg_app):
         "skipped_no_factors": 0,
         "job_ids": [],
     }
+
+
+async def _seed_plan_scope(
+    Sf, *, module_type_id: int, plan_year: int, reference_year: int
+) -> int:
+    """Seed a Simulator Plan year report and return its module id.
+
+    The report's own ``year`` is the planning target; ``reference_year`` is
+    the baseline its entries price against. No FACTORS job is seeded for the
+    planning year — by construction there is never one, which is exactly why
+    scoping on that year stranded the plan (#2775).
+    """
+    async with Sf() as s:
+        unit = Unit(
+            institutional_code=f"RC-PLAN-{module_type_id}-{plan_year}",
+            institutional_id=f"RC-PLAN-{module_type_id}-{plan_year}-UNIT",
+            name="Recompute Stats Plan Unit",
+            level=1,
+        )
+        s.add(unit)
+        await s.commit()
+        assert unit.id is not None
+
+        project = CarbonProject(
+            unit_id=unit.id,
+            carbon_report_type=CarbonReportType.SIMULATOR_PLAN,
+        )
+        s.add(project)
+        await s.commit()
+        assert project.id is not None
+
+        report = CarbonReport(
+            year=plan_year,
+            reference_year=reference_year,
+            unit_id=unit.id,
+            carbon_project_id=project.id,
+        )
+        s.add(report)
+        await s.commit()
+        assert report.id is not None
+
+        module = CarbonReportModule(
+            carbon_report_id=report.id,
+            module_type_id=module_type_id,
+        )
+        s.add(module)
+        await s.commit()
+        assert module.id is not None
+        return module.id
+
+
+@pytest.mark.asyncio
+async def test_recompute_stats_scopes_plan_by_reference_year(pg_app):
+    """#2775 — a plan folds into its reference-year scope, not its own year.
+
+    Before the fix the plan raised a ``(module_type, 2043)`` scope; 2043 has
+    no FACTORS job, so it was counted in ``skipped_no_factors`` and no job
+    ever reached the plan's modules. After it, the plan shares the 2025
+    scope the Calculator report already dispatches — same job count.
+    """
+    Sf = pg_app["factory"]
+    await _seed_scope(Sf, module_type_id=_MT_A, year=_YEAR_2025)
+    await _seed_plan_scope(
+        Sf,
+        module_type_id=_MT_A,
+        plan_year=_PLAN_YEAR,
+        reference_year=_YEAR_2025,
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        resp = await client.post("/v1/sync/admin/recompute-stats")
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    # The plan adds no scope of its own: one job, and nothing stranded.
+    assert body["dispatched"] == 1
+    assert body["skipped_no_factors"] == 0
+
+    async with Sf() as s:
+        jobs = (
+            (
+                await s.execute(
+                    select(DataIngestionJob).where(
+                        DataIngestionJob.id.in_(body["job_ids"])  # type: ignore[union-attr]
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert [j.year for j in jobs] == [_YEAR_2025]
+
+
+@pytest.mark.asyncio
+async def test_reference_year_slice_collects_plan_modules(pg_app):
+    """#2775 — the handler's module query must collect the plan's modules.
+
+    ``list_by_module_type_and_year`` is what ``aggregation_handler`` calls to
+    turn its ``(module_type_id, year)`` job into a module list. Matching on
+    the report's own year left the plan out of every slice, so even a
+    dispatched job recomputed nothing for it.
+    """
+    Sf = pg_app["factory"]
+    plan_module_id = await _seed_plan_scope(
+        Sf,
+        module_type_id=_MT_A,
+        plan_year=_PLAN_YEAR,
+        reference_year=_YEAR_2025,
+    )
+
+    async with Sf() as s:
+        repo = CarbonReportModuleRepository(s)
+        in_reference_slice = await repo.list_by_module_type_and_year(
+            module_type_id=_MT_A, year=_YEAR_2025
+        )
+        in_planning_slice = await repo.list_by_module_type_and_year(
+            module_type_id=_MT_A, year=_PLAN_YEAR
+        )
+
+    assert plan_module_id in [m.id for m in in_reference_slice]
+    # The planning year is not a slice anything targets — the module must not
+    # answer to it, or a 2043 job would double-recompute it.
+    assert plan_module_id not in [m.id for m in in_planning_slice]
