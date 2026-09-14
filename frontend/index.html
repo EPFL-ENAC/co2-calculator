@@ -37,6 +37,14 @@
       href="icons/favicon-16x16.png"
     />
     <link rel="icon" type="image/ico" href="favicon.ico" />
+    <!--
+      Without this link Safari probes /apple-touch-icon-precomposed.png and
+      /apple-touch-icon.png at the site root, and both 404 -- that was the
+      entirety of the frontend route's 4xx on stage (2026-09-14). Declaring
+      one stops the probing; 128x128 is upscaled from the largest icon we
+      ship rather than adding a 180x180 asset for an icon nobody has asked for.
+    -->
+    <link rel="apple-touch-icon" href="icons/favicon-128x128.png" />
 
     <!--
       Preload branded text fonts. They're otherwise discovered late via the
