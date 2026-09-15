@@ -73,6 +73,10 @@ export default {
     en: 'Add student FTE',
     fr: 'Ajouter un EPT étudiant·e',
   },
+  [`${MODULES.Headcount}-student-form-subtitle`]: {
+    en: 'Enter the aggregated student FTE for your unit over the year.',
+    fr: 'Entrez de manière agrégée les EPT des étudiant·es qui ont travaillé dans votre unité sur l’année.',
+  },
   'headcount-member-error-duplicate-uid': {
     en: "This user's {label} already exists.",
     fr: 'Le {label} de cet·te utilisateur·rice existe déjà.',

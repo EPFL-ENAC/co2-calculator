@@ -2,7 +2,7 @@
 status: delivered
 issue: 2699
 last_updated: 2026-09-15
-summary: 'The Headcount student form ("Add student FTE") rendered the raw key headcount-student-form-subtitle: the subtitle text was removed from the translations on 2026-07-07 but the submodule config still had hasFormSubtitle: true. The flag is now off; the form has no subtitle.'
+summary: 'The Headcount student form ("Add student FTE") rendered the raw key headcount-student-form-subtitle: the subtitle text was removed from the translations on 2026-07-07 while the submodule config kept hasFormSubtitle: true. The translation entry is restored so the subtitle shows real text again.'
 ---
 
 # Headcount — student form subtitle shows the raw key (#2699)
@@ -24,14 +24,15 @@ vue-i18n falls back to the key itself.
 
 ## Decision
 
-Turn `hasFormSubtitle` off for the Headcount student submodule. The text was
-removed deliberately; the single-field form ("Total student FTE") is
-self-explanatory and the title tooltip already carries the explanation.
-No other submodule uses a form subtitle, so no i18n entry is added.
+Restore the `headcount-student-form-subtitle` entry in
+`frontend/src/i18n/headcount.ts` with the text that existed before
+2026-07-07 (EN "Enter the aggregated student FTE for your unit over the
+year.", FR "Entrez de manière agrégée les EPT des étudiant·es qui ont
+travaillé dans votre unité sur l’année."). The config flag stays on. The
+maintainers want a visible subtitle under the form title, not its removal.
 
-If a subtitle is wanted again later, add the
-`headcount-student-form-subtitle` entry in `frontend/src/i18n/headcount.ts`
-and flip the flag back on — both must change together.
+`hasFormSubtitle` and the `<module>-<submodule>-form-subtitle` entry must
+change together; the Headcount student submodule is the only one using it.
 
 ## Cleanup done in the same PR
 
@@ -50,5 +51,5 @@ templates in `ModuleForm.vue` / `SubModuleSection.vue`). They were removed:
 
 ## Files
 
-- `frontend/src/constant/module-config/headcount.ts` — `hasFormSubtitle: false`.
-- `frontend/src/i18n/headcount.ts` — five unused entries removed.
+- `frontend/src/i18n/headcount.ts` — subtitle entry restored, five unused
+  entries removed.

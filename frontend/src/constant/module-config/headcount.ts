@@ -138,7 +138,7 @@ export const headcount: ModuleConfig = {
       type: 'student',
       tableNameKey: 'headcount-student-table-title',
       hasTableTopBar: false,
-      hasFormSubtitle: false,
+      hasFormSubtitle: true,
       hasFormAddWithNote: false,
       hasTablePagination: false,
       hasTableAction: false,
