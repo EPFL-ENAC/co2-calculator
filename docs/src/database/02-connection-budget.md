@@ -6,6 +6,31 @@ text. This page is the map: who opens connections, where the ceiling is
 per environment, and which knob to turn when an alert fires. Sizing
 decisions are made here, not in a hurry during an incident (#2689).
 
+## PgBouncer rollout status (2026-09-15)
+
+A tuned PgBouncer is deployed on **dev only**, replacing the previous
+100-connection direct-to-Postgres ceiling with a 25-connection pool.
+**Stage and prod are unchanged** — still the old ~100-connection direct
+path — pending an internal review/alignment decision on whether to roll
+the same PgBouncer treatment out to them. Don't assume the stage/prod
+numbers below will match dev's once that lands.
+
+Dev's config:
+
+```yaml
+pgbouncer:
+  poolMode: session # transaction, session, or statement
+  parameters:
+    max_client_conn: "1000"
+    default_pool_size: "25"
+    min_pool_size: "5"
+```
+
+`poolMode: session` confirms the bouncer is not multiplexing connections
+(that would be `transaction` mode) — a server connection is held for a
+client's whole session, so the fleet-ceiling rule below is still the
+whole story on dev, not a fallback.
+
 ## Who opens connections
 
 Per pod, in the order they start (`app/main.py` lifespan):
@@ -64,17 +89,25 @@ backend-deployment.yaml`), so one extra backend and one extra worker are
 - Never `-1` for `DB_MAX_OVERFLOW`: it moves the wall to the bouncer, where
   the wait is 120 s per query.
 
-## Budgets per environment (2026-09-09)
+## Budgets per environment (dev updated 2026-09-15)
 
 Measured with `backend/scripts/probe_pgbouncer_pool.py`, which opens
 connections through the bouncer until it queues one. Re-run it after any
 DBaaS change; it holds the pool for a couple of seconds, so on prod pick
 a quiet moment.
 
-| Env         | Wall                                                         | Budget      | backend      | worker    | `MAX_CONCURRENT_JOBS` | steady | surge |
-| ----------- | ------------------------------------------------------------ | ----------- | ------------ | --------- | --------------------- | ------ | ----- |
-| dev         | bouncer pool 35                                              | 35 − 5 = 30 | 2+5 ×3 = 21  | 2+7 = 9   | 2                     | 30     | 34    |
-| stage, prod | Postgres 100 − 3 reserved (bouncer pool > 100, never queues) | 90          | 5+10 ×3 = 45 | 5+15 = 20 | 4                     | 65     | 75    |
+| Env         | Wall                                                           | Budget      | backend      | worker    | `MAX_CONCURRENT_JOBS` | steady | surge |
+| ----------- | -------------------------------------------------------------- | ----------- | ------------ | --------- | --------------------- | ------ | ----- |
+| dev         | PgBouncer `default_pool_size` 25 (configured, session pool)    | 25 − 5 = 20 | 2+5 ×3 = 21  | 2+7 = 9   | 2                     | 30     | 34    |
+| stage, prod | Postgres 100 − 3 reserved (no PgBouncer yet, see status above) | 90          | 5+10 ×3 = 45 | 5+15 = 20 | 4                     | 65     | 75    |
+
+**Dev is now over budget at steady state, not just on surge**: the
+existing backend + worker sizing (steady 30) was calibrated against the
+previously-measured 35-slot pool (exactly at budget then, 30 = 30) — with
+the pool now explicitly configured at 25, budget drops to 20 and steady
+demand exceeds it by 10 even before a rollout surge. This needs either a
+smaller dev replica/pool-size footprint or a bigger negotiated
+`default_pool_size`; don't let it get discovered as an incident.
 
 Values live in `openshift-app-config`, `overlays/<env>/kustomization.yaml`,
 backend and worker blocks. The VPN path to stage bypasses the bouncer; the
