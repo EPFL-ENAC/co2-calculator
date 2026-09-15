@@ -430,6 +430,14 @@ export default {
     en: 'The global percentage and the equipment budget will be reset so each line can be planned on its own. Equipment added by hand will be deleted.',
     fr: 'Le pourcentage global et le budget équipements seront réinitialisés afin de planifier chaque ligne individuellement. Les équipements ajoutés à la main seront supprimés.',
   },
+  planner_equipment_switch_to_global_year_message: {
+    en: 'The percentages entered per line will be reset so one global percentage can be used instead. Equipment added by hand will be deleted.',
+    fr: "Les pourcentages saisis par ligne seront réinitialisés afin d'utiliser un pourcentage global. Les équipements ajoutés à la main seront supprimés.",
+  },
+  planner_equipment_switch_to_per_line_year_message: {
+    en: 'The global percentage will be reset so each line can be planned on its own. Equipment added by hand will be deleted.',
+    fr: 'Le pourcentage global sera réinitialisé afin de planifier chaque ligne individuellement. Les équipements ajoutés à la main seront supprimés.',
+  },
   planner_equipment_switch_error: {
     en: 'Could not switch the planning mode.',
     fr: 'Impossible de changer le mode de planification.',

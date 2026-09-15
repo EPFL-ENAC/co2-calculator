@@ -105,15 +105,53 @@ in every plan baselined on it.
 
 ## Deliberately out of scope
 
-- **Simulator Explore.** It has no `reference_year` by design (#2656) and
-  resolves via `_resolve_latest_started_year`, which needs per-project state
-  and has no SQL twin. Explore modules are still not reached by the trigger;
-  tracked separately.
+- **Simulator Explore — decided, won't fix.** See below.
 - **Re-pricing.** `recompute_stats_many` re-aggregates existing
   `data_entry_emissions` rows into the stats JSON; it does not recompute
   emissions. This change makes the stats backfill _reach_ plans, which is what
   the endpoint is for. Whether a factor change re-prices plan entries is
   `emission_recalc`'s concern and was not investigated.
+
+## Decision: Explore stays out of the backfill
+
+Explore has the same symptom as Plan — its scope year is decoupled from its
+factor year — but not the same fix, and we are choosing not to fix it.
+
+`create_explore` sets `year = now.year` and `reference_year = None`, while the
+factor year resolves to N-1 via `_resolve_latest_started_year`. Confirmed on
+stage: a sandbox created 2026-09-14 returns `year: 2026`, `factor_year: 2025`,
+and its `(module_type, 2026)` scope has no current FACTORS job, so the trigger
+skips it.
+
+Plan was fixable in ~8 lines because its factor year is a **stored column**
+(`reference_year` — user input, not a derived value) that the scope query can
+read. Explore's is derived from today's date plus `users.provider` and
+`year_configurations`, with nothing stored to key on. Reproducing it on the
+scope path means a `CASE` plus extra joins in **two** places (the scope listing
+and the handler's module slice) — no single-site version exists.
+
+Two options were rejected:
+
+|                                                                 | Why not                                                                                                                                                                                                                                                       |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Persist the factor year (a column, or reusing `reference_year`) | Smallest diff, but Explore's factor year is `N-1 of today` — genuinely dynamic, so a stored copy is wrong after the year rollover. Exactly what "don't store derived values when they resolve from factors/lookups" exists to prevent, and it reverses #2656. |
+| Exempt Explore scopes from the factor filter                    | A scope like `(module_type, 2026)` holds Explore's 9 modules _and_ thousands of factorless Calculator 2026 modules. Admitting it dispatches a job that recomputes all of them to zeros — precisely what the filter prevents.                                  |
+
+**Why doing nothing is correct here:** Explore sandboxes are recreated on every
+"start exploration" with the previous ones deleted in the background (#2656),
+and their modules carry NULL stats until someone edits them
+(`bulk_create_carbon_report_modules_of_carbon_report` leaves `stats` unset). A
+stats-shape change therefore self-heals on the next exploration — there is no
+durable wrong state for a backfill to repair. The only exposure is a user
+holding one sandbox open across a shape-changing deploy.
+
+**What would reopen this:** Explore sandboxes gaining a long lifespan, or their
+stats being read somewhere durable (a report, an export, a cross-unit
+aggregate). If it reopens, note that scoping Explore as `year - 1` is a much
+cheaper approximation than resolving the real N-1/N-2 — it degrades to "skipped"
+rather than to a wrong number, because the scope year only gates _whether_ the
+aggregation runs and never feeds the stats math (`recompute_stats_many` derives
+`report_year` from the reports themselves, not from the job's scope).
 
 ## Tests
 

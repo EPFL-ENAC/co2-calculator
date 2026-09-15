@@ -157,14 +157,18 @@
           :style="getColumnStyle(col)"
         >
           <template v-if="col.editableInline">
-            <template
+            <q-input
               v-if="
                 isRowConditionallyReadOnly(slotProps.row, col) ||
                 isRowFieldPolicyLocked(slotProps.row, col)
               "
-            >
-              <span>{{ renderReadOnlyInlineCell(slotProps.row, col) }}</span>
-            </template>
+              :model-value="renderReadOnlyInlineCell(slotProps.row, col)"
+              class="inline-input inline-input--locked"
+              disable
+              dense
+              outlined
+              hide-bottom-space
+            />
             <module-inline-select
               v-else-if="
                 col.optionsId === 'kind' || col.optionsId === 'subkind'
@@ -2522,16 +2526,11 @@ onUnmounted(() => {
     background: tokens.$table-field-hover-bg;
   }
 
-  // HACK: Editable and read-only rows share a column, so a field's text must sit on
-  // the same left edge as plain cell text. The control's horizontal padding is
-  // set from one token and cancelled by an equal negative margin: the pill
-  // keeps its inset while its text lands on the column's text grid.
   td .inline-input,
   td .inline-select-wrapper .q-select {
     display: inline-flex;
     width: auto;
     max-width: 100%;
-    margin-left: -(tokens.$table-inline-field-padding-x);
     vertical-align: middle;
 
     .q-field__control {
@@ -2554,7 +2553,7 @@ onUnmounted(() => {
   }
 
   td .inline-input--required-empty {
-    width: calc(100% + tokens.$table-inline-field-padding-x);
+    width: 100%;
   }
 
   td .inline-input--required-empty .q-field__native,

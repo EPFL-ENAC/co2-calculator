@@ -287,11 +287,12 @@
               :disable="entry.module?.is_active === false"
             />
             <template v-else>
-              <!-- Grant equipment plans either line by line or with one
-                   global percentage over all prefilled lines (#1981); adding
-                   an equipment stays available in both modes. -->
+              <!-- Equipment plans either line by line or with one global
+                   percentage over all prefilled lines, in the grant (#1981)
+                   and the year sections (#2749) alike; adding an equipment
+                   stays available in both modes. -->
               <div
-                v-if="isGrantEquipmentModule(entry.config.module)"
+                v-if="isEquipmentModeModule(entry.config.module)"
                 class="q-mb-lg"
               >
                 <div class="text-weight-medium q-mb-sm">
@@ -346,11 +347,12 @@
                   }}
                 </div>
                 <!-- One budget for the whole module in global mode; the
-                     per-submodule fields carry it in per-line mode (#1981). -->
+                     per-submodule fields carry it in per-line mode (#1981).
+                     Budgets are grant-only, so the year sections skip it. -->
                 <template v-if="equipmentMode === 'global'">
                   <q-separator class="planner-equipment-separator q-my-md" />
                   <planner-submodule-budget
-                    v-if="entry.module"
+                    v-if="yearData.is_grant && entry.module"
                     :carbon-report-id="yearData.id"
                     :module-type-id="entry.module.module_type_id"
                     :submodule="entry.config.module"
@@ -360,7 +362,10 @@
                     :disable="entry.module.is_active === false"
                     @saving="savingEquipmentBudget = $event"
                   />
-                  <q-separator class="planner-equipment-separator q-my-md" />
+                  <q-separator
+                    v-if="yearData.is_grant"
+                    class="planner-equipment-separator q-my-md"
+                  />
                   <div
                     class="planner-equipment-global-row row items-center no-wrap"
                   >
@@ -645,12 +650,13 @@ function isGrantRfModule(module: Module): boolean {
   return props.yearData.is_grant && module === MODULES.ResearchFacilities;
 }
 
-/** Grant equipment gets the per-line / global percentage toggle (#1981). */
-function isGrantEquipmentModule(module: Module): boolean {
-  return props.yearData.is_grant && module === MODULES.Equipment;
+/** Equipment gets the per-line / global percentage toggle in the grant
+ * section (#1981) and in the Detailed per Year sections (#2749). */
+function isEquipmentModeModule(module: Module): boolean {
+  return module === MODULES.Equipment;
 }
 
-// Grant equipment modes: per-line keeps the row sliders; global applies one
+// Equipment modes: per-line keeps the row sliders; global applies one
 // percentage to every prefilled line at once (#1981). View state only, the
 // entries are the same either way.
 const equipmentMode = ref<'per_line' | 'global'>('per_line');
@@ -670,11 +676,18 @@ const EQUIPMENT_PER_LINE_BUDGET_KEYS: string[] = Object.values(
   SUBMODULE_EQUIPMENT_TYPES,
 );
 
-const equipmentSwitchMessageKey = computed(() =>
-  equipmentMode.value === 'per_line'
-    ? 'planner_equipment_switch_to_global_message'
-    : 'planner_equipment_switch_to_per_line_message',
-);
+// The grant wording also names the budgets the switch clears; the year
+// sections carry no budgets (#2749).
+const equipmentSwitchMessageKey = computed(() => {
+  if (equipmentMode.value === 'per_line') {
+    return props.yearData.is_grant
+      ? 'planner_equipment_switch_to_global_message'
+      : 'planner_equipment_switch_to_global_year_message';
+  }
+  return props.yearData.is_grant
+    ? 'planner_equipment_switch_to_per_line_message'
+    : 'planner_equipment_switch_to_per_line_year_message';
+});
 
 function equipmentEntry(): ModuleEntry | undefined {
   return moduleEntries.value.find((e) => e.config.module === MODULES.Equipment);
@@ -824,7 +837,7 @@ async function confirmEquipmentSwitch() {
 }
 
 function isGlobalEquipment(module: Module): boolean {
-  return isGrantEquipmentModule(module) && equipmentMode.value === 'global';
+  return isEquipmentModeModule(module) && equipmentMode.value === 'global';
 }
 
 function moduleMountKey(module: Module): string {

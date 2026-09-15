@@ -578,3 +578,84 @@ async def test_carbon_report_read_factor_year_none_when_unresolvable():
     with patch.object(module, "resolve_factor_year_safe", AsyncMock(return_value=None)):
         result = await module._carbon_report_read(_db(), report)
     assert result.factor_year is None
+
+
+# ── update_carbon_report_module_reference_percentage (#2749) ──────────────────
+
+
+def _plan_report(is_grant: bool):
+    return SimpleNamespace(id=42, unit_id=1, is_grant=is_grant)
+
+
+async def _call_reference_percentage(report):
+    """Run the route with the report/module services stubbed out."""
+    db = _db()
+    report_svc = MagicMock()
+    report_svc.get = AsyncMock(return_value=report)
+    report_svc.recompute_report_stats = AsyncMock()
+    module_svc = MagicMock()
+    module_svc.set_reference_percentage_all = AsyncMock(return_value=3)
+
+    original_report = module.CarbonReportService
+    original_module = module.CarbonReportModuleService
+    module.CarbonReportService = lambda db: report_svc
+    module.CarbonReportModuleService = lambda db: module_svc
+    try:
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_plan_scope_for_report", AsyncMock()),
+        ):
+            result = await module.update_carbon_report_module_reference_percentage(
+                report.id, 5, SimpleNamespace(percentage=40.0), db, _user()
+            )
+    finally:
+        module.CarbonReportService = original_report
+        module.CarbonReportModuleService = original_module
+    return result, module_svc, report_svc, db
+
+
+@pytest.mark.asyncio
+async def test_reference_percentage_applies_to_year_sections():
+    """Regression for #2749: the global percentage was 409 outside grants.
+
+    A Detailed per Year section is a plan report with ``is_grant=False``;
+    it must take the same global equipment percentage the grant section
+    does.
+    """
+    result, module_svc, report_svc, db = await _call_reference_percentage(
+        _plan_report(is_grant=False)
+    )
+    assert result == {"updated_entries": 3}
+    module_svc.set_reference_percentage_all.assert_awaited_once_with(42, 5, 40.0)
+    report_svc.recompute_report_stats.assert_awaited_once_with(42)
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_reference_percentage_still_applies_to_grant_sections():
+    result, module_svc, _, _ = await _call_reference_percentage(
+        _plan_report(is_grant=True)
+    )
+    assert result == {"updated_entries": 3}
+    module_svc.set_reference_percentage_all.assert_awaited_once_with(42, 5, 40.0)
+
+
+@pytest.mark.asyncio
+async def test_submodule_budget_stays_grant_only():
+    """Only the percentage route opened up; budgets remain a grant concept."""
+    db = _db()
+    report_svc = MagicMock()
+    report_svc.get = AsyncMock(return_value=_plan_report(is_grant=False))
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: report_svc
+    try:
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_plan_scope_for_report", AsyncMock()),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await module._require_grant_report_edit(db, _user(), 42)
+        assert exc.value.status_code == 409
+    finally:
+        module.CarbonReportService = original
