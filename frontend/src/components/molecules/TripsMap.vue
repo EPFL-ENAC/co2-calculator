@@ -246,6 +246,11 @@ import {
   matRadioButtonUnchecked,
 } from '@quasar/extras/material-icons';
 import { useI18n } from 'vue-i18n';
+// MapLibre resolves its worker URL relative to import.meta.url at runtime, which
+// Vite can't statically discover — so the worker never gets emitted as a build
+// asset and 404s in production. Importing it explicitly with `?url` forces Vite
+// to copy it and gives us the real hashed path to hand to setWorkerUrl.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { MODULES } from '@/constant/modules';
 import type { TripLeg } from '@/stores/modules';
 import { formatKgCo2eq, niceCeil } from '@/utils/number';
@@ -409,6 +414,7 @@ async function ensureMap() {
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ml = MapLibreNS as any;
+  ml.setWorkerUrl(maplibreWorkerUrl);
   if (map) return;
   map = new ml.Map({
     container: mapEl.value,
