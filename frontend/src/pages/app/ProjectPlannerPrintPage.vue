@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BigNumber from '@/components/molecules/BigNumber.vue';
 import ReportPage from '@/components/organisms/ReportPage.vue';
+import CarbonFootPrintPerPersonChart from '@/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
 import PlannerGrantComparisonChart from '@/components/charts/results/PlannerGrantComparisonChart.vue';
 import PlannerPrintEmissionTypesPage from '@/components/organisms/print/PlannerPrintEmissionTypesPage.vue';
@@ -12,6 +13,7 @@ import PrintReportShell from '@/components/organisms/print/PrintReportShell.vue'
 import { useProjectPlannerPrintData } from '@/composables/print/useProjectPlannerPrintData';
 import { formatYmd, parseUtcDate } from '@/utils/date';
 import { formatTonnesCO2 } from '@/utils/number';
+import { plannerPerFteRows } from '@/utils/plannerPerFte';
 import {
   filledYearRange,
   formatYearRange,
@@ -30,6 +32,7 @@ const {
   scopeLabel,
   planBreakdown,
   grantBreakdown,
+  viewAdditionalData,
   totalTonnesCo2eq,
   grantTotalTonnes,
   yearBreakdowns,
@@ -39,6 +42,23 @@ const {
   initWorkspaceFromRoute,
   fetchAllData,
 } = useProjectPlannerPrintData();
+
+const perFteRows = computed(() =>
+  plannerPerFteRows({
+    isGrantProposal: plan.value?.is_grant_proposal === true,
+    hasYearSections: planYears.value.length > 0,
+    grantBreakdown: grantBreakdown.value,
+    yearsBreakdown: planBreakdown.value,
+    grantLabel: withYearRange(
+      t('planner_project_grant_title'),
+      grantYearRange.value,
+    ),
+    yearsLabel: withYearRange(
+      t('planner_results_series_years'),
+      effectiveYearRange.value,
+    ),
+  }),
+);
 
 const createdAtLabel = computed(() => {
   const createdAt = plan.value?.created_at;
@@ -167,28 +187,27 @@ onMounted(async () => {
         </div>
 
         <section class="q-mt-md">
-          <!-- Boxed like the other report charts, which carry their own card. -->
-          <q-card v-if="showComparison" flat bordered class="q-pa-md">
-            <PlannerGrantComparisonChart
-              :title="
-                $t('planner_results_comparison_chart_title', {
-                  name: plan.name,
-                })
-              "
-              :grant-breakdown="grantBreakdown"
-              :years-breakdown="planBreakdown"
-              :grant-year-range="grantYearRange"
-              :effective-year-range="effectiveYearRange"
-              :active-categories-only="true"
-            />
-          </q-card>
+          <PlannerGrantComparisonChart
+            v-if="showComparison"
+            :title="
+              $t('planner_results_comparison_chart_title', {
+                name: plan.name,
+              })
+            "
+            :grant-breakdown="grantBreakdown"
+            :years-breakdown="planBreakdown"
+            :grant-year-range="grantYearRange"
+            :effective-year-range="effectiveYearRange"
+            :active-categories-only="true"
+            :view-additional-data="viewAdditionalData"
+          />
           <ModuleCarbonFootprintChart
             v-else-if="plan.is_grant_proposal"
             :breakdown-data="grantBreakdown"
             :title="
               $t('planner_results_comparison_chart_title', { name: plan.name })
             "
-            :view-additional-data="true"
+            :view-additional-data="viewAdditionalData"
             :print-mode="true"
             :enforce-module-activation="false"
             :active-categories-only="true"
@@ -197,10 +216,24 @@ onMounted(async () => {
             v-else
             :breakdown-data="planBreakdown"
             :title="$t('planner_results_chart_title', { name: plan.name })"
-            :view-additional-data="true"
+            :view-additional-data="viewAdditionalData"
             :print-mode="true"
             :enforce-module-activation="false"
             :active-categories-only="true"
+          />
+        </section>
+
+        <!-- Per-FTE chart of the results card (#2071); nothing to draw
+             without headcount. -->
+        <section v-if="perFteRows.length" class="q-mt-md">
+          <CarbonFootPrintPerPersonChart
+            :title="
+              $t('planner_results_per_fte_chart_title', { name: plan.name })
+            "
+            :rows="perFteRows"
+            headcount-validated
+            :view-additional-data="viewAdditionalData"
+            :enforce-module-activation="false"
           />
         </section>
 
@@ -218,6 +251,7 @@ onMounted(async () => {
           :plan-name="plan.name"
           :breakdown="yearBreakdowns[sheet.year.id] ?? null"
           :total-tonnes="yearTotalTonnes(sheet.year)"
+          :view-additional-data="viewAdditionalData"
         />
 
         <PlannerPrintEmissionTypesPage

@@ -11,19 +11,20 @@ import { BarChart } from 'echarts/charts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import type { TooltipRow, TooltipState } from '@/types/chartTooltip';
 import type { EChartsOption, SeriesOption } from 'echarts';
+import { getCssVar } from 'quasar';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
-  colors,
   isHiddenResultsCategory,
+  YEARS_DECAL,
 } from '@/constant/charts';
+import type { PerPersonRow } from '@/utils/plannerPerFte';
 import { useColorblindStore } from '@/stores/colorblind';
 import { useModuleCategoriesAvailability } from '@/composables/results/useModuleCategoriesAvailability';
 import {
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DatasetComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 
@@ -35,7 +36,6 @@ use([
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DatasetComponent,
 ]);
 
 import { formatTonnesForChart } from '@/utils/number';
@@ -46,9 +46,19 @@ import { downloadCsv, escapeCsvValue } from '@/utils/csvDownload';
 const props = withDefaults(
   defineProps<{
     perPersonBreakdown?: Record<string, number> | null;
+    /**
+     * Several bars instead of the single "My unit" one, e.g. the Planner's
+
+     */
+    rows?: PerPersonRow[] | null;
     validatedCategories?: string[] | null;
     headcountValidated?: boolean;
     showValidationPlaceholder?: boolean;
+    /**
+     * Placeholder wording when headcount is missing: the Calculator asks to
+     * validate the module, the simulators (no validation step) to fill it in.
+     */
+    placeholderVariant?: 'validate' | 'add';
     title?: string;
     viewAdditionalData?: boolean;
     /**
@@ -64,7 +74,9 @@ const props = withDefaults(
   }>(),
   {
     perPersonBreakdown: null,
+    rows: null,
     validatedCategories: null,
+    placeholderVariant: 'validate',
     title: undefined,
     enforceModuleActivation: true,
   },
@@ -90,6 +102,10 @@ const effectiveToggle = computed(
 
 const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
 
+const showChart = computed(
+  () => props.headcountValidated || props.showValidationPlaceholder === false,
+);
+
 const chartRef = ref<InstanceType<typeof VChart>>();
 
 const onChartReady = async () => {
@@ -105,255 +121,81 @@ const onChartReady = async () => {
   attach(chart);
 };
 
-const SHOW_EPFL_REFERENCE_ROW = false;
-const SHOW_OBJECTIVE_ROW = false;
-const SHOW_OBJECTIVE_BAR = SHOW_OBJECTIVE_ROW;
+type CategoryKey = keyof typeof CHART_CATEGORY_COLOR_SCHEMES.value;
 
-// --- KEEP ALL YOUR EXISTING COMPUTEDS UNCHANGED ---
+const MAIN_SERIES: { key: CategoryKey; labelKey: string }[] = [
+  { key: 'process_emissions', labelKey: 'charts-process-emissions-category' },
+  {
+    key: 'buildings_energy_combustion',
+    labelKey: 'charts-buildings-energy-combustion-category',
+  },
+  { key: 'buildings_room', labelKey: 'charts-buildings-room-category' },
+  { key: 'equipment', labelKey: 'equipment' },
+  { key: 'external_cloud_and_ai', labelKey: 'external-cloud-and-ai' },
+  { key: 'professional_travel', labelKey: 'professional-travel' },
+  { key: 'purchases', labelKey: 'purchase' },
+  { key: 'research_facilities', labelKey: 'research-facilities' },
+];
+const ADDITIONAL_SERIES: { key: CategoryKey; labelKey: string }[] = [
+  { key: 'commuting', labelKey: 'charts-commuting-category' },
+  { key: 'food', labelKey: 'charts-food-category' },
+  { key: 'waste', labelKey: 'charts-waste-category' },
+  { key: 'embodied_energy', labelKey: 'charts-embodied-energy-category' },
+];
 
-const validatedPPKeys = computed(() => {
-  if (!props.validatedCategories) return new Set<string>();
-  return new Set(props.validatedCategories);
-});
+/** The bars: the single unit one, or the caller's rows (#2071). */
+const chartRows = computed<PerPersonRow[]>(
+  () =>
+    props.rows ?? [
+      {
+        label: t('charts-my-unit-tick'),
+        perPersonBreakdown: props.perPersonBreakdown ?? {},
+      },
+    ],
+);
 
-const myUnitRow = computed<Record<string, unknown>>(() => {
-  if (!props.perPersonBreakdown) {
-    return { category: t('charts-my-unit-tick') };
-  }
-  return {
-    category: t('charts-my-unit-tick'),
-    ...props.perPersonBreakdown,
-  };
-});
+const visibleSeriesDefs = computed(() =>
+  [...MAIN_SERIES, ...(effectiveToggle.value ? ADDITIONAL_SERIES : [])].filter(
+    (def) => isCategoryVisible(def.key),
+  ),
+);
 
-const EPFL_REFERENCE_VALUES: Record<string, number> = {
-  process_emissions: 2.5,
-  buildings: 6.6,
-  equipment: 4.4,
-  research_facilities: 4.0,
-  professional_travel: 14.7,
-  purchases: 31.3,
-  external_cloud_and_ai: 3.0,
-  commuting: 8.8,
-  food: 10.4,
-  waste: 0.0,
-  embodied_energy: 0.0,
-};
+// Every bar sits on the one "Total" tick: rows become side-by-side stacks
+// named after their label, so the legend and the tooltip tell them apart the
+// way PlannerGrantComparisonChart does (its series are named per view too).
+const seriesArray = computed(() =>
+  chartRows.value.flatMap((row, rowIdx) =>
+    visibleSeriesDefs.value.map((def) => ({
+      name: row.label,
+      id: `${rowIdx}:${def.key}`,
+      key: def.key,
+      categoryLabel: t(def.labelKey),
+      type: 'bar' as const,
+      stack: row.label,
+      barMaxWidth: isPrintMode.value ? 40 : undefined,
+      itemStyle: {
+        color: CHART_CATEGORY_COLOR_SCHEMES.value[def.key],
+        // Same hatch as PlannerGrantComparisonChart's "Detailed per year" bars.
+        ...(row.hatched ? { decal: YEARS_DECAL } : {}),
+      },
+      label: { show: false },
+      data: [row.perPersonBreakdown[def.key] ?? 0],
+    })),
+  ),
+);
 
-const epflReferenceRow = computed<Record<string, unknown>>(() => {
-  const row: Record<string, unknown> = { category: t('charts-epf-tick') };
-  const validated = validatedPPKeys.value;
-  for (const [key, val] of Object.entries(EPFL_REFERENCE_VALUES)) {
-    if (validated.has(key)) {
-      row[key] = val;
-    }
-  }
-  return row;
-});
-
-const objectiveRow = computed<Record<string, unknown>>(() => ({
-  category: t('charts-objective-tick'),
-  objective2030: 12,
+// Same swatches as PlannerGrantComparisonChart's legend.
+const chartLegendOption = computed(() => ({
+  show: chartRows.value.length > 1 && !isPrintMode.value,
+  top: 0,
+  data: chartRows.value.map((row) => ({
+    name: row.label,
+    itemStyle: {
+      color: getCssVar('info') ?? undefined,
+      ...(row.hatched ? { decal: YEARS_DECAL } : {}),
+    },
+  })),
 }));
-
-const datasetSource = computed(() => {
-  const baseData = [myUnitRow.value];
-  if (SHOW_EPFL_REFERENCE_ROW) {
-    baseData.push(epflReferenceRow.value);
-  }
-  if (SHOW_OBJECTIVE_ROW) {
-    baseData.push(objectiveRow.value);
-  }
-  return baseData;
-});
-
-const additionalSeriesData = computed(() => {
-  if (!effectiveToggle.value) return [];
-  const encodeFor = (cat: string, val: string) =>
-    isPrintMode.value ? { x: val, y: cat } : { x: cat, y: val };
-  return [
-    {
-      name: t('charts-commuting-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: encodeFor('category', 'commuting'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.commuting,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-food-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: encodeFor('category', 'food'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.food,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-waste-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: encodeFor('category', 'waste'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.waste,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-embodied-energy-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: encodeFor('category', 'embodied_energy'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.embodied_energy,
-      },
-      label: {
-        show: false,
-      },
-    },
-  ];
-});
-
-function encodeFor(categoryAxis: string, valueAxis: string) {
-  return isPrintMode.value
-    ? { x: valueAxis, y: categoryAxis }
-    : { x: categoryAxis, y: valueAxis };
-}
-
-const seriesArray = computed(() => {
-  const barMaxWidth = isPrintMode.value ? 40 : undefined;
-  const allSeries = [
-    {
-      name: t('charts-process-emissions-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      barMaxWidth,
-      encode: encodeFor('category', 'process_emissions'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.process_emissions,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-buildings-energy-combustion-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: encodeFor('category', 'buildings_energy_combustion'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.buildings_energy_combustion,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-buildings-room-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: encodeFor('category', 'buildings_room'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.buildings_room,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('equipment'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: encodeFor('category', 'equipment'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.equipment,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('external-cloud-and-ai'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: encodeFor('category', 'external_cloud_and_ai'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('professional-travel'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: encodeFor('category', 'professional_travel'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.professional_travel,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('purchase'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: encodeFor('category', 'purchases'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.purchases,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('research-facilities'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: encodeFor('category', 'research_facilities'),
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.research_facilities,
-      },
-      label: {
-        show: false,
-      },
-    },
-    ...(SHOW_OBJECTIVE_BAR
-      ? [
-          {
-            name: t('charts-objective-tick'),
-            type: 'bar' as const,
-            stack: 'total',
-            encode: encodeFor('category', 'objective2030'),
-            itemStyle: {
-              color: colors.value.skyBlue.darker,
-            },
-            label: {
-              show: false,
-            },
-          },
-        ]
-      : []),
-    ...additionalSeriesData.value,
-  ];
-  return allSeries.filter((s) => {
-    const encode = s.encode as { x?: unknown; y?: unknown } | undefined;
-    const key = isPrintMode.value ? encode?.x : encode?.y;
-    const visible = isCategoryVisible(String(key ?? ''));
-    return visible;
-  });
-});
 
 const chartTooltipOption = computed(() => {
   if (isPrintMode.value) return { show: false };
@@ -366,25 +208,42 @@ const chartTooltipOption = computed(() => {
     }
 
     const firstParam = arr[0] as Record<string, unknown>;
-    const data = firstParam.data as Record<string, unknown> | undefined;
     const title = String(firstParam.axisValue ?? firstParam.name ?? '');
+    const byId = new Map(seriesArray.value.map((s) => [s.id, s]));
+    const sectioned = chartRows.value.length > 1;
 
-    const rows: TooltipRow[] = [];
-
-    for (const param of [...arr].reverse()) {
-      const p = param as Record<string, unknown>;
-      const series = seriesArray.value.find((s) => s.name === p.seriesName);
-      const key = series?.encode.y;
-      if (!key) continue;
-      const dataValue = Number(data?.[key]) || 0;
-      if (dataValue > 0 && series) {
-        rows.push({
-          label: series.name,
-          value: formatTonnesForChart(dataValue),
-          color: (series.itemStyle?.color as string) ?? '#888',
-        });
-      }
-    }
+    // One block per bar: its label and total, then its categories, the
+    // largest segment (top of the stack) first.
+    const rows: TooltipRow[] = chartRows.value.flatMap((row, rowIdx) => {
+      const items = [...arr]
+        .reverse()
+        .map((param) => {
+          const p = param as Record<string, unknown>;
+          const series = byId.get(String(p.seriesId ?? ''));
+          const value = Number(p.value) || 0;
+          return series && series.id.startsWith(`${rowIdx}:`) && value > 0
+            ? { series, value }
+            : null;
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+      const total = items.reduce((sum, item) => sum + item.value, 0);
+      return [
+        ...(sectioned
+          ? [
+              {
+                label: row.label,
+                value: formatTonnesForChart(total),
+                heading: true,
+              },
+            ]
+          : []),
+        ...items.map((item) => ({
+          label: item.series.categoryLabel,
+          value: formatTonnesForChart(item.value),
+          color: item.series.itemStyle.color,
+        })),
+      ];
+    });
 
     const state: TooltipState = { title, rows };
     emitTooltip(state);
@@ -411,73 +270,36 @@ const chartGridOption = computed(() => {
   return { left: 65, right: '4%', top: 80, bottom: '0%', containLabel: true };
 });
 
-const chartXAxisOption = computed(() => {
-  if (isPrintMode.value) {
-    return {
-      type: 'value' as const,
-      name: t('tco2eq'),
-      nameLocation: 'middle' as const,
-      nameGap: 30,
-      nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
-      axisLabel: { formatter: '{value}' },
-    };
-  }
-  return {
-    type: 'category' as const,
-    axisLabel: { interval: 0, rotate: 45, fontSize: 11 },
-  };
-});
+const categoryAxisOption = computed(() => ({
+  type: 'category' as const,
+  data: [t('charts-my-unit-tick')],
+  axisLabel: isPrintMode.value
+    ? { fontSize: 11 }
+    : { interval: 0, rotate: 45, fontSize: 11 },
+  ...(isPrintMode.value ? { axisTick: { alignWithLabel: true } } : {}),
+}));
 
-const chartYAxisOption = computed(() => {
-  if (isPrintMode.value) {
-    return {
-      type: 'category' as const,
-      axisLabel: { fontSize: 11 },
-      axisTick: { alignWithLabel: true },
-    };
-  }
-  return {
-    type: 'value' as const,
-    name: t('tco2eq'),
-    nameLocation: 'middle' as const,
-    nameGap: 40,
-    nameRotate: 90,
-    nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
-    axisLabel: { formatter: '{value}' },
-  };
-});
+const valueAxisOption = computed(() => ({
+  type: 'value' as const,
+  name: t('tco2eq'),
+  nameLocation: 'middle' as const,
+  nameGap: isPrintMode.value ? 30 : 40,
+  ...(isPrintMode.value ? {} : { nameRotate: 90 }),
+  nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
+  axisLabel: { formatter: '{value}' },
+}));
 
-const chartGraphicOption = computed(() => []);
-
+// Print reports lay the bars horizontally: the axes swap roles.
 const chartOption = computed((): EChartsOption => {
   return {
     tooltip: chartTooltipOption.value,
+    legend: chartLegendOption.value,
     grid: chartGridOption.value,
-    xAxis: chartXAxisOption.value,
-    yAxis: chartYAxisOption.value,
-    graphic: chartGraphicOption.value,
+    xAxis: isPrintMode.value ? valueAxisOption.value : categoryAxisOption.value,
+    yAxis: isPrintMode.value ? categoryAxisOption.value : valueAxisOption.value,
     aria: {
       enabled: isColorblind.value,
       decal: buildChartDecal(isColorblind.value),
-    },
-    dataset: {
-      dimensions: [
-        'category',
-        'process_emissions',
-        'buildings_room',
-        'buildings_energy_combustion',
-        'equipment',
-        'research_facilities',
-        'professional_travel',
-        'purchases',
-        'external_cloud_and_ai',
-        'commuting',
-        'food',
-        'waste',
-        'embodied_energy',
-        ...(SHOW_OBJECTIVE_BAR ? ['objective2030'] : []),
-      ],
-      source: datasetSource.value as Array<Record<string, unknown>>,
     },
     series: seriesArray.value as SeriesOption[],
   };
@@ -488,19 +310,18 @@ const downloadPNG = () =>
 
 const downloadCSV = () => {
   const escape = escapeCsvValue;
-
-  const headers = [
-    ...new Set(datasetSource.value.flatMap((item) => Object.keys(item))),
-  ]
-    .filter((key) => key === 'category' || isCategoryVisible(key))
-    .sort((a, b) =>
-      a === 'category' ? -1 : b === 'category' ? 1 : a.localeCompare(b),
-    );
+  const keys = visibleSeriesDefs.value
+    .map((def) => def.key)
+    .sort((a, b) => a.localeCompare(b));
+  const headers = ['category', ...keys];
 
   const csv = [
     headers.map(escape).join(','),
-    ...datasetSource.value.map((item) =>
-      headers.map((key) => escape(item[key])).join(','),
+    ...chartRows.value.map((row) =>
+      [
+        escape(row.label),
+        ...keys.map((key) => escape(row.perPersonBreakdown[key] ?? '')),
+      ].join(','),
     ),
   ].join('\n');
 
@@ -518,6 +339,7 @@ const downloadCSV = () => {
     :class="{ 'container--print': isPrintMode }"
   >
     <q-card-section
+      v-if="showChart"
       class="flex justify-between items-center"
       :class="{ 'q-pb-none': isPrintMode }"
     >
@@ -543,7 +365,7 @@ const downloadCSV = () => {
       </div>
     </q-card-section>
 
-    <template v-if="headcountValidated || showValidationPlaceholder === false">
+    <template v-if="showChart">
       <q-card-section class="chart-container flex justify-center items-center">
         <v-chart
           ref="chartRef"
@@ -591,28 +413,32 @@ const downloadCSV = () => {
       </q-card-section>
     </template>
 
-    <template v-else>
-      <q-card-section class="col validation-placeholder">
-        <div class="validation-required-card">
-          <div class="validation-required-card__content">
-            <q-icon
-              :name="outlinedInfo"
-              size="md"
-              color="accent"
-              class="q-mb-md"
-            />
-            <div class="text-h6 text-weight-medium text-center q-mb-sm">
-              {{
-                $t('results_validate_module_title', { module: $t('headcount') })
-              }}
-            </div>
-            <div class="text-body2 text-secondary text-center">
-              {{ $t('results_validate_module_message') }}
-            </div>
-          </div>
+    <!-- Replaces the whole card, title included, like the Results page's
+         own placeholder beside its main chart. -->
+    <div v-else class="validation-required-card">
+      <div class="validation-required-card__content">
+        <q-icon :name="outlinedInfo" size="md" color="info" class="q-mb-md" />
+        <div class="text-h6 text-weight-medium text-center q-mb-sm">
+          {{
+            $t(
+              placeholderVariant === 'add'
+                ? 'results_add_module_title'
+                : 'results_validate_module_title',
+              { module: $t('headcount') },
+            )
+          }}
         </div>
-      </q-card-section>
-    </template>
+        <div class="text-body2 text-secondary text-center">
+          {{
+            $t(
+              placeholderVariant === 'add'
+                ? 'results_add_module_message'
+                : 'results_validate_module_message',
+            )
+          }}
+        </div>
+      </div>
+    </div>
   </q-card>
 </template>
 
@@ -620,6 +446,9 @@ const downloadCSV = () => {
 .container--pa-none {
   display: flex;
   flex-direction: column;
+  // Fill the side column beside the main chart, so the placeholder card
+  // spans the same height (charts-grid, #2071).
+  flex: 1;
 }
 
 /* #2027: a definite height, not min-height. vue-echarts 8.1.0 renders an
@@ -638,13 +467,11 @@ const downloadCSV = () => {
   height: 120px !important;
 }
 
-.validation-placeholder {
-  flex: 1;
-  display: flex;
-}
-
 .validation-required-card {
   flex: 1;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
   background-color: rgba(0, 0, 0, 0.02);
   border: 1px dashed rgba(0, 0, 0, 0.12);
 

@@ -159,9 +159,13 @@ export default {
     en: '{name} carbon footprint',
     fr: 'Empreinte carbone de {name}',
   },
+  planner_results_per_fte_chart_title: {
+    en: '{name} carbon footprint per FTE',
+    fr: 'Empreinte carbone de {name} par EPT',
+  },
   planner_results_series_years: {
-    en: 'Detailed per year',
-    fr: 'Détail par année',
+    en: 'Effective',
+    fr: 'Effective',
   },
   planner_results_grant_total_title: {
     en: 'Grant proposal carbon footprint',

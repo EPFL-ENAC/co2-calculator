@@ -32,8 +32,18 @@ export function useSimulationExplorePrintData() {
   /** No sandbox exists for this unit — nothing to report on (#2656). */
   const noExploration = ref(false);
 
+  // The page's "Additional data" toggle travels in the print URL, as it does
+  // for the Results report, so the PDF's total and charts match what the
+  // Explorer showed when the download was clicked (#2071).
+  const viewAdditionalData = computed(
+    () => String(route.query.hideAdditionalData ?? '0') !== '1',
+  );
+
   const totalTonnesCo2eq = computed(() =>
-    sumBreakdownTonnes(moduleStore.state.emissionBreakdown),
+    sumBreakdownTonnes(
+      moduleStore.state.emissionBreakdown,
+      viewAdditionalData.value,
+    ),
   );
 
   const breakdown = computed(() => moduleStore.state.emissionBreakdown);
@@ -178,6 +188,7 @@ export function useSimulationExplorePrintData() {
     currentYear,
     loading,
     noExploration,
+    viewAdditionalData,
     totalTonnesCo2eq,
     breakdown,
     exploreModules,

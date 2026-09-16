@@ -11,7 +11,9 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import {
   Notify,
   Quasar,
+  QBtn,
   QCard,
+  QCheckbox,
   QSeparator,
   QExpansionItem,
   QIcon,
@@ -60,4 +62,8 @@ beforeMount(async ({ app }) => {
   app.component('QInput', QInput);
   // ChartContainer (svg-icons.spec.ts) renders q-card-section.
   app.component('QCardSection', QCardSection);
+  // The results charts (charts-additional-data.spec.ts) render the
+  // additional-categories checkbox and the download buttons.
+  app.component('QBtn', QBtn);
+  app.component('QCheckbox', QCheckbox);
 });
