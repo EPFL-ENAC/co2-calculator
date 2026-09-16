@@ -390,8 +390,8 @@ export default {
     fr: 'Réinitialiser',
   },
   results_objectives_scenario_bau: {
-    en: 'BAU',
-    fr: 'BAU',
+    en: 'Business As Usual',
+    fr: 'Fonctionnement sans changement',
   },
   results_objectives_scenario_low_effort: {
     en: 'Low effort',
