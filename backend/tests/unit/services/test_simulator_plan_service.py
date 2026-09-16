@@ -10,7 +10,11 @@ from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from app.core.constants import ModuleStatus
-from app.models.carbon_report import CarbonReportModule, CarbonReportType
+from app.models.carbon_report import (
+    CarbonReport,
+    CarbonReportModule,
+    CarbonReportType,
+)
 from app.models.data_entry import (
     DataEntry,
     DataEntrySourceEnum,
@@ -152,6 +156,59 @@ async def test_list_plans_scoped_to_unit(async_session, user):
 
     plans = await service.list_plans(1)
     assert {p.name for p in plans} == {"a", "b"}
+
+
+async def _attach_report(async_session, plan_id, *, year, is_grant, total_kg):
+    report = await CarbonReportService(async_session).create(
+        CarbonReportCreate(
+            year=year, unit_id=1, carbon_project_id=plan_id, is_grant=is_grant
+        )
+    )
+    await async_session.execute(
+        update(CarbonReport)
+        .where(CarbonReport.id == report.id)
+        .values(stats={"total": total_kg})
+    )
+    await async_session.flush()
+
+
+@pytest.mark.asyncio
+async def test_list_plans_totals_split_years_and_grant(async_session, user):
+    """Years and grant totals are reported side by side, never summed (#2805).
+
+    A side the plan has no report for is ``None`` (the table shows a dash),
+    so a grant-only plan no longer reads as 0 while its page says otherwise.
+    """
+    service = SimulatorPlanService(async_session)
+    grant_only = await service.create_plan(unit_id=1, user=user, name="grant-only")
+    years_only = await service.create_plan(unit_id=1, user=user, name="years-only")
+    both = await service.create_plan(unit_id=1, user=user, name="both")
+    await service.create_plan(unit_id=1, user=user, name="empty")
+
+    await _attach_report(
+        async_session, grant_only.id, year=2026, is_grant=True, total_kg=10_401_000
+    )
+    await _attach_report(
+        async_session, years_only.id, year=2026, is_grant=False, total_kg=1_000
+    )
+    await _attach_report(
+        async_session, years_only.id, year=2027, is_grant=False, total_kg=2_000
+    )
+    await _attach_report(
+        async_session, both.id, year=2026, is_grant=True, total_kg=5_000
+    )
+    await _attach_report(
+        async_session, both.id, year=2026, is_grant=False, total_kg=4_000
+    )
+
+    by_name = {
+        p.name: (p.total_tonnes_co2eq, p.grant_total_tonnes_co2eq)
+        for p in await service.list_plans(1)
+    }
+    assert by_name["grant-only"] == (None, 10_401.0)
+    assert by_name["years-only"] == (3.0, None)
+    assert by_name["both"] == (4.0, 5.0)
+    assert by_name["empty"] == (None, None)
 
 
 # ── update_plan (rename) ──────────────────────────────────────────────────────

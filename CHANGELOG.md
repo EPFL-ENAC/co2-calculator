@@ -23,6 +23,7 @@
 ### Interface
 
 * Dates render as `YYYY/MM/DD` everywhere. ([#2741](https://github.com/EPFL-ENAC/co2-calculator/issues/2741))
+* The home-page planner table showed 0 for grant-proposal-only projects because it only summed per-year reports. It now has two columns, per-year and grant proposal, each showing a dash when the project has no section of that kind. ([#2805](https://github.com/EPFL-ENAC/co2-calculator/issues/2805))
 * Locked inline cells render as disabled fields ([#2517](https://github.com/EPFL-ENAC/co2-calculator/issues/2517)); Equipment's year sections offer the global percentage ([#2749](https://github.com/EPFL-ENAC/co2-calculator/issues/2749)); Explorer's travel rows and highlighted travel data display correctly again ([#2752](https://github.com/EPFL-ENAC/co2-calculator/issues/2752), [#2755](https://github.com/EPFL-ENAC/co2-calculator/issues/2755)); missing tooltips restored on Travel/Purchase ([#2738](https://github.com/EPFL-ENAC/co2-calculator/issues/2738)).
 * Backoffice reference uploads go straight through the import dialog — drop a CSV onto a card, hit Enter to save. ([#2702](https://github.com/EPFL-ENAC/co2-calculator/issues/2702))
 * Safari no longer 404s on `apple-touch-icon`; assorted i18n copy fixes across Home, Equipment, Buildings, Headcount, Common and Calculator-update.

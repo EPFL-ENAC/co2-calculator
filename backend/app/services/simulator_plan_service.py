@@ -99,6 +99,7 @@ def _to_read(
     project: CarbonProject,
     creator_name: str | None,
     total_tonnes_co2eq: float | None = None,
+    grant_total_tonnes_co2eq: float | None = None,
     *,
     is_grant_proposal: bool = False,
 ) -> SimulatorPlanRead:
@@ -116,6 +117,7 @@ def _to_read(
         created_at=project.created_at,
         creator_name=creator_name,
         total_tonnes_co2eq=total_tonnes_co2eq,
+        grant_total_tonnes_co2eq=grant_total_tonnes_co2eq,
     )
 
 
@@ -132,7 +134,7 @@ class SimulatorPlanService:
         self.report_service = CarbonReportService(session)
 
     async def list_plans(self, unit_id: int) -> list[SimulatorPlanRead]:
-        """List all plans for a unit, newest first, each with its total."""
+        """List all plans for a unit, newest first, each with its totals."""
         rows = await self.repo.list_plans_by_unit(unit_id)
         totals = await self._totals_by_plan(
             [project.id for project, _, _ in rows if project.id is not None]
@@ -141,26 +143,41 @@ class SimulatorPlanService:
             _to_read(
                 project,
                 creator_name,
-                totals.get(project.id or -1),
+                *totals.get(project.id or -1, (None, None)),
                 is_grant_proposal=is_grant_proposal,
             )
             for project, creator_name, is_grant_proposal in rows
         ]
 
-    async def _totals_by_plan(self, plan_ids: list[int]) -> dict[int, float]:
-        """Sum each plan's year reports into tonnes CO2-eq, in one query.
+    async def _totals_by_plan(
+        self, plan_ids: list[int]
+    ) -> dict[int, tuple[float | None, float | None]]:
+        """Per plan, ``(years total, grant total)`` in tonnes CO2-eq, one query.
 
-        Goes through ``merge_report_stats`` — the same aggregation the plan
-        page's ``/aggregate-stats`` headline uses — so the table and the plan
-        cannot drift. Inactive modules are already excluded upstream by the
-        report rollup.
+        Each side goes through ``merge_report_stats`` — the same aggregation
+        the plan page's ``/aggregate-stats`` headline uses — so the table and
+        the plan cannot drift. A side is ``None`` when the plan has no report
+        of that kind (no year sections, or no grant section): the table shows
+        a dash rather than a misleading 0 (#2805). The two sides are never
+        summed — they count the same project (#1977). Inactive modules are
+        already excluded upstream by the report rollup.
         """
-        by_plan: dict[int, list[dict]] = {plan_id: [] for plan_id in plan_ids}
-        for plan_id, stats in await self.repo.list_report_stats_by_project(plan_ids):
-            by_plan[plan_id].append(dict(stats or {}))
+        years_by_plan: dict[int, list[dict]] = {plan_id: [] for plan_id in plan_ids}
+        grant_by_plan: dict[int, list[dict]] = {plan_id: [] for plan_id in plan_ids}
+        for plan_id, is_grant, stats in await self.repo.list_report_stats_by_project(
+            plan_ids
+        ):
+            target = grant_by_plan if is_grant else years_by_plan
+            target[plan_id].append(dict(stats or {}))
+
+        def _total(stats_list: list[dict]) -> float | None:
+            if not stats_list:
+                return None
+            return merge_report_stats(stats_list)["total"] / 1000.0
+
         return {
-            plan_id: merge_report_stats(stats_list)["total"] / 1000.0
-            for plan_id, stats_list in by_plan.items()
+            plan_id: (_total(years_by_plan[plan_id]), _total(grant_by_plan[plan_id]))
+            for plan_id in plan_ids
         }
 
     async def get_plan(self, plan_id: int) -> SimulatorPlanRead | None:
