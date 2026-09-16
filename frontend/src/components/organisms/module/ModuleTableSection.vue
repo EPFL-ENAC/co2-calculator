@@ -107,6 +107,7 @@ const defaultThreshold: Threshold = {
 <style scoped lang="scss">
 .module-table-section__submodules {
   display: grid;
-  grid-gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
 }
 </style>
