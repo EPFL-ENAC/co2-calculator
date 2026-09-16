@@ -568,7 +568,12 @@ const chartOption = computed<EChartsOption | null>(() => {
                 class="text-secondary"
                 @click.stop
               >
-                <q-tooltip class="text-body2 text-black" max-width="260px">
+                <q-tooltip
+                  anchor="center left"
+                  self="center right"
+                  class="u-tooltip text-body2 text-black"
+                  max-width="min(92vw, 26rem)"
+                >
                   {{ scenarioDescription }}
                 </q-tooltip>
               </q-icon>
@@ -596,7 +601,12 @@ const chartOption = computed<EChartsOption | null>(() => {
                   size="14px"
                   class="objective-slider__label-info text-secondary"
                 >
-                  <q-tooltip class="text-body2 text-black" max-width="260px">
+                  <q-tooltip
+                    anchor="center left"
+                    self="center right"
+                    class="u-tooltip text-body2 text-black"
+                    max-width="min(92vw, 26rem)"
+                  >
                     {{ categoryTooltipText(cat) }}
                   </q-tooltip>
                 </q-icon>
