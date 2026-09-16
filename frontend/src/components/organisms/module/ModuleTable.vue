@@ -1102,6 +1102,7 @@ type TableViewColumn = {
   max?: number;
   step?: number;
   maxDecimals?: number;
+  integer?: boolean;
   inputComponent: typeof QInput | typeof QSelect;
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
@@ -1158,6 +1159,7 @@ const qCols = computed<TableViewColumn[]>(() => {
             max: f.max,
             step: f.step,
             maxDecimals: f.maxDecimals,
+            integer: f.integer,
             align,
             inputComponent,
             editableInline,
@@ -1194,6 +1196,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           max: f.max,
           step: f.step,
           maxDecimals: f.maxDecimals,
+          integer: f.integer,
           align,
           inputComponent,
           editableInline,
@@ -1624,6 +1627,25 @@ function validateNumberOfTrips(value: unknown) {
   return { valid: true, parsed: Math.floor(n), error: null };
 }
 
+function validateUsageSum(
+  row: ModuleRow,
+  col: { name: string },
+  value: number,
+): number | null {
+  const otherField =
+    col.name === 'active_usage_hours_per_week'
+      ? 'standby_usage_hours_per_week'
+      : 'active_usage_hours_per_week';
+  const validation = validateUsageHoursWeek(
+    value + (Number(row[otherField]) || 0),
+  );
+  if (!validation.valid) {
+    setError(row, col, validation.error);
+    return null;
+  }
+  return value;
+}
+
 async function commitInline(
   row: ModuleRow,
   col: {
@@ -1634,6 +1656,7 @@ async function commitInline(
     min?: number;
     max?: number;
     maxDecimals?: number;
+    integer?: boolean;
   },
 ) {
   if (!col.editableInline) return;
@@ -1647,18 +1670,6 @@ async function commitInline(
   const valueToSave = (() => {
     // Clear any previous error before validating
     setError(row, col, null);
-    if (isUsageField) {
-      const activeVal = Number(row['active_usage_hours_per_week']) || 0;
-      const standbyVal = Number(row['standby_usage_hours_per_week']) || 0;
-      const validation = validateUsageHoursWeek(activeVal + standbyVal);
-      if (!validation.valid) {
-        setError(row, col, validation.error);
-        return null;
-      }
-      // parse raw value to number to ensure consistent type (could be string from input)
-      const parsedVal = Number(rawVal);
-      return Number.isFinite(parsedVal) ? parsedVal : rawVal;
-    }
     if (isNumberOfTrips) {
       const validation = validateNumberOfTrips(rawVal);
       if (!validation.valid) {
@@ -1668,6 +1679,8 @@ async function commitInline(
       return validation.parsed;
     }
     if (isNumeric) {
+      const isEmpty = rawVal === '' || rawVal === null || rawVal === undefined;
+      if (isUsageField && isEmpty) return validateUsageSum(row, col, 0);
       const s = typeof rawVal === 'string' ? rawVal.trim() : String(rawVal);
       if (s.includes(',')) {
         // Targeted message: FR/CH users instinctively type a comma separator
@@ -1689,6 +1702,10 @@ async function commitInline(
         setError(row, col, $t('validation_must_be_at_most', { max: col.max }));
         return null;
       }
+      if (col.integer && !Number.isInteger(n)) {
+        setError(row, col, $t('validation_must_be_whole_number'));
+        return null;
+      }
       if (
         col.maxDecimals !== undefined &&
         (s.split('.')[1]?.length ?? 0) > col.maxDecimals
@@ -1700,7 +1717,7 @@ async function commitInline(
         );
         return null;
       }
-      return n;
+      return isUsageField ? validateUsageSum(row, col, n) : n;
     }
     if (col.type === 'date') {
       const s = typeof rawVal === 'string' ? rawVal.trim() : '';

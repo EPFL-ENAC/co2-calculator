@@ -98,6 +98,7 @@ export interface ModuleField {
   disable?: boolean;
   sortable?: boolean;
   inputTypeName?: string;
+  integer?: boolean;
   editableInline?: boolean;
   readOnly?: boolean;
   readOnlyWhenFilled?: boolean;
