@@ -231,6 +231,12 @@ export const equipment: ModuleConfig = {
 
   formStructure: 'perSubmodule',
 
+  // #2681: the usage-hours refresh reloads the whole table, so a long page
+  // makes bulk edits impractical. Fixed at 10 in Calculator, Planner and
+  // Explorer alike.
+  tablePageSize: 10,
+  tablePageSizeLocked: true,
+
   submodules: [
     {
       id: SUBMODULE_EQUIPMENT_TYPES.Scientific,

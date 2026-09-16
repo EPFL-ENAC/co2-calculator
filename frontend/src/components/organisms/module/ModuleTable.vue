@@ -84,7 +84,7 @@
     :error="moduleStore.state.errorSubmodule[submoduleType]"
     dense
     flat
-    :rows-per-page-options="ROWS_PER_PAGE_OPTIONS"
+    :rows-per-page-options="tablePageSize.rowsPerPageOptions"
     :hide-pagination="submoduleConfig?.hasTablePagination === false"
     :no-data-label="$t('common_no_items')"
     :rows-per-page-label="$t('rows_per_page')"
@@ -514,6 +514,7 @@ import type {
   ModuleConfig,
   Submodule,
 } from '@/constant/moduleConfig';
+import { resolveTablePageSize } from '@/utils/tablePageSize';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
@@ -677,7 +678,9 @@ async function deleteNote() {
     noteDialogRowId.value = null;
   }
 }
-const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 1000];
+// #2681: page size and whether the user may change it come from the module
+// config (Equipment is fixed at 10). One choice hides Quasar's selector.
+const tablePageSize = computed(() => resolveTablePageSize(props.moduleConfig));
 
 const showUploadDialog = ref<boolean>(false);
 
@@ -2221,7 +2224,10 @@ watch(
         oldValue === false;
 
       if (shouldFetch) {
-        moduleStore.initializeSubmoduleState(props.submoduleType);
+        moduleStore.initializeSubmoduleState(
+          props.submoduleType,
+          tablePageSize.value.rowsPerPage,
+        );
 
         // table-specific work
         moduleStore.getSubmoduleData({
@@ -2260,7 +2266,10 @@ watch(
 );
 
 onMounted(async () => {
-  moduleStore.initializeSubmoduleState(props.submoduleType);
+  moduleStore.initializeSubmoduleState(
+    props.submoduleType,
+    tablePageSize.value.rowsPerPage,
+  );
 
   // Check if already expanded on mount and fetch data if so
   if (moduleStore.state.expandedSubmodules[props.submoduleType]) {
