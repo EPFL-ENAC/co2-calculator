@@ -25,6 +25,7 @@ import { useRoute } from 'vue-router';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useSimulatorPlansStore } from '@/stores/simulatorPlans';
 import { buildModulePath, hasValidModuleParams } from '@/utils/modulePath';
+import { DEFAULT_TABLE_PAGE_SIZE } from '@/constant/moduleConfig';
 import {
   toEmissionBreakdown,
   toItBreakdown,
@@ -512,7 +513,10 @@ export const useModuleStore = defineStore('modules', () => {
     return data?.carbon_report_module_id;
   }
 
-  function initializeSubmoduleState(submoduleId: string) {
+  function initializeSubmoduleState(
+    submoduleId: string,
+    rowsPerPage: number = DEFAULT_TABLE_PAGE_SIZE,
+  ) {
     if (!(submoduleId in state.expandedSubmodules)) {
       state.expandedSubmodules[submoduleId] = false;
     }
@@ -533,7 +537,7 @@ export const useModuleStore = defineStore('modules', () => {
       sortBy: 'id',
       descending: true,
       page: 1,
-      rowsPerPage: 20,
+      rowsPerPage,
       rowsNumber: 0,
     };
     if (!(submoduleId in state.loadedSubmodules)) {
