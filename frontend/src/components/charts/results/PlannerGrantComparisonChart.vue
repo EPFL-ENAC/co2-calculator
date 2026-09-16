@@ -336,7 +336,8 @@ const chartOption = computed<EChartsOption>(() => {
       type: 'value',
       name: 't CO₂-eq',
       nameLocation: 'middle',
-      nameGap: 44,
+      nameMoveOverlap: true,
+      nameGap: 12,
     },
     series,
   };

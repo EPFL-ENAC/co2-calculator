@@ -1337,7 +1337,6 @@ const chartOption = computed((): EChartsOption => {
       top: 80,
       // Reserve room for the icon button row when it replaces the text labels.
       bottom: props.moduleIconAxis ? 96 : '0%',
-      containLabel: true,
     },
     xAxis: {
       type: 'category',
@@ -1367,8 +1366,12 @@ const chartOption = computed((): EChartsOption => {
     yAxis: {
       type: 'value',
       name: t('tco2eq'),
+      // ECharts 6 keeps the axis name clear of the tick labels (and inside the
+      // canvas) on its own; nameGap is then the offset from the labels. The
+      // legacy grid.containLabel would switch that back off, so it is gone.
       nameLocation: 'middle',
-      nameGap: 40,
+      nameMoveOverlap: true,
+      nameGap: 12,
       nameRotate: 90,
       nameTextStyle: {
         fontSize: 11,

@@ -264,30 +264,50 @@ const chartGridOption = computed(() => {
       right: '4%',
       top: 10,
       bottom: 30,
-      containLabel: true,
     };
   }
-  return { left: 65, right: '4%', top: 80, bottom: '0%', containLabel: true };
+  return { left: 65, right: '4%', top: 80, bottom: '0%' };
 });
 
-const categoryAxisOption = computed(() => ({
-  type: 'category' as const,
-  data: [t('charts-my-unit-tick')],
-  axisLabel: isPrintMode.value
-    ? { fontSize: 11 }
-    : { interval: 0, rotate: 45, fontSize: 11 },
-  ...(isPrintMode.value ? { axisTick: { alignWithLabel: true } } : {}),
-}));
+const chartXAxisOption = computed(() => {
+  if (isPrintMode.value) {
+    return {
+      type: 'value' as const,
+      name: t('tco2eq'),
+      nameLocation: 'middle' as const,
+      nameMoveOverlap: true,
+      nameGap: 8,
+      nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
+      axisLabel: { formatter: '{value}' },
+    };
+  }
+  return {
+    type: 'category' as const,
+    axisLabel: { interval: 0, rotate: 45, fontSize: 11 },
+  };
+});
 
-const valueAxisOption = computed(() => ({
-  type: 'value' as const,
-  name: t('tco2eq'),
-  nameLocation: 'middle' as const,
-  nameGap: isPrintMode.value ? 30 : 40,
-  ...(isPrintMode.value ? {} : { nameRotate: 90 }),
-  nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
-  axisLabel: { formatter: '{value}' },
-}));
+const chartYAxisOption = computed(() => {
+  if (isPrintMode.value) {
+    return {
+      type: 'category' as const,
+      axisLabel: { fontSize: 11 },
+      axisTick: { alignWithLabel: true },
+    };
+  }
+  return {
+    type: 'value' as const,
+    name: t('tco2eq'),
+    // ECharts 6 moves the axis name clear of the tick labels on its own;
+    // nameGap is then the offset from the labels (no grid.containLabel).
+    nameLocation: 'middle' as const,
+    nameMoveOverlap: true,
+    nameGap: 12,
+    nameRotate: 90,
+    nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
+    axisLabel: { formatter: '{value}' },
+  };
+});
 
 // Print reports lay the bars horizontally: the axes swap roles.
 const chartOption = computed((): EChartsOption => {
