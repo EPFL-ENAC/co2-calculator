@@ -283,6 +283,7 @@ const chartXAxisOption = computed(() => {
   }
   return {
     type: 'category' as const,
+    data: [t('charts-my-unit-tick')],
     axisLabel: { interval: 0, rotate: 45, fontSize: 11 },
   };
 });
@@ -291,6 +292,7 @@ const chartYAxisOption = computed(() => {
   if (isPrintMode.value) {
     return {
       type: 'category' as const,
+      data: [t('charts-my-unit-tick')],
       axisLabel: { fontSize: 11 },
       axisTick: { alignWithLabel: true },
     };
@@ -315,8 +317,8 @@ const chartOption = computed((): EChartsOption => {
     tooltip: chartTooltipOption.value,
     legend: chartLegendOption.value,
     grid: chartGridOption.value,
-    xAxis: isPrintMode.value ? valueAxisOption.value : categoryAxisOption.value,
-    yAxis: isPrintMode.value ? categoryAxisOption.value : valueAxisOption.value,
+    xAxis: chartXAxisOption.value,
+    yAxis: chartYAxisOption.value,
     aria: {
       enabled: isColorblind.value,
       decal: buildChartDecal(isColorblind.value),
