@@ -2,6 +2,7 @@
 import { onMounted } from 'vue';
 import ReportPage from '@/components/organisms/ReportPage.vue';
 import BigNumber from '@/components/molecules/BigNumber.vue';
+import CarbonFootPrintPerPersonChart from '@/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
 import PrintReportShell from '@/components/organisms/print/PrintReportShell.vue';
 import SimulationExplorePrintModulePage from '@/components/organisms/print/SimulationExplorePrintModulePage.vue';
@@ -59,6 +60,17 @@ onMounted(async () => {
       <section>
         <ModuleCarbonFootprintChart
           :breakdown-data="breakdown"
+          :view-additional-data="true"
+        />
+      </section>
+
+      <!-- Per-FTE chart of the results card (#2071); nothing to draw
+           without headcount. -->
+      <section v-if="(breakdown?.total_fte ?? 0) > 0" class="q-mt-md">
+        <CarbonFootPrintPerPersonChart
+          :per-person-breakdown="breakdown?.per_person_breakdown"
+          :validated-categories="breakdown?.validated_categories"
+          headcount-validated
           :view-additional-data="true"
         />
       </section>

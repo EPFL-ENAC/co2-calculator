@@ -32,8 +32,10 @@ export function useSimulationExplorePrintData() {
   /** No sandbox exists for this unit — nothing to report on (#2656). */
   const noExploration = ref(false);
 
+  // The report always shows the additional data, whatever the page's
+  // toggle, so its total counts them too (#2071).
   const totalTonnesCo2eq = computed(() =>
-    sumBreakdownTonnes(moduleStore.state.emissionBreakdown),
+    sumBreakdownTonnes(moduleStore.state.emissionBreakdown, true),
   );
 
   const breakdown = computed(() => moduleStore.state.emissionBreakdown);

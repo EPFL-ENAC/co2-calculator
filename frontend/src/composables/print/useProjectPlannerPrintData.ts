@@ -88,12 +88,14 @@ export function useProjectPlannerPrintData() {
     plansStore.grantStats ? toEmissionBreakdown(plansStore.grantStats) : null,
   );
 
+  // The report always shows the additional data, whatever the page's
+  // toggle, so its totals count them too (#2071).
   const totalTonnesCo2eq = computed(() =>
-    sumBreakdownTonnes(planBreakdown.value),
+    sumBreakdownTonnes(planBreakdown.value, true),
   );
 
   const grantTotalTonnes = computed(() =>
-    sumBreakdownTonnes(grantBreakdown.value),
+    sumBreakdownTonnes(grantBreakdown.value, true),
   );
 
   /** Per-report breakdowns (years + grant), keyed by carbon report id. */
@@ -111,7 +113,7 @@ export function useProjectPlannerPrintData() {
   );
 
   function yearTotalTonnes(year: SimulatorPlanYear): number {
-    return sumBreakdownTonnes(yearBreakdowns.value[year.id]);
+    return sumBreakdownTonnes(yearBreakdowns.value[year.id], true);
   }
 
   /** Inactive modules are excluded from sums, graphs and results — and from the report. */

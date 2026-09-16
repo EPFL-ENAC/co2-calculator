@@ -4,6 +4,8 @@ export type TooltipRow = {
   color?: string;
   /** Optional module icon name (uses existing `ModuleIcon` system). */
   icon?: string;
+  /** A section header (e.g. one bar's label and total) above its rows. */
+  heading?: boolean;
 };
 
 export type TooltipState = {
