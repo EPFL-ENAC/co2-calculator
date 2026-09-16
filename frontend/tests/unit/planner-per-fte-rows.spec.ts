@@ -23,7 +23,7 @@ const withFte = (fte: number, food: number): EmissionBreakdownResponse => ({
 
 const labels = {
   grantLabel: 'Grant proposal',
-  yearsLabel: 'Detailed per year',
+  yearsLabel: 'Effective',
 };
 
 test('a grant plan with year sections draws both bars, the years one hatched', () => {
@@ -41,7 +41,7 @@ test('a grant plan with year sections draws both bars, the years one hatched', (
       hatched: false,
     },
     {
-      label: 'Detailed per year',
+      label: 'Effective',
       perPersonBreakdown: { food: 0.4 },
       hatched: true,
     },
@@ -59,7 +59,7 @@ test('a plain plan draws one unhatched bar', () => {
     }),
   ).toEqual([
     {
-      label: 'Detailed per year',
+      label: 'Effective',
       perPersonBreakdown: { food: 0.3 },
       hatched: false,
     },
