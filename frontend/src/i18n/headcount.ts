@@ -35,17 +35,9 @@ export default {
     fr: 'Étudiant·es',
   },
 
-  [`${MODULES.Headcount}-student-table-title-info-label`]: {
-    en: 'Students table information',
-    fr: 'Informations sur le tableau des étudiant·es',
-  },
   [`${MODULES.Headcount}-charts-title`]: {
     en: 'FTE per function',
     fr: 'EPT par fonction',
-  },
-  [`${MODULES.Headcount}-charts-no-data-message`]: {
-    en: 'No data available for FTE per position.',
-    fr: 'Aucune donnée disponible pour l’EPT par poste.',
   },
   [`${MODULES.Headcount}-member-form-title`]: {
     // en: 'Add Full-Time Equivalent member',
@@ -54,10 +46,6 @@ export default {
     fr: 'Ajouter un EPT',
   },
 
-  [`${MODULES.Headcount}-student-form-add-button`]: {
-    en: 'Add student FTE',
-    fr: 'Ajouter un EPT étudiant·e',
-  },
   // module member
 
   [`${MODULES.Headcount}-member-form-field-fte-label`]: {
@@ -85,13 +73,9 @@ export default {
     en: 'Add student FTE',
     fr: 'Ajouter un EPT étudiant·e',
   },
-  [`${MODULES.Headcount}-student-form-title-info-label`]: {
-    en: 'fte student tooltip',
-    fr: 'info-bulle étudiant·e EPT',
-  },
-  'headcount-member-function-required': {
-    en: 'Function is required',
-    fr: 'La fonction est obligatoire',
+  [`${MODULES.Headcount}-student-form-subtitle`]: {
+    en: 'Enter the aggregated student FTE for your unit over the year.',
+    fr: 'Entrez de manière agrégée les EPT des étudiant·es qui ont travaillé dans votre unité sur l’année.',
   },
   'headcount-member-error-duplicate-uid': {
     en: "This user's {label} already exists.",
