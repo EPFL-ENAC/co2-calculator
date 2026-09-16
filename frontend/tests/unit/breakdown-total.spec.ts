@@ -52,6 +52,17 @@ test('a headcount-only report totals zero unless additional data is shown', () =
   expect(sumBreakdownTonnes(headcountOnly, true)).toBe(4);
 });
 
+test('leaves out categories the charts hide (embodied energy)', () => {
+  const withHidden = {
+    ...breakdown,
+    additional_breakdown: [
+      ...breakdown.additional_breakdown,
+      row('embodied_energy', [10]),
+    ],
+  };
+  expect(sumBreakdownTonnes(withHidden, true)).toBe(8);
+});
+
 test('no breakdown totals zero', () => {
   expect(sumBreakdownTonnes(null)).toBe(0);
 });

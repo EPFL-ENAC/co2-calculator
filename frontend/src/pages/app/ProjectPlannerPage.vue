@@ -400,6 +400,8 @@ function downloadReport() {
       year: route.params.year,
       planId: route.params.planId,
     },
+    // Same handoff as the Results report: the PDF follows the page's toggle.
+    query: { hideAdditionalData: viewAdditionalData.value ? '0' : '1' },
   }).href;
   window.open(url, '_blank');
 }

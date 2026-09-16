@@ -154,6 +154,8 @@ function downloadReport() {
       unit: route.params.unit,
       year: route.params.year,
     },
+    // Same handoff as the Results report: the PDF follows the page's toggle.
+    query: { hideAdditionalData: viewAdditionalData.value ? '0' : '1' },
   }).href;
   window.open(url, '_blank');
 }

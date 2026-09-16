@@ -1,17 +1,22 @@
+import { isHiddenResultsCategory } from '@/constant/charts';
 import type {
   EmissionBreakdownCategoryRow,
   EmissionBreakdownResponse,
 } from '@/stores/modules';
 
+// Categories no Results chart draws (embodied energy) stay out of the sum
+// too, or the headline would count tonnes with no bar beneath them.
 function sumRows(rows: EmissionBreakdownCategoryRow[] | undefined): number {
-  return (rows ?? []).reduce((sum, row) => {
-    const rowTotal = (row.emissions ?? []).reduce(
-      (rowSum, emission) =>
-        rowSum + (typeof emission.value === 'number' ? emission.value : 0),
-      0,
-    );
-    return sum + rowTotal;
-  }, 0);
+  return (rows ?? [])
+    .filter((row) => !isHiddenResultsCategory(row.category_key))
+    .reduce((sum, row) => {
+      const rowTotal = (row.emissions ?? []).reduce(
+        (rowSum, emission) =>
+          rowSum + (typeof emission.value === 'number' ? emission.value : 0),
+        0,
+      );
+      return sum + rowTotal;
+    }, 0);
 }
 
 /**
@@ -25,7 +30,8 @@ function sumRows(rows: EmissionBreakdownCategoryRow[] | undefined): number {
  * which is the buildings-banner discrepancy all over again.
  *
  * `includeAdditional` follows the page's "Additional data" toggle (#2071):
- * on, the additional rows count too, exactly as the chart then draws them.
+ * on, the additional rows count too, exactly as the chart then draws them —
+ * minus the categories every chart hides (`isHiddenResultsCategory`).
  *
  * The backend has no module-only total to read instead; adding one (as the
  * banner fix did for a single module) would retire this helper.

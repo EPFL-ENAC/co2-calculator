@@ -88,14 +88,19 @@ export function useProjectPlannerPrintData() {
     plansStore.grantStats ? toEmissionBreakdown(plansStore.grantStats) : null,
   );
 
-  // The report always shows the additional data, whatever the page's
-  // toggle, so its totals count them too (#2071).
+  // The page's "Additional data" toggle travels in the print URL, as it does
+  // for the Results report, so the PDF's totals and charts match what the
+  // planner page showed when the download was clicked (#2071).
+  const viewAdditionalData = computed(
+    () => String(route.query.hideAdditionalData ?? '0') !== '1',
+  );
+
   const totalTonnesCo2eq = computed(() =>
-    sumBreakdownTonnes(planBreakdown.value, true),
+    sumBreakdownTonnes(planBreakdown.value, viewAdditionalData.value),
   );
 
   const grantTotalTonnes = computed(() =>
-    sumBreakdownTonnes(grantBreakdown.value, true),
+    sumBreakdownTonnes(grantBreakdown.value, viewAdditionalData.value),
   );
 
   /** Per-report breakdowns (years + grant), keyed by carbon report id. */
@@ -113,7 +118,10 @@ export function useProjectPlannerPrintData() {
   );
 
   function yearTotalTonnes(year: SimulatorPlanYear): number {
-    return sumBreakdownTonnes(yearBreakdowns.value[year.id], true);
+    return sumBreakdownTonnes(
+      yearBreakdowns.value[year.id],
+      viewAdditionalData.value,
+    );
   }
 
   /** Inactive modules are excluded from sums, graphs and results — and from the report. */
@@ -248,6 +256,7 @@ export function useProjectPlannerPrintData() {
     scopeLabel,
     planBreakdown,
     grantBreakdown,
+    viewAdditionalData,
     totalTonnesCo2eq,
     grantTotalTonnes,
     yearBreakdowns,

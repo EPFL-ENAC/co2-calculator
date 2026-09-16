@@ -32,6 +32,7 @@ const {
   scopeLabel,
   planBreakdown,
   grantBreakdown,
+  viewAdditionalData,
   totalTonnesCo2eq,
   grantTotalTonnes,
   yearBreakdowns,
@@ -198,7 +199,7 @@ onMounted(async () => {
             :grant-year-range="grantYearRange"
             :effective-year-range="effectiveYearRange"
             :active-categories-only="true"
-            :view-additional-data="true"
+            :view-additional-data="viewAdditionalData"
           />
           <ModuleCarbonFootprintChart
             v-else-if="plan.is_grant_proposal"
@@ -206,7 +207,7 @@ onMounted(async () => {
             :title="
               $t('planner_results_comparison_chart_title', { name: plan.name })
             "
-            :view-additional-data="true"
+            :view-additional-data="viewAdditionalData"
             :print-mode="true"
             :enforce-module-activation="false"
             :active-categories-only="true"
@@ -215,7 +216,7 @@ onMounted(async () => {
             v-else
             :breakdown-data="planBreakdown"
             :title="$t('planner_results_chart_title', { name: plan.name })"
-            :view-additional-data="true"
+            :view-additional-data="viewAdditionalData"
             :print-mode="true"
             :enforce-module-activation="false"
             :active-categories-only="true"
@@ -231,7 +232,7 @@ onMounted(async () => {
             "
             :rows="perFteRows"
             headcount-validated
-            :view-additional-data="true"
+            :view-additional-data="viewAdditionalData"
             :enforce-module-activation="false"
           />
         </section>
@@ -250,6 +251,7 @@ onMounted(async () => {
           :plan-name="plan.name"
           :breakdown="yearBreakdowns[sheet.year.id] ?? null"
           :total-tonnes="yearTotalTonnes(sheet.year)"
+          :view-additional-data="viewAdditionalData"
         />
 
         <PlannerPrintEmissionTypesPage

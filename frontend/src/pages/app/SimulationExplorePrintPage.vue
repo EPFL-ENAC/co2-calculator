@@ -13,6 +13,7 @@ const {
   currentYear,
   loading,
   noExploration,
+  viewAdditionalData,
   totalTonnesCo2eq,
   breakdown,
   exploreModules,
@@ -60,7 +61,7 @@ onMounted(async () => {
       <section>
         <ModuleCarbonFootprintChart
           :breakdown-data="breakdown"
-          :view-additional-data="true"
+          :view-additional-data="viewAdditionalData"
         />
       </section>
 
@@ -71,7 +72,7 @@ onMounted(async () => {
           :per-person-breakdown="breakdown?.per_person_breakdown"
           :validated-categories="breakdown?.validated_categories"
           headcount-validated
-          :view-additional-data="true"
+          :view-additional-data="viewAdditionalData"
         />
       </section>
     </ReportPage>

@@ -48,7 +48,7 @@ const props = withDefaults(
     perPersonBreakdown?: Record<string, number> | null;
     /**
      * Several bars instead of the single "My unit" one, e.g. the Planner's
-     * Grant Proposal beside its Detailed-per-year total (#2071).
+
      */
     rows?: PerPersonRow[] | null;
     validatedCategories?: string[] | null;
