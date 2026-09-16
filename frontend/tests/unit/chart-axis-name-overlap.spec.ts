@@ -30,10 +30,7 @@ test('y-axis name stays on canvas and clear of billion-scale tick labels', async
 }) => {
   const component = await mount(AxisNameOverlapHarness);
   const report = component.getByTestId('axis-name-layout');
-  await expect(
-    report,
-    await component.getByTestId('axis-name-diagnostics').textContent(),
-  ).not.toBeEmpty({ timeout: 8000 });
+  await expect(report).not.toBeEmpty({ timeout: 8000 });
 
   const layout = JSON.parse(
     (await report.textContent()) ?? '',
