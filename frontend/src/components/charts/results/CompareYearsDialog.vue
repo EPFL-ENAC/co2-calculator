@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { outlinedClose } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedClose,
+  outlinedCheckCircle,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, ref, watch, type PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useModuleStore } from '@/stores/modules';
@@ -343,31 +346,49 @@ const scopeObjectiveBars = computed(() =>
               class="compare-years-kpi__divider"
             />
 
-            <!-- Gap of the latest selected year to its reduction objective -->
+            <!-- Gap of the latest selected year to its reduction objective.
+                 Above target: the share still to cut ("-90%") plus the target
+                 value. At/below target: a plain "goal reached" badge only. -->
             <div v-if="objectiveGap" class="compare-years-kpi">
               <div class="compare-years-kpi__label">
                 {{
                   $t(
                     objectiveGap.missing
                       ? 'results_compare_years_gap_label'
-                      : 'results_compare_years_gap_beaten_label',
+                      : 'results_compare_years_gap_reached_label',
                     { year: objectiveGap.targetYear },
                   )
                 }}
               </div>
               <div class="compare-years-kpi__gap">
                 <span
-                  class="compare-years-kpi__delta"
-                  :class="objectiveGap.missing ? 'text-negative' : 'text-info'"
+                  v-if="objectiveGap.missing"
+                  class="compare-years-kpi__delta text-negative"
                 >
-                  {{ objectiveGap.missing ? '-' : ''
-                  }}{{
+                  -{{
                     $nOrDash(objectiveGap.pctMagnitude * 100, {
                       options: { maximumFractionDigits: 0 },
                     })
                   }}%
                 </span>
-                <span class="compare-years-kpi__sub">
+                <span
+                  v-else
+                  class="compare-years-kpi__delta compare-years-kpi__reached text-positive"
+                >
+                  <q-icon
+                    :name="outlinedCheckCircle"
+                    class="compare-years-kpi__reached-icon"
+                  />
+                  {{
+                    $t('results_compare_years_gap_reached', {
+                      year: objectiveGap.targetYear,
+                    })
+                  }}
+                </span>
+                <span
+                  v-if="objectiveGap.missing"
+                  class="compare-years-kpi__sub"
+                >
                   {{
                     $t('results_compare_years_gap_target', {
                       year: objectiveGap.targetYear,
@@ -644,6 +665,20 @@ const scopeObjectiveBars = computed(() =>
 .compare-years-kpi__delta {
   font-size: 22px;
   line-height: 1.1;
+}
+
+/* "Goal reached" badge: icon + text, same optical weight as the percentage
+   it replaces so the KPI band keeps its rhythm. */
+.compare-years-kpi__reached {
+  display: inline-flex;
+  align-items: center;
+  gap: tokens.$spacing-xs;
+  font-size: 20px;
+  font-weight: tokens.$text-weight-medium;
+}
+
+.compare-years-kpi__reached-icon {
+  font-size: 20px;
 }
 
 .compare-years-kpi__sub {

@@ -95,9 +95,13 @@ export default {
     en: 'Reduction needed to reach {year} target',
     fr: 'Réduction nécessaire pour atteindre l’objectif {year}',
   },
-  results_compare_years_gap_beaten_label: {
-    en: 'Below {year} target',
-    fr: 'Sous l’objectif {year}',
+  results_compare_years_gap_reached_label: {
+    en: 'Reduction objective',
+    fr: 'Objectif de réduction',
+  },
+  results_compare_years_gap_reached: {
+    en: '{year} goal reached',
+    fr: 'Objectif {year} atteint',
   },
   results_compare_years_gap_target: {
     en: '{year} target: {value}',
