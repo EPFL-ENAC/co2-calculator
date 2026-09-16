@@ -460,7 +460,6 @@ const chartOption = computed<EChartsOption | null>(() => {
       right: 24,
       top: 24,
       bottom: 24,
-      containLabel: true,
     },
     xAxis: [
       {
@@ -476,7 +475,8 @@ const chartOption = computed<EChartsOption | null>(() => {
         type: 'value',
         name: t('results_units_tonnes'),
         min: 0,
-        nameGap: 36,
+        nameMoveOverlap: true,
+        nameGap: 12,
         nameLocation: 'middle',
         axisLine: { show: false },
         axisTick: { show: false },

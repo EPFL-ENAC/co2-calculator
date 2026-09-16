@@ -636,7 +636,6 @@ const chartOption = computed<EChartsOption | null>(() => {
       right: 64,
       top: 24,
       bottom: 24,
-      containLabel: true,
     },
     xAxis: [
       {
@@ -662,7 +661,8 @@ const chartOption = computed<EChartsOption | null>(() => {
         type: 'value',
         name: t('results_units_tonnes'),
         min: 0,
-        nameGap: 36,
+        nameMoveOverlap: true,
+        nameGap: 12,
         nameLocation: 'middle',
         axisLine: { show: false },
         axisTick: { show: false },
@@ -674,7 +674,8 @@ const chartOption = computed<EChartsOption | null>(() => {
         name: t('results_objectives_population_axis'),
         min: 0,
         position: 'right',
-        nameGap: 56,
+        nameMoveOverlap: true,
+        nameGap: 12,
         nameLocation: 'middle',
         axisLine: { show: false },
         axisTick: { show: false },
