@@ -257,8 +257,8 @@ export default {
     fr: 'Créateur·rice',
   },
   planner_table_years_tco2eq: {
-    en: 'Per year (t CO₂-eq)',
-    fr: 'Par année (t CO₂-eq)',
+    en: 'Effective (t CO₂-eq)',
+    fr: 'Effective (t CO₂-eq)',
   },
   planner_table_grant_tco2eq: {
     en: 'Grant proposal (t CO₂-eq)',
