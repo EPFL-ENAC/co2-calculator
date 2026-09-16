@@ -106,26 +106,28 @@ class CarbonProjectRepository:
 
     async def list_report_stats_by_project(
         self, project_ids: list[int]
-    ) -> list[tuple[int, dict | None]]:
-        """Return ``(project_id, report.stats)`` for many projects in one query.
+    ) -> list[tuple[int, bool, dict | None]]:
+        """Return ``(project_id, is_grant, report.stats)`` for many projects.
 
         Backs the plan totals shown in the home-page planner table: one query
         for the whole unit instead of one per plan.
 
-        Project Grant reports are excluded: how grant results combine with the
-        per-year results is still open (#1977), and summing both would count
-        the same project twice.
+        Grant reports are returned alongside the per-year reports, flagged so
+        the caller can total them separately — the two views count the same
+        project and must never be summed together (#1977, #2805).
         """
         if not project_ids:
             return []
         statement = select(
-            col(CarbonReport.carbon_project_id), col(CarbonReport.stats)
-        ).where(
-            col(CarbonReport.carbon_project_id).in_(project_ids),
-            col(CarbonReport.is_grant).is_(False),
-        )
+            col(CarbonReport.carbon_project_id),
+            col(CarbonReport.is_grant),
+            col(CarbonReport.stats),
+        ).where(col(CarbonReport.carbon_project_id).in_(project_ids))
         result = await self.session.execute(statement)
-        return [(project_id, stats) for project_id, stats in result.all()]
+        return [
+            (project_id, bool(is_grant), stats)
+            for project_id, is_grant, stats in result.all()
+        ]
 
     async def list_reports_for_project(self, project_id: int) -> list[CarbonReport]:
         """Return the carbon reports of a project, ordered by year."""

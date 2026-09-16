@@ -20,7 +20,12 @@ export interface SimulatorPlan {
   created_by: number | null;
   created_at: string | null;
   creator_name: string | null;
+  /** Sum of the per-year reports in tonnes; null when the plan has no year
+   * sections. */
   total_tonnes_co2eq: number | null;
+  /** The grant proposal report's total in tonnes; null when the plan has no
+   * grant section. Never summed with `total_tonnes_co2eq` (#1977). */
+  grant_total_tonnes_co2eq: number | null;
   /** Set when the PATCH deferred its prefill to a background job; poll it
    * before trusting the plan years (backend plan #2050 Track F4). */
   prefill_job_id?: number | null;

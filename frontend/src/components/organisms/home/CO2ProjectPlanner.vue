@@ -37,6 +37,9 @@ const confirmDelete = ref(false);
 const planToDelete = ref<SimulatorPlan | null>(null);
 
 const ROWS_PER_PAGE = 5;
+// Footprint columns whose null value (no such section on the plan) renders
+// as a greyed dash.
+const TONNES_COLUMNS = new Set(['grant_tco2eq', 'tco2eq']);
 const pagination = ref({ rowsPerPage: ROWS_PER_PAGE });
 
 function formatPlanDate(dateString: string | null): string {
@@ -67,9 +70,20 @@ const planColumns = computed<QTableColumn[]>(() => [
     align: 'left',
     sortable: true,
   },
+  // Grant and years totals count the same project from two angles, so they
+  // sit side by side and are never summed (#1977). A plan without that
+  // section has a null total and shows a greyed dash rather than 0 (#2805).
+  {
+    name: 'grant_tco2eq',
+    label: t('planner_table_grant_tco2eq'),
+    field: 'grant_total_tonnes_co2eq',
+    align: 'right',
+    sortable: true,
+    format: (val) => formatTonnesCO2(val as number | null),
+  },
   {
     name: 'tco2eq',
-    label: t('tco2eq'),
+    label: t('planner_table_years_tco2eq'),
     field: 'total_tonnes_co2eq',
     align: 'right',
     sortable: true,
@@ -259,6 +273,14 @@ onMounted(() => {
                 >
                   {{ col.value }}
                 </router-link>
+              </template>
+              <template
+                v-else-if="
+                  TONNES_COLUMNS.has(col.name) &&
+                  props.row[col.field as keyof SimulatorPlan] === null
+                "
+              >
+                <span class="text-grey-6">{{ col.value }}</span>
               </template>
               <template v-else>{{ col.value }}</template>
             </q-td>
