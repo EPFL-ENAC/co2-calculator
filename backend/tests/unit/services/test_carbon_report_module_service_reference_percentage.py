@@ -442,6 +442,103 @@ async def test_reset_rejects_non_equipment_module(async_session, user):
 
 
 @pytest.mark.asyncio
+async def test_equipment_stats_extras_after_patch(async_session, user):
+    """#2783: the frontend reads reference total + applied % from stats,
+    not from a client-side sum of snapshot rows (broken for aggregate rows,
+    which have no single source).
+    """
+    report, plan_module, ref_module = await _plan_report_with_equipment(
+        async_session, user
+    )
+    await _set_stats(
+        async_session, ref_module.id, {SCIENTIFIC_ET: 1000.0, IT_ET: 500.0}
+    )
+    module_service = CarbonReportModuleService(async_session)
+    await module_service.set_reference_percentage_all(
+        report.id, int(ModuleTypeEnum.equipment), 25.0
+    )
+
+    db_module = await async_session.get(CarbonReportModule, plan_module.id)
+    assert db_module.stats["equipment_reference_total_kg"] == pytest.approx(1500.0)
+    assert db_module.stats["equipment_applied_percentage"] == 25.0
+
+
+@pytest.mark.asyncio
+async def test_equipment_applied_percentage_null_without_aggregate(async_session, user):
+    report, plan_module, _ = await _plan_report_with_equipment(async_session, user)
+    module_service = CarbonReportModuleService(async_session)
+    await module_service.recompute_stats_many([plan_module.id])
+
+    db_module = await async_session.get(CarbonReportModule, plan_module.id)
+    assert db_module.stats["equipment_applied_percentage"] is None
+    assert db_module.stats["equipment_reference_total_kg"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_equipment_stats_extras_cleared_after_reset(async_session, user):
+    report, plan_module, ref_module = await _plan_report_with_equipment(
+        async_session, user
+    )
+    await _set_stats(async_session, ref_module.id, {SCIENTIFIC_ET: 1000.0})
+    module_service = CarbonReportModuleService(async_session)
+    await module_service.set_reference_percentage_all(
+        report.id, int(ModuleTypeEnum.equipment), 25.0
+    )
+
+    await module_service.reset_equipment_to_per_line(
+        report.id, int(ModuleTypeEnum.equipment)
+    )
+
+    db_module = await async_session.get(CarbonReportModule, plan_module.id)
+    assert db_module.stats["equipment_applied_percentage"] is None
+
+
+@pytest.mark.asyncio
+async def test_equipment_reference_totals_by_report_is_batched(
+    async_session, engine, user
+):
+    """#2783's own second-order regression guard: the stats-extras prefetch
+    inside ``recompute_stats_many`` must not scale with how many equipment
+    modules share one reference year (mirrors
+    ``test_statement_count_is_flat_regardless_of_legacy_row_count``'s
+    pattern, but for the batched *read* path added in this commit rather
+    than the write path).
+    """
+    module_service = CarbonReportModuleService(async_session)
+
+    few_reports = []
+    for unit_id in (101, 102):
+        report, _, ref_module = await _plan_report_with_equipment(
+            async_session, user, unit_id=unit_id, reference_year=2024
+        )
+        await _set_stats(async_session, ref_module.id, {SCIENTIFIC_ET: 1000.0})
+        few_reports.append(report)
+
+    many_reports = []
+    for unit_id in range(201, 221):
+        report, _, ref_module = await _plan_report_with_equipment(
+            async_session, user, unit_id=unit_id, reference_year=2024
+        )
+        await _set_stats(async_session, ref_module.id, {SCIENTIFIC_ET: 1000.0})
+        many_reports.append(report)
+
+    with count_statements(engine) as log_few:
+        await module_service._equipment_reference_totals_by_report(  # noqa: SLF001
+            few_reports
+        )
+    with count_statements(engine) as log_many:
+        await module_service._equipment_reference_totals_by_report(  # noqa: SLF001
+            many_reports
+        )
+
+    assert log_many.total == log_few.total, (
+        f"prefetch query count grew with report count: "
+        f"{log_few.total} (2 reports) -> {log_many.total} (20 reports)\n"
+        f"few={log_few.statements}\nmany={log_many.statements}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_only_equipment_module_is_supported(async_session, user):
     report, _, _ = await _plan_report_with_equipment(async_session, user)
     module_service = CarbonReportModuleService(async_session)

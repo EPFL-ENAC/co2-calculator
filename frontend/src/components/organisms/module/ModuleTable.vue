@@ -277,8 +277,16 @@
             </q-btn>
           </template>
           <template v-else-if="col.name === 'percentage_of_reference_year'">
+            <!-- An equipment global-percentage aggregate row (#2783) has a
+                 real percentage but no single source, so reference_kg_co2eq
+                 is never set for it — show the (locked, via
+                 percentageLocked) slider off percentage_of_reference_year
+                 alone rather than hiding it. -->
             <div
-              v-if="slotProps.row.reference_kg_co2eq != null"
+              v-if="
+                slotProps.row.reference_kg_co2eq != null ||
+                slotProps.row.percentage_of_reference_year != null
+              "
               class="row items-center no-wrap reference-slider"
             >
               <q-slider

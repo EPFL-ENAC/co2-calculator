@@ -1,6 +1,6 @@
 """CarbonReportModule service for business logic."""
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 
 from sqlmodel import col, func, select
@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmissionRow
@@ -138,6 +139,24 @@ def _equipment_emission_type(data_entry_type: DataEntryTypeEnum) -> EmissionType
     if not emission_types:
         raise ValueError(f"No emission type mapped for {data_entry_type!r}")
     return emission_types[0]
+
+
+def _equipment_totals_from_stats(stats: dict | None) -> dict[DataEntryTypeEnum, float]:
+    """Per-equipment-type reference kg from a module's ``by_emission_type``.
+
+    #2783: shared by the single-report (``_equipment_reference_totals``) and
+    batched (``_equipment_reference_totals_by_report``) lookups — the only
+    difference between them is how many reference modules get resolved per
+    call, not how a resolved module's stats turn into per-type totals.
+    """
+    by_emission_type = (stats or {}).get("by_emission_type") or {}
+    totals: dict[DataEntryTypeEnum, float] = {}
+    for data_entry_type in MODULE_TYPE_TO_DATA_ENTRY_TYPES[ModuleTypeEnum.equipment]:
+        emission_type = _equipment_emission_type(data_entry_type)
+        kg = float(by_emission_type.get(str(emission_type.value), 0.0))
+        if kg:
+            totals[data_entry_type] = kg
+    return totals
 
 
 def compute_module_stats(
@@ -487,15 +506,90 @@ class CarbonReportModuleService:
                 f"Equipment module not found on the reference year "
                 f"{report.reference_year}"
             )
-        by_emission_type = (ref_module.stats or {}).get("by_emission_type") or {}
-        totals: dict[DataEntryTypeEnum, float] = {}
-        equipment_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES[ModuleTypeEnum.equipment]
-        for data_entry_type in equipment_types:
-            emission_type = _equipment_emission_type(data_entry_type)
-            kg = float(by_emission_type.get(str(emission_type.value), 0.0))
-            if kg:
-                totals[data_entry_type] = kg
-        return totals
+        return _equipment_totals_from_stats(ref_module.stats)
+
+    async def _reports_by_id(self, report_ids: set[int]) -> dict[int, CarbonReport]:
+        """Batched ``CarbonReport`` lookup for #2783's stats-extras prefetch."""
+        if not report_ids:
+            return {}
+        rows = (
+            (
+                await self.session.execute(
+                    select(CarbonReport).where(col(CarbonReport.id).in_(report_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return {r.id: r for r in rows if r.id is not None}
+
+    async def _equipment_reference_totals_by_report(
+        self, reports: Iterable[CarbonReport]
+    ) -> dict[int, dict[DataEntryTypeEnum, float]]:
+        """Batched ``_equipment_reference_totals`` for many plan reports at once.
+
+        #2783: ``recompute_stats_many`` calls ``_collect_module_extras`` once
+        per module in its batch loop (used by the admin bulk-recompute job
+        among others). Resolving each equipment module's reference module
+        individually there would reintroduce a per-module round trip — the
+        exact shape of bug #2783 fixes, one level up. This resolves every
+        distinct ``(unit_id, reference_year)`` pair once, no matter how many
+        reports in the batch share it, keyed by plan report id.
+        """
+        candidates = [
+            r for r in reports if r.id is not None and r.reference_year is not None
+        ]
+        if not candidates:
+            return {}
+        units = {r.unit_id for r in candidates}
+        years = {r.reference_year for r in candidates}
+        calc_reports = (
+            (
+                await self.session.execute(
+                    select(CarbonReport)
+                    .join(
+                        CarbonProject,
+                        col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+                    )
+                    .where(
+                        col(CarbonReport.unit_id).in_(units),
+                        col(CarbonReport.year).in_(years),
+                        col(CarbonProject.carbon_report_type)
+                        == CarbonReportType.CALCULATOR,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        ref_report_id_by_key = {
+            (cr.unit_id, cr.year): cr.id for cr in calc_reports if cr.id is not None
+        }
+        ref_report_ids = list(ref_report_id_by_key.values())
+        ref_modules = (
+            (
+                await self.session.execute(
+                    select(CarbonReportModule).where(
+                        col(CarbonReportModule.carbon_report_id).in_(ref_report_ids),
+                        col(CarbonReportModule.module_type_id)
+                        == ModuleTypeEnum.equipment.value,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+            if ref_report_ids
+            else []
+        )
+        stats_by_ref_report_id = {m.carbon_report_id: m.stats for m in ref_modules}
+        result: dict[int, dict[DataEntryTypeEnum, float]] = {}
+        for r in candidates:
+            if r.id is None:
+                continue
+            ref_report_id = ref_report_id_by_key.get((r.unit_id, r.reference_year))
+            stats = stats_by_ref_report_id.get(ref_report_id) if ref_report_id else None
+            result[r.id] = _equipment_totals_from_stats(stats)
+        return result
 
     async def _write_equipment_aggregate_lines(
         self,
@@ -603,6 +697,13 @@ class CarbonReportModuleService:
         # so this is a report-wide recompute, not a module-scoped one —
         # already batched, not a per-entry loop, see its own docstring).
         await plan_service.recalculate_report_emissions(report)
+        # A reset with nothing to restore leaves the report with zero
+        # entries; recalculate_report_emissions's own recompute only covers
+        # modules an entry still points at, so this module's stats
+        # (equipment_applied_percentage included) would otherwise stay
+        # stale at the pre-reset value. Explicit and idempotent: harmless
+        # when the recalc above already refreshed it.
+        await self.recompute_stats_many([module.id])
         return restored
 
     async def update_submodule_budget(
@@ -675,6 +776,34 @@ class CarbonReportModuleService:
         # #2050 J4: an interactive write knows its report's year already.
         year_by_report = prefetched_years or await self._years_by_report(modules)
 
+        # #2783: batch-prefetch equipment's stats extras for the whole
+        # module set before the per-module loop below — see
+        # _equipment_reference_totals_by_report's docstring for why a
+        # per-module lookup inside that loop would reintroduce an N+1.
+        equipment_modules = [
+            m
+            for m in modules
+            if m.id is not None and m.module_type_id == ModuleTypeEnum.equipment.value
+        ]
+        equipment_ref_totals: dict[int, float] = {}
+        equipment_applied_percentage: dict[int, float] = {}
+        if equipment_modules:
+            equipment_reports = await self._reports_by_id(
+                {m.carbon_report_id for m in equipment_modules}
+            )
+            ref_totals_by_report = await self._equipment_reference_totals_by_report(
+                equipment_reports.values()
+            )
+            equipment_ref_totals = {
+                report_id: sum(totals.values())
+                for report_id, totals in ref_totals_by_report.items()
+            }
+            equipment_applied_percentage = await DataEntryRepository(
+                self.session
+            ).get_applied_percentages(
+                [m.id for m in equipment_modules if m.id is not None]
+            )
+
         now_utc = int(datetime.now(UTC).timestamp())
         refreshed = 0
         report_ids: set[int] = set()
@@ -701,6 +830,8 @@ class CarbonReportModuleService:
                     module,
                     report_year=year_by_report.get(module.carbon_report_id),
                     fte_by_module=fte_by_module,
+                    equipment_ref_totals=equipment_ref_totals,
+                    equipment_applied_percentage=equipment_applied_percentage,
                 ),
             )
             module.last_updated = now_utc
@@ -856,6 +987,8 @@ class CarbonReportModuleService:
         module: CarbonReportModule,
         report_year: int | None,
         fte_by_module: dict[int, float],
+        equipment_ref_totals: dict[int, float] | None = None,
+        equipment_applied_percentage: dict[int, float] | None = None,
     ) -> dict:
         if module.module_type_id == ModuleTypeEnum.headcount and module.id is not None:
             # The FTE-by-function chart used to be aggregated on every module
@@ -868,19 +1001,31 @@ class CarbonReportModuleService:
                 "student_fte": fte.student_fte,
                 "member_fte_by_sius_code": fte.member_fte_by_sius_code,
             }
+        extras: dict = {}
         spec = _IT_TOP_CLASS_SPECS.get(ModuleTypeEnum(module.module_type_id))
-        if spec is None or module.id is None:
-            return {}
-        stats_key, data_entry_types, group_by_field, emission_type_ids = spec
-        emission_repo = DataEntryEmissionRepository(self.session)
-        rows = await emission_repo.get_top_class_breakdown(
-            carbon_report_module_ids=[module.id],
-            data_entry_types=data_entry_types,
-            group_by_field=group_by_field,
-            report_year=report_year,
-            emission_type_ids=emission_type_ids,
-        )
-        return {"it_top_classes": {stats_key: rows}}
+        if spec is not None and module.id is not None:
+            stats_key, data_entry_types, group_by_field, emission_type_ids = spec
+            emission_repo = DataEntryEmissionRepository(self.session)
+            rows = await emission_repo.get_top_class_breakdown(
+                carbon_report_module_ids=[module.id],
+                data_entry_types=data_entry_types,
+                group_by_field=group_by_field,
+                report_year=report_year,
+                emission_type_ids=emission_type_ids,
+            )
+            extras["it_top_classes"] = {stats_key: rows}
+        if module.module_type_id == ModuleTypeEnum.equipment and module.id is not None:
+            # #2783: the reference-year total and the currently-applied
+            # percentage, read here instead of client-side, so the frontend
+            # gets both from the module GET it already loads — no per-row
+            # snapshot fetch, and the mode survives a reload.
+            extras["equipment_reference_total_kg"] = (equipment_ref_totals or {}).get(
+                module.carbon_report_id, 0.0
+            )
+            extras["equipment_applied_percentage"] = (
+                equipment_applied_percentage or {}
+            ).get(module.id)
+        return extras
 
     async def build_merged_it_top_classes(
         self, carbon_report_ids: list[int], report_year: int | None = None
