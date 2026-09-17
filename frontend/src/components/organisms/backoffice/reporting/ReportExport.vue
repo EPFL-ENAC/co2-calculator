@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { downloadBlob } from '@/utils/csvDownload';
+import { downloadBlob } from '@/utils/download';
 import {
   outlinedPictureAsPdf,
   outlinedTableChart,

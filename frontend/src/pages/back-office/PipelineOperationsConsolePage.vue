@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { fetchFile } from '@/api/files';
-import { downloadBlob } from '@/utils/csvDownload';
+import { downloadFile } from '@/api/files';
 import {
   matCancel,
   matCheckCircle,
@@ -134,10 +133,7 @@ async function downloadProcessedCsv(p: PipelineListItem): Promise<void> {
   if (!j) return;
   const filePath = (j.meta as Record<string, unknown>)
     .processed_file_path as string;
-  downloadBlob(
-    await fetchFile(filePath),
-    filePath.slice(filePath.lastIndexOf('/') + 1),
-  );
+  await downloadFile(filePath);
 }
 
 const expanded = ref<Set<string>>(new Set());

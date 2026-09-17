@@ -25,6 +25,8 @@ for (const fileName of SHIPPED_TEMPLATES) {
   }
 }
 
+// Raw fetch on purpose: a same-origin static asset, no auth, and the ky
+// client's prefixUrl would rewrite the hashed /assets/ path.
 export async function fetchTemplate(fileName: string): Promise<Blob> {
   const url = TEMPLATE_URLS[fileName];
   if (!url) throw new Error(`No template asset for ${fileName}`);

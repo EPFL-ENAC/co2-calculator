@@ -1,7 +1,5 @@
-import { fetchFile } from '@/api/files';
-import { downloadBlob } from '@/utils/csvDownload';
+import { downloadLastCsv } from '@/composables/downloadLastCsv';
 import { computed } from 'vue';
-import { lastJobForTarget } from '@/composables/lastJobForTarget';
 import {
   useYearConfigStore,
   type SyncJobSummary,
@@ -91,21 +89,6 @@ export function useModuleConfig(options: UseModuleConfigOptions) {
       ),
       lastReferenceJob: toSyncJobResponse(subConfig?.latest_reference_job),
     };
-  }
-
-  async function downloadLastCsv(
-    row: ImportRow,
-    targetType: TargetType,
-  ): Promise<void> {
-    const job = lastJobForTarget(row, targetType);
-    if (!job?.meta) return;
-    const filePath = (job.meta as Record<string, unknown>)
-      .processed_file_path as string;
-    if (!filePath) return;
-    downloadBlob(
-      await fetchFile(filePath),
-      filePath.slice(filePath.lastIndexOf('/') + 1),
-    );
   }
 
   function getModuleTypeIdFromName(module: string): number {

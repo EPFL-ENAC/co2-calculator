@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { fetchFile } from '@/api/files';
-import { downloadBlob } from '@/utils/csvDownload';
+import { downloadFrom } from '@/utils/download';
 import { matAdjust, matUpload } from '@quasar/extras/material-icons';
 import { ref, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
@@ -157,7 +157,7 @@ async function downloadFile(
   file: FileMetadata | null | undefined,
 ): Promise<void> {
   if (!file?.path) return;
-  downloadBlob(await fetchFile(file.path), file.filename);
+  await downloadFrom(() => fetchFile(file.path), file.filename);
 }
 
 const reductionFiles = computed(

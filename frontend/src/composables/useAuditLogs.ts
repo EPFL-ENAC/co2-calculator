@@ -1,4 +1,4 @@
-import { downloadBlob } from '@/utils/csvDownload';
+import { downloadBlob } from '@/utils/download';
 import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';

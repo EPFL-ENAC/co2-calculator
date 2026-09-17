@@ -41,7 +41,7 @@ use([
 import { formatTonnesForChart } from '@/utils/number';
 import { usePrintMode } from '@/composables/print/usePrintMode';
 import { downloadEchartAsPng } from '@/utils/chartDownload';
-import { downloadCsv, escapeCsvValue } from '@/utils/csvDownload';
+import { downloadCsv, escapeCsvValue } from '@/utils/download';
 
 const props = withDefaults(
   defineProps<{

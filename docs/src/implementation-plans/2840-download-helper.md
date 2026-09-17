@@ -24,18 +24,28 @@ six anchor lines.
 
 ## Decisions
 
-1. **One `downloadBlob(blob, filename)`** in `utils/csvDownload.ts`. Object
+1. **One `downloadBlob(blob, filename)`** in `utils/download.ts` (renamed
+   from `csvDownload.ts`: it now serves JSON and PDF exports too). Object
    URLs honor `a.download` in every browser, so no server header is needed.
-2. **`api/files.ts` with `fetchFile(path)`** through the ky client: auth and
-   refresh hooks apply, and a non-2xx response throws. Callers do
-   `downloadBlob(await fetchFile(path), basename)`.
-3. **Templates fetch too.** `constant/templateAssets.ts` exposes
-   `fetchTemplate(fileName)` with a `response.ok` check instead of a URL.
-4. **`?d=true` is gone from the frontend.** The backend flag and its
+   The object URL is revoked 40 s later, not synchronously: Firefox can
+   abort a large download when the URL dies before its download manager
+   reads the blob (FileSaver does the same).
+2. **`downloadFrom(load, filename)`** wraps the load: on failure it toasts
+   `common_download_failed` and rethrows, so the user sees something and
+   Sentry gets the error. The one place download errors become visible.
+3. **`api/files.ts` with `fetchFile(path)` and `downloadFile(path)`**
+   through the ky client: auth and refresh hooks apply, a non-2xx throws,
+   and the file keeps its base name. `composables/downloadLastCsv.ts` is
+   the single upload-card download, replacing three identical copies.
+4. **Templates fetch too.** `constant/templateAssets.ts` exposes
+   `fetchTemplate(fileName)` with a `response.ok` check. Raw `fetch` on
+   purpose: a same-origin static asset with no auth, and the ky client's
+   `prefixUrl` would rewrite the hashed `/assets/` path.
+5. **`?d=true` is gone from the frontend.** The backend flag and its
    regression tests stay: nothing in the app calls it, but it is a public
    URL feature and removing it is a separate decision.
-5. Handlers become `async`; a rejected download surfaces as an unhandled
-   rejection, which the Sentry boot captures. No `no-floating-promises`
+6. Handlers become `async`; a rejected download surfaces as an unhandled
+   rejection, which the Sentry boot captures, after the toast. No `no-floating-promises`
    rule is configured, so no call-site changes were needed.
 
 ## Verification

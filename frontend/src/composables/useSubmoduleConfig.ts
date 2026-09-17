@@ -1,7 +1,5 @@
-import { fetchFile } from '@/api/files';
-import { downloadBlob } from '@/utils/csvDownload';
+import { downloadLastCsv } from '@/composables/downloadLastCsv';
 import { computed, ref } from 'vue';
-import { lastJobForTarget } from '@/composables/lastJobForTarget';
 import { useRoute, useRouter } from 'vue-router';
 import {
   useBackofficeDataManagement,
@@ -92,21 +90,6 @@ export function useSubmoduleConfig() {
   function submoduleShowsImportRow(sub: SubmoduleConfig): boolean {
     const row = getImportRow(sub);
     return row.hasData || row.hasFactors || row.hasOtherUpload;
-  }
-
-  async function downloadLastCsv(
-    row: ImportRow,
-    targetType: TargetType,
-  ): Promise<void> {
-    const job = lastJobForTarget(row, targetType);
-    if (!job?.meta) return;
-    const jobMeta = job.meta as Record<string, unknown>;
-    const filePath = jobMeta?.processed_file_path as string;
-    if (!filePath) return;
-    downloadBlob(
-      await fetchFile(filePath),
-      filePath.slice(filePath.lastIndexOf('/') + 1),
-    );
   }
 
   function getUnifiedModuleConfigFromSub(sub: SubmoduleConfig) {

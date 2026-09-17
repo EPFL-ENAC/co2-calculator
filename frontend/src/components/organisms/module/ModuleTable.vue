@@ -539,7 +539,7 @@ import {
 import type { JobUpdatePayload } from '@/stores/backofficeDataManagement';
 import { PermissionAction } from '@/stores/auth';
 import { fetchTemplate } from '@/constant/templateAssets';
-import { downloadBlob } from '@/utils/csvDownload';
+import { downloadFrom } from '@/utils/download';
 import { getTemplateFileName } from '@/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
 import { CARBON_PROJECT } from '@/constant/carbon-project';
@@ -2116,11 +2116,11 @@ async function onDownloadTemplate(): Promise<void> {
     );
   }
 
-  downloadBlob(await fetchTemplate(fileName), fileName);
+  await downloadFrom(() => fetchTemplate(fileName), fileName);
 
   $q.notify({
     color: 'info',
-    message: $t('common_download_csv_template_mock') || 'CSV template download',
+    message: $t('common_download_csv_template_started'),
     position: 'top',
   });
 }
