@@ -246,12 +246,11 @@ Tests, same PR:
 ### O2 — Make the invariant structural
 
 DB `CHECK (entity_type <> 'MODULE_UNIT_SPECIFIC' OR entity_id IS NOT NULL)`
-on `data_ingestion_jobs`, via `make db-revision`, with a data migration
-that backfills `entity_id` from `meta->'config'->>'carbon_report_module_id'`
-for existing rows (DB persists across deploys; the dead gate has been
-letting cross-unit reads through on those rows too). A nullable FK nobody
-writes is the class of bug; the constraint makes it a boot-time failure
-instead of a four-month silence. Small; pairs with O1.
+on `data_ingestion_jobs`, `NOT VALID` as in `c1f2a3b4d5e6`: binds every
+new write, no table scan, historical NULL rows left alone (finished jobs
+nobody streams or recovers — decided 2026-09-17, no backfill). A nullable
+FK nobody writes is the class of bug; the constraint makes it an insert-time
+failure instead of a four-month silence. Small; pairs with O1.
 
 ### O3 — Delete the round-trip (mechanism b, f)
 

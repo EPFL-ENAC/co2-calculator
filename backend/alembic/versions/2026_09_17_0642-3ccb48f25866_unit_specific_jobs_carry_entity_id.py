@@ -31,40 +31,26 @@ def upgrade() -> None:
 
     ``data_ingestion_jobs.entity_id`` is the column every ``/sync`` read gate
     resolves a job's unit from, and nothing wrote it from the day it was
-    added (#2654). Backfill it from the value that was always there —
-    ``meta.config.carbon_report_module_id`` — then forbid the shape.
+    added (#2654). From here on a ``MODULE_UNIT_SPECIFIC`` row must carry it.
 
-    The check is added validating (not ``NOT VALID``): the table is small,
-    and a ``MODULE_UNIT_SPECIFIC`` row with no recoverable module id is
-    exactly the thing that must stop the deploy rather than pass quietly.
-    Pre-flight on each environment::
-
-        SELECT id, job_type, created_at
-        FROM data_ingestion_jobs
-        WHERE entity_type = 'MODULE_UNIT_SPECIFIC'
-          AND entity_id IS NULL
-          AND (meta -> 'config' ->> 'carbon_report_module_id') !~ '^[0-9]+$';
+    ``NOT VALID``, as in c1f2a3b4d5e6: binds every INSERT and UPDATE, skips
+    the table scan, and leaves the historical NULL rows alone — they are
+    finished jobs nobody streams or recovers, so scoping them buys nothing.
 
     Autogenerate also proposed dropping ``ix_classification_translations_label_trgm``
     and re-creating ``uq_emission_recalc_active_scoped`` with a differently
     formatted expression; both are false positives and were pruned.
     """
-    op.execute(
-        "UPDATE data_ingestion_jobs "
-        "SET entity_id = (meta -> 'config' ->> 'carbon_report_module_id')::int "
-        "WHERE entity_type = 'MODULE_UNIT_SPECIFIC' "
-        "AND entity_id IS NULL "
-        "AND (meta -> 'config' ->> 'carbon_report_module_id') ~ '^[0-9]+$'"
-    )
     op.create_check_constraint(
         "ck_data_ingestion_jobs_unit_specific_has_entity_id",
         "data_ingestion_jobs",
         "entity_type <> 'MODULE_UNIT_SPECIFIC' OR entity_id IS NOT NULL",
+        postgresql_not_valid=True,
     )
 
 
 def downgrade() -> None:
-    """Downgrade schema. The backfilled ids are left in place."""
+    """Downgrade schema."""
     op.drop_constraint(
         "ck_data_ingestion_jobs_unit_specific_has_entity_id",
         "data_ingestion_jobs",
