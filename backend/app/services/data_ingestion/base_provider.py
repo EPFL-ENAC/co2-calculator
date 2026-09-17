@@ -232,6 +232,8 @@ class DataIngestionProvider(ABC):
             ingestion_method=ingestion_method,
             data_entry_type_id=data_entry_type_id,
             entity_type=entity_type,
+            # The unit scope every /sync read gate resolves from (#2654).
+            entity_id=job_config.get("carbon_report_module_id"),
             target_type=target_type,
             state=IngestionState.NOT_STARTED,
             result=None,

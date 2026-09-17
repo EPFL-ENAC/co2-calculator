@@ -256,28 +256,28 @@ async def _check_job_scope(
 ) -> None:
     """Per-job permission gate (unit-scoped jobs only).
 
-    Layered on top of the existing ``backoffice.configuration.*`` global
-    gate so a user with backoffice access still has to clear the per-module
-    scope when a job is pinned to a specific unit (``MODULE_UNIT_SPECIFIC``).
-
     Jobs that are cross-unit (``MODULE_PER_YEAR`` aggregation/recalc) or
     unscoped (``unit_sync``, factor ingests not pinned to a module) are
-    gated by the global permission alone — the per-module path doesn't
-    apply.  Unit-scoped backoffice users only hold
-    ``modules.X/<institutional_id>`` permissions, so calling
-    ``check_module_permission(institutional_id=None)`` for a cross-unit
-    job would deny everyone except the (rare) operator with an unscoped
-    ``modules.X`` permission.
+    gated by the caller's route-level permission alone — there is no unit
+    to check.  A unit-pinned job (``MODULE_UNIT_SPECIFIC``) requires
+    ``modules.<name>/<unit>`` for that unit, or ``backoffice.configuration``
+    — the same bypass ``/dispatch`` grants, since backoffice roles hold no
+    ``modules.*`` keys and would otherwise be locked out of the unit-targeted
+    jobs they create (and of the ops-console Recover button).
     """
     if job.module_type_id is None:
         return
     institutional_id = await _institutional_id_for_job(job, db)
     if institutional_id is None:
-        # MODULE_PER_YEAR or unresolvable scope — the global
-        # backoffice.configuration gate already ran upstream via
-        # require_permission(...) and is the right granularity here.
         # TODO(#459): once sub-perimeter scoping ships, derive a
         # broader scope set from the job's module + year and tighten.
+        return
+    backoffice_action = "view" if action == "view" else "edit"
+    if has_permission(
+        current_user.calculate_permissions(),
+        "backoffice.configuration",
+        backoffice_action,
+    ):
         return
     await check_module_permission(
         current_user,
@@ -301,34 +301,15 @@ async def _check_pipeline_scope_from_jobs(
     avoids a redundant ``list_jobs_by_pipeline_id`` round-trip on every
     poll iteration).
 
-    Picks the parent job to derive ``(module_type_id, institutional_id)``:
-    prefer the latest ``aggregation`` job (the chain terminator that pins
-    the module + year scope), otherwise fall back to any job in the
-    pipeline so factor-only chains still resolve.
+    The scope is the root job's (lowest id, id-ascending list): it is the
+    one ``/dispatch`` gated, and the only one that carries the unit —
+    fan-out children (``emission_recalc``, ``aggregation``) are minted
+    ``MODULE_PER_YEAR`` with no ``entity_id``, so anchoring on them would
+    drop the unit scope the moment a pipeline fans out (#2654).
     """
     if not jobs:
         return
-    parent = next(
-        (j for j in reversed(jobs) if j.job_type == "aggregation"),
-        jobs[0],
-    )
-    await _check_job_scope(parent, current_user, db, action=action)
-
-
-async def _check_pipeline_scope(
-    pipeline_id: UUID,
-    current_user: User,
-    db: AsyncSession,
-    *,
-    action: str = "view",
-) -> None:
-    """Per-pipeline permission gate (fetches the job list itself).
-
-    Prefer ``_check_pipeline_scope_from_jobs`` when the caller has
-    already loaded the pipeline's jobs.
-    """
-    jobs = await DataIngestionRepository(db).list_jobs_by_pipeline_id(pipeline_id)
-    await _check_pipeline_scope_from_jobs(jobs, current_user, db, action=action)
+    await _check_job_scope(jobs[0], current_user, db, action=action)
 
 
 router = APIRouter()
@@ -1303,27 +1284,33 @@ async def job_stream_by_id(
             detail="Permission denied",
         )
 
-    # Up-front per-job scope check — drops a pool slot before the stream opens
-    # so cross-tenant subscriptions never hit the poll loop.
+    # Up-front 404 + per-job scope check — drops a pool slot before the
+    # stream opens so cross-tenant subscriptions never hit the poll loop.
+    # The 404 is symmetric with the pipeline stream and keeps the gate
+    # unconditional: a missing job used to skip it and open a stream.
     async with db_module.SessionLocal() as session:
         existing = await DataIngestionRepository(session).get_job_by_id(job_id)
-        if existing is not None:
-            # TODO(#459): tighten when sub-perimeter scoping ships
-            await _check_job_scope(existing, current_user, session, action="view")
-            # #1764 — _check_job_scope no-ops on jobs it can't narrow to a
-            # unit (MODULE_PER_YEAR and friends); this stream ships the
-            # job's full raw meta, so those need the same backoffice gate
-            # POST /sync/dispatch's global-dispatch path already requires.
-            institutional_id = await _institutional_id_for_job(existing, session)
-            if institutional_id is None and not has_permission(
-                current_user.calculate_permissions(),
-                "backoffice.configuration",
-                "view",
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Permission denied",
-                )
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job {job_id} not found",
+            )
+        # TODO(#459): tighten when sub-perimeter scoping ships
+        await _check_job_scope(existing, current_user, session, action="view")
+        # #1764 — _check_job_scope no-ops on jobs it can't narrow to a
+        # unit (MODULE_PER_YEAR and friends); this stream ships the
+        # job's full raw meta, so those need the same backoffice gate
+        # POST /sync/dispatch's global-dispatch path already requires.
+        institutional_id = await _institutional_id_for_job(existing, session)
+        if institutional_id is None and not has_permission(
+            current_user.calculate_permissions(),
+            "backoffice.configuration",
+            "view",
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission denied",
+            )
 
     async def event_generator():
         last_status = None
