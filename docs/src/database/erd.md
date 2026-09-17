@@ -197,6 +197,7 @@ erDiagram
     DATETIME last_heartbeat_at
     VARCHAR pod_id PK
     VARCHAR pod_ip
+    BOOLEAN runs_jobs
     DATETIME started_at
   }
   unit_users {
