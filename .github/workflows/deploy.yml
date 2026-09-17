@@ -47,19 +47,13 @@ jobs:
             *)            VERSION="$VERSION-$(echo "$GITHUB_REF_NAME" | tr '/' '-')" ;;
           esac
           echo "value=$VERSION" >> $GITHUB_OUTPUT
-  publish-chart:
-    uses: ./.github/workflows/publish_chart.yaml
-    with:
-      name: "co2-calculator"
-      registry: "epfl-enac/co2-calculator"
   deploy:
     needs:
-      - publish-chart
       - app-version
     permissions:
       contents: read
       packages: write
-    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v3.2.0
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v3.3.0
     secrets:
       token: ${{ secrets.CD_TOKEN }}
       registry_token: ${{ secrets.QUAY_TOKEN }}
@@ -68,7 +62,15 @@ jobs:
       REPO: co2-calculator
       build_context: '[ "./frontend", "./backend", "./docs" ]'
       helm_chart_name: co2-calculator
-      helm_chart_version: ${{ needs.publish-chart.outputs.chart_version }}
+      # The action packages and pushes the chart in a job that runs beside
+      # the image builds; only its update-manifest waits for it.
+      helm_chart_path: ./helm
+      # Smoke-test both secret paths. Default (external) needs a Secret name;
+      # chart-managed (dev) needs throwaway signing keys. Real deploys inject
+      # the real values.
+      helm_chart_render_args: |
+        --set backend.existingSecret.name=ci-existing-secret
+        --set backend.existingSecret.enabled=false --set backend.secrets.JWT_HMAC_KEY=ci-render-check --set backend.secrets.SESSION_HMAC_KEY=ci-render-check
       # Scan images in the build job, before push: fixable or not, HIGH/
       # CRITICAL findings block the rollout instead of alerting after it.
       skip_vulnerability_scan: false
