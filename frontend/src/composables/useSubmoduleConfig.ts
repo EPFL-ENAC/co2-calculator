@@ -1,5 +1,5 @@
+import { downloadLastCsv } from '@/composables/downloadLastCsv';
 import { computed, ref } from 'vue';
-import { lastJobForTarget } from '@/composables/lastJobForTarget';
 import { useRoute, useRouter } from 'vue-router';
 import {
   useBackofficeDataManagement,
@@ -90,22 +90,6 @@ export function useSubmoduleConfig() {
   function submoduleShowsImportRow(sub: SubmoduleConfig): boolean {
     const row = getImportRow(sub);
     return row.hasData || row.hasFactors || row.hasOtherUpload;
-  }
-
-  function downloadLastCsv(row: ImportRow, targetType: TargetType) {
-    const job = lastJobForTarget(row, targetType);
-    if (!job?.meta) return;
-    const jobMeta = job.meta as Record<string, unknown>;
-    const filePath = jobMeta?.processed_file_path as string;
-    if (!filePath) return;
-    const a = document.createElement('a');
-    // ``?d=true`` — see useUploadCard.downloadLastCsv for why (Safari
-    // strips the extension without backend Content-Disposition).
-    a.href = `/api/v1/files/${filePath}?d=true`;
-    a.download = filePath.split('/').pop() || filePath;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   }
 
   function getUnifiedModuleConfigFromSub(sub: SubmoduleConfig) {

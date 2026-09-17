@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { downloadBlob } from '@/utils/download';
 import {
   outlinedPictureAsPdf,
   outlinedTableChart,
@@ -79,15 +80,6 @@ function downloadPDF() {
     }).href;
     window.open(url, '_blank');
   }
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 async function downloadReport(format: 'csv' | 'json') {
@@ -180,13 +172,8 @@ async function downloadReport(format: 'csv' | 'json') {
         },
         format as ReportFormat,
       );
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
       const today = new Date().toISOString().slice(0, 10);
-      a.download = `audit_export_${today}.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `audit_export_${today}.${format}`);
       Notify.create({
         color: 'positive',
         message: t('audit_msg_exported', { format: format.toUpperCase() }),

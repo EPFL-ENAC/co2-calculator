@@ -243,9 +243,13 @@ export default {
     en: 'CSV upload coming soon (mocked UI only)',
     fr: 'Import CSV à venir (interface simulée)',
   },
-  common_download_csv_template_mock: {
+  common_download_csv_template_started: {
     en: 'CSV template download',
     fr: 'Téléchargement du modèle CSV',
+  },
+  common_download_failed: {
+    en: 'Download of {filename} failed',
+    fr: 'Le téléchargement de {filename} a échoué',
   },
   common_export_as_csv: {
     en: 'Export as CSV',

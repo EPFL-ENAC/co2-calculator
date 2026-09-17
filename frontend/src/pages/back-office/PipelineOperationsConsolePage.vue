@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { downloadFile } from '@/api/files';
 import {
   matCancel,
   matCheckCircle,
@@ -111,13 +112,8 @@ const { recovering, recoverJob } = usePipelineJobRecovery(() => store.fetch());
 // Processed-CSV download — surfaces ``meta.processed_file_path``
 // straight from the pipeline row so an operator triaging a stalled
 // or failed chain can grab the source CSV in one click.  Mirrors
-// the data-management ``downloadLastCsv`` flow:
-//
-// * ``?d=true`` flips the backend into download mode (sets
-//   ``Content-Disposition: attachment; filename="…"`` so Safari /
-//   Chrome both save with the original extension — see
-//   ``backend/app/api/v1/files.py``).
-// * ``a.download`` is a belt-and-braces fallback for older browsers.
+// the data-management ``downloadLastCsv`` flow: fetched as a Blob so
+// the request is observable and a failure throws (#2840).
 function processedCsvJob(p: PipelineListItem): PipelineJobListEntry | null {
   // Pick the FIRST job in id order that carries a processed_file_path.
   // For a typical chain that's the parent csv_ingest / factor_ingest
@@ -132,17 +128,12 @@ function processedCsvJob(p: PipelineListItem): PipelineJobListEntry | null {
   return null;
 }
 
-function downloadProcessedCsv(p: PipelineListItem): void {
+async function downloadProcessedCsv(p: PipelineListItem): Promise<void> {
   const j = processedCsvJob(p);
   if (!j) return;
   const filePath = (j.meta as Record<string, unknown>)
     .processed_file_path as string;
-  const a = document.createElement('a');
-  a.href = `/api/v1/files/${filePath}?d=true`;
-  a.download = filePath.split('/').pop() || filePath;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  await downloadFile(filePath);
 }
 
 const expanded = ref<Set<string>>(new Set());

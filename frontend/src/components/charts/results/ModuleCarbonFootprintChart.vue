@@ -60,7 +60,7 @@ import { formatTonnesForChart } from '@/utils/number';
 import { stackShade } from '@/utils/chart-shades';
 import { usePrintMode } from '@/composables/print/usePrintMode';
 import { downloadEchartAsPng } from '@/utils/chartDownload';
-import { downloadCsv, escapeCsvValue } from '@/utils/csvDownload';
+import { downloadCsv, escapeCsvValue } from '@/utils/download';
 
 const props = defineProps({
   breakdownData: {
