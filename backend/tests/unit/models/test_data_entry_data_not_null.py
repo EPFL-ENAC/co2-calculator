@@ -5,7 +5,7 @@ The prefill's server-side copy (``copy_module_entries``) builds the target
 ``{**None}`` is a ``TypeError`` — so the job failed loudly and nothing was
 written. SQL propagates instead: ``NULL || jsonb_build_object(...)`` is NULL.
 The copy would then succeed, the row would land with ``data = NULL``, and the
-only complaint would come later from ``_recalculate_report_emissions``, which
+only complaint would come later from ``recalculate_report_emissions``, which
 catches per-entry exceptions and continues. The job reports success while
 those entries price nothing — the same silent shape as #2546.
 

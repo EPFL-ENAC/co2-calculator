@@ -558,6 +558,53 @@ class CarbonReportModuleService:
             )
         return len(rows)
 
+    async def reset_equipment_to_per_line(
+        self, carbon_report_id: int, module_type_id: int
+    ) -> int | None:
+        """Undo the equipment module's global percentage (#2783).
+
+        Deletes every entry in the module — aggregate lines and any
+        hand-added ones alike — and rebuilds it from the reference year at
+        0%, restoring individually editable per-line snapshot rows.
+        Delegates to the same idempotent rebuild the initial plan prefill
+        uses (``SimulatorPlanService.prefill_module_from_reference``)
+        rather than a bespoke aggregate-only delete, so both paths stay one
+        implementation. Returns the number of rows restored, or None when
+        the module does not exist.
+        """
+        if module_type_id != ModuleTypeEnum.equipment.value:
+            raise ValueError(
+                "reset_equipment_to_per_line only supports the equipment "
+                f"module (module_type_id={ModuleTypeEnum.equipment.value}), "
+                f"got {module_type_id}"
+            )
+        module = await self.get_module(carbon_report_id, module_type_id)
+        if module is None or module.id is None:
+            return None
+        report = await CarbonReportRepository(self.session).get(carbon_report_id)
+        if report is None:
+            raise ValueError(f"Carbon report {carbon_report_id} not found")
+        logger.info(
+            f"Resetting report {sanitize(carbon_report_id)} module "
+            f"{sanitize(module_type_id)} to per-line from the reference year"
+        )
+        # Local import: simulator_plan_service -> carbon_report_service ->
+        # this module would be circular at top level (mirrors
+        # recompute_stats_many's CarbonReportService import above).
+        from app.services.simulator_plan_service import SimulatorPlanService
+
+        plan_service = SimulatorPlanService(self.session)
+        restored = await plan_service.prefill_module_from_reference(
+            report, module_type_id, plan_module=module
+        )
+        # prefill only inserts the copied rows at zero emissions; compute
+        # them the same way the full plan prefill does right after
+        # (factor lookup follows the reference year and can span modules,
+        # so this is a report-wide recompute, not a module-scoped one —
+        # already batched, not a per-entry loop, see its own docstring).
+        await plan_service.recalculate_report_emissions(report)
+        return restored
+
     async def update_submodule_budget(
         self,
         carbon_report_id: int,

@@ -2,13 +2,13 @@
 
 Confirms, by measurement, the four static findings listed in
 ``docs/src/implementation-plans/2050-backend-compute-performance.md``
-section C3, and pins the fix: ``_recalculate_report_emissions`` now shares
+section C3, and pins the fix: ``recalculate_report_emissions`` now shares
 a ``FactorResolver``/factor-query cache and does one set-based delete +
 bulk insert instead of a per-entry factor lookup + SELECT-then-DELETE.
 
 Finding #2 (duplicate ``list_by_module`` call) and finding #3's own N+1
 (``_persist_prefill_entries`` never got the ``override_cache`` batching
-applied to ``_recalculate_report_emissions``) are fixed here too — a
+applied to ``recalculate_report_emissions``) are fixed here too — a
 production trace of a ~1000-entry plan hit exactly this: the request's
 first ~70s produced zero DB spans because the *prefill* phase, not the
 recalc phase, was issuing the per-entry ``session.get`` + sum-query
@@ -157,7 +157,7 @@ class StatementLog:
         override_cache``'s batched GROUP BY sum over prefill sources.
         Alongside the pre-existing O(1) stats-rollup SELECT
         (``recompute_stats_many``), this now settles at <=2 per isolated
-        ``_recalculate_report_emissions`` call — constant, not per-entry,
+        ``recalculate_report_emissions`` call — constant, not per-entry,
         instead of the old N+1. ``_prefill_reference_modules`` settles at
         its own higher-but-still-constant value instead (13 in this file's
         fixture): one stats-rollup SELECT per reference-scoped *module
@@ -237,7 +237,7 @@ async def _reference_report_with_entries(
     """A Calculator report for ``unit_id`` / ``year`` with ``count``
     process-emissions entries — the reference year copied by
     ``_prefill_reference_modules`` and then recomputed by
-    ``_recalculate_report_emissions``.
+    ``recalculate_report_emissions``.
 
     ``unit_id`` must be distinct per measurement in a shared in-memory DB:
     ``get_calculator_report(unit_id, year)`` is looked up by that pair, so
@@ -281,7 +281,7 @@ async def _plan_with_year(
     return plan
 
 
-# ── Finding #1: _recalculate_report_emissions was an N+1 per entry ────────────
+# ── Finding #1: recalculate_report_emissions was an N+1 per entry ────────────
 
 
 async def _measure_set_reference_year(
@@ -306,7 +306,7 @@ async def test_set_reference_year_statement_count_vs_entry_count(
     """End-to-end reproduction of the profiled PATCH request.
 
     Regression test for finding #1: before the fix,
-    ``_recalculate_report_emissions`` built a fresh ``FactorResolver`` per
+    ``recalculate_report_emissions`` built a fresh ``FactorResolver`` per
     entry (no shared cache) and did a per-entry DELETE+INSERT inside
     ``upsert_by_data_entry``, so statement count scaled ~linearly with
     entry count. After the fix, statement count grows with the number of
@@ -338,15 +338,15 @@ async def test_set_reference_year_statement_count_vs_entry_count(
         f"statement count scales with entry count "
         f"({small.total} -> {large.total} for 10 -> 50 entries): "
         "finding #1 regressed (no factor_resolver/cache reuse in "
-        "_recalculate_report_emissions)"
+        "recalculate_report_emissions)"
     )
 
 
 @pytest.mark.asyncio
-async def test_recalculate_report_emissions_isolated_statement_count(
+async def testrecalculate_report_emissions_isolated_statement_count(
     engine, async_session, user
 ):
-    """Same measurement, isolated to ``_recalculate_report_emissions`` alone
+    """Same measurement, isolated to ``recalculate_report_emissions`` alone
     (reference year already set, prefill already done) — attributes the
     fixed cost to that method specifically rather than the prefill step.
     """
@@ -364,19 +364,19 @@ async def test_recalculate_report_emissions_isolated_statement_count(
         reports = await service.repo.list_reports_for_project(plan.id)
         db_report = next(r for r in reports if r.id == report.id)
         with count_statements(engine) as log:
-            await service._recalculate_report_emissions(db_report)  # noqa: SLF001
+            await service.recalculate_report_emissions(db_report)
         return log
 
     small = await isolated_recalc(10, unit_id=11)
     large = await isolated_recalc(50, unit_id=12)
 
-    print("\n[isolated _recalculate_report_emissions]")
+    print("\n[isolated recalculate_report_emissions]")
     print(f"N=10  {small.breakdown()}")
     print(f"N=50  {large.breakdown()}")
     print(f"ratio={large.total / small.total:.2f}")
 
     assert large.total < small.total * 2, (
-        f"_recalculate_report_emissions alone scales with entry count "
+        f"recalculate_report_emissions alone scales with entry count "
         f"({small.total} -> {large.total}): finding #1 regressed"
     )
 
@@ -401,7 +401,7 @@ async def _seed_process_emissions_factor(async_session, *, year: int = 2024) -> 
 
 
 @pytest.mark.asyncio
-async def test_recalculate_report_emissions_large_n_delete_breakdown(
+async def testrecalculate_report_emissions_large_n_delete_breakdown(
     engine, async_session, user
 ):
     """Larger-N confirmation: does the fix hold well past the small-N
@@ -410,7 +410,7 @@ async def test_recalculate_report_emissions_large_n_delete_breakdown(
 
     A matching Factor is seeded (see ``_seed_process_emissions_factor``) so
     entries actually compute and persist emissions on the first pass; the
-    *second* ``_recalculate_report_emissions`` call is the one measured, so
+    *second* ``recalculate_report_emissions`` call is the one measured, so
     there are real existing emission rows to replace — the production
     shape (a reference year that already has computed emissions, changed
     again). 8000 was the original production-scale number the bug was
@@ -438,11 +438,11 @@ async def test_recalculate_report_emissions_large_n_delete_breakdown(
         reports = await service.repo.list_reports_for_project(plan.id)
         db_report = next(r for r in reports if r.id == report.id)
         # First pass: computes + persists real emissions (not measured).
-        await service._recalculate_report_emissions(db_report)  # noqa: SLF001
+        await service.recalculate_report_emissions(db_report)
         # Second pass: the one that matters — every entry now has an
         # existing emission row for the delete half of the replace to find.
         with count_statements(engine) as log:
-            await service._recalculate_report_emissions(db_report)  # noqa: SLF001
+            await service.recalculate_report_emissions(db_report)
         return log
 
     small = await isolated_recalc(200, unit_id=21)
@@ -507,7 +507,7 @@ async def test_percentage_override_cache_matches_uncached_path(async_session, us
     ref_report, _ref_module = await _reference_report_with_entries(
         service, async_session, count=5, unit_id=41
     )
-    await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await service.recalculate_report_emissions(ref_report)
     await _validate_modules(async_session, ref_report.id)
 
     plan = await _plan_with_year(service, user, "equiv", year=2027, unit_id=41)
@@ -549,7 +549,7 @@ async def test_percentage_override_cache_matches_uncached_path(async_session, us
 
 
 @pytest.mark.asyncio
-async def test_recalculate_report_emissions_empty_still_refreshes_report_stats(
+async def testrecalculate_report_emissions_empty_still_refreshes_report_stats(
     async_session, user, monkeypatch: pytest.MonkeyPatch
 ):
     """Regression: the empty-entries early return must not skip the
@@ -578,7 +578,7 @@ async def test_recalculate_report_emissions_empty_still_refreshes_report_stats(
         service.report_service, "recompute_report_stats", counting_recompute
     )
 
-    await service._recalculate_report_emissions(report)  # noqa: SLF001
+    await service.recalculate_report_emissions(report)
 
     assert calls == [report.id], (
         f"expected recompute_report_stats(report.id) to run even with no "
@@ -605,7 +605,7 @@ async def test_set_reference_year_defers_prefill_instead_of_running_it(
     ref_report, _ = await _reference_report_with_entries(
         service, async_session, count=3, unit_id=91
     )
-    await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await service.recalculate_report_emissions(ref_report)
     await _validate_modules(async_session, ref_report.id)
     plan = await _plan_with_year(service, user, "f4-defer", year=2027, unit_id=91)
 
@@ -643,7 +643,7 @@ async def test_prefill_reports_is_idempotent_on_retry(async_session, user):
     ref_report, _ = await _reference_report_with_entries(
         service, async_session, count=3, unit_id=92
     )
-    await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await service.recalculate_report_emissions(ref_report)
     await _validate_modules(async_session, ref_report.id)
     plan = await _plan_with_year(service, user, "f4-retry", year=2027, unit_id=92)
 
@@ -679,7 +679,7 @@ async def test_sync_year_reports_computes_emissions_in_one_batched_pass(
     ``FactorResolver`` + factor-query cache and a single-module
     ``recompute_stats_many`` for every module of every year. It now mirrors
     ``set_reference_year`` — insert the rows, then one
-    ``_recalculate_report_emissions`` for the report — which shares one
+    ``recalculate_report_emissions`` for the report — which shares one
     resolver/cache across every module and ends in one batched stats pass.
 
     Before the fix ``_prepare_recalc_emissions`` was never reached from this
@@ -726,7 +726,7 @@ async def test_sync_year_reports_emissions_are_correct(async_session, user):
     ref_report, _ = await _reference_report_with_entries(
         service, async_session, count=2, unit_id=74
     )
-    await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await service.recalculate_report_emissions(ref_report)
     await _validate_modules(async_session, ref_report.id)
 
     plan = await service.create_plan(unit_id=74, user=user, name="f2-correct")
@@ -765,7 +765,7 @@ async def test_set_reference_year_produces_correct_emissions_without_prefill_com
 ):
     """Correctness, not just call-count: skipping prefill's own compute
     (tier 1) must not change the final emitted kg values —
-    ``_recalculate_report_emissions`` alone must produce the same answer a
+    ``recalculate_report_emissions`` alone must produce the same answer a
     prefill-then-recalc double-compute would have.
     """
     service = SimulatorPlanService(async_session)
@@ -773,7 +773,7 @@ async def test_set_reference_year_produces_correct_emissions_without_prefill_com
     ref_report, _ = await _reference_report_with_entries(
         service, async_session, count=2, unit_id=73
     )
-    await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+    await service.recalculate_report_emissions(ref_report)
     await _validate_modules(async_session, ref_report.id)
 
     plan = await service.create_plan(unit_id=73, user=user, name="tier1-correct")
@@ -810,7 +810,7 @@ async def test_modules_left_empty_by_prefill_still_get_their_stats_refreshed(
     """Every module prefill leaves empty must still be refreshed — in ONE call.
 
     An empty module never appears in the later
-    ``_recalculate_report_emissions``'s entry-driven module set, so prefill
+    ``recalculate_report_emissions``'s entry-driven module set, so prefill
     is its only chance to reflect "now empty" stats. Each such module used
     to issue its own single-module ``recompute_stats_many``; they are now
     batched (plan #2050 Track F6), so this pins both halves — the modules
@@ -1042,12 +1042,12 @@ async def test_sync_year_reports_statement_count_vs_year_count(
 # ── Finding #3: _prefill_reference_modules had its own N+1, fixed ─────────────
 # Every prefill copy carries source_data_entry_id (finding #2's own subject),
 # and _persist_prefill_entries never got the override_cache batching applied
-# to _recalculate_report_emissions — so the *prefill* phase, not recalc,
+# to recalculate_report_emissions — so the *prefill* phase, not recalc,
 # re-triggered the per-entry session.get + sum-query fallback for every row.
 # This is what a production ~1000-entry plan-year PATCH actually spent its
 # first ~70s of DB-silent time on: prefill runs before recalc, so its cost
 # fell outside the C3 finding-#1 measurement (which isolates
-# _recalculate_report_emissions alone, after prefill has already run).
+# recalculate_report_emissions alone, after prefill has already run).
 
 
 @pytest.mark.asyncio
@@ -1076,7 +1076,7 @@ async def test_prefill_reference_modules_isolated_statement_count(
         ref_report, _ref_module = await _reference_report_with_entries(
             service, async_session, entry_count, unit_id=unit_id
         )
-        await service._recalculate_report_emissions(ref_report)  # noqa: SLF001
+        await service.recalculate_report_emissions(ref_report)
         await _validate_modules(async_session, ref_report.id)
         plan = await _plan_with_year(
             service, user, f"prefill-{entry_count}", year=2027, unit_id=unit_id
@@ -1124,7 +1124,7 @@ async def test_prefill_reference_modules_isolated_statement_count(
 
 
 @pytest.mark.asyncio
-async def test_recalculate_report_emissions_scales_for_purchase_module_too(
+async def testrecalculate_report_emissions_scales_for_purchase_module_too(
     engine, async_session, user
 ):
     """The fix is not specific to process_emissions: statement count stays
@@ -1134,7 +1134,7 @@ async def test_recalculate_report_emissions_scales_for_purchase_module_too(
     Purchase is manual-input, not prefilled from a reference year (see
     ``_prefill_reference_modules``'s docstring — it is wiped on a baseline
     change but never rebuilt), so entries are added directly to the
-    plan-year report's own purchase module, and ``_recalculate_report_emissions``
+    plan-year report's own purchase module, and ``recalculate_report_emissions``
     is called directly rather than through ``set_reference_year``.
     """
     # No reference year and no Calculator report (#2651): factor pricing
@@ -1173,7 +1173,7 @@ async def test_recalculate_report_emissions_scales_for_purchase_module_too(
             )
         await async_session.flush()
         with count_statements(engine) as log:
-            await service._recalculate_report_emissions(report)  # noqa: SLF001
+            await service.recalculate_report_emissions(report)
         return log
 
     small = await isolated_recalc(10, unit_id=31)

@@ -803,11 +803,18 @@ async function confirmEquipmentSwitch() {
   switchingEquipmentMode.value = true;
   try {
     await deleteManualEquipmentRows();
-    await plansStore.setModuleReferencePercentage(
-      props.yearData.id,
-      entry.module.module_type_id,
-      0,
-    );
+    if (next === 'global') {
+      await plansStore.setModuleReferencePercentage(
+        props.yearData.id,
+        entry.module.module_type_id,
+        0,
+      );
+    } else {
+      await plansStore.resetEquipmentToPerLine(
+        props.yearData.id,
+        entry.module.module_type_id,
+      );
+    }
     const budgets = entry.module.budgets ?? {};
     for (const key of abandonedBudgetKeys(equipmentMode.value)) {
       if (budgets[key] == null) continue;

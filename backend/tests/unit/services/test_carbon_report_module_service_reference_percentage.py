@@ -207,6 +207,25 @@ async def _manual_row(async_session, module_id, data_entry_type):
     return row
 
 
+async def _reference_equipment_row(async_session, ref_module_id, unit_id, year):
+    """A real reference-year equipment entry to restore into per-line mode.
+
+    No matching factor exists in this lightweight sqlite fixture, so the
+    recompute after copying prices it at 0 kg — irrelevant here, this only
+    exercises row restoration (``source_data_entry_id``/reset), not pricing.
+    """
+    row = DataEntry(
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        carbon_report_module_id=ref_module_id,
+        unit_id=unit_id,
+        year=year,
+        data={"active_usage_hours": 40, "passive_usage_hours": 128},
+    )
+    async_session.add(row)
+    await async_session.flush()
+    return row
+
+
 @pytest.mark.asyncio
 async def test_aggregate_lines_written_per_type_present(async_session, user):
     report, plan_module, ref_module = await _plan_report_with_equipment(
@@ -362,6 +381,64 @@ async def test_statement_count_is_flat_regardless_of_legacy_row_count(
         f"query count grew with row count: {log_small.total} -> {log_large.total}\n"
         f"small={log_small.statements}\nlarge={log_large.statements}"
     )
+
+
+@pytest.mark.asyncio
+async def test_reset_restores_per_line_rows_from_reference(async_session, user):
+    report, plan_module, ref_module = await _plan_report_with_equipment(
+        async_session, user
+    )
+    ref_row = await _reference_equipment_row(
+        async_session, ref_module.id, unit_id=1, year=2024
+    )
+    await _set_stats(async_session, ref_module.id, {SCIENTIFIC_ET: 1000.0})
+    module_service = CarbonReportModuleService(async_session)
+    await module_service.set_reference_percentage_all(
+        report.id, int(ModuleTypeEnum.equipment), 25.0
+    )
+    manual = await _manual_row(async_session, plan_module.id, DataEntryTypeEnum.other)
+
+    restored = await module_service.reset_equipment_to_per_line(
+        report.id, int(ModuleTypeEnum.equipment)
+    )
+    assert restored == 1
+
+    rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.id != manual.id
+    assert row.data["source_data_entry_id"] == ref_row.id
+    assert row.data["percentage_of_reference_year"] == 0
+    assert row.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+
+
+@pytest.mark.asyncio
+async def test_reset_with_no_reference_entries_empties_module(async_session, user):
+    report, plan_module, ref_module = await _plan_report_with_equipment(
+        async_session, user
+    )
+    await _set_stats(async_session, ref_module.id, {SCIENTIFIC_ET: 1000.0})
+    module_service = CarbonReportModuleService(async_session)
+    await module_service.set_reference_percentage_all(
+        report.id, int(ModuleTypeEnum.equipment), 25.0
+    )
+
+    restored = await module_service.reset_equipment_to_per_line(
+        report.id, int(ModuleTypeEnum.equipment)
+    )
+    assert restored == 0
+    rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_reset_rejects_non_equipment_module(async_session, user):
+    report, _, _ = await _plan_report_with_equipment(async_session, user)
+    module_service = CarbonReportModuleService(async_session)
+    with pytest.raises(ValueError, match="equipment"):
+        await module_service.reset_equipment_to_per_line(
+            report.id, int(ModuleTypeEnum.headcount)
+        )
 
 
 @pytest.mark.asyncio
