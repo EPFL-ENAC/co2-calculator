@@ -400,6 +400,43 @@ class DataEntryRepository:
         await self.session.execute(statement)
         await self.session.flush()
 
+    async def get_percentage_aggregate_entry(
+        self, carbon_report_module_id: int, data_entry_type_id: int
+    ) -> DataEntry | None:
+        """The one global-percentage aggregate row for a type, if any.
+
+        #2783: an aggregate row carries ``percentage_of_reference_year``
+        but no ``source_data_entry_id`` (it represents the reference
+        year's whole total for the type, not one source line) — see
+        docs/src/implementation-plans/
+        2783-equipment-global-percentage-aggregate-line.md.
+        """
+        statement = select(DataEntry).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+            DataEntry.data["source_data_entry_id"].as_string().is_(None),
+            DataEntry.data["percentage_of_reference_year"].as_string().isnot(None),
+        )
+        result = await self.session.exec(statement)
+        return result.first()
+
+    async def delete_legacy_percentage_snapshots(
+        self, carbon_report_module_id: int
+    ) -> int:
+        """Delete leftover per-line snapshot rows (both keys set) — #2783.
+
+        A one-time cleanup the first time a module's global-percentage
+        PATCH runs after the aggregate-line rewrite; a module already on
+        the aggregate shape has none of these.
+        """
+        statement = delete(DataEntry).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            DataEntry.data["source_data_entry_id"].as_string().isnot(None),
+            DataEntry.data["percentage_of_reference_year"].as_string().isnot(None),
+        )
+        result = await self.session.execute(statement)
+        return getattr(result, "rowcount", 0) or 0
+
     async def bulk_delete_by_modules(self, carbon_report_module_ids: list[int]) -> int:
         """Delete every data entry of the given modules. Returns the row count.
 
