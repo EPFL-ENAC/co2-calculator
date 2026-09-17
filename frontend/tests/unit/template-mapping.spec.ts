@@ -36,7 +36,7 @@ import { getTemplateFileName } from '../../src/constant/templateMapping';
 
 const TEMPLATES_DIR = join(
   dirname(fileURLToPath(import.meta.url)),
-  '../../public/templates',
+  '../../src/assets/templates',
 );
 
 const TABLE_COMBOS: [Module, AllSubmoduleTypes][] = [
@@ -75,7 +75,7 @@ for (const [moduleType, submoduleType] of TABLE_COMBOS) {
     expect(fileName, 'download button resolves to no template').toBeTruthy();
     expect(
       existsSync(join(TEMPLATES_DIR, fileName as string)),
-      `${fileName} is not in public/templates`,
+      `${fileName} is not in src/assets/templates`,
     ).toBe(true);
   });
 }
