@@ -45,6 +45,29 @@ EMISSION_RECALC_SCOPED_SQL = (
 # ``expr::type``, and they are harmless in the pre-check's WHERE.
 EMISSION_RECALC_SCOPE_EXPR = "((meta -> 'config' -> 'carbon_report_module_ids')::jsonb)"
 
+# States a pending child can be in for a new ``chain_job`` to collapse
+# onto it.  The partial unique indexes below and the pre-check in
+# ``app.tasks._chain`` are built from the same tuples, so they cannot
+# disagree on which rows dedup.
+ACTIVE_JOB_STATES = ("NOT_STARTED", "QUEUED", "RUNNING")
+# #2847 — a unit-specific ingest no longer waits for the module lock, so
+# its rows can commit after a RUNNING scoped recalc already read the
+# module.  Collapsing onto that RUNNING row would leave the new rows
+# without emissions, so the scoped index only dedups onto children that
+# have not started; the new child then queues behind the running one on
+# the recalc's own module lock.  Unscoped recalcs keep RUNNING: their
+# writer (``factor_ingest``) holds the exclusive gate until they commit.
+EMISSION_RECALC_SCOPED_ACTIVE_STATES = ("NOT_STARTED", "QUEUED")
+
+
+def active_states_sql(states: tuple[str, ...]) -> str:
+    """Render a state tuple as the ``IN (...)`` list the indexes use."""
+    return ", ".join(f"'{state}'::ingestion_state_enum" for state in states)
+
+
+_ACTIVE_STATES_SQL = active_states_sql(ACTIVE_JOB_STATES)
+_SCOPED_ACTIVE_STATES_SQL = active_states_sql(EMISSION_RECALC_SCOPED_ACTIVE_STATES)
+
 
 # ==========================================
 # 0. ENUMERATIONS
@@ -436,12 +459,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
             "year",
             unique=True,
             postgresql_where=text(
-                "job_type = 'aggregation' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum"
-                ")"
+                f"job_type = 'aggregation' AND state IN ({_ACTIVE_STATES_SQL})"
             ),
         ).ddl_if(dialect="postgresql"),
         Index(
@@ -452,11 +470,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
             unique=True,
             postgresql_where=text(
                 "job_type = 'emission_recalc' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum"
-                ") "
+                f"AND state IN ({_ACTIVE_STATES_SQL}) "
                 "AND module_type_id IS NOT NULL "
                 "AND data_entry_type_id IS NOT NULL "
                 "AND year IS NOT NULL "
@@ -468,6 +482,8 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
         # only.  Two units stay disjoint — the bug this pair replaced —
         # while one unit re-uploading the same module twice still
         # collapses, which is what the fleet-wide index used to give it.
+        # Only onto a child that has not started (#2847): see
+        # ``EMISSION_RECALC_SCOPED_ACTIVE_STATES``.
         Index(
             "uq_emission_recalc_active_scoped",
             "module_type_id",
@@ -477,11 +493,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
             unique=True,
             postgresql_where=text(
                 "job_type = 'emission_recalc' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum"
-                ") "
+                f"AND state IN ({_SCOPED_ACTIVE_STATES_SQL}) "
                 "AND module_type_id IS NOT NULL "
                 "AND data_entry_type_id IS NOT NULL "
                 "AND year IS NOT NULL "

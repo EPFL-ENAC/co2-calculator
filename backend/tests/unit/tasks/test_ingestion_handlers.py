@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.models.data_ingestion import IngestionResult
+from app.models.data_ingestion import EntityType, IngestionResult
 from app.tasks import ingestion_tasks as ingest_mod
 from app.tasks.registry import _REGISTRY, get_handler
 
@@ -960,6 +960,43 @@ async def test_csv_ingest_handler_passes_its_module_pin_to_the_lock(
 
     mock_lock.assert_awaited_once()
     assert mock_lock.await_args.kwargs["carbon_report_module_id"] == expected_pin
+
+
+@pytest.mark.parametrize(
+    ("entity_type", "expected_module_write"),
+    [
+        (EntityType.MODULE_UNIT_SPECIFIC, False),
+        (EntityType.MODULE_PER_YEAR, True),
+    ],
+)
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_locks_the_module_only_when_it_rewrites_it(
+    entity_type, expected_module_write
+):
+    """#2847 — a unit-specific upload is append-only, so it must not wait
+    on the module: same-unit uploads insert concurrently and only their
+    chained recalc serialises. A per-year upload replaces the slice and
+    keeps the write lock.
+    """
+    job = _make_job(
+        meta={"provider_name": "FakeCSV", "config": {"carbon_report_module_id": 101}}
+    )
+    job.entity_type = entity_type
+    _, fake_class = _patch_provider(success=True)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
+        patch.object(
+            ingest_mod, "acquire_factor_recalc_lock", new_callable=AsyncMock
+        ) as mock_lock,
+    ):
+        await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_lock.assert_awaited_once()
+    assert mock_lock.await_args.kwargs["module_write"] is expected_module_write
 
 
 @pytest.mark.asyncio

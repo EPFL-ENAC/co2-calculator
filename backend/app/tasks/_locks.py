@@ -88,6 +88,7 @@ async def acquire_factor_recalc_lock(
     year: int | None,
     handler_label: str,
     carbon_report_module_id: int | None = None,
+    module_write: bool = True,
 ) -> None:
     """Acquire the factor gate for the duration of the caller's transaction.
 
@@ -97,6 +98,11 @@ async def acquire_factor_recalc_lock(
     which is what a factor writer and a whole-slice recalc need. Callers
     that cannot narrow their scope must pass ``None``: over-serialising
     is slow, under-locking writes duplicate rows.
+
+    ``module_write=False`` (#2847) → the caller only appends rows nobody
+    else rewrites (a unit-specific ingest), so it takes the shared factor
+    gate alone and never waits on the module. Serialisation of the
+    rewrite moves to the recalc it chains, which still locks the module.
 
     No-op on non-Postgres or when scope is missing (defensive: skip
     rather than crash a job whose scope wasn't set — such a job is
@@ -116,14 +122,15 @@ async def acquire_factor_recalc_lock(
     key = _encode_module_year_key(int(module_type_id), int(year))
     locks = [(_LOCK_EXCLUSIVE_SQL, _FACTOR_RECALC_LOCK_CATEGORY, key)]
     if carbon_report_module_id is not None:
-        locks = [
-            (_LOCK_SHARED_SQL, _FACTOR_RECALC_LOCK_CATEGORY, key),
+        locks = [(_LOCK_SHARED_SQL, _FACTOR_RECALC_LOCK_CATEGORY, key)]
+    if carbon_report_module_id is not None and module_write:
+        locks.append(
             (
                 _LOCK_EXCLUSIVE_SQL,
                 _MODULE_WRITE_LOCK_CATEGORY,
                 int(carbon_report_module_id),
-            ),
-        ]
+            )
+        )
     for sql, category, lock_key in locks:
         await data_session.execute(sql, {"cat": category, "key": lock_key})
     logger.debug(
