@@ -50,10 +50,20 @@ summary: "Travel map broke because maplibre's ES-module worker was served as app
    template file name for the user.
 6. **`public/` keeps only `injectEnv.js`** (runtime config, served from
    `/tmp` by an exact-match location) and a plain `favicon.ico` for clients
-   that probe `/favicon.ico` without reading `index.html`.
+   that probe `/favicon.ico` without reading `index.html`. `index.html` links
+   it as `favicon.ico?v=<%= appVersion %>` (Quasar `htmlVariables`, fed by the
+   same git SHA as `APP_VERSION`), and `location = /favicon.ico` caches it
+   for a day: releases bust it through the query, bare probes wait a day.
 7. The glob lives in `ModuleTable.vue`, not `templateMapping.ts`: the latter
    is imported by a Node-side Playwright test that cannot evaluate
    `import.meta.glob` (same constraint as `mergeLivePipelineJob`).
+8. **The template directory is checked from both sides.**
+   `backend/tests/unit/test_shipped_csv_templates.py` runs every CSV on disk
+   through the ingestion parser (it lives in the backend because the parser
+   does). `frontend/tests/unit/template-mapping.spec.ts` asserts the mapping
+   and the directory agree exactly via the exported `SHIPPED_TEMPLATES`. A
+   moved directory, an orphan file or a dangling entry (the old
+   `equipments_template.csv` default, removed here) fails both suites.
 
 ## Delivered
 

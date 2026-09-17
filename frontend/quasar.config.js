@@ -92,6 +92,10 @@ export default defineConfig(function () {
     extras: [],
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
+    // Exposed to index.html as <%= appVersion %> so unhashed public/ files
+    // (favicon.ico) get a cache-busting query without anyone remembering.
+    htmlVariables: { appVersion: APP_VERSION },
+
     build: {
       target: {
         browser: ['es2019', 'edge88', 'firefox78', 'chrome87', 'safari13.1'],

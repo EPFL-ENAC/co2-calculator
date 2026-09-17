@@ -62,9 +62,16 @@ const TEMPLATE_MAP: Record<string, string> = {
 // Modules whose submodule determines the template — fall back to a default when no submodule matches
 const MODULE_DEFAULTS: Partial<Record<Module, string>> = {
   [MODULES.Purchase]: 'purchases_common_template.csv',
-  [MODULES.Equipment]: 'equipments_template.csv',
   [MODULES.ProcessEmissions]: 'processemissions_template.csv',
 };
+
+// Every template the build ships. tests/unit/template-mapping.spec.ts checks
+// this against the directory in both directions so a mapped-but-missing or
+// shipped-but-unreachable file fails the suite instead of a user's click.
+export const SHIPPED_TEMPLATES: ReadonlySet<string> = new Set([
+  ...Object.values(TEMPLATE_MAP),
+  ...Object.values(MODULE_DEFAULTS),
+]);
 
 export function getTemplateFileName(
   moduleType: Module,

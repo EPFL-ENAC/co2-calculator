@@ -14,7 +14,7 @@
  * out. When you add a submodule table with the toolbar, add it here and
  * map its template.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,7 +32,10 @@ import {
   SUBMODULE_RESEARCH_FACILITIES_TYPES,
 } from '../../src/constant/modules';
 import type { AllSubmoduleTypes, Module } from '../../src/constant/modules';
-import { getTemplateFileName } from '../../src/constant/templateMapping';
+import {
+  getTemplateFileName,
+  SHIPPED_TEMPLATES,
+} from '../../src/constant/templateMapping';
 
 const TEMPLATES_DIR = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -79,3 +82,17 @@ for (const [moduleType, submoduleType] of TABLE_COMBOS) {
     ).toBe(true);
   });
 }
+
+// Mirror of backend/tests/unit/test_shipped_csv_templates.py, which walks the
+// same directory: here the mapping and the directory must agree exactly, so a
+// moved directory, a deleted file or an orphan template fails loudly.
+test('the template directory and the mapping agree exactly', () => {
+  const onDisk = readdirSync(TEMPLATES_DIR)
+    .filter((name) => name.endsWith('.csv'))
+    .sort();
+  expect(
+    onDisk.length,
+    `no templates found in ${TEMPLATES_DIR}`,
+  ).toBeGreaterThan(0);
+  expect(onDisk).toEqual([...SHIPPED_TEMPLATES].sort());
+});

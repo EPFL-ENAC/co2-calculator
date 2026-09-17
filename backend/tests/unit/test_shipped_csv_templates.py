@@ -4,6 +4,11 @@ Every file under ``frontend/src/assets/templates`` is what a user downloads,
 fills in and uploads back, so it has to survive the same decode/parse path
 as any other upload. #2026 shipped a pack that failed on all three counts
 at once (latin-1 bytes, US-format dates, instruction rows read as data).
+
+It lives in the backend, not the frontend, because the parser it exercises
+(``app.utils.csv_dialect``) lives here: the frontend only serves the files
+and cannot run the ingestion path. Reaching into ``frontend/`` is the
+cross-package cost of that; ``_templates`` raises if the directory moves.
 """
 
 import csv
