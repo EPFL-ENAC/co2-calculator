@@ -1,9 +1,6 @@
 # Stage 1: Build MkDocs site
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS builder
 
-# Install git (required for mkdocs-git-authors-plugin)
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
-
 # Set working directory
 WORKDIR /app
 
@@ -24,10 +21,12 @@ COPY src/ ./src/
 # break this image the way hooks.py did.
 COPY mkdocs.yml *.py ./
 
-# Initialize git repo for mkdocs-git-authors-plugin (required even if not using real git history)
-RUN git init . && git config user.email "build@localhost" && git config user.name "Build" && git add . && git commit -m "Build commit"
-
-# Set GitPython to quiet mode
+# The git plugins and minify are skipped here (see mkdocs.yml): the build
+# context has no git history, so they only produced the build date and a
+# fake author while tripling the build time.
+ENV MKDOCS_FULL_BUILD=false
+# GitPython (pulled in by the git plugins) probes for a git binary at import
+# time, before mkdocs reads `enabled`. Quiet keeps the import from raising.
 ENV GIT_PYTHON_REFRESH=quiet
 
 # Build documentation site

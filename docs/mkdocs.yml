@@ -196,20 +196,26 @@ plugins:
       scripts:
         - gen_indexes.py
   - literate-nav
+  # MKDOCS_FULL_BUILD=false (set in docs/Dockerfile) skips the three plugins
+  # below. The two git plugins cost ~25s of a ~33s build and the image has
+  # no git history to read, so they only ever produced the build date and
+  # the author "Build" there. Minify costs ~3s; nginx gzips the same bytes.
   - git-authors:
+      enabled: !ENV [MKDOCS_FULL_BUILD, true]
       # Auto-generated INDEX.md files live in a temp dir from gen-files
       # and have no git history. Don't escalate that to a build error.
       strict: false
       fallback_to_empty: true
   - git-revision-date-localized:
+      enabled: !ENV [MKDOCS_FULL_BUILD, true]
       fallback_to_build_date: true
       locale: en
       timezone: Europe/Zurich
       strict: false
   - minify:
-      minify_html: true
-      minify_css: true
-      minify_js: true
+      minify_html: !ENV [MKDOCS_FULL_BUILD, true]
+      minify_css: !ENV [MKDOCS_FULL_BUILD, true]
+      minify_js: !ENV [MKDOCS_FULL_BUILD, true]
 
 # Auto-generated section indexes are intentionally excluded from `nav:`;
 # whitelist them so `mkdocs build --strict` keeps passing.
