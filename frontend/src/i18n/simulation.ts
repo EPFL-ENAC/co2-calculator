@@ -359,8 +359,8 @@ export default {
     fr: 'Budget total',
   },
   planner_grant_budget_hint: {
-    en: 'Set the total budget of the grant, then distribute it in the sections below.',
-    fr: 'Saisissez le budget total du financement, puis répartissez-le dans les sections ci-dessous.',
+    en: 'You can enter the total funding budget here and then allocate it across the sections below. Optional: this allows you to track how the total budget is distributed across the different modules. Please note that this value is not taken into account when calculating the carbon footprint.',
+    fr: 'Il vous est possible de saisir ici le budget total du financement, puis de la répartir dans les sections ci-dessous. Optionnel, cela peut vous permet de suivre la répartition dans les modules de tout le budget. Attention cette donnée n’est pas considéré dans le calcul d’empreinte carbone.',
   },
   planner_grant_budget_distribution: {
     en: '{distributed} {currency} of {total} {currency} allocated. {remaining} {currency} remaining to allocate in the categories below.',
