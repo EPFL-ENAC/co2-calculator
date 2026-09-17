@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: in-progress
 issue: 2654
 last_updated: 2026-09-17
 summary: "DataIngestionJob.entity_id — the only column the per-job scope check reads — has never been written by any job-creation path since the check shipped (206d9f487, 2026-05-07). Every unit-scoped job resolves to 'no unit', so job_stream_by_id's #1764 fallback 403s every principal on their own upload while the shared per-job gate silently no-ops for everyone. The test matrix missed it because every test mocks the resolver or pre-sets entity_id by hand; nothing exercises create_job. Includes the authz path inventory (6 mechanisms, 9 gate shapes) and 5 consolidation options."
