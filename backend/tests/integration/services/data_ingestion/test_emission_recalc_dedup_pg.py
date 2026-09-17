@@ -527,3 +527,53 @@ async def test_same_unit_same_module_recalcs_still_collapse(pg_dsn):
             )
         )
         assert len(list(result.scalars().all())) == 1
+
+
+@pytest.mark.asyncio
+async def test_same_unit_recalc_chains_again_behind_a_running_sibling(pg_dsn):
+    """#2847 — a scoped recalc that is already RUNNING is not a dedup target.
+
+    The unit-specific ingest no longer waits for the module lock, so a
+    second upload of the same unit can commit while the first upload's
+    recalc is mid-read. Collapsing onto that RUNNING row would leave the
+    second upload's rows without emissions, silently. A fresh child must
+    be created; it queues behind the running one on the recalc's own
+    module lock and rewrites the scope once that one commits.
+
+    ``test_same_unit_same_module_recalcs_still_collapse`` pins the other
+    half: a NOT_STARTED sibling still absorbs the second upload.
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with Sf() as session:
+        parent_a = _parent_factor_job()
+        parent_b = _parent_factor_job(is_current=False)
+        for parent in (parent_a, parent_b):
+            await ensure_pipeline_for_job(session, parent)
+        session.add_all([parent_a, parent_b])
+        await session.commit()
+        await session.refresh(parent_a)
+        await session.refresh(parent_b)
+
+    fired: list[str | None] = []
+    child_id_a = await _chain_recalc(
+        Sf, parent_a, config={"carbon_report_module_ids": [101]}, fired=fired
+    )
+    assert child_id_a is not None
+
+    async with Sf() as session:
+        child_a = await session.get(DataIngestionJob, child_id_a)
+        child_a.state = IngestionState.RUNNING
+        await session.commit()
+
+    child_id_b = await _chain_recalc(
+        Sf, parent_b, config={"carbon_report_module_ids": [101]}, fired=fired
+    )
+
+    assert child_id_b is not None, (
+        "same unit, same module: the pending recalc is RUNNING and may have "
+        "read the module before this upload committed, so a new child is due"
+    )
+    assert child_id_b != child_id_a
+    assert len(fired) == 2

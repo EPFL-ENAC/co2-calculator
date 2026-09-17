@@ -21,10 +21,42 @@ system:
 
 import inspect
 
-from app.models.data_ingestion import EMISSION_RECALC_UNSCOPED_SQL
+from app.models.data_ingestion import (
+    EMISSION_RECALC_UNSCOPED_SQL,
+    DataIngestionJob,
+)
 from app.tasks import _chain
 from app.tasks._chain import EMISSION_RECALC_DEDUP, _pins_module_scope
 from app.tasks._locks import acquire_factor_recalc_lock
+
+
+def _index_where(name: str) -> str:
+    """The Postgres partial-index predicate the model declares for ``name``."""
+    index = next(i for i in DataIngestionJob.__table__.indexes if i.name == name)
+    return str(index.dialect_options["postgresql"]["where"])
+
+
+def test_scoped_dedup_ignores_running_siblings_and_unscoped_does_not():
+    """#2847 — the ingest no longer waits for the module lock.
+
+    A unit-specific upload can commit after a RUNNING scoped recalc has
+    already read the module, so collapsing onto that RUNNING row would
+    leave the new rows without emissions and nothing would notice. The
+    scoped config therefore only dedups onto children that have not
+    started. The unscoped config keeps RUNNING: its writer holds the
+    exclusive gate until the recalc commits, so the ordering is intact.
+
+    The Python pre-check and the SQL index are built from the same tuple;
+    pin both ends so the pairing cannot drift.
+    """
+    scoped = _chain.EMISSION_RECALC_SCOPED_DEDUP
+    assert "RUNNING" not in scoped.active_states
+    assert "NOT_STARTED" in scoped.active_states
+    assert "RUNNING" in EMISSION_RECALC_DEDUP.active_states
+
+    assert "RUNNING" not in _index_where(scoped.constraint_name)
+    assert "RUNNING" in _index_where(EMISSION_RECALC_DEDUP.constraint_name)
+
 
 # (config, is_scoped) — the SQL side tests
 # ``meta -> 'config' -> 'carbon_report_module_ids' IS NULL``, which is SQL

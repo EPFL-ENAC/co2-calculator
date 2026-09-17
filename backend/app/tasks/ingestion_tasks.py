@@ -24,6 +24,7 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     DataIngestionJob,
+    EntityType,
     IngestionResult,
 )
 from app.models.module_type import DERIVED_DATA_ENTRY_TYPES
@@ -84,22 +85,24 @@ async def csv_ingest_handler(
     that pair; a multi-det module upload (det NULL) fans out one
     child per det in ``MODULE_TYPE_TO_DATA_ENTRY_TYPES``.
     """
-    # Same advisory lock as the recalc chain: the pre-import DELETE's
-    # ON DELETE CASCADE into ``data_entry_emissions`` takes row locks on
-    # the very rows a still-running ``emission_recalc`` of the previous
-    # pipeline is rewriting.  Without this lock the DELETE sits in a
-    # row-level lock queue mid-statement (observed: 0.3s vs 3min for the
-    # same 9.5k-row delete); with it, the ingest waits politely at one
-    # well-known gate until the prior transaction commits.
-    # #2527 B1 — a unit-scoped ingest only reads factors and only
-    # rewrites its own module, so it shares the factor gate and holds the
-    # module exclusively; another unit's upload no longer queues behind it.
+    # Same advisory lock as the recalc chain.  A per-year upload replaces
+    # the whole slice: its pre-import DELETE cascades into
+    # ``data_entry_emissions`` and would sit in a row-lock queue behind a
+    # still-running ``emission_recalc`` (observed: 0.3s vs 3min for the
+    # same 9.5k-row delete), so it takes the exclusive gate.
+    # #2527 B1 — a unit-scoped ingest only reads factors, so it shares
+    # the gate and other units' uploads no longer queue behind it.
+    # #2847 — it is also append-only (its only delete is its own rows
+    # from a crashed attempt), so it does not lock the module either:
+    # same-unit uploads insert concurrently and the chained recalc, which
+    # still holds the module, is the one step that serialises.
     await acquire_factor_recalc_lock(
         data_session,
         module_type_id=job.module_type_id,
         year=job.year,
         handler_label=f"csv_ingest job {job.id}",
         carbon_report_module_id=_pinned_module_id(job),
+        module_write=job.entity_type != EntityType.MODULE_UNIT_SPECIFIC,
     )
     meta = await _run_ingest(job, job_session, data_session)
     if meta.get("result") == IngestionResult.ERROR:
