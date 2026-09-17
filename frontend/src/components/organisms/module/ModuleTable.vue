@@ -538,7 +538,8 @@ import {
 } from '@/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from '@/stores/backofficeDataManagement';
 import { PermissionAction } from '@/stores/auth';
-import { getTemplateUrl } from '@/constant/templateAssets';
+import { fetchTemplate } from '@/constant/templateAssets';
+import { downloadBlob } from '@/utils/csvDownload';
 import { getTemplateFileName } from '@/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
 import { CARBON_PROJECT } from '@/constant/carbon-project';
@@ -2104,7 +2105,7 @@ function onUploadCsv() {
   showUploadDialog.value = true;
 }
 
-function onDownloadTemplate() {
+async function onDownloadTemplate(): Promise<void> {
   const fileName = getTemplateFileName(
     props.moduleType as Module,
     props.submoduleType,
@@ -2115,12 +2116,7 @@ function onDownloadTemplate() {
     );
   }
 
-  const a = document.createElement('a');
-  a.href = getTemplateUrl(fileName);
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  downloadBlob(await fetchTemplate(fileName), fileName);
 
   $q.notify({
     color: 'info',

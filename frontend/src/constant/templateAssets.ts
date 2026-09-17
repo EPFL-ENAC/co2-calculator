@@ -25,8 +25,12 @@ for (const fileName of SHIPPED_TEMPLATES) {
   }
 }
 
-export function getTemplateUrl(fileName: string): string {
+export async function fetchTemplate(fileName: string): Promise<Blob> {
   const url = TEMPLATE_URLS[fileName];
   if (!url) throw new Error(`No template asset for ${fileName}`);
-  return url;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Template ${fileName} failed: HTTP ${response.status}`);
+  }
+  return response.blob();
 }

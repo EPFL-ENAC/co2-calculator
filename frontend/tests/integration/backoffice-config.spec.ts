@@ -484,10 +484,9 @@ test.describe('backoffice-config — factor upload, download, and the Incomplete
         });
       },
     });
-    // Serve a small body so the forced-download anchor has something to
-    // fetch — the ``download`` attribute on the ``<a>`` forces a Save-As
-    // regardless of headers.
-    await page.route(/.*\/api\/v1\/files\/.*\?d=true$/, (route) =>
+    // The file is fetched through the API client and handed to the user as
+    // a Blob, so the request is observable and a failure throws (#2840).
+    await page.route(/.*\/api\/v1\/files\/.*/, (route) =>
       route.fulfill({
         status: 200,
         contentType: 'text/csv',
@@ -501,11 +500,16 @@ test.describe('backoffice-config — factor upload, download, and the Incomplete
     const downloadBtn = page.getByTestId('download-last-csv-btn').first();
     await expect(downloadBtn).toBeVisible({ timeout: 10000 });
 
-    const [download] = await Promise.all([
+    const [request, download] = await Promise.all([
+      page.waitForRequest(/\/api\/v1\/files\//),
       page.waitForEvent('download'),
       downloadBtn.click(),
     ]);
-    expect(download.url()).toContain(processedPath);
+    expect(request.url()).toContain(processedPath);
+    expect(request.url()).not.toContain('?d=true');
+    expect(download.suggestedFilename()).toBe(
+      processedPath.slice(processedPath.lastIndexOf('/') + 1),
+    );
   });
 
   test('sub-module Incomplete tag shows when the backend flags the submodule incomplete', async ({

@@ -1,3 +1,5 @@
+import { fetchFile } from '@/api/files';
+import { downloadBlob } from '@/utils/csvDownload';
 import { useI18n } from 'vue-i18n';
 import { lastJobForTarget } from '@/composables/lastJobForTarget';
 import { TargetType, IngestionResult } from '@/stores/backofficeDataManagement';
@@ -89,25 +91,19 @@ export function useUploadCard() {
     return parts.length ? parts[parts.length - 1] : fp;
   }
 
-  function downloadLastCsv(row: ImportRow, targetType: TargetType): void {
+  async function downloadLastCsv(
+    row: ImportRow,
+    targetType: TargetType,
+  ): Promise<void> {
     const job = lastJobForTarget(row, targetType);
     if (!job?.meta) return;
     const filePath = (job.meta as Record<string, unknown>)
       .processed_file_path as string;
     if (!filePath) return;
-    const a = document.createElement('a');
-    // ``?d=true`` flips the backend into download mode — it sets
-    // ``Content-Disposition: attachment; filename="…"`` which is the
-    // authoritative source for the saved filename in every browser.
-    // Without it, Safari ignored ``a.download`` and saved the file
-    // with the URL's last segment stripped of its extension
-    // (regression reported 2026-05-21: ``equipments_data`` instead
-    // of ``equipments_data.csv``).
-    a.href = `/api/v1/files/${filePath}?d=true`;
-    a.download = filePath.split('/').pop() || filePath;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    downloadBlob(
+      await fetchFile(filePath),
+      filePath.slice(filePath.lastIndexOf('/') + 1),
+    );
   }
 
   function getJobInfo(job?: SyncJobResponse): {

@@ -1,3 +1,5 @@
+import { fetchFile } from '@/api/files';
+import { downloadBlob } from '@/utils/csvDownload';
 import { computed, ref } from 'vue';
 import { lastJobForTarget } from '@/composables/lastJobForTarget';
 import { useRoute, useRouter } from 'vue-router';
@@ -92,20 +94,19 @@ export function useSubmoduleConfig() {
     return row.hasData || row.hasFactors || row.hasOtherUpload;
   }
 
-  function downloadLastCsv(row: ImportRow, targetType: TargetType) {
+  async function downloadLastCsv(
+    row: ImportRow,
+    targetType: TargetType,
+  ): Promise<void> {
     const job = lastJobForTarget(row, targetType);
     if (!job?.meta) return;
     const jobMeta = job.meta as Record<string, unknown>;
     const filePath = jobMeta?.processed_file_path as string;
     if (!filePath) return;
-    const a = document.createElement('a');
-    // ``?d=true`` — see useUploadCard.downloadLastCsv for why (Safari
-    // strips the extension without backend Content-Disposition).
-    a.href = `/api/v1/files/${filePath}?d=true`;
-    a.download = filePath.split('/').pop() || filePath;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    downloadBlob(
+      await fetchFile(filePath),
+      filePath.slice(filePath.lastIndexOf('/') + 1),
+    );
   }
 
   function getUnifiedModuleConfigFromSub(sub: SubmoduleConfig) {
