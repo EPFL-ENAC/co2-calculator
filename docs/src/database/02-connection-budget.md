@@ -75,8 +75,10 @@ refusal that hits every client including the DBA.
 backend-deployment.yaml`), so one extra backend and one extra worker are
   alive at base size while the old ones drain. Budget for base, not
   ceiling, on the surge pods.
-- Human clients: psql, pgAdmin, the migration Job, the db-dump CronJob, a
-  laptop running the app. Reserve 5 to 7. A laptop with the default
+- Human clients: only clients on the **app role** share the bouncer pool;
+  a DBA on a superuser role has a pool of its own. That leaves the
+  migration Job (runs during the rollout surge), the db-dump CronJob and
+  one psql: reserve 3. A laptop running the app with the default
   `DB_POOL_SIZE=20` from `.env.example` takes 20 slots on its own; point
   local runs at Docker Postgres.
 - `DB_POOL_SIZE` is what stays open forever. Set it at the measured steady
@@ -98,7 +100,7 @@ a quiet moment.
 
 | Env         | Wall                                                           | Budget      | backend      | worker       | `MAX_CONCURRENT_JOBS` | steady | surge |
 | ----------- | -------------------------------------------------------------- | ----------- | ------------ | ------------ | --------------------- | ------ | ----- |
-| dev         | PgBouncer `default_pool_size` 25 (configured, session pool)    | 25 − 5 = 20 | 2+5 ×3 = 21  | 2+7 = 9      | 2                     | 30     | 34    |
+| dev         | PgBouncer `default_pool_size` 25 (configured, session pool)    | 25 − 3 = 22 | 1+5 ×3 = 18  | 1+3 = 4      | 1                     | 22     | 23    |
 | stage, prod | Postgres 100 − 3 reserved (no PgBouncer yet, see status above) | 90          | 5+13 ×3 = 54 | 5+10 ×2 = 30 | 4                     | 84     | 89    |
 
 Stage and prod (updated 2026-09-17, openshift-app-config#47): the backend
@@ -109,13 +111,20 @@ the migration Job runs during the rollout surge, and a 53300 refusal
 locks out the DBA too. The worker's 15 per pod is exactly
 `MAX_CONCURRENT_JOBS` × 3 + 3 loops; more overflow there is idle.
 
-**Dev is now over budget at steady state, not just on surge**: the
-existing backend + worker sizing (steady 30) was calibrated against the
-previously-measured 35-slot pool (exactly at budget then, 30 = 30) — with
-the pool now explicitly configured at 25, budget drops to 20 and steady
-demand exceeds it by 10 even before a rollout surge. This needs either a
-smaller dev replica/pool-size footprint or a bigger negotiated
-`default_pool_size`; don't let it get discovered as an incident.
+Dev (resized 2026-09-17, #2854): the previous 30-ceiling sizing was
+calibrated against a 35-slot pool and got discovered as an incident once
+the pool was 25. A 20-job worker pushed total open past 25; every fresh
+login then queued 120 s at the bouncer while still holding a slot in its
+pod's pool, all three backend pools filled to 100%, requests timed out
+after 5 s, `/ready` went red and the backend served 503 for seven
+minutes. Two lessons are baked into the new numbers: the **ceiling**, not
+the steady state, is what must fit under the bouncer, and one pod
+overrunning a shared pool locks out every other pod. Interactive traffic
+gets the overflow, the worker is capped to one job, `pool_size` is 1
+everywhere (a persistent connection holds a bouncer slot even idle), and
+the pipeline reconciler runs on the worker only. The structural fix is a
+second DB role for the worker so it gets its own bouncer pool; until
+then the worker runs one job at a time.
 
 Values live in `openshift-app-config`, `overlays/<env>/kustomization.yaml`,
 backend and worker blocks. The VPN path to stage bypasses the bouncer; the
