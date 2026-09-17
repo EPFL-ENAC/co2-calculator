@@ -1,6 +1,6 @@
 <template>
   <q-page>
-    <div class="module-page">
+    <div class="page-grid">
       <module-title
         :type="currentModuleType"
         :has-description="staticModuleConfig.hasDescription"
@@ -198,20 +198,3 @@ watch(
   },
 );
 </script>
-
-<style scoped lang="scss">
-@use '@/css/02-tokens' as tokens;
-.module-page {
-  padding-top: tokens.$template-padding-y;
-  padding-bottom: tokens.$template-padding-y;
-  display: grid;
-  grid-auto-flow: row;
-  row-gap: tokens.$template-gap;
-  align-items: start;
-  grid-auto-rows: max-content;
-  width: 100%;
-
-  // center the page
-  justify-self: center; // center within the parent grid cell
-}
-</style>

@@ -30,3 +30,4 @@ planner-*.png
 # scratch commit-message files (kept out of `git add -A` sweeps)
 .msg
 .commitmsg
+logs

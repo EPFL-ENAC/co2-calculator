@@ -2,7 +2,16 @@ from datetime import UTC, datetime
 from enum import Enum
 from uuid import UUID
 
-from sqlalchemy import JSON, Column, ForeignKey, Index, Integer, String, text
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    Column,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    text,
+)
 from sqlalchemy import UUID as SAUUID
 from sqlalchemy import DateTime as SADateTime
 from sqlalchemy import Enum as SAEnum
@@ -260,6 +269,14 @@ class DataIngestionJobBase(SQLModel):
 
 class DataIngestionJob(DataIngestionJobBase, table=True):
     __tablename__ = "data_ingestion_jobs"
+    __table_args__ = (
+        # A unit-pinned job with no unit is unscopable: every /sync read
+        # gate silently no-ops on it (#2654, four months unnoticed).
+        CheckConstraint(
+            "entity_type <> 'MODULE_UNIT_SPECIFIC' OR entity_id IS NOT NULL",
+            name="ck_data_ingestion_jobs_unit_specific_has_entity_id",
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     is_current: bool = Field(

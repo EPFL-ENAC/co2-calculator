@@ -1096,10 +1096,9 @@ test.describe('Explorer — Simulation results', () => {
     context,
   }) => {
     await openExplorer(page, context);
-    const chart = page.locator('.module-carbon-chart');
-    const toggle = chart.locator('.q-checkbox', {
-      hasText: 'Show additional estimated categories',
-    });
+    // #2071: a single page-level toggle drives the total and both charts, so
+    // the chart's own checkbox is hidden on the Explorer.
+    const toggle = page.locator('.q-toggle', { hasText: 'Additional data' });
     await expect(toggle).toBeVisible();
 
     const before = (await exportCsv(page)).slice(1).map((r) => r[0]);
@@ -1239,7 +1238,9 @@ test.describe('Explorer — Simulation results', () => {
       page.getByRole('button', { name: 'Download Report' }).click(),
     ]);
     await report.waitForLoadState();
-    expect(report.url()).toMatch(/\/en\/10\/2024\/simulation\/explore\/print$/);
+    expect(report.url()).toMatch(
+      /\/en\/10\/2024\/simulation\/explore\/print\?hideAdditionalData=1$/,
+    );
     await expect(
       report.getByRole('heading', { name: 'CO₂ Explorer' }),
     ).toBeVisible({ timeout: 15000 });

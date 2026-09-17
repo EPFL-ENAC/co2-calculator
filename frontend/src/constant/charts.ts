@@ -367,6 +367,18 @@ export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
 /** Module-icon name used for the "additional data" category (no real module). */
 export const ADDITIONAL_DATA_ICON = 'addition-datas';
 
+/**
+ * Hatch that marks the Planner's "Detailed per year" bars against the plain
+ * Grant Proposal ones, in the comparison chart and the per-FTE chart alike.
+ */
+export const YEARS_DECAL = {
+  symbol: 'line',
+  rotation: Math.PI / 4,
+  dashArrayX: [1, 0],
+  dashArrayY: [4, 3],
+  color: 'rgba(255, 255, 255, 0.7)',
+};
+
 export const RESULTS_CATEGORY_ORDER = [
   'process_emissions',
   'buildings_energy_combustion',

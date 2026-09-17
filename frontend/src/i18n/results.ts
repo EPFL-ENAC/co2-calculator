@@ -95,9 +95,13 @@ export default {
     en: 'Reduction needed to reach {year} target',
     fr: 'Réduction nécessaire pour atteindre l’objectif {year}',
   },
-  results_compare_years_gap_beaten_label: {
-    en: 'Below {year} target',
-    fr: 'Sous l’objectif {year}',
+  results_compare_years_gap_reached_label: {
+    en: '{year} target',
+    fr: 'Objectif {year}',
+  },
+  results_compare_years_gap_reached: {
+    en: 'Goal reached',
+    fr: 'Objectif atteint',
   },
   results_compare_years_gap_target: {
     en: '{year} target: {value}',
@@ -297,6 +301,14 @@ export default {
     en: 'Please validate this module to view detailed charts and statistics.',
     fr: 'Veuillez valider ce module pour afficher les graphiques et statistiques détaillés.',
   },
+  results_add_module_title: {
+    en: 'Add {module} to see results',
+    fr: 'Ajoutez {module} pour voir les résultats',
+  },
+  results_add_module_message: {
+    en: 'Please fill in this module to view detailed charts and statistics.',
+    fr: 'Veuillez remplir ce module pour afficher les graphiques et statistiques détaillés.',
+  },
   results_additional_validate_headcount_title: {
     en: 'Validate Headcount to see results',
     fr: 'Validez Personnel pour voir les résultats',
@@ -390,8 +402,8 @@ export default {
     fr: 'Réinitialiser',
   },
   results_objectives_scenario_bau: {
-    en: 'BAU',
-    fr: 'BAU',
+    en: 'Business As Usual',
+    fr: 'Fonctionnement sans changement',
   },
   results_objectives_scenario_low_effort: {
     en: 'Low effort',

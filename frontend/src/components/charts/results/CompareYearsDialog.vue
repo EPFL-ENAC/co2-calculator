@@ -24,6 +24,7 @@ import CompareYearsChart, {
   type CompareYearsSeries,
   type CompareYearsObjectiveBar,
 } from './CompareYearsChart.vue';
+import CompareYearsObjectiveGap from './CompareYearsObjectiveGap.vue';
 
 const props = defineProps({
   modelValue: {
@@ -343,42 +344,8 @@ const scopeObjectiveBars = computed(() =>
               class="compare-years-kpi__divider"
             />
 
-            <!-- Gap of the latest selected year to its reduction objective -->
-            <div v-if="objectiveGap" class="compare-years-kpi">
-              <div class="compare-years-kpi__label">
-                {{
-                  $t(
-                    objectiveGap.missing
-                      ? 'results_compare_years_gap_label'
-                      : 'results_compare_years_gap_beaten_label',
-                    { year: objectiveGap.targetYear },
-                  )
-                }}
-              </div>
-              <div class="compare-years-kpi__gap">
-                <span
-                  class="compare-years-kpi__delta"
-                  :class="objectiveGap.missing ? 'text-negative' : 'text-info'"
-                >
-                  {{ objectiveGap.missing ? '-' : ''
-                  }}{{
-                    $nOrDash(objectiveGap.pctMagnitude * 100, {
-                      options: { maximumFractionDigits: 0 },
-                    })
-                  }}%
-                </span>
-                <span class="compare-years-kpi__sub">
-                  {{
-                    $t('results_compare_years_gap_target', {
-                      year: objectiveGap.targetYear,
-                      value: `${formatTonnes(objectiveGap.objectiveTonnes)} ${$t(
-                        'results_units_tonnes',
-                      )}`,
-                    })
-                  }}
-                </span>
-              </div>
-            </div>
+            <!-- Gap of the latest selected year to its reduction objective. -->
+            <CompareYearsObjectiveGap v-if="objectiveGap" :gap="objectiveGap" />
 
             <q-separator
               v-if="objectiveGap"
@@ -635,21 +602,8 @@ const scopeObjectiveBars = computed(() =>
   color: var(--semantic-color-text-muted);
 }
 
-.compare-years-kpi__gap {
-  display: flex;
-  align-items: baseline;
-  gap: tokens.$spacing-sm;
-}
-
-.compare-years-kpi__delta {
-  font-size: 22px;
-  line-height: 1.1;
-}
-
-.compare-years-kpi__sub {
-  font-size: 13px;
-  color: var(--semantic-color-text-muted);
-}
+/* "Goal reached" badge: icon + text, same optical weight as the percentage
+   it replaces so the KPI band keeps its rhythm. */
 
 .compare-years-kpi__divider {
   height: auto;

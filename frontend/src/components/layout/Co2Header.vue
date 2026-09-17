@@ -97,8 +97,6 @@ const logoRoute = computed(() => {
         </router-link>
       </q-toolbar-title>
 
-      <q-space />
-
       <q-btn
         v-if="hasBackOfficeAccess && !isInBackOfficeRoute"
         color="grey-4"

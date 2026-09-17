@@ -87,3 +87,25 @@ export function resolveExplorerFormDefaults(
   }
   return defaults;
 }
+
+/**
+ * `defaultFrom: 'total_fte'` fields — pre-filled from the Calculator's
+ * validated Headcount total, and only there (#2000, #2061). The Explorer has
+ * no validated state of its own, and a Planner year's roster is the plan's,
+ * not the unit's, so both start empty. A validated total of 0 means there is
+ * nothing to pre-fill — left empty rather than shown as a misleading 0.
+ */
+export function resolveValidatedFteFormDefaults(
+  fields: ModuleField[],
+  ctx: Pick<ModuleTableAccess, 'isExplorer' | 'isPlanner'>,
+  totalFte: number | null | undefined,
+): Record<string, unknown> {
+  const defaults: Record<string, unknown> = {};
+  if (ctx.isExplorer || ctx.isPlanner || !totalFte) return defaults;
+  for (const field of fields) {
+    if (field.defaultFrom === 'total_fte') {
+      defaults[field.id] = Math.round(totalFte);
+    }
+  }
+  return defaults;
+}

@@ -95,7 +95,12 @@ class SimulatorPlanRead(BaseModel):
     created_by: int | None = None
     created_at: datetime | None = None
     creator_name: str | None = None
+    #: Sum of the per-year reports, in tonnes; ``None`` when the plan has no
+    #: year sections. Only the list endpoints fill the totals.
     total_tonnes_co2eq: float | None = None
+    #: The Project Grant report's total, in tonnes; ``None`` when the plan has
+    #: no grant section. Never summed with ``total_tonnes_co2eq`` (#1977).
+    grant_total_tonnes_co2eq: float | None = None
     #: Set when the PATCH deferred its prefill to a ``simulator_plan_prefill``
     #: job (plan #2050 Track F4). ``None`` means there was nothing to wait
     #: for; otherwise the client polls this job before trusting the year's

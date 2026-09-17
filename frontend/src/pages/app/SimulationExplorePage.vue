@@ -35,10 +35,20 @@
         class="full-width"
       />
       <q-card v-else flat bordered>
-        <div class="q-pt-lg q-px-lg">
+        <!-- The Additional data toggle drives the total and both charts
+             (#2071). -->
+        <div class="flex justify-between items-center q-pt-lg q-px-lg">
           <h2 class="text-h3 text-weight-medium">
             {{ $t('simulation_explore_page_results_title') }}
           </h2>
+          <q-toggle
+            v-model="viewAdditionalData"
+            :label="$t('results_additional_data')"
+            color="info"
+            keep-color
+            size="lg"
+            class="text-weight-medium"
+          />
         </div>
 
         <q-separator class="q-mt-lg" />
@@ -59,10 +69,31 @@
 
           <q-separator />
 
-          <ModuleCarbonFootprintChart
-            :breakdown-data="breakdown"
-            :bordered="false"
-          />
+          <!-- Main chart beside the per-FTE chart (#2071). -->
+          <div class="charts-grid">
+            <div class="charts-grid__main">
+              <ModuleCarbonFootprintChart
+                :breakdown-data="breakdown"
+                :bordered="false"
+                :view-additional-data="viewAdditionalData"
+              />
+            </div>
+            <q-separator
+              vertical
+              class="charts-grid__separator"
+              aria-hidden="true"
+            />
+            <div class="charts-grid__side">
+              <CarbonFootPrintPerPersonChart
+                :per-person-breakdown="breakdown?.per_person_breakdown"
+                :validated-categories="breakdown?.validated_categories"
+                :headcount-validated="(breakdown?.total_fte ?? 0) > 0"
+                show-validation-placeholder
+                placeholder-variant="add"
+                :view-additional-data="viewAdditionalData"
+              />
+            </div>
+          </div>
 
           <q-separator />
 
@@ -101,9 +132,11 @@ import { useModuleStore } from '@/stores/modules';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useYearConfigStore } from '@/stores/yearConfig';
 import { getExploreModules } from '@/utils/exploreModules';
+import { sumBreakdownTonnes } from '@/utils/breakdownTotal';
 import { formatTonnesCO2 } from '@/utils/number';
 import BigNumber from '@/components/molecules/BigNumber.vue';
 import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
+import CarbonFootPrintPerPersonChart from '@/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -121,6 +154,8 @@ function downloadReport() {
       unit: route.params.unit,
       year: route.params.year,
     },
+    // Same handoff as the Results report: the PDF follows the page's toggle.
+    query: { hideAdditionalData: viewAdditionalData.value ? '0' : '1' },
   }).href;
   window.open(url, '_blank');
 }
@@ -151,22 +186,12 @@ const breakdownReady = ref(false);
 
 const modules = computed(() => getExploreModules(yearConfigStore.getModule));
 
-const totalTonnesCo2eq = computed(() => {
-  const breakdown = moduleStore.state.emissionBreakdown;
-  if (!breakdown) return 0;
-
-  // Keep consistent with the chart (which shows main categories by default).
-  const moduleTotal = (breakdown.module_breakdown ?? []).reduce((sum, row) => {
-    const rowTotal = (row.emissions ?? []).reduce((rowSum, e) => {
-      return rowSum + (typeof e.value === 'number' ? e.value : 0);
-    }, 0);
-    return sum + rowTotal;
-  }, 0);
-
-  return moduleTotal || breakdown.total_tonnes_co2eq || 0;
-});
-
 const breakdown = computed(() => moduleStore.state.emissionBreakdown);
+// Page-level Additional data toggle: the total and both charts follow it.
+const viewAdditionalData = ref(false);
+const totalTonnesCo2eq = computed(() =>
+  sumBreakdownTonnes(breakdown.value, viewAdditionalData.value),
+);
 
 async function fetchEmissionBreakdown() {
   const carbonReportId = workspaceStore.selectedCarbonReport?.id;

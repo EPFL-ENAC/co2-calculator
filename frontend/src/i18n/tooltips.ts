@@ -784,8 +784,8 @@ export default {
   },
 
   'planner-grant-module-equipment-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with the electricity consumption of equipment (scientific equipment, IT equipment, other equipment) specific to your project (Scope 2).',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée à la consommation électrique des équipements (Équipements scientifiques, Équipements IT, Autres équipements) spécifique à votre projet (Scope 2).",
+    en: 'This module allows you to estimate the carbon footprint associated with the electricity consumption of equipment (scientific equipment, IT equipment, other equipment) specific to your project (Scope 2). To do so, you may estimate the contribution of the Equipment module for your project reference year by either providing a global percentage or specifying a project % of reference year for each equipment item in the table.',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée à la consommation électrique des équipements (Équipements scientifiques, Équipements IT, Autres équipements) spécifique à votre projet (Scope 2). Pour cela, vous pouvez estimer la contribution du module Équipement pour l'année de référence de votre projet en indiquant soit un pourcentage global ou pour chaque ligne d'équipement indiquer un % de référence au projet dans le tableau. ",
   },
   'planner-grant-module-equipment-submodule-scientific': {
     en: 'Indicate the scientific equipment used to estimate its carbon footprint specific to your project (Scope 2). You can specify the percentage of the reference year or manually add an equipment.',
@@ -827,8 +827,8 @@ export default {
   },
 
   'planner-grant-module-purchase-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with project-specific purchases (Scope 3). To do so, please indicate the budget allocated to the relevant purchasing categories (Scientific Equipment, IT Equipment, Consumables and Accessories, Biological, Chemical and Gas Products, Services, Vehicles, and Other Purchases).',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée aux achats spécifiques à votre projet (Scope 3). Pour cela, veuillez indiquer le budget correspondant aux catégories d'achats (Équipements scientifiques, Équipements informatiques, Consommables et accessoires, Produits biologiques, chimiques et gazeux, Services, Véhicules, Autres achats).",
+    en: 'This module allows you to estimate the carbon footprint associated with project-specific purchases (Scope 3). To do so, you may provide either the global budget or a budget by purchasing categories (Scientific Equipment, IT Equipment, Consumables and Accessories, Biological, Chemical and Gas Products, Services, Vehicles, and Other Purchases).',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée aux achats spécifiques à votre projet (Scope 3). Pour cela, vous pouvez indiquer soit le budget global ou un budget par catégories d'achats (Équipements scientifiques, Équipements informatiques, Consommables et accessoires, Produits biologiques, chimiques et gazeux, Services, Véhicules, Autres achats).",
   },
   'planner-grant-module-purchase-submodule-scientific_equipment': {
     en: '',
@@ -911,8 +911,8 @@ export default {
   },
 
   'planner-year-module-equipment-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with the electricity consumption of equipment used specifically for your project (Scientific Equipment, IT Equipment, and Other Equipment) (Scope 2).',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée à la consommation électrique des équipements (Équipements scientifiques, Équipements IT, Autres équipements) spécifique à votre projet (Scope 2).",
+    en: 'This module allows you to estimate the carbon footprint associated with the electricity consumption of equipment used specifically for your project (Scientific Equipment, IT Equipment, and Other Equipment) (Scope 2). To do so, you may estimate the contribution of the Equipment module for your project reference year by either providing a global percentage or specifying a project % of reference year for each equipment item in the table.',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée à la consommation électrique des équipements (Équipements scientifiques, Équipements IT, Autres équipements) spécifique à votre projet (Scope 2).Pour cela, vous pouvez estimer la contribution du module Équipement pour l'année de référence de votre projet en indiquant soit un pourcentage global ou pour chaque ligne d'équipement indiquer un % de référence au projet dans le tableau. ",
   },
   'planner-year-module-equipment-submodule-scientific': {
     en: 'Indicate the scientific equipment used to estimate its carbon footprint specific to your project (Scope 2). You can enter the percentage of the reference year in the table or manually add an equipment.',
@@ -954,8 +954,8 @@ export default {
   },
 
   'planner-year-module-purchase-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with project-specific purchases (Scope 3). To do so, please indicate the budget allocated to the relevant purchasing categories (Scientific Equipment, IT Equipment, Consumables and Accessories, Biological, Chemical and Gas Products, Services, Vehicles, and Other Purchases).',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée aux achats spécifiques à votre projet (Scope 3). Pour cela, veuillez indiquer le budget correspondant aux catégories d'achats (Équipements scientifiques, Équipements informatiques, Consommables et accessoires, Produits biologiques, chimiques et gazeux, Services, Véhicules, Autres achats).",
+    en: 'This module allows you to estimate the carbon footprint associated with project-specific purchases (Scope 3). To do so, you may provide either the global budget or a budget by purchasing categories (Scientific Equipment, IT Equipment, Consumables and Accessories, Biological, Chemical and Gas Products, Services, Vehicles, and Other Purchases).',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée aux achats spécifiques à votre projet (Scope 3). Pour cela, vous pouvez indiquer soit le budget global ou un budget par catégories d'achats (Équipements scientifiques, Équipements informatiques, Consommables et accessoires, Produits biologiques, chimiques et gazeux, Services, Véhicules, Autres achats).",
   },
   'planner-year-module-purchase-submodule-scientific_equipment': {
     en: '',

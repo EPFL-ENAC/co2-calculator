@@ -93,10 +93,20 @@
 
         <!-- Whole-plan results: every year of the range summed together -->
         <q-card flat bordered>
-          <div class="q-pt-lg q-px-lg">
+          <!-- The Additional data toggle drives the totals and both charts
+               (#2071). -->
+          <div class="flex justify-between items-center q-pt-lg q-px-lg">
             <h2 class="text-h3 text-weight-medium">
               {{ $t('planner_results_title') }}
             </h2>
+            <q-toggle
+              v-model="viewAdditionalData"
+              :label="$t('results_additional_data')"
+              color="info"
+              keep-color
+              size="lg"
+              class="text-weight-medium"
+            />
           </div>
 
           <q-separator class="q-mt-lg" />
@@ -107,8 +117,8 @@
                BigNumber sizes itself against its row. -->
           <div class="results-blocks">
             <!-- Grant results sit beside the year-by-year results, never
-                 summed together — the two views count the same project
-                 (#1977). -->
+                     summed together — the two views count the same project
+                     (#1977). -->
             <div
               v-if="plan.is_grant_proposal && hasYearSections"
               class="row items-stretch no-wrap"
@@ -154,39 +164,69 @@
 
             <q-separator />
 
-            <PlannerGrantComparisonChart
-              v-if="plan.is_grant_proposal && hasYearSections"
-              :title="
-                $t('planner_results_comparison_chart_title', {
-                  name: plan.name,
-                })
-              "
-              :grant-breakdown="grantBreakdown"
-              :years-breakdown="breakdown"
-              :grant-year-range="grantYearRange"
-              :effective-year-range="effectiveYearRange"
-              :active-categories-only="true"
-            />
-            <ModuleCarbonFootprintChart
-              v-else-if="plan.is_grant_proposal"
-              :breakdown-data="grantBreakdown"
-              :title="
-                $t('planner_results_comparison_chart_title', {
-                  name: plan.name,
-                })
-              "
-              :bordered="false"
-              :enforce-module-activation="false"
-              :active-categories-only="true"
-            />
-            <ModuleCarbonFootprintChart
-              v-else
-              :breakdown-data="breakdown"
-              :title="$t('planner_results_chart_title', { name: plan.name })"
-              :bordered="false"
-              :enforce-module-activation="false"
-              :active-categories-only="true"
-            />
+            <!-- Main chart beside the per-FTE chart (#2071). -->
+            <div class="charts-grid">
+              <div class="charts-grid__main">
+                <PlannerGrantComparisonChart
+                  v-if="plan.is_grant_proposal && hasYearSections"
+                  :title="
+                    $t('planner_results_comparison_chart_title', {
+                      name: plan.name,
+                    })
+                  "
+                  :grant-breakdown="grantBreakdown"
+                  :years-breakdown="breakdown"
+                  :grant-year-range="grantYearRange"
+                  :effective-year-range="effectiveYearRange"
+                  :active-categories-only="true"
+                  :view-additional-data="viewAdditionalData"
+                />
+                <ModuleCarbonFootprintChart
+                  v-else-if="plan.is_grant_proposal"
+                  :breakdown-data="grantBreakdown"
+                  :title="
+                    $t('planner_results_comparison_chart_title', {
+                      name: plan.name,
+                    })
+                  "
+                  :bordered="false"
+                  :enforce-module-activation="false"
+                  :active-categories-only="true"
+                  :view-additional-data="viewAdditionalData"
+                />
+                <ModuleCarbonFootprintChart
+                  v-else
+                  :breakdown-data="breakdown"
+                  :title="
+                    $t('planner_results_chart_title', { name: plan.name })
+                  "
+                  :bordered="false"
+                  :enforce-module-activation="false"
+                  :active-categories-only="true"
+                  :view-additional-data="viewAdditionalData"
+                />
+              </div>
+              <q-separator
+                vertical
+                class="charts-grid__separator"
+                aria-hidden="true"
+              />
+              <div class="charts-grid__side">
+                <CarbonFootPrintPerPersonChart
+                  :title="
+                    $t('planner_results_per_fte_chart_title', {
+                      name: plan.name,
+                    })
+                  "
+                  :rows="perFteRows"
+                  :headcount-validated="perFteRows.length > 0"
+                  show-validation-placeholder
+                  placeholder-variant="add"
+                  :enforce-module-activation="false"
+                  :view-additional-data="viewAdditionalData"
+                />
+              </div>
+            </div>
 
             <q-separator />
 
@@ -228,6 +268,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
+import CarbonFootPrintPerPersonChart from '@/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import ModuleCarbonFootprintChart from '@/components/charts/results/ModuleCarbonFootprintChart.vue';
 import PlannerGrantComparisonChart from '@/components/charts/results/PlannerGrantComparisonChart.vue';
 import BigNumber from '@/components/molecules/BigNumber.vue';
@@ -242,6 +283,7 @@ import { useYearConfigStore } from '@/stores/yearConfig';
 import { sumBreakdownTonnes } from '@/utils/breakdownTotal';
 import { toEmissionBreakdown } from '@/utils/emissionStatsAdapter';
 import { formatTonnesCO2 } from '@/utils/number';
+import { plannerPerFteRows } from '@/utils/plannerPerFte';
 import {
   filledYearRange,
   formatYearRange,
@@ -302,7 +344,11 @@ const grantBreakdown = computed(() =>
   plansStore.grantStats ? toEmissionBreakdown(plansStore.grantStats) : null,
 );
 
-const totalTonnesCo2eq = computed(() => sumBreakdownTonnes(breakdown.value));
+// Page-level Additional data toggle: the totals and both charts follow it.
+const viewAdditionalData = ref(false);
+const totalTonnesCo2eq = computed(() =>
+  sumBreakdownTonnes(breakdown.value, viewAdditionalData.value),
+);
 
 // The Grant Proposal view spans the whole plan; the effective view spans
 // only the years that hold data.
@@ -323,7 +369,26 @@ const yearsTotalTitle = computed(() =>
 );
 
 const grantTotalTonnes = computed(() =>
-  sumBreakdownTonnes(grantBreakdown.value),
+  sumBreakdownTonnes(grantBreakdown.value, viewAdditionalData.value),
+);
+
+// Bar labels shared with PlannerGrantComparisonChart.
+const grantLabel = computed(() =>
+  withYearRange(t('planner_project_grant_title'), grantYearRange.value),
+);
+const yearsLabel = computed(() =>
+  withYearRange(t('planner_results_series_years'), effectiveYearRange.value),
+);
+
+const perFteRows = computed(() =>
+  plannerPerFteRows({
+    isGrantProposal: plan.value?.is_grant_proposal === true,
+    hasYearSections: hasYearSections.value,
+    grantBreakdown: grantBreakdown.value,
+    yearsBreakdown: breakdown.value,
+    grantLabel: grantLabel.value,
+    yearsLabel: yearsLabel.value,
+  }),
 );
 
 function downloadReport() {
@@ -335,6 +400,8 @@ function downloadReport() {
       year: route.params.year,
       planId: route.params.planId,
     },
+    // Same handoff as the Results report: the PDF follows the page's toggle.
+    query: { hideAdditionalData: viewAdditionalData.value ? '0' : '1' },
   }).href;
   window.open(url, '_blank');
 }

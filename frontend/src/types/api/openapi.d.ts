@@ -4217,6 +4217,8 @@ export interface components {
             creator_name?: string | null;
             /** Total Tonnes Co2Eq */
             total_tonnes_co2eq?: number | null;
+            /** Grant Total Tonnes Co2Eq */
+            grant_total_tonnes_co2eq?: number | null;
             /** Prefill Job Id */
             prefill_job_id?: number | null;
         };

@@ -17,6 +17,7 @@ interface Props {
   planName: string;
   breakdown: EmissionBreakdownResponse | null;
   totalTonnes: number;
+  viewAdditionalData: boolean;
 }
 
 const props = defineProps<Props>();
@@ -82,7 +83,7 @@ const inactiveModules = computed(() =>
       <ModuleCarbonFootprintChart
         :breakdown-data="breakdown"
         :title="$t('planner_print_year_chart_title', { year: pageTitle })"
-        :view-additional-data="true"
+        :view-additional-data="viewAdditionalData"
         :print-mode="true"
         :enforce-module-activation="false"
         :active-categories-only="true"

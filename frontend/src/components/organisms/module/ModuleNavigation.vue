@@ -145,7 +145,11 @@ function validateCurrentModule() {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  width: tokens.$layout-page-width;
+
+  // A fixed width here would force the module page's grid column to it and
+  // push every sibling card past the viewport on laptop screens (#2818).
+  width: 100%;
+  max-width: tokens.$layout-page-width;
   margin: 0 auto;
 
   &__link {

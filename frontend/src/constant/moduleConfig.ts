@@ -98,6 +98,7 @@ export interface ModuleField {
   disable?: boolean;
   sortable?: boolean;
   inputTypeName?: string;
+  integer?: boolean;
   editableInline?: boolean;
   readOnly?: boolean;
   readOnlyWhenFilled?: boolean;
@@ -182,6 +183,11 @@ export interface ResultBigNumberConfig {
   tooltipKey?: string;
 }
 
+/** Rows-per-page choices offered by every module table (#2681). */
+export const TABLE_PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 200, 1000] as const;
+export type TablePageSize = (typeof TABLE_PAGE_SIZE_OPTIONS)[number];
+export const DEFAULT_TABLE_PAGE_SIZE: TablePageSize = 20;
+
 export interface ModuleConfig {
   id: string;
   type: string;
@@ -200,4 +206,8 @@ export interface ModuleConfig {
   threshold?: Threshold;
   tableColumns?: ModuleField[];
   resultBigNumbers?: ResultBigNumberConfig[];
+  /** Rows per page of every table in the module; defaults to 20 (#2681). */
+  tablePageSize?: TablePageSize;
+  /** Hide the rows-per-page selector so the page size cannot change (#2681). */
+  tablePageSizeLocked?: boolean;
 }

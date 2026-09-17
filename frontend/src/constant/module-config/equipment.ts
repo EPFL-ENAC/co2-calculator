@@ -99,6 +99,7 @@ const baseModuleFields: ModuleField[] = [
     required: true,
     min: 0,
     max: 168,
+    integer: true,
     maxColumnWidth: 200,
     unit: 'hrs/wk',
     sortable: true,
@@ -118,6 +119,7 @@ const baseModuleFields: ModuleField[] = [
     required: true,
     min: 0,
     max: 168,
+    integer: true,
     maxColumnWidth: 200,
     unit: 'hrs/wk',
     sortable: true,
@@ -228,6 +230,12 @@ export const equipment: ModuleConfig = {
   totalFormatter: formatTonnesCO2,
 
   formStructure: 'perSubmodule',
+
+  // #2681: the usage-hours refresh reloads the whole table, so a long page
+  // makes bulk edits impractical. Fixed at 10 in Calculator, Planner and
+  // Explorer alike.
+  tablePageSize: 10,
+  tablePageSizeLocked: true,
 
   submodules: [
     {

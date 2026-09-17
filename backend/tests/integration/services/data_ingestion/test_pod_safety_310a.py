@@ -33,6 +33,8 @@ from app.models.data_ingestion import (
 from app.models.user import UserProvider
 from app.repositories.data_ingestion import DataIngestionRepository
 
+from .conftest import seeded_year_with_units
+
 # Plan 310-C cutover: legacy ``run_sync_task`` / ``run_recalculation_task``
 # are gone — every job_type funnels through ``app.tasks.runner.run_job``.
 # Claim-guard semantics are now covered by ``test_runner.py``
@@ -57,9 +59,11 @@ def _make_job(
     job_type: str | None = None,
     meta: dict | None = None,
     entity_type: EntityType = EntityType.MODULE_PER_YEAR,
+    entity_id: int | None = None,
 ) -> DataIngestionJob:
     return DataIngestionJob(
         entity_type=entity_type,
+        entity_id=entity_id,
         module_type_id=module_type_id,
         data_entry_type_id=data_entry_type_id,
         year=year,
@@ -383,6 +387,7 @@ async def test_sweep_never_retries_module_unit_specific(db_session: AsyncSession
         max_attempts=3,
         is_current=True,
         entity_type=EntityType.MODULE_UNIT_SPECIFIC,
+        entity_id=1,
     )
     db_session.add(job)
     await db_session.flush()
@@ -571,6 +576,7 @@ async def test_recover_endpoint_blocks_module_unit_specific(
         locked_at=stale_time,
         is_current=True,
         entity_type=EntityType.MODULE_UNIT_SPECIFIC,
+        entity_id=1,
     )
     db_session.add(job)
     await db_session.flush()
@@ -839,29 +845,29 @@ async def test_check_job_scope_enforces_module_check_for_unit_specific_jobs(
     db_session: AsyncSession,
 ):
     """MODULE_UNIT_SPECIFIC jobs DO trigger the per-module check, with
-    the resolved ``institutional_id`` passed through.  This confirms the
-    fix doesn't accidentally drop the unit-scoped guard.
+    the unit resolved through the real ``entity_id`` join — the resolver
+    is not mocked, because that is how #2654 hid.
     """
     from app.api.v1.data_sync import _check_job_scope
 
-    job = _make_job(module_type_id=1)
+    tree = await seeded_year_with_units(db_session, year=2032, n_units=1)
+    unit = tree.units[0]
+    crm = tree.modules_by_unit_and_type[(unit.id, 1)]
+    job = _make_job(
+        module_type_id=1,
+        entity_type=EntityType.MODULE_UNIT_SPECIFIC,
+        entity_id=crm.id,
+    )
     db_session.add(job)
     await db_session.flush()
 
     fake_user = MagicMock()
+    fake_user.calculate_permissions = lambda: {}
     check_mock = AsyncMock()
-    inst_resolver = AsyncMock(return_value="0184")
 
-    with (
-        patch("app.api.v1.data_sync.check_module_permission", check_mock),
-        patch("app.api.v1.data_sync._institutional_id_for_job", inst_resolver),
-    ):
-        # Even though the factory default is MODULE_PER_YEAR, mocking the
-        # resolver to return a non-None institutional_id is the cleanest
-        # way to drive the unit-specific code path here without seeding
-        # the full Unit/CarbonReport/CarbonReportModule chain.
+    with patch("app.api.v1.data_sync.check_module_permission", check_mock):
         await _check_job_scope(job, fake_user, db_session, action="view")
 
     check_mock.assert_awaited_once()
     kwargs = check_mock.await_args.kwargs
-    assert kwargs["institutional_id"] == "0184"
+    assert kwargs["institutional_id"] == unit.institutional_id

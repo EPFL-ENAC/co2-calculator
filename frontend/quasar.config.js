@@ -110,6 +110,19 @@ export default defineConfig(function () {
           cwd: __dirname,
           stdio: 'inherit',
         });
+
+        // maplibre-gl-worker.mjs (see TripsMap.vue) statically imports a sibling
+        // "./maplibre-gl-shared.mjs" at runtime. We only ever import the worker
+        // itself via `?url`, so Vite never discovers/copies that sibling — it
+        // 404s once deployed. Copy it next to the worker's emitted output,
+        // unhashed, to match the literal relative import in the raw file.
+        fs.copyFileSync(
+          path.resolve(
+            __dirname,
+            'node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs',
+          ),
+          path.resolve(__dirname, 'dist/spa/assets/maplibre-gl-shared.mjs'),
+        );
       },
       // vueRouterBase,
       // vueDevtools,
