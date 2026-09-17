@@ -538,6 +538,7 @@ import {
 } from '@/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from '@/stores/backofficeDataManagement';
 import { PermissionAction } from '@/stores/auth';
+import { getTemplateUrl } from '@/constant/templateAssets';
 import { getTemplateFileName } from '@/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
 import { CARBON_PROJECT } from '@/constant/carbon-project';
@@ -2108,10 +2109,14 @@ function onDownloadTemplate() {
     props.moduleType as Module,
     props.submoduleType,
   );
-  if (!fileName) return;
+  if (!fileName) {
+    throw new Error(
+      `No template mapped for ${props.moduleType}:${props.submoduleType}`,
+    );
+  }
 
   const a = document.createElement('a');
-  a.href = `/templates/${fileName}`;
+  a.href = getTemplateUrl(fileName);
   a.download = fileName;
   document.body.appendChild(a);
   a.click();

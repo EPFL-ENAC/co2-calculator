@@ -92,6 +92,10 @@ export default defineConfig(function () {
     extras: [],
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
+    // Exposed to index.html as <%= appVersion %> so unhashed public/ files
+    // (favicon.ico) get a cache-busting query without anyone remembering.
+    htmlVariables: { appVersion: APP_VERSION },
+
     build: {
       target: {
         browser: ['es2019', 'edge88', 'firefox78', 'chrome87', 'safari13.1'],
@@ -110,19 +114,6 @@ export default defineConfig(function () {
           cwd: __dirname,
           stdio: 'inherit',
         });
-
-        // maplibre-gl-worker.mjs (see TripsMap.vue) statically imports a sibling
-        // "./maplibre-gl-shared.mjs" at runtime. We only ever import the worker
-        // itself via `?url`, so Vite never discovers/copies that sibling — it
-        // 404s once deployed. Copy it next to the worker's emitted output,
-        // unhashed, to match the literal relative import in the raw file.
-        fs.copyFileSync(
-          path.resolve(
-            __dirname,
-            'node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs',
-          ),
-          path.resolve(__dirname, 'dist/spa/assets/maplibre-gl-shared.mjs'),
-        );
       },
       // vueRouterBase,
       // vueDevtools,
