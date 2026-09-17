@@ -33,9 +33,6 @@ ENV GIT_SHA=${GIT_SHA}
 # Copy source code
 COPY . .
 
-# Manually run the quasar prepare script
-RUN npx quasar prepare
-
 # Build the application (creates ./dist). GIT_SHA from above gets baked into
 # the bundle as APP_VERSION via quasar.config.js build.env.
 RUN npm run build
