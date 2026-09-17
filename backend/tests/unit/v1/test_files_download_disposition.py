@@ -32,6 +32,7 @@ These tests pin:
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from cryptography.fernet import InvalidToken
 from fastapi.testclient import TestClient
 
 from app.api.v1 import files as files_module
@@ -181,3 +182,43 @@ def test_download_encodes_non_ascii_filename(client):
     assert "%C3%A9quipements.csv" in disposition, disposition
     # ASCII fallback — ``é`` becomes ``?``.
     assert 'filename="?quipements.csv"' in disposition, disposition
+
+
+def test_undecryptable_file_answers_an_explicit_500(client, caplog):
+    """A valid Fernet token for another key (secret rotated or recreated
+    after the object was written) raises ``InvalidToken``, whose ``str()``
+    is empty. The response and the log must name the cause instead of a
+    blank "Internal server error" (#2842).
+    """
+    with (
+        patch.object(
+            files_module.files_store,
+            "get_file",
+            new=AsyncMock(side_effect=InvalidToken()),
+        ),
+        caplog.at_level("ERROR", logger="app.api.v1.files"),
+    ):
+        resp = client.get("/api/v1/files/processed/141/equipment_factors.csv")
+
+    assert resp.status_code == 500, resp.text
+    assert resp.json()["detail"] == (
+        "Stored file cannot be decrypted with the configured key"
+    )
+    records = [
+        r
+        for r in caplog.records
+        if "processed/141/equipment_factors.csv" in r.getMessage()
+    ]
+    assert records, [r.getMessage() for r in caplog.records]
+    assert "FILES_ENCRYPTION_KEY" in records[0].getMessage()
+    assert records[0].exc_info is not None
+
+
+def test_empty_stored_body_answers_404_not_500(client):
+    """The 404 for an empty body used to be raised inside the ``try`` and
+    re-caught by the blanket ``except``, surfacing as a 500 (#2842).
+    """
+    with _patch_files_store(b"", "text/csv"):
+        resp = client.get("/api/v1/files/processed/1/empty.csv")
+
+    assert resp.status_code == 404, resp.text
