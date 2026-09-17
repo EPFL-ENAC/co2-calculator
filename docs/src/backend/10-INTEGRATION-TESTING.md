@@ -255,9 +255,14 @@ response-shape assertions. Cross-tenant deny tests deliberately bypass
 
 - **Layer 1 deny** - inject `is_permitted=_deny` and assert 403
   before any DB read. See `test_active_pipelines_endpoint_pg.py`.
-- **Layer 2 deny** - mock `_institutional_id_for_job` to return a
-  unit ID, then mock `check_module_permission` to raise. See
-  `test_sync_pipeline_stream_endpoint_pg.py::test_cross_tenant_pipeline_returns_403`.
+- **Layer 2 deny / allow** - seed a real unit tree with
+  `seeded_year_with_units`, create the job with `entity_id` set to one of
+  its `carbon_report_modules.id`, and call the endpoint with a user whose
+  `roles` are real `Role` objects. Never mock `_institutional_id_for_job`
+  or `check_module_permission`: #2654 hid for four months behind exactly
+  that patch — `entity_id` was never written, the resolver always returned
+  `None`, and the mock made the dead gate look alive. See
+  `test_sync_pipeline_stream_endpoint_pg.py::TestUnitScope`.
 
 When you add a new permission check (a new positional argument to
 `get_module_permission_decision`, a new endpoint requiring a different

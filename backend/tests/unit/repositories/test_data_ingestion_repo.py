@@ -1666,6 +1666,7 @@ def _make_unit_specific_data_job(
     """
     return DataIngestionJob(
         entity_type=EntityType.MODULE_UNIT_SPECIFIC,
+        entity_id=1,
         module_type_id=3,
         data_entry_type_id=30,
         year=2025,
