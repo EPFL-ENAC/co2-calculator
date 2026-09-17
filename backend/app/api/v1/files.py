@@ -5,6 +5,7 @@ import datetime
 import os
 import urllib.parse
 
+from cryptography.fernet import InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from enacit4r_files.services import (
     FileNode,
@@ -24,6 +25,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from opentelemetry import trace
 
 from app.api.auth_first_route import AuthFirstRoute
 from app.api.deps import get_current_user
@@ -287,43 +289,56 @@ async def get_file(
 
     try:
         (body, content_type) = await files_store.get_file(file_path)
-        if body:
-            media_type = content_type or "application/octet-stream"
-            # ``nosniff`` stops the browser from second-guessing our
-            # Content-Type (e.g. sniffing a malformed CSV as HTML and
-            # running script injection on a malformed row).
-            # ``no-store`` (#2442) — this endpoint sets no validator (no
-            # ETag/Last-Modified), so leaving Cache-Control unset invites
-            # any intermediary between here and the browser (CDN, OpenShift
-            # Route, corporate proxy) to apply its own default caching
-            # policy. Reported symptom: the same job-scoped path served
-            # stale bytes from an earlier request only for callers that
-            # happened to hit it with a different query string — i.e. an
-            # intermediary cache keyed on the full URL, not on any signal
-            # this app controls. This is also permission-gated
-            # (backoffice.configuration.view); an intermediary cache with
-            # no per-user key risks serving one user's file to another.
-            headers = {
-                "X-Content-Type-Options": "nosniff",
-                "Cache-Control": "no-store",
-            }
-            # Force a real download when explicitly requested OR when the
-            # stored type would execute inline (html/svg/xml/js) — serving
-            # those inline from the file store would be stored XSS. Without
-            # ``Content-Disposition: attachment`` Safari/Firefox also ignore
-            # the client ``<a download>`` and strip the extension (regression
-            # 2026-05-21: ``equipments_data.csv`` saved as ``equipments_data``).
-            base_type = media_type.split(";", 1)[0].strip().lower()
-            if download or base_type in DANGEROUS_INLINE_TYPES:
-                headers["Content-Disposition"] = build_attachment_disposition(file_path)
-            return Response(content=body, media_type=media_type, headers=headers)
-        else:
-            raise HTTPException(status_code=404, detail="File not found")
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found")
+    except InvalidToken as e:
+        # A valid Fernet token for another key: the secret was rotated or
+        # recreated after this object was written. str(e) is empty, so say so.
+        logger.exception(
+            "Stored file %s is not decryptable with the configured "
+            "FILES_ENCRYPTION_KEY/FILES_ENCRYPTION_SALT",
+            file_path,
+        )
+        trace.get_current_span().record_exception(e)
+        raise HTTPException(
+            status_code=500,
+            detail="Stored file cannot be decrypted with the configured key",
+        )
     except Exception as e:
-        logger.error(f"Error retrieving file: {e}")
+        logger.exception("Error retrieving file %s", file_path)
+        trace.get_current_span().record_exception(e)
         raise HTTPException(status_code=500, detail="Internal server error")
+    if not body:
+        raise HTTPException(status_code=404, detail="File not found")
+    media_type = content_type or "application/octet-stream"
+    # ``nosniff`` stops the browser from second-guessing our
+    # Content-Type (e.g. sniffing a malformed CSV as HTML and
+    # running script injection on a malformed row).
+    # ``no-store`` (#2442) — this endpoint sets no validator (no
+    # ETag/Last-Modified), so leaving Cache-Control unset invites
+    # any intermediary between here and the browser (CDN, OpenShift
+    # Route, corporate proxy) to apply its own default caching
+    # policy. Reported symptom: the same job-scoped path served
+    # stale bytes from an earlier request only for callers that
+    # happened to hit it with a different query string — i.e. an
+    # intermediary cache keyed on the full URL, not on any signal
+    # this app controls. This is also permission-gated
+    # (backoffice.configuration.view); an intermediary cache with
+    # no per-user key risks serving one user's file to another.
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store",
+    }
+    # Force a real download when explicitly requested OR when the
+    # stored type would execute inline (html/svg/xml/js) — serving
+    # those inline from the file store would be stored XSS. Without
+    # ``Content-Disposition: attachment`` Safari/Firefox also ignore
+    # the client ``<a download>`` and strip the extension (regression
+    # 2026-05-21: ``equipments_data.csv`` saved as ``equipments_data``).
+    base_type = media_type.split(";", 1)[0].strip().lower()
+    if download or base_type in DANGEROUS_INLINE_TYPES:
+        headers["Content-Disposition"] = build_attachment_disposition(file_path)
+    return Response(content=body, media_type=media_type, headers=headers)
 
 
 @router.post(
