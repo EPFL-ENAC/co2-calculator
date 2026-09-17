@@ -108,7 +108,7 @@ async def _seed_plan_awaiting_prefill(Sf) -> tuple[int, list[int], int]:
 
         # The reference year must actually hold computed emissions — that is
         # what a copied row's provenance points at.
-        await svc._recalculate_report_emissions(ref)  # noqa: SLF001
+        await svc.recalculate_report_emissions(ref)
         await session.execute(
             update(CarbonReportModule)
             .where(CarbonReportModule.carbon_report_id == ref.id)

@@ -418,10 +418,6 @@ export default {
     en: 'Planned result: {value} t CO₂-eq',
     fr: 'Résultat prévu : {value} t CO₂-eq',
   },
-  planner_equipment_reference_error: {
-    en: 'Could not load the reference year total.',
-    fr: "Impossible de charger le total de l'année de référence.",
-  },
   planner_equipment_global_error: {
     en: 'Could not apply the percentage',
     fr: "Impossible d'appliquer le pourcentage",

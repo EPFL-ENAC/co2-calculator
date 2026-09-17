@@ -355,6 +355,23 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     await refreshAggregateIfActive();
   }
 
+  /**
+   * Undo the equipment module's global percentage (#2783): deletes the
+   * aggregate lines it created and restores individually editable per-line
+   * rows from the reference year at 0%.
+   */
+  async function resetEquipmentToPerLine(
+    carbonReportId: number,
+    moduleTypeId: number,
+  ): Promise<void> {
+    await api
+      .post(
+        `carbon-reports/${carbonReportId}/modules/${moduleTypeId}/reference-percentage/reset`,
+      )
+      .json();
+    await refreshAggregateIfActive();
+  }
+
   /** Set a grant submodule's share of the budget (#1978). */
   async function setSubmoduleBudget(
     carbonReportId: number,
@@ -412,6 +429,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     setReferenceYear,
     setModuleActive,
     setModuleReferencePercentage,
+    resetEquipmentToPerLine,
     setGrantBudget,
     setSubmoduleBudget,
     duplicatePlan,
