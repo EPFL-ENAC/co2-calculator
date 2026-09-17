@@ -104,20 +104,16 @@ path; reproduce locally with `make lighthouse`.
 ### `deploy.yml` — App Deploy
 
 **Trigger:** push to `dev`, `stage`, `ci-test/**`, or tags
-`v*.*.*`. **Jobs:** `publish-chart` (delegated to
-`publish_chart.yaml`) then `deploy` (EPFL-ENAC build-push-deploy
-action). A single `deploy` job pushes images to **both**
+`v*.*.*`. **Jobs:** `app-version` then `deploy` (EPFL-ENAC
+build-push-deploy action, `helm_chart_path: ./helm`). The action
+packages and pushes the Helm chart in its own `publish-chart` job,
+in parallel with the image builds; only its `update-manifest` job
+waits for the chart. A single `deploy` job pushes images to **both**
 `ghcr.io` and the EPFL Quay registry `quay-its.epfl.ch` (path
 `svc1751`); manifests update Argo CD repos
 `EPFL-ENAC/enack8s-app-config` and
 `EPFL-ENAC/openshift-app-config` respectively. Tags promote to
 production; branches map to the matching environment URL.
-
-### `publish_chart.yaml` — Helm Chart Packager
-
-**Trigger:** `workflow_call` only (reused by `deploy.yml`).
-**Job:** `build-image` packages the Helm chart and exposes
-`chart_version` as an output for the downstream deploy step.
 
 ### `deploy-storybook.yml` — Storybook Image + Manifest Dispatch
 
@@ -203,9 +199,9 @@ make ci       # full simulation
   matrix and that `pyproject.toml` is detected.
 - **Lighthouse times out:** raise the per-run budget in
   `frontend/.lighthouserc.json` or trim the URL list.
-- **Deploy step missing chart version:** check that
-  `publish_chart.yaml` ran first; the `deploy` job consumes its
-  `chart_version` output.
+- **Deploy step missing chart version:** check the action's
+  `publish-chart` job; `update-manifest` takes the version from its
+  output, and a failed chart render or push skips the manifest update.
 - **Tag not created on main merge:** `release-please.yml` only
   fires when the merged PR's head ref is `stage`; merges from any
   other branch are skipped by design. The tag name comes from
