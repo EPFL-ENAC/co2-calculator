@@ -33,6 +33,33 @@ spec:
           port: {{ .Values.backend.service.targetPort }}
 
 ---
+# Pod-to-pod traffic inside the release. ``default-deny`` above also drops the
+# worker's (and other API pods') POST to ``/internal/cache/taxonomy/clear``, so
+# the taxonomy-cache broadcast never reached a pod on dev/stage (#2845).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-from-pods
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "co2-calculator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+
+  policyTypes:
+    - Ingress
+
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "co2-calculator.selectorLabels" . | nindent 14 }}
+
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.service.targetPort }}
+
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
