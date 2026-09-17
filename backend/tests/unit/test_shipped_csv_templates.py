@@ -1,6 +1,6 @@
 """The CSV templates the app offers for download must be importable.
 
-Every file under ``frontend/public/templates`` is what a user downloads,
+Every file under ``frontend/src/assets/templates`` is what a user downloads,
 fills in and uploads back, so it has to survive the same decode/parse path
 as any other upload. #2026 shipped a pack that failed on all three counts
 at once (latin-1 bytes, US-format dates, instruction rows read as data).
@@ -16,7 +16,7 @@ import pytest
 from app.utils.csv_dialect import csv_dict_reader, strip_comment_lines
 
 TEMPLATES_DIR = (
-    Path(__file__).resolve().parents[3] / "frontend" / "public" / "templates"
+    Path(__file__).resolve().parents[3] / "frontend" / "src" / "assets" / "templates"
 )
 US_DATE = re.compile(r"^\d{1,2}/\d{1,2}/\d{4}$")
 

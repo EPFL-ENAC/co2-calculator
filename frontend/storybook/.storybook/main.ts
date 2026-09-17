@@ -60,16 +60,6 @@ const config: StorybookConfig = {
               // Exclude page components from the build
               /src\/pages\/.*/,
             ],
-            onwarn: (warning, warn) => {
-              // Ignore unresolved import warnings for fonts in public folder
-              if (
-                warning.code === 'UNRESOLVED_IMPORT' &&
-                warning.message.includes('/fonts/')
-              ) {
-                return;
-              }
-              warn(warning);
-            },
           },
         },
       },
