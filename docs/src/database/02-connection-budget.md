@@ -96,10 +96,18 @@ connections through the bouncer until it queues one. Re-run it after any
 DBaaS change; it holds the pool for a couple of seconds, so on prod pick
 a quiet moment.
 
-| Env         | Wall                                                           | Budget      | backend      | worker    | `MAX_CONCURRENT_JOBS` | steady | surge |
-| ----------- | -------------------------------------------------------------- | ----------- | ------------ | --------- | --------------------- | ------ | ----- |
-| dev         | PgBouncer `default_pool_size` 25 (configured, session pool)    | 25 − 5 = 20 | 2+5 ×3 = 21  | 2+7 = 9   | 2                     | 30     | 34    |
-| stage, prod | Postgres 100 − 3 reserved (no PgBouncer yet, see status above) | 90          | 5+10 ×3 = 45 | 5+15 = 20 | 4                     | 65     | 75    |
+| Env         | Wall                                                           | Budget      | backend      | worker       | `MAX_CONCURRENT_JOBS` | steady | surge |
+| ----------- | -------------------------------------------------------------- | ----------- | ------------ | ------------ | --------------------- | ------ | ----- |
+| dev         | PgBouncer `default_pool_size` 25 (configured, session pool)    | 25 − 5 = 20 | 2+5 ×3 = 21  | 2+7 = 9      | 2                     | 30     | 34    |
+| stage, prod | Postgres 100 − 3 reserved (no PgBouncer yet, see status above) | 90          | 5+13 ×3 = 54 | 5+10 ×2 = 30 | 4                     | 84     | 89    |
+
+Stage and prod (updated 2026-09-17, openshift-app-config#47): the backend
+overflow is burst insurance sized to spend the budget, not a measured
+need — stage peaked at 14 `checked_out` fleet-wide on 2026-09-15 against
+a ceiling of 75. 90 is the line, not 95: Postgres keeps 3 for superusers,
+the migration Job runs during the rollout surge, and a 53300 refusal
+locks out the DBA too. The worker's 15 per pod is exactly
+`MAX_CONCURRENT_JOBS` × 3 + 3 loops; more overflow there is idle.
 
 **Dev is now over budget at steady state, not just on surge**: the
 existing backend + worker sizing (steady 30) was calibrated against the
