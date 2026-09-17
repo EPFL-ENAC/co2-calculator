@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: in-progress
 issue: 2783
 last_updated: 2026-09-17
 title: "Equipment global percentage: one aggregate line per type instead of rewriting the reference year"
