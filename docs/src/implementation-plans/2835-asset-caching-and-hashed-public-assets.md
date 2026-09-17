@@ -54,10 +54,16 @@ summary: "Travel map broke because maplibre's ES-module worker was served as app
    it as `favicon.ico?v=<%= appVersion %>` (Quasar `htmlVariables`, fed by the
    same git SHA as `APP_VERSION`), and `location = /favicon.ico` caches it
    for a day: releases bust it through the query, bare probes wait a day.
-7. The glob lives in `ModuleTable.vue`, not `templateMapping.ts`: the latter
-   is imported by a Node-side Playwright test that cannot evaluate
-   `import.meta.glob` (same constraint as `mergeLivePipelineJob`).
-8. **The template directory is checked from both sides.**
+7. The glob lives in a browser-only leaf, `constant/templateAssets.ts`, not
+   in `templateMapping.ts`: the latter is imported by a Node-side Playwright
+   test that cannot evaluate `import.meta.glob` (same constraint as
+   `mergeLivePipelineJob`). The leaf keys URLs by file name and throws at
+   boot if any `SHIPPED_TEMPLATES` entry is not bundled, so a wrong glob
+   path fails the first page load rather than a user's click.
+8. **No `expires` directives.** `expires` and `add_header Cache-Control` on
+   the same location emit two `Cache-Control` headers; only `add_header`
+   remains.
+9. **The template directory is checked from both sides.**
    `backend/tests/unit/test_shipped_csv_templates.py` runs every CSV on disk
    through the ingestion parser (it lives in the backend because the parser
    does). `frontend/tests/unit/template-mapping.spec.ts` asserts the mapping

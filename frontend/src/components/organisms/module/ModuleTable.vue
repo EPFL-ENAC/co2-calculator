@@ -538,15 +538,8 @@ import {
 } from '@/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from '@/stores/backofficeDataManagement';
 import { PermissionAction } from '@/stores/auth';
+import { getTemplateUrl } from '@/constant/templateAssets';
 import { getTemplateFileName } from '@/constant/templateMapping';
-
-// Templates are Vite assets so a replaced file gets a new URL and never sits
-// stale in a browser cache. `url` because .csv is not a Vite asset type, and
-// `no-inline` so files under 4 KB stay files rather than data URIs.
-const TEMPLATE_URLS = import.meta.glob<string>(
-  '../../../assets/templates/*.csv',
-  { query: '?url&no-inline', import: 'default', eager: true },
-);
 import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
 import { CARBON_PROJECT } from '@/constant/carbon-project';
 import { resolveTravelerCellText } from '@/constant/module-config/traveler-options';
@@ -2116,12 +2109,14 @@ function onDownloadTemplate() {
     props.moduleType as Module,
     props.submoduleType,
   );
-  if (!fileName) return;
+  if (!fileName) {
+    throw new Error(
+      `No template mapped for ${props.moduleType}:${props.submoduleType}`,
+    );
+  }
 
   const a = document.createElement('a');
-  const url = TEMPLATE_URLS[`../../../assets/templates/${fileName}`];
-  if (!url) throw new Error(`No template asset for ${fileName}`);
-  a.href = url;
+  a.href = getTemplateUrl(fileName);
   a.download = fileName;
   document.body.appendChild(a);
   a.click();
