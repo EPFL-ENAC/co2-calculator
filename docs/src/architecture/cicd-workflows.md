@@ -104,8 +104,10 @@ path; reproduce locally with `make lighthouse`.
 ### `deploy.yml` — App Deploy
 
 **Trigger:** push to `dev`, `stage`, `ci-test/**`, or tags
-`v*.*.*`. **Jobs:** `app-version` then `deploy` (EPFL-ENAC
-build-push-deploy action, `helm_chart_path: ./helm`). The action
+`v*.*.*`. **Jobs:** `deploy` (EPFL-ENAC build-push-deploy action,
+`helm_chart_path: ./helm`). `APP_VERSION` is computed by the action's
+`build_args_script` inside each build job, from the root `package.json`
+and the commit date. The action
 packages and pushes the Helm chart in its own `publish-chart` job,
 in parallel with the image builds; only its `update-manifest` job
 waits for the chart. A single `deploy` job pushes images to **both**
