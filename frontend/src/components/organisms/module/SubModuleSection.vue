@@ -65,7 +65,6 @@
           :carbon-report-id="carbonReportId"
           :show-reference-columns="showReferenceColumns"
           :project-years-count="projectYearsCount"
-          :percentage-locked="percentageLocked"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -223,8 +222,6 @@ type CommonProps = {
   showReferenceColumns?: boolean;
   /** Planner Project Grant: plan year count for the "× project years" column. */
   projectYearsCount?: number | null;
-  /** Grant equipment global mode: per-row % controls read-only (#1981). */
-  percentageLocked?: boolean;
   /** Planner Project Grant: show this submodule's budget field (#1978). */
   showGrantBudget?: boolean;
   /** The submodule's saved share of the grant budget. */
@@ -253,7 +250,6 @@ const props = withDefaults(defineProps<SubModuleSectionProps>(), {
   carbonReportId: undefined,
   showReferenceColumns: undefined,
   projectYearsCount: null,
-  percentageLocked: false,
   showGrantBudget: false,
   grantBudget: null,
   grantBudgetCurrency: null,

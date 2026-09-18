@@ -403,8 +403,8 @@ export default {
     fr: 'Pourcentage global',
   },
   planner_equipment_mode_per_line_hint: {
-    en: 'Each prefilled equipment gets its own percentage of the reference year, starting at 100%.',
-    fr: "Chaque équipement prérempli reçoit son propre pourcentage de l'année de référence, à 100% au départ.",
+    en: 'Each prefilled equipment gets its own percentage of the reference year, starting at 0%.',
+    fr: "Chaque équipement prérempli reçoit son propre pourcentage de l'année de référence, à 0% au départ.",
   },
   planner_equipment_mode_global_hint: {
     en: 'One percentage of the reference year is applied to every prefilled line at once.',

@@ -37,6 +37,7 @@ from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.simulator_plan import SimulatorPlanUpdate
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.simulator_plan_service import SimulatorPlanService
+from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -546,3 +547,121 @@ async def test_only_equipment_module_is_supported(async_session, user):
         await module_service.set_reference_percentage_all(
             report.id, int(ModuleTypeEnum.headcount), 10.0
         )
+
+
+@pytest.mark.asyncio
+async def test_prefill_starts_equipment_in_global_mode(async_session, user):
+    """#2749: the prefill writes one aggregate line per type at 0%, never a
+    copy of every reference-year equipment line.
+    """
+    report, plan_module, ref_module = await _plan_report_with_equipment(
+        async_session, user
+    )
+    for _ in range(5):
+        await _reference_equipment_row(
+            async_session, ref_module.id, unit_id=1, year=2024
+        )
+    await _set_stats(
+        async_session, ref_module.id, {SCIENTIFIC_ET: 1000.0, IT_ET: 500.0}
+    )
+
+    await SimulatorPlanService(async_session).prefill_reports([report.id])
+
+    rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
+    assert sorted(r.data_entry_type_id for r in rows) == [
+        DataEntryTypeEnum.scientific.value,
+        DataEntryTypeEnum.it.value,
+    ]
+    for row in rows:
+        assert row.data == {
+            "source_data_entry_id": None,
+            "percentage_of_reference_year": 0.0,
+        }
+    # The recalc right after the prefill prices them rather than deleting
+    # their emission rows (a deleted row is absent here, not 0).
+    emissions = await DataEntryEmissionRepository(async_session).get_stats_pair_many(
+        [plan_module.id]
+    )
+    leaf_emissions, _, _ = emissions.get(plan_module.id, ({}, {}, {}))
+    assert leaf_emissions == {str(SCIENTIFIC_ET): 0.0, str(IT_ET): 0.0}
+    db_module = await async_session.get(CarbonReportModule, plan_module.id)
+    assert db_module.stats["equipment_applied_percentage"] == 0.0
+    assert db_module.stats["equipment_reference_total_kg"] == pytest.approx(1500.0)
+
+
+@pytest.mark.asyncio
+async def test_per_line_rows_do_not_read_as_global_mode(async_session, user):
+    """#2749: per-line snapshot rows carry a percentage too (0 on copy); only
+    an aggregate line means global mode, or a per-line module reloads as global.
+    """
+    report, plan_module, ref_module = await _plan_report_with_equipment(
+        async_session, user
+    )
+    await _reference_equipment_row(async_session, ref_module.id, unit_id=1, year=2024)
+    module_service = CarbonReportModuleService(async_session)
+
+    await module_service.reset_equipment_to_per_line(
+        report.id, int(ModuleTypeEnum.equipment)
+    )
+
+    rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
+    assert [r.data["percentage_of_reference_year"] for r in rows] == [0]
+    db_module = await async_session.get(CarbonReportModule, plan_module.id)
+    assert db_module.stats["equipment_applied_percentage"] is None
+
+
+@pytest.mark.asyncio
+async def test_factor_recalc_keeps_aggregate_priced(async_session, user):
+    """#2749: an aggregate line has no class to resolve a factor from, so the
+    factor recalc over its (type, year) slice used to delete its emission row.
+    """
+    report, plan_module, ref_module = await _plan_report_with_equipment(
+        async_session, user
+    )
+    await _set_stats(async_session, ref_module.id, {SCIENTIFIC_ET: 1000.0})
+    await CarbonReportModuleService(async_session).set_reference_percentage_all(
+        report.id, int(ModuleTypeEnum.equipment), 25.0
+    )
+
+    await EmissionRecalculationWorkflow(async_session).recalculate_for_data_entry_type(
+        DataEntryTypeEnum.scientific, 2027
+    )
+
+    emissions = await DataEntryEmissionRepository(async_session).get_stats_pair_many(
+        [plan_module.id]
+    )
+    leaf_emissions, _, _ = emissions.get(plan_module.id, ({}, {}, {}))
+    assert leaf_emissions.get(str(SCIENTIFIC_ET)) == pytest.approx(250.0)
+
+
+@pytest.mark.asyncio
+async def test_device_tables_leave_aggregate_lines_out(async_session, user):
+    """#2749: an aggregate line stands for a whole type, not a device; the
+    global-mode block shows it, the equipment tables and their counts do not
+    (it has no name/class, so listing it used to 500).
+    """
+    report, plan_module, ref_module = await _plan_report_with_equipment(
+        async_session, user
+    )
+    await _set_stats(async_session, ref_module.id, {IT_ET: 500.0})
+    await CarbonReportModuleService(async_session).set_reference_percentage_all(
+        report.id, int(ModuleTypeEnum.equipment), 25.0
+    )
+    manual = await _manual_row(async_session, plan_module.id, DataEntryTypeEnum.it)
+    manual.data = {"name": "Hand-added laptop", "equipment_class": "Laptop"}
+    await async_session.flush()
+    repo = DataEntryRepository(async_session)
+
+    page = await repo.get_submodule_data(
+        carbon_report_module_id=plan_module.id,
+        data_entry_type_id=DataEntryTypeEnum.it.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+    counts = await repo.get_total_count_by_submodule(plan_module.id)
+
+    assert [item.id for item in page.items] == [manual.id]
+    assert page.count == 1
+    assert counts[DataEntryTypeEnum.it.value] == 1

@@ -14,6 +14,7 @@ import {
   QBtn,
   QCard,
   QCheckbox,
+  QDialog,
   QSeparator,
   QExpansionItem,
   QIcon,
@@ -66,4 +67,7 @@ beforeMount(async ({ app }) => {
   // additional-categories checkbox and the download buttons.
   app.component('QBtn', QBtn);
   app.component('QCheckbox', QCheckbox);
+  // PlannerYearSection's reference-year and mode-switch dialogs: without it
+  // a closed q-dialog renders its content inline.
+  app.component('QDialog', QDialog);
 });
