@@ -72,7 +72,6 @@ class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
 
     kind_field: str | None = None
     subkind_field: str | None = None
-    require_subkind_for_factor = False
     require_factor_to_match = False
 
     sort_map = {

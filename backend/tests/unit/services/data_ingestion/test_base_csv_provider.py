@@ -17,10 +17,12 @@ from app.models.data_entry import (
     DataEntryTypeEnum,
 )
 from app.models.data_ingestion import EntityType, IngestionResult
+from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
 from app.modules.headcount import HeadcountMemberModuleHandler
 from app.repositories.data_entry_repo import DataEntryRepository
+from app.schemas.data_entry import BaseModuleHandler
 from app.services.data_ingestion.base_csv_provider import (
     REUPLOAD_HINT,
     BaseCSVProvider,
@@ -1991,3 +1993,53 @@ async def test_process_row_rejects_subcategory_less_refrigerant_row():
     )
     assert error_msg is None
     assert entry is not None and entry.data["subcategory"] == "R32"
+
+
+@pytest.mark.asyncio
+async def test_process_row_accepts_equipment_row_without_sub_class():
+    # Inventory CSVs carry no sub_class; the user picks it after import.
+    det = DataEntryTypeEnum.scientific
+    handler = BaseModuleHandler.get_by_type(det)
+    provider = ConcreteCSVProvider(
+        {"file_path": "tmp/test.csv", "carbon_report_module_id": 7, "year": 2025},
+        data_session=MagicMock(),
+    )
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (det, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    factor = Factor(
+        id=6,
+        data_entry_type_id=det.value,
+        emission_type_id=1,
+        classification={
+            "equipment_class": "Optical microscopes",
+            "sub_class": "FL microscopes",
+        },
+        values={"active_power_w": 150.0, "standby_power_w": 5.0},
+        year=2025,
+    )
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {f"{det.value}:2025:optical:fl": factor},
+        "expected_columns": {"equipment_id", "name", "equipment_class", "sub_class"},
+    }
+    stats = _build_stats()
+
+    entry, error_msg, _ = await provider._process_row(
+        {
+            "equipment_id": "INV-1",
+            "name": "Microscope",
+            "equipment_class": "Optical microscopes",
+            "sub_class": "",
+        },
+        row_idx=1,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+    )
+    assert error_msg is None
+    assert entry is not None
+    assert entry.data["equipment_class"] == "Optical microscopes"
+    assert stats["row_errors_count"] == 0

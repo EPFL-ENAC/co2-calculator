@@ -22,7 +22,6 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
 
     kind_field: str = "category"
     subkind_field: str = "subcategory"
-    require_subkind_for_factor = False
 
     sort_map = {
         "id": DataEntry.id,
