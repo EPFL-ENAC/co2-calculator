@@ -1,3 +1,11 @@
+## [1.4.15](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.14...v1.4.15) (2026-09-18)
+
+
+### Bug Fixes
+
+* **equipment:** show the factor power the emissions are priced with ([#2749](https://github.com/EPFL-ENAC/co2-calculator/issues/2749)) ([90f3259](https://github.com/EPFL-ENAC/co2-calculator/commit/90f32590cc8af13c762f40d82ad4282ecc4a9c2c)), closes [#2314](https://github.com/EPFL-ENAC/co2-calculator/issues/2314) [#2314](https://github.com/EPFL-ENAC/co2-calculator/issues/2314)
+* **planner:** per-line hint says 0%, slider drag selects no text ([#2749](https://github.com/EPFL-ENAC/co2-calculator/issues/2749)) ([aa48441](https://github.com/EPFL-ENAC/co2-calculator/commit/aa484419fa8b1c86c31014dced35f62742d639b0))
+* **planner:** prefill equipment in global percentage mode ([#2749](https://github.com/EPFL-ENAC/co2-calculator/issues/2749)) ([62d66fc](https://github.com/EPFL-ENAC/co2-calculator/commit/62d66fc06cb657d9e2dc0d42dffa2d0637540f6b))
 ## [1.4.14](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.10...v1.4.14) (2026-09-18)
 
 

@@ -277,16 +277,8 @@
             </q-btn>
           </template>
           <template v-else-if="col.name === 'percentage_of_reference_year'">
-            <!-- An equipment global-percentage aggregate row (#2783) has a
-                 real percentage but no single source, so reference_kg_co2eq
-                 is never set for it — show the (locked, via
-                 percentageLocked) slider off percentage_of_reference_year
-                 alone rather than hiding it. -->
             <div
-              v-if="
-                slotProps.row.reference_kg_co2eq != null ||
-                slotProps.row.percentage_of_reference_year != null
-              "
+              v-if="slotProps.row.reference_kg_co2eq != null"
               class="row items-center no-wrap reference-slider"
             >
               <q-slider
@@ -294,7 +286,7 @@
                 :min="REFERENCE_PERCENTAGE_MIN"
                 :max="REFERENCE_PERCENTAGE_MAX"
                 :step="5"
-                :disable="isDisabled || percentageLocked"
+                :disable="isDisabled"
                 color="negative"
                 class="col"
                 @update:model-value="
@@ -311,7 +303,7 @@
                   type="number"
                   :min="REFERENCE_PERCENTAGE_MIN"
                   :max="REFERENCE_PERCENTAGE_MAX"
-                  :disable="isDisabled || percentageLocked"
+                  :disable="isDisabled"
                   :aria-label="$t('planner_percentage_col')"
                   :style="percentageFieldWidth(slotProps.row)"
                   dense
@@ -895,11 +887,6 @@ type CommonProps = {
    * it (#1979). Null everywhere else.
    */
   projectYearsCount?: number | null;
-  /**
-   * Grant equipment "global percentage" mode: the per-row % controls are
-   * driven by the module-level value and stay read-only (#1981).
-   */
-  percentageLocked?: boolean;
   threshold: Threshold;
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
@@ -918,7 +905,6 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
   carbonReportId: undefined,
   showReferenceColumns: false,
   projectYearsCount: null,
-  percentageLocked: false,
   moduleColor: undefined,
   moduleColorLighter: undefined,
 });
@@ -2405,6 +2391,12 @@ onUnmounted(() => {
 
   // Clears the slider's thumb, which overhangs the end of its track.
   gap: 1rem;
+}
+
+// A drag starting on the slider must not start a text selection: Quasar only
+// blocks selection once the drag passes its threshold.
+.reference-slider .q-slider {
+  user-select: none;
 }
 
 .reference-slider__value {

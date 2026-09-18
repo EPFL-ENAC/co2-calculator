@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import CheckConstraint, Column, DateTime, Index, Integer, text
-from sqlmodel import JSON, Field, SQLModel
+from sqlmodel import JSON, Field, SQLModel, col, or_
 
 from app.models._field_defaults import default_dict, default_utcnow
 
@@ -256,3 +256,12 @@ class DataEntry(DataEntryBase, table=True):
             f"carbon_report_module={self.carbon_report_module_id} "
             f"source={self.source}>"
         )
+
+
+# An equipment global-percentage aggregate line (#2783) stands for a whole
+# type, not one device: device lists and counts leave it out (#2749).
+IS_NOT_PERCENTAGE_AGGREGATE = or_(
+    col(DataEntry.source).is_distinct_from(DataEntrySourceEnum.PLANNER_SNAPSHOT.value),
+    DataEntry.data["source_data_entry_id"].as_string().isnot(None),
+    DataEntry.data["percentage_of_reference_year"].as_string().is_(None),
+)

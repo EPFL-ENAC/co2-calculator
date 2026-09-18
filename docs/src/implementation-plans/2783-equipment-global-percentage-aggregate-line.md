@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 2783
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 title: "Equipment global percentage: one aggregate line per type instead of rewriting the reference year"
 summary: "PATCH reference-percentage rewrote every snapshot line one by one (~5,700 queries, 2.3 min for 950 lines). Per the Option B decision in #2749, it now upserts one aggregate line per equipment type, reading the reference total straight from the module's already-computed stats. No schema change, no data backfill."
 ---
@@ -90,6 +90,29 @@ existing `prefill_module_from_reference` snapshot copy to restore per-line
 rows at 0% — unchanged mechanism, matches what `confirmEquipmentSwitch`
 already does today.
 
+**Prefill** writes the aggregate lines itself, at 0%: global is the default
+mode of every new section, see
+[2749's follow-up](./2749-planner-equipment-global-percentage-year-sections.md#follow-up-global-percentage-is-the-prefill-default).
+
+**Recompute prices aggregate lines (#2749 follow-up).** An aggregate line
+carries no `equipment_class`, so the factor path priced it at nothing:
+`resolve_computations` returns `[]` without a factor, and the percentage
+override only runs inside the computation loop. Every recompute (factor
+recalc over its `(type, year)` slice, the plan recalc after a prefill)
+deleted its emission row, a silent zero. `prepare_create` now prices an
+aggregate line before the factor path: pct × the reference module's
+`stats.by_emission_type` for its type, the number the PATCH shows. The PATCH
+prices through `prepare_create` too, so there is one formula. Per-line rows
+keep their path.
+
+**Aggregate lines stay out of the device tables (#2749).** An aggregate line
+stands for a whole type, not a device: it has no `name`/`equipment_class`
+(listing it 500'd on `EquipmentHandlerResponse`), and the global-mode block
+already shows its percentage, reference total and planned result.
+`IS_NOT_PERCENTAGE_AGGREGATE` (`models/data_entry.py`) is the equipment
+handler's `default_where`, so the page, page-id and count queries skip it, and
+`get_total_count_by_submodule` applies it to the table header counts.
+
 **POST (manual add)** is untouched: `CarbonReportModuleWorkflow.create`,
 `source=USER_MANUAL`, never sets `source_data_entry_id` or
 `percentage_of_reference_year`. It sits next to the aggregate row(s) and
@@ -112,8 +135,10 @@ nobody touches again.
   `stats.by_emission_type` instead of the current three
   `?limit=1000` snapshot fetches + client-side sum
   (`fetchEquipmentSnapshotRows`, `equipmentReferenceSum`).
-- Global-mode table renders however many aggregate rows exist (≤3) instead
-  of the full per-type row list. No per-row slider — already the case.
+- Global-mode tables list hand-added equipment only; the aggregate lines
+  are hidden (see above). `ModuleTable`'s aggregate-row slider and the
+  `percentageLocked` prop (#1981) went with them: global mode no longer has
+  per-line rows to lock.
 - `equipmentMode` initializes from row presence (an aggregate row found →
   `global`) instead of a `ref` default that resets on reload.
 - Manual add-line form and the switch-confirmation dialog: unchanged.

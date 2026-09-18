@@ -30,6 +30,7 @@ from app.models.classification_translation import (
     resolve_label_from_field,
 )
 from app.models.data_entry import (
+    IS_NOT_PERCENTAGE_AGGREGATE,
     DataEntry,
     DataEntrySourceEnum,
     DataEntryStatusEnum,
@@ -442,11 +443,11 @@ class DataEntryRepository:
     ) -> dict[int, float]:
         """The currently-applied global percentage per module, if any — #2783.
 
-        Every row in a module carries the same value once applied (the PATCH
-        sets it uniformly, aggregate or legacy per-line shape alike), so any
-        one match per module is authoritative — ``max`` just collapses
-        duplicates into one grouped query instead of one query per module.
-        A module never in global mode is absent from the result.
+        Only aggregate lines count (no ``source_data_entry_id``): per-line
+        snapshot rows carry a percentage too, 0 on copy, and must not read
+        as global mode (#2749). Every aggregate line of a module carries the
+        same value, so ``max`` just collapses them into one grouped query.
+        A module not in global mode is absent from the result.
         """
         if not carbon_report_module_ids:
             return {}
@@ -457,6 +458,7 @@ class DataEntryRepository:
             )
             .where(
                 col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids),
+                DataEntry.data["source_data_entry_id"].as_string().is_(None),
                 DataEntry.data["percentage_of_reference_year"].as_string().isnot(None),
             )
             .group_by(col(DataEntry.carbon_report_module_id))
@@ -770,7 +772,10 @@ class DataEntryRepository:
                 DataEntry.data_entry_type_id,
                 func.count().label("total_count"),
             )
-            .where(DataEntry.carbon_report_module_id == carbon_report_module_id)
+            .where(
+                DataEntry.carbon_report_module_id == carbon_report_module_id,
+                IS_NOT_PERCENTAGE_AGGREGATE,
+            )
             .group_by(col(DataEntry.data_entry_type_id))
         )
         if travel_institutional_id_filter is not None:
