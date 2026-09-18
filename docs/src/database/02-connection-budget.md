@@ -41,13 +41,34 @@ Per pod, in the order they start (`app/main.py` lifespan):
 | Pod heartbeat (`_pod_heartbeat.py`) | all pods                              | 30 s         | 1, also refreshes the server-side gauge                                                                     |
 | Pipeline reconciler                 | all pods                              | 60 s         | 1                                                                                                           |
 | Safety poller (`_poller.py`)        | worker only (`RUN_BACKGROUND_POLLER`) | 2 s          | 1, plus what it dispatches                                                                                  |
-| Job runner (`runner.py`)            | worker                                | per job      | 3 per running job: job session, data session, chain helper; `MAX_CONCURRENT_JOBS` jobs                      |
+| Job runner (`runner.py`)            | worker                                | per job      | up to 3 per running job (job session, data session, chain helper); measured 1 most of the time, see below   |
 | Request handlers                    | backend                               | per request  | 1 from the route's first query to the end of the response; auth releases its own before the route body runs |
 | SSE streams (`data_sync.py`)        | backend                               | per 2 s poll | 1 for a few ms per poll, none between polls                                                                 |
 
-Rule of thumb: a backend pod at rest holds 2, a worker at rest 3 plus
-`3 × MAX_CONCURRENT_JOBS` under load. Measured steady `checked_out` is
-2 to 4 per pod (#2566, #2689).
+Measured (2026-09-18, local Postgres, `pg_stat_activity` every 50 ms via
+`backend/tests/performance/pipeline_connections.py`; one 500-row upload
+per module type, then three units at once for six modules):
+
+| Situation                          | held connections, peak | median |
+| ---------------------------------- | ---------------------- | ------ |
+| pod at rest (loops only)           | 1                      | 0      |
+| one pipeline, ingest phase         | 2                      | 1      |
+| one pipeline, recalc phase         | 2                      | 1      |
+| one pipeline, aggregation phase    | 3                      | 1      |
+| three pipelines at once, whole pod | 5                      | 3      |
+
+"Held" is any state but `idle`; an idle row is a pooled connection nobody
+is using, which is what `pool_size` keeps open on purpose. So the 3 per
+job is a ceiling the aggregation step touches for milliseconds, not a
+steady cost, and concurrent jobs do not add up: three jobs peaked at 5
+for the process, not 9. The 43 s train ingest held the same 3 to 5 as the
+sub-second ones. Seven module types could not be measured locally (no
+factors seeded for that year); the fifteen that ran agree.
+
+Rule of thumb from that: a pod at rest holds 1 briefly, a worker peaks at
+`MAX_CONCURRENT_JOBS + 2`, and `3 × MAX_CONCURRENT_JOBS + 3` stays the
+sizing rule because it is 2× that peak, the margin that keeps a burst
+from costing a user a 5 s pool timeout.
 
 ## The three layers
 
@@ -85,7 +106,9 @@ backend-deployment.yaml`), so one extra backend and one extra worker are
   `checked_out` where the budget allows, so normal traffic never churns a
   login; on a small budget set it to 2 and accept the churn.
 - Worker ceiling ≥ `MAX_CONCURRENT_JOBS` × 3 + 3 loops, or jobs queue on
-  the pod's own pool.
+  the pod's own pool. Measured peak is `MAX_CONCURRENT_JOBS` + 2 (table
+  above), so the rule carries a 2× margin; when the budget is tight,
+  spend that margin on the backend, not on more worker overflow.
 - `DB_POOL_TIMEOUT` stays 5 s. Failing in-process in 5 s beats the
   bouncer's 120 s, and nothing on the SQLAlchemy side bounds that 120 s.
 - Never `-1` for `DB_MAX_OVERFLOW`: it moves the wall to the bouncer, where
