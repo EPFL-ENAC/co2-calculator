@@ -14,7 +14,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v3.5.0
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v3.6.0
     secrets:
       token: ${{ secrets.CD_TOKEN }}
       registry_token: ${{ secrets.QUAY_TOKEN }}
@@ -22,6 +22,14 @@ jobs:
       ORG: epfl
       REPO: co2-calculator
       build_context: '[ "./frontend", "./backend", "./docs" ]'
+      # Re-tag instead of rebuilding images whose context did not change.
+      # APP_VERSION is read from the root package.json, outside every build
+      # context: a version bump must rebuild all three images. Reused images
+      # are not rescanned per deploy: image-vulnerability-scan.yml scans the
+      # dev/stage/release tags on a schedule.
+      reuse_unchanged_images: true
+      rescan_reused_images: false
+      build_key_paths: package.json
       helm_chart_name: co2-calculator
       # The action packages and pushes the chart in a job that runs beside
       # the image builds; only its update-manifest waits for it.
