@@ -49,6 +49,12 @@ logger = get_logger(__name__)
 # in-app signal that does. Every pod reports the same server-wide number:
 # aggregate with max(), never sum().
 _server_connections: int | None = None
+# This pod's own backends as the *server* sees them, by state (#2854): the
+# pool gauge speaks SQLAlchemy (checked_in / checked_out); operators and
+# the budget doc speak Postgres (idle / active / idle in transaction).
+# Filtered on our application_name, so each pod reports only itself.
+_pod_server_states: dict[str, int] | None = None
+POD_SERVER_STATES = ("idle", "active", "idle in transaction")
 
 
 async def _upsert_pod_row(*, started_at: datetime) -> None:
@@ -139,20 +145,45 @@ async def _delete_pod_row() -> None:
 SERVER_CONNECTIONS_SQL = (
     "SELECT count(*) FROM pg_stat_activity WHERE backend_type = 'client backend'"
 )
+POD_SERVER_STATES_SQL = (
+    "SELECT state, count(*) FROM pg_stat_activity "
+    "WHERE backend_type = 'client backend' AND application_name = :app "
+    "GROUP BY state"
+)
+
+
+def fold_server_state(state: str | None) -> str:
+    """Collapse Postgres's states onto the three the dashboard shows.
+
+    ``idle in transaction (aborted)`` is still a held connection; the rare
+    ``fastpath function call`` / ``disabled`` are lumped with ``active``.
+    """
+    if state is None or state == "idle":
+        return "idle"
+    if state.startswith("idle in transaction"):
+        return "idle in transaction"
+    return "active"
 
 
 async def _refresh_server_connection_count() -> None:
-    """Cache ``count(*)`` over ``pg_stat_activity`` for the OTel gauge.
+    """Cache the server-wide count and this pod's by-state counts.
 
-    Postgres-only: sqlite (local, tests) has no such view, and the gauge
-    reports nothing there rather than the loop failing every tick.
+    Postgres-only: sqlite (local, tests) has no such view, and the gauges
+    report nothing there rather than the loop failing every tick.
     """
-    global _server_connections
+    global _server_connections, _pod_server_states
     if engine.dialect.name != "postgresql":
         return
     async with SessionLocal() as session:
         result = await session.execute(text(SERVER_CONNECTIONS_SQL))
         _server_connections = result.scalar_one()
+        rows = await session.execute(
+            text(POD_SERVER_STATES_SQL), {"app": f"co2-{POD_ID}"}
+        )
+        states = dict.fromkeys(POD_SERVER_STATES, 0)
+        for state, count in rows.all():
+            states[fold_server_state(state)] += count
+        _pod_server_states = states
 
 
 def _server_connections_callback(options: CallbackOptions) -> Iterable[Observation]:
@@ -162,11 +193,29 @@ def _server_connections_callback(options: CallbackOptions) -> Iterable[Observati
     yield Observation(_server_connections)
 
 
+def _pod_server_states_callback(options: CallbackOptions) -> Iterable[Observation]:
+    """Report this pod's by-state counts, zeros included so stacks stay whole."""
+    if _pod_server_states is None:
+        return
+    for state in POD_SERVER_STATES:
+        yield Observation(_pod_server_states[state], {"state": state})
+
+
 get_meter(__name__).create_observable_gauge(
     "db.server.connections",
     callbacks=[_server_connections_callback],
     unit="{connection}",
     description="Backends open on the Postgres server, all clients",
+)
+get_meter(__name__).create_observable_gauge(
+    "db.server.pod_connections",
+    callbacks=[_pod_server_states_callback],
+    unit="{connection}",
+    description=(
+        "This pod's backends as Postgres sees them, by state: idle (open, "
+        "unused, what pool_size keeps warm), active (running a statement, "
+        "lock waits included), idle in transaction (held between statements)."
+    ),
 )
 
 
