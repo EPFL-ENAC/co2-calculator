@@ -50,12 +50,13 @@ local compose — real backend/worker pods are already on it. Run in order:
 
 ## What's in this folder
 
-| File              | Purpose                                                                                                                                                                  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `locustfile.py`   | The load scenarios: `ExplorerReadUser`, `ModuleReadUser`, `ExploreCreateUser`, `PlanUser`, `CsvUploadUser`                                                               |
-| `table_matrix.py` | Exhaustive table-endpoint sweep: every submodule × limit {20,100,500,1000} × every sort column × order, plus filter search, deep pagination, item GETs, chart companions |
-| `perf_common.py`  | Shared helpers (JWT minting, sort-column discovery) — importable without locust                                                                                          |
-| `report_slow.py`  | Scans stage CSVs for endpoints with p95 over a threshold                                                                                                                 |
+| File                      | Purpose                                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `locustfile.py`           | The load scenarios: `ExplorerReadUser`, `ModuleReadUser`, `ExploreCreateUser`, `PlanUser`, `CsvUploadUser`                                                                |
+| `table_matrix.py`         | Exhaustive table-endpoint sweep: every submodule × limit {20,100,500,1000} × every sort column × order, plus filter search, deep pagination, item GETs, chart companions  |
+| `perf_common.py`          | Shared helpers (JWT minting, sort-column discovery) — importable without locust                                                                                           |
+| `report_slow.py`          | Scans stage CSVs for endpoints with p95 over a threshold                                                                                                                  |
+| `pipeline_connections.py` | Samples `pg_stat_activity` while one upload per module type runs (`--parallel N` for N units at once): held connections per pipeline phase, for the connection budget doc |
 
 ## How auth works
 

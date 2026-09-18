@@ -50,9 +50,11 @@ The application connects to PostgreSQL using the `DB_URL` environment variable, 
       # use for backend and migrations job
       url: DB_URL
   ```
-- Migrations run automatically via an job on deployment. To check migration jobs:
+- Migrations run automatically via a Helm hook Job on deployment
+  (`helm/templates/migration-job.yaml`, `post-install,pre-upgrade`, so a
+  failed migration blocks the rollout). To check it:
   ```bash
-  kubectl logs -f job/migration
+  kubectl logs -f job/co2-calculator-migration-<release revision>
   ```
 
 ## Schema & Migrations
@@ -64,7 +66,7 @@ The application connects to PostgreSQL using the `DB_URL` environment variable, 
   make db-revision message="Add column"
   make db-migrate
   ```
-- Migrations are applied automatically in Helm deployments via a cron job via helm hook on post-install, post-upgrade
+- Migrations are applied automatically in Helm deployments by that hook Job (`post-install,pre-upgrade`, weight −1, deleted once succeeded)
 - See [erd.md](erd.md) for the schema diagram.
 
 ## ORM Integration
@@ -78,23 +80,25 @@ The application connects to PostgreSQL using the `DB_URL` environment variable, 
 
 ## Notes
 
-- **PgBouncer sits in front of every DBaaS instance** (dev, stage, prod —
-  confirmed by DBaaS on 2026-09-08). The app still connects to port 5432 via
-  `DB_URL`; SQLAlchemy's in-process pool (`DB_POOL_SIZE`/`DB_MAX_OVERFLOW`,
-  set per environment in `openshift-app-config`) is the client side of it.
-  Consequences:
-  - The bouncer's server pool, not Postgres `max_connections`, is the
-    connection ceiling. The `db.server.connections` gauge reads that pool
-    (~35 in dev). The "1000" DBaaS quotes is most likely `max_client_conn`.
-  - A client that waits past the bouncer's `query_wait_timeout` (~120 s)
+- **PgBouncer sits in front of the dev DBaaS instance only** (session
+  mode, `default_pool_size` 25, `max_client_conn` 1000, confirmed
+  2026-09-15; stage and prod still hit Postgres directly, see the
+  [connection budget](02-connection-budget.md)). The app still connects to
+  port 5432 via `DB_URL`; SQLAlchemy's in-process pool
+  (`DB_POOL_SIZE`/`DB_MAX_OVERFLOW`, set per environment in
+  `openshift-app-config`) is the client side of it. Consequences on dev:
+  - The bouncer's 25-slot server pool, not Postgres `max_connections`, is
+    the connection ceiling. The "1000" is `max_client_conn` and is never
+    the wall.
+  - A client that waits past the bouncer's `query_wait_timeout` (120 s)
     gets `psycopg.errors.ProtocolViolation: query_wait_timeout` — dev
     logged exactly that on 2026-09-08 while the SQLAlchemy pool was far
-    from full.
-  - `pool_mode` and `default_pool_size` are **not confirmed yet**. Under
-    transaction pooling every open transaction pins a server slot: the
-    request-scoped session from `get_db` holds one for the whole request
-    (the general case of #2654), and a long ingest holds one for its whole
-    run. Ask DBaaS (`SHOW POOLS`) before changing any pool number.
+    from full, and again on 2026-09-17 when a 20-job worker overran the
+    pool and locked every backend pod up.
+  - Session mode means a server slot is held for a client connection's
+    whole life, idle or not; the request-scoped session from `get_db`
+    holds one from its first query to the end of the response (#2654),
+    and a long ingest holds its connections for its whole run.
     Since #2689 `get_current_user` hands its connection back before the
     route body runs, so a request holds a connection only from its own
     first query to the end of the response.
