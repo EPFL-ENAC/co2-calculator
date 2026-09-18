@@ -69,6 +69,10 @@ test('a Detailed per Year section offers the equipment planning mode toggle', as
   // Per-line is the default, exactly as in the grant section.
   await expect(labels.nth(0)).toHaveAttribute('aria-pressed', 'true');
   await expect(labels.nth(1)).toHaveAttribute('aria-pressed', 'false');
+  // Per-line rows are copied at 0% of the reference year, not 100%.
+  await expect(
+    component.getByText(/percentage of the reference year, starting at 0%/),
+  ).toHaveCount(1);
 });
 
 test('the grant section keeps the same toggle', async ({ mount }) => {

@@ -2393,6 +2393,12 @@ onUnmounted(() => {
   gap: 1rem;
 }
 
+// A drag starting on the slider must not start a text selection: Quasar only
+// blocks selection once the drag passes its threshold.
+.reference-slider .q-slider {
+  user-select: none;
+}
+
 .reference-slider__value {
   display: flex;
   align-items: center;
