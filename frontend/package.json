@@ -40,7 +40,7 @@
     "@intlify/unplugin-vue-i18n": "=11.2.5",
     "@playwright/experimental-ct-vue": "=1.62.1",
     "@playwright/test": "=1.62.1",
-    "@quasar/app-vite": "=3.8.3",
+    "@quasar/app-vite": "=3.8.4",
     "@types/node": "=24.13.4",
     "@vue/eslint-config-typescript": "=14.9.0",
     "autoprefixer": "=10.5.6",
